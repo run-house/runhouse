@@ -1,0 +1,14 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: runhouse
+spec:
+  template:
+    metadata:
+      name: runhouse-dev-pod
+    spec:
+      containers:
+      - name: runhouse-dev
+        image: runhouse:1.0.1
+        imagePullPolicy: Never
+      restartPolicy: Never

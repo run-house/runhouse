@@ -1,4 +1,4 @@
-"""entry point script."""
+"""entry point script - needed for running the package as an executable"""
 
 from runhouse import cli, __app_name__
 
