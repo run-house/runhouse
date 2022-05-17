@@ -8,15 +8,14 @@ class ShellHandler:
 
     def __init__(self, host, username=None, path_to_pem=None):
         self.sm = SSHManager(host, username, path_to_pem)
-        self.client = self.sm.client
         self.sm.connect_to_server()
 
-        channel = self.client.invoke_shell()
+        channel = self.sm.client.invoke_shell()
         self.stdin = channel.makefile('wb')
         self.stdout = channel.makefile('r')
 
     def __del__(self):
-        self.client.close()
+        self.sm.client.close()
 
     @property
     def pkey(self):

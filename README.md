@@ -12,6 +12,6 @@ To open a bash shell on remote execution environment based on the rh_1_gpu hardw
 
 To run a python file on remote environment based on the same hardware:
 
-``python -m runhouse -h rh_1_gpu -f /Users/josh.l/dev/runhouse/runhouse/josh.py``
+``python -m runhouse -h rh_1_gpu -f ./training_script.py``
 
-*(Note: for now need the python -m since we have not deployed runhouse as a PyPI package)*
+*(Note: for now running as python module since it has not yet been deployed as a package)*

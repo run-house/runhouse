@@ -43,13 +43,39 @@ class SSHManager:
             logger.error('Unable to connect to server', extra={'error_msg': str(e),
                                                                **self._log_meta()})
 
-    def copy_file_to_remote_server(self, filepath: str):
+    def create_ftp_client(self):
+        self.connect_to_server()
+        return self.client.open_sftp()
+
+    def copy_file_to_remote_server(self, ftp_client, filepath: str):
         try:
-            self.connect_to_server()
-            ftp_client = self.client.open_sftp()
             dest_path = os.path.join(self.dest_dir, self._get_filename_from_path(filepath))
             ftp_client.put(filepath, dest_path)
             ftp_client.close()
         except Exception as e:
             logger.error('Unable to copy file to server', extra={'error_msg': str(e),
                                                                  **self._log_meta()})
+
+    def put_dir(self, ftp_client, source_dir, target_dir=None):
+        ''' Uploads the contents of the source directory to the target path. The
+            target directory needs to exists. All subdirectories in source are
+            created under target.
+        '''
+        target_dir = target_dir or self.dest_dir
+        for item in os.listdir(source_dir):
+            if os.path.isfile(os.path.join(source_dir, item)):
+                ftp_client.put(os.path.join(source_dir, item), '%s/%s' % (target_dir, item))
+            else:
+                self.create_dir(ftp_client, '%s/%s' % (target_dir, item), ignore_existing=True)
+                self.put_dir(os.path.join(source_dir, item), '%s/%s' % (target_dir, item))
+
+    @staticmethod
+    def create_dir(ftp_client, path, mode=511, ignore_existing=False):
+        ''' Augments mkdir by adding an option to not fail if the folder exists  '''
+        try:
+            ftp_client.mkdir(path, mode)
+        except IOError:
+            if ignore_existing:
+                pass
+            else:
+                raise
