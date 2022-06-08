@@ -12,6 +12,7 @@ from runhouse.ssh_manager import SSHManager
 from dotenv import load_dotenv
 
 # For now load from .env
+from runhouse.user_commands import cmd_commands
 from runhouse.utils import save_to_file, read_file, valid_filepath
 
 load_dotenv()
@@ -51,6 +52,7 @@ def filename_callback(filepath) -> None:
 def hardware_callback(hardware: str) -> None:
     if not valid_hardware(hardware):
         typer.echo(f"invalid hardware specification {hardware}")
+        typer.echo(f"Hardware options: {list(HARDWARE_TO_HOSTNAME)}")
         raise typer.Exit()
 
     open_bash_on_remote_server(hardware)
@@ -71,10 +73,10 @@ def get_hostname_from_hardware(hardware):
 
 
 def open_bash_on_remote_server(hardware):
-    typer.echo(f"Opening shell on remote resource with {hardware}")
     host = get_hostname_from_hardware(hardware)
+    typer.echo(f"Opening shell on remote resource with {hardware} on host {host}")
     sh = ShellHandler(host=host)
-    # TODO execute commands based on user input
+    cmd_commands(sh)
 
 
 def run_python_job_on_remote_server(filepath, hardware):
