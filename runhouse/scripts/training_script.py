@@ -1,7 +1,7 @@
 """Mock python job to run on remote server"""
 import time
 
-from runhouse.utils import create_directory
+from runhouse.utils.utils import create_directory
 
 DEST_DIR = 'training_folder'
 

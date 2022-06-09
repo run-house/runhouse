@@ -15,7 +15,7 @@ def console(q, lock):
 
 
 def exit_cmd(cmd) -> bool:
-    if cmd.lower() == 'quit' or cmd.lower() == 'exit':
+    if cmd.lower() in ['quit', 'exit', 'quit()', 'exit()']:
         return True
     return False
 

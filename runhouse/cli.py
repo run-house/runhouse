@@ -9,7 +9,7 @@ from runhouse import __app_name__, __version__
 from runhouse.shell_handler import ShellHandler
 from runhouse.ssh_manager import SSHManager
 from runhouse.process_commands import process_cmd_commands
-from runhouse.utils import save_to_file, read_file, valid_filepath
+from runhouse.utils.utils import save_to_file, read_file, valid_filepath
 
 # For now load from .env
 from dotenv import load_dotenv
