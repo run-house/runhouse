@@ -34,16 +34,17 @@ def filename_callback(filepath) -> None:
     if filepath is None:
         return
 
-    if not valid_filepath(filepath):
+    full_path = os.path.join(os.getcwd(), Path(__file__).parent, filepath)
+    if not valid_filepath(full_path):
         typer.echo(f"invalid filepath provided: '{filepath}'")
-        raise typer.Exit()
+        raise typer.Exit(code=1)
 
     # TODO this hardware should be dynamic (i.e. we need access to hardware param in this callback)
     hardware = os.getenv('DEFAULT_HARDWARE')
 
     # Copy the python script (and possible dependencies) to remote server and run it
-    run_python_job_on_remote_server(filepath, hardware=hardware)
-
+    run_python_job_on_remote_server(full_path, hardware=hardware)
+    typer.echo("Finished running job on remote server")
     raise typer.Exit()
 
 
@@ -51,9 +52,10 @@ def hardware_callback(hardware: str) -> None:
     if not valid_hardware(hardware):
         typer.echo(f"invalid hardware specification {hardware}")
         typer.echo(f"Hardware options: {list(HARDWARE_TO_HOSTNAME)}")
-        raise typer.Exit()
+        raise typer.Exit(code=1)
 
     open_bash_on_remote_server(hardware)
+    raise typer.Exit()
 
 
 def valid_hardware(hardware) -> bool:
@@ -67,15 +69,14 @@ def get_hostname_from_hardware(hardware):
         return hostname
 
     typer.echo(f"host name not found for hardware {hardware}")
-    typer.Exit()
+    typer.Exit(code=1)
 
 
 def open_bash_on_remote_server(hardware):
     host = get_hostname_from_hardware(hardware)
-    typer.echo(f"Opening shell with {hardware} on host {host}")
+    typer.echo(f"Opening shell with {hardware} on host {host}\n")
     sh = ShellHandler(host=host)
     process_cmd_commands(sh)
-    sh.close()
 
 
 def run_python_job_on_remote_server(filepath, hardware):
@@ -85,16 +86,7 @@ def run_python_job_on_remote_server(filepath, hardware):
         sm = SSHManager(hostname=hostname)
         ftp_client = sm.create_ftp_client()
 
-        # TODO identify if we need to also copy any directories (in addition to the file)
-        #  without the user having to explicitly define them
-        copy_dir = False
-        if copy_dir:
-            # TODO Here we arbitrarily copy the contents of the parent's parent directory
-            path = Path(filepath)
-            source_dir = path.parent.parent
-            sm.put_dir(ftp_client=ftp_client, source_dir=source_dir)
-        else:
-            sm.copy_file_to_remote_server(ftp_client=ftp_client, filepath=filepath)
+        sm.copy_file_to_remote_server(ftp_client=ftp_client, filepath=filepath)
 
         # open the module locally as a text file
         txt_file = read_file(filepath)

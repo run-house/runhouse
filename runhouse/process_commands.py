@@ -31,5 +31,11 @@ def process_cmd_commands(sh: ShellHandler):
         cmd = cmd_queue.get()
         if exit_cmd(cmd):
             break
-        # TODO maybe validate the user input? (check syntax errors, etc.)
+
+        # run the command
         sh.execute(cmd)
+        # TODO show the output of the commands
+
+    # Close the shell and ssh connection after user terminates
+    sh.channel.close()
+    sh.close()

@@ -23,4 +23,5 @@ def read_file(filepath):
 
 
 def valid_filepath(filepath) -> bool:
+    # NOTE: Assumes the scripts live in the "scripts" folder
     return os.path.exists(filepath)

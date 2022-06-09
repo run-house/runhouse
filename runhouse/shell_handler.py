@@ -10,9 +10,9 @@ class ShellHandler:
         self.sm = SSHManager(host, username, path_to_pem)
         self.sm.connect_to_server()
 
-        channel = self.sm.client.invoke_shell()
-        self.stdin = channel.makefile('wb')
-        self.stdout = channel.makefile('r')
+        self.channel = self.sm.client.invoke_shell()
+        self.stdin = self.channel.makefile('wb')
+        self.stdout = self.channel.makefile('r')
 
     def close(self):
         self.sm.client.close()
