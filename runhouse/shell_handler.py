@@ -14,7 +14,7 @@ class ShellHandler:
         self.stdin = channel.makefile('wb')
         self.stdout = channel.makefile('r')
 
-    def __del__(self):
+    def close(self):
         self.sm.client.close()
 
     @property

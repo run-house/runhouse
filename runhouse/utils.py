@@ -22,5 +22,5 @@ def read_file(filepath):
     return data
 
 
-def valid_filepath(filepath):
+def valid_filepath(filepath) -> bool:
     return os.path.exists(filepath)

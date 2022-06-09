@@ -1,15 +1,11 @@
 import threading
 import queue
-import typer
 
 from runhouse.shell_handler import ShellHandler
 
 
 def console(q, lock):
-    typer.echo("****To exit at anytime type 'exit' or 'quit'****")
     while 1:
-        typer.echo("Press Enter to begin writing commands")
-        input()  # After pressing Enter you'll be in "input mode"
         with lock:
             cmd = input('>> ')
 
@@ -18,18 +14,13 @@ def console(q, lock):
             break
 
 
-def invalid_input(lock):
-    with lock:
-        print('--> Unknown command')
-
-
 def exit_cmd(cmd) -> bool:
     if cmd.lower() == 'quit' or cmd.lower() == 'exit':
         return True
     return False
 
 
-def cmd_commands(sh: ShellHandler):
+def process_cmd_commands(sh: ShellHandler):
     cmd_queue = queue.Queue()
     stdout_lock = threading.Lock()
 
@@ -40,5 +31,5 @@ def cmd_commands(sh: ShellHandler):
         cmd = cmd_queue.get()
         if exit_cmd(cmd):
             break
-        print("cmd", cmd)
+        # TODO maybe validate the user input? (check syntax errors, etc.)
         sh.execute(cmd)

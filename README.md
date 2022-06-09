@@ -6,7 +6,7 @@ Initial features:
 
 *Sample commands*: 
 
-To open a bash shell on remote execution environment based on the rh_1_gpu hardware spec:
+To open a bash shell on remote execution environment based on the rh_1_gpu (single GPU) hardware spec:
 
 ```python -m runhouse -h rh_1_gpu```
 

@@ -8,13 +8,11 @@ import typer
 from runhouse import __app_name__, __version__
 from runhouse.shell_handler import ShellHandler
 from runhouse.ssh_manager import SSHManager
-
-from dotenv import load_dotenv
-
-# For now load from .env
-from runhouse.user_commands import cmd_commands
+from runhouse.process_commands import process_cmd_commands
 from runhouse.utils import save_to_file, read_file, valid_filepath
 
+# For now load from .env
+from dotenv import load_dotenv
 load_dotenv()
 
 # # creates an explicit Typer application, app
@@ -74,9 +72,10 @@ def get_hostname_from_hardware(hardware):
 
 def open_bash_on_remote_server(hardware):
     host = get_hostname_from_hardware(hardware)
-    typer.echo(f"Opening shell on remote resource with {hardware} on host {host}")
+    typer.echo(f"Opening shell with {hardware} on host {host}")
     sh = ShellHandler(host=host)
-    cmd_commands(sh)
+    process_cmd_commands(sh)
+    sh.close()
 
 
 def run_python_job_on_remote_server(filepath, hardware):
@@ -104,9 +103,8 @@ def run_python_job_on_remote_server(filepath, hardware):
         remote_python_dir = os.getenv('REMOTE_PYTHON_PATH')
 
         # Execute the file after connecting/ssh to the instance
-        stdin, stdout, stderr = sm.client.exec_command(
-            "{p}python3 - <<EOF\n{s}\nEOF".format(p=remote_python_dir,
-                                                  s=txt_file))
+        stdin, stdout, stderr = sm.client.exec_command("{p}python3 - <<EOF\n{s}\nEOF".format(p=remote_python_dir,
+                                                                                             s=txt_file))
         stdout = stdout.readlines()
 
         # TODO incorporate some logging / optionality to save them locally
