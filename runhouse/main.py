@@ -2,10 +2,10 @@
 import os
 import json
 import logging
+import pkg_resources
 from pathlib import Path
 from typing import Optional
 import typer
-from runhouse import __app_name__, __version__
 from runhouse.redis.db_api import DatabaseAPI
 from runhouse.shell_handler import ShellHandler
 from runhouse.ssh_manager import SSHManager
@@ -27,7 +27,9 @@ HARDWARE_TO_HOSTNAME = json.loads(os.getenv('HARDWARE_TO_HOSTNAME'))
 
 def version_callback(value: bool) -> None:
     if value:
-        typer.echo(f"{__app_name__}=={__version__}")
+        name = 'runhouse'
+        version = pkg_resources.get_distribution(name).version
+        typer.echo(f"{name}=={version}")
         raise typer.Exit()
 
 
