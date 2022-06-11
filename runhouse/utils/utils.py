@@ -1,4 +1,5 @@
 import os
+import time
 
 
 def create_directory(dir_name):
@@ -25,3 +26,7 @@ def read_file(filepath):
 def valid_filepath(filepath) -> bool:
     # NOTE: Assumes the scripts live in the "scripts" folder
     return os.path.exists(filepath)
+
+
+def current_time() -> float:
+    return time.time()
