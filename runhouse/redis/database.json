@@ -1,0 +1,22 @@
+{
+  "/runhouse_admin/graphics_preprocessing": {
+    "hardware": "rh_1_gpu",
+    "code": "\n        def bert_preprocessing():\n        DEST_DIR = 'training_folder_bert'\n        print(\"Starting model training\")\n        create_directory(DEST_DIR)\n        time.sleep(5)\n        print(f\"Finished training - saved results to {DEST_DIR}\")\n    ",
+    "date_added": 1654972701.6639
+  },
+  "/runhouse_admin/text_preprocessing": {
+    "hardware": "rh_1_gpu",
+    "code": "\n        def bert_preprocessing():\n        DEST_DIR = 'training_folder_bert'\n        print(\"Starting model training\")\n        create_directory(DEST_DIR)\n        time.sleep(5)\n        print(f\"Finished training - saved results to {DEST_DIR}\")\n    ",
+    "date_added": 1654972760.080626
+  },
+  "/runhouse_admin/image_preprocessing": {
+    "hardware": "rh_1_gpu",
+    "code": "\n        def bert_preprocessing():\n        DEST_DIR = 'training_folder_bert'\n        print(\"Starting model training\")\n        create_directory(DEST_DIR)\n        time.sleep(5)\n        print(f\"Finished training - saved results to {DEST_DIR}\")\n    ",
+    "date_added": 1654972774.739861
+  },
+  "/randy_landes/image_preprocessing": {
+    "hardware": "rh_1_gpu",
+    "code": "\n        def bert_preprocessing():\n        DEST_DIR = 'training_folder_bert'\n        print(\"Starting model training\")\n        create_directory(DEST_DIR)\n        time.sleep(5)\n        print(f\"Finished training - saved results to {DEST_DIR}\")\n    ",
+    "date_added": 1654973546.4499042
+  }
+}
