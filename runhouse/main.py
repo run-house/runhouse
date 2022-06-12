@@ -159,8 +159,8 @@ def version_callback(value: bool) -> None:
 @app.callback()
 def common(ctx: typer.Context,
            hardware: str = typer.Option(os.getenv('DEFAULT_HARDWARE'), '--hardware', '-h', help='hardware'),
-           code: str = typer.Option(None, '-c', help='register code to URI'),
-           filename: str = typer.Option(None, '-f', help='run a file on remote server'),
+           code: str = typer.Option(None, '--code', '-c', help='register code to URI'),
+           filename: str = typer.Option(None, '--filename', '-f', help='run a file on remote server'),
            version: Optional[bool] = typer.Option(None, '--version', '-v', callback=version_callback,
                                                   help='current package version')):
     """Common Entry Point"""

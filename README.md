@@ -24,3 +24,9 @@ To run a python file on remote environment based on the same hardware:
 To register a URI for the code in a given file on specified hardware:
 
 ``runhouse -c ./bert_preprocessing.py register --user josh --name bert-preprocessing``
+
+*Support*: 
+
+``runhouse --help``
+
+``runhouse --version``
