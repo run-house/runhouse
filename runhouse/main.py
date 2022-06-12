@@ -3,10 +3,11 @@ import os
 import json
 import logging
 from dataclasses import dataclass
+import inspect
+import importlib
 from typing import Optional
 
 import pkg_resources
-from pathlib import Path
 import typer
 from runhouse.redis.db_api import DatabaseAPI
 from runhouse.shell_handler import ShellHandler
@@ -27,8 +28,16 @@ logger = logging.getLogger(__name__)
 HARDWARE_TO_HOSTNAME = json.loads(os.getenv('HARDWARE_TO_HOSTNAME'))
 
 
-def valid_hardware(hardware) -> bool:
-    return hardware in list(HARDWARE_TO_HOSTNAME)
+def validate_hardware(hardware):
+    if hardware not in list(HARDWARE_TO_HOSTNAME):
+        typer.echo(f"invalid hardware specification")
+        typer.echo(f"Please choose from the following options: {list(HARDWARE_TO_HOSTNAME)}")
+        raise typer.Exit(code=1)
+
+
+def convert_path_to_module(file_path):
+    """Convert path to file received by CLI arg to an importable module"""
+    return file_path.replace('/', '.').rsplit('.', 1)[0]
 
 
 def get_hostname_from_hardware(hardware):
@@ -43,7 +52,7 @@ def get_hostname_from_hardware(hardware):
 
 def open_bash_on_remote_server(hardware):
     host = get_hostname_from_hardware(hardware)
-    typer.echo(f"Opening shell with {hardware} on host {host}\n")
+    typer.echo(f"Opening shell with {hardware}\n")
     sh = ShellHandler(host=host)
     process_cmd_commands(sh)
 
@@ -82,24 +91,23 @@ def run_python_job_on_remote_server(filepath, hardware):
 @dataclass
 class Common:
     hardware: str
-    code: str
-    filename: str
+    filepath: str
 
 
 @app.command()
 def run(ctx: typer.Context):
-    """Run file based on path and hardware provided"""
+    """Run file provided on specified hardware"""
     # Full path based on file system
-    file_name = ctx.obj.filename
-    full_path = os.path.join(os.getcwd(), Path(__file__).parent, file_name)
-    if not valid_filepath(full_path):
-        typer.echo(f"invalid filepath provided: '{file_name}'")
+    file_path = ctx.obj.filepath
+    if not valid_filepath(file_path):
+        typer.echo(f"invalid filepath provided: '{file_path}'")
         raise typer.Exit(code=1)
 
-    hardware = ctx.obj.hardware
+    hardware = ctx.obj.hardware or os.getenv('DEFAULT_HARDWARE')
+    typer.echo(f'Running job on server with hardware: {hardware}')
     # Copy the python script (and possible dependencies) to remote server and run it
-    run_python_job_on_remote_server(full_path, hardware=hardware)
-    typer.echo(f"Finished running job on remote server with hardware {hardware}")
+    run_python_job_on_remote_server(file_path, hardware=hardware)
+    typer.echo(f"Finished running job on server")
     raise typer.Exit()
 
 
@@ -107,49 +115,46 @@ def run(ctx: typer.Context):
 def shell(ctx: typer.Context) -> None:
     """Open a bash shell on remote server with provided hardware"""
     hardware = ctx.obj.hardware
-    if not valid_hardware(hardware):
-        typer.echo(f"invalid hardware specification {hardware}")
-        typer.echo(f"Hardware options: {list(HARDWARE_TO_HOSTNAME)}")
-        raise typer.Exit(code=1)
-
+    validate_hardware(hardware)
     open_bash_on_remote_server(hardware)
     raise typer.Exit()
 
 
 @app.command()
-def register(ctx: typer.Context, user: str = typer.Option(None, '--user', '-u', help='user who is registering the URI'),
-             name: str = typer.Option(None, '--name', '-n', help='name of the URI')) -> None:
+def register(ctx: typer.Context,
+             user: str = typer.Option(os.getenv('DEMO_USER'), '--user', '-u', help='user who is registering the URI'),
+             name: str = typer.Option(os.getenv('DEMO_URI_NAME'), '--name', '-n', help='name of the URI')) -> None:
     """Register python function as URI"""
-
-    # TODO grab the source code for the function path provided
-    code = """
-           def bert_preprocessing():
-           DEST_DIR = 'training_folder_bert'
-           print("Starting model training")
-           create_directory(DEST_DIR)
-           time.sleep(5)
-           print(f"Finished training - saved results to {DEST_DIR}")
-       """
     hardware = ctx.obj.hardware
+    validate_hardware(hardware)
 
-    registered_user = user or os.getenv('DEMO_USER')
-    registered_name = name or os.getenv('DEMO_URI_NAME')
-    uri = f"/{registered_user}/{registered_name}"
+    file_path = ctx.obj.filepath
+    if file_path is None or not valid_filepath(file_path):
+        typer.echo("Must provide a valid file path to the code to register")
+        raise typer.Exit(code=1)
+
+    # Get the code provided
+    module_path = convert_path_to_module(file_path)
+    m = importlib.import_module(module_path)
+    code = inspect.getsource(m)
+
+    # TODO uri should be dynamic? user defined?
+    uri = f"/{user}/{name}"
 
     # cache the provided uri, function contents, and specified hardware in redis
     # TODO implement redis here as the DB
     db_api = DatabaseAPI(uri=uri)
     if db_api.key_exists_in_db():
-        typer.echo(f'URI already exists for hardware {hardware} and user {registered_user} and name {registered_name}')
+        typer.echo(f'URI already exists for hardware {hardware}')
     else:
-        typer.echo(f'Adding URI for hardware {hardware} and user {registered_user} and name {registered_name}')
+        typer.echo(f'Adding URI for hardware {hardware} and user {user}')
         db_api.add_cached_uri_to_db(hardware=hardware, code=code)
 
     raise typer.Exit()
 
 
 def version_callback(value: bool) -> None:
-    if value:
+    if value is not None:
         name = 'runhouse'
         version = pkg_resources.get_distribution(name).version
         typer.echo(f"{name}=={version}")
@@ -159,9 +164,9 @@ def version_callback(value: bool) -> None:
 @app.callback()
 def common(ctx: typer.Context,
            hardware: str = typer.Option(os.getenv('DEFAULT_HARDWARE'), '--hardware', '-h', help='hardware'),
-           code: str = typer.Option(None, '--code', '-c', help='register code to URI'),
-           filename: str = typer.Option(None, '--filename', '-f', help='run a file on remote server'),
+           filepath: str = typer.Option(None, '--path', '-p',
+                                        help='Path to file to run on specified hardware or to register as URI'),
            version: Optional[bool] = typer.Option(None, '--version', '-v', callback=version_callback,
                                                   help='current package version')):
-    """Common Entry Point"""
-    ctx.obj = Common(hardware, code, filename)
+    """Welcome to Runhouse! Here's what you need to get started"""
+    ctx.obj = Common(hardware, filepath)

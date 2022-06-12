@@ -7,7 +7,7 @@ Initial features:
 - command for running python code in a remote environment on specified hardware 
 
 
-*To download the runhouse package (from within the dist folder)*
+*To download the runhouse package*
 
 ``pip install runhouse-0.1.0-py3-none-any.whl``
 
@@ -19,11 +19,11 @@ To open a bash shell on remote execution environment based on the default rh_1_g
 
 To run a python file on remote environment based on the same hardware:
 
-``runhouse -f ./training_script.py run``
+``runhouse -p runhouse/scripts/training_script.py run``
 
-To register a URI for the code in a given file on specified hardware:
+To register a URI for the code in a specific file based on specified hardware:
 
-``runhouse -c ./bert_preprocessing.py register --user josh --name bert-preprocessing``
+``runhouse -h rh_1_gpu runhouse -p runhouse/scripts/training_script.py register --user josh --name bert-preprocessing``
 
 *Support*: 
 
