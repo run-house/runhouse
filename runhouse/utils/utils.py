@@ -1,5 +1,7 @@
 import os
 import time
+import random
+import string
 
 
 def create_directory(dir_name):
@@ -30,3 +32,7 @@ def valid_filepath(filepath) -> bool:
 
 def current_time() -> float:
     return time.time()
+
+
+def random_string_generator(str_size=12, allowed_chars=string.ascii_letters):
+    return ''.join(random.choice(allowed_chars) for x in range(str_size))
