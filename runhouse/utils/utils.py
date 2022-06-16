@@ -1,7 +1,12 @@
 import os
+import shutil
 import time
 import random
-import string
+
+import nltk
+# TODO downloading nltk seems unnecessary
+# nltk.download('gutenberg')
+from nltk.corpus import gutenberg
 
 
 def create_directory(dir_name):
@@ -26,7 +31,6 @@ def read_file(filepath):
 
 
 def valid_filepath(filepath) -> bool:
-    # NOTE: Assumes the scripts live in the "scripts" folder
     return os.path.exists(filepath)
 
 
@@ -34,5 +38,19 @@ def current_time() -> float:
     return time.time()
 
 
-def random_string_generator(str_size=12, allowed_chars=string.ascii_letters):
-    return ''.join(random.choice(allowed_chars) for x in range(str_size))
+def random_string_generator():
+    """Return random name based on moby dick"""
+    moby = set(nltk.Text(gutenberg.words('melville-moby_dick.txt')))
+    moby = [word.lower() for word in moby if len(word) > 2]
+    return '-'.join(random.sample(set(moby), 2))
+
+
+def delete_directory(directory):
+    try:
+        shutil.rmtree(directory)
+    except OSError as e:
+        print("Error: %s - %s." % (e.filename, e.strerror))
+
+
+def error_flag():
+    return "[ERROR]"
