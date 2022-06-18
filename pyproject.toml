@@ -51,7 +51,6 @@ python-dateutil = "2.8.2"
 python-dotenv = "0.20.0"
 PyYAML = "6.0"
 docker = "5.0.3"
-nltk = "3.7"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

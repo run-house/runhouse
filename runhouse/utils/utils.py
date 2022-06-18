@@ -3,11 +3,6 @@ import shutil
 import time
 import random
 
-import nltk
-# TODO downloading nltk seems unnecessary
-# nltk.download('gutenberg')
-from nltk.corpus import gutenberg
-
 
 def create_directory(dir_name):
     if not os.path.exists(dir_name):
@@ -40,9 +35,8 @@ def current_time() -> float:
 
 def random_string_generator():
     """Return random name based on moby dick"""
-    moby = set(nltk.Text(gutenberg.words('melville-moby_dick.txt')))
-    moby = [word.lower() for word in moby if len(word) > 2]
-    return '-'.join(random.sample(set(moby), 2))
+    words = read_list_from_file(file_name="names.txt")
+    return '-'.join(random.sample(set(words), 2))
 
 
 def delete_directory(directory):
@@ -52,5 +46,23 @@ def delete_directory(directory):
         print("Error: %s - %s." % (e.filename, e.strerror))
 
 
-def error_flag():
-    return "[ERROR]"
+def write_list_to_file(file_name, lst):
+    with open(file_name, 'w') as filehandle:
+        filehandle.writelines("%s\n" % word for word in lst)
+
+
+def read_list_from_file(file_name):
+    # define empty list
+    words = []
+
+    # open file and read the content in a list
+    with open(file_name, 'r') as filehandle:
+        filecontents = filehandle.readlines()
+
+        for line in filecontents:
+            # remove linebreak which is the last character of the string
+            current_word = line[:-1]
+            # add item to the list
+            words.append(current_word)
+
+    return words
