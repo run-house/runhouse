@@ -2,14 +2,13 @@
 import warnings
 
 # Suppress warnings when running commands
-import pkg_resources
 from cryptography.utils import CryptographyDeprecationWarning
-
 warnings.filterwarnings("ignore", category=CryptographyDeprecationWarning)
 
 import os
 import json
 from pathlib import Path
+import pkg_resources
 import typer
 from typing import Optional
 from runhouse.common import Common
@@ -26,7 +25,6 @@ from runhouse.utils.validation import validate_runnable_file_path, validate_name
 
 # For now load from .env
 from dotenv import load_dotenv
-
 load_dotenv()
 
 # # creates an explicit Typer application, app
