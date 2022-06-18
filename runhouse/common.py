@@ -14,10 +14,12 @@ class Common:
     anon: bool
     rename: str
 
+    # Options we want to specifically check if changed by the user between runs
+    OPTIONS_TO_CHECK = {'hardware', 'dockerfile', 'file', 'image', 'shell', 'path'}
+
     @property
     def args_to_check(self):
-        return {'hardware': self.hardware, 'dockerfile': self.dockerfile, 'file': self.file, 'image': self.image,
-                'shell': self.shell, 'path': self.path}
+        return {k: v for k, v in vars(self).items() if k in self.OPTIONS_TO_CHECK}
 
     @property
     def user_provided_args(self):
