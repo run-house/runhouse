@@ -6,36 +6,32 @@ from cryptography.utils import CryptographyDeprecationWarning
 warnings.filterwarnings("ignore", category=CryptographyDeprecationWarning)
 
 import os
-import json
-from pathlib import Path
-import pkg_resources
 import typer
 from typing import Optional
+from docker import DockerClient
+from pathlib import Path
+import pkg_resources
 from runhouse.common import Common
 from runhouse.shell_handler import ShellHandler
 from runhouse.ssh_manager import SSHManager
 from runhouse.process_commands import process_cmd_commands
 from runhouse.utils.utils import ERROR_FLAG
-from runhouse.config import Config
-from runhouse.utils.docker_utils import dockerfile_has_changed, get_path_to_dockerfile, default_image_name, \
-    launch_local_docker_client, bring_image_from_docker_client, build_and_save_image
-from runhouse.utils.file_utils import copy_runnable_file_to_runhouse_subdir, create_name_for_folder, delete_directory, \
-    create_directory
+from runhouse.config_parser import Config
+from runhouse.utils.docker_utils import dockerfile_has_changed, get_path_to_dockerfile, launch_local_docker_client, \
+    bring_image_from_docker_client, build_and_save_image
+from runhouse.utils.file_utils import create_name_for_folder, delete_directory, create_directories, \
+    copy_file_to_directory
 from runhouse.utils.validation import validate_runnable_file_path, validate_name, validate_hardware, valid_filepath
-
-# For now load from .env
-from dotenv import load_dotenv
-load_dotenv()
 
 # # creates an explicit Typer application, app
 app = typer.Typer(add_completion=False)
 
 RUNHOUSE_DIR = os.path.join(os.getcwd(), Path(__file__).parent.parent.absolute(), 'runhouse')
 
-# map each hardware option to its IP / host
-HARDWARE_TO_HOSTNAME = json.loads(os.getenv('HARDWARE_TO_HOSTNAME'))
+# Mapping each hardware option to its elastic IP
+HARDWARE_TO_HOSTNAME = {"rh_1_gpu": "3.136.181.23", "rh_8_gpu": "3.136.181.23", "rh_16_gpu": "3.136.181.23"}
 
-# Create config object used for managing file actions
+# Create config object used for managing the read / write to the config file
 cfg = Config()
 
 
@@ -120,29 +116,34 @@ def build_path_to_parent_dir(ctx, config_kwargs):
     return Path(RUNHOUSE_DIR).parent.absolute()
 
 
+def create_sh_file_in_dir(dir_name, file_name, text):
+    with open(os.path.join(dir_name, file_name), 'w') as rsh:
+        rsh.write(f'''#! /bin/sh\n{text}''')
+
+
 def create_runnable_file_in_runhouse_subdir(path_to_runnable_file, name_dir, optional_cli_args):
     """Build the internal file in the runhouse directory used for executing the code the user wants to run remotely"""
     ext = os.path.splitext(path_to_runnable_file)[1]
+    file_name = os.path.basename(path_to_runnable_file)
+    formatted_args: str = ' '.join(optional_cli_args)
+    path_to_file_from_subdir = os.path.join(Path(__file__).parents[0], file_name)
+
     if ext not in ['.py', '.sh']:
         typer.echo(f'{ERROR_FLAG} Runhouse currently supports file types with extensions .py or .sh')
         raise typer.Exit(code=1)
     elif ext == '.py':
-        copy_runnable_file_to_runhouse_subdir(path_to_runnable_file, name_dir, ext)
-        if optional_cli_args:
-            # TODO can't think of an elegant way to add the args as env variables to this run.py file
-            pass
+        cmd = f"python3 {path_to_file_from_subdir} {formatted_args}"
     else:
-        copy_runnable_file_to_runhouse_subdir(path_to_runnable_file, name_dir, ext)
-        if optional_cli_args:
-            # TODO add the cli args the user gave as env variables in the run file
-            pass
+        cmd = f"{path_to_file_from_subdir} {formatted_args}"
+
+    create_sh_file_in_dir(dir_name=name_dir, file_name='run.sh', text=cmd)
 
 
 def user_rebuild_response(resp: str) -> bool:
     if resp.lower() not in ['yes', 'y', 'no', 'n']:
         typer.echo(f'{ERROR_FLAG} Invalid rebuild prompt')
         raise typer.Exit(code=1)
-    return resp in ['yes', 'y']
+    return resp.lower() in ['yes', 'y']
 
 
 def should_we_rebuild(ctx, optional_args, config_path, config_kwargs, path_to_dockerfile) -> bool:
@@ -161,6 +162,7 @@ def should_we_rebuild(ctx, optional_args, config_path, config_kwargs, path_to_do
     provided_options = ctx.obj.user_provided_args
     changed_vals = {k: provided_options[k] for k in provided_options if provided_options[k] != config_kwargs[k]
                     and provided_options[k] is not None and k in list(ctx.obj.args_to_check)}
+
     # If any argument(s) differs let's ask the user if they want to trigger a rebuild
     if changed_vals:
         resp = typer.prompt(f'New options provided for: {", ".join(list(changed_vals))} \n'
@@ -198,17 +200,20 @@ def run(ctx: typer.Context):
     name_dir = os.path.join(RUNHOUSE_DIR, name)
     config_path = os.path.join(name_dir, Config.CONFIG_FILE)
 
-    path_to_runnable_file: str = ctx.obj.file
     # Try to read the config file which we will begin to populate with the params the user provided
-    config_kwargs: dict = cfg.bring_config_kwargs(config_path, name, path_to_runnable_file)
+    config_kwargs: dict = cfg.bring_config_kwargs(config_path, name)
+
+    # Update the path to the runnable file with one defined in the config if it exists
+    path_to_runnable_file = ctx.obj.file or config_kwargs.get('file')
 
     # Make sure hardware specs are valid
     hardware = ctx.obj.hardware or config_kwargs.get('hardware')
     validate_hardware(hardware, hardware_to_hostname=HARDWARE_TO_HOSTNAME)
 
     # Generate the path to where the dockerfile should live
-    path_to_parent_dir = build_path_to_parent_dir(ctx, config_kwargs)
+    path_to_parent_dir: Path = build_path_to_parent_dir(ctx, config_kwargs)
     dockerfile: str = get_path_to_dockerfile(name_dir, config_kwargs, ctx)
+    images_dir: str = os.path.join(name_dir, "images")
 
     # Additional args used for running the file (separate from the predefined CLI options)
     optional_cli_args: list = ctx.args
@@ -222,10 +227,12 @@ def run(ctx: typer.Context):
         typer.echo(f'{ERROR_FLAG} No requirements.txt found in parent directory - please add before continuing')
         raise typer.Exit(code=1)
 
-    # make sure we have the relevant directories (parent + named subdir) created on the user's file system
-    create_directory(RUNHOUSE_DIR)
-    # create the subdir of the named uri
-    create_directory(name_dir)
+    # TODO is there a way around this? You can only copy files that are located within the local source tree
+    copy_file_to_directory(path_to_reqs, os.path.join(name_dir, "requirements.txt"))
+
+    # make sure we have the relevant directories created on the user's file system
+    # create the main runhouse dir, the subdir of the named uri, and the images dir
+    create_directories([RUNHOUSE_DIR, name_dir, images_dir])
 
     # Check if user provided the name of the file to be executed
     validate_runnable_file_path(path_to_runnable_file)
@@ -234,35 +241,27 @@ def run(ctx: typer.Context):
     create_runnable_file_in_runhouse_subdir(path_to_runnable_file, name_dir, optional_cli_args)
 
     # Try loading the local image if it exists
-    image_path = f'{name}.tar'  # TODO add specific folder for saving images (or maybe in /tmp)?
+    image_path = os.path.join(images_dir, f'{name}.tar')
     image_id = ctx.obj.image
 
     # If we were instructed to rebuild or the image still does not exist - build one from scratch
     if rebuild or image_id is None:
         typer.echo('Rebuilding the image')
-        # Give the image a default name if not given one (with current timestamp)
-        image_id = default_image_name(name)
         # grab the docker related params - if none provided will have to build the dockerfile + image
-        docker_client = launch_local_docker_client()
-        image = bring_image_from_docker_client(docker_client, image_id)
+        docker_client: DockerClient = launch_local_docker_client()
+        image_obj = bring_image_from_docker_client(docker_client, image_id)
 
-        # Create the image we need to run the code remotely
-        image_exists = build_and_save_image(image, image_path, path_to_reqs, dockerfile, docker_client, name,
-                                            name_dir, hardware)
-        if image_exists:
-            # If we succeeded in building the image and have it then let's run it
-            typer.echo(f'[2/3] Running with hardware {hardware}')
+        if image_obj is None:
+            # Create the image we need to run the code remotely
+            build_and_save_image(image_obj, dockerfile, docker_client, name, name_dir, hardware)
 
-            # TODO Copy the image to remote server and run it there - will prob be easier to change this up using k8s
-            # run_image_on_remote_server(path_to_image, hardware=hardware)
-            typer.echo(f'[3/3] Finished running')
-        else:
-            # If we failed to load the image then save as null in the config
-            image_id = None
-            image_path = None
+        # Once we have the image we can deploy and run it
+        typer.echo(f'[2/3] Running image with hardware {hardware}')
+        # TODO Copy the image to remote server and run it there - will prob be easier to change this up using k8s
+        # run_image_on_remote_server(image_obj, hardware=hardware)
+        typer.echo(f'[3/3] Finished running')
 
-    # even if we failed to build or failed to build image load the image still continue to set up the config
-    # make sure the config file is updated for the next run
+    # even if we failed to build or load the image still continue to set up the config so we have it for the next run
     cfg.create_or_update_config_file(name_dir, path=path_to_parent_dir, file=path_to_runnable_file, name=name,
                                      hardware=hardware, dockerfile=dockerfile, image_id=image_id, image_path=image_path,
                                      rebuild=rebuild, config_kwargs=config_kwargs)

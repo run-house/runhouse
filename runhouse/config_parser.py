@@ -53,7 +53,7 @@ class Config:
         rebuild = kwargs.get('rebuild')
 
         self.config.set(self.MAIN_CONF_HEADER, 'name', kwargs.get('name'))
-        self.config.set(self.MAIN_CONF_HEADER, 'hardware', kwargs.get('hardware', os.getenv('DEFAULT_HARDWARE')))
+        self.config.set(self.MAIN_CONF_HEADER, 'hardware', kwargs.get('hardware', 'rh_1_gpu'))
         self.config.set(self.MAIN_CONF_HEADER, 'path', str(kwargs.get('path')))
         self.config.set(self.MAIN_CONF_HEADER, 'file', kwargs.get('file'))
         self.config.set(self.MAIN_CONF_HEADER, 'last_run', str(current_time()))
@@ -63,9 +63,8 @@ class Config:
         self.config.set(self.DOCKER_CONF_HEADER, 'image_path', kwargs.get('image_path'))
 
         dockerfile_time_added = kwargs.get('config_kwargs', {}).get('dockerfile_time_added')
-        if rebuild or not valid_filepath(dockerfile) or dockerfile_has_changed(float(dockerfile_time_added),
-                                                                               path_to_dockerfile=dockerfile):
-            # Update the time added if we are doing a rebuild or the dockerfile doesn't exist / has been updated
+        if rebuild or dockerfile_has_changed(float(dockerfile_time_added), path_to_dockerfile=dockerfile):
+            # Update the time added if we are doing a rebuild or the dockerfile has been updated
             self.config.set(self.DOCKER_CONF_HEADER, 'dockerfile_time_added', str(current_time()))
 
         self.write_config(config_path)
@@ -88,10 +87,10 @@ class Config:
         return {'dockerfile': dockerfile, 'image_id': image_id, 'image_path': image_path, 'name': name,
                 'hardware': hardware, 'path': path, 'file': file, 'dockerfile_time_added': dockerfile_timestamp}
 
-    def bring_config_kwargs(self, config_path, name, file):
+    def bring_config_kwargs(self, config_path, name):
         if not valid_filepath(config_path):
             # If we don't have a config for this name yet define the initial default values
-            return {'name': name, 'hardware': os.getenv('DEFAULT_HARDWARE'), 'file': file}
+            return {'name': name, 'hardware': 'rh_1_gpu'}
 
         # take from the config that already exists
         return self.read_config_file(config_path)

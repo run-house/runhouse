@@ -6,39 +6,32 @@ from runhouse.utils.utils import ERROR_FLAG, current_time
 from runhouse.utils.validation import valid_filepath
 
 
-def create_dockerfile(path_to_reqs, name_dir):
+def create_dockerfile(name_dir, name):
     # TODO make this cleaner
-    text = f"""FROM {os.getenv('DOCKER_PYTHON_VERSION')}\nCOPY {path_to_reqs} 
-    /opt/app/requirements.txt\nWORKDIR /opt/app\nRUN pip install -r {path_to_reqs}\nCOPY . .\nCMD [ "echo", "finished building image for {name_dir}" ]"""
+    text = f"""FROM python:3.8-slim-buster\nCOPY requirements.txt /opt/app/requirements.txt\nWORKDIR /opt/app\nRUN pip install -r requirements.txt\nCOPY . .\nCMD [ "echo", "finished building dockerfile for {name}" ]"""
+
     path_to_docker_file = os.path.join(name_dir, 'Dockerfile')
     with open(path_to_docker_file, 'w') as f:
         f.write(text)
     return path_to_docker_file
 
 
-def build_and_save_image(image, path_to_image, path_to_reqs, dockerfile, docker_client, name, name_dir, hardware):
-    success = True
+def build_and_save_image(image, dockerfile, docker_client, name, name_dir, hardware):
     if not image:
-        # if no image url has been provided we have some work to do
+        # if no image object has been provided we have some work to do
         # Need to build the image based on dockerfile provided, or if that isn't provided first build the dockerfile
         if not dockerfile:
             typer.echo('Building Dockerfile')
-            dockerfile = create_dockerfile(path_to_reqs, name_dir)
-
+            dockerfile = create_dockerfile(name_dir, name)
         try:
+            # Once we build it lets load it right away
             docker_client.images.build(path=name_dir, dockerfile=dockerfile, tag=name, labels={'hardware': hardware})
-            typer.echo(f'[1/3] Successfully built image for {name}')
+            typer.echo(f"[1/3] Successfully built image for {name}")
         except:
-            typer.echo(f'[1/3] {ERROR_FLAG} Failed to build image')
-            success = False
+            typer.echo(f'{ERROR_FLAG} Failed to build image')
+            raise typer.Exit(code=1)
 
-    else:
-        # TODO this flow should change
-        # if image exists then load into compressed format to be shipped off remotely
-        save_image_to_tar(image, path_to_image)
-        typer.echo(f"[1/3] Successfully loaded image {image.tags} with labels: {image.labels}")
-
-    return success
+    return image
 
 
 def bring_image_from_docker_client(docker_client, image_id):
@@ -73,7 +66,11 @@ def get_path_to_dockerfile(path_to_parent_dir, config_kwargs, ctx):
         return path_to_dockerfile
 
     # if the dockerfile doesn't yet exist in filesystem bring it from the user CLI option or the config file
-    return ctx.obj.dockerfile or config_kwargs.get('dockerfile')
+    dockerfile_path_from_user = ctx.obj.dockerfile or config_kwargs.get('dockerfile')
+    if not valid_filepath(dockerfile_path_from_user):
+        # make sure this still exists (i.e. user manually deleted it)
+        return None
+    return dockerfile_path_from_user
 
 
 def launch_local_docker_client():
@@ -83,10 +80,6 @@ def launch_local_docker_client():
     except docker.errors.DockerException:
         typer.echo(f'{ERROR_FLAG} Docker client error')
         raise typer.Exit(code=1)
-
-
-def default_image_name(name):
-    return f'{name}_{int(current_time())}'
 
 
 def dockerfile_has_changed(dockerfile_time_added: float, path_to_dockerfile: str):

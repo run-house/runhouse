@@ -4,12 +4,15 @@ import typer
 from runhouse.utils.utils import random_string_generator
 from runhouse.utils.validation import valid_filepath, validate_name
 
-RUNNABLE_FILE_NAME = 'run'
-
 
 def create_directory(dir_name):
     if not os.path.exists(dir_name):
         os.makedirs(dir_name)
+
+
+def create_directories(dir_names):
+    for dir_name in dir_names:
+        create_directory(dir_name)
 
 
 def read_file(filepath):
@@ -28,9 +31,8 @@ def delete_directory(directory):
         print("Error: %s - %s." % (e.filename, e.strerror))
 
 
-def copy_runnable_file_to_runhouse_subdir(path_to_runnable_file, name_dir, ext):
-    """Runhouse will be executing the runnable file from its internal subdirectory"""
-    shutil.copyfile(path_to_runnable_file, os.path.join(name_dir, f'{RUNNABLE_FILE_NAME}{ext}'))
+def copy_file_to_directory(source_dir, dest_dir):
+    shutil.copyfile(source_dir, dest_dir)
 
 
 def create_name_for_folder(name):
