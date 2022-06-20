@@ -27,8 +27,8 @@ def read_file(filepath):
 def delete_directory(directory):
     try:
         shutil.rmtree(directory)
-    except OSError as e:
-        print("Error: %s - %s." % (e.filename, e.strerror))
+    except OSError:
+        pass
 
 
 def copy_file_to_directory(source_dir, dest_dir):

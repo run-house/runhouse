@@ -6,11 +6,13 @@ MAX_DIR_LEN = 12
 
 
 def valid_filepath(filepath) -> bool:
+    if filepath is None:
+        return False
     return os.path.exists(filepath)
 
 
 def validate_name(name):
-    # TODO maybe add some other checks on the directory name?
+    # TODO other checks on the directory name we want to add?
     if len(name) > MAX_DIR_LEN:
         typer.echo(f'{ERROR_FLAG} Runhouse does not support a name longer than ({MAX_DIR_LEN})')
         raise typer.Exit(code=1)
@@ -18,7 +20,7 @@ def validate_name(name):
 
 def validate_runnable_file_path(path_to_runnable_file):
     if not path_to_runnable_file:
-        # If we did not explicitly receive the path to the file (-f) by the user (or not provided in the config file)
+        # If we did not explicitly receive the path to the file (-f) by the user (and not provided in the config file)
         typer.echo(f'{ERROR_FLAG} Please include the path to the file to run (using -f option)')
         raise typer.Exit(code=1)
 

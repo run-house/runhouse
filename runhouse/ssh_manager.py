@@ -1,4 +1,3 @@
-import os
 import logging
 import paramiko
 
@@ -10,10 +9,11 @@ class SSHManager:
     EC2_USERNAME = 'ec2-user'
     DEST_DIR = '/home/ec2-user/'
 
-    def __init__(self, hostname, username=None, path_to_pem=None, dest_dir=None):
+    def __init__(self, hostname, path_to_pem, username=None, dest_dir=None):
         # read the connection details from local .env file if not provided
         self.hostname = hostname  # hostname is public IP of EC2
         self.path_to_pem = path_to_pem
+        assert self.path_to_pem is not None, "Need to specify path to pem file for creating ssh connection"
         self.username = username or self.EC2_USERNAME
         # Where to save the file on EC2 server
         self.dest_dir = dest_dir or self.DEST_DIR
@@ -48,38 +48,10 @@ class SSHManager:
         self.connect_to_server()
         return self.client.open_sftp()
 
-    def copy_file_to_remote_server(self, ftp_client, filepath: str):
-        try:
-            print("dest dir", self.dest_dir)
-            print("file_name", self._get_filename_from_path(filepath))
-            dest_path = os.path.join(self.dest_dir, self._get_filename_from_path(filepath))
-            print("Dest path", dest_path)
-            print("filepath", filepath)
-            ftp_client.put(filepath, dest_path)
-            ftp_client.close()
-        except Exception as e:
-            print(f'Unable to copy file to server: {e}')
+    def execute_command_on_remote_server(self, cmd: str):
+        """Run the provided command on the server using the SSH Manager"""
+        stdin, stdout, stderr = self.client.exec_command(cmd)
+        stdout = stdout.readlines()
+        stdin.close()
+        return stdout
 
-    def put_dir(self, ftp_client, source_dir, target_dir=None):
-        ''' Uploads the contents of the source directory to the target path. The
-            target directory needs to exists. All subdirectories in source are
-            created under target.
-        '''
-        target_dir = target_dir or self.dest_dir
-        for item in os.listdir(source_dir):
-            if os.path.isfile(os.path.join(source_dir, item)):
-                ftp_client.put(os.path.join(source_dir, item), '%s/%s' % (target_dir, item))
-            else:
-                self.create_dir(ftp_client, '%s/%s' % (target_dir, item), ignore_existing=True)
-                self.put_dir(os.path.join(source_dir, item), '%s/%s' % (target_dir, item))
-
-    @staticmethod
-    def create_dir(ftp_client, path, mode=511, ignore_existing=False):
-        ''' Augments mkdir by adding an option to not fail if the folder exists  '''
-        try:
-            ftp_client.mkdir(path, mode)
-        except IOError:
-            if ignore_existing:
-                pass
-            else:
-                raise

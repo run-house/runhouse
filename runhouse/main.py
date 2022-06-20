@@ -7,18 +7,20 @@ warnings.filterwarnings("ignore", category=CryptographyDeprecationWarning)
 
 import os
 import typer
+import base64
+import pkg_resources
 from typing import Optional
 from docker import DockerClient
 from pathlib import Path
-import pkg_resources
 from runhouse.common import Common
 from runhouse.shell_handler import ShellHandler
 from runhouse.ssh_manager import SSHManager
 from runhouse.process_commands import process_cmd_commands
 from runhouse.utils.utils import ERROR_FLAG
 from runhouse.config_parser import Config
+from runhouse.utils.deploy_to_aws import push_image_to_ecr, build_ecr_client
 from runhouse.utils.docker_utils import dockerfile_has_changed, get_path_to_dockerfile, launch_local_docker_client, \
-    bring_image_from_docker_client, build_and_save_image
+    bring_image_from_docker_client, build_image, generate_image_id, image_tag_name, create_dockerfile
 from runhouse.utils.file_utils import create_name_for_folder, delete_directory, create_directories, \
     copy_file_to_directory
 from runhouse.utils.validation import validate_runnable_file_path, validate_name, validate_hardware, valid_filepath
@@ -29,8 +31,9 @@ app = typer.Typer(add_completion=False)
 RUNHOUSE_DIR = os.path.join(os.getcwd(), Path(__file__).parent.parent.absolute(), 'runhouse')
 
 # Mapping each hardware option to its elastic IP
+# TODO move this shit into config file
 HARDWARE_TO_HOSTNAME = {"rh_1_gpu": "3.136.181.23", "rh_8_gpu": "3.136.181.23", "rh_16_gpu": "3.136.181.23"}
-
+ECR_URI = '675161046833.dkr.ecr.us-east-1.amazonaws.com/runhouse-demo'
 # Create config object used for managing the read / write to the config file
 cfg = Config()
 
@@ -80,28 +83,51 @@ def open_bash_on_remote_server(hardware):
     process_cmd_commands(sh)
 
 
-def run_image_on_remote_server(path, hardware):
+def run_image_on_remote_server(tag_name, hardware):
+    """Download the image from ecr if it doesn't exist on the server - then run it"""
     try:
         # Connect/ssh to an instance
         hostname = get_hostname_from_hardware(hardware)
-        sm = SSHManager(hostname=hostname)
-        ftp_client = sm.create_ftp_client()
 
-        sm.copy_file_to_remote_server(ftp_client=ftp_client, filepath=path)
+        path_to_pem = os.getenv('PATH_TO_PEM')
+        if path_to_pem is None:
+            resp = typer.prompt('Please specify path to your runhouse pem file (or add as env variable "PATH_TO_PEM")')
+            path_to_pem = Path(resp)
+            if not valid_filepath(path_to_pem):
+                typer.echo('Invalid file path to pem')
+                raise typer.Exit(code=1)
 
-        # Execute the file after connecting/ssh to the instance
-        stdin, stdout, stderr = sm.client.exec_command(f"""cat <<EOF | docker exec --interactive {path} sh
-                                                        cd /var/log
-                                                        tar -cv ./file.log
-                                                        EOF""")
-        stdout = stdout.readlines()
+        sm = SSHManager(hostname=hostname, path_to_pem=path_to_pem)
+        sm.connect_to_server()
 
-        stdin.close()
-        # close the client connection once the job is done
-        sm.client.close()
+        # Copy the image to namespace folder on the server
+        ecr_client = build_ecr_client()
+        token = ecr_client.get_authorization_token()
+
+        username, password = base64.b64decode(token['authorizationData'][0]['authorizationToken']).decode().split(':')
+        registry = token['authorizationData'][0]['proxyEndpoint']
+
+        # login in via the docker sdk doesnt work so we're gonna go with this workaround
+        command = 'docker login -u %s -p %s %s' % (username, password, registry)
+        sm.execute_command_on_remote_server(command)
+
+        typer.echo(f'[1/3] Retrieving image')
+        # Check if the image exists on the server's local image registry
+        command = f'docker image inspect {ECR_URI}:{tag_name}'
+        stdout = sm.execute_command_on_remote_server(command)
+        if not stdout:
+            # Pull the image to the servers local docker registry if the image doesn't exist
+            typer.echo("Pulling existing image")
+            command = f'docker pull {ECR_URI}:{tag_name}'
+            sm.execute_command_on_remote_server(command)
+
+        # Run the image on the server
+        typer.echo(f'[2/3] Running image on hardware {hardware}')
+        command = f'docker run {ECR_URI}:{tag_name} /bin/bash -c "chmod +x ./run.sh; ./run.sh" '
+        sm.execute_command_on_remote_server(command)
 
     except Exception as e:
-        typer.echo(f'{ERROR_FLAG} Unable to run image {path} on remote server: {e}')
+        typer.echo(f'{ERROR_FLAG} Unable to run image on remote server', e)
         raise typer.Exit(code=1)
 
 
@@ -212,7 +238,7 @@ def run(ctx: typer.Context):
 
     # Generate the path to where the dockerfile should live
     path_to_parent_dir: Path = build_path_to_parent_dir(ctx, config_kwargs)
-    dockerfile: str = get_path_to_dockerfile(name_dir, config_kwargs, ctx)
+    dockerfile: str = get_path_to_dockerfile(path_to_parent_dir, config_kwargs, ctx)
     images_dir: str = os.path.join(name_dir, "images")
 
     # Additional args used for running the file (separate from the predefined CLI options)
@@ -227,43 +253,50 @@ def run(ctx: typer.Context):
         typer.echo(f'{ERROR_FLAG} No requirements.txt found in parent directory - please add before continuing')
         raise typer.Exit(code=1)
 
-    # TODO is there a way around this? You can only copy files that are located within the local source tree
-    copy_file_to_directory(path_to_reqs, os.path.join(name_dir, "requirements.txt"))
-
     # make sure we have the relevant directories created on the user's file system
     # create the main runhouse dir, the subdir of the named uri, and the images dir
     create_directories([RUNHOUSE_DIR, name_dir, images_dir])
+
+    # TODO is there a way around this? You can only copy files that are located within the local source tree
+    copy_file_to_directory(path_to_reqs, os.path.join(name_dir, "requirements.txt"))
 
     # Check if user provided the name of the file to be executed
     validate_runnable_file_path(path_to_runnable_file)
 
     # Create a runnable file with the arguments provided in the internal runhouse subdirectory
     create_runnable_file_in_runhouse_subdir(path_to_runnable_file, name_dir, optional_cli_args)
+    image_id = ctx.obj.image or config_kwargs.get('image_id')
 
+    docker_client: DockerClient = launch_local_docker_client()
     # Try loading the local image if it exists
-    image_path = os.path.join(images_dir, f'{name}.tar')
-    image_id = ctx.obj.image
+    image_obj = bring_image_from_docker_client(docker_client, image_id)
+    tag_name = image_tag_name(name, image_id)
+    if image_obj is None or rebuild:
+        # If no image exists or we were instructed to rebuild anyways
+        if image_id is None:
+            # if it hasn't yet been defined give it a random id
+            image_id = generate_image_id()
+            # Update the tag name if we are rebuilding the image
+            tag_name = image_tag_name(name, image_id)
 
-    # If we were instructed to rebuild or the image still does not exist - build one from scratch
-    if rebuild or image_id is None:
-        typer.echo('Rebuilding the image')
-        # grab the docker related params - if none provided will have to build the dockerfile + image
-        docker_client: DockerClient = launch_local_docker_client()
-        image_obj = bring_image_from_docker_client(docker_client, image_id)
+        if not valid_filepath(dockerfile):
+            # if dockerfile still does not exist we need to build it
+            typer.echo('Building Dockerfile')
+            # TODO we want the whole root dir contents in the dockerfile, but only the specific runhouse subdir
+            dockerfile = create_dockerfile(path_to_parent_dir)
 
-        if image_obj is None:
-            # Create the image we need to run the code remotely
-            build_and_save_image(image_obj, dockerfile, docker_client, name, name_dir, hardware)
+        image_obj = build_image(dockerfile, docker_client, name, tag_name, name_dir, hardware)
 
-        # Once we have the image we can deploy and run it
-        typer.echo(f'[2/3] Running image with hardware {hardware}')
-        # TODO Copy the image to remote server and run it there - will prob be easier to change this up using k8s
-        # run_image_on_remote_server(image_obj, hardware=hardware)
-        typer.echo(f'[3/3] Finished running')
+        # save the image directly to a remote repository (ECR) and then pull within ec2
+        push_image_to_ecr(docker_client, image_obj, tag_name=tag_name)
 
-    # even if we failed to build or load the image still continue to set up the config so we have it for the next run
+    # Copy the image to remote server and run it there
+    run_image_on_remote_server(tag_name, hardware)
+    typer.echo(f'[3/3] Finished running')
+
+    # set up the config so we have it for the next run
     cfg.create_or_update_config_file(name_dir, path=path_to_parent_dir, file=path_to_runnable_file, name=name,
-                                     hardware=hardware, dockerfile=dockerfile, image_id=image_id, image_path=image_path,
+                                     hardware=hardware, dockerfile=dockerfile, image_id=image_id,
                                      rebuild=rebuild, config_kwargs=config_kwargs)
     if anon:
         # delete the directory which we needed to create for the one-time run
