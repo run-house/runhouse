@@ -11,13 +11,12 @@ class RNSClient:
         except redis.exceptions.ConnectionError as e:
             raise ConnectionError(f'Unable to connect to URI service: {e}')
 
-    def get(self, uri: str):
+    def get(self, uri: str) -> dict:
         # Do this properly with hset to avoid using json for no reason
-        data = self.redis.get(uri)
-        return json.loads(data)
+        return self.redis.hgetall(uri)
 
-    def set(self, uri: str, data) -> None:
-        self.redis.set(uri, json.dumps(data))
+    def set(self, uri: str, data: dict) -> None:
+        self.redis.hset(uri, mapping=data)
 
     def exists(self, uri: str) -> bool:
         # Do this properly with hset to avoid using json for no reason
