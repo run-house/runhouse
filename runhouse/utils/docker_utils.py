@@ -6,29 +6,37 @@ import string
 from runhouse.utils.utils import ERROR_FLAG
 
 
+def create_or_update_docker_ignore(name_dir):
+    """Create dockerignore to ignore the runhouse dir"""
+    text = f"""rh/"""
+    path_to_docker_ignore_file = os.path.join(name_dir, '.dockerignore')
+    with open(path_to_docker_ignore_file, 'w') as f:
+        f.write(text)
+
+
 def create_dockerfile(name_dir):
     # TODO make this cleaner
     text = f"""FROM python:3.8-slim-buster\nCOPY requirements.txt /opt/app/requirements.txt\nWORKDIR /opt/app\nRUN pip install -r requirements.txt\nCOPY . .\nCMD ["/bin/bash"]"""
-
     path_to_docker_file = os.path.join(name_dir, 'Dockerfile')
     with open(path_to_docker_file, 'w') as f:
         f.write(text)
+
     return path_to_docker_file
 
 
-def build_image(dockerfile, docker_client, name, tag_name, name_dir, hardware):
+def build_image(dockerfile, docker_client, name, tag_name, path_to_parent_dir, hardware):
     """if no image object has been provided we have some work to do"""
     # Need to build the image based on dockerfile provided, or if that isn't provided first build the dockerfile
     try:
         # build it into the user's local docker image store
-        resp = docker_client.images.build(path=name_dir, dockerfile=dockerfile, tag=tag_name,
+        resp = docker_client.images.build(path=path_to_parent_dir, dockerfile=dockerfile, tag=tag_name,
                                           labels={'hardware': hardware})
         image_obj = resp[0]
         typer.echo(f"Successfully built image for {name}")
         return image_obj
 
-    except Exception:
-        typer.echo(f'{ERROR_FLAG} Failed to build image')
+    except Exception as e:
+        typer.echo(f'{ERROR_FLAG} Failed to build image: {e}')
         raise typer.Exit(code=1)
 
 
@@ -48,10 +56,8 @@ def bring_image_from_docker_client(docker_client, image_id):
 
 
 def get_path_to_dockerfile(path_to_parent_dir, config_kwargs, ctx):
-    print("config kwargs in get path to dockerfile", config_kwargs)
     # default is in the root directory
     default_path_to_dockerfile = os.path.join(path_to_parent_dir, "Dockerfile")
-    print("default_path_to_dockerfile to dockerfile initial", default_path_to_dockerfile)
 
     # if the dockerfile is specified in the cli options or the config then take that value instead
     dockerfile_path_from_user = ctx.obj.dockerfile or config_kwargs.get('dockerfile')
@@ -83,6 +89,10 @@ def generate_image_id(length=12):
 
 def image_tag_name(name, image_id):
     return f'{name}-{image_id}'
+
+
+def full_ecr_tag_name(tag_name):
+    return f'{os.getenv("ECR_URI")}:{tag_name}'
 
 
 def path_to_image(images_dir, image_tar_file):

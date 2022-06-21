@@ -1,5 +1,6 @@
 import logging
 import paramiko
+import typer
 
 logger = logging.getLogger(__name__)
 
@@ -41,17 +42,25 @@ class SSHManager:
     def connect_to_server(self):
         try:
             self.client.connect(hostname=self.hostname, username=self.username, pkey=self.key)
-        except Exception as e:
-            print(f'Unable to connect to server: {e}')
+        except Exception:
+            typer.echo('Connection error')
+            raise typer.Exit(code=1)
 
     def create_ftp_client(self):
         self.connect_to_server()
         return self.client.open_sftp()
 
-    def execute_command_on_remote_server(self, cmd: str):
+    def execute_command_on_remote_server(self, cmd: str, read_lines=False):
         """Run the provided command on the server using the SSH Manager"""
         stdin, stdout, stderr = self.client.exec_command(cmd)
-        stdout = stdout.readlines()
+        if read_lines:
+            while True:
+                line = stdout.readline()
+                if not line:
+                    break
+                # TODO save output to name folder in rh subdir
+                print(line, end="")
+        else:
+            stdout = stdout.readlines()
         stdin.close()
         return stdout
-

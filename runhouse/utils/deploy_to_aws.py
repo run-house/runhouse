@@ -47,14 +47,13 @@ def push_image_to_ecr(docker_client, image, tag_name):
 
         # tag image for AWS ECR
         ecr_repo_name = '{}/{}'.format(ecr_url.replace('https://', ''), LOCAL_REPOSITORY)
-        print("ecr_repo_name", ecr_repo_name)
         image.tag(ecr_repo_name, tag=tag_name)
 
         # push image to AWS ECR
         push_log = docker_client.images.push(ecr_repo_name, tag=tag_name)
 
-    except Exception as e:
-        typer.echo('Unable to save image', e)
+    except Exception:
+        typer.echo('Unable to save image')
         raise typer.Exit(code=1)
 
 

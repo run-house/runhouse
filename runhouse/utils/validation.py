@@ -1,3 +1,4 @@
+import json
 import typer
 import os
 from runhouse.utils.utils import ERROR_FLAG
@@ -30,11 +31,10 @@ def validate_runnable_file_path(path_to_runnable_file):
         raise typer.Exit(code=1)
 
 
-def validate_hardware(hardware, hardware_to_hostname):
+def validate_hardware(hardware):
     """Throw an error for invalid hardware specs"""
+    hardware_to_hostname = json.loads(os.getenv('HARDWARE_TO_HOSTNAME'))
     if hardware not in list(hardware_to_hostname):
         typer.echo(f"{ERROR_FLAG} Invalid hardware specification")
         typer.echo(f"Please choose from the following options: {list(hardware_to_hostname)}")
         raise typer.Exit(code=1)
-
-
