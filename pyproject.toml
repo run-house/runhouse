@@ -38,6 +38,7 @@ python-dotenv = "0.20.0"
 PyYAML = "6.0"
 docker = "5.0.3"
 boto3 = "^1.24.13"
+redis = "^4.3.3"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
