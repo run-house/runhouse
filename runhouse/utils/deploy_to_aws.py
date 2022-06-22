@@ -15,8 +15,6 @@ import os
 import boto3
 import typer
 
-LOCAL_REPOSITORY = 'runhouse-demo:latest'
-
 
 def build_ecr_client():
     # get AWS credentials
@@ -35,7 +33,7 @@ def build_ecr_client():
 def push_image_to_ecr(docker_client, image, tag_name):
     """push docker image to AWS and update ECS service."""
     try:
-        ecr_client = build_ecr_client()
+        ecr_client: boto3.client = build_ecr_client()
         ecr_credentials = (ecr_client.get_authorization_token()['authorizationData'][0])
         ecr_username = 'AWS'
         ecr_password = (base64.b64decode(ecr_credentials['authorizationToken']).replace(b'AWS:', b'').decode('utf-8'))
@@ -46,14 +44,14 @@ def push_image_to_ecr(docker_client, image, tag_name):
         docker_client.login(username=ecr_username, password=ecr_password, registry=ecr_url)
 
         # tag image for AWS ECR
-        ecr_repo_name = '{}/{}'.format(ecr_url.replace('https://', ''), LOCAL_REPOSITORY)
+        ecr_repo_name = f"{ecr_url.replace('https://', '')}/{os.getenv('ECR_REPOSITORY_NAME')}:latest"
         image.tag(ecr_repo_name, tag=tag_name)
 
         # push image to AWS ECR
         push_log = docker_client.images.push(ecr_repo_name, tag=tag_name)
 
-    except Exception:
-        typer.echo('Unable to save image')
+    except Exception as e:
+        typer.echo('Unable to save image', e)
         raise typer.Exit(code=1)
 
 

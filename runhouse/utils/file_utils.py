@@ -45,3 +45,9 @@ def create_name_for_folder(name):
     # make sure the user provided name is in line with runhouse conventions
     validate_name(name)
     return name.lower()
+
+
+def write_stdout_to_file(text, path_to_file):
+    text_file = open(path_to_file, "w")
+    text_file.write(text)
+    text_file.close()

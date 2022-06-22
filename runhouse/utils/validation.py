@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 import typer
 import os
 from runhouse.utils.utils import ERROR_FLAG
@@ -38,3 +39,14 @@ def validate_hardware(hardware):
         typer.echo(f"{ERROR_FLAG} Invalid hardware specification")
         typer.echo(f"Please choose from the following options: {list(hardware_to_hostname)}")
         raise typer.Exit(code=1)
+
+
+def validate_pem_file():
+    path_to_pem = os.getenv('PATH_TO_PEM')
+    if path_to_pem is None:
+        resp = typer.prompt('Please specify path to your runhouse pem file (or add as env variable "PATH_TO_PEM")')
+        path_to_pem = Path(resp)
+        if not valid_filepath(path_to_pem):
+            typer.echo('Invalid file path to pem')
+            raise typer.Exit(code=1)
+    return path_to_pem

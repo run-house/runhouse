@@ -40,10 +40,7 @@ def build_image(dockerfile, docker_client, name, tag_name, path_to_parent_dir, h
         raise typer.Exit(code=1)
 
 
-def bring_image_from_docker_client(docker_client, image_id):
-    if image_id is None:
-        # We may not have any image at this stage
-        return None
+def bring_image_from_local_docker_client(docker_client, image_id):
     try:
         image = docker_client.images.get(image_id)
     except docker.errors.ImageNotFound:

@@ -54,12 +54,8 @@ class SSHManager:
         """Run the provided command on the server using the SSH Manager"""
         stdin, stdout, stderr = self.client.exec_command(cmd)
         if read_lines:
-            while True:
-                line = stdout.readline()
-                if not line:
-                    break
-                # TODO save output to name folder in rh subdir
-                print(line, end="")
+            stdin.flush()
+            stdout = stdout.read().splitlines()
         else:
             stdout = stdout.readlines()
         stdin.close()
