@@ -8,8 +8,10 @@ warnings.filterwarnings("ignore", category=CryptographyDeprecationWarning)
 import os
 import base64
 import typer
+import time
 import json
 import pkg_resources
+import boto3
 from typing import Optional
 from docker import DockerClient
 from pathlib import Path
@@ -76,9 +78,14 @@ def get_hostname_from_hardware(hardware):
 
 
 def get_tag_names(use_base_image, ctx, config_kwargs, name):
-    """Get the image tag and full path to ecr repo"""
+    """Get the image tag and full path to image in the ecr repo"""
     image_tag = ctx.obj.image or config_kwargs.get('image_tag')
-    if image_tag == 'latest' or use_base_image:
+
+    if use_base_image:
+        # use specific tag for the generic image and override any previously saved image tag
+        image_tag = os.getenv('BASE_IMAGE_TAG')
+
+    if image_tag == os.getenv('BASE_IMAGE_TAG'):
         # if using base image we give a predefined tag for the base image
         # https://hub.docker.com/r/tiangolo/python-machine-learning
         ecr_tag_name = f'tiangolo/python-machine-learning:{image_tag}'
@@ -91,51 +98,52 @@ def get_tag_names(use_base_image, ctx, config_kwargs, name):
         image_tag = image_tag_name(name, random_id)
 
     ecr_tag_name = full_ecr_tag_name(image_tag)
-
     return image_tag, ecr_tag_name
 
 
 def does_image_exist_on_server(ssh_manager, ecr_tag_name) -> bool:
     """Check if the docker registry on the server has the image we need"""
     typer.echo(f'[1/4] Looking for existing image')
-    ecr_client = build_ecr_client()
+    ecr_client: boto3.client = build_ecr_client()
     token = ecr_client.get_authorization_token()
-
     username, password = base64.b64decode(token['authorizationData'][0]['authorizationToken']).decode().split(':')
     registry = token['authorizationData'][0]['proxyEndpoint']
-
     # login in via exec command
     command = f'docker login -u {username} -p {password} {registry}'
     ssh_manager.execute_command_on_remote_server(command)
 
     command = f'docker inspect --type=image {ecr_tag_name}'
-    stdout = ssh_manager.execute_command_on_remote_server(command, read_lines=True)
+    stdout = ssh_manager.execute_command_on_remote_server(command)
+    # if no image found the output will look like this: b'[]\n'
+    # TODO maybe a cleaner way of doing this?
+    return not stdout.decode('utf-8').strip() == '[]'
 
-    # if no image found the output will look like this: ['[]\n']
-    return len(stdout) > 1
 
-
-def run_image_on_remote_server(ssh_manager, run_cmd, ecr_tag_name, hardware, name_dir):
+def run_image_on_remote_server(ssh_manager, run_cmd, ecr_tag_name, hardware, name_dir, image_exists_on_server):
     """Download the image from ecr if it doesn't exist on the server - then run it"""
     try:
-        # Pull the image to the servers local docker registry if the image doesn't exist
-        typer.echo("Pulling image")
-        command = f'docker pull {ecr_tag_name}'
-        ssh_manager.execute_command_on_remote_server(command)
+        if not image_exists_on_server:
+            # Pull the image to the servers local docker registry if the image doesn't exist there
+            typer.echo(f"Pulling image to {hardware}")
+            command = f'docker pull {ecr_tag_name}'
+            stdout = ssh_manager.execute_command_on_remote_server(command)
+            if not stdout:
+                # if we fail to pull the image from ecr
+                typer.echo(f'Error pulling image to server')
+                raise typer.Exit(code=1)
 
-        # Run the image on the server
         typer.echo(f'[3/4] Running image on hardware {hardware}')
         command = f'docker run {ecr_tag_name} {run_cmd}'
 
         # TODO may need this for .sh files - need to test
         # command = f'docker run {ecr_tag_name} /bin/bash {run_cmd}'
 
-        stdout = ssh_manager.execute_command_on_remote_server(command, read_lines=True)
+        stdout: bytes = ssh_manager.execute_command_on_remote_server(command)
         log_file_for_output = os.path.join(name_dir, "output.txt")
-        write_stdout_to_file(json.dumps(stdout), path_to_file=log_file_for_output)
+        write_stdout_to_file(json.dumps(stdout.decode("utf-8")), path_to_file=log_file_for_output)
 
     except Exception:
-        typer.echo(f'{ERROR_FLAG} Failed to run image on remote server')
+        typer.echo(f'{ERROR_FLAG} Failed to run image on {hardware}')
         raise typer.Exit(code=1)
 
 
@@ -183,7 +191,7 @@ def user_rebuild_response(resp: str) -> bool:
 def should_we_rebuild(ctx, optional_args, config_path, config_kwargs, path_to_dockerfile) -> bool:
     """Determine if we need to rebuild the image based on the CLI arguments provided by the user + the config"""
     if not valid_filepath(config_path):
-        # If there is no config in the name directory we definitely have to rebuild
+        # If the config was deleted / moved or doesn't exist at all definitely have to rebuild
         return True
 
     if optional_args:
@@ -230,6 +238,9 @@ def should_we_use_base_image(path_to_parent_dir) -> bool:
 @app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def run(ctx: typer.Context):
     """Run code for given name based on provided configurations"""
+    # TODO this is a long ass function - let's clean it up
+    start = time.time()
+
     if ctx.obj.rename:
         # For renaming not running anything - just a directory change name and config changes
         rename_callback(ctx.obj.rename)
@@ -273,14 +284,14 @@ def run(ctx: typer.Context):
     # create the main runhouse dir and the subdir of the named uri
     create_directories([RUNHOUSE_DIR, name_dir])
 
-    # Make sure we ignore the runhouse directory
+    # Make sure we ignore the runhouse directory when building the image (it will sit in the root dir as well)
     create_or_update_docker_ignore(path_to_parent_dir)
 
     # Create a runnable file with the arguments provided in the internal runhouse subdirectory
     run_cmd: str = create_runnable_file_in_runhouse_subdir(path_to_runnable_file, name_dir, optional_cli_args)
 
+    # TODO if using base image save to a public repository?
     image_tag, ecr_tag_name = get_tag_names(use_base_image, ctx, config_kwargs, name)
-
     # Check if we have the pem file needed to connect to the server
     path_to_pem = validate_pem_file()
 
@@ -290,26 +301,25 @@ def run(ctx: typer.Context):
     ssh_manager.connect_to_server()
 
     image_exists_on_server = does_image_exist_on_server(ssh_manager, ecr_tag_name)
-    if not image_exists_on_server:
-        if rebuild or not use_base_image:
+    if not image_exists_on_server or rebuild:
+        if not use_base_image:
             # We are in rebuild mode and have enough info not to rely on a pre-existing image
             typer.echo(f'[2/4] Building image')
             if not valid_filepath(dockerfile):
-                # if dockerfile still does not exist we need to build it
+                # if dockerfile still does not exist (ex: user deleted it) we need to build it
                 typer.echo('Building dockerfile')
                 dockerfile = create_dockerfile(path_to_parent_dir)
 
             docker_client: DockerClient = launch_local_docker_client()
+            # Build the image locally before pushing to ecr
             image_obj = build_image(dockerfile, docker_client, name, image_tag, path_to_parent_dir, hardware)
-            # save the image directly to a remote repository (ECR)
             push_image_to_ecr(docker_client, image_obj, tag_name=image_tag)
         else:
-            # let's use a predefined base image
+            # let's use a predefined base image that we already have on the server
             typer.echo('[2/4] Loading runhouse base image')
 
-    # TODO make sure we have stdout to show user from the run and save it to the named subdir
     # Once we've made sure we have the image we need in ecr we can run it on the server
-    run_image_on_remote_server(ssh_manager, run_cmd, ecr_tag_name, hardware, name_dir)
+    run_image_on_remote_server(ssh_manager, run_cmd, ecr_tag_name, hardware, name_dir, image_exists_on_server)
     typer.echo(f'[4/4] Finished running')
 
     # create or update the config if it doesn't already exist
@@ -319,6 +329,9 @@ def run(ctx: typer.Context):
     if anon:
         # delete the directory which we needed to create for the one-time run
         delete_directory(name_dir)
+
+    end = time.time()
+    typer.echo(f'Run completed in {int(end - start)} seconds')
 
     raise typer.Exit()
 

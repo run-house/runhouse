@@ -8,7 +8,8 @@ from runhouse.utils.utils import ERROR_FLAG
 
 def create_or_update_docker_ignore(name_dir):
     """Create dockerignore to ignore the runhouse dir"""
-    text = f"""rh/"""
+    # Ignore the virtual env + the readme
+    text = f"""rh/\n**/venv\nREADME*"""
     path_to_docker_ignore_file = os.path.join(name_dir, '.dockerignore')
     with open(path_to_docker_ignore_file, 'w') as f:
         f.write(text)
@@ -16,7 +17,7 @@ def create_or_update_docker_ignore(name_dir):
 
 def create_dockerfile(name_dir):
     # TODO make this cleaner
-    text = f"""FROM python:3.8-slim-buster\nCOPY requirements.txt /opt/app/requirements.txt\nWORKDIR /opt/app\nRUN pip install -r requirements.txt\nCOPY . .\nCMD ["/bin/bash"]"""
+    text = f"""FROM {os.getenv('DOCKER_PYTHON_VERSION')}\nCOPY requirements.txt /runhouse/requirements.txt\nWORKDIR /runhouse\nRUN pip install -r requirements.txt\nCOPY . .\nARG PYTHONPATH=":/runhouse"\nENV PYTHONPATH=$PYTHONPATH\nCMD ["/bin/bash"]"""
     path_to_docker_file = os.path.join(name_dir, 'Dockerfile')
     with open(path_to_docker_file, 'w') as f:
         f.write(text)
@@ -90,7 +91,3 @@ def image_tag_name(name, image_id):
 
 def full_ecr_tag_name(tag_name):
     return f'{os.getenv("ECR_URI")}:{tag_name}'
-
-
-def path_to_image(images_dir, image_tar_file):
-    return os.path.join(images_dir, image_tar_file)

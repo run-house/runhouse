@@ -1,11 +1,6 @@
 """
-A simple script that demonstrates how the docker and AWS Python clients
-can be used to automate the process of: building a Docker image, as
-defined by the Dockerfile in the project's root directory; pushing the
-image to AWS's Elastic Container Registry (ECR)
-
-For now, it is assumed that the AWS infrastructure is already in
-existence and that Docker is running on the host machine.
+Pushing an image to AWS's Elastic Container Registry (ECR)
+Assumes that the AWS account info has been set up and Docker is running on the host machine
 """
 
 import base64
@@ -23,7 +18,6 @@ def build_ecr_client():
     secret_access_key = aws_credentials['secret_access_key']
     aws_region = aws_credentials['region']
 
-    # get AWS ECR login token
     ecr_client = boto3.client('ecr', aws_access_key_id=access_key_id, aws_secret_access_key=secret_access_key,
                               region_name=aws_region)
 
@@ -39,7 +33,6 @@ def push_image_to_ecr(docker_client, image, tag_name):
         ecr_password = (base64.b64decode(ecr_credentials['authorizationToken']).replace(b'AWS:', b'').decode('utf-8'))
 
         ecr_url = ecr_credentials['proxyEndpoint']
-
         # get Docker to login/authenticate with ECR
         docker_client.login(username=ecr_username, password=ecr_password, registry=ecr_url)
 
@@ -50,8 +43,8 @@ def push_image_to_ecr(docker_client, image, tag_name):
         # push image to AWS ECR
         push_log = docker_client.images.push(ecr_repo_name, tag=tag_name)
 
-    except Exception as e:
-        typer.echo('Unable to save image', e)
+    except Exception:
+        typer.echo('Unable to save image')
         raise typer.Exit(code=1)
 
 
