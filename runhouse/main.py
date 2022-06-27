@@ -30,7 +30,8 @@ from runhouse.utils.validation import validate_runnable_file_path, validate_name
 # # creates an explicit Typer application, app
 app = typer.Typer(add_completion=False)
 
-RUNHOUSE_DIR = os.path.join(os.getcwd(), Path(__file__).parent.parent.absolute(), 'rh')
+# Where to create the runhouse internal subdirectory (assume it should be in the user's current directory)
+RUNHOUSE_DIR = os.path.join(os.getcwd(), 'rh')
 
 # TODO We need to inject these in a different way (can't have the user have access to the variables)
 from dotenv import load_dotenv
@@ -63,6 +64,7 @@ def rename_callback(name: str) -> None:
 
     validate_name(new_dir_name)
     os.rename(name_dir, renamed_dir)
+    # TODO we also need to update the image tag
     cfg.create_or_update_config_file(renamed_dir, name=new_dir_name, rename=True)
 
 
@@ -108,14 +110,18 @@ def does_image_exist_on_server(ssh_manager, ecr_tag_name) -> bool:
     token = ecr_client.get_authorization_token()
     username, password = base64.b64decode(token['authorizationData'][0]['authorizationToken']).decode().split(':')
     registry = token['authorizationData'][0]['proxyEndpoint']
+
     # login in via exec command
     command = f'docker login -u {username} -p {password} {registry}'
-    ssh_manager.execute_command_on_remote_server(command)
+    stdout = ssh_manager.execute_command_on_remote_server(command)
+    if stdout.decode('utf-8').strip() != 'Login Succeeded':
+        typer.echo('Unable to login with docker credentials provided')
+        raise typer.Exit(code=1)
 
+    # check if the image exists on the local docker registry of the server
     command = f'docker inspect --type=image {ecr_tag_name}'
     stdout = ssh_manager.execute_command_on_remote_server(command)
     # if no image found the output will look like this: b'[]\n'
-    # TODO maybe a cleaner way of doing this?
     return not stdout.decode('utf-8').strip() == '[]'
 
 
@@ -163,19 +169,26 @@ def create_sh_file_in_dir(dir_name, file_name, text):
         rsh.write(f'''#! /bin/sh\n{text}''')
 
 
-def create_runnable_file_in_runhouse_subdir(path_to_runnable_file, name_dir, optional_cli_args):
+def runnable_file_command(root_dir_for_container, file_name, formatted_args):
+    """Command to be stored in the .sh file in the rh subdirectory"""
+    return f"{root_dir_for_container}/{file_name} {formatted_args}"
+
+
+def create_runnable_file_in_runhouse_subdir(path_to_runnable_file, root_dir_for_container, name_dir, optional_cli_args):
     """Build the internal file in the runhouse directory used for executing the code the user wants to run remotely"""
     ext = os.path.splitext(path_to_runnable_file)[1]
     file_name = os.path.basename(path_to_runnable_file)
     formatted_args: str = ' '.join(optional_cli_args)
+    cmd = runnable_file_command(root_dir_for_container, file_name, formatted_args)
 
     if ext not in ['.py', '.sh']:
         typer.echo(f'{ERROR_FLAG} Runhouse currently supports file types with extensions .py or .sh')
         raise typer.Exit(code=1)
     elif ext == '.py':
-        cmd = f"python3 runhouse/{file_name} {formatted_args}"
+        cmd = f"python3 {cmd}"
     else:
-        cmd = f"runhouse/{file_name} {formatted_args}"
+        # If file is already in sh format then we are all set
+        pass
 
     create_sh_file_in_dir(dir_name=name_dir, file_name='run.sh', text=cmd)
     return cmd
@@ -230,7 +243,8 @@ def should_we_use_base_image(path_to_parent_dir) -> bool:
     # Path to requirements is assumed to be in the parent dir
     path_to_reqs = os.path.join(path_to_parent_dir, 'requirements.txt')
     if not valid_filepath(path_to_reqs):
-        typer.echo(f'No requirements.txt found in parent directory - using the runhouse base image instead')
+        typer.echo(f'No requirements.txt found in parent directory - using the runhouse base image '
+                   f'(tiangolo/python-machine-learning) instead')
         return True
     return False
 
@@ -241,9 +255,11 @@ def run(ctx: typer.Context):
     # TODO this is a long ass function - let's clean it up
     start = time.time()
 
-    if ctx.obj.rename:
+    rename = ctx.obj.rename
+    if rename:
         # For renaming not running anything - just a directory change name and config changes
-        rename_callback(ctx.obj.rename)
+        # TODO we also need to change the image tag
+        rename_callback(rename)
         raise typer.Exit()
 
     # If user chooses a one-time run we won't be saving anything new to the user's runhouse directory
@@ -260,6 +276,8 @@ def run(ctx: typer.Context):
     # Update the path to the runnable file with one defined in the config if it exists
     path_to_runnable_file = ctx.obj.file or config_kwargs.get('file')
     validate_runnable_file_path(path_to_runnable_file)
+    # Root directory where the file is being run - this is needed for running the file in the container
+    root_dir_for_container = os.path.dirname(path_to_runnable_file)
 
     # Make sure hardware specs are valid
     hardware = ctx.obj.hardware or config_kwargs.get('hardware', os.getenv('DEFAULT_HARDWARE'))
@@ -282,20 +300,22 @@ def run(ctx: typer.Context):
 
     # make sure we have the relevant directories created on the user's file system
     # create the main runhouse dir and the subdir of the named uri
-    create_directories([RUNHOUSE_DIR, name_dir])
+    create_directories(dir_names=[RUNHOUSE_DIR, name_dir])
 
     # Make sure we ignore the runhouse directory when building the image (it will sit in the root dir as well)
     create_or_update_docker_ignore(path_to_parent_dir)
 
     # Create a runnable file with the arguments provided in the internal runhouse subdirectory
-    run_cmd: str = create_runnable_file_in_runhouse_subdir(path_to_runnable_file, name_dir, optional_cli_args)
+    run_cmd: str = create_runnable_file_in_runhouse_subdir(path_to_runnable_file, root_dir_for_container,
+                                                           name_dir, optional_cli_args)
 
     # TODO if using base image save to a public repository?
     image_tag, ecr_tag_name = get_tag_names(use_base_image, ctx, config_kwargs, name)
+
     # Check if we have the pem file needed to connect to the server
     path_to_pem = validate_pem_file()
 
-    # Check if the image exists on the server
+    # Connect to the server, then check if the image exists on the server
     hostname = get_hostname_from_hardware(hardware)
     ssh_manager = SSHManager(hostname=hostname, path_to_pem=path_to_pem)
     ssh_manager.connect_to_server()
@@ -308,7 +328,7 @@ def run(ctx: typer.Context):
             if not valid_filepath(dockerfile):
                 # if dockerfile still does not exist (ex: user deleted it) we need to build it
                 typer.echo('Building dockerfile')
-                dockerfile = create_dockerfile(path_to_parent_dir)
+                dockerfile = create_dockerfile(path_to_parent_dir, root_dir_for_container)
 
             docker_client: DockerClient = launch_local_docker_client()
             # Build the image locally before pushing to ecr
@@ -325,7 +345,7 @@ def run(ctx: typer.Context):
     # create or update the config if it doesn't already exist
     cfg.create_or_update_config_file(name_dir, path=path_to_parent_dir, file=path_to_runnable_file, name=name,
                                      hardware=hardware, dockerfile=dockerfile, image_tag=image_tag,
-                                     rebuild=rebuild, config_kwargs=config_kwargs)
+                                     rebuild=rebuild, config_kwargs=config_kwargs, container_root=root_dir_for_container)
     if anon:
         # delete the directory which we needed to create for the one-time run
         delete_directory(name_dir)

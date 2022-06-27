@@ -60,6 +60,7 @@ class Config:
 
         self.config.set(self.DOCKER_CONF_HEADER, 'dockerfile', dockerfile)
         self.config.set(self.DOCKER_CONF_HEADER, 'image_tag', kwargs.get('image_tag'))
+        self.config.set(self.DOCKER_CONF_HEADER, 'container_root', kwargs.get('container_root'))
 
         dockerfile_time_added = kwargs.get('config_kwargs', {}).get('dockerfile_time_added')
         if rebuild or dockerfile_has_changed(float(dockerfile_time_added), path_to_dockerfile=dockerfile):
@@ -75,6 +76,7 @@ class Config:
         # read values from file
         dockerfile = self.config.get(self.DOCKER_CONF_HEADER, 'dockerfile')
         image_tag = self.config.get(self.DOCKER_CONF_HEADER, 'image_tag')
+        container_root = self.config.get(self.DOCKER_CONF_HEADER, 'container_root')
         dockerfile_timestamp = self.config.get(self.DOCKER_CONF_HEADER, 'dockerfile_time_added')
 
         name = self.config.get(self.MAIN_CONF_HEADER, 'name')
@@ -82,7 +84,7 @@ class Config:
         path = self.config.get(self.MAIN_CONF_HEADER, 'path')
         file = self.config.get(self.MAIN_CONF_HEADER, 'file')
 
-        return {'dockerfile': dockerfile, 'image_tag': image_tag, 'name': name,
+        return {'dockerfile': dockerfile, 'image_tag': image_tag, 'name': name, 'container_root': container_root,
                 'hardware': hardware, 'path': path, 'file': file, 'dockerfile_time_added': dockerfile_timestamp}
 
     def bring_config_kwargs(self, config_path, name):

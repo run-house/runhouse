@@ -15,9 +15,9 @@ def create_or_update_docker_ignore(name_dir):
         f.write(text)
 
 
-def create_dockerfile(name_dir):
+def create_dockerfile(name_dir, root_dir):
     # TODO make this cleaner
-    text = f"""FROM {os.getenv('DOCKER_PYTHON_VERSION')}\nCOPY requirements.txt /runhouse/requirements.txt\nWORKDIR /runhouse\nRUN pip install -r requirements.txt\nCOPY . .\nARG PYTHONPATH=":/runhouse"\nENV PYTHONPATH=$PYTHONPATH\nCMD ["/bin/bash"]"""
+    text = f"""FROM {os.getenv('DOCKER_PYTHON_VERSION')}\nARG MAIN_DIR={root_dir}\nCOPY requirements.txt /$MAIN_DIR/requirements.txt\nWORKDIR /$MAIN_DIR\nRUN pip install -r requirements.txt\nCOPY . .\nENV PYTHONPATH=":/"$MAIN_DIR\nCMD ["/bin/bash"]"""
     path_to_docker_file = os.path.join(name_dir, 'Dockerfile')
     with open(path_to_docker_file, 'w') as f:
         f.write(text)
