@@ -2,7 +2,6 @@ import warnings
 
 # Suppress warnings when running the tests
 from cryptography.utils import CryptographyDeprecationWarning
-
 warnings.filterwarnings("ignore", category=CryptographyDeprecationWarning)
 
 import base64
@@ -15,7 +14,6 @@ from runhouse.main import get_hostname_from_hardware
 from runhouse.utils.validation import valid_filepath
 
 from dotenv import load_dotenv
-
 load_dotenv()
 
 
@@ -57,7 +55,7 @@ def test_connection_to_ecr():
     try:
         build_ecr_client()
     except:
-        raise Exception(f'Unable to connect to ECR and bring token')
+        raise Exception(f'Unable to connect to ecr')
 
 
 def test_docker_connection_on_server():

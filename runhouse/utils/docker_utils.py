@@ -4,20 +4,21 @@ import typer
 import random
 import string
 from runhouse.utils.utils import ERROR_FLAG
+from runhouse.utils.validation import valid_filepath
 
 
 def create_or_update_docker_ignore(name_dir):
     """Create dockerignore to ignore the runhouse dir"""
     # Ignore the virtual env + the readme
-    text = f"""rh/\n**/venv\nREADME*"""
+    text = f"""rh/\n**/venv\nREADME*\n**/*.pyc\n**/*.tar"""
     path_to_docker_ignore_file = os.path.join(name_dir, '.dockerignore')
     with open(path_to_docker_ignore_file, 'w') as f:
         f.write(text)
 
 
-def create_dockerfile(name_dir, root_dir):
+def create_dockerfile(name_dir, root_dir, package_tar):
     # TODO make this cleaner
-    text = f"""FROM {os.getenv('DOCKER_PYTHON_VERSION')}\nARG MAIN_DIR={root_dir}\nCOPY requirements.txt /$MAIN_DIR/requirements.txt\nWORKDIR /$MAIN_DIR\nRUN pip install -r requirements.txt\nCOPY . .\nENV PYTHONPATH=":/"$MAIN_DIR\nCMD ["/bin/bash"]"""
+    text = f"""FROM {os.getenv('DOCKER_PYTHON_VERSION')}\nARG MAIN_DIR={root_dir}\nCOPY requirements.txt /$MAIN_DIR/requirements.txt\nWORKDIR /$MAIN_DIR\nADD {package_tar} /$MAIN_DIR\nRUN rm -rf /$MAIN_DIR/conf /$MAIN_DIR/bin /$MAIN_DIR/*.tar.gz\nRUN pip install -r requirements.txt\nCOPY . .\nENV PYTHONPATH=":/"$MAIN_DIR\nCMD ["/bin/bash"]"""
     path_to_docker_file = os.path.join(name_dir, 'Dockerfile')
     with open(path_to_docker_file, 'w') as f:
         f.write(text)
@@ -25,8 +26,12 @@ def create_dockerfile(name_dir, root_dir):
     return path_to_docker_file
 
 
-def build_image(dockerfile, docker_client, name, tag_name, path_to_parent_dir, hardware):
+def build_image(dockerfile, docker_client, name, tag_name, path_to_parent_dir, hardware, package_tar):
     """if no image object has been provided we have some work to do"""
+    if package_tar is not None and not valid_filepath(package_tar):
+        typer.echo(f'Package {package_tar} not found - unable to build image')
+        raise typer.Exit(code=1)
+
     # Need to build the image based on dockerfile provided, or if that isn't provided first build the dockerfile
     try:
         # build it into the user's local docker image store
@@ -36,8 +41,8 @@ def build_image(dockerfile, docker_client, name, tag_name, path_to_parent_dir, h
         typer.echo(f"Successfully built image for {name}")
         return image_obj
 
-    except Exception as e:
-        typer.echo(f'{ERROR_FLAG} Failed to build image: {e}')
+    except Exception:
+        typer.echo(f'{ERROR_FLAG} Failed to build image')
         raise typer.Exit(code=1)
 
 
