@@ -1,27 +1,66 @@
 """
-Pushing an image to AWS's Elastic Container Registry (ECR)
+- Pushing an image to AWS's Elastic Container Registry (ECR)
+- Pushing a file to S3 bucket
 Assumes that the AWS account info has been set up and Docker is running on the host machine
 """
 
 import base64
 import json
 import os
-
 import boto3
 import typer
+from botocore.exceptions import ClientError
+from runhouse.utils.utils import ERROR_FLAG
 
 
-def build_ecr_client():
+def aws_credentials():
     # get AWS credentials
     aws_credentials = read_aws_credentials()
     access_key_id = aws_credentials['access_key_id']
     secret_access_key = aws_credentials['secret_access_key']
     aws_region = aws_credentials['region']
+    return access_key_id, secret_access_key, aws_region
 
-    ecr_client = boto3.client('ecr', aws_access_key_id=access_key_id, aws_secret_access_key=secret_access_key,
-                              region_name=aws_region)
 
-    return ecr_client
+def aws_client_creator(client_type):
+    access_key_id, secret_access_key, aws_region = aws_credentials()
+    try:
+        boto3.client(client_type, aws_access_key_id=access_key_id, aws_secret_access_key=secret_access_key,
+                     region_name=aws_region)
+    except:
+        typer.echo(f'{ERROR_FLAG} Unable to create boto client for {client_type}')
+        raise typer.Exit(code=1)
+
+
+def build_s3_client():
+    return aws_client_creator('s3')
+
+
+def build_ecr_client():
+    return aws_client_creator('ecr')
+
+
+def file_exists_in_s3(s3_client, file_name):
+    try:
+        resp = s3_client.head_object(Bucket=os.getenv('BUCKET_NAME'), Key=file_name)
+        return resp
+    except ClientError:
+        # object doesn't already exist - let's upload it
+        pass
+
+
+def upload_file_to_s3(file_obj, file_name):
+    s3_client = build_s3_client()
+    if file_exists_in_s3(s3_client, file_name):
+        # No reason to re-upload if the file already exists
+        return
+
+    try:
+        with open(file_obj, 'rb') as tar:
+            s3_client.upload_fileobj(tar, os.getenv('BUCKET_NAME'), file_name)
+    except:
+        typer.echo(f'{ERROR_FLAG} Failed to upload to s3')
+        raise typer.Exit(code=1)
 
 
 def push_image_to_ecr(docker_client, image, tag_name):

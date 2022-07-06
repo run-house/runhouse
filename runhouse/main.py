@@ -8,23 +8,23 @@ warnings.filterwarnings("ignore", category=CryptographyDeprecationWarning)
 import os
 import base64
 import typer
+import tarfile
 import time
 import json
 import pkg_resources
-import tarfile
 import boto3
 from typing import Optional
 from docker import DockerClient
-from pathlib import Path
 from runhouse.common import Common
 from runhouse.ssh_manager import SSHManager
 from runhouse.utils.utils import ERROR_FLAG
 from runhouse.config_parser import Config
-from runhouse.utils.deploy_to_aws import push_image_to_ecr, build_ecr_client
-from runhouse.utils.docker_utils import dockerfile_has_changed, get_path_to_dockerfile, launch_local_docker_client, \
+from runhouse.utils.aws_utils import push_image_to_ecr, build_ecr_client, upload_file_to_s3
+from runhouse.utils.docker_utils import file_has_changed, get_path_to_dockerfile, launch_local_docker_client, \
     build_image, generate_image_id, image_tag_name, create_dockerfile, create_or_update_docker_ignore, \
     full_ecr_tag_name
-from runhouse.utils.file_utils import create_name_for_folder, delete_directory, create_directories, write_stdout_to_file
+from runhouse.utils.file_utils import create_name_for_folder, delete_directory, create_directories, \
+    write_stdout_to_file, get_name_from_path, delete_file
 from runhouse.utils.validation import validate_runnable_file_path, validate_name, validate_hardware, valid_filepath, \
     validate_pem_file
 
@@ -65,6 +65,7 @@ def rename_callback(name: str) -> None:
 
     validate_name(new_dir_name)
     os.rename(name_dir, renamed_dir)
+
     # TODO we also need to update the image tag
     cfg.create_or_update_config_file(renamed_dir, name=new_dir_name, rename=True)
 
@@ -106,7 +107,7 @@ def get_tag_names(use_base_image, ctx, config_kwargs, name):
 
 def does_image_exist_on_server(ssh_manager, ecr_tag_name) -> bool:
     """Check if the docker registry on the server has the image we need"""
-    typer.echo(f'[1/4] Looking for existing image')
+    typer.echo(f'[1/5] Looking for existing image')
     ecr_client: boto3.client = build_ecr_client()
     token = ecr_client.get_authorization_token()
     username, password = base64.b64decode(token['authorizationData'][0]['authorizationToken']).decode().split(':')
@@ -136,10 +137,10 @@ def run_image_on_remote_server(ssh_manager, run_cmd, ecr_tag_name, hardware, nam
             stdout = ssh_manager.execute_command_on_remote_server(command)
             if not stdout:
                 # if we fail to pull the image from ecr
-                typer.echo(f'Error pulling image to server')
+                typer.echo(f'{ERROR_FLAG} Failed pulling image to server')
                 raise typer.Exit(code=1)
 
-        typer.echo(f'[3/4] Running image on hardware {hardware}')
+        typer.echo(f'[4/5] Running image on hardware {hardware}')
         command = f'docker run {ecr_tag_name} {run_cmd}'
 
         # TODO may need this for .sh files - need to test
@@ -184,10 +185,6 @@ def create_runnable_file_in_runhouse_subdir(path_to_runnable_file, file_name, ro
     return cmd
 
 
-def external_package_updated(config_kwargs, package_tar) -> bool:
-    return config_kwargs.get('package_tar') != package_tar
-
-
 def user_rebuild_response(resp: str) -> bool:
     if resp.lower() not in ['yes', 'y', 'no', 'n']:
         typer.echo(f'{ERROR_FLAG} Invalid rebuild prompt')
@@ -195,7 +192,8 @@ def user_rebuild_response(resp: str) -> bool:
     return resp.lower() in ['yes', 'y']
 
 
-def should_we_rebuild(ctx, optional_args, config_path, config_kwargs, path_to_dockerfile, package_tar) -> bool:
+def should_we_rebuild(ctx, optional_args, config_path, config_kwargs, path_to_dockerfile, package_time_added,
+                      path_to_package) -> bool:
     """Determine if we need to rebuild the image based on the CLI arguments provided by the user + the config"""
     if not valid_filepath(config_path):
         # If the config was deleted / moved or doesn't exist at all definitely have to rebuild
@@ -225,13 +223,13 @@ def should_we_rebuild(ctx, optional_args, config_path, config_kwargs, path_to_do
         return True
 
     # check if the user changed the dockerfile manually (if so need to trigger a rebuild)
-    if dockerfile_has_changed(float(dockerfile_time_added), path_to_dockerfile):
+    if file_has_changed(float(dockerfile_time_added), path_to_dockerfile):
         resp = typer.prompt('Dockerfile has been updated - would you like to rebuild? (yes / y or no / n)')
         if user_rebuild_response(resp):
             return True
 
-    if external_package_updated(config_kwargs, package_tar):
-        resp = typer.prompt('External package has changed - would you like to rebuild? (yes / y or no / n)')
+    if file_has_changed(float(package_time_added), path_to_package):
+        resp = typer.prompt('Package has changed - would you like to rebuild? (yes / y or no / n)')
         if user_rebuild_response(resp):
             return True
 
@@ -248,10 +246,10 @@ def should_we_use_base_image(path_to_parent_dir) -> bool:
     return False
 
 
-def compress_package_for_image(path_to_parent_dir, path_to_external_package):
-    package_file_name = f"{os.path.join(path_to_parent_dir, path_to_external_package.split('/')[0])}.tar.gz"
+def build_compressed_package(path_to_parent_dir, package_name):
+    package_file_name = f"{os.path.join(path_to_parent_dir, package_name)}.tar.gz"
     with tarfile.open(package_file_name, mode='w:gz') as archive:
-        archive.add(path_to_external_package)
+        archive.add(path_to_parent_dir)
     return package_file_name
 
 
@@ -273,56 +271,58 @@ def run(ctx: typer.Context):
     name = 'anon' if anon else create_name_for_folder(name=ctx.obj.name)
 
     # Directory for the name which will sit in the runhouse folder
-    name_dir = os.path.join(RUNHOUSE_DIR, name)
-    config_path = os.path.join(name_dir, Config.CONFIG_FILE)
-
+    internal_rh_name_dir = os.path.join(RUNHOUSE_DIR, name)
+    config_path = os.path.join(internal_rh_name_dir, Config.CONFIG_FILE)
     # Try to read the config file which we will begin to populate with the params the user provided
     config_kwargs: dict = cfg.bring_config_kwargs(config_path, name)
-
-    # Update the path to the runnable file with one defined in the config if it exists
-    path_to_runnable_file = ctx.obj.file or config_kwargs.get('file')
-    validate_runnable_file_path(path_to_runnable_file)
-
-    file_name = os.path.basename(path_to_runnable_file)
-    # Root directory where the file is being run - this is needed for running the file in the container
-    root_dir_name_for_container = os.path.dirname(path_to_runnable_file)
 
     # Make sure hardware specs are valid
     hardware = ctx.obj.hardware or config_kwargs.get('hardware', os.getenv('DEFAULT_HARDWARE'))
     validate_hardware(hardware)
 
-    # Generate the path to the parent dir for building the image + an external dir (if exists) to be added to the image
-    path_to_parent_dir = str(Path(RUNHOUSE_DIR).parent.absolute())
-    path_to_package_dir = ctx.obj.path or config_kwargs.get('external_package')
-    package_tar = None
-    if path_to_package_dir is not None:
-        # if we have an external directory we need to compress it before storing in the image
-        package_tar = compress_package_for_image(path_to_parent_dir, path_to_package_dir)
+    # Generate the path to the parent dir for building the image
+    path_to_parent_dir = ctx.obj.path or config_kwargs.get('external_package', os.getcwd())
+    package_time_added = float(config_kwargs.get('package_time_added', 0.0))
+
+    # TODO save this compressed tar.gz to s3, then load into their image
+    package_name = get_name_from_path(path_to_parent_dir)
+    package_tar = build_compressed_package(path_to_parent_dir, package_name)
+
+    # save this tar to s3 bucket
+    upload_file_to_s3(package_tar, package_name)
 
     dockerfile: str = get_path_to_dockerfile(path_to_parent_dir, config_kwargs, ctx)
 
     # Additional args used for running the file (separate from the predefined CLI options)
     optional_cli_args: list = ctx.args
-
     # Check whether we need to rebuild the image or not
     rebuild: bool = should_we_rebuild(ctx=ctx, optional_args=optional_cli_args,
                                       config_path=config_path, config_kwargs=config_kwargs,
-                                      path_to_dockerfile=dockerfile, package_tar=package_tar)
+                                      path_to_dockerfile=dockerfile, package_time_added=package_time_added,
+                                      path_to_package=path_to_parent_dir)
 
     # Check whether we use an image based on the user's requirements or a base image
     use_base_image: bool = should_we_use_base_image(path_to_parent_dir)
 
     # make sure we have the relevant directories created on the user's file system
     # create the main runhouse dir and the subdir of the named uri
-    create_directories(dir_names=[RUNHOUSE_DIR, name_dir])
+    create_directories(dir_names=[RUNHOUSE_DIR, internal_rh_name_dir])
 
     # Make sure we ignore the runhouse directory when building the image (it will sit in the root dir as well)
     create_or_update_docker_ignore(path_to_parent_dir)
 
+    # Update the path to the runnable file with one defined in the config if it exists
+    path_to_runnable_file = ctx.obj.file or config_kwargs.get('file')
+    validate_runnable_file_path(path_to_runnable_file)
+
+    file_name = get_name_from_path(path_to_runnable_file)
+    # Root directory where the file is being run - this is needed for running the file in the container
+    root_dir_name_for_container = os.path.dirname(path_to_runnable_file)
+
     # Create a runnable file with the arguments provided in the internal runhouse subdirectory
     run_cmd: str = create_runnable_file_in_runhouse_subdir(path_to_runnable_file, file_name,
                                                            root_dir_name_for_container,
-                                                           name_dir, optional_cli_args)
+                                                           internal_rh_name_dir, optional_cli_args)
 
     # TODO if using base image save to a public repository?
     image_tag, ecr_tag_name = get_tag_names(use_base_image, ctx, config_kwargs, name)
@@ -339,33 +339,34 @@ def run(ctx: typer.Context):
     if not image_exists_on_server or rebuild:
         if not use_base_image:
             # We are in rebuild mode and have enough info not to rely on a pre-existing image
-            typer.echo(f'[2/4] Building image')
-            if not valid_filepath(dockerfile) or external_package_updated(config_kwargs, package_tar):
-                # if dockerfile still does not exist (ex: user deleted it) or external package was updated
-                typer.echo('Building dockerfile')
-                dockerfile = create_dockerfile(path_to_parent_dir, root_dir_name_for_container, package_tar)
+            if not valid_filepath(dockerfile) or file_has_changed(package_time_added, path_to_parent_dir):
+                # if dockerfile still does not exist (ex: user deleted it) or package was updated
+                typer.echo('[2/5] Building dockerfile')
+                dockerfile = create_dockerfile(path_to_parent_dir, package_tar)
 
             docker_client: DockerClient = launch_local_docker_client()
             # Build the image locally before pushing to ecr
+            typer.echo(f'[3/5] Building image')
             image_obj = build_image(dockerfile, docker_client, name, image_tag, path_to_parent_dir, hardware,
                                     package_tar)
             push_image_to_ecr(docker_client, image_obj, tag_name=image_tag)
         else:
             # let's use a predefined base image that we already have on the server
-            typer.echo('[2/4] Loading runhouse base image')
+            typer.echo('[2/5] Loading runhouse base image')
+            typer.echo('[3/5] Running runhouse base image with existing dockerfile')
 
     # Once we've made sure we have the image we need in ecr we can run it on the server
-    run_image_on_remote_server(ssh_manager, run_cmd, ecr_tag_name, hardware, name_dir, image_exists_on_server)
-    typer.echo(f'[4/4] Finished running')
+    run_image_on_remote_server(ssh_manager, run_cmd, ecr_tag_name, hardware, internal_rh_name_dir, image_exists_on_server)
+    typer.echo(f'[5/5] Finished running')
 
     # create or update the config if it doesn't already exist
-    cfg.create_or_update_config_file(name_dir, path=path_to_parent_dir, file=path_to_runnable_file, name=name,
-                                     hardware=hardware, dockerfile=dockerfile, image_tag=image_tag,
-                                     rebuild=rebuild, config_kwargs=config_kwargs, external_package=path_to_package_dir,
+    cfg.create_or_update_config_file(internal_rh_name_dir, path=path_to_parent_dir, file=path_to_runnable_file,
+                                     name=name, hardware=hardware, dockerfile=dockerfile, image_tag=image_tag,
+                                     rebuild=rebuild, config_kwargs=config_kwargs,
                                      container_root=root_dir_name_for_container, package_tar=package_tar)
     if anon:
         # delete the directory which we needed to create for the one-time run
-        delete_directory(name_dir)
+        delete_directory(internal_rh_name_dir)
 
     end = time.time()
     typer.echo(f'Run completed in {int(end - start)} seconds')
@@ -378,12 +379,13 @@ def common(ctx: typer.Context,
            anon: bool = typer.Option(None, '--anon', '-a',
                                      help="anonymous/one-time run (run will not be named and config won't be created)"),
            dockerfile: str = typer.Option(None, '--dockerfile', '-d', help='path to existing dockerfile'),
-           file: str = typer.Option(None, '--file', '-f', help='Specific file path to be run'),
+           file: str = typer.Option(None, '--file', '-f', help='path to specific file to run '
+                                                               '(contained in the path provided'),
            hardware: str = typer.Option(None, '--hardware', '-h', help='desired hardware'),
            image: str = typer.Option(None, '--image', '-i', help='image tag of existing local docker image'),
-           name: str = typer.Option(None, '--name', '-n', help='name your microservice / URI'),
-           path: str = typer.Option(None, '--path', '-p',
-                                    help='Path to parent directory to be packaged and registered as a URI'),
+           name: str = typer.Option(None, '--name', '-n', help='name of the existing run or new run'),
+           path: str = typer.Option(None, '--path', '-p', help='path to directory or github URL to be packaged '
+                                                               'as part of the run'),
            rename: str = typer.Option(None, '--rename', '-r', help='rename existing URI'),
            shell: bool = typer.Option(None, '--shell', '-s', help='run code in interactive mode'),
            version: Optional[bool] = typer.Option(None, '--version', '-v', callback=version_callback,

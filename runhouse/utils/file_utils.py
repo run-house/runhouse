@@ -22,6 +22,13 @@ def delete_directory(directory):
         pass
 
 
+def delete_file(file_path):
+    try:
+        os.remove(file_path)
+    except OSError:
+        pass
+
+
 def create_name_for_folder(name):
     if name is None:
         # if user did not provide a name we'll make one up (inspired by Moby Dick)
@@ -38,3 +45,7 @@ def write_stdout_to_file(text, path_to_file):
     text_file = open(path_to_file, "w")
     text_file.write(text)
     text_file.close()
+
+
+def get_name_from_path(path: str):
+    return os.path.basename(path)
