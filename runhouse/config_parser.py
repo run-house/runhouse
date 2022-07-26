@@ -61,7 +61,6 @@ class Config:
         self.config.set(self.DOCKER_CONF_HEADER, 'dockerfile', dockerfile)
         self.config.set(self.DOCKER_CONF_HEADER, 'image_tag', kwargs.get('image_tag'))
         self.config.set(self.DOCKER_CONF_HEADER, 'container_root', kwargs.get('container_root'))
-        self.config.set(self.DOCKER_CONF_HEADER, 'package_tar', kwargs.get('package_tar'))
 
         dockerfile_time_added = kwargs.get('config_kwargs', {}).get('dockerfile_time_added')
         if rebuild or file_has_changed(float(dockerfile_time_added), path_to_file=dockerfile):
@@ -78,7 +77,6 @@ class Config:
         dockerfile = self.config.get(self.DOCKER_CONF_HEADER, 'dockerfile')
         image_tag = self.config.get(self.DOCKER_CONF_HEADER, 'image_tag')
         container_root = self.config.get(self.DOCKER_CONF_HEADER, 'container_root')
-        package_tar = self.config.get(self.DOCKER_CONF_HEADER, 'package_tar')
         dockerfile_timestamp = self.config.get(self.DOCKER_CONF_HEADER, 'dockerfile_time_added')
         external_package_timestamp = self.config.get(self.DOCKER_CONF_HEADER, 'external_package_time_added')
 
@@ -88,13 +86,13 @@ class Config:
         file = self.config.get(self.MAIN_CONF_HEADER, 'file')
 
         return {'dockerfile': dockerfile, 'image_tag': image_tag, 'name': name, 'container_root': container_root,
-                'package_tar': package_tar, 'hardware': hardware, 'path': path, 'file': file,
-                'dockerfile_time_added': dockerfile_timestamp, 'package_time_added': external_package_timestamp}
+                'hardware': hardware, 'path': path, 'file': file, 'dockerfile_time_added': dockerfile_timestamp,
+                'package_time_added': external_package_timestamp}
 
     def bring_config_kwargs(self, config_path, name):
         if not valid_filepath(config_path):
             # If we don't have a config for this name yet define the initial default values
-            return {'name': name, 'hardware': 'rh_1_gpu'}
+            return {'name': name, 'hardware': os.getenv('DEFAULT_HARDWARE')}
 
         # take from the config that already exists
         return self.read_config_file(config_path)

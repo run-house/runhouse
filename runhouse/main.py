@@ -8,23 +8,26 @@ warnings.filterwarnings("ignore", category=CryptographyDeprecationWarning)
 import os
 import base64
 import typer
-import tarfile
+import glob
+import shutil
+import git
 import time
 import json
 import pkg_resources
 import boto3
 from typing import Optional
+from argparse import ArgumentParser
 from docker import DockerClient
 from runhouse.common import Common
 from runhouse.ssh_manager import SSHManager
 from runhouse.utils.utils import ERROR_FLAG
 from runhouse.config_parser import Config
-from runhouse.utils.aws_utils import push_image_to_ecr, build_ecr_client, upload_file_to_s3
+from runhouse.utils.aws_utils import push_image_to_ecr, build_ecr_client
 from runhouse.utils.docker_utils import file_has_changed, get_path_to_dockerfile, launch_local_docker_client, \
     build_image, generate_image_id, image_tag_name, create_dockerfile, create_or_update_docker_ignore, \
     full_ecr_tag_name
-from runhouse.utils.file_utils import create_name_for_folder, delete_directory, create_directories, \
-    write_stdout_to_file, get_name_from_path, delete_file
+from runhouse.utils.file_utils import write_stdout_to_file, get_name_from_path, create_directory, \
+    get_subdir_from_parent_dir
 from runhouse.utils.validation import validate_runnable_file_path, validate_name, validate_hardware, valid_filepath, \
     validate_pem_file
 
@@ -36,6 +39,7 @@ RUNHOUSE_DIR = os.path.join(os.getcwd(), 'rh')
 
 # TODO We need to inject these in a different way (can't have the user have access to the variables)
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # Create config object used for managing the read / write to the config file
@@ -48,26 +52,6 @@ def version_callback(value: bool) -> None:
         version = pkg_resources.get_distribution(name).version
         typer.echo(f"{name}=={version}")
         raise typer.Exit()
-
-
-def rename_callback(name: str) -> None:
-    name_dir = os.path.join(RUNHOUSE_DIR, name)
-    if not valid_filepath(name_dir):
-        typer.echo(f'{ERROR_FLAG} {name} does not exist')
-        return None
-
-    # TODO rather than a prompt allow the user to specify in the same command (similar to mv <src> <dest>)
-    new_dir_name = typer.prompt("Please enter the new name")
-    renamed_dir = os.path.join(RUNHOUSE_DIR, new_dir_name)
-    if any([name for name in os.listdir(RUNHOUSE_DIR) if name == new_dir_name]):
-        typer.echo(f'{ERROR_FLAG} {new_dir_name} already exists, cannot rename')
-        raise typer.Exit(code=1)
-
-    validate_name(new_dir_name)
-    os.rename(name_dir, renamed_dir)
-
-    # TODO we also need to update the image tag
-    cfg.create_or_update_config_file(renamed_dir, name=new_dir_name, rename=True)
 
 
 def get_hostname_from_hardware(hardware):
@@ -237,92 +221,135 @@ def should_we_rebuild(ctx, optional_args, config_path, config_kwargs, path_to_do
 
 
 def should_we_use_base_image(path_to_parent_dir) -> bool:
-    # Path to requirements is assumed to be in the parent dir
-    path_to_reqs = os.path.join(path_to_parent_dir, 'requirements.txt')
-    if not valid_filepath(path_to_reqs):
-        typer.echo(f'No requirements.txt found in parent directory - using the runhouse base image '
+    """Search for requirements file in the package directory"""
+    reqs_file = next(iter(glob.glob(f'{path_to_parent_dir}/**/requirements.txt', recursive=True)), None)
+    if reqs_file is None:
+        typer.echo(f'No requirements.txt found in package directory - using the runhouse base image '
                    f'(tiangolo/python-machine-learning) instead')
         return True
     return False
 
 
-def build_compressed_package(path_to_parent_dir, package_name):
-    package_file_name = f"{os.path.join(path_to_parent_dir, package_name)}.tar.gz"
-    with tarfile.open(package_file_name, mode='w:gz') as archive:
-        archive.add(path_to_parent_dir)
-    return package_file_name
+def parse_cli_args(cli_args: list):
+    """Parse the additional arguments the user provides to a given command"""
+    parser = ArgumentParser()
+    parser.add_argument('--package', dest='package', help='local directory or github URL', type=str)
+    parser.add_argument('--hardware', dest='hardware', help='named hardware instance', type=str)
+    parser.add_argument('--name', dest='name', help='name of the send', type=str)
+
+    args = parser.parse_args(cli_args)
+    return vars(args)
+
+
+def bring_config_path_and_kwargs(internal_rh_name_dir, name) -> [str, dict]:
+    config_path = os.path.join(internal_rh_name_dir, Config.CONFIG_FILE)
+    # Try to read the config file which we will begin to populate with the params the user provided
+    config_kwargs = cfg.bring_config_kwargs(config_path, name)
+    return config_path, config_kwargs
 
 
 @app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def run(ctx: typer.Context):
     """Run code for given name based on provided configurations"""
-    # TODO this is a long ass function - let's clean it up
     start = time.time()
 
-    rename = ctx.obj.rename
-    if rename:
-        # For renaming not running anything - just a directory change name and config changes
-        # TODO we also need to change the image tag
-        rename_callback(rename)
-        raise typer.Exit()
+    optional_cli_args: list = ctx.args
+    parsed_cli_args: dict = parse_cli_args(optional_cli_args)
 
-    # If user chooses a one-time run we won't be saving anything new to the user's runhouse directory
-    anon = ctx.obj.anon
-    name = 'anon' if anon else create_name_for_folder(name=ctx.obj.name)
+    # ADD CTX PARAMS HERE
+    send = ctx.obj.send
 
-    # Directory for the name which will sit in the runhouse folder
-    internal_rh_name_dir = os.path.join(RUNHOUSE_DIR, name)
-    config_path = os.path.join(internal_rh_name_dir, Config.CONFIG_FILE)
-    # Try to read the config file which we will begin to populate with the params the user provided
-    config_kwargs: dict = cfg.bring_config_kwargs(config_path, name)
+    file_to_run = ctx.obj.file
+    # If file to run is provided we will need these values
+    path_to_runnable_file = None
+    run_cmd = None
+    root_dir_name_for_container = None
+    full_path_to_package = ''
 
-    # Make sure hardware specs are valid
-    hardware = ctx.obj.hardware or config_kwargs.get('hardware', os.getenv('DEFAULT_HARDWARE'))
-    validate_hardware(hardware)
+    name = ctx.obj.name or parsed_cli_args.get('name')
+    if name is None:
+        typer.echo('No name provided for the run')
+        raise typer.Exit(code=1)
 
-    # Generate the path to the parent dir for building the image
-    path_to_parent_dir = ctx.obj.path or config_kwargs.get('external_package', os.getcwd())
+    # Make sure we have the main rh directory in the local filesystem
+    create_directory(RUNHOUSE_DIR)
+
+    if send:
+        func_type = 'send'
+        internal_rh_name_dir = os.path.join(RUNHOUSE_DIR, 'sends', name)
+        create_directory(internal_rh_name_dir)
+
+        package = parsed_cli_args.get('package')
+        config_path, config_kwargs = bring_config_path_and_kwargs(internal_rh_name_dir, name)
+
+        if package.endswith('.git'):
+            # clone the package locally
+            typer.echo(f'Cloning github URL as package for the send ({package})')
+            try:
+                git.Git(internal_rh_name_dir).clone(package)
+            except git.GitCommandError:
+                # clone either failed or already exists locally
+                # TODO differentiate between failed clone vs. directory already exists error
+                pass
+
+            # path to the repo will be in the child directory of the send's folder
+            full_path_to_package = get_subdir_from_parent_dir(internal_rh_name_dir)
+
+        else:
+            # Using a local directory as a package
+            path_to_parent = os.path.abspath(package)
+            full_path_to_package = path_to_parent
+            if not valid_filepath(full_path_to_package):
+                typer.echo(f'Package with path {full_path_to_package} not found')
+                raise typer.Exit(code=1)
+
+            # package refers to local directory
+            typer.echo(f'Using local directory {full_path_to_package} as package for the send')
+            # copy the package to the send's directory
+            shutil.copytree(full_path_to_package, internal_rh_name_dir, dirs_exist_ok=True)
+
+    elif file_to_run:
+        func_type = 'run'
+        internal_rh_name_dir = os.path.join(RUNHOUSE_DIR, name)
+        create_directory(internal_rh_name_dir)
+
+        config_path, config_kwargs = bring_config_path_and_kwargs(internal_rh_name_dir, name)
+
+        # if we are given a specific file to run (assume this has some sort of main entrypoint)
+        # Update the path to the runnable file with one defined in the config if it exists
+        path_to_runnable_file = file_to_run or config_kwargs.get('file')
+        validate_runnable_file_path(path_to_runnable_file)
+        file_name = get_name_from_path(path_to_runnable_file)
+
+        # Root directory where the file is being run - this is needed for running the file in the container
+        root_dir_name_for_container: str = os.path.dirname(path_to_runnable_file)
+
+        # Create a runnable file with the arguments provided in the internal runhouse subdirectory
+        run_cmd: str = create_runnable_file_in_runhouse_subdir(path_to_runnable_file, file_name,
+                                                               root_dir_name_for_container,
+                                                               internal_rh_name_dir, optional_cli_args)
+    else:
+        typer.echo('No send or file to run provided')
+        raise typer.Exit(code=1)
+
     package_time_added = float(config_kwargs.get('package_time_added', 0.0))
 
-    # TODO save this compressed tar.gz to s3, then load into their image
-    package_name = get_name_from_path(path_to_parent_dir)
-    package_tar = build_compressed_package(path_to_parent_dir, package_name)
+    dockerfile: str = get_path_to_dockerfile(full_path_to_package, config_kwargs, ctx)
 
-    # save this tar to s3 bucket
-    upload_file_to_s3(package_tar, package_name)
-
-    dockerfile: str = get_path_to_dockerfile(path_to_parent_dir, config_kwargs, ctx)
-
-    # Additional args used for running the file (separate from the predefined CLI options)
-    optional_cli_args: list = ctx.args
     # Check whether we need to rebuild the image or not
     rebuild: bool = should_we_rebuild(ctx=ctx, optional_args=optional_cli_args,
                                       config_path=config_path, config_kwargs=config_kwargs,
                                       path_to_dockerfile=dockerfile, package_time_added=package_time_added,
-                                      path_to_package=path_to_parent_dir)
+                                      path_to_package=full_path_to_package)
+
+    hardware = ctx.obj.hardware or config_kwargs.get('hardware', os.getenv('DEFAULT_HARDWARE'))
+    validate_hardware(hardware)
 
     # Check whether we use an image based on the user's requirements or a base image
-    use_base_image: bool = should_we_use_base_image(path_to_parent_dir)
+    use_base_image: bool = should_we_use_base_image(full_path_to_package)
 
-    # make sure we have the relevant directories created on the user's file system
-    # create the main runhouse dir and the subdir of the named uri
-    create_directories(dir_names=[RUNHOUSE_DIR, internal_rh_name_dir])
-
-    # Make sure we ignore the runhouse directory when building the image (it will sit in the root dir as well)
-    create_or_update_docker_ignore(path_to_parent_dir)
-
-    # Update the path to the runnable file with one defined in the config if it exists
-    path_to_runnable_file = ctx.obj.file or config_kwargs.get('file')
-    validate_runnable_file_path(path_to_runnable_file)
-
-    file_name = get_name_from_path(path_to_runnable_file)
-    # Root directory where the file is being run - this is needed for running the file in the container
-    root_dir_name_for_container = os.path.dirname(path_to_runnable_file)
-
-    # Create a runnable file with the arguments provided in the internal runhouse subdirectory
-    run_cmd: str = create_runnable_file_in_runhouse_subdir(path_to_runnable_file, file_name,
-                                                           root_dir_name_for_container,
-                                                           internal_rh_name_dir, optional_cli_args)
+    # Make sure we ignore the runhouse directory when building the image
+    create_or_update_docker_ignore(full_path_to_package)
 
     # TODO if using base image save to a public repository?
     image_tag, ecr_tag_name = get_tag_names(use_base_image, ctx, config_kwargs, name)
@@ -339,45 +366,44 @@ def run(ctx: typer.Context):
     if not image_exists_on_server or rebuild:
         if not use_base_image:
             # We are in rebuild mode and have enough info not to rely on a pre-existing image
-            if not valid_filepath(dockerfile) or file_has_changed(package_time_added, path_to_parent_dir):
+            if not valid_filepath(dockerfile) or file_has_changed(package_time_added, full_path_to_package):
                 # if dockerfile still does not exist (ex: user deleted it) or package was updated
-                typer.echo('[2/5] Building dockerfile')
-                dockerfile = create_dockerfile(path_to_parent_dir, package_tar)
+                typer.echo(f'[2/5] Building dockerfile for {func_type}')
+                dockerfile = create_dockerfile(full_path_to_package)
 
             docker_client: DockerClient = launch_local_docker_client()
             # Build the image locally before pushing to ecr
-            typer.echo(f'[3/5] Building image')
-            image_obj = build_image(dockerfile, docker_client, name, image_tag, path_to_parent_dir, hardware,
-                                    package_tar)
+            typer.echo(f'[3/5] Building image for {func_type}')
+            image_obj = build_image(dockerfile, docker_client, image_tag, full_path_to_package, hardware)
             push_image_to_ecr(docker_client, image_obj, tag_name=image_tag)
         else:
             # let's use a predefined base image that we already have on the server
-            typer.echo('[2/5] Loading runhouse base image')
-            typer.echo('[3/5] Running runhouse base image with existing dockerfile')
+            typer.echo(f'[2/5] Loading runhouse base image for {func_type}')
+            typer.echo(f'[3/5] Running runhouse base image with existing dockerfile')
 
-    # Once we've made sure we have the image we need in ecr we can run it on the server
-    run_image_on_remote_server(ssh_manager, run_cmd, ecr_tag_name, hardware, internal_rh_name_dir, image_exists_on_server)
-    typer.echo(f'[5/5] Finished running')
+    if send:
+        typer.echo(f'[5/5] Finished building {func_type}, updating config')
+
+    if file_to_run:
+        # Once we've made sure we have the image we need in ecr we can run it on the server
+        run_image_on_remote_server(ssh_manager, run_cmd, ecr_tag_name, hardware, full_path_to_package,
+                                   image_exists_on_server)
+        typer.echo(f'[5/5] Finished running {func_type}, updating config')
 
     # create or update the config if it doesn't already exist
-    cfg.create_or_update_config_file(internal_rh_name_dir, path=path_to_parent_dir, file=path_to_runnable_file,
+    cfg.create_or_update_config_file(internal_rh_name_dir, path=full_path_to_package, file=path_to_runnable_file,
                                      name=name, hardware=hardware, dockerfile=dockerfile, image_tag=image_tag,
                                      rebuild=rebuild, config_kwargs=config_kwargs,
-                                     container_root=root_dir_name_for_container, package_tar=package_tar)
-    if anon:
-        # delete the directory which we needed to create for the one-time run
-        delete_directory(internal_rh_name_dir)
+                                     container_root=root_dir_name_for_container)
 
     end = time.time()
-    typer.echo(f'Run completed in {int(end - start)} seconds')
+    typer.echo(f'{func_type} completed in {int(end - start)} seconds')
 
     raise typer.Exit()
 
 
 @app.callback()
 def common(ctx: typer.Context,
-           anon: bool = typer.Option(None, '--anon', '-a',
-                                     help="anonymous/one-time run (run will not be named and config won't be created)"),
            dockerfile: str = typer.Option(None, '--dockerfile', '-d', help='path to existing dockerfile'),
            file: str = typer.Option(None, '--file', '-f', help='path to specific file to run '
                                                                '(contained in the path provided'),
@@ -386,9 +412,9 @@ def common(ctx: typer.Context,
            name: str = typer.Option(None, '--name', '-n', help='name of the existing run or new run'),
            path: str = typer.Option(None, '--path', '-p', help='path to directory or github URL to be packaged '
                                                                'as part of the run'),
-           rename: str = typer.Option(None, '--rename', '-r', help='rename existing URI'),
-           shell: bool = typer.Option(None, '--shell', '-s', help='run code in interactive mode'),
+           ssh: bool = typer.Option(None, '--ssh', '-ssh', help='run code in interactive mode'),
+           send: bool = typer.Option(None, '--send', '-s', help='create a serverless endpoint'),
            version: Optional[bool] = typer.Option(None, '--version', '-v', callback=version_callback,
                                                   help='current package version')):
     """Welcome to Runhouse! Here's what you need to get started"""
-    ctx.obj = Common(name, hardware, dockerfile, file, image, shell, path, anon, rename)
+    ctx.obj = Common(name, hardware, dockerfile, file, image, ssh, path, send)

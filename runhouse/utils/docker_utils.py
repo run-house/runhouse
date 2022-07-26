@@ -3,6 +3,7 @@ import docker
 import typer
 import random
 import string
+from runhouse.utils.file_utils import get_name_from_path
 from runhouse.utils.utils import ERROR_FLAG
 from runhouse.utils.validation import valid_filepath
 
@@ -16,32 +17,29 @@ def create_or_update_docker_ignore(name_dir):
         f.write(text)
 
 
-def create_dockerfile(name_dir, root_dir, package_tar):
+def create_dockerfile(name_dir):
+    main_dir_name = get_name_from_path(name_dir)
+
     # TODO make this cleaner
-    text = f"""FROM {os.getenv('DOCKER_PYTHON_VERSION')}\nARG MAIN_DIR={root_dir}\nCOPY requirements.txt /$MAIN_DIR/requirements.txt\nWORKDIR /$MAIN_DIR\nADD {package_tar} /$MAIN_DIR\nRUN rm -rf /$MAIN_DIR/conf /$MAIN_DIR/bin /$MAIN_DIR/*.tar.gz\nRUN pip install -r requirements.txt\nCOPY . .\nENV PYTHONPATH=":/"$MAIN_DIR\nCMD ["/bin/bash"]"""
+    docker_text = f"""FROM {os.getenv('DOCKER_PYTHON_VERSION')}\n\nARG MAIN_DIR={main_dir_name}\n\nCOPY requirements.txt /opt/app/requirements.txt\n\nWORKDIR /opt/app\n\nRUN pip install --upgrade pip && pip install -r requirements.txt\n\nCOPY . /opt/app\n\nCMD ["/bin/bash"]"""
     path_to_docker_file = os.path.join(name_dir, 'Dockerfile')
     with open(path_to_docker_file, 'w') as f:
-        f.write(text)
+        f.write(docker_text)
 
     return path_to_docker_file
 
 
-def build_image(dockerfile, docker_client, name, tag_name, path_to_parent_dir, hardware, package_tar):
+def build_image(dockerfile, docker_client, tag_name, path_to_parent_dir, hardware):
     """if no image object has been provided we have some work to do"""
-    if package_tar is not None and not valid_filepath(package_tar):
-        typer.echo(f'Package {package_tar} not found - unable to build image')
-        raise typer.Exit(code=1)
-
     # Need to build the image based on dockerfile provided, or if that isn't provided first build the dockerfile
     try:
         # build it into the user's local docker image store
         resp = docker_client.images.build(path=path_to_parent_dir, dockerfile=dockerfile, tag=tag_name,
                                           labels={'hardware': hardware})
         image_obj = resp[0]
-        typer.echo(f"Successfully built image for {name}")
         return image_obj
 
-    except Exception:
+    except:
         typer.echo(f'{ERROR_FLAG} Failed to build image')
         raise typer.Exit(code=1)
 
@@ -72,14 +70,14 @@ def launch_local_docker_client():
         docker_client = docker.from_env()
         return docker_client
     except docker.errors.DockerException:
-        typer.echo(f'{ERROR_FLAG} Docker client error')
+        typer.echo(f'{ERROR_FLAG} Docker client error - make sure your local docker daemon is running')
         raise typer.Exit(code=1)
 
 
-def dockerfile_has_changed(dockerfile_time_added: float, path_to_dockerfile: str):
-    """If the dockerfile has been updated since it was first created (as indicated in the config file)"""
-    time_modified = os.path.getctime(path_to_dockerfile)
-    return time_modified - dockerfile_time_added > 100
+def file_has_changed(time_added: float, path_to_file: str):
+    """If the file / package has been updated since it was first created (as indicated in the config file)"""
+    time_modified = os.path.getctime(path_to_file)
+    return time_modified - time_added > 100
 
 
 def generate_image_id(length=12):

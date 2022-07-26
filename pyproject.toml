@@ -40,6 +40,8 @@ docker = "5.0.3"
 boto3 = "^1.24.13"
 redis = "^4.3.3"
 fsspec = "^2022.5.0"
+ray = "^1.13.0"
+gitdb = "4.0.9"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
