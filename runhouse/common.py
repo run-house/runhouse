@@ -12,9 +12,10 @@ class Common:
     ssh: bool
     path: str
     send: bool
+    status: bool
 
     # Options we want to specifically check if changed by the user between runs
-    OPTIONS_TO_CHECK = {'hardware', 'dockerfile', 'file', 'image', 'ssh', 'path', 'send'}
+    OPTIONS_TO_CHECK = {'hardware', 'dockerfile', 'file', 'image', 'path'}
 
     @property
     def args_to_check(self):

@@ -63,9 +63,9 @@ class Config:
         self.config.set(self.DOCKER_CONF_HEADER, 'container_root', kwargs.get('container_root'))
 
         dockerfile_time_added = kwargs.get('config_kwargs', {}).get('dockerfile_time_added')
-        if rebuild or file_has_changed(float(dockerfile_time_added), path_to_file=dockerfile):
-            # Update the time added if we are doing a rebuild or the dockerfile has been updated
-            self.config.set(self.DOCKER_CONF_HEADER, 'dockerfile_time_added', str(current_time()))
+        # if rebuild or file_has_changed(float(dockerfile_time_added), path_to_file=dockerfile):
+        #     # Update the time added if we are doing a rebuild or the dockerfile has been updated
+        #     self.config.set(self.DOCKER_CONF_HEADER, 'dockerfile_time_added', str(current_time()))
 
         self.write_config(config_path)
 

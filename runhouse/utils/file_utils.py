@@ -49,7 +49,3 @@ def write_stdout_to_file(text, path_to_file):
 
 def get_name_from_path(path: str):
     return os.path.basename(path)
-
-
-def get_subdir_from_parent_dir(path_to_parent):
-    return next(iter([f.path for f in os.scandir(path_to_parent) if f.is_dir()]), None)
