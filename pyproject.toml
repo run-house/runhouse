@@ -42,6 +42,8 @@ redis = "^4.3.3"
 fsspec = "^2022.5.0"
 ray = "^1.13.0"
 gitdb = "4.0.9"
+validators = "0.20.0"
+GitPython = "^3.1.27"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
