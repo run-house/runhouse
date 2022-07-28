@@ -1,11 +1,13 @@
 import json
 import os
-import redis
+# import redis
+
 
 class RNSClient:
 
     def __init__(self):
-        self.redis = redis.Redis()
+        # self.redis = redis.Redis()
+        self.redis = True
         try:
             self.redis.ping()
         except redis.exceptions.ConnectionError as e:
