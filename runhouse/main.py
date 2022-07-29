@@ -103,6 +103,7 @@ def find_requirements_file(dir_path):
 
 
 def initialize_ray_cluster(full_path_to_package, reqs_file, hardware_ip, name):
+    os.environ['RAY_IGNORE_VERSION_MISMATCH'] = 'True'
     try:
         runtime_env = {"working_dir": full_path_to_package,
                        "pip": reqs_file,
@@ -143,6 +144,9 @@ def send(ctx: typer.Context):
     create_directory(internal_rh_name_dir)
 
     package = parsed_cli_args.get('package')
+
+    if package is None:
+        package = os.getcwd()
 
     if package.endswith('.git'):
         if not validators.url(package):
