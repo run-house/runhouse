@@ -24,6 +24,7 @@ from runhouse.utils.utils import ERROR_FLAG
 from runhouse.config_parser import Config
 from runhouse.utils.file_utils import create_directory
 from runhouse.utils.validation import validate_hardware, valid_filepath
+from runhouse.rns.send import Send
 
 logging.disable(logging.CRITICAL)
 
@@ -103,21 +104,15 @@ def find_requirements_file(dir_path):
 
 
 def initialize_ray_cluster(full_path_to_package, reqs_file, hardware_ip, name):
-    os.environ['RAY_IGNORE_VERSION_MISMATCH'] = 'True'
-    try:
-        runtime_env = {"working_dir": full_path_to_package,
-                       "pip": reqs_file,
-                       'env_vars': dict(os.environ),
-                       'excludes': ['*.log', '*.tar', '*.tar.gz', '.env', 'venv', '.idea', '.DS_Store', '__pycache__',
-                                    '*.whl']}
-        # use the remote cluster head node's IP address
-        ray.init(f'ray://{hardware_ip}:10001',
-                 namespace=name,
-                 runtime_env=runtime_env,
-                 log_to_driver=False)  # to disable ray workers form logging the output
-    except:
-        typer.echo('Failed to deploy send to server')
-        raise typer.Exit(code=1)
+    # try:
+    Send(name=name,
+         package_path=full_path_to_package,
+         reqs=reqs_file,
+         hardware=hardware_ip,
+         )
+    # except:
+    #     typer.echo('Failed to deploy send to server')
+    #     raise typer.Exit(code=1)
 
 
 @app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
@@ -130,6 +125,8 @@ def send(ctx: typer.Context):
 
     # TODO name doesn't need to be explicitly provided - infer it from user based on last run or where command is run
     name = validate_and_get_name(ctx, parsed_cli_args)
+
+    # TODO move lots of the above into send constructor
 
     # Make sure we have the main rh directory in the local filesystem
     create_directory(RUNHOUSE_DIR)

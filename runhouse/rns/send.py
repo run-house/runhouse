@@ -1,15 +1,33 @@
 from typing import Optional, Callable, Dict, Union
+import os
 
 import ray
 
 class Send:
 
     def __init__(self,
-                 name=None,):
+                 name=None,
+                 package_path=None,
+                 reqs=None,
+                 hardware='local'):
         self.name = name
-        # Check kv store if send exists
-        ray.init(local_mode=True)
-        pass
+        # TODO Check kv store if send exists
+        if hardware == 'local':
+            ray.init(local_mode=True)
+        else:
+            os.environ['RAY_IGNORE_VERSION_MISMATCH'] = 'True'
+            runtime_env = {"working_dir": package_path,
+                           "pip": reqs,
+                           'env_vars': dict(os.environ),
+                           'excludes': ['*.log', '*.tar', '*.tar.gz', '.env', 'venv', '.idea', '.DS_Store',
+                                        '__pycache__',
+                                        '*.whl']}
+            # use the remote cluster head node's IP address
+            # TODO resolve hardware name to ip
+            ray.init(f'ray://{hardware}:10001',
+                     namespace=name,
+                     runtime_env=runtime_env,
+                     log_to_driver=False)  # to disable ray workers form logging the output
 
 
 def send(fn: Callable,
