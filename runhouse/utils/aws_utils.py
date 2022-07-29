@@ -10,6 +10,7 @@ import os
 import boto3
 import typer
 from botocore.exceptions import ClientError
+
 from runhouse.utils.utils import ERROR_FLAG
 
 
@@ -25,8 +26,10 @@ def aws_credentials():
 def aws_client_creator(client_type):
     access_key_id, secret_access_key, aws_region = aws_credentials()
     try:
-        boto3.client(client_type, aws_access_key_id=access_key_id, aws_secret_access_key=secret_access_key,
-                     region_name=aws_region)
+        return boto3.client(client_type,
+                            aws_access_key_id=access_key_id,
+                            aws_secret_access_key=secret_access_key,
+                            region_name=aws_region)
     except:
         typer.echo(f'{ERROR_FLAG} Unable to create boto client for {client_type}')
         raise typer.Exit(code=1)
