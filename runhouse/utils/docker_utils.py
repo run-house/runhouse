@@ -5,7 +5,6 @@ import random
 import string
 from runhouse.utils.file_utils import get_name_from_path
 from runhouse.utils.utils import ERROR_FLAG
-from runhouse.utils.validation import valid_filepath
 
 
 def create_or_update_docker_ignore(name_dir):
