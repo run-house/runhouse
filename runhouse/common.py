@@ -13,6 +13,7 @@ class Common:
     path: str
     send: bool
     status: bool
+    login: bool
 
     # Options we want to specifically check if changed by the user between runs
     OPTIONS_TO_CHECK = {'hardware', 'dockerfile', 'file', 'image', 'path'}
