@@ -17,11 +17,10 @@ import pkg_resources
 import webbrowser
 from typing import Optional
 from argparse import ArgumentParser
-import ray
 import git
 import validators as validators
 from runhouse.common import Common
-from runhouse.utils.utils import ERROR_FLAG
+from runhouse.utils.utils import ERROR_FLAG, random_string_generator
 from runhouse.config_parser import Config
 from runhouse.utils.file_utils import create_directory
 from runhouse.utils.validation import validate_hardware, valid_filepath
@@ -90,8 +89,11 @@ def validate_and_get_name(ctx, parsed_cli_args):
         # first try to grab it from the latest env variable
         name = os.getenv('CURRENT_SEND')
         if name is None:
-            typer.echo(f'{ERROR_FLAG} No name found, provide one with the --name option')
-            raise typer.Exit(code=1)
+            # No name found, we will generate a random one for the user
+            name = random_string_generator()
+            typer.echo(f'No name found, using: {name}')
+        else:
+            typer.echo(f'Using name {name}, if you would like to create a new one specify with the --name option')
 
     return name
 

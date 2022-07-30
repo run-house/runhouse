@@ -8,7 +8,7 @@ import base64
 import os
 import json
 import random
-from runhouse.utils.deploy_to_aws import build_ecr_client
+from runhouse.utils.aws_utils import build_ecr_client
 from runhouse.ssh_manager import SSHManager
 from runhouse.main import get_hostname_from_hardware
 from runhouse.utils.validation import valid_filepath
