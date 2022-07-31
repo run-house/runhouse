@@ -1,0 +1,74 @@
+### SETTING UP THE LOCAL CLUSTER ###
+
+❯ ray start --head
+
+❯ export RAY_ADDRESS="http://127.0.0.1:8265"
+
+❯ ray job submit --runtime-env-json='{"working_dir": "./", "pip": ["requests==2.26.0"]}' -- python script.py
+
+❯ ray stop (kill the cluster)
+
+### SETTING UP THE REMOTE CLUSTER ###
+
+# Create or update the cluster. When the command finishes, it will print
+# out the command that can be used to SSH into the cluster head node.
+$ ray up example-full.yaml
+
+# Get a remote screen on the head node.
+$ ray attach example-full.yaml
+$ # Try running a Ray program with 'ray.init(address="auto")'.
+
+# Tear down the cluster.
+$ ray down example-full.yaml
+
+#######################
+#######################
+
+-------
+OUTPUT FROM ray up command
+-------
+
+Local node IP: 172.31.31.248
+2022-07-15 07:52:53,261 INFO services.py:1476 -- View the Ray dashboard at http://127.0.0.1:8265
+
+--------------------
+Ray runtime started.
+--------------------
+
+Next steps
+  To connect to this Ray runtime from another node, run
+    ray start --address='172.31.31.248:6379'
+
+  Alternatively, use the following Python code:
+    import ray
+    ray.init(address='auto')
+
+  To connect to this Ray runtime from outside of the cluster, for example to
+  connect to a remote cluster from your laptop directly, use the following
+  Python code:
+    import ray
+    ray.init(address='ray://<head_node_ip_address>:10001')
+
+  If connection fails, check your firewall settings and network configuration.
+
+  To terminate the Ray runtime, run
+    ray stop
+
+#####
+Useful commands:
+
+  Monitor autoscaling with
+    ray exec /Users/josh.l/dev/runhouse/runhouse/ray_utils/example-full.yaml 'tail -n 100 -f /tmp/ray/session_latest/logs/monitor*'
+
+  Connect to a terminal on the cluster head:
+    ray attach /Users/josh.l/dev/runhouse/runhouse/ray_utils/example-full.yaml
+
+  Get a remote shell to the cluster manually:
+    ssh -tt -o IdentitiesOnly=yes -i /Users/josh.l/.ssh/ray-autoscaler_us-west-2.pem ubuntu@54.185.61.162 docker exec -it ray_container /bin/bash
+
+
+#####
+AWS:
+ssh -i "ray-autoscaler_us-west-2.pem" ubuntu@ec2-35-165-62-167.us-west-2.compute.amazonaws.com
+
+

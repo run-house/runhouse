@@ -162,6 +162,7 @@ def create_runnable_file_in_runhouse_subdir(name_dir, path_to_runnable_file_on_c
 @app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def send(ctx: typer.Context):
     """Build serverless endpoint and deploy to remote cluster"""
+    # TODO make ctx as optional args at the end (ex: runhouse send --name --hardware, etc.)
     start = time.time()
 
     name = validate_and_get_name(ctx)
@@ -264,8 +265,10 @@ def ssh(ctx: typer.Context):
 
 @app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def run(ctx: typer.Context):
+    # TODO Note: need to first create the send - first check that name is in env var or they passed in name arg
     """Run a specific job on runhouse remote cluster"""
     start = time.time()
+    # TODO we know where the send sits, now we just create the executable
 
     typer.echo(f'[1/5] Validating run params')
     optional_cli_args: list = ctx.args
