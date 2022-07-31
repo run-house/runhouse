@@ -3,6 +3,7 @@ import warnings
 
 # Suppress warnings when running commands
 from cryptography.utils import CryptographyDeprecationWarning
+
 warnings.filterwarnings("ignore", category=CryptographyDeprecationWarning)
 
 import os
@@ -15,7 +16,6 @@ import subprocess
 import pkg_resources
 import webbrowser
 from typing import Optional
-from argparse import ArgumentParser
 import git
 import validators as validators
 from ray.dashboard.modules.job.sdk import JobSubmissionClient
@@ -23,7 +23,7 @@ from runhouse.common import Common
 from runhouse.utils.utils import ERROR_FLAG, random_string_generator
 from runhouse.config_parser import Config
 from runhouse.utils.file_utils import create_directory, create_directories
-from runhouse.utils.validation import validate_hardware, valid_filepath, validate_runnable_file_path
+from runhouse.utils.validation import validate_hardware, valid_filepath
 from runhouse.rns.send import Send
 
 logging.disable(logging.CRITICAL)
@@ -67,26 +67,6 @@ def get_hostname_from_hardware(hardware):
     return hostname
 
 
-def parse_cli_args(cli_args: list):
-    """Parse the additional arguments the user provides to a given command"""
-    # TODO this should be deprecated - these should be given as COMMANDS and not OPTIONS
-    try:
-        parser = ArgumentParser()
-        parser.add_argument('--file', dest='file', help='file (with main) to be run on remote cluster', type=str)
-        parser.add_argument('--hardware', dest='hardware', help='named hardware instance', type=str)
-        parser.add_argument('--name', dest='name', help='name of the send', type=str)
-        parser.add_argument('--package', dest='package', help='local directory or github URL', type=str)
-        parser.add_argument('--path', dest='path', help='path to the file which will be run on remote cluster',
-                            type=str)
-
-        args = parser.parse_args(cli_args)
-        return vars(args)
-
-    except SystemExit:
-        typer.echo(f'{ERROR_FLAG} Unable to parse options provided')
-        raise typer.Exit(code=1)
-
-
 def validate_and_get_name(ctx):
     name = ctx.obj.name
     if name is None:
@@ -97,7 +77,7 @@ def validate_and_get_name(ctx):
             name = random_string_generator()
             typer.echo(f'No name found, using: {name}')
         else:
-            typer.echo(f'Using name {name}, if you would like to create a new one specify with the --name command')
+            typer.echo(f'Using name {name} (you can specify a new name with the --name command)')
 
     return name
 
@@ -128,15 +108,26 @@ def update_env_vars_with_curr_name(name, ip_address=None):
 
 
 def initialize_ray_cluster(full_path_to_package, reqs_file, hardware_ip, name):
-    # try:
     Send(name=name,
          package_path=full_path_to_package,
          reqs=reqs_file,
          hardware=hardware_ip,
          )
-    # except:
-    #     typer.echo('Failed to deploy send to server')
-    #     raise typer.Exit(code=1)
+
+
+def submit_job_to_ray_cluster(run_cmd, path_to_runnable_file, reqs_file, hardware_ip):
+    try:
+        client = JobSubmissionClient(f"http://{hardware_ip}:8265")
+        job_id = client.submit_job(
+            entrypoint=run_cmd,
+            runtime_env={
+                "working_dir": path_to_runnable_file,
+                "pip": reqs_file
+            }
+        )
+    except:
+        typer.echo('Failed to run on ray cluster')
+        raise typer.Exit(code=1)
 
 
 def runnable_file_command(path_to_runnable_file, formatted_args):
@@ -149,11 +140,11 @@ def create_sh_file_in_dir(dir_name, file_name, text):
         rsh.write(f'''#! /bin/sh\n{text}''')
 
 
-def create_runnable_file_in_runhouse_subdir(name_dir, path_to_runnable_file, optional_cli_args):
+def create_runnable_file_in_runhouse_subdir(name_dir, path_to_runnable_file_on_cluster, optional_cli_args):
     """Build the internal file in the runhouse directory used for executing the code the user wants to run remotely"""
-    ext = os.path.splitext(path_to_runnable_file)[1]
+    ext = os.path.splitext(path_to_runnable_file_on_cluster)[1]
     formatted_args: str = ' '.join(optional_cli_args)
-    cmd = runnable_file_command(path_to_runnable_file, formatted_args)
+    cmd = runnable_file_command(path_to_runnable_file_on_cluster, formatted_args)
 
     if ext not in ['.py', '.sh']:
         typer.echo(f'{ERROR_FLAG} Runhouse currently supports file types with extensions .py or .sh')
@@ -302,15 +293,30 @@ def run(ctx: typer.Context):
     typer.echo(f'[2/5] Checking if we need to rebuild')
     create_directories(dir_names=[RUNHOUSE_DIR, internal_rh_name_dir])
 
-    # Update the path to the runnable file with one defined in the config if it exists
+    # Validate the path locally before creating the path to be used when running on the cluster
     runnable_file_name = ctx.obj.file or config_kwargs.get('file')
+    if not runnable_file_name:
+        # If we did not explicitly receive the path to the file (-f) by the user (and not provided in the config file)
+        typer.echo(f'{ERROR_FLAG} Please include the name of to the file to run (using -f option)')
+        raise typer.Exit(code=1)
+
     path_to_runnable_file = os.path.abspath(os.path.join(path_to_parent_dir, runnable_file_name))
-    validate_runnable_file_path(path_to_runnable_file)
+
+    if not valid_filepath(path_to_runnable_file):
+        # make sure the path the user provided is ok
+        typer.echo(f'{ERROR_FLAG} No file found in path: {path_to_runnable_file}')
+        raise typer.Exit(code=1)
+
+    # TODO need to somehow know what the hash is (_ray_pkg_<hash of directory contents>)
+    path_to_runnable_file_on_cluster = os.path.abspath(os.path.join(os.getenv('RAY_WORKING_DIR'),
+                                                                    path_to_parent_dir,
+                                                                    runnable_file_name))
 
     typer.echo(f'[3/5] Creating runhouse config for {name}')
 
     # Create a runnable file with the arguments provided in the internal runhouse subdirectory
-    run_cmd: str = create_runnable_file_in_runhouse_subdir(internal_rh_name_dir, path_to_runnable_file,
+    # The path to the file should match how we expect this to look on the server
+    run_cmd: str = create_runnable_file_in_runhouse_subdir(internal_rh_name_dir, path_to_runnable_file_on_cluster,
                                                            optional_cli_args)
 
     reqs_file = find_requirements_file(path_to_runnable_file)
@@ -318,18 +324,11 @@ def run(ctx: typer.Context):
         # have default requirements txt
         typer.echo('No requirements.txt found - will use default runhouse requirements')
 
-    typer.echo(f'[4/5] Running job for {name} on remote cluster')
+    typer.echo(f'[4/5] Running {name} on remote cluster')
 
-    # TODO create the job with ray and submit it
-    client = JobSubmissionClient(f"http://{hardware_ip}:8265")
-    job_id = client.submit_job(
-        entrypoint=run_cmd,
-        runtime_env={
-            "working_dir": path_to_runnable_file,
-            "pip": reqs_file
-        }
-    )
-    typer.echo(f'[5/5] Finished running on remote cluster')
+    submit_job_to_ray_cluster(run_cmd, path_to_runnable_file, reqs_file, hardware_ip)
+
+    typer.echo(f'[5/5] Finished running {name} on remote cluster')
 
     # TODO needs to be simplified - way too many fields here
     cfg.create_or_update_config_file(internal_rh_name_dir, path=path_to_parent_dir, file=path_to_runnable_file,

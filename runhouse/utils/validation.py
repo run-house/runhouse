@@ -20,18 +20,6 @@ def validate_name(name):
         raise typer.Exit(code=1)
 
 
-def validate_runnable_file_path(path_to_runnable_file):
-    if not path_to_runnable_file:
-        # If we did not explicitly receive the path to the file (-f) by the user (and not provided in the config file)
-        typer.echo(f'{ERROR_FLAG} Please include the path to the file to run (using -f option)')
-        raise typer.Exit(code=1)
-
-    if not valid_filepath(path_to_runnable_file):
-        # make sure the path the user provided is ok
-        typer.echo(f'{ERROR_FLAG} No file found in path: {path_to_runnable_file}')
-        raise typer.Exit(code=1)
-
-
 def validate_hardware(hardware):
     """Throw an error for invalid hardware specs"""
     hardware_to_hostname = json.loads(os.getenv('HARDWARE_TO_HOSTNAME'))
