@@ -76,6 +76,7 @@ def validate_and_get_name(ctx):
             # No name found, we will generate a random one for the user
             name = random_string_generator()
             typer.echo(f'No name found, using: {name}')
+            dotenv.set_key(DOTENV_FILE, "CURRENT_NAME", name)
         else:
             typer.echo(f'Using name {name} (you can specify a new name with the --name command)')
 
@@ -102,17 +103,9 @@ def update_env_vars_with_curr_name(name, ip_address=None):
     dotenv.set_key(DOTENV_FILE, "CURRENT_NAME", name)
 
     if ip_address is not None:
-        curr_yaml = json.loads(os.getenv('YAML_TO_NAME', {}))
+        curr_yaml = json.loads(os.getenv('YAML_TO_NAME', default='{}'))
         curr_yaml[name] = ip_address
         dotenv.set_key(DOTENV_FILE, "YAML_TO_NAME", json.dumps(curr_yaml))
-
-
-def initialize_ray_cluster(full_path_to_package, reqs_file, hardware_ip, name):
-    Send(name=name,
-         package_path=full_path_to_package,
-         reqs=reqs_file,
-         hardware=hardware_ip,
-         )
 
 
 def submit_job_to_ray_cluster(run_cmd, path_to_runnable_file, reqs_file, hardware_ip):
@@ -183,7 +176,7 @@ def send(ctx: typer.Context):
     internal_rh_name_dir = os.path.join(RUNHOUSE_DIR, 'sends', name)
     create_directory(internal_rh_name_dir)
 
-    package = ctx.obj.package
+    package = ctx.obj.path
     if package is None:
         package = os.getcwd()
 
@@ -221,7 +214,11 @@ def send(ctx: typer.Context):
 
     typer.echo(f'[3/4] Deploying send for {name}')
 
-    initialize_ray_cluster(full_path_to_package, reqs_file, hardware_ip, name)
+    Send(name=name,
+         package_path=full_path_to_package,
+         reqs=reqs_file,
+         cluster_ip=hardware_ip,
+         )
 
     typer.echo(f'[4/4] Finished deploying send, updating config')
 
