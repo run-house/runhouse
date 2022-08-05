@@ -71,4 +71,7 @@ Useful commands:
 AWS:
 ssh -i "ray-autoscaler_us-west-2.pem" ubuntu@ec2-35-165-62-167.us-west-2.compute.amazonaws.com
 
-
+            # Finding AMIs: https://aws.amazon.com/releasenotes/aws-deep-learning-ami-catalog/
+#            ImageId: ami-0a2363a9cff180a64 # Deep Learning AMI (Ubuntu) Version 30
+#            ImageId: ami-0e13493558ae9b54f # Miniconda AMI
+            ImageId: ami-0c8198306e6f7290e # PyTorch AMI

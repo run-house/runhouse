@@ -159,27 +159,19 @@ def send(ctx: typer.Context):
     start = time.time()
 
     name = validate_and_get_name(ctx)
+    dotenv.set_key(DOTENV_FILE, "CURRENT_NAME", name)
 
-    # TODO move lots of the above into send constructor
-    # Make sure we have the main rh directory in the local filesystem
-    create_directory(RUNHOUSE_DIR)
-
-    # validate the hardware and grab its relevant IP address needed for building the send
     hardware = ctx.obj.hardware or os.getenv('DEFAULT_HARDWARE')
-    validate_hardware(hardware)
-    hardware_ip = get_hostname_from_hardware(hardware)
+    # validate the hardware and grab its relevant IP address needed for building the send
+    # validate_hardware(hardware)
+    # hardware_ip = get_hostname_from_hardware(hardware)
 
     # update the env variables so we can access it
-    update_env_vars_with_curr_name(name, hardware_ip)
+    # update_env_vars_with_curr_name(name, hardware_ip)
 
     typer.echo(f'[1/4] Starting to build send')
-    internal_rh_name_dir = os.path.join(RUNHOUSE_DIR, 'sends', name)
-    create_directory(internal_rh_name_dir)
 
-    package = ctx.obj.path
-    if package is None:
-        package = os.getcwd()
-
+    package = ctx.obj.path or os.getcwd()
     if package.endswith('.git'):
         if not validators.url(package):
             typer.echo(
@@ -191,12 +183,13 @@ def send(ctx: typer.Context):
         typer.echo(f'[2/4] Using github URL as package for the send ({package})')
 
         try:
-            # TODO handle auth for cloning private repos
-            git.Git(internal_rh_name_dir).clone(package)
-        except git.GitCommandError:
+            # TODO check auth for cloning private repos
+            repo = git.Repo.clone_from(package)
+        except git.GitCommandError as e:
             # clone either failed or already exists locally
             # TODO differentiate between failed clone vs. directory already exists error
-            pass
+            raise e
+        full_path_to_package = repo.working_tree_dir
     else:
         # package refers to local directory
         typer.echo(f'[2/4] Using local directory to be packaged for the send ({package})')
@@ -215,7 +208,7 @@ def send(ctx: typer.Context):
     typer.echo(f'[3/4] Deploying send for {name}')
 
     Send(name=name,
-         package_path=full_path_to_package,
+         working_dir=full_path_to_package,
          reqs=reqs_file,
          cluster_ip=hardware_ip,
          )
