@@ -32,11 +32,12 @@ class Send:
         # Derive working dir from looking up directory tree for requirements.txt
         if self.working_dir is None:
             # Check if reqs is a filepath, and if so, take parent of requirements.txt
+            reqs_or_rh_dir = find_reqtxt_or_rh(os.getcwd())
             if isinstance(reqs, str) and Path(reqs).exists():
                 self.working_dir = Path(reqs).parent
-            elif find_requirements_file(os.getcwd()):
-                found_reqs_path = Path(find_requirements_file(os.getcwd()))
-                self.working_dir = found_reqs_path.parent
+            # elif reqs_or_rh_dir is not None:
+            #     # found_reqs_path = Path(find_requirements_file(os.getcwd()))
+            #     self.working_dir = reqs_or_rh_dir
             else:
                 self.working_dir = os.getcwd()
 
@@ -138,5 +139,11 @@ class Send:
         # https://docs.ray.io/en/latest/ray-core/tasks/patterns/map-reduce.html
         return ray.get([map.remote(i, map_func) for i in replicas])
 
-def find_requirements_file(dir_path):
-    return next(iter(glob.glob(f'{dir_path}/**/requirements.txt', recursive=True)), None)
+def find_reqtxt_or_rh(dir_path):
+    if Path(dir_path) == Path.home():
+        return None
+    if Path(dir_path, 'requirements.txt').exists() or Path(dir_path, 'rh').exists():
+        return Path(dir_path, 'requirements.txt')
+    else:
+        return find_reqtxt_or_rh(Path(dir_path).parent)
+    # return next(iter(glob.glob(f'{dir_path}/**/requirements.txt', recursive=True)), None)

@@ -49,7 +49,7 @@ class Cluster:
 
             if self.address is None:
                 # Also ensures cluster is up, and creates it if not
-                self.address = self.get_cluster_address(create=create)
+                self.address = self.get_or_create_cluster(create=create)
 
             config = {'name': self.name,
                       # TODO save full yaml file, not just path
@@ -60,7 +60,7 @@ class Cluster:
                                              resource_dir=self.cluster_dir,
                                              resource_type="cluster")
 
-    def get_cluster_address(self, create=True):
+    def get_or_create_cluster(self, create=True):
         try:
             # Private fn - Ray looks at tags of active EC2 instances through boto to find a node
             # with tags ray-node-type==head and ray-cluster-name==<name>
@@ -74,6 +74,10 @@ class Cluster:
             else:
                 raise e
         return f'ray://{ip}:10001'
+
+    # TODO getter
+    def ip(self):
+        pass
 
     def ssh_into_head(self):
         subprocess.run(["ray", "attach", f"{self.yaml_path}"])
