@@ -9,12 +9,12 @@ from .rns_client import RNSClient
 
 default_yaml = Path(__file__).parent / "rh-minimal.yaml"
 default_clusters_dir = Path.home() / ".rh/clusters"
-default_cluster_name = "rh_default"
+default_cluster_name = "default"
 
 class Cluster:
 
     def __init__(self,
-                 name,
+                 name=None,
                  yaml_path=None,
                  address=None,
                  create=True,
@@ -28,40 +28,37 @@ class Cluster:
         if self.yaml_path is None or self.address is None:
             # Create the cluster config directory, e.g. ~/.rh/clusters/<my_cluster_name>
             self.cluster_dir = Path(clusters_dir or default_clusters_dir, self.name)
-            self.cluster_dir.mkdir(parents=True, exist_ok=True)
-            config_path = self.cluster_dir / "config.json"
-
-            # Check if yaml and address are present in local config
-            if config_path.is_file():
-                config = json.load(config_path.open('r'))
-            else:
-                # TODO pull yaml (and save down) and address from real API
-                config = RNSClient().get("cluster:"+self.name)
-
-            # TODO check if yaml file is in directory in case the config didn't save,
-            # sometimes the python client times out while the cluster is starting
+            config = RNSClient().load_config_from_name(self.name,
+                                                       resource_dir=self.cluster_dir,
+                                                       resource_type="cluster")
 
             self.yaml_path = yaml_path or config.get('yaml_path', None)
             self.address = address or config.get('address', None)
 
             # Still no yaml, create one from template
             if self.yaml_path is None:
-                cluster_yaml = yaml.safe_load(default_yaml.open('r'))
-                cluster_yaml['cluster_name'] = self.name
+                # Check if yaml file is in directory in case the config didn't save,
+                # sometimes the python client times out while the cluster is starting
+                # If it exists, assume it's the right one, don't make a new one
                 self.yaml_path = self.cluster_dir / f"{self.name}_ray_conf.yaml"
-                yaml.dump(cluster_yaml, self.yaml_path.open('w'))
+                if not self.yaml_path.exists():
+                    cluster_yaml = yaml.safe_load(default_yaml.open('r'))
+                    cluster_yaml['cluster_name'] = self.name
+                    # TODO fix python mismatch business here too?
+                    yaml.dump(cluster_yaml, self.yaml_path.open('w'))
 
             if self.address is None:
                 # Also ensures cluster is up, and creates it if not
                 self.address = self.get_cluster_address(create=create)
 
             config = {'name': self.name,
+                      # TODO save full yaml file, not just path
                       'yaml_path': str(self.yaml_path),
                       'address': self.address}
-            json.dump(config, config_path.open('w'))
-            # print(f"Cluster config saved to {config_path}")
-            # TODO save full yaml, not just path
-            RNSClient().set("cluster:"+self.name, config)
+            RNSClient().save_config_for_name(self.name,
+                                             config,
+                                             resource_dir=self.cluster_dir,
+                                             resource_type="cluster")
 
     def get_cluster_address(self, create=True):
         try:
@@ -97,6 +94,4 @@ class Cluster:
 
     def teardown_and_delete(self):
         self.teardown()
-        if self.cluster_dir.exists():
-            self.cluster_dir.rmdir()
-        RNSClient().delete(self.name)
+        RNSClient().delete_configs(self.name, self.cluster_dir, 'cluster')

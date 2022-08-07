@@ -9,7 +9,6 @@ warnings.filterwarnings("ignore", category=CryptographyDeprecationWarning)
 import os
 import logging
 import typer
-import glob
 import time
 import json
 import subprocess
@@ -92,10 +91,6 @@ def get_path_to_yaml_config_by_name(name):
     path_to_yaml = json.loads(yaml_to_name).get(name)
 
     return path_to_yaml
-
-
-def find_requirements_file(dir_path):
-    return next(iter(glob.glob(f'{dir_path}/**/requirements.txt', recursive=True)), None)
 
 
 def update_env_vars_with_curr_name(name, ip_address=None):
