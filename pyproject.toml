@@ -44,6 +44,8 @@ ray = "^1.13.0"
 gitdb = "4.0.9"
 validators = "0.20.0"
 GitPython = "^3.1.27"
+botocore = "^1.27.46"
+boto3 = "^1.24.46"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.2"

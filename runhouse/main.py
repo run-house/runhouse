@@ -15,13 +15,15 @@ import subprocess
 import pkg_resources
 import webbrowser
 from typing import Optional
+from argparse import ArgumentParser
 import git
+import dotenv
 import validators as validators
 from ray.dashboard.modules.job.sdk import JobSubmissionClient
 from runhouse.common import Common
 from runhouse.utils.utils import ERROR_FLAG, random_string_generator
 from runhouse.config_parser import Config
-from runhouse.utils.file_utils import create_directory, create_directories
+from runhouse.utils.file_utils import create_directories
 from runhouse.utils.validation import validate_hardware, valid_filepath
 from runhouse.rns.send import Send
 
@@ -33,10 +35,9 @@ app = typer.Typer(add_completion=False)
 # Where to create the runhouse internal subdirectory (assume it should be in the user's current directory)
 RUNHOUSE_DIR = os.path.join(os.getcwd(), 'rh')
 
-# TODO We need to inject these in a different way (can't have the user have access to the variables)
-import dotenv
-
+# TODO this should be replaced soon
 DOTENV_FILE = dotenv.find_dotenv()
+assert DOTENV_FILE, "Make sure you have .env file saved in root directory"
 dotenv.load_dotenv(DOTENV_FILE)
 
 # Create config object used for managing the read / write to the config file
@@ -147,33 +148,50 @@ def create_runnable_file_in_runhouse_subdir(name_dir, path_to_runnable_file_on_c
     return cmd
 
 
+def parse_cli_args(cli_args: list):
+    """Parse the additional arguments the user provides to a given command"""
+    try:
+        parser = ArgumentParser()
+        parser.add_argument('--package', dest='package', help='local directory or github URL', type=str)
+        parser.add_argument('--hardware', dest='hardware', help='named hardware instance', type=str)
+        parser.add_argument('--name', dest='name', help='name of the send', type=str)
+        parser.add_argument('--cluster', dest='cluster', help='name of the cluster to deploy the send', type=str)
+
+        args = parser.parse_args(cli_args)
+        return vars(args)
+
+    except SystemExit:
+        typer.echo(f'{ERROR_FLAG} Unable to parse options provided')
+        raise typer.Exit(code=1)
+
+
 @app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def send(ctx: typer.Context):
     """Build serverless endpoint and deploy to remote cluster"""
     # TODO make ctx as optional args at the end (ex: runhouse send --name --hardware, etc.)
     start = time.time()
 
-    name = validate_and_get_name(ctx)
-    dotenv.set_key(DOTENV_FILE, "CURRENT_NAME", name)
+    # Arguments are optional rather than forced commands
+    optional_cli_args: list = ctx.args
+    cli_args: dict = parse_cli_args(optional_cli_args)
 
-    hardware = ctx.obj.hardware or os.getenv('DEFAULT_HARDWARE')
-    # validate the hardware and grab its relevant IP address needed for building the send
-    # validate_hardware(hardware)
-    # hardware_ip = get_hostname_from_hardware(hardware)
+    name = cli_args.get('name') or os.getenv('CURRENT_NAME')
+    if name is None:
+        typer.echo('No name found - please provide one with the --name option')
+        raise typer.Exit(code=1)
 
-    # update the env variables so we can access it
-    # update_env_vars_with_curr_name(name, hardware_ip)
+    # TODO deprecate this way of doing things
+    dotenv.set_key(dotenv_path=DOTENV_FILE, key_to_set="CURRENT_NAME", value_to_set=name)
 
     typer.echo(f'[1/4] Starting to build send')
 
-    package = ctx.obj.path or os.getcwd()
+    package = cli_args.get('package') or os.getcwd()
     if package.endswith('.git'):
         if not validators.url(package):
-            typer.echo(
-                f'{ERROR_FLAG} Invalid git url provided\nSample Url: https://github.com/<username>/<git-repo>.git')
+            typer.echo(f'{ERROR_FLAG} Invalid git url provided\n'
+                       f'Sample Url: https://github.com/<username>/<git-repo>.git')
             raise typer.Exit(code=1)
 
-        full_path_to_package = internal_rh_name_dir
         # clone the package locally
         typer.echo(f'[2/4] Using github URL as package for the send ({package})')
 
@@ -195,27 +213,24 @@ def send(ctx: typer.Context):
         typer.echo(f'{ERROR_FLAG} Package with path {full_path_to_package} not found')
         raise typer.Exit(code=1)
 
-    reqs_file = find_requirements_file(full_path_to_package)
+    reqs_file = Send.find_reqtxt_or_rh(full_path_to_package)
     if reqs_file is None:
         # have default requirements txt
         typer.echo('No requirements.txt found - will use default runhouse requirements')
 
     typer.echo(f'[3/4] Deploying send for {name}')
+    cluster = cli_args.get('cluster')
+    hardware = cli_args.get('hardware') or os.getenv('DEFAULT_HARDWARE')
 
-    Send(name=name,
+    # Create on the cluster
+    Send(fn=None,
+         name=name,
          working_dir=full_path_to_package,
          reqs=reqs_file,
-         cluster_ip=hardware_ip,
-         )
+         cluster=cluster,
+         hardware=hardware)
 
     typer.echo(f'[4/4] Finished deploying send, updating config')
-
-    # create or update the config if it doesn't already exist
-    # TODO figure out what parts of the config we want to keep (some can prob be deprecated)
-    cfg.create_or_update_config_file(internal_rh_name_dir, path=full_path_to_package, file=None,
-                                     name=name, hardware=hardware, dockerfile=None, image_tag=None,
-                                     rebuild=None, config_kwargs={},
-                                     container_root=None)
 
     end = time.time()
     typer.echo(f'Completed in {int(end - start)} seconds')

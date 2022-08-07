@@ -1,12 +1,13 @@
 import json
 import os
-import redis
 from pathlib import Path
+import redis
+import typer
 
 
 class RNSClient:
 
-    def __init__(self, ):
+    def __init__(self):
         self.redis = redis.Redis()
         try:
             self.redis.ping()
@@ -22,15 +23,13 @@ class RNSClient:
         # For now, don't hit API at all if config is present.
         # Maybe later check API in case any args are missing or if fresher version is available.
         if config_path.is_file():
-            config = json.load(config_path.open('r'))
-        else:
-            # TODO pull yaml (and save down) and address from real API
-            uri = resource_type + ":" + name
-            config = self.get(uri)
+            typer.echo(f'Loading config from file {str(config_path)}')
+            return json.load(config_path.open('r'))
 
-        # TODO print to logger that config was loaded from x place or uri
-
-        return config
+        # TODO pull yaml (and save down) and address from real API
+        uri = resource_type + ":" + name
+        typer.echo(f'Loading config from URI {uri}')
+        return self.get(uri)
 
     def save_config_for_name(self, name, config, resource_dir, resource_type):
         name_dir = Path(resource_dir)

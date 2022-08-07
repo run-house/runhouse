@@ -2,52 +2,83 @@ import pathlib
 from typing import Optional, Callable, Dict, Union, List
 import os
 from pathlib import Path
-import glob
-
 from ray import cloudpickle
 import ray
+from ray.dashboard.modules.job.sdk import JobSubmissionClient
 
 from .cluster import Cluster
 from .rns_client import RNSClient
 
+
 class Send:
+    RESOURCE_TYPE = 'send'
 
     def __init__(self,
-                 fn: Callable,
+                 fn: Optional[Callable],
                  name=None,
                  working_dir=None,
                  hardware: Union[None, str, Dict[str, int]] = None,
                  reqs: Optional[List[str]] = None,
                  # runtime_env: Union[None, Dict] = None,
                  cluster=None):
+        self.fn = fn
         self.name = name
+        self.rns_client = RNSClient()
 
+        self.working_dir = self.get_working_dir(working_dir, reqs)
+
+        config = {}
+        if self.name is not None:
+            self.send_dir = Path(self.working_dir, "rh/sends", self.name)
+            config = self.rns_client.load_config_from_name(self.name, resource_dir=self.send_dir,
+                                                           resource_type=self.RESOURCE_TYPE)
+            assert config, f"Failed to load config for {name}"
+
+        self.reqs = self.get_reqs(reqs, config)
+
+        self.hardware = ({hardware: 1} if isinstance(hardware, str) else hardware) or config.get('hardware', None)
+
+        # For now, default to local if no cluster provided
+        self.create_cluster_for_send(cluster, config)
+
+        if self.fn is None and config.get('fn', None) is not None:
+            self.fn = cloudpickle.loads(bytes(config['fn']))
+
+        assert self.fn is not None, f"Missing values for fn {type(self.fn)}"
+        self.remote_fn = ray.remote(resources=self.hardware)(fn)
+
+        if self.name is not None:
+            self.set_name(self.name)
+
+    def __del__(self):
+        ray.shutdown()
+
+    def __call__(self, *args, **kwargs):
+        res = self.remote_fn.remote(*args, **kwargs)
+        return ray.get(res)
+
+    def get_working_dir(self, working_dir, reqs):
         # Search for working_dir, in the following order:
         # 1. User provided working_dir
         # 2. Environment variable RH_WORKING_DIR
         # 3. If reqs is a path to a requirements.txt, use the parent directory of that
         # 4. Search up the directory tree for a requirements.txt, and use the parent directory if found
         # 5. User's cwd
-        self.working_dir = working_dir or os.environ.get('RH_WORKING_DIR', None)
+        work_dir = working_dir or os.environ.get('RH_WORKING_DIR', None)
+        if work_dir is not None:
+            return work_dir
         # Derive working dir from looking up directory tree for requirements.txt
-        if self.working_dir is None:
-            # Check if reqs is a filepath, and if so, take parent of requirements.txt
-            reqs_or_rh_dir = find_reqtxt_or_rh(os.getcwd())
-            if isinstance(reqs, str) and Path(reqs).exists():
-                self.working_dir = Path(reqs).parent
-            # elif reqs_or_rh_dir is not None:
-            #     # found_reqs_path = Path(find_requirements_file(os.getcwd()))
-            #     self.working_dir = reqs_or_rh_dir
-            else:
-                self.working_dir = os.getcwd()
+        # Check if reqs is a filepath, and if so, take parent of requirements.txt
+        reqs_or_rh_dir = self.find_reqtxt_or_rh(os.getcwd())
+        if isinstance(reqs, str) and Path(reqs).exists():
+            return Path(reqs).parent
+        # elif reqs_or_rh_dir is not None:
+        #     # found_reqs_path = Path(find_requirements_file(os.getcwd()))
+        #     # return reqs_or_rh_dir
+        else:
+            return os.getcwd()
 
-        config = {}
-        if self.name is not None:
-            self.send_dir = Path(self.working_dir, "rh/sends", self.name)
-            config = RNSClient().load_config_from_name(self.name,
-                                                       resource_dir=self.send_dir,
-                                                       resource_type='send')
-
+    def get_reqs(self, reqs, config):
         self.reqs = reqs or config.get('reqs', None)
         # Check if working_dir has requirements.txt, and if so extract reqs
         if Path(self.working_dir, 'requirements.txt').exists():
@@ -59,22 +90,22 @@ class Send:
                     passed_reqs_list = Path(self.reqs, 'requirements.txt').read_text().split('\n')
                 elif isinstance(self.reqs, list):
                     passed_reqs_list = self.reqs
+                # TODO shouldn't happen - handle later
+                elif isinstance(self.reqs, pathlib.PosixPath):
+                    self.reqs = str(self.reqs)
                 else:
                     raise TypeError(f'Send reqs must be either filepath or list, but found {self.reqs}')
                 # Ignore version mismatches for now...
-                self.reqs = list((set(reqstxt_list) | set(passed_reqs_list)))
+                return list((set(reqstxt_list) | set(passed_reqs_list)))
             else:
-                self.reqs = str(Path(self.working_dir, 'requirements.txt'))
+                return str(Path(self.working_dir, 'requirements.txt'))
 
-        self.hardware = ({hardware: 1} if isinstance(hardware, str) else hardware) or config.get('hardware', None)
-        runtime_env = None
-
-        # For now, default to local if no cluster provided
+    def create_cluster_for_send(self, cluster, config):
         cluster = cluster or config.get('cluster', None)
         if cluster is None:
             ray.init(local_mode=True, ignore_reinit_error=True)
         else:
-            self.cluster = Cluster(name=cluster, create=True)
+            self.cluster = Cluster(name=cluster, create=True, rns_client=self.rns_client)
             os.environ['RAY_IGNORE_VERSION_MISMATCH'] = 'True'
             # TODO merge with user-supplied runtime_env
             # TODO see if we can fix the python mismatch here via the 'conda' argument
@@ -95,22 +126,6 @@ class Send:
                          # namespace=self.name,
                          )
 
-        self.fn = fn
-        if self.fn is None and config.get('fn', None) is not None:
-            self.fn = cloudpickle.loads(config['fn'])
-
-        self.remote_fn = ray.remote(resources=self.hardware)(fn)
-
-        if self.name is not None:
-            self.set_name(self.name)
-
-    def __del__(self):
-        ray.shutdown()
-
-    def __call__(self, *args, **kwargs):
-        res = self.remote_fn.remote(*args, **kwargs)
-        return ray.get(res)
-
     # Name the send, saving it to config stores
     def set_name(self, name):
         sends_path = pathlib.Path(self.working_dir, "rh/sends")
@@ -122,28 +137,30 @@ class Send:
                   'reqs': self.reqs,
                   'cluster': self.cluster.name,
                   }
-        RNSClient.save_to_config(name, resource_dir=sends_path, config=config)
+        self.rns_client.save_config_for_name(name=name, config=config, resource_dir=sends_path,
+                                             resource_type=self.RESOURCE_TYPE)
 
     def run(self, run_cmd):
-        client = JobSubmissionClient(f"http://{hardware_ip}:8265")
+        client = JobSubmissionClient(f"http://{self.cluster.cluster_ip}:8265")
         job_id = client.submit_job(
             entrypoint=run_cmd,
             runtime_env={
-                "working_dir": path_to_runnable_file,
-                "pip": reqs_file
+                "working_dir": self.working_dir,
+                "pip": self.find_reqtxt_or_rh(self.working_dir)
             }
         )
 
     def map(self, replicas=1):
         # TODO
         # https://docs.ray.io/en/latest/ray-core/tasks/patterns/map-reduce.html
-        return ray.get([map.remote(i, map_func) for i in replicas])
+        # return ray.get([map.remote(i, map_func) for i in replicas])
+        pass
 
-def find_reqtxt_or_rh(dir_path):
-    if Path(dir_path) == Path.home():
-        return None
-    if Path(dir_path, 'requirements.txt').exists() or Path(dir_path, 'rh').exists():
-        return Path(dir_path, 'requirements.txt')
-    else:
-        return find_reqtxt_or_rh(Path(dir_path).parent)
-    # return next(iter(glob.glob(f'{dir_path}/**/requirements.txt', recursive=True)), None)
+    @staticmethod
+    def find_reqtxt_or_rh(dir_path):
+        if Path(dir_path) == Path.home():
+            return None
+        if Path(dir_path, 'requirements.txt').exists() or Path(dir_path, 'rh').exists():
+            return Path(dir_path, 'requirements.txt')
+        else:
+            return Send.find_reqtxt_or_rh(Path(dir_path).parent)
