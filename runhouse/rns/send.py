@@ -14,14 +14,13 @@ class Send:
     RESOURCE_TYPE = 'send'
 
     def __init__(self,
-                 fn: Optional[Callable],
+                 fn: Optional[Callable] = None,
+                 hardware: Union[None, str, Dict[str, int]] = None,
                  name=None,
                  working_dir=None,
-                 hardware: Union[None, str, Dict[str, int]] = None,
                  reqs: Optional[List[str]] = None,
                  # runtime_env: Union[None, Dict] = None,
                  cluster=None):
-        self.fn = fn
         self.name = name
         self.rns_client = RNSClient()
 
@@ -41,11 +40,12 @@ class Send:
         # For now, default to local if no cluster provided
         self.create_cluster_for_send(cluster, config)
 
-        if self.fn is None and config.get('fn', None) is not None:
+        self.fn = fn
+        if self.fn is None and config.get('fn') is not None:
             self.fn = cloudpickle.loads(bytes(config['fn']))
 
-        assert self.fn is not None, f"Missing values for fn {type(self.fn)}"
-        self.remote_fn = ray.remote(resources=self.hardware)(fn)
+        if self.fn is not None:
+            self.remote_fn = ray.remote(resources=self.hardware)(fn)
 
         if self.name is not None:
             self.set_name(self.name)
@@ -54,6 +54,7 @@ class Send:
         ray.shutdown()
 
     def __call__(self, *args, **kwargs):
+        assert self.fn is not None, f"No fn specified for send {send.name}"
         res = self.remote_fn.remote(*args, **kwargs)
         return ray.get(res)
 
@@ -75,7 +76,6 @@ class Send:
         # Check if reqs is a filepath, and if so, take parent of requirements.txt
         reqs_or_rh_dir = self.find_reqtxt_or_rh(os.getcwd())
         if reqs_or_rh_dir is not None:
-            # found_reqs_path = Path(find_requirements_file(os.getcwd()))
             return reqs_or_rh_dir
         else:
             return os.getcwd()
