@@ -83,6 +83,12 @@ def validate_and_get_name(ctx):
     return name
 
 
+def validate_name(name: str) -> None:
+    if name is None:
+        typer.echo('No name found - please provide one with the --name option')
+        raise typer.Exit(code=1)
+
+
 def get_path_to_yaml_config_by_name(name):
     # TODO the yaml should be stored in runhouse server
     yaml_to_name = os.getenv('YAML_TO_NAME')
@@ -176,9 +182,7 @@ def send(ctx: typer.Context):
     cli_args: dict = parse_cli_args(optional_cli_args)
 
     name = cli_args.get('name') or os.getenv('CURRENT_NAME')
-    if name is None:
-        typer.echo('No name found - please provide one with the --name option')
-        raise typer.Exit(code=1)
+    validate_name(name)
 
     # TODO deprecate this way of doing things
     dotenv.set_key(dotenv_path=DOTENV_FILE, key_to_set="CURRENT_NAME", value_to_set=name)
@@ -220,9 +224,9 @@ def send(ctx: typer.Context):
 
     typer.echo(f'[3/4] Deploying send for {name}')
     cluster = cli_args.get('cluster')
-    hardware = cli_args.get('hardware') or os.getenv('DEFAULT_HARDWARE')
+    hardware = cli_args.get('hardware', os.getenv('DEFAULT_HARDWARE'))
 
-    # Create on the cluster
+    # Deploy on the cluster (will also create the cluster if it doesn't exist)
     Send(fn=None,
          name=name,
          working_dir=full_path_to_package,

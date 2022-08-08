@@ -14,7 +14,7 @@ class RNSClient:
         except redis.exceptions.ConnectionError as e:
             raise ConnectionError(f'Unable to connect to RNS service: {e}')
 
-    def load_config_from_name(self, name, resource_dir, resource_type):
+    def load_config_from_name(self, name, resource_dir, resource_type) -> dict:
         # Create the resource config directory, e.g. ~/.rh/clusters/<my_cluster_name>
         name_dir = Path(resource_dir)
         name_dir.mkdir(parents=True, exist_ok=True)

@@ -2,16 +2,20 @@ import pathlib
 from typing import Optional, Callable, Dict, Union, List
 import os
 from pathlib import Path
+import typer
+import json
 from ray import cloudpickle
 import ray
 from ray.dashboard.modules.job.sdk import JobSubmissionClient
 
 from .cluster import Cluster
 from .rns_client import RNSClient
+from ..utils.utils import random_string_generator
 
 
 class Send:
     RESOURCE_TYPE = 'send'
+    SENDS_DIR = "rh/sends"
 
     def __init__(self,
                  fn: Optional[Callable] = None,
@@ -21,42 +25,49 @@ class Send:
                  reqs: Optional[List[str]] = None,
                  # runtime_env: Union[None, Dict] = None,
                  cluster=None):
-        self.name = name
+        # Load the client needed to interact with redis
         self.rns_client = RNSClient()
-
         self.working_dir = self.get_working_dir(working_dir, reqs)
 
-        config = {}
-        if self.name is not None:
-            self.send_dir = Path(self.working_dir, "rh/sends", self.name)
-            config = self.rns_client.load_config_from_name(self.name, resource_dir=self.send_dir,
-                                                           resource_type=self.RESOURCE_TYPE)
-            # assert config, f"Failed to load config for {name}"
+        self.name = name
+        if self.name is None:
+            # generate a random one if the user didn't provide it
+            self.name = random_string_generator()
+            typer.echo(f'Created Send with name {self.name}')
 
-        self.get_reqs(reqs, config)
+        self.send_dir = Path(self.working_dir, self.SENDS_DIR, self.name)
 
-        self.hardware = ({hardware: 1} if isinstance(hardware, str) else hardware) or config.get('hardware', None)
+        self.config: dict = self.rns_client.load_config_from_name(self.name, resource_dir=self.send_dir,
+                                                                  resource_type=self.RESOURCE_TYPE)
+        self.get_reqs(reqs)
+
+        self.hardware = ({hardware: 1} if isinstance(hardware, str) else hardware) or self.config.get('hardware', None)
 
         # For now, default to local if no cluster provided
-        self.create_cluster_for_send(cluster, config)
+        self.create_cluster_for_send(cluster)
 
         self.fn = fn
-        if self.fn is None and config.get('fn') is not None:
-            self.fn = cloudpickle.loads(bytes(config['fn']))
+        if self.fn is None and self.config.get('fn') is not None:
+            self.fn = cloudpickle.loads(bytes(self.config['fn']))
 
         if self.fn is not None:
             self.remote_fn = ray.remote(resources=self.hardware)(fn)
 
-        if self.name is not None:
-            self.set_name(self.name)
+        self.set_name(self.name)
 
     def __del__(self):
         ray.shutdown()
 
     def __call__(self, *args, **kwargs):
-        assert self.fn is not None, f"No fn specified for send {send.name}"
+        assert self.fn is not None, f"No fn specified for send {self.name}"
         res = self.remote_fn.remote(*args, **kwargs)
         return ray.get(res)
+
+    @property
+    def formatted_reqs(self):
+        """For storing in redis config cannot handle a list"""
+        # if we were given reqs as a list (ex: ['torch'])
+        return json.dumps(self.reqs) if isinstance(self.reqs, list) else self.reqs
 
     def get_working_dir(self, working_dir, reqs):
         # Search for working_dir, in the following order:
@@ -89,14 +100,13 @@ class Send:
         else:
             return Send.find_reqtxt_or_rh(Path(dir_path).parent)
 
-    def get_reqs(self, reqs, config):
-        self.reqs = reqs or config.get('reqs', None)
+    def get_reqs(self, reqs):
+        self.reqs = reqs or self.config.get('reqs', None)
         # Check if working_dir has requirements.txt, and if so extract reqs
         if Path(self.working_dir, 'requirements.txt').exists():
             # If there are any user-passed reqs, union the requirements.txt reqs with them
             if self.reqs is not None:
                 reqstxt_list = Path(self.working_dir, 'requirements.txt').read_text().split('\n')
-                passed_reqs_list = []
                 if (isinstance(self.reqs, str) or isinstance(self.reqs, Path)) and Path(self.reqs).exists():
                     passed_reqs_list = Path(self.reqs, 'requirements.txt').read_text().split('\n')
                 elif isinstance(self.reqs, list):
@@ -108,8 +118,8 @@ class Send:
             else:
                 self.reqs = str(Path(self.working_dir, 'requirements.txt'))
 
-    def create_cluster_for_send(self, cluster, config):
-        cluster = cluster or config.get('cluster', None)
+    def create_cluster_for_send(self, cluster):
+        cluster = cluster or self.config.get('cluster', None)
         if cluster is None:
             ray.init(local_mode=True, ignore_reinit_error=True)
         else:
@@ -137,11 +147,11 @@ class Send:
 
     # Name the send, saving it to config stores
     def set_name(self, name):
-        sends_path = pathlib.Path(self.working_dir, "rh/sends")
+        sends_path = pathlib.Path(self.working_dir, self.SENDS_DIR)
         config = {'name': self.name,
                   'working_dir': self.working_dir,
                   'hardware': self.hardware,
-                  'reqs': self.reqs,
+                  'reqs': self.formatted_reqs,
                   'cluster': self.cluster.name,
                   # TODO do we need to explicitly pickle by value? (see cloudpickle readme)
                   'fn': str(cloudpickle.dumps(self.fn)),
