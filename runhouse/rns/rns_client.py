@@ -54,7 +54,9 @@ class RNSClient:
         return self.redis.hgetall(uri)
 
     def set(self, uri: str, data: dict) -> None:
-        self.redis.hset(uri, mapping=data)
+        # TODO maybe switch to just store JSON because we can't store Nones in a dict
+        data_removed_nones = {k: v for k, v in data.items() if v is not None}
+        self.redis.hset(uri, mapping=data_removed_nones)
 
     def exists(self, uri: str) -> bool:
         # Do this properly with hset to avoid using json for no reason

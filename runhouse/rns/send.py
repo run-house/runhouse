@@ -32,9 +32,9 @@ class Send:
             self.send_dir = Path(self.working_dir, "rh/sends", self.name)
             config = self.rns_client.load_config_from_name(self.name, resource_dir=self.send_dir,
                                                            resource_type=self.RESOURCE_TYPE)
-            assert config, f"Failed to load config for {name}"
+            # assert config, f"Failed to load config for {name}"
 
-        self.reqs = self.get_reqs(reqs, config)
+        self.get_reqs(reqs, config)
 
         self.hardware = ({hardware: 1} if isinstance(hardware, str) else hardware) or config.get('hardware', None)
 
@@ -67,16 +67,27 @@ class Send:
         work_dir = working_dir or os.environ.get('RH_WORKING_DIR', None)
         if work_dir is not None:
             return work_dir
+
+        if isinstance(reqs, str) and Path(reqs).exists():
+            return str(Path(reqs).parent)
+
         # Derive working dir from looking up directory tree for requirements.txt
         # Check if reqs is a filepath, and if so, take parent of requirements.txt
         reqs_or_rh_dir = self.find_reqtxt_or_rh(os.getcwd())
-        if isinstance(reqs, str) and Path(reqs).exists():
-            return Path(reqs).parent
-        # elif reqs_or_rh_dir is not None:
-        #     # found_reqs_path = Path(find_requirements_file(os.getcwd()))
-        #     # return reqs_or_rh_dir
+        if reqs_or_rh_dir is not None:
+            # found_reqs_path = Path(find_requirements_file(os.getcwd()))
+            return reqs_or_rh_dir
         else:
             return os.getcwd()
+
+    @staticmethod
+    def find_reqtxt_or_rh(dir_path):
+        if Path(dir_path) == Path.home():
+            return None
+        if Path(dir_path, 'requirements.txt').exists() or Path(dir_path, 'rh').exists():
+            return str(dir_path)
+        else:
+            return Send.find_reqtxt_or_rh(Path(dir_path).parent)
 
     def get_reqs(self, reqs, config):
         self.reqs = reqs or config.get('reqs', None)
@@ -86,19 +97,16 @@ class Send:
             if self.reqs is not None:
                 reqstxt_list = Path(self.working_dir, 'requirements.txt').read_text().split('\n')
                 passed_reqs_list = []
-                if isinstance(self.reqs, str) and Path(self.reqs).exists():
+                if (isinstance(self.reqs, str) or isinstance(self.reqs, Path)) and Path(self.reqs).exists():
                     passed_reqs_list = Path(self.reqs, 'requirements.txt').read_text().split('\n')
                 elif isinstance(self.reqs, list):
                     passed_reqs_list = self.reqs
-                # TODO shouldn't happen - handle later
-                elif isinstance(self.reqs, pathlib.PosixPath):
-                    self.reqs = str(self.reqs)
                 else:
                     raise TypeError(f'Send reqs must be either filepath or list, but found {self.reqs}')
                 # Ignore version mismatches for now...
-                return list((set(reqstxt_list) | set(passed_reqs_list)))
+                self.reqs = list((set(reqstxt_list) | set(passed_reqs_list)))
             else:
-                return str(Path(self.working_dir, 'requirements.txt'))
+                self.reqs = str(Path(self.working_dir, 'requirements.txt'))
 
     def create_cluster_for_send(self, cluster, config):
         cluster = cluster or config.get('cluster', None)
@@ -116,9 +124,10 @@ class Send:
                                         '__pycache__',
                                         '*.whl']}
             # TODO for now, different sends on the same cluster have to share these, we should fix soon
-            # Maybe use Ray's new allow_multiple=True argument to connect to multiple clusters
+            # Also, maybe we'll need to isolate the connection to allow multiple:
             # https://docs.ray.io/en/latest/cluster/ray-client.html#connect-to-multiple-ray-clusters-experimental
             if not ray.is_initialized():
+                # TODO figure out proper addressing if we're already inside of ray cluster
                 ray.init(address=self.cluster.address,
                          runtime_env=runtime_env,
                          # allow_multiple=True,
@@ -130,12 +139,12 @@ class Send:
     def set_name(self, name):
         sends_path = pathlib.Path(self.working_dir, "rh/sends")
         config = {'name': self.name,
-                  # TODO do we need to explicitly pickle by value? (see cloudpickle readme)
-                  'fn': cloudpickle.dumps(self.fn),
                   'working_dir': self.working_dir,
                   'hardware': self.hardware,
                   'reqs': self.reqs,
                   'cluster': self.cluster.name,
+                  # TODO do we need to explicitly pickle by value? (see cloudpickle readme)
+                  'fn': str(cloudpickle.dumps(self.fn)),
                   }
         self.rns_client.save_config_for_name(name=name, config=config, resource_dir=sends_path,
                                              resource_type=self.RESOURCE_TYPE)
@@ -155,12 +164,3 @@ class Send:
         # https://docs.ray.io/en/latest/ray-core/tasks/patterns/map-reduce.html
         # return ray.get([map.remote(i, map_func) for i in replicas])
         pass
-
-    @staticmethod
-    def find_reqtxt_or_rh(dir_path):
-        if Path(dir_path) == Path.home():
-            return None
-        if Path(dir_path, 'requirements.txt').exists() or Path(dir_path, 'rh').exists():
-            return Path(dir_path, 'requirements.txt')
-        else:
-            return Send.find_reqtxt_or_rh(Path(dir_path).parent)

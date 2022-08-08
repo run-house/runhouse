@@ -62,6 +62,7 @@ class Cluster:
 
     @property
     def cluster_ip(self):
+        # TODO cache ip or extract from address so we don't have to hit the wire with each get call
         return get_head_node_ip(config_file=str(self.yaml_path))
 
     def get_or_create_cluster(self, create=True):
