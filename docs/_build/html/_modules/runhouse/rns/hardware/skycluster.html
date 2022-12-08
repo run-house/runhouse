@@ -378,15 +378,12 @@ title="Open an issue"
               <div>
                 
   <h1>Source code for runhouse.rns.hardware.skycluster</h1><div class="highlight"><pre>
-<span></span><span class="kn">import</span> <span class="nn">json</span>
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">io</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Dict</span>
+<span></span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Union</span>
 <span class="kn">import</span> <span class="nn">subprocess</span>
 <span class="kn">import</span> <span class="nn">logging</span>
 <span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">import</span> <span class="nn">pkgutil</span>
-
+<span class="kn">import</span> <span class="nn">contextlib</span>
 <span class="kn">import</span> <span class="nn">yaml</span>
 
 <span class="kn">import</span> <span class="nn">sky</span>
@@ -399,7 +396,7 @@ title="Open an issue"
 <span class="kn">from</span> <span class="nn">runhouse.rns.package</span> <span class="kn">import</span> <span class="n">Package</span>
 <span class="kn">from</span> <span class="nn">runhouse.grpc_handler.unary_client</span> <span class="kn">import</span> <span class="n">UnaryClient</span>
 <span class="kn">from</span> <span class="nn">runhouse.grpc_handler.unary_server</span> <span class="kn">import</span> <span class="n">UnaryService</span>
-<span class="kn">from</span> <span class="nn">runhouse.rh_config</span> <span class="kn">import</span> <span class="n">rns_client</span><span class="p">,</span> <span class="n">configs</span>
+<span class="kn">from</span> <span class="nn">runhouse.rh_config</span> <span class="kn">import</span> <span class="n">rns_client</span><span class="p">,</span> <span class="n">configs</span><span class="p">,</span> <span class="n">open_grpc_tunnels</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -443,6 +440,7 @@ title="Open an issue"
         <span class="bp">self</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_yaml_path</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_grpc_tunnel</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_secrets_sent</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">client</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">sky_data</span> <span class="o">=</span> <span class="n">sky_data</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sky_data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -457,6 +455,7 @@ title="Open an issue"
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">config_for_rns</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># TODO [DG] if base path in /builtins/ then copy it to user folder</span>
         <span class="n">config</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">config_for_rns</span>
 
         <span class="c1"># Also store the ssh keys for the cluster in RNS</span>
@@ -528,10 +527,6 @@ title="Open an issue"
         <span class="n">backend_utils</span><span class="o">.</span><span class="n">SSHConfigHelper</span><span class="o">.</span><span class="n">add_cluster</span><span class="p">(</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="p">[</span><span class="n">handle_info</span><span class="p">[</span><span class="s1">&#39;head_ip&#39;</span><span class="p">]],</span> <span class="n">ray_config</span><span class="p">[</span><span class="s1">&#39;auth&#39;</span><span class="p">])</span>
 
-    <span class="k">def</span> <span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grpc_tunnel</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_grpc_tunnel</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-
     <span class="c1"># ----------------- Launch/Lifecycle Methods -----------------</span>
 
     <span class="c1"># TODO [DG] this sometimes returns True when cluster is not up</span>
@@ -567,6 +562,7 @@ title="Open an issue"
         <span class="bp">self</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="n">cluster_dict</span><span class="p">[</span><span class="s1">&#39;handle&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">head_ip</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_yaml_path</span> <span class="o">=</span> <span class="n">cluster_dict</span><span class="p">[</span><span class="s1">&#39;handle&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">cluster_yaml</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">autostop_mins</span> <span class="o">=</span> <span class="n">cluster_dict</span><span class="p">[</span><span class="s1">&#39;autostop&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">provider</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">cluster_dict</span><span class="p">[</span><span class="s1">&#39;handle&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">launched_resources</span><span class="o">.</span><span class="n">cloud</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">cluster_dict</span><span class="p">[</span><span class="s1">&#39;status&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;UP&#39;</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="kc">None</span>
 
@@ -633,29 +629,51 @@ title="Open an issue"
         <span class="bp">self</span><span class="o">.</span><span class="n">populate_vars_from_status</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">restart_grpc_server</span><span class="p">()</span>
 
-    <span class="k">def</span> <span class="nf">sync_runhouse_to_cluster</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">sync_runhouse_to_cluster</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_install_url</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">address</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;No address set for cluster &lt;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&gt;. Is it up?&#39;</span><span class="p">)</span>
-        <span class="n">local_rh_package_path</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">pkgutil</span><span class="o">.</span><span class="n">get_loader</span><span class="p">(</span><span class="s1">&#39;runhouse&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
-        <span class="n">rh_package</span> <span class="o">=</span> <span class="n">Package</span><span class="o">.</span><span class="n">from_string</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;reqs:</span><span class="si">{</span><span class="n">local_rh_package_path</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">dryrun</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="n">rh_package</span><span class="o">.</span><span class="n">to_cluster</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mount</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-        <span class="n">status_codes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s1">&#39;pip install ./runhouse&#39;</span><span class="p">],</span> <span class="n">stream_logs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">local_rh_package_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">pkgutil</span><span class="o">.</span><span class="n">get_loader</span><span class="p">(</span><span class="s1">&#39;runhouse&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
+
+        <span class="c1"># Check if runhouse is installed from source and has setup.py</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_install_url</span> <span class="ow">and</span> \
+                <span class="n">local_rh_package_path</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;runhouse&#39;</span> <span class="ow">and</span> \
+                <span class="p">(</span><span class="n">local_rh_package_path</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s1">&#39;setup.py&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="c1"># Package is installed in editable mode</span>
+            <span class="n">local_rh_package_path</span> <span class="o">=</span> <span class="n">local_rh_package_path</span><span class="o">.</span><span class="n">parent</span>
+            <span class="n">rh_package</span> <span class="o">=</span> <span class="n">Package</span><span class="o">.</span><span class="n">from_string</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;reqs:</span><span class="si">{</span><span class="n">local_rh_package_path</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">dryrun</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">rh_package</span><span class="o">.</span><span class="n">to_cluster</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mount</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">status_codes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s1">&#39;pip install ./runhouse&#39;</span><span class="p">],</span> <span class="n">stream_logs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># elif local_rh_package_path.parent.name == &#39;site-packages&#39;:</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Package is installed in site-packages</span>
+            <span class="c1"># status_codes = self.run([&#39;pip install runhouse-nightly==0.0.2.20221202&#39;], stream_logs=True)</span>
+            <span class="c1"># rh_package = &#39;runhouse_nightly-0.0.1.dev20221202-py3-none-any.whl&#39;</span>
+            <span class="c1"># rh_download_cmd = f&#39;curl https://runhouse-package.s3.amazonaws.com/{rh_package} --output {rh_package}&#39;</span>
+            <span class="n">_install_url</span> <span class="o">=</span> <span class="n">_install_url</span> <span class="ow">or</span> <span class="s1">&#39;--index-url https://api.run.house/pypi runhouse-nightly==0.0.1.dev20221203&#39;</span>
+            <span class="n">rh_install_cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;pip install </span><span class="si">{</span><span class="n">_install_url</span><span class="si">}</span><span class="s1">&#39;</span>
+            <span class="n">status_codes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="n">rh_install_cmd</span><span class="p">],</span> <span class="n">stream_logs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
         <span class="k">if</span> <span class="n">status_codes</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Error installing runhouse on cluster &lt;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&gt;&#39;</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">install_packages</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reqs</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Package</span><span class="p">]):</span>
+    <span class="k">def</span> <span class="nf">install_packages</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reqs</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">Package</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_connected</span><span class="p">():</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">connect_grpc</span><span class="p">()</span>
         <span class="n">to_install</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># TODO [DG] validate package strings</span>
         <span class="k">for</span> <span class="n">package</span> <span class="ow">in</span> <span class="n">reqs</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">package</span><span class="o">.</span><span class="n">is_local</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">package</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">Path</span><span class="p">(</span><span class="n">package</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="n">package</span> <span class="o">=</span> <span class="n">Package</span><span class="o">.</span><span class="n">from_string</span><span class="p">(</span><span class="n">package</span><span class="p">,</span> <span class="n">dryrun</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">package</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">package</span><span class="o">.</span><span class="n">is_local</span><span class="p">():</span>
                 <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Copying local package </span><span class="si">{</span><span class="n">package</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1"> to cluster &lt;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&gt;&#39;</span><span class="p">)</span>
                 <span class="n">remote_package</span> <span class="o">=</span> <span class="n">package</span><span class="o">.</span><span class="n">to_cluster</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mount</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">return_dest_folder</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
                 <span class="n">to_install</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">remote_package</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">to_install</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">package</span><span class="p">)</span>
         <span class="c1"># TODO replace this with figuring out how to stream the logs when we install</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Installing packages on cluster </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="p">[</span><span class="n">req</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">req</span> <span class="ow">in</span> <span class="n">reqs</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Installing packages on cluster </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">: &#39;</span>
+                     <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="p">[</span><span class="n">req</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">req</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="n">req</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">req</span> <span class="ow">in</span> <span class="n">reqs</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">install_packages</span><span class="p">(</span><span class="n">pickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">to_install</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="nf">keep_warm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">autostop_mins</span><span class="o">=-</span><span class="mi">1</span><span class="p">):</span>
@@ -663,7 +681,8 @@ title="Open an issue"
         <span class="bp">self</span><span class="o">.</span><span class="n">autostop_mins</span> <span class="o">=</span> <span class="n">autostop_mins</span>
 
     <span class="k">def</span> <span class="nf">teardown</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s2">&quot;sky&quot;</span><span class="p">,</span> <span class="s2">&quot;down&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;-y&quot;</span><span class="p">])</span>
+        <span class="c1"># Stream logs</span>
+        <span class="n">sky</span><span class="o">.</span><span class="n">down</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">yes</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">stream_logs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="k">def</span> <span class="nf">teardown_and_delete</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -672,7 +691,7 @@ title="Open an issue"
 
     <span class="c1"># ----------------- gRPC Methods ----------------- #</span>
 
-    <span class="k">def</span> <span class="nf">connect_grpc</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">connect_grpc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">force_reconnect</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="c1"># FYI based on: https://sshtunnel.readthedocs.io/en/latest/#example-1</span>
         <span class="c1"># FYI If we ever need to do this from scratch, we can use this example:</span>
         <span class="c1"># https://github.com/paramiko/paramiko/blob/main/demos/rforward.py#L74</span>
@@ -680,16 +699,25 @@ title="Open an issue"
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;No address set for cluster &lt;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&gt;. Is it up?&#39;</span><span class="p">)</span>
 
         <span class="c1"># TODO [DG] figure out how to ping to see if tunnel is already up</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grpc_tunnel</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grpc_tunnel</span> <span class="ow">and</span> <span class="n">force_reconnect</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_grpc_tunnel</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-        <span class="c1"># self.client.disconnect()</span>
-        <span class="c1"># Check if port is already open</span>
+
+        <span class="c1"># TODO Check if port is already open instead of refcounting?</span>
         <span class="c1"># status = subprocess.run([&#39;nc&#39;, &#39;-z&#39;, self.address, str(self.grpc_port)], capture_output=True)</span>
-        <span class="c1"># connected_port = UnaryClient.DEFAULT_PORT</span>
         <span class="c1"># if not self.check_port(self.address, UnaryClient.DEFAULT_PORT):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_grpc_tunnel</span><span class="p">,</span> <span class="n">connected_port</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ssh_tunnel</span><span class="p">(</span><span class="n">UnaryClient</span><span class="o">.</span><span class="n">DEFAULT_PORT</span><span class="p">,</span>
-                                                            <span class="n">remote_port</span><span class="o">=</span><span class="n">UnaryService</span><span class="o">.</span><span class="n">DEFAULT_PORT</span><span class="p">,</span>
-                                                            <span class="n">num_ports_to_try</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+
+        <span class="n">tunnel_refcount</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">address</span> <span class="ow">in</span> <span class="n">open_grpc_tunnels</span><span class="p">:</span>
+            <span class="n">ssh_tunnel</span><span class="p">,</span> <span class="n">connected_port</span><span class="p">,</span> <span class="n">tunnel_refcount</span> <span class="o">=</span> <span class="n">open_grpc_tunnels</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">address</span><span class="p">]</span>
+            <span class="n">ssh_tunnel</span><span class="o">.</span><span class="n">check_tunnels</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">ssh_tunnel</span><span class="o">.</span><span class="n">tunnel_is_up</span><span class="p">[</span><span class="n">ssh_tunnel</span><span class="o">.</span><span class="n">local_bind_address</span><span class="p">]:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_grpc_tunnel</span> <span class="o">=</span> <span class="n">ssh_tunnel</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_grpc_tunnel</span><span class="p">,</span> <span class="n">connected_port</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ssh_tunnel</span><span class="p">(</span><span class="n">UnaryClient</span><span class="o">.</span><span class="n">DEFAULT_PORT</span><span class="p">,</span>
+                                                                <span class="n">remote_port</span><span class="o">=</span><span class="n">UnaryService</span><span class="o">.</span><span class="n">DEFAULT_PORT</span><span class="p">,</span>
+                                                                <span class="n">num_ports_to_try</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+        <span class="n">open_grpc_tunnels</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">address</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_grpc_tunnel</span><span class="p">,</span> <span class="n">connected_port</span><span class="p">,</span> <span class="n">tunnel_refcount</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
         <span class="c1"># Connecting to localhost because it&#39;s tunneled into the server at the specified port.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">client</span> <span class="o">=</span> <span class="n">UnaryClient</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="n">connected_port</span><span class="p">)</span>
 
@@ -714,7 +742,7 @@ title="Open an issue"
         <span class="k">while</span> <span class="ow">not</span> <span class="n">connected</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">local_port</span> <span class="o">&gt;</span> <span class="n">local_port</span> <span class="o">+</span> <span class="n">num_ports_to_try</span><span class="p">:</span>
-                    <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;After repeated attempts on different ports failed to create SSH tunneler&#39;</span><span class="p">)</span>
+                    <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Failed to create SSH tunnel after </span><span class="si">{</span><span class="n">num_ports_to_try</span><span class="si">}</span><span class="s1"> attempts&#39;</span><span class="p">)</span>
 
                 <span class="n">ssh_tunnel</span> <span class="o">=</span> <span class="n">SSHTunnelForwarder</span><span class="p">(</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">address</span><span class="p">,</span>
@@ -726,20 +754,46 @@ title="Open an issue"
                     <span class="c1"># mute_exceptions=True,</span>
                 <span class="p">)</span>
                 <span class="n">ssh_tunnel</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
-
                 <span class="n">connected</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="k">except</span> <span class="n">HandlerSSHTunnelForwarderError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Failed to create SSH tunnel: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
                 <span class="c1"># try connecting with a different port - most likely the issue is the port is already taken</span>
                 <span class="n">local_port</span> <span class="o">+=</span> <span class="mi">1</span>
                 <span class="k">pass</span>
 
         <span class="k">return</span> <span class="n">ssh_tunnel</span><span class="p">,</span> <span class="n">local_port</span>
 
-    <span class="k">def</span> <span class="nf">restart_grpc_server</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">address</span> <span class="ow">in</span> <span class="n">open_grpc_tunnels</span><span class="p">:</span>
+            <span class="n">tunnel</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">refcount</span> <span class="o">=</span> <span class="n">open_grpc_tunnels</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">address</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">refcount</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">tunnel</span><span class="o">.</span><span class="n">stop</span><span class="p">(</span><span class="n">force</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">open_grpc_tunnels</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">address</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">open_grpc_tunnels</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">address</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">tunnel</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">refcount</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grpc_tunnel</span><span class="p">:</span>  <span class="c1"># Not sure why this would be reached but keeping it just in case</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_grpc_tunnel</span><span class="o">.</span><span class="n">stop</span><span class="p">(</span><span class="n">force</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="c1"># import paramiko</span>
+    <span class="c1"># ssh = paramiko.SSHClient()</span>
+    <span class="c1"># ssh.load_system_host_keys()</span>
+    <span class="c1"># ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())</span>
+    <span class="c1"># from pathlib import Path</span>
+    <span class="c1"># ssh.connect(self.address,</span>
+    <span class="c1">#             username=creds[&#39;ssh_user&#39;],</span>
+    <span class="c1">#             key_filename=str(Path(creds[&#39;ssh_private_key&#39;]).expanduser())</span>
+    <span class="c1">#             )</span>
+    <span class="c1"># transport = ssh.get_transport()</span>
+    <span class="c1"># transport.request_port_forward(&#39;&#39;, local_port)</span>
+    <span class="c1"># ssh_tunnel = transport.open_channel(&quot;direct-tcpip&quot;, (&quot;localhost&quot;, local_port),</span>
+    <span class="c1">#                                     (self.address, remote_port or local_port))</span>
+    <span class="c1"># if ssh_tunnel.is_active():</span>
+    <span class="c1">#     connected = True</span>
+    <span class="c1">#     print(f&quot;SSH tunnel is open to {self.address}:{local_port}&quot;)</span>
+
+    <span class="k">def</span> <span class="nf">restart_grpc_server</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_rh_install_url</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="c1"># TODO how do we capture errors if this fails?</span>
         <span class="c1"># grpc_server_cmd = f&#39;cd ~/sky_workdir; screen -dm python3 -m runhouse.grpc_handler.unary_server&#39;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">sync_runhouse_to_cluster</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sync_runhouse_to_cluster</span><span class="p">(</span><span class="n">_install_url</span><span class="o">=</span><span class="n">_rh_install_url</span><span class="p">)</span>
         <span class="n">grpc_server_cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;screen -dm python3 -m runhouse.grpc_handler.unary_server&#39;</span>
         <span class="c1"># TODO fuser is not on the gcp boxes. Need to install: https://command-not-found.com/fuser</span>
         <span class="n">status_codes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">commands</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;fuser -k </span><span class="si">{</span><span class="n">UnaryService</span><span class="o">.</span><span class="n">DEFAULT_PORT</span><span class="si">}</span><span class="s1">/tcp&#39;</span><span class="p">,</span>
@@ -750,10 +804,18 @@ title="Open an issue"
         <span class="kn">import</span> <span class="nn">time</span>
         <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
 
+    <span class="nd">@contextlib</span><span class="o">.</span><span class="n">contextmanager</span>
+    <span class="k">def</span> <span class="nf">pause_autostop</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">sky</span><span class="o">.</span><span class="n">autostop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">idle_minutes</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">yield</span>
+        <span class="n">sky</span><span class="o">.</span><span class="n">autostop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">idle_minutes</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">autostop_mins</span><span class="p">)</span>
+
     <span class="k">def</span> <span class="nf">call_grpc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">serialized_func</span><span class="p">):</span>
         <span class="c1"># TODO check if this is actually avoiding creating a duplicate tunnel when creating one send after another</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_connected</span><span class="p">():</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">connect_grpc</span><span class="p">()</span>
+
+        <span class="c1"># TODO would be great to pause autostop here but it&#39;s too slow, about 2 seconds</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">call_fn_remotely</span><span class="p">(</span><span class="n">message</span><span class="o">=</span><span class="n">serialized_func</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">is_connected</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -814,6 +876,13 @@ title="Open an issue"
         <span class="sd">&quot;&quot;&quot; Run a list of python commands on the cluster. &quot;&quot;&quot;</span>
         <span class="n">command_str</span> <span class="o">=</span> <span class="s1">&#39;; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">commands</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="sa">f</span><span class="s1">&#39;python3 -c &quot;</span><span class="si">{</span><span class="n">command_str</span><span class="si">}</span><span class="s1">&quot;&#39;</span><span class="p">],</span> <span class="n">stream_logs</span><span class="o">=</span><span class="n">stream_logs</span><span class="p">,</span> <span class="n">port_forward</span><span class="o">=</span><span class="n">port_forward</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">send_secrets</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reload</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_secrets_sent</span> <span class="ow">or</span> <span class="n">reload</span><span class="p">:</span>
+            <span class="n">load_secrets_cmd</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;import runhouse as rh&#39;</span><span class="p">,</span>
+                                <span class="s1">&#39;rh.Secrets.download_into_env()&#39;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">run_python</span><span class="p">(</span><span class="n">load_secrets_cmd</span><span class="p">,</span> <span class="n">stream_logs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_secrets_sent</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="k">def</span> <span class="nf">ipython</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c1"># TODO tunnel into python interpreter in cluster</span>

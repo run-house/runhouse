@@ -402,7 +402,7 @@ title="Open an issue"
 <span class="sd">    local environment and Runhouse / Vault.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">token</span><span class="p">:</span>
-        <span class="n">console</span><span class="o">.</span><span class="n">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Retrieve your token :key: here to use :person_running:Runhouse :house: &#39;</span>
+        <span class="n">console</span><span class="o">.</span><span class="n">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Retrieve your token :key: to use :person_running: :house: &#39;</span>
                       <span class="sa">f</span><span class="s1">&#39;for secrets and artifact management: </span><span class="si">{</span><span class="n">rh_config</span><span class="o">.</span><span class="n">configs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;api_server_url&quot;</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
                       <span class="n">style</span><span class="o">=</span><span class="s1">&#39;bold yellow&#39;</span><span class="p">)</span>
         <span class="n">token</span> <span class="o">=</span> <span class="n">typer</span><span class="o">.</span><span class="n">prompt</span><span class="p">(</span><span class="s2">&quot;Token&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">)</span>
@@ -416,7 +416,8 @@ title="Open an issue"
                                           <span class="n">download_config</span><span class="o">=</span><span class="n">download_config</span><span class="p">,</span>
                                           <span class="n">upload_config</span><span class="o">=</span><span class="n">upload_config</span><span class="p">,</span>
                                           <span class="n">upload_secrets</span><span class="o">=</span><span class="n">upload_secrets</span><span class="p">,</span>
-                                          <span class="n">download_secrets</span><span class="o">=</span><span class="n">download_secrets</span><span class="p">)</span>
+                                          <span class="n">download_secrets</span><span class="o">=</span><span class="n">download_secrets</span><span class="p">,</span>
+                                          <span class="n">ret_token</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">valid_token</span><span class="p">:</span>
         <span class="n">webbrowser</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">rh_config</span><span class="o">.</span><span class="n">configs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;api_server_url&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">/dashboard?token=</span><span class="si">{</span><span class="n">valid_token</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="k">raise</span> <span class="n">typer</span><span class="o">.</span><span class="n">Exit</span><span class="p">()</span>

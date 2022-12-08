@@ -27,6 +27,14 @@ With Runhouse, you can:
 - Scale up, productionize, or share your work without weeks of packaging or translating into platform DSLs.
 - Retain control of their underlying infra, customizing it to your unique needs and continuing to use any ML tools you would from cloud instances.
 
+
+.. warning::
+   🚨 **Caution: This is an Unstable Semi-Private Preview** 🚨
+
+   Runhouse is heavily under development and unstable. We are quite a ways away from having our first stable release. We are sharing it privately with a few select people to collect feedback, and expect a lot of things to break off the bat.
+
+   If you would be so kind, we would love if you could have a notes doc open as you install and try Runhouse for the first time. Your first impressions, pain points, and highlights are very valuable to us.
+
 Contribute
 ------------------------------------
 We'd love for you to contribute to Runhouse! Please reach out to us with any questions or support requests 🙂

@@ -416,24 +416,8 @@ title="Open an issue"
                  <span class="o">**</span><span class="n">kwargs</span>  <span class="c1"># We have this here to ignore extra arguments when calling from from_config</span>
                  <span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        (STALE) Decision tree:</span>
-
-<span class="sd">        - If the name is an rns path, resolve it into the path and stem.</span>
-<span class="sd">        - If there&#39;s a name but no address, check if there&#39;s a local address:</span>
-<span class="sd">            - Check if each of the root rns folders contain the rns path. If so, set the physical address.</span>
-<span class="sd">            - If not, put the new folder into the current_folder().</span>
-<span class="sd">        - If there&#39;s both a name and address, update the name at the address.</span>
-<span class="sd">        - If there&#39;s an address but no name.</span>
-<span class="sd">            - If it&#39;s a local address, check for a config, and load it in if found.</span>
-<span class="sd">            - Otherwise, treat this is a new anonymous folder at that address.</span>
-<span class="sd">        - If there&#39;s no name or address, create a tempdir for the address, this is an anonymous resource.</span>
-
-<span class="sd">        - If the address is local, load in the config.</span>
-
-<span class="sd">        - If still no config is found, check the rns server for the config.</span>
-
-
 <span class="sd">        TODO [DG] Update</span>
+<span class="sd">        Include loud warning that relative paths are relative to the git root / working directory!</span>
 <span class="sd">        Args:</span>
 <span class="sd">            name ():</span>
 <span class="sd">            parent (): string path to parent folder, or</span>
@@ -453,7 +437,7 @@ title="Open an issue"
         <span class="c1"># rh.Folder(url=&#39;/&#39;, fs=&#39;github&#39;, data_config={&#39;org&#39;: &#39;pytorch&#39;, &#39;repo&#39;: &#39;pytorch&#39;})</span>
 
         <span class="c1"># If the url is not absolute, assume that it&#39;s relative to the working directory</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_url</span> <span class="o">=</span> <span class="n">url</span> <span class="k">if</span> <span class="n">url</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">(</span><span class="n">url</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">()</span> \
+        <span class="bp">self</span><span class="o">.</span><span class="n">_url</span> <span class="o">=</span> <span class="n">url</span> <span class="k">if</span> <span class="p">(</span><span class="n">url</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">(</span><span class="n">url</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">())</span> \
             <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">rns_client</span><span class="o">.</span><span class="n">locate_working_dir</span><span class="p">())</span> <span class="o">/</span> <span class="n">url</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">fs</span> <span class="o">=</span> <span class="n">fs</span>
 
@@ -700,7 +684,7 @@ title="Open an issue"
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">:</span>  <span class="c1"># Anonymous folders can&#39;t have non-local rns children</span>
             <span class="k">for</span> <span class="p">(</span><span class="n">rns_path</span><span class="p">,</span> <span class="n">url</span><span class="p">)</span> <span class="ow">in</span> <span class="n">rns_client</span><span class="o">.</span><span class="n">rns_base_folders</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
                 <span class="k">if</span> <span class="n">rns_path</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rns_address</span><span class="p">)</span> <span class="ow">and</span> <span class="n">rns_path</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rns_address</span><span class="p">:</span>
-                    <span class="n">child_name</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">rns_path</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rns_address</span><span class="p">):])</span><span class="o">.</span><span class="n">stem</span>
+                    <span class="n">child_name</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">rns_path</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rns_address</span><span class="p">):])</span><span class="o">.</span><span class="n">name</span>
                     <span class="n">virtual_children</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rns_address</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">child_name</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">full_paths</span><span class="p">:</span>

@@ -412,6 +412,8 @@ title="Open an issue"
         <span class="bp">self</span><span class="o">.</span><span class="n">load_from</span> <span class="o">=</span> <span class="n">load_from</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dryrun</span> <span class="o">=</span> <span class="n">dryrun</span></div>
 
+    <span class="c1"># TODO add a utility to allow a parameter to be specified as &quot;default&quot; and then use the default value</span>
+
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">config_for_rns</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">config</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">RESOURCE_TYPE</span><span class="p">}</span>
@@ -501,6 +503,7 @@ title="Open an issue"
         <span class="n">resource_history</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="n">read_response_data</span><span class="p">(</span><span class="n">resp</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">resource_history</span></div>
 
+    <span class="c1"># TODO delete sub-resources</span>
 <div class="viewcode-block" id="Resource.delete_configs"><a class="viewcode-back" href="../../../resource.html#runhouse.rns.resource.Resource.delete_configs">[docs]</a>    <span class="k">def</span> <span class="nf">delete_configs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">delete_from</span><span class="p">:</span> <span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Delete the resource&#39;s config from local working_dir and RNS config store.&quot;&quot;&quot;</span>
         <span class="n">rns_client</span><span class="o">.</span><span class="n">delete_configs</span><span class="p">(</span><span class="n">resource</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span> <span class="n">delete_from</span><span class="o">=</span><span class="n">delete_from</span><span class="p">)</span></div>
@@ -511,6 +514,7 @@ title="Open an issue"
             <span class="k">if</span> <span class="n">val</span><span class="p">:</span>
                 <span class="n">config</span><span class="p">[</span><span class="n">attr</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
 
+    <span class="c1"># TODO [DG] Implement proper sharing of subresources (with an overload of some kind)</span>
 <div class="viewcode-block" id="Resource.share"><a class="viewcode-back" href="../../../resource.html#runhouse.rns.resource.Resource.share">[docs]</a>    <span class="k">def</span> <span class="nf">share</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
               <span class="n">users</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span>
               <span class="n">access_type</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">ResourceAccess</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">ResourceAccess</span><span class="o">.</span><span class="n">read</span>
