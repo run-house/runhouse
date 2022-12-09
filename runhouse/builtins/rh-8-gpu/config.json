@@ -1,0 +1,10 @@
+{
+    "type": "cluster",
+    "name": "/builtins/rh-8-gpu",
+    "rns_address": "/builtins/rh-8-gpu",
+    "instance_type": "K80:8",
+    "num_instances": null,
+    "provider": null,
+    "autostop_mins": null,
+    "use_spot": false
+}

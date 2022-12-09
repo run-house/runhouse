@@ -1,0 +1,953 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>runhouse.rns.folder &#8212; Runhouse</title>
+    
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=1999514e3f237ded88cf" rel="stylesheet">
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=1999514e3f237ded88cf" rel="stylesheet">
+
+    
+  <link rel="stylesheet"
+    href="../../../_static/vendor/fontawesome/5.13.0/css/all.min.css">
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+    href="../../../_static/vendor/fontawesome/5.13.0/webfonts/fa-solid-900.woff2">
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+    href="../../../_static/vendor/fontawesome/5.13.0/webfonts/fa-brands-400.woff2">
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=5115cc725059bd94278eecd172e13a965bf8f5a9" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-thebe.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=1999514e3f237ded88cf">
+
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/jquery.js"></script>
+    <script src="../../../_static/underscore.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/clipboard.min.js"></script>
+    <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=9c920249402e914e316237a7dbc6769907cce411"></script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"
+const thebe_selector = ".thebe,.cell"
+const thebe_selector_input = "pre"
+const thebe_selector_output = ".output, .cell_output"
+</script>
+    <script async="async" src="../../../_static/sphinx-thebe.js"></script>
+    <link rel="shortcut icon" href="../../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="docsearch:language" content="None">
+    
+
+    <!-- Google Analytics -->
+    
+  </head>
+  <body data-spy="scroll" data-target="#bd-toc-nav" data-offset="60">
+<!-- Checkboxes to toggle the left sidebar -->
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle navigation sidebar">
+<label class="overlay overlay-navbar" for="__navigation">
+    <div class="visually-hidden">Toggle navigation sidebar</div>
+</label>
+<!-- Checkboxes to toggle the in-page toc -->
+<input type="checkbox" class="sidebar-toggle" name="__page-toc" id="__page-toc" aria-label="Toggle in-page Table of Contents">
+<label class="overlay overlay-pagetoc" for="__page-toc">
+    <div class="visually-hidden">Toggle in-page Table of Contents</div>
+</label>
+<!-- Headers at the top -->
+<div class="announcement header-item noprint"></div>
+<div class="header header-item noprint"></div>
+
+    
+    <div class="container-fluid" id="banner"></div>
+
+    
+
+    <div class="container-xl">
+      <div class="row">
+          
+<!-- Sidebar -->
+<div class="bd-sidebar noprint" id="site-navigation">
+    <div class="bd-sidebar__content">
+        <div class="bd-sidebar__top"><div class="navbar-brand-box">
+    <a class="navbar-brand text-wrap" href="../../../index.html">
+      
+        <!-- `logo` is deprecated in Sphinx 4.0, so remove this when we stop supporting 3 -->
+        
+      
+      
+      <img src="../../../_static/rh_1.jpeg" class="logo" alt="logo">
+      
+      
+    </a>
+</div><form class="bd-search d-flex align-items-center" action="../../../search.html" method="get">
+  <i class="icon fas fa-search"></i>
+  <input type="search" class="form-control" name="q" id="search-input" placeholder="Search the docs ..." aria-label="Search the docs ..." autocomplete="off" >
+</form><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="../../../index.html">
+                    Runhouse 🏃‍♀️🏠
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading">
+ <span class="caption-text">
+  Getting Started
+ </span>
+</p>
+<ul class="nav bd-sidenav">
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../common_use_cases.html">
+   Use Cases
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../getting_started.html">
+   Setup
+  </a>
+ </li>
+</ul>
+<p aria-level="2" class="caption" role="heading">
+ <span class="caption-text">
+  Using Runhouse
+ </span>
+</p>
+<ul class="nav bd-sidenav">
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../runhouse.html">
+   Command Line Interface
+  </a>
+ </li>
+ <li class="toctree-l1 has-children">
+  <a class="reference internal" href="../../../runhouse.rns.html">
+   Python API
+  </a>
+  <input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" type="checkbox"/>
+  <label for="toctree-checkbox-1">
+   <i class="fas fa-chevron-down">
+   </i>
+  </label>
+  <ul>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../resource.html">
+     Resource
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../send.html">
+     Send
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../cluster.html">
+     Cluster
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../blob.html">
+     Blob
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../folder.html">
+     Folder
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../package.html">
+     Package
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../table.html">
+     Table
+    </a>
+   </li>
+  </ul>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference external" href="https://api.run.house/docs">
+   REST API Guide
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference external" href="https://api.run.house">
+   Dashboard
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../faqs.html">
+   FAQs
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../roadmap.html">
+   Roadmap
+  </a>
+ </li>
+</ul>
+<p aria-level="2" class="caption" role="heading">
+ <span class="caption-text">
+  Tutorials
+ </span>
+</p>
+<ul class="nav bd-sidenav">
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../send_quickstart.html">
+   Compute Layer
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../data_quickstart.html">
+   Data Layer
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../tutorials.html">
+   From Zero to Hero in 10 minutes 🚀
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../advanced_tutorials.html">
+   Advanced Tutorials
+  </a>
+ </li>
+</ul>
+<p aria-level="2" class="caption" role="heading">
+ <span class="caption-text">
+  Security
+ </span>
+</p>
+<ul class="nav bd-sidenav">
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../secrets.html">
+   Secrets Management
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../access_controls.html">
+   Access Controls
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../data_policy.html">
+   Data Policy
+  </a>
+ </li>
+</ul>
+
+    </div>
+</nav></div>
+        <div class="bd-sidebar__bottom">
+             <!-- To handle the deprecated key -->
+            
+            <div class="navbar_extra_footer">
+            Theme by the <a href="https://ebp.jupyterbook.org">Executable Book Project</a>
+            </div>
+            
+        </div>
+    </div>
+    <div id="rtd-footer-container"></div>
+</div>
+
+
+          
+
+
+          
+<!-- A tiny helper pixel to detect if we've scrolled -->
+<div class="sbt-scroll-pixel-helper"></div>
+<!-- Main content -->
+<div class="col py-0 content-container">
+    
+    <div class="header-article row sticky-top noprint">
+        
+
+
+
+<div class="col py-1 d-flex header-article-main">
+    <div class="header-article__left">
+        
+        <label for="__navigation"
+  class="headerbtn"
+  data-toggle="tooltip"
+data-placement="right"
+title="Toggle navigation"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fas fa-bars"></i>
+  </span>
+
+</label>
+
+        
+    </div>
+    <div class="header-article__right">
+<button onclick="toggleFullScreen()"
+  class="headerbtn"
+  data-toggle="tooltip"
+data-placement="bottom"
+title="Fullscreen mode"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+<div class="menu-dropdown menu-dropdown-repository-buttons">
+  <button class="headerbtn menu-dropdown__trigger"
+      aria-label="Source repositories">
+      <i class="fab fa-github"></i>
+  </button>
+  <div class="menu-dropdown__content">
+    <ul>
+      <li>
+        <a href="https://github.com/run-house/runhouse"
+   class="headerbtn"
+   data-toggle="tooltip"
+data-placement="left"
+title="Source repository"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="headerbtn__text-container">repository</span>
+</a>
+
+      </li>
+      
+      <li>
+        <a href="https://github.com/run-house/runhouse/issues/new?title=Issue%20on%20page%20%2F_modules/runhouse/rns/folder.html&body=Your%20issue%20content%20here."
+   class="headerbtn"
+   data-toggle="tooltip"
+data-placement="left"
+title="Open an issue"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="headerbtn__text-container">open issue</span>
+</a>
+
+      </li>
+      
+    </ul>
+  </div>
+</div>
+
+    </div>
+</div>
+
+<!-- Table of contents -->
+<div class="col-md-3 bd-toc show noprint">
+</div>
+    </div>
+    <div class="article row">
+        <div class="col pl-md-3 pl-lg-5 content-container">
+            <!-- Table of contents that is only displayed when printing the page -->
+            <div id="jb-print-docs-body" class="onlyprint">
+                <h1></h1>
+                <!-- Table of contents -->
+                <div id="print-main-content">
+                    <div id="jb-print-toc">
+                        
+                    </div>
+                </div>
+            </div>
+            <main id="main-content" role="main">
+                
+              <div>
+                
+  <h1>Source code for runhouse.rns.folder</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">List</span>
+<span class="kn">import</span> <span class="nn">fsspec</span>
+<span class="kn">import</span> <span class="nn">tempfile</span>
+<span class="kn">import</span> <span class="nn">shutil</span>
+
+<span class="kn">from</span> <span class="nn">runhouse.rns.resource</span> <span class="kn">import</span> <span class="n">Resource</span>
+<span class="kn">from</span> <span class="nn">runhouse.rh_config</span> <span class="kn">import</span> <span class="n">rns_client</span><span class="p">,</span> <span class="n">configs</span>
+<span class="kn">from</span> <span class="nn">runhouse.rns.api_utils.resource_access</span> <span class="kn">import</span> <span class="n">ResourceAccess</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="n">PROVIDER_FS_LOOKUP</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;aws&#39;</span><span class="p">:</span> <span class="s1">&#39;s3&#39;</span><span class="p">,</span>
+                      <span class="s1">&#39;gcp&#39;</span><span class="p">:</span> <span class="s1">&#39;gcs&#39;</span><span class="p">,</span>
+                      <span class="s1">&#39;azure&#39;</span><span class="p">:</span> <span class="s1">&#39;abfs&#39;</span><span class="p">,</span>
+                      <span class="s1">&#39;oracle&#39;</span><span class="p">:</span> <span class="s1">&#39;ocifs&#39;</span><span class="p">,</span>
+                      <span class="s1">&#39;databricks&#39;</span><span class="p">:</span> <span class="s1">&#39;dbfs&#39;</span><span class="p">,</span>
+                      <span class="s1">&#39;github&#39;</span><span class="p">:</span> <span class="s1">&#39;github&#39;</span>
+                      <span class="p">}</span>
+
+
+<div class="viewcode-block" id="Folder"><a class="viewcode-back" href="../../../folder.html#runhouse.rns.folder.Folder">[docs]</a><span class="k">class</span> <span class="nc">Folder</span><span class="p">(</span><span class="n">Resource</span><span class="p">):</span>
+    <span class="n">RESOURCE_TYPE</span> <span class="o">=</span> <span class="s1">&#39;folder&#39;</span>
+    <span class="n">DEFAULT_FS</span> <span class="o">=</span> <span class="s1">&#39;file&#39;</span>
+
+<div class="viewcode-block" id="Folder.__init__"><a class="viewcode-back" href="../../../folder.html#runhouse.rns.folder.Folder.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                 <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">fs</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">DEFAULT_FS</span><span class="p">,</span>
+                 <span class="n">save_to</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">dryrun</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+                 <span class="n">local_mount</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+                 <span class="n">data_config</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{},</span>
+                 <span class="o">**</span><span class="n">kwargs</span>  <span class="c1"># We have this here to ignore extra arguments when calling from from_config</span>
+                 <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        (STALE) Decision tree:</span>
+
+<span class="sd">        - If the name is an rns path, resolve it into the path and stem.</span>
+<span class="sd">        - If there&#39;s a name but no address, check if there&#39;s a local address:</span>
+<span class="sd">            - Check if each of the root rns folders contain the rns path. If so, set the physical address.</span>
+<span class="sd">            - If not, put the new folder into the current_folder().</span>
+<span class="sd">        - If there&#39;s both a name and address, update the name at the address.</span>
+<span class="sd">        - If there&#39;s an address but no name.</span>
+<span class="sd">            - If it&#39;s a local address, check for a config, and load it in if found.</span>
+<span class="sd">            - Otherwise, treat this is a new anonymous folder at that address.</span>
+<span class="sd">        - If there&#39;s no name or address, create a tempdir for the address, this is an anonymous resource.</span>
+
+<span class="sd">        - If the address is local, load in the config.</span>
+
+<span class="sd">        - If still no config is found, check the rns server for the config.</span>
+
+
+<span class="sd">        TODO [DG] Update</span>
+<span class="sd">        Args:</span>
+<span class="sd">            name ():</span>
+<span class="sd">            parent (): string path to parent folder, or</span>
+<span class="sd">            data_source (): FSSpec protocol, e.g. &#39;s3&#39;, &#39;gcs&#39;. See/run `fsspec.available_protocols()`.</span>
+<span class="sd">                Default is &quot;file&quot;, the local filesystem to wherever the blob is created.</span>
+<span class="sd">            data_config ():</span>
+<span class="sd">            local_path ():</span>
+<span class="sd">            serializer ():</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>
+                         <span class="n">dryrun</span><span class="o">=</span><span class="n">dryrun</span><span class="p">,</span>
+                         <span class="n">save_to</span><span class="o">=</span><span class="n">save_to</span><span class="p">)</span>
+
+        <span class="c1"># TODO if fs=&#39;github&#39;, check if we need to extract the data_config and url properly, e.g.</span>
+        <span class="c1"># rh.Folder(url=&#39;https://github.com/pytorch/pytorch&#39;, fs=&#39;github&#39;)</span>
+        <span class="c1"># should be resolved as:</span>
+        <span class="c1"># rh.Folder(url=&#39;/&#39;, fs=&#39;github&#39;, data_config={&#39;org&#39;: &#39;pytorch&#39;, &#39;repo&#39;: &#39;pytorch&#39;})</span>
+
+        <span class="c1"># If the url is not absolute, assume that it&#39;s relative to the working directory</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_url</span> <span class="o">=</span> <span class="n">url</span> <span class="k">if</span> <span class="n">url</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">Path</span><span class="p">(</span><span class="n">url</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">()</span> \
+            <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">rns_client</span><span class="o">.</span><span class="n">locate_working_dir</span><span class="p">())</span> <span class="o">/</span> <span class="n">url</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fs</span> <span class="o">=</span> <span class="n">fs</span>
+
+        <span class="c1"># TODO maybe we can provide reasonable defaults or config options for cloud blob storage, etc.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">fs</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">DEFAULT_FS</span><span class="p">]</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">url</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;You must provide a url to use a non-local provider for folder storage.&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_mount</span> <span class="o">=</span> <span class="n">local_mount</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_local_mount_path</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">local_mount</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mount</span><span class="p">(</span><span class="n">tmp</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data_config</span> <span class="o">=</span> <span class="n">data_config</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">virtual_children</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">url</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="c1"># Create anonymous folder</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_tempdir</span> <span class="o">=</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">TemporaryDirectory</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">url</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tempdir</span><span class="o">.</span><span class="n">name</span>
+                <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">)</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">fs</span> <span class="o">=</span> <span class="s1">&#39;file&#39;</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">fs</span> <span class="o">==</span> <span class="s1">&#39;file&#39;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">)</span><span class="o">.</span><span class="n">stem</span></div>
+            <span class="c1"># If there&#39;s a url, but fs != &#39;file&#39;, this is an anonymous Folder with a remote fs (e.g. &quot;github&quot;).</span>
+
+<div class="viewcode-block" id="Folder.from_config"><a class="viewcode-back" href="../../../folder.html#runhouse.rns.folder.Folder.from_config">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">from_config</span><span class="p">(</span><span class="n">config</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">dryrun</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Load config values into the object. &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Folder</span><span class="p">(</span><span class="o">**</span><span class="n">config</span><span class="p">,</span> <span class="n">dryrun</span><span class="o">=</span><span class="n">dryrun</span><span class="p">)</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">url</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_url</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_url</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">())</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@url</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">url</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">url</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_url</span> <span class="o">=</span> <span class="n">url</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_local_mount_path</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">local_path</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_local</span><span class="p">():</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_mount_path</span> <span class="ow">or</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">())</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">is_writable</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">fsspec_fs</span> <span class="o">=</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">filesystem</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fs</span><span class="p">)</span>
+
+        <span class="c1"># If the filesystem hasn&#39;t overridden mkdirs, it&#39;s a no-op and the filesystem is probably readonly</span>
+        <span class="c1"># (e.g. https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/implementations/github.html).</span>
+        <span class="c1"># In that case, we should just create a new folder in the default</span>
+        <span class="c1"># location and add it as a child to the parent folder.</span>
+        <span class="k">return</span> <span class="n">fsspec_fs</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="n">mkdirs</span> <span class="o">==</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">AbstractFileSystem</span><span class="o">.</span><span class="n">mkdirs</span>
+
+<div class="viewcode-block" id="Folder.mv"><a class="viewcode-back" href="../../../folder.html#runhouse.rns.folder.Folder.mv">[docs]</a>    <span class="k">def</span> <span class="nf">mv</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fs</span><span class="p">,</span> <span class="n">url</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data_config</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Move the folder to a new filesystem.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            fs (str): file system.</span>
+<span class="sd">            url (:obj:`str`, optional): fsspec URL.</span>
+<span class="sd">            data_config(:obj:`dict`, optional): Config to move.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">url</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">url</span> <span class="o">=</span> <span class="s1">&#39;rh/&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">rns_address</span>
+        <span class="k">with</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fsspec_url</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">data_config</span><span class="p">)</span> <span class="k">as</span> <span class="n">src</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">fs</span><span class="si">}</span><span class="s1">://</span><span class="si">{</span><span class="n">url</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">data_config</span><span class="p">)</span> <span class="k">as</span> <span class="n">dest</span><span class="p">:</span>
+                <span class="c1"># NOTE For packages, maybe use the `ignore` param here to only copy python files.</span>
+                <span class="n">new_url</span> <span class="o">=</span> <span class="n">shutil</span><span class="o">.</span><span class="n">move</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">dest</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">url</span> <span class="o">=</span> <span class="n">new_url</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fs</span> <span class="o">=</span> <span class="n">fs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data_config</span> <span class="o">=</span> <span class="n">data_config</span> <span class="ow">or</span> <span class="p">{}</span></div>
+
+<div class="viewcode-block" id="Folder.cp"><a class="viewcode-back" href="../../../folder.html#runhouse.rns.folder.Folder.cp">[docs]</a>    <span class="k">def</span> <span class="nf">cp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fs</span><span class="p">,</span> <span class="n">url</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data_config</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Copy the folder to a new filesystem, and return a new Folder object pointing to the new location. &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">url</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">url</span> <span class="o">=</span> <span class="s1">&#39;runhouse/&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">rns_address</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">,</span> <span class="s1">&#39;_&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="sa">f</span><span class="s1">&#39;.</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">RESOURCE_TYPE</span><span class="si">}</span><span class="s1">&#39;</span>
+
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Copying folder from </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">fsspec_url</span><span class="si">}</span><span class="s1"> to </span><span class="si">{</span><span class="n">fs</span><span class="si">}</span><span class="s1">://</span><span class="si">{</span><span class="n">url</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="c1"># TODO will this work if the base bucket doesn&#39;t exist yet?</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_local</span><span class="p">():</span>
+            <span class="n">fsspec</span><span class="o">.</span><span class="n">filesystem</span><span class="p">(</span><span class="n">fs</span><span class="p">)</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">fs</span><span class="si">}</span><span class="s1">://</span><span class="si">{</span><span class="n">url</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># TODO this is really really slow, maybe use skyplane, as follows:</span>
+            <span class="c1"># src_url = f&#39;local://{self.url}&#39; if self.is_local() else self.fsspec_url</span>
+            <span class="c1"># subprocess.run([&#39;skyplane&#39;, &#39;sync&#39;, src_url, f&#39;{fs}://{url}&#39;])</span>
+
+            <span class="c1"># FYI: from https://github.com/fsspec/filesystem_spec/issues/909</span>
+            <span class="c1"># TODO [DG]: Copy chunks https://github.com/fsspec/filesystem_spec/issues/909#issuecomment-1204212507</span>
+            <span class="n">src</span> <span class="o">=</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">get_mapper</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fsspec_url</span><span class="p">,</span> <span class="n">create</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">data_config</span><span class="p">)</span>
+            <span class="n">dest</span> <span class="o">=</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">get_mapper</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">fs</span><span class="si">}</span><span class="s1">://</span><span class="si">{</span><span class="n">url</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">create</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">data_config</span><span class="p">)</span>
+            <span class="c1"># dest.fs.mkdir(dest.root, create_parents=True)</span>
+            <span class="kn">import</span> <span class="nn">tqdm</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="o">.</span><span class="n">tqdm</span><span class="p">(</span><span class="n">src</span><span class="p">):</span>
+                <span class="c1"># NOTE For packages, maybe use the `ignore` param here to only copy python files.</span>
+                <span class="n">dest</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">src</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+                <span class="c1"># dst.write(src.read())</span>
+        <span class="n">new_folder</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">new_folder</span><span class="o">.</span><span class="n">url</span> <span class="o">=</span> <span class="n">url</span>
+        <span class="n">new_folder</span><span class="o">.</span><span class="n">fs</span> <span class="o">=</span> <span class="n">fs</span>
+        <span class="n">new_folder</span><span class="o">.</span><span class="n">data_config</span> <span class="o">=</span> <span class="n">data_config</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="k">return</span> <span class="n">new_folder</span></div>
+
+<div class="viewcode-block" id="Folder.mount"><a class="viewcode-back" href="../../../folder.html#runhouse.rns.folder.Folder.mount">[docs]</a>    <span class="k">def</span> <span class="nf">mount</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">url</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tmp</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">data_config</span><span class="o">=</span><span class="p">{})</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot; Mount the folder locally. &quot;&quot;&quot;</span>
+        <span class="c1"># TODO check that fusepy and FUSE are installed</span>
+        <span class="k">if</span> <span class="n">tmp</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_local_mount_path</span> <span class="o">=</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">mkdtemp</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_local_mount_path</span> <span class="o">=</span> <span class="n">url</span>
+        <span class="n">remote_fs</span> <span class="o">=</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">filesystem</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fs</span><span class="p">,</span> <span class="o">**</span><span class="n">data_config</span><span class="p">)</span>
+        <span class="n">fsspec</span><span class="o">.</span><span class="n">fuse</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">fs</span><span class="o">=</span><span class="n">remote_fs</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">,</span> <span class="n">mount_point</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_local_mount_path</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_mount_path</span></div>
+
+<div class="viewcode-block" id="Folder.to_cluster"><a class="viewcode-back" href="../../../folder.html#runhouse.rns.folder.Folder.to_cluster">[docs]</a>    <span class="k">def</span> <span class="nf">to_cluster</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cluster</span><span class="p">,</span> <span class="n">url</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mount</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">return_dest_folder</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Copy the folder onto a cluster. &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">cluster</span><span class="o">.</span><span class="n">address</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Cluster must be started before copying data to it.&#39;</span><span class="p">)</span>
+        <span class="c1"># Create tmp_mount if needed</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_local</span><span class="p">()</span> <span class="ow">and</span> <span class="n">mount</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mount</span><span class="p">(</span><span class="n">tmp</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">src_url</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_path</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span>  <span class="c1"># Need to add slash for rsync to copy the contents of the folder</span>
+        <span class="n">dest_url</span> <span class="o">=</span> <span class="n">url</span> <span class="ow">or</span> <span class="sa">f</span><span class="s1">&#39;~/</span><span class="si">{</span><span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">)</span><span class="o">.</span><span class="n">stem</span><span class="si">}</span><span class="s1">&#39;</span>
+        <span class="n">cluster</span><span class="o">.</span><span class="n">rsync</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="n">src_url</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="n">dest_url</span><span class="p">,</span> <span class="n">up</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">dest_folder</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">dest_folder</span><span class="o">.</span><span class="n">url</span> <span class="o">=</span> <span class="n">dest_url</span>
+        <span class="n">dest_folder</span><span class="o">.</span><span class="n">fs</span> <span class="o">=</span> <span class="s1">&#39;file&#39;</span>
+        <span class="k">if</span> <span class="n">return_dest_folder</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">dest_folder</span>
+        <span class="k">return</span> <span class="n">dest_folder</span><span class="o">.</span><span class="n">from_cluster</span><span class="p">(</span><span class="n">cluster</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Folder.sync_from_cluster"><a class="viewcode-back" href="../../../folder.html#runhouse.rns.folder.Folder.sync_from_cluster">[docs]</a>    <span class="k">def</span> <span class="nf">sync_from_cluster</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cluster</span><span class="p">,</span> <span class="n">url</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Efficiently rsync down a folder from a cluster, into the url of the current Folder object. &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">cluster</span><span class="o">.</span><span class="n">address</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Cluster must be started before copying data to it.&#39;</span><span class="p">)</span>
+        <span class="c1"># TODO support fsspec urls (e.g. nonlocal fs&#39;s)?</span>
+        <span class="n">cluster</span><span class="o">.</span><span class="n">rsync</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="n">url</span><span class="p">,</span> <span class="n">up</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Folder.from_cluster"><a class="viewcode-back" href="../../../folder.html#runhouse.rns.folder.Folder.from_cluster">[docs]</a>    <span class="k">def</span> <span class="nf">from_cluster</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cluster</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Create a remote folder from a url on a cluster. This will create a virtual link into the</span>
+<span class="sd">        cluster&#39;s filesystem. If you want to create a local copy or mount of the folder, use</span>
+<span class="sd">        `Folder(url=&lt;local_url&gt;).sync_from_cluster(&lt;cluster&gt;, &lt;url&gt;)` or</span>
+<span class="sd">        `Folder(&#39;url&#39;).from_cluster(&lt;cluster&gt;).mount(&lt;local_url&gt;)`. &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">cluster</span><span class="o">.</span><span class="n">address</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Cluster must be started before copying data from it.&#39;</span><span class="p">)</span>
+        <span class="n">creds</span> <span class="o">=</span> <span class="n">cluster</span><span class="o">.</span><span class="n">ssh_creds</span><span class="p">()</span>
+        <span class="n">data_config</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;host&#39;</span><span class="p">:</span> <span class="n">cluster</span><span class="o">.</span><span class="n">address</span><span class="p">,</span>
+                       <span class="s1">&#39;ssh_creds&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;username&#39;</span><span class="p">:</span> <span class="n">creds</span><span class="p">[</span><span class="s1">&#39;ssh_user&#39;</span><span class="p">],</span>
+                                     <span class="s1">&#39;pkey&#39;</span><span class="p">:</span> <span class="n">creds</span><span class="p">[</span><span class="s1">&#39;ssh_private_key&#39;</span><span class="p">]}</span>
+                       <span class="p">}</span>
+        <span class="n">new_folder</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">new_folder</span><span class="o">.</span><span class="n">fs</span> <span class="o">=</span> <span class="s1">&#39;sftp&#39;</span>
+        <span class="n">new_folder</span><span class="o">.</span><span class="n">data_config</span> <span class="o">=</span> <span class="n">data_config</span>
+        <span class="k">return</span> <span class="n">new_folder</span></div>
+
+    <span class="k">def</span> <span class="nf">is_local</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">())</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_mount_path</span>
+
+<div class="viewcode-block" id="Folder.share"><a class="viewcode-back" href="../../../folder.html#runhouse.rns.folder.Folder.share">[docs]</a>    <span class="k">def</span> <span class="nf">share</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+              <span class="n">users</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span>
+              <span class="n">access_type</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">ResourceAccess</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">ResourceAccess</span><span class="o">.</span><span class="n">read</span><span class="p">,</span>
+              <span class="n">snapshot</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+              <span class="n">snapshot_fs</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+              <span class="n">snapshot_compression</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+              <span class="n">snapshot_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+              <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ResourceAccess</span><span class="p">],</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ResourceAccess</span><span class="p">]]:</span>
+        <span class="sd">&quot;&quot;&quot;Granting access to the resource for list of users (via their emails). If a user has a Runhouse account they</span>
+<span class="sd">        will receive an email notifying them of their new access. If the user does not have a Runhouse account they will</span>
+<span class="sd">        also receive instructions on creating one, after which they will be able to have access to the Resource.</span>
+<span class="sd">        Note: You can only grant resource access to other users if you have Write / Read privileges for the Resource&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_local</span><span class="p">()</span> <span class="ow">and</span> <span class="n">snapshot</span><span class="p">:</span>
+            <span class="c1"># raise ValueError(&#39;Cannot share a local resource.&#39;)</span>
+            <span class="n">fs</span> <span class="o">=</span> <span class="n">snapshot_fs</span> <span class="ow">or</span> <span class="n">PROVIDER_FS_LOOKUP</span><span class="p">[</span><span class="n">configs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;default_provider&#39;</span><span class="p">)]</span>
+            <span class="k">if</span> <span class="n">fs</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">available_protocols</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Invalid mount_fs: </span><span class="si">{</span><span class="n">snapshot_fs</span><span class="si">}</span><span class="s1">. Must be one of </span><span class="si">{</span><span class="n">fsspec</span><span class="o">.</span><span class="n">available_protocols</span><span class="p">()</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">snapshot_compression</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">available_compressions</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Invalid mount_compression: </span><span class="si">{</span><span class="n">snapshot_compression</span><span class="si">}</span><span class="s1">. Must be one of &#39;</span>
+                                 <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">fsspec</span><span class="o">.</span><span class="n">available_compressions</span><span class="p">()</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="n">data_config</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;compression&#39;</span><span class="p">:</span> <span class="n">snapshot_compression</span><span class="p">}</span> <span class="k">if</span> <span class="n">snapshot_compression</span> <span class="k">else</span> <span class="p">{}</span>
+            <span class="n">snapshot_folder</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cp</span><span class="p">(</span><span class="n">fs</span><span class="o">=</span><span class="n">fs</span><span class="p">,</span> <span class="n">url</span><span class="o">=</span><span class="n">snapshot_url</span><span class="p">,</span> <span class="n">data_config</span><span class="o">=</span><span class="n">data_config</span><span class="p">)</span>
+
+            <span class="c1"># Is this a bad idea? Better to store the snapshot config as the source of truth than the local url</span>
+            <span class="n">snapshot_folder</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">rns_address</span><span class="p">,</span> <span class="n">save_to</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;rns&#39;</span><span class="p">])</span>
+
+            <span class="k">return</span> <span class="n">snapshot_folder</span><span class="o">.</span><span class="n">share</span><span class="p">(</span><span class="n">users</span><span class="o">=</span><span class="n">users</span><span class="p">,</span> <span class="n">access_type</span><span class="o">=</span><span class="n">access_type</span><span class="p">,</span> <span class="n">snapshot</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="c1"># TODO just call super().share</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">access_type</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">access_type</span> <span class="o">=</span> <span class="n">ResourceAccess</span><span class="p">(</span><span class="n">access_type</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">rns_client</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rns_address</span><span class="p">,</span> <span class="n">load_from</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;rns&#39;</span><span class="p">]):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">save_to</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;rns&#39;</span><span class="p">])</span>
+        <span class="n">added_users</span><span class="p">,</span> <span class="n">new_users</span> <span class="o">=</span> <span class="n">rns_client</span><span class="o">.</span><span class="n">grant_resource_access</span><span class="p">(</span><span class="n">resource_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                                                                  <span class="n">user_emails</span><span class="o">=</span><span class="n">users</span><span class="p">,</span>
+                                                                  <span class="n">access_type</span><span class="o">=</span><span class="n">access_type</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">added_users</span><span class="p">,</span> <span class="n">new_users</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">config_for_rns</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">config</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">config_for_rns</span>
+        <span class="n">config_attrs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;local_mount&#39;</span><span class="p">,</span> <span class="s1">&#39;data_config&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save_attrs_to_config</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">config_attrs</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">fs</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">DEFAULT_FS</span><span class="p">:</span>
+            <span class="n">config</span><span class="p">[</span><span class="s1">&#39;url&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">url</span>
+            <span class="n">config</span><span class="p">[</span><span class="s1">&#39;fs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fs</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">url</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">config</span><span class="p">[</span><span class="s1">&#39;url&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_url_relative_to_rh_workdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">config</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_url_relative_to_rh_workdir</span><span class="p">(</span><span class="n">url</span><span class="p">):</span>
+        <span class="n">rh_workdir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">rns_client</span><span class="o">.</span><span class="n">locate_working_dir</span><span class="p">())</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">url</span><span class="p">)</span><span class="o">.</span><span class="n">relative_to</span><span class="p">(</span><span class="n">rh_workdir</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">url</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">fsspec_url</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generate the FSSpec URL using the data_source and data_url&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">fs</span><span class="si">}</span><span class="s1">://</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="si">}</span><span class="s1">&#39;</span>
+
+<div class="viewcode-block" id="Folder.ls"><a class="viewcode-back" href="../../../folder.html#runhouse.rns.folder.Folder.ls">[docs]</a>    <span class="k">def</span> <span class="nf">ls</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">full_paths</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">resource_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;List the resources in the *RNS* folder.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            full_paths (bool): If True, return the full RNS path for each resource. If False, return the</span>
+<span class="sd">                resource name only.</span>
+<span class="sd">            resource_type (str): If provided, only return resources of the specified type.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># TODO filter by type</span>
+        <span class="c1"># TODO allow &#39;*&#39; wildcard for listing all resources (and maybe other wildcard things)</span>
+        <span class="n">fs</span> <span class="o">=</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">filesystem</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fs</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">data_config</span><span class="p">)</span>
+        <span class="c1"># TODO don&#39;t exclude physical files that are not resources?</span>
+        <span class="n">physical_children</span> <span class="o">=</span> <span class="p">[</span><span class="n">path</span> <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">fs</span><span class="o">.</span><span class="n">ls</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">)</span>
+                             <span class="k">if</span> <span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">/</span> <span class="s1">&#39;config.json&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">()]</span> \
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">url</span> <span class="k">else</span> <span class="p">[]</span>
+
+        <span class="n">virtual_children</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">:</span>  <span class="c1"># Anonymous folders can&#39;t have non-local rns children</span>
+            <span class="k">for</span> <span class="p">(</span><span class="n">rns_path</span><span class="p">,</span> <span class="n">url</span><span class="p">)</span> <span class="ow">in</span> <span class="n">rns_client</span><span class="o">.</span><span class="n">rns_base_folders</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">rns_path</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rns_address</span><span class="p">)</span> <span class="ow">and</span> <span class="n">rns_path</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rns_address</span><span class="p">:</span>
+                    <span class="n">child_name</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">rns_path</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rns_address</span><span class="p">):])</span><span class="o">.</span><span class="n">stem</span>
+                    <span class="n">virtual_children</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rns_address</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">child_name</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">full_paths</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">rns_address</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">stem</span> <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">physical_children</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">virtual_children</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">stem</span> <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">physical_children</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">virtual_children</span><span class="p">)]</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">rns_address</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Traverse up the filesystem until reaching one of the directories in rns_base_folders,</span>
+<span class="sd">        then compute the relative path to that.</span>
+
+<span class="sd">        Maybe later, account for folders along the path with a different RNS name.&quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># Anonymous folders have no rns address</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+        <span class="c1"># Only should be necessary when a new base folder is being added (therefore isn&#39;t in rns_base_folders yet)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rns_folder</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rns_folder</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">url</span> <span class="ow">in</span> <span class="n">rns_client</span><span class="o">.</span><span class="n">rns_base_folders</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rns_folder</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rns_folder</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">rns_client</span><span class="o">.</span><span class="n">default_folder</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+
+        <span class="n">segment</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">)</span>
+        <span class="k">while</span> <span class="ow">not</span> <span class="nb">str</span><span class="p">(</span><span class="n">segment</span><span class="p">)</span> <span class="ow">in</span> <span class="n">rns_client</span><span class="o">.</span><span class="n">rns_base_folders</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="ow">and</span> \
+                <span class="ow">not</span> <span class="n">segment</span> <span class="o">==</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="ow">and</span> \
+                <span class="ow">not</span> <span class="n">segment</span> <span class="o">==</span> <span class="n">segment</span><span class="o">.</span><span class="n">parent</span><span class="p">:</span>
+            <span class="n">segment</span> <span class="o">=</span> <span class="n">segment</span><span class="o">.</span><span class="n">parent</span>
+
+        <span class="k">if</span> <span class="n">segment</span> <span class="o">==</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="ow">or</span> <span class="n">segment</span> <span class="o">==</span> <span class="n">segment</span><span class="o">.</span><span class="n">parent</span><span class="p">:</span>  <span class="c1"># TODO throw an error instead?</span>
+            <span class="k">return</span> <span class="n">rns_client</span><span class="o">.</span><span class="n">default_folder</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">base_folder</span> <span class="o">=</span> <span class="n">Folder</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">segment</span><span class="p">),</span>
+                                 <span class="n">dryrun</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">base_folder_path</span> <span class="o">=</span> <span class="n">base_folder</span><span class="o">.</span><span class="n">rns_address</span>
+            <span class="n">relative_path</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">)</span><span class="o">.</span><span class="n">relative_to</span><span class="p">(</span><span class="n">base_folder</span><span class="o">.</span><span class="n">url</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">base_folder_path</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">relative_path</span>
+
+    <span class="k">def</span> <span class="nf">contains</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name_or_path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="n">url</span><span class="p">,</span> <span class="n">fs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">locate</span><span class="p">(</span><span class="n">name_or_path</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">url</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="Folder.locate"><a class="viewcode-back" href="../../../folder.html#runhouse.rns.folder.Folder.locate">[docs]</a>    <span class="k">def</span> <span class="nf">locate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name_or_path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Locate the local url of a Folder given an rns path.</span>
+
+<span class="sd">        Keep in mind we&#39;re using both _rns_ path and physical path logic below. Be careful!</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># If the path is already given relative to the current folder:</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">)</span> <span class="o">/</span> <span class="n">name_or_path</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">)</span> <span class="o">/</span> <span class="n">name_or_path</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">fs</span>
+
+        <span class="c1"># If name or path uses ~/ or ./, need to resolve with folder url</span>
+        <span class="n">abs_path</span> <span class="o">=</span> <span class="n">rns_client</span><span class="o">.</span><span class="n">resolve_rns_path</span><span class="p">(</span><span class="n">name_or_path</span><span class="p">)</span>
+        <span class="n">rns_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rns_address</span>
+
+        <span class="c1"># If this folder is anonymous, it has no rns contents</span>
+        <span class="k">if</span> <span class="n">rns_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="n">abs_path</span> <span class="o">==</span> <span class="n">rns_path</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fs</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">child_url</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">)</span> <span class="o">/</span> <span class="n">Path</span><span class="p">(</span><span class="n">abs_path</span><span class="p">)</span><span class="o">.</span><span class="n">relative_to</span><span class="p">(</span><span class="n">rns_path</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">child_url</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">child_url</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">fs</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="c1"># Last resort, recursively search inside sub-folders and children.</span>
+
+        <span class="n">segments</span> <span class="o">=</span> <span class="n">abs_path</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">segments</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>  <span class="c1"># If only a single element, would have been found in ls above.</span>
+
+        <span class="c1"># Look for lowest folder in the path that exists in filesystem, and recurse from that folder</span>
+        <span class="n">greatest_common_folder</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">)</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">seg</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">segments</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">greatest_common_folder</span> <span class="o">/</span> <span class="n">seg</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="k">break</span>
+            <span class="n">greatest_common_folder</span> <span class="o">=</span> <span class="n">greatest_common_folder</span> <span class="o">/</span> <span class="n">seg</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">str</span><span class="p">(</span><span class="n">greatest_common_folder</span><span class="p">)</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Folder</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">greatest_common_folder</span><span class="p">),</span>
+                          <span class="n">fs</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">fs</span><span class="p">,</span>
+                          <span class="n">dryrun</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">locate</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">segments</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:]))</span>
+
+        <span class="k">if</span> <span class="n">name_or_path</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">virtual_children</span><span class="p">:</span>
+            <span class="n">child</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">virtual_children</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">name_or_path</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">child</span><span class="o">.</span><span class="n">url</span><span class="p">,</span> <span class="n">child</span><span class="o">.</span><span class="n">fs</span>
+
+        <span class="n">segments</span> <span class="o">=</span> <span class="n">abs_path</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span>
+        <span class="c1"># If the child has a different filesystem, this will take over the search from there.</span>
+        <span class="k">if</span> <span class="n">segments</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">virtual_children</span><span class="p">:</span>
+            <span class="n">child</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">virtual_children</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">segments</span><span class="p">[</span><span class="mi">0</span><span class="p">]][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">rns_client</span><span class="o">.</span><span class="n">locate</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">segments</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))</span>
+
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span></div>
+
+<div class="viewcode-block" id="Folder.get"><a class="viewcode-back" href="../../../folder.html#runhouse.rns.folder.Folder.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Returns an fsspec file, which must be used as a content manager to be opened!</span>
+<span class="sd">        e.g. with my_folder.get(&#39;obj_name&#39;) as my_file:</span>
+<span class="sd">                pickle.load(my_file)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fsspec_url</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">name</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;rb&#39;</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">data_config</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">get_all</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># TODO we&#39;re not closing these, do we need to extract file-like objects so we can close them?</span>
+        <span class="k">return</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">open_files</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fsspec_url</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;rb&#39;</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">data_config</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Folder.put"><a class="viewcode-back" href="../../../folder.html#runhouse.rns.folder.Folder.put">[docs]</a>    <span class="k">def</span> <span class="nf">put</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">contents</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">            files: Either 1) A dict with keys being the file names and values being the</span>
+<span class="sd">                file-like objects to write, 2) a Resource, or 3) a list of Resources.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Handle lists of resources just for convenience</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">contents</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">resource</span> <span class="ow">in</span> <span class="n">contents</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">resource</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="n">overwrite</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">contents</span><span class="p">,</span> <span class="n">Folder</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_writable</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">contents</span><span class="o">.</span><span class="n">url</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># Should only be the case when Folder is created</span>
+                    <span class="n">contents</span><span class="o">.</span><span class="n">url</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">url</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">contents</span><span class="o">.</span><span class="n">name</span>
+                    <span class="n">contents</span><span class="o">.</span><span class="n">fs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fs</span>
+                    <span class="c1"># The parent can be anonymous, e.g. the &#39;rh&#39; folder.</span>
+                    <span class="c1"># TODO not sure if this should be allowed - if parent folder has no rns address, why would child</span>
+                    <span class="c1"># just be put into the default rns folder?</span>
+                    <span class="c1"># TODO If the base is named later, figure out what to do with the contents (rename, resave, etc.).</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rns_address</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">contents</span><span class="o">.</span><span class="n">rns_path</span> <span class="o">=</span> <span class="n">rns_client</span><span class="o">.</span><span class="n">default_folder</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">contents</span><span class="o">.</span><span class="n">name</span>
+                        <span class="n">rns_client</span><span class="o">.</span><span class="n">rns_base_folders</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">contents</span><span class="o">.</span><span class="n">rns_address</span><span class="p">:</span> <span class="n">contents</span><span class="o">.</span><span class="n">url</span><span class="p">})</span>
+                    <span class="c1"># We don&#39;t need to call .save here to write down because it will be called at the end of the</span>
+                    <span class="c1"># folder or resource constructor</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">contents</span><span class="o">.</span><span class="n">name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># Anonymous resource</span>
+                        <span class="n">i</span> <span class="o">=</span> <span class="mi">1</span>
+                        <span class="n">new_name</span> <span class="o">=</span> <span class="n">contents</span><span class="o">.</span><span class="n">RESOURCE_TYPE</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                        <span class="n">fsspec_fs</span> <span class="o">=</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">filesystem</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fs</span><span class="p">)</span>
+                        <span class="c1"># Resolve naming conflicts if necessary</span>
+                        <span class="k">while</span> <span class="n">rns_client</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">new_name</span><span class="p">):</span>
+                            <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+                            <span class="n">new_name</span> <span class="o">=</span> <span class="n">contents</span><span class="o">.</span><span class="n">RESOURCE_TYPE</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">new_name</span> <span class="o">=</span> <span class="n">contents</span><span class="o">.</span><span class="n">name</span>
+
+                    <span class="c1"># NOTE For intercloud transfer, we should use Skyplane</span>
+                    <span class="k">with</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fsspec_url</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">new_name</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">data_config</span><span class="p">)</span> <span class="k">as</span> <span class="n">dest</span><span class="p">:</span>
+                        <span class="k">with</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">contents</span><span class="o">.</span><span class="n">fsspec_url</span><span class="p">,</span> <span class="o">**</span><span class="n">contents</span><span class="o">.</span><span class="n">data_config</span><span class="p">)</span> <span class="k">as</span> <span class="n">src</span><span class="p">:</span>
+                            <span class="c1"># NOTE For packages, maybe use the `ignore` param here to only copy python files.</span>
+                            <span class="n">new_url</span> <span class="o">=</span> <span class="n">shutil</span><span class="o">.</span><span class="n">move</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">dest</span><span class="p">)</span>
+
+            <span class="c1"># TODO put children into directory</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># TODO check for naming collisions</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">virtual_children</span> <span class="o">+=</span> <span class="p">[</span><span class="n">contents</span><span class="p">]</span>
+                <span class="c1"># TODO if contents is named, put it into rh_directory and set explicit rns_path</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">contents</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;`files` argument to `.put` must be Resource, list of Resources, or dict mapping &#39;</span>
+                            <span class="s1">&#39;filenames to file-like-objects&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">overwrite</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+            <span class="n">folder_contents</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ls</span><span class="p">()</span>
+            <span class="n">intersection</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">folder_contents</span><span class="p">)</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">contents</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+            <span class="k">if</span> <span class="n">intersection</span> <span class="o">!=</span> <span class="nb">set</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">FileExistsError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;File(s) </span><span class="si">{</span><span class="n">intersection</span><span class="si">}</span><span class="s1"> already exist(s) at url&#39;</span>
+                                      <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="si">}</span><span class="s1">, cannot save them without overwriting.&#39;</span><span class="p">)</span>
+        <span class="c1"># TODO figure out default behavior for not overwriting but still saving</span>
+        <span class="c1"># if not overwrite:</span>
+        <span class="c1">#     time = datetime.today().strftime(&#39;%Y-%m-%d_%H:%M:%S&#39;)</span>
+        <span class="c1">#     self.data_url = self.data_url + time or time</span>
+        <span class="n">filenames</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">contents</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="n">fss_files</span> <span class="o">=</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">open_files</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fsspec_url</span> <span class="o">+</span> <span class="s1">&#39;/*&#39;</span><span class="p">,</span>
+                                      <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;wb&#39;</span><span class="p">,</span>
+                                      <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">data_config</span><span class="p">,</span>
+                                      <span class="n">num</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">contents</span><span class="p">),</span>
+                                      <span class="n">name_function</span><span class="o">=</span><span class="n">filenames</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">)</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">fss_file</span><span class="p">,</span> <span class="n">raw_file</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">fss_files</span><span class="p">,</span> <span class="n">contents</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
+            <span class="k">with</span> <span class="n">fss_file</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">raw_file</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="folder"><a class="viewcode-back" href="../../../folder.html#runhouse.rns.folder.folder">[docs]</a><span class="k">def</span> <span class="nf">folder</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+           <span class="n">url</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+           <span class="n">fs</span><span class="o">=</span><span class="s1">&#39;file&#39;</span><span class="p">,</span>
+           <span class="n">save_to</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+           <span class="n">load_from</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+           <span class="n">dryrun</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+           <span class="n">local_mount</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+           <span class="n">data_config</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{},</span>
+           <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Returns a folder object, which can be used to interact with the folder at the given url.</span>
+<span class="sd">    If the folder does not exist, it will be created if `create` is True.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">rns_client</span><span class="o">.</span><span class="n">load_config</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">load_from</span><span class="o">=</span><span class="n">load_from</span><span class="p">)</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">name</span> <span class="ow">or</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;rns_address&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">)</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;url&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">url</span> <span class="ow">or</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;url&#39;</span><span class="p">)</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;fs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fs</span> <span class="ow">or</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;fs&#39;</span><span class="p">)</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;local_mount&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">local_mount</span> <span class="ow">or</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;local_mount&#39;</span><span class="p">)</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;data_config&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">data_config</span> <span class="ow">or</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;data_config&#39;</span><span class="p">)</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;save_to&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">save_to</span>
+
+    <span class="n">new_folder</span> <span class="o">=</span> <span class="n">Folder</span><span class="o">.</span><span class="n">from_config</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">dryrun</span><span class="o">=</span><span class="n">dryrun</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">new_folder</span><span class="o">.</span><span class="n">name</span><span class="p">:</span>
+        <span class="n">new_folder</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">new_folder</span></div>
+</pre></div>
+
+              </div>
+              
+            </main>
+            <footer class="footer-article noprint">
+                
+    <!-- Previous / next buttons -->
+<div class='prev-next-area'>
+</div>
+            </footer>
+        </div>
+    </div>
+    <div class="footer-content row">
+        <footer class="col footer"><p>
+  
+    By the Runhouse team 🏃‍♀️🏠<br/>
+  
+      &copy; Copyright 2022, Runhouse Inc.<br/>
+</p>
+        </footer>
+    </div>
+    
+</div>
+
+
+      </div>
+    </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../../../_static/scripts/pydata-sphinx-theme.js?digest=1999514e3f237ded88cf"></script>
+
+
+  </body>
+</html>

@@ -1,0 +1,10 @@
+{
+    "type": "cluster",
+    "name": "/builtins/rh-4-v100",
+    "rns_address": "/builtins/rh-4-v100",
+    "instance_type": "V100:4",
+    "num_instances": null,
+    "provider": null,
+    "autostop_mins": null,
+    "use_spot": false
+}

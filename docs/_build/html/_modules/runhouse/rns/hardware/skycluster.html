@@ -1,0 +1,888 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>runhouse.rns.hardware.skycluster &#8212; Runhouse</title>
+    
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../../_static/styles/theme.css?digest=1999514e3f237ded88cf" rel="stylesheet">
+<link href="../../../../_static/styles/pydata-sphinx-theme.css?digest=1999514e3f237ded88cf" rel="stylesheet">
+
+    
+  <link rel="stylesheet"
+    href="../../../../_static/vendor/fontawesome/5.13.0/css/all.min.css">
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+    href="../../../../_static/vendor/fontawesome/5.13.0/webfonts/fa-solid-900.woff2">
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+    href="../../../../_static/vendor/fontawesome/5.13.0/webfonts/fa-brands-400.woff2">
+
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../../_static/styles/sphinx-book-theme.css?digest=5115cc725059bd94278eecd172e13a965bf8f5a9" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/sphinx-thebe.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/copybutton.css" />
+    
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../../_static/scripts/pydata-sphinx-theme.js?digest=1999514e3f237ded88cf">
+
+    <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+    <script src="../../../../_static/jquery.js"></script>
+    <script src="../../../../_static/underscore.js"></script>
+    <script src="../../../../_static/doctools.js"></script>
+    <script src="../../../../_static/clipboard.min.js"></script>
+    <script src="../../../../_static/copybutton.js"></script>
+    <script src="../../../../_static/scripts/sphinx-book-theme.js?digest=9c920249402e914e316237a7dbc6769907cce411"></script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"
+const thebe_selector = ".thebe,.cell"
+const thebe_selector_input = "pre"
+const thebe_selector_output = ".output, .cell_output"
+</script>
+    <script async="async" src="../../../../_static/sphinx-thebe.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="docsearch:language" content="None">
+    
+
+    <!-- Google Analytics -->
+    
+  </head>
+  <body data-spy="scroll" data-target="#bd-toc-nav" data-offset="60">
+<!-- Checkboxes to toggle the left sidebar -->
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle navigation sidebar">
+<label class="overlay overlay-navbar" for="__navigation">
+    <div class="visually-hidden">Toggle navigation sidebar</div>
+</label>
+<!-- Checkboxes to toggle the in-page toc -->
+<input type="checkbox" class="sidebar-toggle" name="__page-toc" id="__page-toc" aria-label="Toggle in-page Table of Contents">
+<label class="overlay overlay-pagetoc" for="__page-toc">
+    <div class="visually-hidden">Toggle in-page Table of Contents</div>
+</label>
+<!-- Headers at the top -->
+<div class="announcement header-item noprint"></div>
+<div class="header header-item noprint"></div>
+
+    
+    <div class="container-fluid" id="banner"></div>
+
+    
+
+    <div class="container-xl">
+      <div class="row">
+          
+<!-- Sidebar -->
+<div class="bd-sidebar noprint" id="site-navigation">
+    <div class="bd-sidebar__content">
+        <div class="bd-sidebar__top"><div class="navbar-brand-box">
+    <a class="navbar-brand text-wrap" href="../../../../index.html">
+      
+        <!-- `logo` is deprecated in Sphinx 4.0, so remove this when we stop supporting 3 -->
+        
+      
+      
+      <img src="../../../../_static/rh_1.jpeg" class="logo" alt="logo">
+      
+      
+    </a>
+</div><form class="bd-search d-flex align-items-center" action="../../../../search.html" method="get">
+  <i class="icon fas fa-search"></i>
+  <input type="search" class="form-control" name="q" id="search-input" placeholder="Search the docs ..." aria-label="Search the docs ..." autocomplete="off" >
+</form><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="../../../../index.html">
+                    Runhouse 🏃‍♀️🏠
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading">
+ <span class="caption-text">
+  Getting Started
+ </span>
+</p>
+<ul class="nav bd-sidenav">
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../../common_use_cases.html">
+   Use Cases
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../../getting_started.html">
+   Setup
+  </a>
+ </li>
+</ul>
+<p aria-level="2" class="caption" role="heading">
+ <span class="caption-text">
+  Using Runhouse
+ </span>
+</p>
+<ul class="nav bd-sidenav">
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../../runhouse.html">
+   Command Line Interface
+  </a>
+ </li>
+ <li class="toctree-l1 has-children">
+  <a class="reference internal" href="../../../../runhouse.rns.html">
+   Python API
+  </a>
+  <input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" type="checkbox"/>
+  <label for="toctree-checkbox-1">
+   <i class="fas fa-chevron-down">
+   </i>
+  </label>
+  <ul>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../../resource.html">
+     Resource
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../../send.html">
+     Send
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../../cluster.html">
+     Cluster
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../../blob.html">
+     Blob
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../../folder.html">
+     Folder
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../../package.html">
+     Package
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../../table.html">
+     Table
+    </a>
+   </li>
+  </ul>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference external" href="https://api.run.house/docs">
+   REST API Guide
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference external" href="https://api.run.house">
+   Dashboard
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../../faqs.html">
+   FAQs
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../../roadmap.html">
+   Roadmap
+  </a>
+ </li>
+</ul>
+<p aria-level="2" class="caption" role="heading">
+ <span class="caption-text">
+  Tutorials
+ </span>
+</p>
+<ul class="nav bd-sidenav">
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../../send_quickstart.html">
+   Compute Layer
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../../data_quickstart.html">
+   Data Layer
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../../tutorials.html">
+   From Zero to Hero in 10 minutes 🚀
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../../advanced_tutorials.html">
+   Advanced Tutorials
+  </a>
+ </li>
+</ul>
+<p aria-level="2" class="caption" role="heading">
+ <span class="caption-text">
+  Security
+ </span>
+</p>
+<ul class="nav bd-sidenav">
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../../secrets.html">
+   Secrets Management
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../../access_controls.html">
+   Access Controls
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../../data_policy.html">
+   Data Policy
+  </a>
+ </li>
+</ul>
+
+    </div>
+</nav></div>
+        <div class="bd-sidebar__bottom">
+             <!-- To handle the deprecated key -->
+            
+            <div class="navbar_extra_footer">
+            Theme by the <a href="https://ebp.jupyterbook.org">Executable Book Project</a>
+            </div>
+            
+        </div>
+    </div>
+    <div id="rtd-footer-container"></div>
+</div>
+
+
+          
+
+
+          
+<!-- A tiny helper pixel to detect if we've scrolled -->
+<div class="sbt-scroll-pixel-helper"></div>
+<!-- Main content -->
+<div class="col py-0 content-container">
+    
+    <div class="header-article row sticky-top noprint">
+        
+
+
+
+<div class="col py-1 d-flex header-article-main">
+    <div class="header-article__left">
+        
+        <label for="__navigation"
+  class="headerbtn"
+  data-toggle="tooltip"
+data-placement="right"
+title="Toggle navigation"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fas fa-bars"></i>
+  </span>
+
+</label>
+
+        
+    </div>
+    <div class="header-article__right">
+<button onclick="toggleFullScreen()"
+  class="headerbtn"
+  data-toggle="tooltip"
+data-placement="bottom"
+title="Fullscreen mode"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+<div class="menu-dropdown menu-dropdown-repository-buttons">
+  <button class="headerbtn menu-dropdown__trigger"
+      aria-label="Source repositories">
+      <i class="fab fa-github"></i>
+  </button>
+  <div class="menu-dropdown__content">
+    <ul>
+      <li>
+        <a href="https://github.com/run-house/runhouse"
+   class="headerbtn"
+   data-toggle="tooltip"
+data-placement="left"
+title="Source repository"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="headerbtn__text-container">repository</span>
+</a>
+
+      </li>
+      
+      <li>
+        <a href="https://github.com/run-house/runhouse/issues/new?title=Issue%20on%20page%20%2F_modules/runhouse/rns/hardware/skycluster.html&body=Your%20issue%20content%20here."
+   class="headerbtn"
+   data-toggle="tooltip"
+data-placement="left"
+title="Open an issue"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="headerbtn__text-container">open issue</span>
+</a>
+
+      </li>
+      
+    </ul>
+  </div>
+</div>
+
+    </div>
+</div>
+
+<!-- Table of contents -->
+<div class="col-md-3 bd-toc show noprint">
+</div>
+    </div>
+    <div class="article row">
+        <div class="col pl-md-3 pl-lg-5 content-container">
+            <!-- Table of contents that is only displayed when printing the page -->
+            <div id="jb-print-docs-body" class="onlyprint">
+                <h1></h1>
+                <!-- Table of contents -->
+                <div id="print-main-content">
+                    <div id="jb-print-toc">
+                        
+                    </div>
+                </div>
+            </div>
+            <main id="main-content" role="main">
+                
+              <div>
+                
+  <h1>Source code for runhouse.rns.hardware.skycluster</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">io</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Dict</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">import</span> <span class="nn">pkgutil</span>
+
+<span class="kn">import</span> <span class="nn">yaml</span>
+
+<span class="kn">import</span> <span class="nn">sky</span>
+<span class="kn">from</span> <span class="nn">sky.backends</span> <span class="kn">import</span> <span class="n">backend_utils</span><span class="p">,</span> <span class="n">CloudVmRayBackend</span>
+<span class="kn">from</span> <span class="nn">sky.utils</span> <span class="kn">import</span> <span class="n">command_runner</span>
+<span class="kn">from</span> <span class="nn">sshtunnel</span> <span class="kn">import</span> <span class="n">SSHTunnelForwarder</span><span class="p">,</span> <span class="n">HandlerSSHTunnelForwarderError</span>
+<span class="kn">import</span> <span class="nn">ray.cloudpickle</span> <span class="k">as</span> <span class="nn">pickle</span>
+
+<span class="kn">from</span> <span class="nn">runhouse.rns.resource</span> <span class="kn">import</span> <span class="n">Resource</span>
+<span class="kn">from</span> <span class="nn">runhouse.rns.package</span> <span class="kn">import</span> <span class="n">Package</span>
+<span class="kn">from</span> <span class="nn">runhouse.grpc_handler.unary_client</span> <span class="kn">import</span> <span class="n">UnaryClient</span>
+<span class="kn">from</span> <span class="nn">runhouse.grpc_handler.unary_server</span> <span class="kn">import</span> <span class="n">UnaryService</span>
+<span class="kn">from</span> <span class="nn">runhouse.rh_config</span> <span class="kn">import</span> <span class="n">rns_client</span><span class="p">,</span> <span class="n">configs</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Cluster"><a class="viewcode-back" href="../../../../cluster.html#runhouse.rns.hardware.skycluster.Cluster">[docs]</a><span class="k">class</span> <span class="nc">Cluster</span><span class="p">(</span><span class="n">Resource</span><span class="p">):</span>
+    <span class="n">RESOURCE_TYPE</span> <span class="o">=</span> <span class="s2">&quot;cluster&quot;</span>
+    <span class="n">DEFAULT_AUTOSTOP_MINS</span> <span class="o">=</span> <span class="mi">10</span>
+
+<div class="viewcode-block" id="Cluster.__init__"><a class="viewcode-back" href="../../../../cluster.html#runhouse.rns.hardware.skycluster.Cluster.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                 <span class="n">name</span><span class="p">,</span>
+                 <span class="n">instance_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">num_instances</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">save_to</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">dryrun</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                 <span class="n">autostop_mins</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">use_spot</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                 <span class="n">sky_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="o">**</span><span class="n">kwargs</span>  <span class="c1"># We have this here to ignore extra arguments when calling from from_config</span>
+                 <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            name:</span>
+<span class="sd">            instance_type: Type of cloud instance to use for the cluster</span>
+<span class="sd">            num_instances: Number of instances to use for the cluster</span>
+<span class="sd">            provider: Cloud provider to use for the cluster</span>
+<span class="sd">            dryrun:</span>
+<span class="sd">            autostop_mins: Number of minutes to keep the cluster up for following inactivity, or</span>
+<span class="sd">                -1 to keep up indefinitely.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">dryrun</span><span class="o">=</span><span class="n">dryrun</span><span class="p">,</span> <span class="n">save_to</span><span class="o">=</span><span class="n">save_to</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">instance_type</span> <span class="o">=</span> <span class="n">instance_type</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span> <span class="o">=</span> <span class="n">num_instances</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">provider</span> <span class="o">=</span> <span class="n">provider</span> <span class="ow">or</span> <span class="n">configs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;default_provider&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">autostop_mins</span> <span class="o">=</span> <span class="n">autostop_mins</span> <span class="k">if</span> <span class="n">autostop_mins</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> \
+            <span class="k">else</span> <span class="n">configs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;default_autostop&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">use_spot</span> <span class="o">=</span> <span class="n">use_spot</span> <span class="k">if</span> <span class="n">use_spot</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">configs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;use_spot&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_yaml_path</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_grpc_tunnel</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sky_data</span> <span class="o">=</span> <span class="n">sky_data</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sky_data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_save_sky_data</span><span class="p">()</span>
+
+        <span class="c1"># Checks local SkyDB if cluster is up, and loads connection info if so.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">populate_vars_from_status</span><span class="p">()</span></div>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">from_config</span><span class="p">(</span><span class="n">config</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">dryrun</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Cluster</span><span class="p">(</span><span class="o">**</span><span class="n">config</span><span class="p">,</span> <span class="n">dryrun</span><span class="o">=</span><span class="n">dryrun</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">config_for_rns</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">config</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">config_for_rns</span>
+
+        <span class="c1"># Also store the ssh keys for the cluster in RNS</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;instance_type&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">instance_type</span><span class="p">,</span>
+                       <span class="s1">&#39;num_instances&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span>
+                       <span class="s1">&#39;provider&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">provider</span><span class="p">,</span>
+                       <span class="s1">&#39;autostop_mins&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">autostop_mins</span><span class="p">,</span>
+                       <span class="s1">&#39;use_spot&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_spot</span><span class="p">,</span>
+                       <span class="s1">&#39;sky_data&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_sky_data</span><span class="p">(),</span>
+                       <span class="p">})</span>
+        <span class="k">return</span> <span class="n">config</span>
+
+    <span class="k">def</span> <span class="nf">_get_sky_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">config</span> <span class="o">=</span> <span class="n">sky</span><span class="o">.</span><span class="n">global_user_state</span><span class="o">.</span><span class="n">get_cluster_from_name</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">config</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">config</span><span class="p">[</span><span class="s1">&#39;status&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;status&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">name</span>  <span class="c1"># ClusterStatus enum is not json serializable</span>
+        <span class="k">if</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;handle&#39;</span><span class="p">]:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;handle&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">cluster_yaml</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">config</span><span class="p">[</span><span class="s1">&#39;ray_config&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+            <span class="n">config</span><span class="p">[</span><span class="s1">&#39;public_key&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ssh_creds</span><span class="p">()[</span><span class="s1">&#39;ssh_private_key&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;.pub&#39;</span>
+            <span class="n">config</span><span class="p">[</span><span class="s1">&#39;handle&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;cluster_name&#39;</span><span class="p">:</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;handle&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">cluster_name</span><span class="p">,</span>
+                                <span class="s1">&#39;cluster_yaml&#39;</span><span class="p">:</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;handle&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">_cluster_yaml</span><span class="p">,</span>  <span class="c1"># This is the unresolved path (~/...)</span>
+                                <span class="s1">&#39;head_ip&#39;</span><span class="p">:</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;handle&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">head_ip</span><span class="p">,</span>
+                                <span class="s1">&#39;launched_nodes&#39;</span><span class="p">:</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;handle&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">launched_nodes</span><span class="p">,</span>
+                                <span class="s1">&#39;launched_resources&#39;</span><span class="p">:</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;handle&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">launched_resources</span><span class="o">.</span><span class="n">to_yaml_config</span><span class="p">()</span>
+                                <span class="p">}</span>
+            <span class="n">config</span><span class="p">[</span><span class="s1">&#39;handle&#39;</span><span class="p">][</span><span class="s1">&#39;launched_resources&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;spot_recovery&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+            <span class="n">pub_key_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ssh_creds</span><span class="p">()[</span><span class="s1">&#39;ssh_private_key&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;.pub&#39;</span>
+            <span class="k">if</span> <span class="n">Path</span><span class="p">(</span><span class="n">pub_key_path</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">pub_key_path</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;public_key&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">config</span>
+
+    <span class="k">def</span> <span class="nf">_save_sky_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># If we already have an entry for this cluster in the local sky files, ignore the new config</span>
+        <span class="c1"># TODO [DG] when this is more stable maybe we shouldn&#39;t.</span>
+        <span class="k">if</span> <span class="n">sky</span><span class="o">.</span><span class="n">global_user_state</span><span class="o">.</span><span class="n">get_cluster_from_name</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">):</span>
+            <span class="k">return</span>
+
+        <span class="n">ray_config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sky_data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;ray_config&#39;</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="n">handle_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sky_data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;handle&#39;</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">ray_config</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">handle_info</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;Expecting both `ray_config` and `handle` attributes in sky data&#39;</span><span class="p">)</span>
+
+        <span class="n">yaml_path</span> <span class="o">=</span> <span class="n">handle_info</span><span class="p">[</span><span class="s1">&#39;cluster_yaml&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;.tmp&#39;</span>
+        <span class="k">if</span> <span class="n">Path</span><span class="p">(</span><span class="n">yaml_path</span><span class="p">)</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">():</span>
+            <span class="n">yaml_path</span> <span class="o">=</span> <span class="s1">&#39;~/.sky/generated/&#39;</span> <span class="o">+</span> <span class="n">Path</span><span class="p">(</span><span class="n">yaml_path</span><span class="p">)</span><span class="o">.</span><span class="n">name</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">Path</span><span class="p">(</span><span class="n">yaml_path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="n">Path</span><span class="p">(</span><span class="n">yaml_path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="n">Path</span><span class="p">(</span><span class="n">yaml_path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s1">&#39;w+&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">yaml</span><span class="o">.</span><span class="n">safe_dump</span><span class="p">(</span><span class="n">ray_config</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+        <span class="n">backend_utils</span><span class="o">.</span><span class="n">_add_auth_to_cluster_config</span><span class="p">(</span><span class="n">sky</span><span class="o">.</span><span class="n">clouds</span><span class="o">.</span><span class="n">CLOUD_REGISTRY</span><span class="o">.</span><span class="n">from_str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">provider</span><span class="p">),</span>
+                                                  <span class="n">Path</span><span class="p">(</span><span class="n">yaml_path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">())</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="n">CloudVmRayBackend</span><span class="o">.</span><span class="n">ResourceHandle</span><span class="p">(</span>
+            <span class="n">cluster_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="n">cluster_yaml</span><span class="o">=</span><span class="n">yaml_path</span><span class="p">,</span>
+            <span class="n">launched_nodes</span><span class="o">=</span><span class="n">handle_info</span><span class="p">[</span><span class="s1">&#39;launched_nodes&#39;</span><span class="p">],</span>
+            <span class="n">head_ip</span><span class="o">=</span><span class="n">handle_info</span><span class="p">[</span><span class="s1">&#39;head_ip&#39;</span><span class="p">],</span>
+            <span class="n">launched_resources</span><span class="o">=</span><span class="n">sky</span><span class="o">.</span><span class="n">Resources</span><span class="o">.</span><span class="n">from_yaml_config</span><span class="p">(</span><span class="n">handle_info</span><span class="p">[</span><span class="s1">&#39;launched_resources&#39;</span><span class="p">]),</span>
+        <span class="p">)</span>
+        <span class="n">sky</span><span class="o">.</span><span class="n">global_user_state</span><span class="o">.</span><span class="n">add_or_update_cluster</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                                                    <span class="n">cluster_handle</span><span class="o">=</span><span class="n">handle</span><span class="p">,</span>
+                                                    <span class="n">is_launch</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                                                    <span class="n">ready</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">backend_utils</span><span class="o">.</span><span class="n">SSHConfigHelper</span><span class="o">.</span><span class="n">add_cluster</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="p">[</span><span class="n">handle_info</span><span class="p">[</span><span class="s1">&#39;head_ip&#39;</span><span class="p">]],</span> <span class="n">ray_config</span><span class="p">[</span><span class="s1">&#39;auth&#39;</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grpc_tunnel</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_grpc_tunnel</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="c1"># ----------------- Launch/Lifecycle Methods -----------------</span>
+
+    <span class="c1"># TODO [DG] this sometimes returns True when cluster is not up</span>
+    <span class="k">def</span> <span class="nf">is_up</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">populate_vars_from_status</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">address</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="Cluster.status"><a class="viewcode-back" href="../../../../cluster.html#runhouse.rns.hardware.skycluster.Cluster.status">[docs]</a>    <span class="k">def</span> <span class="nf">status</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return dict looks like:</span>
+<span class="sd">         {&#39;name&#39;: &#39;sky-cpunode-donny&#39;,</span>
+<span class="sd">          &#39;launched_at&#39;: 1662317201,</span>
+<span class="sd">          &#39;handle&#39;: ResourceHandle(</span>
+<span class="sd">            cluster_name=sky-cpunode-donny,</span>
+<span class="sd">            head_ip=54.211.97.164,</span>
+<span class="sd">            cluster_yaml=/Users/donny/.sky/generated/sky-cpunode-donny.yml,</span>
+<span class="sd">            launched_resources=1x AWS(m6i.2xlarge),</span>
+<span class="sd">            tpu_create_script=None,</span>
+<span class="sd">            tpu_delete_script=None),</span>
+<span class="sd">          &#39;last_use&#39;: &#39;sky cpunode&#39;,</span>
+<span class="sd">          &#39;status&#39;: &lt;ClusterStatus.UP: &#39;UP&#39;&gt;,</span>
+<span class="sd">          &#39;autostop&#39;: -1,</span>
+<span class="sd">          &#39;metadata&#39;: {}}</span>
+<span class="sd">        More: https://github.com/skypilot-org/skypilot/blob/0c2b291b03abe486b521b40a3069195e56b62324/sky/backends/cloud_vm_ray_backend.py#L1457</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_sky_statuses</span><span class="p">(</span><span class="n">cluster_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">populate_vars_from_status</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Try to get the cluster status from SkyDB</span>
+        <span class="n">cluster_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">status</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">cluster_dict</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="n">cluster_dict</span><span class="p">[</span><span class="s1">&#39;handle&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">head_ip</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_yaml_path</span> <span class="o">=</span> <span class="n">cluster_dict</span><span class="p">[</span><span class="s1">&#39;handle&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">cluster_yaml</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">autostop_mins</span> <span class="o">=</span> <span class="n">cluster_dict</span><span class="p">[</span><span class="s1">&#39;autostop&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">cluster_dict</span><span class="p">[</span><span class="s1">&#39;status&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;UP&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<div class="viewcode-block" id="Cluster.get_sky_statuses"><a class="viewcode-back" href="../../../../cluster.html#runhouse.rns.hardware.skycluster.Cluster.get_sky_statuses">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">get_sky_statuses</span><span class="p">(</span><span class="n">cluster_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get status dicts for all Sky clusters.</span>
+<span class="sd">        Args:</span>
+<span class="sd">            cluster_name (str): Return status dict for only specific cluster.</span>
+
+<span class="sd">        Returns:</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># TODO [DG] just get status for this cluster</span>
+        <span class="n">all_clusters_status</span> <span class="o">=</span> <span class="n">sky</span><span class="o">.</span><span class="n">status</span><span class="p">(</span><span class="n">refresh</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">cluster_name</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">all_clusters_status</span>
+        <span class="k">for</span> <span class="n">cluster_dict</span> <span class="ow">in</span> <span class="n">all_clusters_status</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">cluster_dict</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">cluster_name</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">cluster_dict</span></div>
+
+    <span class="k">def</span> <span class="nf">up</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+           <span class="n">region</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+           <span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">provider</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;aws&#39;</span><span class="p">,</span> <span class="s1">&#39;gcp&#39;</span><span class="p">,</span> <span class="s1">&#39;azure&#39;</span><span class="p">,</span> <span class="s1">&#39;cheapest&#39;</span><span class="p">]:</span>
+            <span class="c1"># TODO allow provider = &#39;cheapest&#39;</span>
+            <span class="n">task</span> <span class="o">=</span> <span class="n">sky</span><span class="o">.</span><span class="n">Task</span><span class="p">(</span>  <span class="c1"># run=f&#39;echo SkyPilot cluster {self.name} launched.&#39;,</span>
+                <span class="n">num_nodes</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span> <span class="k">if</span> <span class="s1">&#39;:&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">instance_type</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="c1"># workdir=package,</span>
+                <span class="c1"># docker_image=image,  # Zongheng: this is experimental, don&#39;t use it</span>
+                <span class="c1"># envs=None,</span>
+            <span class="p">)</span>
+            <span class="n">cloud_provider</span> <span class="o">=</span> <span class="n">sky</span><span class="o">.</span><span class="n">clouds</span><span class="o">.</span><span class="n">CLOUD_REGISTRY</span><span class="o">.</span><span class="n">from_str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">provider</span><span class="p">)</span> \
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">provider</span> <span class="o">!=</span> <span class="s1">&#39;cheapest&#39;</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">task</span><span class="o">.</span><span class="n">set_resources</span><span class="p">(</span>
+                <span class="n">sky</span><span class="o">.</span><span class="n">Resources</span><span class="p">(</span>
+                    <span class="n">cloud</span><span class="o">=</span><span class="n">cloud_provider</span><span class="p">,</span>
+                    <span class="n">instance_type</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">instance_type</span> <span class="k">if</span> <span class="s1">&#39;:&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">instance_type</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                    <span class="n">accelerators</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">instance_type</span> <span class="k">if</span> <span class="s1">&#39;:&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">instance_type</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                    <span class="n">region</span><span class="o">=</span><span class="n">region</span><span class="p">,</span>  <span class="c1"># TODO</span>
+                    <span class="n">image_id</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                    <span class="n">use_spot</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">use_spot</span>  <span class="c1"># TODO test properly</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+            <span class="n">task</span><span class="o">.</span><span class="n">set_file_mounts</span><span class="p">({</span>
+                <span class="s1">&#39;~/.rh&#39;</span><span class="p">:</span> <span class="s1">&#39;~/.rh&#39;</span><span class="p">,</span>
+            <span class="p">})</span>
+            <span class="n">sky</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span><span class="n">task</span><span class="p">,</span>
+                       <span class="n">cluster_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                       <span class="n">idle_minutes_to_autostop</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">autostop_mins</span><span class="p">,</span>
+                       <span class="n">down</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                       <span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">provider</span> <span class="o">==</span> <span class="s1">&#39;k8s&#39;</span><span class="p">:</span>
+            <span class="c1"># TODO ssh in and do for real</span>
+            <span class="c1"># https://docs.ray.io/en/latest/cluster/kubernetes/user-guides/config.html#kuberay-config</span>
+            <span class="c1"># subprocess.Popen(&#39;kubectl apply -f raycluster.yaml&#39;.split(&#39; &#39;))</span>
+            <span class="c1"># self.address = cluster_dict[&#39;handle&#39;].head_ip</span>
+            <span class="c1"># self._yaml_path = cluster_dict[&#39;handle&#39;].cluster_yaml</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Kubernetes Cluster provider not yet supported&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Cluster provider </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">provider</span><span class="si">}</span><span class="s1"> not supported.&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">populate_vars_from_status</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">restart_grpc_server</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">sync_runhouse_to_cluster</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">address</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;No address set for cluster &lt;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&gt;. Is it up?&#39;</span><span class="p">)</span>
+        <span class="n">local_rh_package_path</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">pkgutil</span><span class="o">.</span><span class="n">get_loader</span><span class="p">(</span><span class="s1">&#39;runhouse&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
+        <span class="n">rh_package</span> <span class="o">=</span> <span class="n">Package</span><span class="o">.</span><span class="n">from_string</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;reqs:</span><span class="si">{</span><span class="n">local_rh_package_path</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">dryrun</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">rh_package</span><span class="o">.</span><span class="n">to_cluster</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mount</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">status_codes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s1">&#39;pip install ./runhouse&#39;</span><span class="p">],</span> <span class="n">stream_logs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">status_codes</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Error installing runhouse on cluster &lt;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&gt;&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">install_packages</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reqs</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Package</span><span class="p">]):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_connected</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connect_grpc</span><span class="p">()</span>
+        <span class="n">to_install</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">package</span> <span class="ow">in</span> <span class="n">reqs</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">package</span><span class="o">.</span><span class="n">is_local</span><span class="p">():</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Copying local package </span><span class="si">{</span><span class="n">package</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1"> to cluster &lt;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&gt;&#39;</span><span class="p">)</span>
+                <span class="n">remote_package</span> <span class="o">=</span> <span class="n">package</span><span class="o">.</span><span class="n">to_cluster</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mount</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">return_dest_folder</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">to_install</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">remote_package</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">to_install</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">package</span><span class="p">)</span>
+        <span class="c1"># TODO replace this with figuring out how to stream the logs when we install</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Installing packages on cluster </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="p">[</span><span class="n">req</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">req</span> <span class="ow">in</span> <span class="n">reqs</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">install_packages</span><span class="p">(</span><span class="n">pickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">to_install</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">keep_warm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">autostop_mins</span><span class="o">=-</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">sky</span><span class="o">.</span><span class="n">autostop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">autostop_mins</span><span class="p">,</span> <span class="n">down</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">autostop_mins</span> <span class="o">=</span> <span class="n">autostop_mins</span>
+
+    <span class="k">def</span> <span class="nf">teardown</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s2">&quot;sky&quot;</span><span class="p">,</span> <span class="s2">&quot;down&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;-y&quot;</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">teardown_and_delete</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">teardown</span><span class="p">()</span>
+        <span class="n">rns_client</span><span class="o">.</span><span class="n">delete_configs</span><span class="p">()</span>
+
+    <span class="c1"># ----------------- gRPC Methods ----------------- #</span>
+
+    <span class="k">def</span> <span class="nf">connect_grpc</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># FYI based on: https://sshtunnel.readthedocs.io/en/latest/#example-1</span>
+        <span class="c1"># FYI If we ever need to do this from scratch, we can use this example:</span>
+        <span class="c1"># https://github.com/paramiko/paramiko/blob/main/demos/rforward.py#L74</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">address</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;No address set for cluster &lt;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&gt;. Is it up?&#39;</span><span class="p">)</span>
+
+        <span class="c1"># TODO [DG] figure out how to ping to see if tunnel is already up</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grpc_tunnel</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_grpc_tunnel</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="c1"># self.client.disconnect()</span>
+        <span class="c1"># Check if port is already open</span>
+        <span class="c1"># status = subprocess.run([&#39;nc&#39;, &#39;-z&#39;, self.address, str(self.grpc_port)], capture_output=True)</span>
+        <span class="c1"># connected_port = UnaryClient.DEFAULT_PORT</span>
+        <span class="c1"># if not self.check_port(self.address, UnaryClient.DEFAULT_PORT):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_grpc_tunnel</span><span class="p">,</span> <span class="n">connected_port</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ssh_tunnel</span><span class="p">(</span><span class="n">UnaryClient</span><span class="o">.</span><span class="n">DEFAULT_PORT</span><span class="p">,</span>
+                                                            <span class="n">remote_port</span><span class="o">=</span><span class="n">UnaryService</span><span class="o">.</span><span class="n">DEFAULT_PORT</span><span class="p">,</span>
+                                                            <span class="n">num_ports_to_try</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+        <span class="c1"># Connecting to localhost because it&#39;s tunneled into the server at the specified port.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span> <span class="o">=</span> <span class="n">UnaryClient</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="n">connected_port</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">check_port</span><span class="p">(</span><span class="n">ip_address</span><span class="p">,</span> <span class="n">port</span><span class="p">):</span>
+        <span class="kn">import</span> <span class="nn">socket</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">socket</span><span class="o">.</span><span class="n">socket</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">AF_INET</span><span class="p">,</span> <span class="n">socket</span><span class="o">.</span><span class="n">SOCK_STREAM</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">s</span><span class="o">.</span><span class="n">connect_ex</span><span class="p">((</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">port</span><span class="p">)))</span>
+
+    <span class="k">def</span> <span class="nf">ssh_tunnel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                   <span class="n">local_port</span><span class="p">,</span>
+                   <span class="n">remote_port</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">num_ports_to_try</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="p">(</span><span class="n">SSHTunnelForwarder</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="c1"># Debugging cmds (mac):</span>
+        <span class="c1"># netstat -vanp tcp | grep 5005</span>
+        <span class="c1"># lsof -i :5005_</span>
+        <span class="c1"># kill -9 &lt;pid&gt;</span>
+
+        <span class="n">creds</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ssh_creds</span><span class="p">()</span>
+        <span class="n">connected</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">ssh_tunnel</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">while</span> <span class="ow">not</span> <span class="n">connected</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">local_port</span> <span class="o">&gt;</span> <span class="n">local_port</span> <span class="o">+</span> <span class="n">num_ports_to_try</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;After repeated attempts on different ports failed to create SSH tunneler&#39;</span><span class="p">)</span>
+
+                <span class="n">ssh_tunnel</span> <span class="o">=</span> <span class="n">SSHTunnelForwarder</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">address</span><span class="p">,</span>
+                    <span class="n">ssh_username</span><span class="o">=</span><span class="n">creds</span><span class="p">[</span><span class="s1">&#39;ssh_user&#39;</span><span class="p">],</span>
+                    <span class="n">ssh_pkey</span><span class="o">=</span><span class="n">creds</span><span class="p">[</span><span class="s1">&#39;ssh_private_key&#39;</span><span class="p">],</span>
+                    <span class="n">local_bind_address</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">local_port</span><span class="p">),</span>
+                    <span class="n">remote_bind_address</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span> <span class="n">remote_port</span> <span class="ow">or</span> <span class="n">local_port</span><span class="p">),</span>
+                    <span class="n">set_keepalive</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                    <span class="c1"># mute_exceptions=True,</span>
+                <span class="p">)</span>
+                <span class="n">ssh_tunnel</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+
+                <span class="n">connected</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">except</span> <span class="n">HandlerSSHTunnelForwarderError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Failed to create SSH tunnel: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="c1"># try connecting with a different port - most likely the issue is the port is already taken</span>
+                <span class="n">local_port</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">pass</span>
+
+        <span class="k">return</span> <span class="n">ssh_tunnel</span><span class="p">,</span> <span class="n">local_port</span>
+
+    <span class="k">def</span> <span class="nf">restart_grpc_server</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># TODO how do we capture errors if this fails?</span>
+        <span class="c1"># grpc_server_cmd = f&#39;cd ~/sky_workdir; screen -dm python3 -m runhouse.grpc_handler.unary_server&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sync_runhouse_to_cluster</span><span class="p">()</span>
+        <span class="n">grpc_server_cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;screen -dm python3 -m runhouse.grpc_handler.unary_server&#39;</span>
+        <span class="c1"># TODO fuser is not on the gcp boxes. Need to install: https://command-not-found.com/fuser</span>
+        <span class="n">status_codes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">commands</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;fuser -k </span><span class="si">{</span><span class="n">UnaryService</span><span class="o">.</span><span class="n">DEFAULT_PORT</span><span class="si">}</span><span class="s1">/tcp&#39;</span><span class="p">,</span>
+                                          <span class="n">grpc_server_cmd</span><span class="p">],</span>
+                                <span class="n">stream_logs</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                                <span class="p">)</span>
+        <span class="c1"># TODO validate status codes</span>
+        <span class="kn">import</span> <span class="nn">time</span>
+        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">call_grpc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">serialized_func</span><span class="p">):</span>
+        <span class="c1"># TODO check if this is actually avoiding creating a duplicate tunnel when creating one send after another</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_connected</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connect_grpc</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">call_fn_remotely</span><span class="p">(</span><span class="n">message</span><span class="o">=</span><span class="n">serialized_func</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">is_connected</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">is_connected</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">disconnect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grpc_tunnel</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_grpc_tunnel</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
+        <span class="c1"># if self.client:</span>
+        <span class="c1">#     self.client.shutdown()</span>
+
+    <span class="c1"># ----------------- SSH Methods ----------------- #</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">cluster_ssh_key</span><span class="p">(</span><span class="n">path_to_file</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">f</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">path_to_file</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span>
+            <span class="n">private_key</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">private_key</span>
+        <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;File with ssh key not found in: </span><span class="si">{</span><span class="n">path_to_file</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">path_to_cluster_ssh_key</span><span class="p">(</span><span class="n">path_to_file</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="n">user_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path_to_file</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">user_path</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">ssh_creds</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">backend_utils</span><span class="o">.</span><span class="n">ssh_credential_from_yaml</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_yaml_path</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Cluster.rsync"><a class="viewcode-back" href="../../../../cluster.html#runhouse.rns.hardware.skycluster.Cluster.rsync">[docs]</a>    <span class="k">def</span> <span class="nf">rsync</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">dest</span><span class="p">,</span> <span class="n">up</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Note that ending `source` with a slash will copy the contents of the directory into dest,</span>
+<span class="sd">        while omitting it will copy the directory itself (adding a directory layer).&quot;&quot;&quot;</span>
+        <span class="c1"># FYI, could be useful: https://github.com/gchamon/sysrsync</span>
+        <span class="n">ssh_credentials</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ssh_creds</span><span class="p">()</span>
+        <span class="n">runner</span> <span class="o">=</span> <span class="n">command_runner</span><span class="o">.</span><span class="n">SSHCommandRunner</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">address</span><span class="p">,</span> <span class="o">**</span><span class="n">ssh_credentials</span><span class="p">)</span>
+        <span class="n">runner</span><span class="o">.</span><span class="n">rsync</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">dest</span><span class="p">,</span> <span class="n">up</span><span class="o">=</span><span class="n">up</span><span class="p">,</span> <span class="n">stream_logs</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">ssh</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s2">&quot;ssh&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">])</span>
+
+<div class="viewcode-block" id="Cluster.run"><a class="viewcode-back" href="../../../../cluster.html#runhouse.rns.hardware.skycluster.Cluster.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">commands</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">stream_logs</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">port_forward</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Run a list of shell commands on the cluster. &quot;&quot;&quot;</span>
+        <span class="c1"># TODO add name parameter to create Run object, and use sky.exec (after updating to sky 2.0):</span>
+        <span class="c1"># sky.exec(commands, cluster_name=self.name, stream_logs=stream_logs, detach=False)</span>
+        <span class="n">runner</span> <span class="o">=</span> <span class="n">command_runner</span><span class="o">.</span><span class="n">SSHCommandRunner</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">address</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">ssh_creds</span><span class="p">())</span>
+        <span class="n">return_codes</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">command</span> <span class="ow">in</span> <span class="n">commands</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Running command on </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">command</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">ret_code</span> <span class="o">=</span> <span class="n">runner</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">command</span><span class="p">,</span>
+                                  <span class="n">require_outputs</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                                  <span class="n">stream_logs</span><span class="o">=</span><span class="n">stream_logs</span><span class="p">,</span>
+                                  <span class="n">port_forward</span><span class="o">=</span><span class="n">port_forward</span><span class="p">)</span>
+            <span class="n">return_codes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ret_code</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">return_codes</span></div>
+
+<div class="viewcode-block" id="Cluster.run_python"><a class="viewcode-back" href="../../../../cluster.html#runhouse.rns.hardware.skycluster.Cluster.run_python">[docs]</a>    <span class="k">def</span> <span class="nf">run_python</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">commands</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">stream_logs</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">port_forward</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Run a list of python commands on the cluster. &quot;&quot;&quot;</span>
+        <span class="n">command_str</span> <span class="o">=</span> <span class="s1">&#39;; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">commands</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="sa">f</span><span class="s1">&#39;python3 -c &quot;</span><span class="si">{</span><span class="n">command_str</span><span class="si">}</span><span class="s1">&quot;&#39;</span><span class="p">],</span> <span class="n">stream_logs</span><span class="o">=</span><span class="n">stream_logs</span><span class="p">,</span> <span class="n">port_forward</span><span class="o">=</span><span class="n">port_forward</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">ipython</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># TODO tunnel into python interpreter in cluster</span>
+        <span class="k">pass</span>
+
+    <span class="k">def</span> <span class="nf">notebook</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># TODO start notebook server and forward ports</span>
+        <span class="k">pass</span></div>
+
+
+<span class="c1"># Cluster factory method</span>
+<div class="viewcode-block" id="cluster"><a class="viewcode-back" href="../../../../cluster.html#runhouse.rns.hardware.skycluster.cluster">[docs]</a><span class="k">def</span> <span class="nf">cluster</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+            <span class="n">instance_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">num_instances</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">autostop_mins</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">save_to</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">load_from</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">dryrun</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="n">use_spot</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Cluster</span><span class="p">:</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">rns_client</span><span class="o">.</span><span class="n">load_config</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">load_from</span><span class="o">=</span><span class="n">load_from</span><span class="p">)</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">name</span> <span class="ow">or</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;rns_address&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">)</span>
+
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;instance_type&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">instance_type</span> <span class="ow">or</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;instance_type&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;num_instances&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">num_instances</span> <span class="ow">or</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;num_instances&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;provider&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">provider</span> <span class="ow">or</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;provider&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;autostop_mins&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">autostop_mins</span> <span class="k">if</span> <span class="n">autostop_mins</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;autostop_mins&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;use_spot&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">use_spot</span> <span class="k">if</span> <span class="n">use_spot</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;use_spot&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;save_to&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">save_to</span>
+
+    <span class="n">new_cluster</span> <span class="o">=</span> <span class="n">Cluster</span><span class="o">.</span><span class="n">from_config</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">dryrun</span><span class="o">=</span><span class="n">dryrun</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">new_cluster</span><span class="o">.</span><span class="n">name</span><span class="p">:</span>
+        <span class="n">new_cluster</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">new_cluster</span></div>
+</pre></div>
+
+              </div>
+              
+            </main>
+            <footer class="footer-article noprint">
+                
+    <!-- Previous / next buttons -->
+<div class='prev-next-area'>
+</div>
+            </footer>
+        </div>
+    </div>
+    <div class="footer-content row">
+        <footer class="col footer"><p>
+  
+    By the Runhouse team 🏃‍♀️🏠<br/>
+  
+      &copy; Copyright 2022, Runhouse Inc.<br/>
+</p>
+        </footer>
+    </div>
+    
+</div>
+
+
+      </div>
+    </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../../../../_static/scripts/pydata-sphinx-theme.js?digest=1999514e3f237ded88cf"></script>
+
+
+  </body>
+</html>

@@ -1,0 +1,904 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>runhouse.rns.send &#8212; Runhouse</title>
+    
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=1999514e3f237ded88cf" rel="stylesheet">
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=1999514e3f237ded88cf" rel="stylesheet">
+
+    
+  <link rel="stylesheet"
+    href="../../../_static/vendor/fontawesome/5.13.0/css/all.min.css">
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+    href="../../../_static/vendor/fontawesome/5.13.0/webfonts/fa-solid-900.woff2">
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+    href="../../../_static/vendor/fontawesome/5.13.0/webfonts/fa-brands-400.woff2">
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=5115cc725059bd94278eecd172e13a965bf8f5a9" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-thebe.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=1999514e3f237ded88cf">
+
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/jquery.js"></script>
+    <script src="../../../_static/underscore.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/clipboard.min.js"></script>
+    <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=9c920249402e914e316237a7dbc6769907cce411"></script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"
+const thebe_selector = ".thebe,.cell"
+const thebe_selector_input = "pre"
+const thebe_selector_output = ".output, .cell_output"
+</script>
+    <script async="async" src="../../../_static/sphinx-thebe.js"></script>
+    <link rel="shortcut icon" href="../../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="docsearch:language" content="None">
+    
+
+    <!-- Google Analytics -->
+    
+  </head>
+  <body data-spy="scroll" data-target="#bd-toc-nav" data-offset="60">
+<!-- Checkboxes to toggle the left sidebar -->
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle navigation sidebar">
+<label class="overlay overlay-navbar" for="__navigation">
+    <div class="visually-hidden">Toggle navigation sidebar</div>
+</label>
+<!-- Checkboxes to toggle the in-page toc -->
+<input type="checkbox" class="sidebar-toggle" name="__page-toc" id="__page-toc" aria-label="Toggle in-page Table of Contents">
+<label class="overlay overlay-pagetoc" for="__page-toc">
+    <div class="visually-hidden">Toggle in-page Table of Contents</div>
+</label>
+<!-- Headers at the top -->
+<div class="announcement header-item noprint"></div>
+<div class="header header-item noprint"></div>
+
+    
+    <div class="container-fluid" id="banner"></div>
+
+    
+
+    <div class="container-xl">
+      <div class="row">
+          
+<!-- Sidebar -->
+<div class="bd-sidebar noprint" id="site-navigation">
+    <div class="bd-sidebar__content">
+        <div class="bd-sidebar__top"><div class="navbar-brand-box">
+    <a class="navbar-brand text-wrap" href="../../../index.html">
+      
+        <!-- `logo` is deprecated in Sphinx 4.0, so remove this when we stop supporting 3 -->
+        
+      
+      
+      <img src="../../../_static/rh_1.jpeg" class="logo" alt="logo">
+      
+      
+    </a>
+</div><form class="bd-search d-flex align-items-center" action="../../../search.html" method="get">
+  <i class="icon fas fa-search"></i>
+  <input type="search" class="form-control" name="q" id="search-input" placeholder="Search the docs ..." aria-label="Search the docs ..." autocomplete="off" >
+</form><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="../../../index.html">
+                    Runhouse 🏃‍♀️🏠
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading">
+ <span class="caption-text">
+  Getting Started
+ </span>
+</p>
+<ul class="nav bd-sidenav">
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../common_use_cases.html">
+   Use Cases
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../getting_started.html">
+   Setup
+  </a>
+ </li>
+</ul>
+<p aria-level="2" class="caption" role="heading">
+ <span class="caption-text">
+  Using Runhouse
+ </span>
+</p>
+<ul class="nav bd-sidenav">
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../runhouse.html">
+   Command Line Interface
+  </a>
+ </li>
+ <li class="toctree-l1 has-children">
+  <a class="reference internal" href="../../../runhouse.rns.html">
+   Python API
+  </a>
+  <input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" type="checkbox"/>
+  <label for="toctree-checkbox-1">
+   <i class="fas fa-chevron-down">
+   </i>
+  </label>
+  <ul>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../resource.html">
+     Resource
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../send.html">
+     Send
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../cluster.html">
+     Cluster
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../blob.html">
+     Blob
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../folder.html">
+     Folder
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../package.html">
+     Package
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../../table.html">
+     Table
+    </a>
+   </li>
+  </ul>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference external" href="https://api.run.house/docs">
+   REST API Guide
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference external" href="https://api.run.house">
+   Dashboard
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../faqs.html">
+   FAQs
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../roadmap.html">
+   Roadmap
+  </a>
+ </li>
+</ul>
+<p aria-level="2" class="caption" role="heading">
+ <span class="caption-text">
+  Tutorials
+ </span>
+</p>
+<ul class="nav bd-sidenav">
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../send_quickstart.html">
+   Compute Layer
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../data_quickstart.html">
+   Data Layer
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../tutorials.html">
+   From Zero to Hero in 10 minutes 🚀
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../advanced_tutorials.html">
+   Advanced Tutorials
+  </a>
+ </li>
+</ul>
+<p aria-level="2" class="caption" role="heading">
+ <span class="caption-text">
+  Security
+ </span>
+</p>
+<ul class="nav bd-sidenav">
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../secrets.html">
+   Secrets Management
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../access_controls.html">
+   Access Controls
+  </a>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../data_policy.html">
+   Data Policy
+  </a>
+ </li>
+</ul>
+
+    </div>
+</nav></div>
+        <div class="bd-sidebar__bottom">
+             <!-- To handle the deprecated key -->
+            
+            <div class="navbar_extra_footer">
+            Theme by the <a href="https://ebp.jupyterbook.org">Executable Book Project</a>
+            </div>
+            
+        </div>
+    </div>
+    <div id="rtd-footer-container"></div>
+</div>
+
+
+          
+
+
+          
+<!-- A tiny helper pixel to detect if we've scrolled -->
+<div class="sbt-scroll-pixel-helper"></div>
+<!-- Main content -->
+<div class="col py-0 content-container">
+    
+    <div class="header-article row sticky-top noprint">
+        
+
+
+
+<div class="col py-1 d-flex header-article-main">
+    <div class="header-article__left">
+        
+        <label for="__navigation"
+  class="headerbtn"
+  data-toggle="tooltip"
+data-placement="right"
+title="Toggle navigation"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fas fa-bars"></i>
+  </span>
+
+</label>
+
+        
+    </div>
+    <div class="header-article__right">
+<button onclick="toggleFullScreen()"
+  class="headerbtn"
+  data-toggle="tooltip"
+data-placement="bottom"
+title="Fullscreen mode"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+<div class="menu-dropdown menu-dropdown-repository-buttons">
+  <button class="headerbtn menu-dropdown__trigger"
+      aria-label="Source repositories">
+      <i class="fab fa-github"></i>
+  </button>
+  <div class="menu-dropdown__content">
+    <ul>
+      <li>
+        <a href="https://github.com/run-house/runhouse"
+   class="headerbtn"
+   data-toggle="tooltip"
+data-placement="left"
+title="Source repository"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="headerbtn__text-container">repository</span>
+</a>
+
+      </li>
+      
+      <li>
+        <a href="https://github.com/run-house/runhouse/issues/new?title=Issue%20on%20page%20%2F_modules/runhouse/rns/send.html&body=Your%20issue%20content%20here."
+   class="headerbtn"
+   data-toggle="tooltip"
+data-placement="left"
+title="Open an issue"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="headerbtn__text-container">open issue</span>
+</a>
+
+      </li>
+      
+    </ul>
+  </div>
+</div>
+
+    </div>
+</div>
+
+<!-- Table of contents -->
+<div class="col-md-3 bd-toc show noprint">
+</div>
+    </div>
+    <div class="article row">
+        <div class="col pl-md-3 pl-lg-5 content-container">
+            <!-- Table of contents that is only displayed when printing the page -->
+            <div id="jb-print-docs-body" class="onlyprint">
+                <h1></h1>
+                <!-- Table of contents -->
+                <div id="print-main-content">
+                    <div id="jb-print-toc">
+                        
+                    </div>
+                </div>
+            </div>
+            <main id="main-content" role="main">
+                
+              <div>
+                
+  <h1>Source code for runhouse.rns.send</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">requests</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Tuple</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">import</span> <span class="nn">ray.cloudpickle</span> <span class="k">as</span> <span class="nn">pickle</span>
+
+<span class="kn">from</span> <span class="nn">runhouse.rns.resource</span> <span class="kn">import</span> <span class="n">Resource</span>
+<span class="kn">from</span> <span class="nn">runhouse.rns.hardware</span> <span class="kn">import</span> <span class="n">Cluster</span>
+<span class="kn">from</span> <span class="nn">runhouse.rns.package</span> <span class="kn">import</span> <span class="n">Package</span>
+<span class="kn">from</span> <span class="nn">runhouse.rns.api_utils.utils</span> <span class="kn">import</span> <span class="n">read_response_data</span>
+<span class="kn">from</span> <span class="nn">runhouse.rns.api_utils.resource_access</span> <span class="kn">import</span> <span class="n">ResourceAccess</span>
+<span class="kn">from</span> <span class="nn">runhouse.rns.api_utils.validation</span> <span class="kn">import</span> <span class="n">is_jsonable</span>
+<span class="kn">from</span> <span class="nn">runhouse</span> <span class="kn">import</span> <span class="n">rh_config</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Send"><a class="viewcode-back" href="../../../send.html#runhouse.rns.send.Send">[docs]</a><span class="k">class</span> <span class="nc">Send</span><span class="p">(</span><span class="n">Resource</span><span class="p">):</span>
+    <span class="n">RESOURCE_TYPE</span> <span class="o">=</span> <span class="s1">&#39;send&#39;</span>
+    <span class="n">DEFAULT_HARDWARE</span> <span class="o">=</span> <span class="s1">&#39;^rh-cpu&#39;</span>
+    <span class="n">DEFAULT_ACCESS</span> <span class="o">=</span> <span class="s1">&#39;write&#39;</span>
+
+<div class="viewcode-block" id="Send.__init__"><a class="viewcode-back" href="../../../send.html#runhouse.rns.send.Send.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                 <span class="n">fn_pointers</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+                 <span class="n">hardware</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Cluster</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">name</span><span class="p">:</span> <span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">dedicated</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+                 <span class="n">reqs</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">image</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>  <span class="c1"># TODO</span>
+                 <span class="n">save_to</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">dryrun</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+                 <span class="n">access</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="o">**</span><span class="n">kwargs</span>  <span class="c1"># We have this here to ignore extra arguments when calling from from_config</span>
+                 <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create, load, or update a Send (&quot;Serverless endpoint&quot;). A Send is comprised of the package,</span>
+<span class="sd">        entrypoint, hardware, and dependencies (requirements or image) to run the service.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            fn (): A python callable or entrypoint string (module:function) within the package which the user</span>
+<span class="sd">                can call to run remotely as a microservice. The Send object is callable, taking the same inputs</span>
+<span class="sd">                 and producing the same outputs as fn. For example, if we create</span>
+<span class="sd">                 `my_send = Send(fn=lambda x: x+1, hardware=my_hw)`, we can call it with `my_send(4)`, and</span>
+<span class="sd">                 the fn will run remotely on `my_hw`.</span>
+<span class="sd">            name (): A URI to persist this Send&#39;s metadata to Runhouse&#39;s Resource Naming System (RNS), which allows</span>
+<span class="sd">                it to be reloaded and used later or in other environments. If name is left empty, the Send is</span>
+<span class="sd">                &quot;anonymous&quot; and will only exist within this Python context. # TODO more about user namespaces.</span>
+<span class="sd">            hardware ():</span>
+<span class="sd">            parent ():</span>
+<span class="sd">            reqs ():</span>
+<span class="sd">            cluster ():</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># TODO add function setter for better interactivity in notebooks</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fn_pointers</span> <span class="o">=</span> <span class="n">fn_pointers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hardware</span> <span class="o">=</span> <span class="n">hardware</span>
+        <span class="k">if</span> <span class="n">reqs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">reqs</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s1">&#39;reqs:</span><span class="si">{</span><span class="n">rh_config</span><span class="o">.</span><span class="n">rns_client</span><span class="o">.</span><span class="n">locate_working_dir</span><span class="p">()</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reqs</span> <span class="o">=</span> <span class="n">reqs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">image</span> <span class="o">=</span> <span class="n">image</span>  <span class="c1"># TODO or self.DEFAULT_IMAGE</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">access</span> <span class="o">=</span> <span class="n">access</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">DEFAULT_ACCESS</span>
+
+        <span class="c1"># if we aren&#39;t in setup mode we are presumably calling an existing Send on an existing cluster</span>
+        <span class="c1"># ex: Consuming the Send as a reader after the creator has shared it with you</span>
+        <span class="c1"># TODO maybe infer setup mode by looking at fields provided</span>
+        <span class="c1">#  ex: bool(name and not reqs and not hardware and not cluster and not folder and not fn)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dryrun</span> <span class="o">=</span> <span class="n">dryrun</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">dryrun</span><span class="o">=</span><span class="n">dryrun</span><span class="p">,</span> <span class="n">save_to</span><span class="o">=</span><span class="n">save_to</span><span class="p">)</span>
+
+        <span class="c1"># TODO dedicated vs. shared mode for hardware</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">dryrun</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">access</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;write&#39;</span><span class="p">,</span> <span class="s1">&#39;read&#39;</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">hardware</span><span class="o">.</span><span class="n">is_up</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">reup_cluster</span><span class="p">()</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Setting up Send on cluster.&#39;</span><span class="p">)</span>
+            <span class="c1"># self.reup_cluster()</span>
+            <span class="c1"># self.hardware.sync_runhouse_to_cluster()</span>
+            <span class="c1"># self.hardware.restart_grpc_server()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">hardware</span><span class="o">.</span><span class="n">install_packages</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reqs</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Send setup complete.&#39;</span><span class="p">)</span></div>
+
+    <span class="c1"># ----------------- Constructor helper methods -----------------</span>
+
+<div class="viewcode-block" id="Send.from_config"><a class="viewcode-back" href="../../../send.html#runhouse.rns.send.Send.from_config">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">from_config</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">dryrun</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Create a Send object from a config dictionary.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            config (dict): Dictionary of config values.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Send: Send object created from config values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">config</span><span class="p">[</span><span class="s1">&#39;reqs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">Package</span><span class="o">.</span><span class="n">from_config</span><span class="p">(</span><span class="n">package</span><span class="p">,</span> <span class="n">dryrun</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                          <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">package</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="n">package</span>
+                          <span class="k">for</span> <span class="n">package</span> <span class="ow">in</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;reqs&#39;</span><span class="p">]]</span>
+        <span class="c1"># TODO validate which fields need to be present in the config</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;hardware&#39;</span><span class="p">],</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="n">config</span><span class="p">[</span><span class="s1">&#39;hardware&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Cluster</span><span class="o">.</span><span class="n">from_config</span><span class="p">(</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;hardware&#39;</span><span class="p">],</span> <span class="n">dryrun</span><span class="o">=</span><span class="n">dryrun</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="s1">&#39;fn_pointers&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">config</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No fn_pointers provided in config. Please provide a path &quot;</span>
+                             <span class="s2">&quot;to a python file, module, and function name.&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">Send</span><span class="p">(</span><span class="o">**</span><span class="n">config</span><span class="p">,</span> <span class="n">dryrun</span><span class="o">=</span><span class="n">dryrun</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">reup_cluster</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Upping the cluster </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">hardware</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="c1"># Even if cluster is already up, copies working_dir onto the cluster inside of image</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hardware</span><span class="o">.</span><span class="n">up</span><span class="p">()</span>
+
+<div class="viewcode-block" id="Send.extract_fn_paths"><a class="viewcode-back" href="../../../send.html#runhouse.rns.send.Send.extract_fn_paths">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">extract_fn_paths</span><span class="p">(</span><span class="n">raw_fn</span><span class="p">,</span> <span class="n">reqs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get the path to the module, module name, and function name to be able to import it on the server&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">raw_fn</span><span class="p">,</span> <span class="n">Callable</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid fn for Send, expected Callable but received </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">raw_fn</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="c1"># Background on all these dunders: https://docs.python.org/3/reference/import.html</span>
+        <span class="n">module</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getmodule</span><span class="p">(</span><span class="n">raw_fn</span><span class="p">)</span>
+        <span class="n">module_path</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getfile</span><span class="p">(</span><span class="n">module</span><span class="p">)</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s1">&#39;__file__&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">module_path</span> <span class="ow">or</span> <span class="n">raw_fn</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;&lt;lambda&gt;&quot;</span><span class="p">:</span>
+            <span class="c1"># The only time __file__ wouldn&#39;t be present is if the function is defined in an interactive</span>
+            <span class="c1"># interpreter or a notebook. We can&#39;t import on the server in that case, so we need to cloudpickle</span>
+            <span class="c1"># the fn to send it over. The __call__ function will serialize the function if we return it this way.</span>
+            <span class="c1"># This is a short-term hack.</span>
+            <span class="c1"># return None, &quot;notebook&quot;, raw_fn.__name__</span>
+            <span class="n">root_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">()</span>
+            <span class="n">module_name</span> <span class="o">=</span> <span class="s1">&#39;notebook&#39;</span>
+            <span class="n">fn_name</span> <span class="o">=</span> <span class="n">raw_fn</span><span class="o">.</span><span class="vm">__name__</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">root_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">module_path</span><span class="p">)</span>
+            <span class="c1"># module_name = getattr(module.__spec__, &#39;name&#39;, inspect.getmodulename(module_path))</span>
+            <span class="n">module_name</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getmodulename</span><span class="p">(</span><span class="n">module_path</span><span class="p">)</span>
+            <span class="c1"># TODO __qualname__ doesn&#39;t work when fn is aliased funnily, like torch.sum</span>
+            <span class="n">fn_name</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">raw_fn</span><span class="p">,</span> <span class="s1">&#39;__qualname__&#39;</span><span class="p">,</span> <span class="n">raw_fn</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+
+        <span class="c1"># if module is not in a package, we need to add its parent directory to the path to import it</span>
+        <span class="c1"># if not getattr(module, &#39;__package__&#39;, None):</span>
+        <span class="c1">#     module_path = os.path.dirname(module.__file__)</span>
+
+        <span class="n">remote_import_path</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">req</span> <span class="ow">in</span> <span class="n">reqs</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">req</span><span class="o">.</span><span class="n">is_local</span><span class="p">():</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="c1"># Module path relative to package</span>
+                    <span class="n">remote_import_path</span> <span class="o">=</span> <span class="n">req</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">root_path</span><span class="p">)</span><span class="o">.</span><span class="n">relative_to</span><span class="p">(</span><span class="n">req</span><span class="o">.</span><span class="n">local_path</span><span class="p">))</span>
+                <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>  <span class="c1"># Not a subdirectory</span>
+                    <span class="k">pass</span>
+        <span class="k">return</span> <span class="n">remote_import_path</span><span class="p">,</span> <span class="n">module_name</span><span class="p">,</span> <span class="n">fn_name</span></div>
+
+    <span class="c1"># Found in python decorator logic, maybe use</span>
+    <span class="c1"># func_name = getattr(f, &#39;__qualname__&#39;, f.__name__)</span>
+    <span class="c1"># module_name = getattr(f, &#39;__module__&#39;, &#39;&#39;)</span>
+    <span class="c1"># if module_name:</span>
+    <span class="c1">#     full_name = f&#39;{module_name}.{func_name}&#39;</span>
+    <span class="c1"># else:</span>
+    <span class="c1">#     full_name = func_name</span>
+
+    <span class="c1"># ----------------- Send call methods -----------------</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">access</span> <span class="ow">in</span> <span class="p">[</span><span class="n">ResourceAccess</span><span class="o">.</span><span class="n">write</span><span class="p">,</span> <span class="n">ResourceAccess</span><span class="o">.</span><span class="n">read</span><span class="p">]:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_call_fn_with_ssh_access</span><span class="p">(</span><span class="n">fn_type</span><span class="o">=</span><span class="s1">&#39;call&#39;</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">=</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># run the function via http url - user only needs Proxy access</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">access</span> <span class="o">!=</span> <span class="n">ResourceAccess</span><span class="o">.</span><span class="n">proxy</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Running http url requires proxy access&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">rh_config</span><span class="o">.</span><span class="n">rns_client</span><span class="o">.</span><span class="n">token</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Token must be saved in the local .rh config in order to use an http url&quot;</span><span class="p">)</span>
+            <span class="n">http_url</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">http_url</span><span class="p">()</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Running </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> via http url: </span><span class="si">{</span><span class="n">http_url</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">resp</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">http_url</span><span class="p">,</span>
+                                 <span class="n">data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">&quot;args&quot;</span><span class="p">:</span> <span class="n">args</span><span class="p">,</span> <span class="s2">&quot;kwargs&quot;</span><span class="p">:</span> <span class="n">kwargs</span><span class="p">}),</span>
+                                 <span class="n">headers</span><span class="o">=</span><span class="n">rh_config</span><span class="o">.</span><span class="n">rns_client</span><span class="o">.</span><span class="n">request_headers</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">resp</span><span class="o">.</span><span class="n">status_code</span> <span class="o">!=</span> <span class="mi">200</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Failed to run Send endpoint: </span><span class="si">{</span><span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">resp</span><span class="o">.</span><span class="n">content</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+            <span class="n">res</span> <span class="o">=</span> <span class="n">read_response_data</span><span class="p">(</span><span class="n">resp</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">res</span>
+
+<div class="viewcode-block" id="Send.repeat"><a class="viewcode-back" href="../../../send.html#runhouse.rns.send.Send.repeat">[docs]</a>    <span class="k">def</span> <span class="nf">repeat</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_repeats</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Repeat the Send call multiple times.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            num_repeats (int): Number of times to repeat the Send call.</span>
+<span class="sd">            *args: Positional arguments to pass to the Send</span>
+<span class="sd">            **kwargs: Keyword arguments to pass to the Send</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">access</span> <span class="ow">in</span> <span class="p">[</span><span class="n">ResourceAccess</span><span class="o">.</span><span class="n">write</span><span class="p">,</span> <span class="n">ResourceAccess</span><span class="o">.</span><span class="n">read</span><span class="p">]:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_call_fn_with_ssh_access</span><span class="p">(</span><span class="n">fn_type</span><span class="o">=</span><span class="s1">&#39;repeat&#39;</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">[</span><span class="n">num_repeats</span><span class="p">,</span> <span class="n">args</span><span class="p">],</span> <span class="n">kwargs</span><span class="o">=</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Send.repeat only works with Write or Read access, not Proxy access&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Send.map"><a class="viewcode-back" href="../../../send.html#runhouse.rns.send.Send.map">[docs]</a>    <span class="k">def</span> <span class="nf">map</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg_list</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Map a function over a list of arguments.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">access</span> <span class="ow">in</span> <span class="p">[</span><span class="n">ResourceAccess</span><span class="o">.</span><span class="n">write</span><span class="p">,</span> <span class="n">ResourceAccess</span><span class="o">.</span><span class="n">read</span><span class="p">]:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_call_fn_with_ssh_access</span><span class="p">(</span><span class="n">fn_type</span><span class="o">=</span><span class="s1">&#39;map&#39;</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">arg_list</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">=</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Send.map only works with Write or Read access, not Proxy access&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Send.starmap"><a class="viewcode-back" href="../../../send.html#runhouse.rns.send.Send.starmap">[docs]</a>    <span class="k">def</span> <span class="nf">starmap</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args_lists</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Like Send.map() except that the elements of the iterable are expected to be iterables</span>
+<span class="sd">        that are unpacked as arguments. An iterable of [(1,2), (3, 4)] results in [func(1,2), func(3,4)].&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">access</span> <span class="ow">in</span> <span class="p">[</span><span class="n">ResourceAccess</span><span class="o">.</span><span class="n">write</span><span class="p">,</span> <span class="n">ResourceAccess</span><span class="o">.</span><span class="n">read</span><span class="p">]:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_call_fn_with_ssh_access</span><span class="p">(</span><span class="n">fn_type</span><span class="o">=</span><span class="s1">&#39;starmap&#39;</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">args_lists</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">=</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Send.starmap only works with Write or Read access, not Proxy access&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Send.enqueue"><a class="viewcode-back" href="../../../send.html#runhouse.rns.send.Send.enqueue">[docs]</a>    <span class="k">def</span> <span class="nf">enqueue</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Enqueue a Send call to be run later.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            *args: Positional arguments to pass to the Send</span>
+<span class="sd">            **kwargs: Keyword arguments to pass to the Send</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">access</span> <span class="ow">in</span> <span class="p">[</span><span class="n">ResourceAccess</span><span class="o">.</span><span class="n">write</span><span class="p">,</span> <span class="n">ResourceAccess</span><span class="o">.</span><span class="n">read</span><span class="p">]:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_call_fn_with_ssh_access</span><span class="p">(</span><span class="n">fn_type</span><span class="o">=</span><span class="s1">&#39;queue&#39;</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">=</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Send.enqueue only works with Write or Read access, not Proxy access&quot;</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_call_fn_with_ssh_access</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fn_type</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># https://docs.ray.io/en/latest/ray-core/tasks/patterns/map-reduce.html</span>
+        <span class="c1"># return ray.get([map.remote(i, map_func) for i in replicas])</span>
+        <span class="c1"># TODO allow specifying resources per worker for map</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">or</span> <span class="s1">&#39;anonymous send&#39;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Running </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> via SSH&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">fn_pointers</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No fn pointers saved for </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="p">[</span><span class="n">relative_path</span><span class="p">,</span> <span class="n">module_name</span><span class="p">,</span> <span class="n">fn_name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fn_pointers</span>
+        <span class="n">serialized_func</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">([</span><span class="n">relative_path</span><span class="p">,</span> <span class="n">module_name</span><span class="p">,</span> <span class="n">fn_name</span><span class="p">,</span> <span class="n">fn_type</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">])</span>
+
+        <span class="n">raw_resp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hardware</span><span class="o">.</span><span class="n">call_grpc</span><span class="p">(</span><span class="n">serialized_func</span><span class="o">=</span><span class="n">serialized_func</span><span class="p">)</span>
+        <span class="n">raw_msg</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">=</span> <span class="n">raw_resp</span><span class="o">.</span><span class="n">message</span>
+        <span class="p">[</span><span class="n">res</span><span class="p">,</span> <span class="n">fn_exception</span><span class="p">,</span> <span class="n">fn_traceback</span><span class="p">]</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">raw_msg</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">fn_exception</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error inside send </span><span class="si">{</span><span class="n">fn_type</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">fn_exception</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Traceback: </span><span class="si">{</span><span class="n">fn_traceback</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">fn_exception</span>
+        <span class="k">return</span> <span class="n">res</span>
+
+    <span class="c1"># TODO [DG] test this properly</span>
+<div class="viewcode-block" id="Send.debug"><a class="viewcode-back" href="../../../send.html#runhouse.rns.send.Send.debug">[docs]</a>    <span class="k">def</span> <span class="nf">debug</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">redirect_logging</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Run the Send in debug mode. This will run the Send through a tunnel interpreter, which</span>
+<span class="sd">        allows the use of breakpoints and other debugging tools, like rh.ipython().</span>
+<span class="sd">        FYI, alternative ideas from Ray: https://github.com/ray-project/ray/issues/17197</span>
+<span class="sd">        FYI, alternative Modal folks shared: https://github.com/modal-labs/modal-client/pull/32</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Importing this here because they&#39;re heavy</span>
+        <span class="kn">from</span> <span class="nn">plumbum.machines.paramiko_machine</span> <span class="kn">import</span> <span class="n">ParamikoMachine</span>
+        <span class="kn">from</span> <span class="nn">paramiko</span> <span class="kn">import</span> <span class="n">AutoAddPolicy</span>
+        <span class="kn">from</span> <span class="nn">rpyc.utils.zerodeploy</span> <span class="kn">import</span> <span class="n">DeployedServer</span>
+        <span class="kn">from</span> <span class="nn">rpyc.utils.classic</span> <span class="kn">import</span> <span class="n">redirected_stdio</span>
+
+        <span class="n">creds</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hardware</span><span class="o">.</span><span class="n">ssh_creds</span><span class="p">()</span>
+        <span class="n">ssh_client</span> <span class="o">=</span> <span class="n">ParamikoMachine</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hardware</span><span class="o">.</span><span class="n">address</span><span class="p">,</span>
+                                     <span class="n">user</span><span class="o">=</span><span class="n">creds</span><span class="p">[</span><span class="s1">&#39;ssh_user&#39;</span><span class="p">],</span>
+                                     <span class="n">keyfile</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">creds</span><span class="p">[</span><span class="s1">&#39;ssh_private_key&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()),</span>
+                                     <span class="n">missing_host_policy</span><span class="o">=</span><span class="n">AutoAddPolicy</span><span class="p">())</span>
+        <span class="n">server</span> <span class="o">=</span> <span class="n">DeployedServer</span><span class="p">(</span><span class="n">ssh_client</span><span class="p">,</span> <span class="n">server_class</span><span class="o">=</span><span class="s1">&#39;rpyc.utils.server.ForkingServer&#39;</span><span class="p">)</span>
+        <span class="n">conn</span> <span class="o">=</span> <span class="n">server</span><span class="o">.</span><span class="n">classic_connect</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">redirect_logging</span><span class="p">:</span>
+            <span class="n">rlogger</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">modules</span><span class="o">.</span><span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">()</span>
+            <span class="n">rlogger</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">()</span>
+
+        <span class="n">conn</span><span class="o">.</span><span class="n">_config</span><span class="p">[</span><span class="s2">&quot;sync_request_timeout&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">timeout</span>  <span class="c1"># seconds. May need to be longer for real debugging.</span>
+        <span class="n">conn</span><span class="o">.</span><span class="n">_config</span><span class="p">[</span><span class="s2">&quot;allow_public_attrs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">conn</span><span class="o">.</span><span class="n">_config</span><span class="p">[</span><span class="s2">&quot;allow_pickle&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="c1"># This assumes the code is already synced over to the remote container</span>
+        <span class="n">remote_fn</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">conn</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">fn</span><span class="o">.</span><span class="vm">__module__</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">fn</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="n">redirected_stdio</span><span class="p">(</span><span class="n">conn</span><span class="p">):</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="n">remote_fn</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">conn</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">res</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">config_for_rns</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># TODO save Package resource, because fn_pointers are meaningless without the package.</span>
+
+        <span class="n">config</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">config_for_rns</span>
+
+        <span class="n">config</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="s1">&#39;hardware&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resource_string_for_subconfig</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hardware</span><span class="p">),</span>
+            <span class="s1">&#39;reqs&#39;</span><span class="p">:</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_resource_string_for_subconfig</span><span class="p">(</span><span class="n">package</span><span class="p">)</span> <span class="k">for</span> <span class="n">package</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">reqs</span><span class="p">],</span>
+            <span class="s1">&#39;fn_pointers&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">fn_pointers</span><span class="p">,</span>
+        <span class="p">})</span>
+        <span class="k">return</span> <span class="n">config</span>
+
+    <span class="c1"># TODO maybe reuse these if we starting putting each send in its own container</span>
+    <span class="c1"># @staticmethod</span>
+    <span class="c1"># def run_ssh_cmd_in_cluster(ssh_key, ssh_user, address, cmd, port_fwd=None):</span>
+    <span class="c1">#     subprocess.run(&quot;ssh -tt -o IdentitiesOnly=yes -i &quot;</span>
+    <span class="c1">#                    f&quot;{ssh_key} {port_fwd or &#39;&#39;}&quot;</span>
+    <span class="c1">#                    f&quot;{ssh_user}@{address} docker exec -it ray_container /bin/bash -c {cmd}&quot;.split(&#39; &#39;))</span>
+
+    <span class="k">def</span> <span class="nf">ssh</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">hardware</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Hardware must be specified and up to ssh into a Send&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hardware</span><span class="o">.</span><span class="n">ssh</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">send_secrets</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># TODO [DG] allow specify to only do this once</span>
+        <span class="n">load_secrets_cmd</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;import runhouse as rh&#39;</span><span class="p">,</span>
+                            <span class="s1">&#39;rh.Secrets.load_into_env()&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hardware</span><span class="o">.</span><span class="n">run_python</span><span class="p">(</span><span class="n">load_secrets_cmd</span><span class="p">,</span> <span class="n">stream_logs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span>  <span class="c1"># for chaining</span>
+
+<div class="viewcode-block" id="Send.http_url"><a class="viewcode-back" href="../../../send.html#runhouse.rns.send.Send.http_url">[docs]</a>    <span class="k">def</span> <span class="nf">http_url</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">curl_command</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Return the endpoint needed to run the Send on the remote cluster, or provide the curl command if requested&quot;&quot;&quot;</span>
+        <span class="n">resource_uri</span> <span class="o">=</span> <span class="n">rh_config</span><span class="o">.</span><span class="n">rns_client</span><span class="o">.</span><span class="n">resource_uri</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">uri</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;proxy/</span><span class="si">{</span><span class="n">resource_uri</span><span class="si">}</span><span class="s1">&#39;</span>
+        <span class="k">if</span> <span class="n">curl_command</span><span class="p">:</span>
+            <span class="c1"># NOTE: curl command should include args and kwargs - this will help us generate better API docs</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">is_jsonable</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">is_jsonable</span><span class="p">(</span><span class="n">kwargs</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;Invalid Send func params provided, must be able to convert args and kwargs to json&#39;</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="s2">&quot;curl -X &#39;POST&#39; &#39;</span><span class="si">{api_server_url}</span><span class="s2">/proxy</span><span class="si">{resource_uri}</span><span class="s2">/endpoint&#39; &quot;</span> \
+                   <span class="s2">&quot;-H &#39;accept: application/json&#39; &quot;</span> \
+                   <span class="s2">&quot;-H &#39;Authorization: Bearer </span><span class="si">{auth_token}</span><span class="s2">&#39; &quot;</span> \
+                   <span class="s2">&quot;-H &#39;Content-Type: application/json&#39; &quot;</span> \
+                   <span class="s2">&quot;-d &#39;</span><span class="si">{data}</span><span class="s2">&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">api_server_url</span><span class="o">=</span><span class="n">rh_config</span><span class="o">.</span><span class="n">rns_client</span><span class="o">.</span><span class="n">api_server_url</span><span class="p">,</span>
+                                        <span class="n">resource_uri</span><span class="o">=</span><span class="n">uri</span><span class="p">,</span>
+                                        <span class="n">auth_token</span><span class="o">=</span><span class="n">rh_config</span><span class="o">.</span><span class="n">rns_client</span><span class="o">.</span><span class="n">token</span><span class="p">,</span>
+                                        <span class="n">data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s2">&quot;args&quot;</span><span class="p">:</span> <span class="n">args</span><span class="p">,</span> <span class="s2">&quot;kwargs&quot;</span><span class="p">:</span> <span class="n">kwargs</span><span class="p">}))</span>
+
+        <span class="c1"># HTTP URL needed to run the Send remotely</span>
+        <span class="n">http_url</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">rh_config</span><span class="o">.</span><span class="n">rns_client</span><span class="o">.</span><span class="n">api_server_url</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">uri</span><span class="si">}</span><span class="s1">/endpoint&#39;</span>
+        <span class="k">return</span> <span class="n">http_url</span></div>
+
+    <span class="k">def</span> <span class="nf">notebook</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">persist</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">sync_package_on_close</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="c1"># Roughly trying to follow:</span>
+        <span class="c1"># https://towardsdatascience.com/using-jupyter-notebook-running-on-a-remote-docker-container-via-ssh-ea2c3ebb9055</span>
+        <span class="c1"># https://docs.ray.io/en/latest/ray-core/using-ray-with-jupyter.html</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">hardware</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Cannot SSH, running locally&quot;</span><span class="p">)</span>
+
+        <span class="c1"># TODO change autostop setting if user starts a notebook?</span>
+        <span class="n">autostop</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hardware</span><span class="o">.</span><span class="n">autostop_mins</span>
+        <span class="k">if</span> <span class="n">autostop</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Starting notebook server for cluster with autostop of &#39;</span>
+                           <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">hardware</span><span class="o">.</span><span class="n">autostop_mins</span><span class="si">}</span><span class="s1"> minutes enabled. Disabling autostop while&#39;</span>
+                           <span class="sa">f</span><span class="s1">&#39;notebook is open.&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">hardware</span><span class="o">.</span><span class="n">keep_warm</span><span class="p">()</span>
+
+        <span class="n">tunnel</span><span class="p">,</span> <span class="n">port_fwd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hardware</span><span class="o">.</span><span class="n">ssh_tunnel</span><span class="p">(</span><span class="n">local_port</span><span class="o">=</span><span class="mi">8888</span><span class="p">,</span> <span class="n">num_ports_to_try</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">install_cmd</span> <span class="o">=</span> <span class="s2">&quot;pip install jupyterlab&quot;</span>
+            <span class="n">jupyter_cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;jupyter lab --port </span><span class="si">{</span><span class="n">port_fwd</span><span class="si">}</span><span class="s1"> --no-browser&#39;</span>
+            <span class="c1"># port_fwd = &#39;-L localhost:8888:localhost:8888 &#39;  # TOOD may need when we add docker support</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">hardware</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">commands</span><span class="o">=</span><span class="p">[</span><span class="n">install_cmd</span><span class="p">,</span> <span class="n">jupyter_cmd</span><span class="p">],</span> <span class="n">stream_logs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="c1"># Restore original autostop setting</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">hardware</span><span class="o">.</span><span class="n">keep_warm</span><span class="p">(</span><span class="n">autostop_mins</span><span class="o">=</span><span class="n">autostop</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">sync_package_on_close</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">sync_package_on_close</span> <span class="o">==</span> <span class="s1">&#39;default&#39;</span><span class="p">:</span>
+                    <span class="n">sync_package_on_close</span> <span class="o">=</span> <span class="n">rh_config</span><span class="o">.</span><span class="n">rns_client</span><span class="o">.</span><span class="n">locate_working_dir</span><span class="p">()</span>
+                <span class="n">pkg</span> <span class="o">=</span> <span class="n">Package</span><span class="o">.</span><span class="n">from_string</span><span class="p">(</span><span class="s1">&#39;local:&#39;</span> <span class="o">+</span> <span class="n">sync_package_on_close</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">hardware</span><span class="o">.</span><span class="n">rsync</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;~/</span><span class="si">{</span><span class="n">pkg</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="n">pkg</span><span class="o">.</span><span class="n">local_path</span><span class="p">,</span> <span class="n">up</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">persist</span><span class="p">:</span>
+                <span class="n">tunnel</span><span class="o">.</span><span class="n">stop</span><span class="p">(</span><span class="n">force</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">kill_jupyter_cmd</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;jupyter notebook stop </span><span class="si">{</span><span class="n">port_fwd</span><span class="si">}</span><span class="s1">&#39;</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">hardware</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">commands</span><span class="o">=</span><span class="p">[</span><span class="n">kill_jupyter_cmd</span><span class="p">])</span>
+
+    <span class="c1"># TODO</span>
+    <span class="k">def</span> <span class="nf">keep_warm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                  <span class="n">autostop_mins</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                  <span class="n">regions</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                  <span class="n">min_replicas</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                  <span class="n">max_replicas</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="c1"># TODO: For now just upping the cluster with the autostop provided</span>
+        <span class="k">if</span> <span class="n">autostop_mins</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Keeping </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> indefinitely warm&quot;</span><span class="p">)</span>
+            <span class="c1"># keep indefinitely warm if user doesn&#39;t specify</span>
+            <span class="n">autostop_mins</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hardware</span><span class="o">.</span><span class="n">keep_warm</span><span class="p">(</span><span class="n">autostop_mins</span><span class="o">=</span><span class="n">autostop_mins</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="send"><a class="viewcode-back" href="../../../send.html#runhouse.rns.send.send">[docs]</a><span class="k">def</span> <span class="nf">send</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Callable</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+         <span class="n">name</span><span class="p">:</span> <span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+         <span class="n">hardware</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Cluster</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+         <span class="n">reqs</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+         <span class="n">image</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>  <span class="c1"># TODO</span>
+         <span class="n">load_from</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+         <span class="n">save_to</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+         <span class="n">dryrun</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+         <span class="n">load_secrets</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+         <span class="n">serialize_notebook_fn</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+         <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Factory constructor to construct the Send for various provider types.</span>
+
+<span class="sd">        fn: The function which will execute on the remote cluster when this send is called.</span>
+<span class="sd">        name: Name of the Send to create or retrieve, either from a local config or from the RNS.</span>
+<span class="sd">        hardware: Hardware to use for the Send, either a string name of a Cluster object, or a Cluster object.</span>
+<span class="sd">        package: Package to send to the remote cluster, either a string name of a Package, package url,</span>
+<span class="sd">            or a Package object.</span>
+<span class="sd">        reqs: List of requirements to install on the remote cluster, or path to a requirements.txt file. If a list</span>
+<span class="sd">            of pypi packages is provided, including &#39;requirements.txt&#39; in the list will install the requirements</span>
+<span class="sd">            in `package`. By default, if reqs is left as None, we&#39;ll set it to [&#39;requirements.txt&#39;], which installs</span>
+<span class="sd">            just the requirements of package. If an empty list is provided, no requirements will be installed.</span>
+<span class="sd">        image (TODO): Docker image id to use on the remote cluster, or path to Dockerfile.</span>
+<span class="sd">        dryrun: Whether to create the Send if it doesn&#39;t exist, or load the Send object as a dryrun.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">config</span> <span class="o">=</span> <span class="n">rh_config</span><span class="o">.</span><span class="n">rns_client</span><span class="o">.</span><span class="n">load_config</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">load_from</span><span class="o">=</span><span class="n">load_from</span><span class="p">)</span>
+    <span class="c1"># type = config.pop(&#39;type&#39;, &#39;send&#39;)</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">name</span> <span class="ow">or</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;rns_address&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">)</span>
+
+    <span class="c1"># If user passes a filepath to a requirements.txt file</span>
+    <span class="c1"># if (isinstance(reqs, str) or isinstance(reqs, Path)) and Path(reqs).exists():</span>
+    <span class="c1">#     reqs = convert_text_file_to_list(file_path=Path(reqs))</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">reqs</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="p">{</span><span class="s1">&#39;default&#39;</span><span class="p">,</span> <span class="s1">&#39;local:default&#39;</span><span class="p">,</span> <span class="s1">&#39;reqs:default&#39;</span><span class="p">}</span><span class="o">.</span><span class="n">isdisjoint</span><span class="p">(</span><span class="n">reqs</span><span class="p">):</span>
+        <span class="n">reqs</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;local:default&#39;</span><span class="p">)</span>
+
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;reqs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">reqs</span> <span class="k">if</span> <span class="n">reqs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;reqs&#39;</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;default&#39;</span><span class="p">])</span>
+
+    <span class="c1"># TODO [DG] handle if packages are rns addresses</span>
+    <span class="n">workdir</span> <span class="o">=</span> <span class="n">rh_config</span><span class="o">.</span><span class="n">rns_client</span><span class="o">.</span><span class="n">locate_working_dir</span><span class="p">()</span> <span class="ow">or</span> <span class="s1">&#39;&#39;</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;reqs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">Package</span><span class="o">.</span><span class="n">from_string</span><span class="p">(</span><span class="n">req</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;default&#39;</span><span class="p">,</span> <span class="n">workdir</span><span class="p">),</span> <span class="n">dryrun</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                      <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">req</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="n">req</span>
+                      <span class="k">for</span> <span class="n">req</span> <span class="ow">in</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;reqs&#39;</span><span class="p">]]</span>
+
+    <span class="k">if</span> <span class="n">fn</span><span class="p">:</span>
+        <span class="n">fn_pointers</span> <span class="o">=</span> <span class="n">Send</span><span class="o">.</span><span class="n">extract_fn_paths</span><span class="p">(</span><span class="n">raw_fn</span><span class="o">=</span><span class="n">fn</span><span class="p">,</span> <span class="n">reqs</span><span class="o">=</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;reqs&#39;</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">fn_pointers</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;notebook&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">serialize_notebook_fn</span><span class="p">:</span>
+                <span class="k">class</span> <span class="nc">FakeModule</span><span class="p">:</span>
+                    <span class="k">pass</span>
+
+                <span class="nb">setattr</span><span class="p">(</span><span class="n">FakeModule</span><span class="p">,</span> <span class="n">fn</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">fn</span><span class="p">)</span>
+                <span class="c1"># TODO name this after the notebook, not the send</span>
+                <span class="n">serialization_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span> <span class="o">/</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">config</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">_fn&#39;</span> <span class="k">if</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="k">else</span> <span class="s1">&#39;send_fn&#39;</span><span class="p">)</span>
+                <span class="n">serialization_dir</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">pickled_package</span> <span class="o">=</span> <span class="n">Package</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">serialization_dir</span><span class="o">.</span><span class="n">stem</span><span class="p">,</span>
+                                          <span class="n">url</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">serialization_dir</span><span class="p">),</span>
+                                          <span class="n">install_method</span><span class="o">=</span><span class="s1">&#39;unpickle&#39;</span><span class="p">)</span>
+                <span class="c1"># TODO name this after the send</span>
+                <span class="n">pickled_package</span><span class="o">.</span><span class="n">put</span><span class="p">({</span><span class="s1">&#39;functions.pickle&#39;</span><span class="p">:</span> <span class="n">pickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">FakeModule</span><span class="p">)})</span>
+                <span class="n">config</span><span class="p">[</span><span class="s1">&#39;reqs&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pickled_package</span><span class="p">)</span>
+                <span class="n">fn_pointers</span> <span class="o">=</span> <span class="p">(</span><span class="n">fn_pointers</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">pickled_package</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">fn_pointers</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># TODO put this in the current folder instead?</span>
+                <span class="n">module_path</span> <span class="o">=</span> <span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span> <span class="o">/</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">config</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">_fn.py&#39;</span> <span class="k">if</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="k">else</span> <span class="s1">&#39;send_fn.py&#39;</span><span class="p">)</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Writing out send function to </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">module_path</span><span class="p">)</span><span class="si">}</span><span class="s1"> as &#39;</span>
+                             <span class="sa">f</span><span class="s1">&#39;functions serialized in notebooks are brittle. Please make&#39;</span>
+                             <span class="sa">f</span><span class="s1">&#39;sure the function does not rely on any local variables, &#39;</span>
+                             <span class="sa">f</span><span class="s1">&#39;including imports (which should be moved inside the function body).&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]:</span>
+                    <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;You should name Sends that are created in notebooks to avoid naming collisions &#39;</span>
+                                    <span class="s1">&#39;between the modules that are created to hold their functions &#39;</span>
+                                    <span class="s1">&#39;(i.e. &quot;send_fn.py&quot; errors.&#39;</span><span class="p">)</span>
+                <span class="n">source</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getsource</span><span class="p">(</span><span class="n">fn</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                <span class="k">with</span> <span class="n">module_path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+                <span class="n">fn_pointers</span> <span class="o">=</span> <span class="p">(</span><span class="n">fn_pointers</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">module_path</span><span class="o">.</span><span class="n">stem</span><span class="p">,</span> <span class="n">fn_pointers</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+                <span class="c1"># from importlib.util import spec_from_file_location, module_from_spec</span>
+                <span class="c1"># spec = spec_from_file_location(config[&#39;name&#39;], str(module_path))</span>
+                <span class="c1"># module = module_from_spec(spec)</span>
+                <span class="c1"># spec.loader.exec_module(module)</span>
+                <span class="c1"># new_fn = getattr(module, fn_pointers[2])</span>
+                <span class="c1"># fn_pointers = Send.extract_fn_paths(raw_fn=new_fn, reqs=config[&#39;reqs&#39;])</span>
+        <span class="n">config</span><span class="p">[</span><span class="s1">&#39;fn_pointers&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fn_pointers</span>
+
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;hardware&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">hardware</span> <span class="ow">or</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;hardware&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">Send</span><span class="o">.</span><span class="n">DEFAULT_HARDWARE</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;hardware&#39;</span><span class="p">],</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">hw_dict</span> <span class="o">=</span> <span class="n">rh_config</span><span class="o">.</span><span class="n">rns_client</span><span class="o">.</span><span class="n">load_config</span><span class="p">(</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;hardware&#39;</span><span class="p">],</span> <span class="n">load_from</span><span class="o">=</span><span class="n">load_from</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">hw_dict</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Hardware </span><span class="si">{</span><span class="n">config</span><span class="p">[</span><span class="s2">&quot;hardware&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1"> not found locally or in RNS.&#39;</span><span class="p">)</span>
+        <span class="n">config</span><span class="p">[</span><span class="s1">&#39;hardware&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">hw_dict</span>
+
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;image&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">image</span> <span class="ow">or</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;image&#39;</span><span class="p">)</span>
+
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;access_level&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;access_level&#39;</span><span class="p">,</span> <span class="n">Send</span><span class="o">.</span><span class="n">DEFAULT_ACCESS</span><span class="p">)</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;save_to&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">save_to</span>
+
+    <span class="n">new_send</span> <span class="o">=</span> <span class="n">Send</span><span class="o">.</span><span class="n">from_config</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">dryrun</span><span class="o">=</span><span class="n">dryrun</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">load_secrets</span><span class="p">:</span>
+        <span class="n">new_send</span><span class="o">.</span><span class="n">send_secrets</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">new_send</span><span class="o">.</span><span class="n">name</span><span class="p">:</span>
+        <span class="n">new_send</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">new_send</span></div>
+</pre></div>
+
+              </div>
+              
+            </main>
+            <footer class="footer-article noprint">
+                
+    <!-- Previous / next buttons -->
+<div class='prev-next-area'>
+</div>
+            </footer>
+        </div>
+    </div>
+    <div class="footer-content row">
+        <footer class="col footer"><p>
+  
+    By the Runhouse team 🏃‍♀️🏠<br/>
+  
+      &copy; Copyright 2022, Runhouse Inc.<br/>
+</p>
+        </footer>
+    </div>
+    
+</div>
+
+
+      </div>
+    </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../../../_static/scripts/pydata-sphinx-theme.js?digest=1999514e3f237ded88cf"></script>
+
+
+  </body>
+</html>

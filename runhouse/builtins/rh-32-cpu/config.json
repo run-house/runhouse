@@ -1,0 +1,10 @@
+{
+    "type": "cluster",
+    "name": "/builtins/rh-32-cpu",
+    "rns_address": "/builtins/rh-32-cpu",
+    "instance_type": "m5.8xlarge",
+    "num_instances": null,
+    "provider": "aws",
+    "autostop_mins": null,
+    "use_spot": false
+}

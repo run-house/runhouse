@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package unary;
+
+service Unary{
+  // A simple RPC.
+  //
+  // Obtains the MessageResponse at a given position.
+  rpc GetServerResponse(Message) returns (MessageResponse) {}
+  rpc InstallPackages(Message) returns (MessageResponse) {}
+
+}
+
+message Message {
+//  import path (module to import) and also serialize and send it over (just use cloudpickle)
+//  bytes (args, kwargs) --> put in a tuple and serialize at once
+  bytes message = 1;
+  string module_name = 2;
+  string func_name = 3;
+
+//  enum serialization (either cloudpickle or json)
+}
+
+message MessageResponse{
+  bytes message = 1; // will be cloudpickle or json
+  bool received = 2;
+}

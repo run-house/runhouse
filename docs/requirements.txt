@@ -1,0 +1,13 @@
+sphinx-rtd-theme==1.1.1
+sphinx-book-theme==0.3.3
+sphinx-thebe==0.1.2
+sphinx-click==4.3.0
+sphinx-copybutton==0.5.1
+myst-parser==0.18.1
+pyarrow==9.0.0
+Pint==0.20.1
+ray==2.0.1
+sshtunnel==0.4.0
+typer==0.4.2
+git+https://github.com/skypilot-org/skypilot.git@30476aa
+fsspec==2022.10.0
