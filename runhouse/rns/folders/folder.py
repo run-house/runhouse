@@ -6,6 +6,7 @@ import fsspec
 import tempfile
 import shutil
 
+import runhouse as rh
 from runhouse.rns.resource import Resource
 from runhouse.rh_config import rns_client, configs
 from runhouse.rns.api_utils.resource_access import ResourceAccess
@@ -26,13 +27,13 @@ class Folder(Resource):
     DEFAULT_FS = 'file'
 
     def __init__(self,
-                 name: str = None,
-                 url: str = None,
-                 fs: str = DEFAULT_FS,
+                 name: Optional[str] = None,
+                 url: Optional[str] = None,
+                 fs: Optional[str] = DEFAULT_FS,
                  save_to: Optional[List[str]] = None,
                  dryrun: bool = True,
                  local_mount: bool = False,
-                 data_config: dict = {},
+                 data_config: Optional[Dict] = None,
                  **kwargs  # We have this here to ignore extra arguments when calling from from_config
                  ):
         """
@@ -56,14 +57,29 @@ class Folder(Resource):
         # should be resolved as:
         # rh.Folder(url='/', fs='github', data_config={'org': 'pytorch', 'repo': 'pytorch'})
 
-        # If the url is not absolute, assume that it's relative to the working directory
-        self._url = url if (url is None or Path(url).expanduser().is_absolute()) \
-            else str(Path(rns_client.locate_working_dir()) / url)
         self.fs = fs
 
+        # TODO [DG] Should we ever be allowing this to be None?
+        # self._url = url if url is None or Path(url).expanduser().is_absolute() \
+        #     else str(Path(rh.rh_config.locate_working_dir()) / url)
+
+        if self.fs == Folder.DEFAULT_FS:
+            if url is None:
+                # If no URL specified for local file system, use the current folder
+                self._url = rns_client.current_folder
+            else:
+                # If the url is not absolute, assume that it's relative to the working directory
+                self._url = url if Path(url).expanduser().is_absolute() else \
+                    str(Path(rns_client.locate_working_dir()) / url)
+        else:
+            if url is None:
+                raise ValueError('URL must be specified when using a non-local filesystem')
+            self._url = url if url.startswith("/") else f'/{url}'
+        #
+
         # TODO maybe we can provide reasonable defaults or config options for cloud blob storage, etc.
-        if self.fs not in [None, self.DEFAULT_FS] and self.url is None:
-            raise ValueError('You must provide a url to use a non-local provider for folder storage.')
+        if self.fs not in [self.DEFAULT_FS, 'azure', 'gcp', 's3', 'github']:
+            raise ValueError(f'{self.fs} not a supported fs type')
 
         self.local_mount = local_mount
         self._local_mount_path = None
@@ -71,6 +87,8 @@ class Folder(Resource):
             self.mount(tmp=True)
         self.data_config = data_config or {}
         self.virtual_children = []
+
+        self.fsspec_fs = fsspec.filesystem(self.fs, **self.data_config)
 
         if self._name is None:
             if self.url is None:
@@ -83,6 +101,7 @@ class Folder(Resource):
                 self._name = Path(self.url).stem
             # If there's a url, but fs != 'file', this is an anonymous Folder with a remote fs (e.g. "github").
 
+    # ----------------------------------
     @staticmethod
     def from_config(config: dict, dryrun=True):
         """ Load config values into the object. """
@@ -108,13 +127,11 @@ class Folder(Resource):
             return None
 
     def is_writable(self):
-        fsspec_fs = fsspec.filesystem(self.fs)
-
         # If the filesystem hasn't overridden mkdirs, it's a no-op and the filesystem is probably readonly
         # (e.g. https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/implementations/github.html).
         # In that case, we should just create a new folder in the default
         # location and add it as a child to the parent folder.
-        return fsspec_fs.__class__.mkdirs == fsspec.AbstractFileSystem.mkdirs
+        return self.fsspec_fs.__class__.mkdirs == fsspec.AbstractFileSystem.mkdirs
 
     def mv(self, fs, url=None, data_config=None) -> None:
         """Move the folder to a new filesystem.
@@ -143,7 +160,7 @@ class Folder(Resource):
 
         # TODO will this work if the base bucket doesn't exist yet?
         if self.is_local():
-            fsspec.filesystem(fs).put(self.url, f'{fs}://{url}', recursive=True)
+            self.fsspec_fs.put(self.url, f'{fs}://{url}', recursive=True)
         else:
             # TODO this is really really slow, maybe use skyplane, as follows:
             # src_url = f'local://{self.url}' if self.is_local() else self.fsspec_url
@@ -165,14 +182,22 @@ class Folder(Resource):
         new_folder.data_config = data_config or {}
         return new_folder
 
-    def mount(self, url=None, tmp=False, data_config={}) -> str:
+    def mkdir(self):
+        if self.exists_in_fs():
+            return
+
+        # create the bucket if it doesn't already exist
+        logging.info(f'Creating new {self.fs} folder: {self.fsspec_url}')
+        self.fsspec_fs.mkdir(self.fsspec_url)
+
+    def mount(self, url=None, tmp=False) -> str:
         """ Mount the folder locally. """
         # TODO check that fusepy and FUSE are installed
         if tmp:
             self._local_mount_path = tempfile.mkdtemp()
         else:
             self._local_mount_path = url
-        remote_fs = fsspec.filesystem(self.fs, **data_config)
+        remote_fs = self.fsspec_fs
         fsspec.fuse.run(fs=remote_fs, path=self.url, mount_point=self._local_mount_path)
         return self._local_mount_path
 
@@ -264,11 +289,14 @@ class Folder(Resource):
         config_attrs = ['local_mount', 'data_config']
         self.save_attrs_to_config(config, config_attrs)
 
-        if not self.fs == self.DEFAULT_FS:
+        if self.fs != Folder.DEFAULT_FS:
+            # if not a local filesystem save path as is (e.g. bucket/path)
             config['url'] = self.url
-            config['fs'] = self.fs
-        elif self.url is not None:
-            config['url'] = self._url_relative_to_rh_workdir(self.url)
+        else:
+            config['url'] = self._url_relative_to_rh_workdir(self.url) if self.url else None
+
+        config['fs'] = self.fs
+
         return config
 
     @staticmethod
@@ -281,8 +309,8 @@ class Folder(Resource):
 
     @property
     def fsspec_url(self):
-        """Generate the FSSpec URL using the data_source and data_url"""
-        return f'{self.fs}://{self.url}'
+        """Generate the FSSpec URL using the file system and url of the folder"""
+        return f'{self.fs}:/{self.url}'
 
     def ls(self, full_paths: bool = False, resource_type: str = None):
         """List the resources in the *RNS* folder.
@@ -294,7 +322,7 @@ class Folder(Resource):
         """
         # TODO filter by type
         # TODO allow '*' wildcard for listing all resources (and maybe other wildcard things)
-        fs = fsspec.filesystem(self.fs, **self.data_config)
+        fs = self.fsspec_fs
         # TODO don't exclude physical files that are not resources?
         physical_children = [path for path in fs.ls(path=self.url)
                              if (Path(path) / 'config.json').exists()] \
@@ -419,11 +447,21 @@ class Folder(Resource):
         # TODO we're not closing these, do we need to extract file-like objects so we can close them?
         return fsspec.open_files(self.fsspec_url, mode='rb', **self.data_config)
 
+    def exists_in_fs(self):
+        return self.fsspec_fs.exists(self.fsspec_url) or rh.rns.top_level_rns_fns.exists(self.url)
+
+    def delete_in_fs(self, recursive: bool = True):
+        try:
+            self.fsspec_fs.rmdir(self.fsspec_url)
+        except Exception as e:
+            raise Exception(f"Failed to delete from file system: {e}")
+
     def put(self, contents, overwrite=False):
         """
             files: Either 1) A dict with keys being the file names and values being the
                 file-like objects to write, 2) a Resource, or 3) a list of Resources.
         """
+        # TODO create the bucket if it doesn't already exist
         # Handle lists of resources just for convenience
         if isinstance(contents, list):
             for resource in contents:
@@ -448,7 +486,6 @@ class Folder(Resource):
                     if contents.name is None:  # Anonymous resource
                         i = 1
                         new_name = contents.RESOURCE_TYPE + str(i)
-                        fsspec_fs = fsspec.filesystem(self.fs)
                         # Resolve naming conflicts if necessary
                         while rns_client.exists(self.url + '/' + new_name):
                             i += 1
@@ -483,40 +520,57 @@ class Folder(Resource):
         # if not overwrite:
         #     time = datetime.today().strftime('%Y-%m-%d_%H:%M:%S')
         #     self.data_url = self.data_url + time or time
-        filenames = list(contents.keys())
+        filenames = list(contents)
         fss_files = fsspec.open_files(self.fsspec_url + '/*',
                                       mode='wb',
                                       **self.data_config,
                                       num=len(contents),
                                       name_function=filenames.__getitem__)
         for (fss_file, raw_file) in zip(fss_files, contents.values()):
+            self.mkdir()  # Make sure the bucket exists before writing
             with fss_file as f:
                 f.write(raw_file)
 
 
-def folder(name=None,
-           url=None,
-           fs='file',
-           save_to=None,
-           load_from=None,
-           dryrun=False,
+def folder(name: Optional[str] = None,
+           url: Optional[str] = None,
+           fs: Optional[str] = None,
+           save_to: Optional[List[str]] = None,
+           load_from: Optional[List[str]] = None,
+           dryrun: bool = True,
            local_mount: bool = False,
-           data_config: dict = {},
+           data_config: Optional[Dict] = None,
            ):
     """ Returns a folder object, which can be used to interact with the folder at the given url.
-    If the folder does not exist, it will be created if `create` is True.
+    The folder will be saved if `dryrun` is False.
     """
     config = rns_client.load_config(name, load_from=load_from)
     config['name'] = name or config.get('rns_address', None) or config.get('name')
     config['url'] = url or config.get('url')
-    config['fs'] = fs or config.get('fs')
     config['local_mount'] = local_mount or config.get('local_mount')
     config['data_config'] = data_config or config.get('data_config')
     config['save_to'] = save_to
 
-    new_folder = Folder.from_config(config, dryrun=dryrun)
+    file_system = fs or config.get('fs') or Folder.DEFAULT_FS
+    config['fs'] = file_system
 
-    if new_folder.name:
-        new_folder.save()
+    if file_system == 'file' or file_system == 'github':
+        new_folder = Folder.from_config(config, dryrun=dryrun)
+    elif file_system == 's3':
+        from .s3_folder import S3Folder
+        new_folder = S3Folder.from_config(config, dryrun=dryrun)
+    elif file_system == 'gcs':
+        # TODO [JL]
+        from .gcp_folder import GCPFolder
+        new_folder = GCPFolder.from_config(config, dryrun=dryrun)
+    elif file_system == 'azure':
+        # TODO [JL]
+        from .azure_folder import AzureFolder
+        new_folder = AzureFolder.from_config(config, dryrun=dryrun)
+    else:
+        raise ValueError(f'File system {file_system} not supported.')
+
+    if new_folder.name and not dryrun:
+        new_folder.save(name=config['name'], save_to=config['save_to'])
 
     return new_folder

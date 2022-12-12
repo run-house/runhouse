@@ -24,7 +24,7 @@ def login(token: str = None,
         import typer
         from rich.console import Console
         console = Console()
-        console.print(f'Retrieve your token :key: here to use :person_running:Runhouse :house: for '
+        console.print(f'Retrieve your token :key: here to use :person_running: :house: Runhouse for '
                       f'secrets and artifact management: {rh_config.configs.get("api_server_url")}/dashboard/?option=token',
                       style='bold yellow')
         token = typer.prompt("Token", type=str)
@@ -44,7 +44,7 @@ def login(token: str = None,
         # If we are not downloading or uploading config, we still want to make sure the token is valid
         try:
             rh_config.configs.download_defaults(headers=request_headers)
-        except Exception as e:
+        except:
             logger.error('Failed to validate token')
             return None
 

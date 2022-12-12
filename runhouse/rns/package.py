@@ -2,11 +2,11 @@ import logging
 from pathlib import Path
 import sys
 import subprocess
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 import ray.cloudpickle as pickle
-from runhouse.rns.folder import Folder
 from runhouse import rh_config
+from runhouse.rns.folders.folder import Folder
 
 INSTALL_METHODS = {'local', 'reqs', 'pip', 'conda', 'git', 'gh', 'rh'}
 
@@ -20,7 +20,7 @@ class Package(Folder):
                  fs: str = Folder.DEFAULT_FS,
                  install_method: str = None,
                  local_mount: bool = False,
-                 data_config: dict = {},
+                 data_config: Optional[Dict] = None,
                  save_to: Optional[List[str]] = None,
                  dryrun: bool = False,
                  **kwargs  # We have this here to ignore extra arguments when calling from from_config
@@ -117,13 +117,13 @@ class Package(Folder):
 
 def package(name=None,
             url=None,
-            fs='file',
+            fs: Optional[str] = Package.DEFAULT_FS,
             install_method=None,
             save_to: Optional[List[str]] = None,
             load_from: Optional[List[str]] = None,
             dryrun=False,
             local_mount: bool = False,
-            data_config: dict = {},
+            data_config: Optional[Dict] = None
             ):
     config = rh_config.rns_client.load_config(name, load_from=load_from)
     config['name'] = name or config.get('rns_address', None) or config.get('name')

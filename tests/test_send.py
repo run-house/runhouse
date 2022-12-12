@@ -52,11 +52,11 @@ def test_running_send_as_proxy():
                          name='remote_send',
                          hardware='^rh-cpu',
                          reqs=[],
-                         dryrun=True,
+                         dryrun=False,
                          save_to=['rns'])
     del remote_sum
 
-    remote_sum = rh.send(name='remote_send', load_from=['rns'], save_to=[])
+    remote_sum = rh.send(name='remote_send', load_from=['rns'])
     remote_sum.access = ResourceAccess.proxy
     res = remote_sum(1, 5)
     assert res == 6

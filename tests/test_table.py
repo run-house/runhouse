@@ -68,12 +68,12 @@ def test_create_and_reload_from_file():
     del data
     del my_table
 
-    reloaded_table = rh.table(name='my_test_table', dryrun=False)
+    reloaded_table = rh.table(name='my_test_table', dryrun=False, load_from=['local'])
     reloaded_data = reloaded_table.data
     assert reloaded_data.to_pandas().shape == orig_data_shape
 
     reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    assert not reloaded_table.folder.exists_in_fs()
 
 
 def test_create_and_reload_dask_data_from_s3():
@@ -87,12 +87,12 @@ def test_create_and_reload_dask_data_from_s3():
     del orig_data
     del my_table
 
-    reloaded_table = rh.table(name='my_test_dask_table', dryrun=False)
+    reloaded_table = rh.table(name='my_test_dask_table', dryrun=False, load_from=['rns'])
     reloaded_data: pa.Table = reloaded_table.data
     assert reloaded_data
 
     reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    assert not reloaded_table.folder.exists_in_fs()
 
 
 def test_create_and_reload_huggingface_data_from_s3():
@@ -107,12 +107,12 @@ def test_create_and_reload_huggingface_data_from_s3():
     del orig_data
     del my_table
 
-    reloaded_table = rh.table(name='my_test_hf_table', dryrun=False)
+    reloaded_table = rh.table(name='my_test_hf_table', dryrun=False, load_from=['rns'])
     reloaded_data: pa.Table = reloaded_table.data
     assert reloaded_data.shape == orig_shape
 
     reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    assert not reloaded_table.folder.exists_in_fs()
 
 
 def test_create_and_reload_partitioned_data_from_s3():
@@ -127,12 +127,12 @@ def test_create_and_reload_partitioned_data_from_s3():
     del data
     del my_table
 
-    reloaded_table = rh.table(name='partitioned_my_test_table', dryrun=False)
+    reloaded_table = rh.table(name='partitioned_my_test_table', dryrun=False, load_from=['rns'])
     reloaded_data: pa.Table = reloaded_table.data
     assert reloaded_data
 
     reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    assert not reloaded_table.folder.exists_in_fs()
 
 
 def test_stream_data_from_file():
@@ -151,7 +151,7 @@ def test_stream_data_from_s3():
     data = load_sample_data()
     my_table = rh.table(data=data,
                         name='my_test_table',
-                        data_url=DATA_URL,
+                        data_url=S3_BUCKET_PATH,
                         data_source='s3')
 
     batches = my_table.stream(batch_size=10)
@@ -159,7 +159,7 @@ def test_stream_data_from_s3():
         assert batch.column_names == ['label', 'text', 'input_ids', 'token_type_ids', 'attention_mask']
 
     my_table.delete_in_fs()
-    assert not my_table.exists_in_fs()
+    assert not my_table.folder.exists_in_fs()
 
 
 def test_create_and_reload_s3():
@@ -173,11 +173,11 @@ def test_create_and_reload_s3():
     del data
     del my_table
 
-    reloaded_table = rh.table(name=table_name)
+    reloaded_table = rh.table(name=table_name, load_from=['rns'])
     assert reloaded_table.data['my_col'].to_pylist() == list(range(50))
 
     reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    assert not reloaded_table.folder.exists_in_fs()
 
 
 if __name__ == '__main__':

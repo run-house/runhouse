@@ -5,6 +5,8 @@ import logging
 from pathlib import Path
 from typing import Tuple, Dict, Union
 
+from ray import cloudpickle as pickle
+
 from runhouse.rh_config import rns_client
 from runhouse.rns.api_utils.resource_access import ResourceAccess
 from runhouse.rns.api_utils.utils import read_response_data
@@ -40,6 +42,14 @@ class Resource:
         config_attrs = ['name', 'rns_address']
         self.save_attrs_to_config(config, config_attrs)
         return config
+
+    @staticmethod
+    def is_picklable(obj) -> bool:
+        try:
+            pickle.dumps(obj)
+        except pickle.PicklingError:
+            return False
+        return True
 
     def _resource_string_for_subconfig(self, resource):
         """Returns a string representation of a sub-resource for use in a config."""

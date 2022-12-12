@@ -1,22 +1,24 @@
 import shutil
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Union
 import time
 import os
 
 import pyarrow.parquet as pq
 import pyarrow as pa
 import ray.data
-from ..blob import Blob
+
+from .. import Resource
+from runhouse.rns.folders.folder import Folder
+import runhouse as rh
 from runhouse.rh_config import rns_client
 
 
-class Table(Blob):
+class Table(Resource):
 
     def __init__(self,
-                 data=None,
+                 folder: Folder,
                  name: str = None,
-                 data_url: str = None,
                  data_source: str = None,
                  data_config: dict = None,
                  save_to: Optional[List[str]] = None,
@@ -24,14 +26,13 @@ class Table(Blob):
                  partition_cols: list = None,
                  **kwargs
                  ):
-        super().__init__(data=data,
-                         name=name,
+        super().__init__(name=name,
                          data_source=data_source,
-                         data_url=data_url,
                          data_config=data_config,
                          partition_cols=partition_cols,
                          save_to=save_to,
-                         dryrun=dryrun)
+                         dryrun=dryrun,
+                         folder=folder)
 
     @staticmethod
     def from_config(config: dict, dryrun=True):
@@ -39,8 +40,8 @@ class Table(Blob):
 
     def fetch(self, deserializer: Optional[str] = None, return_file_like: bool = False, columns: Optional[list] = None):
         # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
+        # TODO support columns to fetch a subset of the data
         pq_table: pa.Table = pq.read_table(self.root_path, columns=columns)
-        # TODO support columns (i.e. only fetch a subset of the data)
         return pq_table
 
     def stream(self, batch_size, drop_last: bool = False, shuffle_seed: Optional[int] = None):
@@ -58,10 +59,21 @@ class Table(Blob):
              overwrite: bool = False,
              partition_cols: Optional[list] = None):
 
-        pa_table: pa.Table = self.construct_table(new_data)
-        pq.write_to_dataset(pa_table,
-                            root_path=self.root_path,
-                            partition_cols=partition_cols)
+        if not hasattr(new_data, 'to_parquet'):
+            raise TypeError("Data saved to a runhouse Table must have a to_parquet method, "
+                            "ideally backed by PyArrow's `to_parquet`.")
+
+        try:
+            # We should be able to write the data directly to the cloud via fsspec
+            # https://stackoverflow.com/questions/53416226/how-to-write-parquet-file-from-pandas-dataframe-in-s3-in-python
+            # If we fail to write using fsspec, we'll do more manual work by building the table manually and using the
+            # pyarrow API to upload to the cloud
+            new_data.to_parquet(self.fsspec_url)
+        except:
+            pa_table: pa.Table = self.construct_table(new_data)
+            pq.write_to_dataset(pa_table,
+                                root_path=self.root_path,
+                                partition_cols=partition_cols)
 
         rns_client.save_config(resource=self,
                                overwrite=overwrite)
@@ -83,15 +95,8 @@ class Table(Blob):
 
     @staticmethod
     def construct_table(data) -> pa.Table:
-        if not hasattr(data, 'to_parquet'):
-            raise TypeError("Data saved to a runhouse Table must have a to_parquet method, "
-                            "ideally backed by PyArrow's `to_parquet`.")
-
-        # TODO [JL]: We should be able to write directly to s3, but this is not working (S3fs issues).
-        # https://stackoverflow.com/questions/53416226/how-to-write-parquet-file-from-pandas-dataframe-in-s3-in-python
-
         # https://arrow.apache.org/docs/7.0/python/generated/pyarrow.Table.html
-        elif isinstance(data, list):
+        if isinstance(data, list):
             # Construct a Table from list of rows / dictionaries.
             # pylist = [{'int': 1, 'str': 'a'}, {'int': 2, 'str': 'b'}]
             return pa.Table.from_pylist(data)
@@ -133,20 +138,32 @@ class Table(Blob):
 
 def table(data=None,
           name: Optional[str] = None,
+          folder: Union[Folder, str] = None,
           data_url: Optional[str] = None,
           data_source: Optional[str] = None,
           data_config: Optional[dict] = None,
           partition_cols: Optional[list] = None,
           save_to: Optional[List[str]] = None,
           load_from: Optional[List[str]] = None,
-          dryrun: bool = True
+          dryrun: bool = False
           ):
     """ Returns a Table object, which can be used to interact with the table at the given url.
     If the table does not exist, it will be created if `create` is True.
     """
     config = rns_client.load_config(name, load_from=load_from)
 
-    new_data = data if Blob.is_picklable(data) else config.get('data')
+    if isinstance(folder, str):
+        folder = rh.folder(name=folder, load_from=load_from)
+
+    existing_folder = folder or config.get('folder')
+    if not existing_folder:
+        raise ValueError('A table must container a folder - no folder was provided or exists in the config')
+
+    # TODO look at the data url to determine the folder to instantiate
+
+    config['folder'] = existing_folder
+
+    new_data = data if Resource.is_picklable(data) else config.get('data')
     config['data'] = new_data
     config['name'] = name or config.get('rns_address', None) or config.get('name')
     config['data_url'] = data_url or config.get('data_url')
@@ -157,7 +174,7 @@ def table(data=None,
 
     new_table = Table.from_config(config, dryrun=dryrun)
 
-    if new_table.name:
-        new_table.save()
+    if new_table.name and Resource.is_picklable(new_data) and not dryrun:
+        new_table.save(new_data, overwrite=True, partition_cols=partition_cols)
 
     return new_table

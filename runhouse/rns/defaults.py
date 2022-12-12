@@ -2,7 +2,7 @@ import json
 import logging
 import requests
 import yaml
-from typing import List, Dict, Optional, Any
+from typing import Dict, Optional, Any
 from pathlib import Path
 import copy
 
@@ -50,7 +50,7 @@ class Defaults:
 
         logging.info(f'Loaded Runhouse config from {config_path}')
 
-        return config
+        return config or {}
 
     # TODO turn this into a general purpose "reconcile n configs with differing priorities" function
     @classmethod

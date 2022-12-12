@@ -3,7 +3,6 @@
 # TODO allow registration of user-created resource implementations
 
 from .resource import Resource
-from .folder import Folder
 from .send import Send
 from .package import Package
 from .hardware.skycluster import Cluster

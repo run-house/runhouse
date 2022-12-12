@@ -90,9 +90,9 @@ def split_rns_name_and_path(path: str):
 # TODO [DG] I don't think this name is intuitive, we should change it
 def ls(path: str = None,
        full_paths=False):
-    from runhouse.rns.folder import folder
     path = path or current_folder()
-    return folder(name=path, save_to=[], dryrun=True).ls(full_paths=full_paths)
+    import runhouse as rh
+    return rh.folder(name=path, save_to=[]).ls(full_paths=full_paths)
 
 
 def ipython():

@@ -46,8 +46,8 @@ class RNSClient:
         self.load_from = use_local_configs + use_rns
 
         if self.token is None:
-            self.save_to.pop(save_to.index('rns')) if 'rns' in self.save_to else self.save_to
-            self.load_from.pop(load_from.index('rns')) if 'rns' in self.load_from else self.load_from
+            self.save_to.pop(self.save_to.index('rns')) if 'rns' in self.save_to else self.save_to
+            self.load_from.pop(self.load_from.index('rns')) if 'rns' in self.load_from else self.load_from
             logger.info("No auth token provided, so not using RNS API to save and load configs")
 
     @classmethod
@@ -245,7 +245,6 @@ class RNSClient:
         logger.info(f"Saving config to RNS: {config}")
         resource_uri = self.resource_uri(resource_name)
         uri = f'resource/{resource_uri}'
-        # TODO shouldn't folder be a part of the config here?
         payload = self.resource_request_payload(config)
         headers = self.request_headers
         resp = requests.put(f'{self.api_server_url}/{uri}',
@@ -360,7 +359,7 @@ class RNSClient:
         return None
 
     def set_folder(self, path: str, create=False):
-        from runhouse.rns.folder import Folder, folder
+        from runhouse.rns.folders.folder import Folder, folder
         if isinstance(path, Folder):
             abs_path = path.rns_address
         else:
