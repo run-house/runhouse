@@ -98,8 +98,10 @@ class Defaults:
         raw_defaults = resp_data.get('config', {})
         raw_defaults["username"] = resp_data.get('username')
         raw_defaults["token"] = headers.get('Authorization')[7:]
-        raw_defaults['default_folder'] = raw_defaults["username"] if \
-            raw_defaults['default_folder'] == 'default/' else raw_defaults['default_folder']
+        # TODO [DG] fix this
+        # raw_defaults['default_folder'] = raw_defaults["username"] if \
+        #     raw_defaults['default_folder'] == 'default/' else raw_defaults['default_folder']
+        raw_defaults['default_folder'] = raw_defaults.get("username", '/default')
         formatted = {k: to_bool(v) for k, v in raw_defaults.items()}
 
         self.defaults_cache = copy.deepcopy(formatted)
