@@ -12,11 +12,16 @@ class UnaryClient(object):
     # TODO rename SendClient
     """
     DEFAULT_PORT = 50052
+    MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
 
     def __init__(self, host, port=DEFAULT_PORT):
         self.host = host
         self.port = port
-        self.channel = grpc.insecure_channel(f'{self.host}:{self.port}')
+        self.channel = grpc.insecure_channel(f'{self.host}:{self.port}',
+                                             options=[
+                                                 ('grpc.max_send_message_length', self.MAX_MESSAGE_LENGTH),
+                                                 ('grpc.max_receive_message_length', self.MAX_MESSAGE_LENGTH),
+                                             ])
         self._connectivity_state = None
 
         def on_state_change(state):
