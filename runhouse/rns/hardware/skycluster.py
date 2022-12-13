@@ -269,7 +269,7 @@ class Cluster(Resource):
             # status_codes = self.run(['pip install runhouse-nightly==0.0.2.20221202'], stream_logs=True)
             # rh_package = 'runhouse_nightly-0.0.1.dev20221202-py3-none-any.whl'
             # rh_download_cmd = f'curl https://runhouse-package.s3.amazonaws.com/{rh_package} --output {rh_package}'
-            _install_url = _install_url or '--index-url https://api.run.house/pypi runhouse-nightly==0.0.1.dev20221203'
+            _install_url = _install_url or 'git+https://github.com/run-house/runhouse.git@latest_patch'
             rh_install_cmd = f'pip install {_install_url}'
             status_codes = self.run([rh_install_cmd], stream_logs=True)
 
