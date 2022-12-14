@@ -116,7 +116,9 @@ class Send(Resource):
             raise TypeError(f"Invalid fn for Send, expected Callable but received {type(raw_fn)}")
         # Background on all these dunders: https://docs.python.org/3/reference/import.html
         module = inspect.getmodule(raw_fn)
-        module_path = inspect.getfile(module) if hasattr(module, '__file__') else None
+
+        # Need to resolve in case just filename is given
+        module_path = str(Path(inspect.getfile(module)).resolve()) if hasattr(module, '__file__') else None
 
         if not module_path or raw_fn.__name__ == "<lambda>":
             # The only time __file__ wouldn't be present is if the function is defined in an interactive
@@ -130,7 +132,8 @@ class Send(Resource):
         else:
             root_path = os.path.dirname(module_path)
             # module_name = getattr(module.__spec__, 'name', inspect.getmodulename(module_path))
-            module_name = inspect.getmodulename(module_path)
+            module_name = module.__spec__.name if getattr(module, "__package__", False) \
+                else inspect.getmodulename(module_path)
             # TODO __qualname__ doesn't work when fn is aliased funnily, like torch.sum
             fn_name = getattr(raw_fn, '__qualname__', raw_fn.__name__)
 
@@ -230,16 +233,22 @@ class Send(Resource):
         """Map a function over a list of arguments."""
         # We need to ray init here so the returned Ray object ref doesn't throw an error it's deserialized
         import ray
-        ray.init()
+        ray.init(ignore_reinit_error=True)
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
             return self._call_fn_with_ssh_access(fn_type='remote', args=args, kwargs=kwargs)
         else:
             raise NotImplementedError("Send.map only works with Write or Read access, not Proxy access")
 
     def get(self, obj_ref):
-        """Get the result of a Send call that was submitted as async using `remote`."""
+        """Get the result of a Send call that was submitted as async using `remote`.
+
+        Args:
+            obj_ref: A single or list of Ray.ObjectRef objects returned by a Send.remote() call. The ObjectRefs
+                must be from the cluster that this Send is running on.
+        """
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
-            return self._call_fn_with_ssh_access(fn_type='get', args=[obj_ref], kwargs={})
+            arg_list = obj_ref if isinstance(obj_ref, list) else [obj_ref]
+            return self._call_fn_with_ssh_access(fn_type='get', args=arg_list, kwargs={})
         else:
             raise NotImplementedError("Send.get only works with Write or Read access, not Proxy access")
 

@@ -111,6 +111,10 @@ def test_maps():
     pid_res = pid_fn.get(pid_ref)
     assert pid_res > 0
 
+    # Test passing an objectref into a normal call
+    pid_res_from_ref = pid_fn(pid_ref)
+    assert pid_res_from_ref > pid_res
+
     re_fn = rh.send(summer, hardware='^rh-cpu')
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn.starmap(summands)

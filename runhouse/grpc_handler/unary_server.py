@@ -66,17 +66,16 @@ class UnaryService(pb2_grpc.UnaryServicer):
                     self.fn_module = importlib.import_module(module_name)
                 fn = getattr(self.fn_module, fn_name)
 
-            # container = 'python:3.11.0-slim-buster'
-            # container = self.images[send_name]
-            # ray_fn = ray.remote(runtime_env={'container': {'image': container, "run_options": '--privileged'}})(fn)
             # TODO other possible fn_types: 'batch', 'streaming'
             if fn_type == 'call':
+                args = [ray.get(arg) if isinstance(arg, ray.ObjectRef) else arg for arg in args]
                 res = fn(*args, **kwargs)
             elif fn_type == 'get':
                 obj_ref = args[0]
                 res = ray.get(obj_ref)
             else:
-                ray_fn = ray.remote(num_cpus=0, num_gpus=0, runtime_env={"env_vars": {"PYTHONPATH": module_path}})(fn)
+                ray_fn = ray.remote(num_cpus=0, num_gpus=0,
+                                    runtime_env={"env_vars": {"PYTHONPATH": module_path or ''}})(fn)
                 if fn_type == 'map':
                     obj_ref = [ray_fn.remote(arg, **kwargs) for arg in args]
                 elif fn_type == 'starmap':

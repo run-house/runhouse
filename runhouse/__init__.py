@@ -16,4 +16,5 @@ from .rns.blob import blob
 from .rns.hardware.skycluster import cluster
 from .rns.kvstores.kvstore import KVStore
 
+# TODO [DG] do this properly
 __version__ = '0.0.1'
