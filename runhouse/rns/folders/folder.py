@@ -72,14 +72,10 @@ class Folder(Resource):
                 self._url = url if Path(url).expanduser().is_absolute() else \
                     str(Path(rns_client.locate_working_dir()) / url)
         else:
-            if url is None:
-                raise ValueError('URL must be specified when using a non-local filesystem')
+            # If no URL provided just use its name
+            url = name
             self._url = url if url.startswith("/") else f'/{url}'
-        #
 
-        # TODO maybe we can provide reasonable defaults or config options for cloud blob storage, etc.
-        if self.fs not in [self.DEFAULT_FS, 'azure', 'gcp', 's3', 'github']:
-            raise ValueError(f'{self.fs} not a supported fs type')
 
         self.local_mount = local_mount
         self._local_mount_path = None
@@ -310,7 +306,7 @@ class Folder(Resource):
     @property
     def fsspec_url(self):
         """Generate the FSSpec URL using the file system and url of the folder"""
-        return f'{self.fs}:/{self.url}'
+        return f'{self.fs}://{self.url}'
 
     def ls(self, full_paths: bool = False, resource_type: str = None):
         """List the resources in the *RNS* folder.

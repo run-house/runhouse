@@ -18,6 +18,7 @@ class RNSClient:
     """Manage a particular resource with the runhouse database"""
     CORE_RNS_FIELDS = ["name", "type", "folder", "users", "groups"]
     RH_BUILTINS_FOLDER = '/builtins'
+    DEFAULT_FS = 'file'
 
     def __init__(self, configs) -> None:
         self._configs = configs
@@ -100,7 +101,13 @@ class RNSClient:
         """URI used when querying the RNS server"""
         from runhouse.rns.top_level_rns_fns import resolve_rns_path
         rns_address = resolve_rns_path(name)
-        return rns_address[1:].replace('/', ':')
+        return RNSClient.format_rns_address(rns_address)
+
+    @staticmethod
+    def format_rns_address(rns_address: str):
+        if rns_address.startswith('/'):
+            rns_address = rns_address[1:]
+        return rns_address.replace('/', ':')
 
     @property
     def request_headers(self):
@@ -208,8 +215,7 @@ class RNSClient:
         if not overwrite and self.exists(rns_address, load_from=save_to):
             raise ValueError(f'Resource {rns_address} already exists and overwrite is False.')
 
-        if not config.get('name', None) == rns_address:
-            config['name'] = rns_address
+        config['name'] = rns_address
         save_to = save_to if save_to is not None else self.save_to
 
         if 'local' in save_to:
@@ -220,7 +226,7 @@ class RNSClient:
 
     def _save_config_to_local(self, config: dict, rns_address: str, url: str = None):
         if not rns_address:
-            raise ValueError(f'Cannot save resource {config["name"]} without rns address or url.')
+            raise ValueError(f'Cannot save resource without rns address or url.')
         if not url:
             url = self.locate(rns_address, resolve_path=False, load_from=['local'])
             if not url:
@@ -241,10 +247,11 @@ class RNSClient:
 
     def _save_config_in_rns(self, config, resource_name):
         """Update or create resource config in database"""
-        # TODO [DG/JL] save cluster builtins too? For now we are, it's needed for proxying
         logger.info(f"Saving config to RNS: {config}")
+
         resource_uri = self.resource_uri(resource_name)
         uri = f'resource/{resource_uri}'
+
         payload = self.resource_request_payload(config)
         headers = self.request_headers
         resp = requests.put(f'{self.api_server_url}/{uri}',

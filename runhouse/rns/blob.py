@@ -1,11 +1,11 @@
+import copy
 import logging
-from typing import Optional, List, Dict, Union
+import uuid
+from pathlib import Path
+from typing import Optional, List, Dict
 import fsspec
-import os
-
 from ray import cloudpickle as pickle
 
-import runhouse as rh
 from runhouse.rh_config import rns_client
 from runhouse.rns.folders.folder import Folder
 from runhouse.rns.resource import Resource
@@ -16,17 +16,13 @@ logger = logging.getLogger(__name__)
 class Blob(Resource):
     # TODO rename to "File" and take out serialization?
     RESOURCE_TYPE = 'blob'
-    DEFAULT_FS = 'file'
-    DEFAULT_SERIALIZER = 'pickle'
+    DEFAULT_FOLDER_PATH = '/runhouse/blobs'
 
     def __init__(self,
-                 folder: Folder,
-                 data_url: str,
+                 url: Optional[str] = None,
                  name: Optional[str] = None,
-                 data_source: Optional[str] = None,
+                 data_source: Optional[str] = Folder.DEFAULT_FS,
                  data_config: Optional[Dict] = None,
-                 partition_cols: Optional[List] = None,
-                 serializer: Optional[str] = None,
                  dryrun: bool = True,
                  save_to: Optional[List[str]] = None,
                  load_from: Optional[List[str]] = None,
@@ -37,33 +33,25 @@ class Blob(Resource):
         Args:
             name ():
             data_source (): FSSpec protocol, e.g. 's3', 'gcs'. See/run `fsspec.available_protocols()`.
-                Default is "file", the local filesystem to whereever the blob is created.
+                Default is "file", the local filesystem to wherever the blob is created.
             data_config ():
             serializer ():
         """
         super().__init__(name=name, dryrun=dryrun, save_to=save_to, load_from=load_from)
         self._cached_data = None
-
-        # TODO set default data_url to be '(project_name or filename)_varname'
         self.data_source = data_source
-        self.partition_cols = partition_cols
-
-        self.data_config = data_config or {}
-        self.serializer = serializer
-        self.folder = folder
-        self._data_url = data_url
+        self.fsspec_fs = fsspec.filesystem(self.data_source)
+        self.url = url
+        self.data_config = data_config
 
     # TODO do we need a del?
 
     @property
     def config_for_rns(self):
         config = super().config_for_rns
-        blob_config = {'data_url': self.data_url,
-                       'data_source': self.data_source,
-                       'data_config': self.data_config,
-                       'serializer': self.serializer,
-                       'partition_cols': self.partition_cols,
-                       'folder': self.folder.rns_address
+        blob_config = {'url': self.url,  # pair with data source to create the physical URL
+                       'type': self.RESOURCE_TYPE,
+                       'data_source': self.data_source
                        }
         config.update(blob_config)
         return config
@@ -87,43 +75,23 @@ class Blob(Resource):
         self.save(new_data, overwrite=True)
 
     @property
-    def data_url(self):
-        if self._data_url.startswith("/"):
-            return self._data_url
-        return f'/{self._data_url}'
-
-    @property
     def fsspec_url(self):
-        """Generate the FSSpec URL using the data_source and data_url of the blob"""
-        return f'{self.data_source}:/{self.data_url}'
-
-    @property
-    def root_path(self) -> str:
-        """Root path of the blob, e.g. the s3 bucket path to the data.
-        If the data is partitioned, we store the data in a separate partitions directory"""
-        url = self.fsspec_url
-        return url if not self.partition_cols else f'{url}/partitions'
-
-    @staticmethod
-    def folder_url(url):
-        return os.path.dirname(url)
+        return f'{self.data_source}://{self.url}'
 
     def open(self, mode='rb'):
-        """Get a file-like object of the blob data"""
-        return fsspec.open(self.fsspec_url, mode=mode, **self.data_config)
+        """Get a file-like (OpenFile container object) of the blob data"""
+        return fsspec.open(self.fsspec_url, mode=mode)
 
     def fetch(self, return_file_like=False):
-        fss_file = fsspec.open(self.fsspec_url, mode='rb', **self.data_config)
+        fss_file = self.open()
         if return_file_like:
             return fss_file
         with fss_file as f:
-            if self.serializer is not None:
-                if self.serializer == 'pickle':
-                    self._cached_data = pickle.load(f)
-                else:
-                    raise f'Cannot load blob with unrecognized serializer {self.serializer}'
-            else:
-                self._cached_data = f.read()
+            try:
+                self._cached_data = pickle.load(f)
+            except:
+                raise ValueError(f'Could not read blob data from: {self.fsspec_url}')
+
         return self._cached_data
 
     def save(self,
@@ -136,99 +104,115 @@ class Blob(Resource):
         #     time = datetime.today().strftime('%Y-%m-%d_%H:%M:%S')
         #     self.data_url = self.data_url + time or time
 
-        fss_file = fsspec.open(self.fsspec_url, mode='wb', **self.data_config)
+        fss_file = self.open(mode='wb')
         with fss_file as f:
-            if self.serializer is not None:
-                new_data = self.serialize_data(new_data)
-
             if not isinstance(new_data, bytes):
                 # Avoid TypeError: a bytes-like object is required
-                raise TypeError(f'Cannot save blob with data of type {type(new_data)}, add a serializer to the blob')
+                raise TypeError(f'Cannot save blob with data of type {type(new_data)}, data must be serialized')
 
             f.write(new_data)
 
         rns_client.save_config(resource=self,
-                               overwrite=overwrite)
-
-    def serialize_data(self, new_data):
-        if self.serializer == 'pickle':
-            return pickle.dumps(new_data)
-        else:
-            raise f'Cannot store blob with unrecognized serializer {self.serializer}'
+                               overwrite=overwrite,
+                               save_to=self.save_to)
 
     def delete_in_fs(self, recursive: bool = True):
-        fs = fsspec.filesystem(self.data_source)
         try:
-            fs.rm(self.data_url, recursive=recursive)
+            self.fsspec_fs.rm(self.fsspec_url, recursive=recursive)
         except FileNotFoundError:
             pass
 
     def exists_in_fs(self):
-        fs = fsspec.filesystem(self.data_source)
-        fs_exists = fs.exists(self.data_url)
+        return self.fsspec_fs.exists(self.fsspec_url)
 
-        # TODO check both here? (i.e. what is defined in config + fsspec filesystem)?
-        return fs_exists or rh.rns.top_level_rns_fns.exists(self.data_url)
+    def sync_from_cluster(self, cluster, url):
+        """ Efficiently rsync down a blob from a cluster, into the url of the current Blob object. """
+        if not cluster.address:
+            raise ValueError('Cluster must be started before copying data to it.')
+        # TODO support fsspec urls (e.g. nonlocal fs's)?
+        cluster.rsync(source=self.url, dest=url, up=False)
+
+    def from_cluster(self, cluster):
+        """ Create a remote blob from a url on a cluster. This will create a virtual link into the
+        cluster's filesystem. If you want to create a local copy or mount of the blob, use
+        `Blob(url=<local_url>).sync_from_cluster(<cluster>, <url>)` or
+        `Blob('url').from_cluster(<cluster>).mount(<local_url>)`. """
+        if not cluster.address:
+            raise ValueError('Cluster must be started before copying data from it.')
+        creds = cluster.ssh_creds()
+        data_config = {'host': cluster.address,
+                       'ssh_creds': {'username': creds['ssh_user'],
+                                     'pkey': creds['ssh_private_key']}
+                       }
+        new_blob = copy.deepcopy(self)
+        new_blob.fs = 'sftp'
+        new_blob.data_config = data_config
+        return new_blob
 
 
 def blob(data=None,
          name: Optional[str] = None,
-         folder: Union[Folder, str] = None,
-         data_url: Optional[str] = None,
+         url: Optional[str] = None,
          data_source: Optional[str] = None,
-         data_config: Optional[dict] = None,
-         serializer: Optional[str] = Blob.DEFAULT_SERIALIZER,
+         data_config: Optional[Dict] = None,
          load_from: Optional[List[str]] = None,
          save_to: Optional[List[str]] = None,
          dryrun: bool = True):
-    """ Returns a Blob object, which can be used to interact with the resource at the given url """
+    """ Returns a Blob object, which can be used to interact with the resource at the given url
+
+    Examples:
+    # Creating the blob data - note the data should be provided as a serialized object, runhouse does not provide the
+    # serialization functionality
+    data = json.dumps(list(range(50))
+
+    # 1. Create a remote blob with a name and no URL
+    # provide a folder path for which to save in the remote file system
+    # Since no URL is explicitly provided, we will save to a bucket called runhouse/blobs/my-blob
+    rh.blob(name="my-blob", data=data, data_source='s3', save_to=['rns'], dryrun=False)
+
+    # 2. Create a remote blob with a name and URL
+    rh.blob(name='my-blob', url='/runhouse-tests/my_blob.pickle', data=data, data_source='s3',
+            save_to=['rns'], dryrun=False)
+
+    # 3. Create a local blob with a name and a URL
+    # save the blob to the local filesystem
+    rh.blob(name=name, data=data, url=str(Path.cwd() / "my_blob.pickle"), save_to=['local'], dryrun=False)
+
+    # 4. Create a local blob with a name and no URL
+    # Since no URL is explicitly provided, we will save to ~/.cache/blobs/my-blob
+    rh.blob(name="/jlewitt1/my-blob", data=data, save_to=['local'], dryrun=False)
+
+    # Loading a blob
+    my_local_blob = rh.blob(name="my_blob", load_from=['local'])
+    my_s3_blob = rh.blob(name="my_blob", load_from=['rns'])
+
+    """
     config = rns_client.load_config(name, load_from=load_from)
+    config['name'] = name or config.get('rns_address', None) or config.get('name')
 
-    data_source = data_source or config.get('data_source')
-    if data_source is None:
-        data_source = Folder.DEFAULT_FS
+    fs = data_source or config.get('data_source') or rns_client.DEFAULT_FS
+    config['data_source'] = fs
 
-    if data_source not in fsspec.available_protocols():
-        raise ValueError('Invalid data source')
+    data_url = url or config.get('url')
+    if data_url is None:
+        if fs == rns_client.DEFAULT_FS:
+            # create random url to store in .cache folder of local filesystem
+            data_url = str(Path(f"~/.cache/blobs/{uuid.uuid4().hex}").expanduser())
+        else:
+            # save to the default bucket
+            name = name.lstrip('/')
+            data_url = f'{Blob.DEFAULT_FOLDER_PATH}/{name}'
 
-    config['data_source'] = data_source
-
-    data_url = data_url or config.get('data_url')
-    config['data_url'] = data_url
-
-    folder = folder or config.get('folder')
-    folder_url = Blob.folder_url(data_url)
-    if folder is None:
-        if not config['data_url']:
-            raise ValueError('data_url must exist if folder is not provided')
-        # Pass the folder path as the URL (since the URL provided here is the full path to the blob)
-        existing_folder = rh.folder(url=folder_url,
-                                    load_from=load_from,
-                                    fs=data_source,
-                                    dryrun=dryrun)
-    elif isinstance(folder, str):
-        existing_folder = rh.folder(name=folder,
-                                    url=folder_url,
-                                    load_from=load_from,
-                                    fs=data_source,
-                                    dryrun=dryrun)
-    elif isinstance(folder, Folder):
-        existing_folder = folder
-    else:
-        raise TypeError('Folder must be a string or a Folder object')
-
-    config['folder'] = existing_folder
+    config['url'] = data_url
 
     new_data = data if Resource.is_picklable(data) else config.get('data')
-    config['name'] = name or config.get('rns_address', None) or config.get('name')
-    config['serializer'] = serializer or config.get('serializer')
 
-    config['data_config'] = data_config or config.get('data_config')
     config['save_to'] = save_to
+    config['data_config'] = data_config or config.get('data_config')
 
     new_blob = Blob.from_config(config, dryrun=dryrun)
 
-    if new_blob.name and new_blob.is_picklable(new_data) and not dryrun:
+    if new_blob.name and not dryrun:
         new_blob.save(new_data, overwrite=True)
 
     return new_blob
