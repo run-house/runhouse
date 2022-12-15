@@ -4,10 +4,11 @@ import uuid
 from pathlib import Path
 from typing import Optional, List, Dict
 import fsspec
-from ray import cloudpickle as pickle
 
-from runhouse.rh_config import rns_client
-from runhouse.rns.folders.folder import Folder
+import runhouse as rh
+from runhouse.rns.top_level_rns_fns import save
+from runhouse.rh_config import rns_client, configs
+from runhouse.rns.folders.folder import Folder, PROVIDER_FS_LOOKUP
 from runhouse.rns.resource import Resource
 
 logger = logging.getLogger(__name__)
@@ -82,13 +83,11 @@ class Blob(Resource):
         """Get a file-like (OpenFile container object) of the blob data"""
         return fsspec.open(self.fsspec_url, mode=mode)
 
-    def fetch(self, return_file_like=False):
-        fss_file = self.open()
-        if return_file_like:
-            return fss_file
-        with fss_file as f:
+    def fetch(self):
+        """Return the data for the user to deserialize"""
+        with self.open() as f:
             try:
-                self._cached_data = pickle.load(f)
+                self._cached_data = f.read()
             except:
                 raise ValueError(f'Could not read blob data from: {self.fsspec_url}')
 
@@ -96,7 +95,9 @@ class Blob(Resource):
 
     def save(self,
              new_data,
-             overwrite: bool = False):
+             save_to: Optional[List[str]] = None,
+             snapshot: bool = False,
+             overwrite: bool = True):
         self._cached_data = new_data
         # TODO figure out default behavior for not overwriting but still saving
         # if not overwrite:
@@ -112,9 +113,10 @@ class Blob(Resource):
 
             f.write(new_data)
 
-        rns_client.save_config(resource=self,
-                               overwrite=overwrite,
-                               save_to=self.save_to)
+        save(self,
+             save_to=save_to if save_to is not None else self.save_to,
+             snapshot=snapshot,
+             overwrite=overwrite)
 
     def delete_in_fs(self, recursive: bool = True):
         try:
@@ -125,11 +127,12 @@ class Blob(Resource):
     def exists_in_fs(self):
         return self.fsspec_fs.exists(self.fsspec_url)
 
-    def sync_from_cluster(self, cluster, url):
+    def sync_from_cluster(self, cluster, url: Optional[str] = None):
         """ Efficiently rsync down a blob from a cluster, into the url of the current Blob object. """
         if not cluster.address:
             raise ValueError('Cluster must be started before copying data to it.')
         # TODO support fsspec urls (e.g. nonlocal fs's)?
+
         cluster.rsync(source=self.url, dest=url, up=False)
 
     def from_cluster(self, cluster):
@@ -157,6 +160,8 @@ def blob(data=None,
          data_config: Optional[Dict] = None,
          load_from: Optional[List[str]] = None,
          save_to: Optional[List[str]] = None,
+         mkdir: bool = False,
+         snapshot: bool = False,
          dryrun: bool = True):
     """ Returns a Blob object, which can be used to interact with the resource at the given url
 
@@ -180,7 +185,7 @@ def blob(data=None,
 
     # 4. Create a local blob with a name and no URL
     # Since no URL is explicitly provided, we will save to ~/.cache/blobs/my-blob
-    rh.blob(name="/jlewitt1/my-blob", data=data, save_to=['local'], dryrun=False)
+    rh.blob(name="my-blob", data=data, save_to=['local'], dryrun=False)
 
     # Loading a blob
     my_local_blob = rh.blob(name="my_blob", load_from=['local'])
@@ -190,11 +195,12 @@ def blob(data=None,
     config = rns_client.load_config(name, load_from=load_from)
     config['name'] = name or config.get('rns_address', None) or config.get('name')
 
-    fs = data_source or config.get('data_source') or rns_client.DEFAULT_FS
+    fs = data_source or config.get('data_source') or PROVIDER_FS_LOOKUP[configs.get('default_provider')]
     config['data_source'] = fs
 
     data_url = url or config.get('url')
     if data_url is None:
+        # TODO [JL] move some of the default params in this factory method to the defaults module for configurability
         if fs == rns_client.DEFAULT_FS:
             # create random url to store in .cache folder of local filesystem
             data_url = str(Path(f"~/.cache/blobs/{uuid.uuid4().hex}").expanduser())
@@ -205,14 +211,19 @@ def blob(data=None,
 
     config['url'] = data_url
 
-    new_data = data if Resource.is_picklable(data) else config.get('data')
+    new_data = data or config.get('data')
 
     config['save_to'] = save_to
     config['data_config'] = data_config or config.get('data_config')
 
+    if mkdir and data_source != rns_client.DEFAULT_FS:
+        # create the remote folder for the blob
+        folder_url = str(Path(data_url).parent)
+        rh.folder(name=folder_url, fs=data_source, save_to=save_to, dryrun=dryrun).mkdir()
+
     new_blob = Blob.from_config(config, dryrun=dryrun)
 
     if new_blob.name and not dryrun:
-        new_blob.save(new_data, overwrite=True)
+        new_blob.save(new_data, snapshot=snapshot, overwrite=True)
 
     return new_blob

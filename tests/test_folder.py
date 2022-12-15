@@ -1,4 +1,3 @@
-import os.path
 import unittest
 from pathlib import Path
 
@@ -10,8 +9,8 @@ import runhouse.rns.folders.folder
 from runhouse.rh_config import rns_client
 import runhouse.rns.top_level_rns_fns
 
-S3_TEST_BUCKET_NAME = "rh-folder-testing"
 TEMP_FILE = 'my_file.txt'
+TEMP_FOLDER = 'runhouse-tests'
 
 
 # TODO FAILS - where is tmp_dir being initialized?
@@ -38,9 +37,8 @@ def test_find_working_dir(tmp_path):
     assert d in str(Path(tmp_path, 'subdir/subdir'))
 
 
-# TODO FAILS
+# TODO [JL / DG] FAILS
 def test_set_folder(tmp_path):
-    # TODO [JL / DG] - possible we aren't saving the URL properly in the config?
     rh.folder('bert_ft', dryrun=False, save_to=['local'])
     runhouse.rns.top_level_rns_fns.set_folder('bert_ft')
     # assert rh.current_folder().url == str(Path.home() / 'runhouse/runhouse/rh/bert_ft')
@@ -51,7 +49,7 @@ def test_set_folder(tmp_path):
     assert runhouse.rns.top_level_rns_fns.exists('~/bert_ft/my_test_hw')
 
 
-# TODO FAILS
+# TODO [JL / DG] FAILS
 def test_contains(tmp_path):
     runhouse.rns.top_level_rns_fns.set_folder('~')
     assert rh.folder('bert_ft').contains('my_test_hw')
@@ -68,7 +66,7 @@ def test_rns_path(tmp_path):
     assert rh.folder('bert_ft').rns_address == rh.configs.get('default_folder') + '/bert_ft'
 
 
-# TODO FAILS
+# TODO [JL / DG] FAILS
 def test_ls():
     rh.set_folder('~')
     assert rh.ls() == rh.ls('~/')
@@ -83,7 +81,7 @@ def test_ls():
     assert rh.ls('bert_ft') == ['my_test_hw']
 
 
-# TODO FAILS
+# TODO [JL / DG] FAILS
 def test_github_folder():
     # TODO gh_folder = rh.folder(url='https://github.com/pytorch/pytorch', fs='github')
     gh_folder = rh.folder(url='/', fs='github', data_config={'org': 'pytorch',
@@ -93,22 +91,27 @@ def test_github_folder():
 
 def test_create_and_save_data_to_s3_folder():
     data = list(range(50))
-    s3_folder = rh.folder(name='runhouse-tests', fs='s3', url=S3_TEST_BUCKET_NAME, dryrun=False)
+    s3_folder = rh.folder(name=TEMP_FOLDER, fs='s3', dryrun=False)
+    s3_folder.mkdir()
     s3_folder.put({TEMP_FILE: pickle.dumps(data)}, overwrite=True)
 
     assert s3_folder.exists_in_fs()
 
 
-def test_read_data_from_s3_folder():
-    s3_folder = rh.folder(name='runhouse-test')
-    openfile: fsspec.core.OpenFile = s3_folder.get(name=TEMP_FILE)
-    data = s3_folder.read(openfile)
+def test_read_data_from_existing_s3_folder():
+    # Note: Uses folder created above
+    s3_folder = rh.folder(name=TEMP_FOLDER, load_from=['rns'])
+    fss_file: fsspec.core.OpenFile = s3_folder.get(name=TEMP_FILE)
+    with fss_file as f:
+        data = pickle.load(f)
 
     assert data == list(range(50))
 
 
-def test_delete_folder_from_s3():
-    s3_folder = rh.folder(name='runhouse-tests', fs='s3', url=S3_TEST_BUCKET_NAME, dryrun=False)
+def test_create_and_delete_folder_from_s3():
+    s3_folder = rh.folder(name=TEMP_FOLDER, fs='s3', dryrun=False, save_to=['local', 'rns'])
+    s3_folder.mkdir()
+
     # delete the folder from its relevant file system and its associated data saved locally and/or in the database
     s3_folder.delete_configs(delete_from=['local', 'rns'])
     s3_folder.delete_in_fs()

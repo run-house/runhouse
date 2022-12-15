@@ -34,17 +34,14 @@ def test_create_and_reload_local_blob():
 
 
 def test_create_and_reload_rns_blob():
-    # Make sure folder where the blob will be saved exists in the remote filesystem (e.g. S3)
-    rh.folder(name=S3_BUCKET, fs='s3').mkdir()
-
     name = "my_s3_blob"
     data = pickle.dumps(list(range(50)))
     url = f'/{S3_BUCKET}/test_blob.pickle'
     my_blob = rh.blob(name=name,
                       data=data,
                       url=url,
-                      data_source='s3',
                       save_to=['rns'],
+                      mkdir=False,
                       dryrun=False
                       )
 

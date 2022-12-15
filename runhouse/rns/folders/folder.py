@@ -72,10 +72,10 @@ class Folder(Resource):
                 self._url = url if Path(url).expanduser().is_absolute() else \
                     str(Path(rns_client.locate_working_dir()) / url)
         else:
-            # If no URL provided just use its name
-            url = name
+            if name:
+                # If no URL provided for a remote file system default to its name if provided
+                url = name
             self._url = url if url.startswith("/") else f'/{url}'
-
 
         self.local_mount = local_mount
         self._local_mount_path = None
@@ -179,12 +179,9 @@ class Folder(Resource):
         return new_folder
 
     def mkdir(self):
-        if self.exists_in_fs():
-            return
-
-        # create the bucket if it doesn't already exist
+        """create the bucket if it doesn't already exist"""
         logging.info(f'Creating new {self.fs} folder: {self.fsspec_url}')
-        self.fsspec_fs.mkdir(self.fsspec_url)
+        self.fsspec_fs.mkdirs(self.fsspec_url, exist_ok=True)
 
     def mount(self, url=None, tmp=False) -> str:
         """ Mount the folder locally. """
@@ -523,7 +520,6 @@ class Folder(Resource):
                                       num=len(contents),
                                       name_function=filenames.__getitem__)
         for (fss_file, raw_file) in zip(fss_files, contents.values()):
-            self.mkdir()  # Make sure the bucket exists before writing
             with fss_file as f:
                 f.write(raw_file)
 
