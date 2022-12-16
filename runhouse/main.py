@@ -22,8 +22,10 @@ def login(token: Optional[str] = typer.Argument(None, help="Your Runhouse API to
     local environment and Runhouse / Vault.
     """
     if not token:
-        console.print(f'Retrieve your token :key: to use :person_running: :house: '
-                      f'for secrets and artifact management: {rh_config.configs.get("api_server_url")}',
+        console.print(f'Retrieve your token :key: here to use :person_running: :house: Runhouse for '
+                      f'secrets and artifact management: '
+                      f'[link={rh_config.configs.get("api_server_url")}/dashboard/?option=token]'
+                      f'https://api.run.house[/link]',
                       style='bold yellow')
         token = typer.prompt("Token", type=str)
 

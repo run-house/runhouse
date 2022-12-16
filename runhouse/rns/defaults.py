@@ -43,12 +43,11 @@ class Defaults:
         if Path(config_path).exists():
             with open(config_path, 'r') as stream:
                 config = yaml.safe_load(stream)
+            logging.info(f'Loaded Runhouse config from {config_path}')
         if add_base_defaults:
             config = self.merge_with_base_defaults(config)
 
         self.defaults_cache = copy.deepcopy(config)
-
-        logging.info(f'Loaded Runhouse config from {config_path}')
 
         return config or {}
 
