@@ -546,7 +546,7 @@ def folder(name: Optional[str] = None,
     file_system = fs or config.get('fs') or Folder.DEFAULT_FS
     config['fs'] = file_system
 
-    if file_system == 'file' or file_system == 'github':
+    if file_system in ['file', 'github', 'sftp']:
         new_folder = Folder.from_config(config, dryrun=dryrun)
     elif file_system == 's3':
         from .s3_folder import S3Folder

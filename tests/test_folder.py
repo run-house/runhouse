@@ -15,7 +15,6 @@ TEMP_FOLDER = 'runhouse-tests'
 
 # TODO FAILS - where is tmp_dir being initialized?
 def test_find_working_dir(tmp_path):
-    tmp_path = '/Users/josh.l/dev/runhouse/rh/tmp'
     starting_dir = Path(tmp_path, 'subdir/subdir/subdir/subdir')
     d = rns_client.locate_working_dir(cwd=str(starting_dir))
     assert d in str(starting_dir)
