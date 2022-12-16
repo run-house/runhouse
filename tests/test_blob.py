@@ -14,14 +14,15 @@ def test_create_and_reload_local_blob():
     my_blob = rh.blob(data=data,
                       name=name,
                       url=str(TEMP_LOCAL_FOLDER / "my_blob.pickle"),
-                      data_source='file',
+                      fs='file',
                       save_to=['local'],
                       dryrun=False)
     del data
     del my_blob
 
     reloaded_blob = rh.blob(name=name, load_from=['local'])
-    assert reloaded_blob.data == list(range(50))
+    reloaded_data = pickle.loads(reloaded_blob.data)
+    assert reloaded_data == list(range(50))
 
     # Delete the blob itself
     reloaded_blob.delete_in_fs()
@@ -46,7 +47,8 @@ def test_create_and_reload_rns_blob():
                       )
 
     reloaded_blob = rh.blob(name=name, load_from=['rns'])
-    assert reloaded_blob.data == list(range(50))
+    reloaded_data = pickle.loads(reloaded_blob.data)
+    assert reloaded_data == list(range(50))
 
     # Delete the blob itself from the filesystem
     reloaded_blob.delete_in_fs()

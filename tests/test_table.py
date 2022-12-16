@@ -63,17 +63,17 @@ def test_create_and_reload_from_file():
     my_table = rh.table(data=data,
                         name='my_test_table',
                         data_url=TEMP_LOCAL_FILE_PATH,
-                        data_source='file')
-
+                        fs='file',
+                        mkdir=True)
     del data
     del my_table
 
-    reloaded_table = rh.table(name='my_test_table', dryrun=False, load_from=['local'])
+    reloaded_table = rh.table(name='my_test_table', load_from=['local'])
     reloaded_data = reloaded_table.data
     assert reloaded_data.to_pandas().shape == orig_data_shape
 
     reloaded_table.delete_in_fs()
-    assert not reloaded_table.folder.exists_in_fs()
+    assert not reloaded_table.exists_in_fs()
 
 
 def test_create_and_reload_dask_data_from_s3():
@@ -82,7 +82,7 @@ def test_create_and_reload_dask_data_from_s3():
     my_table = rh.table(data=orig_data,
                         name='my_test_dask_table',
                         data_url=S3_BUCKET_PATH,
-                        data_source='s3')
+                        fs='s3')
 
     del orig_data
     del my_table
@@ -102,7 +102,7 @@ def test_create_and_reload_huggingface_data_from_s3():
     my_table = rh.table(data=orig_data,
                         name='my_test_hf_table',
                         data_url=S3_BUCKET_PATH,
-                        data_source='s3')
+                        fs='s3')
 
     del orig_data
     del my_table
@@ -121,7 +121,7 @@ def test_create_and_reload_partitioned_data_from_s3():
     my_table = rh.table(data=data,
                         name='partitioned_my_test_table',
                         data_url=S3_BUCKET_PATH,
-                        data_source='s3',
+                        fs='s3',
                         partition_cols=['label'])
 
     del data
@@ -140,7 +140,7 @@ def test_stream_data_from_file():
     my_table = rh.table(data=data,
                         name='my_test_table',
                         data_url=TEMP_LOCAL_FILE_PATH,
-                        data_source='file')
+                        fs='file')
 
     batches = my_table.stream(batch_size=10)
     for idx, batch in enumerate(batches):
@@ -152,7 +152,7 @@ def test_stream_data_from_s3():
     my_table = rh.table(data=data,
                         name='my_test_table',
                         data_url=S3_BUCKET_PATH,
-                        data_source='s3')
+                        fs='s3')
 
     batches = my_table.stream(batch_size=10)
     for idx, batch in enumerate(batches):
@@ -168,7 +168,7 @@ def test_create_and_reload_s3():
     my_table = rh.table(data=data,
                         name=table_name,
                         data_url="donnyg-my-test-bucket/my_table.parquet",
-                        data_source='s3'
+                        fs='s3'
                         )
     del data
     del my_table

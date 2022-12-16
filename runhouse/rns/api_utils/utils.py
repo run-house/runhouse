@@ -35,7 +35,7 @@ def remove_null_values_from_dict(source_dic: dict) -> dict:
     return {k: v for k, v in source_dic.items() if v is not None}
 
 
-def read_response_data(resp: Response) -> dict:
+def read_response_data(resp: Response):
     return json.loads(resp.content).get('data', {})
 
 

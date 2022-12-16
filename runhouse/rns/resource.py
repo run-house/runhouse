@@ -121,16 +121,17 @@ class Resource:
         self.delete_configs()
         self._name = None
 
-    def history(self, entries: int = 10) -> List[Dict]:
+    @staticmethod
+    def history(name: str, entries: int = 10) -> List[Dict]:
         """Return the history of this resource, including specific config fields (e.g. blob URL) and which runs
         have overwritten it."""
-        resource_uri = rns_client.resource_uri(self.name)
-        resp = requests.get(f'{rns_client.api_server_url}/resource/history/{resource_uri}?num_entries={entries}',
+        resource_uri = rns_client.resource_uri(name)
+        resp = requests.get(f'{rns_client.api_server_url}/resource/history/{resource_uri}',
                             headers=rns_client.request_headers)
         if resp.status_code != 200:
             raise Exception(f'Failed to load resource history: {json.loads(resp.content)}')
 
-        resource_history: list = read_response_data(resp)
+        resource_history = read_response_data(resp)
         return resource_history
 
     # TODO delete sub-resources

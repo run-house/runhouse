@@ -22,7 +22,7 @@ class Blob(Resource):
     def __init__(self,
                  url: Optional[str] = None,
                  name: Optional[str] = None,
-                 data_source: Optional[str] = Folder.DEFAULT_FS,
+                 fs: Optional[str] = Folder.DEFAULT_FS,
                  data_config: Optional[Dict] = None,
                  dryrun: bool = True,
                  save_to: Optional[List[str]] = None,
@@ -33,15 +33,15 @@ class Blob(Resource):
 
         Args:
             name ():
-            data_source (): FSSpec protocol, e.g. 's3', 'gcs'. See/run `fsspec.available_protocols()`.
+            fs (): FSSpec protocol, e.g. 's3', 'gcs'. See/run `fsspec.available_protocols()`.
                 Default is "file", the local filesystem to wherever the blob is created.
             data_config ():
             serializer ():
         """
         super().__init__(name=name, dryrun=dryrun, save_to=save_to, load_from=load_from)
         self._cached_data = None
-        self.data_source = data_source
-        self.fsspec_fs = fsspec.filesystem(self.data_source)
+        self.fs = fs
+        self.fsspec_fs = fsspec.filesystem(self.fs)
         self.url = url
         self.data_config = data_config
 
@@ -52,7 +52,7 @@ class Blob(Resource):
         config = super().config_for_rns
         blob_config = {'url': self.url,  # pair with data source to create the physical URL
                        'type': self.RESOURCE_TYPE,
-                       'data_source': self.data_source
+                       'fs': self.fs
                        }
         config.update(blob_config)
         return config
@@ -77,7 +77,7 @@ class Blob(Resource):
 
     @property
     def fsspec_url(self):
-        return f'{self.data_source}://{self.url}'
+        return f'{self.fs}://{self.url}'
 
     def open(self, mode='rb'):
         """Get a file-like (OpenFile container object) of the blob data"""
@@ -156,7 +156,7 @@ class Blob(Resource):
 def blob(data=None,
          name: Optional[str] = None,
          url: Optional[str] = None,
-         data_source: Optional[str] = None,
+         fs: Optional[str] = None,
          data_config: Optional[Dict] = None,
          load_from: Optional[List[str]] = None,
          save_to: Optional[List[str]] = None,
@@ -176,8 +176,7 @@ def blob(data=None,
     rh.blob(name="my-blob", data=data, data_source='s3', save_to=['rns'], dryrun=False)
 
     # 2. Create a remote blob with a name and URL
-    rh.blob(name='my-blob', url='/runhouse-tests/my_blob.pickle', data=data, data_source='s3',
-            save_to=['rns'], dryrun=False)
+    rh.blob(name='my-blob', url='/runhouse-tests/my_blob.pickle', data=data, fs='s3', save_to=['rns'], dryrun=False)
 
     # 3. Create a local blob with a name and a URL
     # save the blob to the local filesystem
@@ -195,8 +194,8 @@ def blob(data=None,
     config = rns_client.load_config(name, load_from=load_from)
     config['name'] = name or config.get('rns_address', None) or config.get('name')
 
-    fs = data_source or config.get('data_source') or PROVIDER_FS_LOOKUP[configs.get('default_provider')]
-    config['data_source'] = fs
+    fs = fs or config.get('fs') or PROVIDER_FS_LOOKUP[configs.get('default_provider')]
+    config['fs'] = fs
 
     data_url = url or config.get('url')
     if data_url is None:
@@ -216,10 +215,10 @@ def blob(data=None,
     config['save_to'] = save_to
     config['data_config'] = data_config or config.get('data_config')
 
-    if mkdir and data_source != rns_client.DEFAULT_FS:
+    if mkdir and fs != rns_client.DEFAULT_FS:
         # create the remote folder for the blob
         folder_url = str(Path(data_url).parent)
-        rh.folder(name=folder_url, fs=data_source, save_to=save_to, dryrun=dryrun).mkdir()
+        rh.folder(name=folder_url, fs=fs, save_to=save_to, dryrun=dryrun).mkdir()
 
     new_blob = Blob.from_config(config, dryrun=dryrun)
 
