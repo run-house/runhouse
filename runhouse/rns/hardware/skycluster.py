@@ -131,8 +131,8 @@ class Cluster(Resource):
 
         with Path(yaml_path).expanduser().open(mode='w+') as f:
             yaml.safe_dump(ray_config, f)
-        backend_utils._add_auth_to_cluster_config(handle_info['launched_resources']['cloud'],
-                                                  Path(yaml_path).expanduser())
+        cloud_provider = sky.clouds.CLOUD_REGISTRY.from_str(handle_info['launched_resources']['cloud'])
+        backend_utils._add_auth_to_cluster_config(cloud_provider, str(Path(yaml_path).expanduser()))
         handle = CloudVmRayBackend.ResourceHandle(
             cluster_name=self.name,
             cluster_yaml=yaml_path,
