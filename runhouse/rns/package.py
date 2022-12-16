@@ -109,7 +109,7 @@ class Package(Folder):
             # Calling the factory function below!
             return package(name=specifier[4:], dryrun=dryrun)
         else:
-            if Path(specifier).exists():
+            if Path(specifier).resolve().exists():
                 return Package(url=specifier, install_method='reqs', dryrun=dryrun)
             else:
                 return Package(name=specifier, install_method='pip', dryrun=dryrun)

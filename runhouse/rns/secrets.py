@@ -158,20 +158,20 @@ class Secrets:
     def save_enabled_provider_secrets(cls,
                                       secrets: dict):
         """Save secrets for each configured provider to their respective local configs"""
-        enabled_providers = cls.enabled_providers()
         for provider_name, provider_data in secrets.items():
             cls_name = cls.provider_cls_name(provider_name)
             provider_cls = cls.get_class_from_name(cls_name)
-            # Make sure this provider has already been enabled locally
-            if provider_cls not in enabled_providers:
-                logger.warning(f'Received secrets for {provider_name} which are not configured locally. Run `sky check`'
-                               f' for instructions on how to configure. If the secret is for a custom provider, you '
-                               f'can set the relevant environment variables manually.')
-                # continue
-
             # Save secrets to local config
             if provider_cls is not None:
                 provider_cls.save_secrets(provider_data)
+
+        enabled_providers = cls.enabled_providers(as_str=True)
+        for provider_name in secrets.keys():
+            if provider_name not in enabled_providers:
+                logger.warning(f'Received secrets for {provider_name} which are not configured locally. Run `sky check`'
+                               f' for instructions on how to configure. If the secret is for a custom provider, you '
+                               f'can set the relevant environment variables manually.')
+
 
     @classmethod
     def enabled_providers(cls, as_str: bool = False) -> List:

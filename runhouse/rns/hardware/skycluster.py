@@ -131,7 +131,7 @@ class Cluster(Resource):
 
         with Path(yaml_path).expanduser().open(mode='w+') as f:
             yaml.safe_dump(ray_config, f)
-        backend_utils._add_auth_to_cluster_config(sky.clouds.CLOUD_REGISTRY.from_str(self.provider),
+        backend_utils._add_auth_to_cluster_config(handle_info['launched_resources']['cloud'],
                                                   Path(yaml_path).expanduser())
         handle = CloudVmRayBackend.ResourceHandle(
             cluster_name=self.name,
@@ -209,7 +209,6 @@ class Cluster(Resource):
            region: str = None,
            ):
         if self.provider in ['aws', 'gcp', 'azure', 'cheapest']:
-            # TODO allow provider = 'cheapest'
             task = sky.Task(  # run=f'echo SkyPilot cluster {self.name} launched.',
                 num_nodes=self.num_instances if ':' not in self.instance_type else None,
                 # workdir=package,
