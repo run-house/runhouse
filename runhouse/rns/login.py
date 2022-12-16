@@ -1,6 +1,6 @@
 import logging
 
-from .. import configs
+from runhouse import rh_config
 from .secrets import Secrets
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ def login(token: str = None,
         console = Console()
         console.print(f'Retrieve your token :key: here to use :person_running: :house: Runhouse for '
                       f'secrets and artifact management: '
-                      f'[link={configs.get("api_server_url")}/dashboard/?option=token]'
+                      f'[link={rh_config.configs.get("api_server_url")}/dashboard/?option=token]'
                       f'https://api.run.house[/link]',
                       style='bold yellow')
         token = typer.prompt("Token", type=str)
