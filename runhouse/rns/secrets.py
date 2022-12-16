@@ -177,6 +177,7 @@ class Secrets:
     def enabled_providers(cls, as_str: bool = False) -> List:
         """Returns a list of cloud provider class objects which have been enabled locally. If as_str is True,
         return the names of the providers as strings"""
+        sky.check.check(quiet=True)
         clouds = sky.global_user_state.get_enabled_clouds()
         cloud_names = [str(c).lower() for c in clouds]
         if 'local' in cloud_names:
