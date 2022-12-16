@@ -53,7 +53,7 @@ def test_contains(tmp_path):
     runhouse.rns.top_level_rns_fns.set_folder('~')
     assert rh.folder('bert_ft').contains('my_test_hw')
 
-    assert rh.folder('bert_ft').contains('~/bert_ft/my_qtest_hw')
+    assert rh.folder('bert_ft').contains('~/bert_ft/my_test_hw')
 
     runhouse.rns.top_level_rns_fns.set_folder('bert_ft')
     assert rh.folder('~/bert_ft').contains('./my_test_hw')
@@ -68,16 +68,16 @@ def test_rns_path(tmp_path):
 # TODO [JL / DG] FAILS
 def test_ls():
     rh.set_folder('~')
-    assert rh.ls() == rh.ls('~/')
-    assert rh.ls(full_paths=True)
+    assert rh.resources() == rh.resources('~/')
+    assert rh.resources(full_paths=True)
     rh.set_folder('^')
-    assert rh.ls() == ['rh-32-cpu', 'rh-gpu', 'rh-cpu', 'rh-4-gpu', 'rh-8-cpu',
+    assert rh.resources() == ['rh-32-cpu', 'rh-gpu', 'rh-cpu', 'rh-4-gpu', 'rh-8-cpu',
                        'rh-v100', 'rh-8-v100', 'rh-8-gpu', 'rh-4-v100']
-    assert rh.ls('bert_ft') == []  # We're still inside builtins so we can't see bert_ft
-    assert rh.folder('~/bert_ft', dryrun=False).ls() == ['my_test_hw']
+    assert rh.resources('bert_ft') == []  # We're still inside builtins so we can't see bert_ft
+    assert rh.folder('~/bert_ft', dryrun=False).resources() == ['my_test_hw']
     rh.set_folder('~')
-    assert rh.folder('bert_ft', dryrun=False).ls() == ['my_test_hw']
-    assert rh.ls('bert_ft') == ['my_test_hw']
+    assert rh.folder('bert_ft', dryrun=False).resources() == ['my_test_hw']
+    assert rh.resources('bert_ft') == ['my_test_hw']
 
 
 # TODO [JL / DG] FAILS
@@ -99,7 +99,7 @@ def test_create_and_save_data_to_s3_folder():
 
 def test_read_data_from_existing_s3_folder():
     # Note: Uses folder created above
-    s3_folder = rh.folder(name=TEMP_FOLDER, load_from=['rns'])
+    s3_folder = rh.folder(name=TEMP_FOLDER, load_from=['local'])
     fss_file: fsspec.core.OpenFile = s3_folder.get(name=TEMP_FILE)
     with fss_file as f:
         data = pickle.load(f)

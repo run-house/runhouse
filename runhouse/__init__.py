@@ -6,7 +6,7 @@ from .rns.login import login
 from .rh_config import configs, rns_client
 
 from runhouse.rns.top_level_rns_fns import exists, set_folder, unset_folder, current_folder, \
-    ls, ipython, locate, load, \
+    resources, ipython, locate, load, \
     pin_to_memory, get_pinned_object
 
 from .rns.package import package, Package

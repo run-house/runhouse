@@ -65,16 +65,32 @@ class Folder(Resource):
 
         if self.fs == Folder.DEFAULT_FS:
             if url is None:
-                # If no URL specified for local file system, use the current folder
-                self._url = rns_client.current_folder
+                # If no URL specified for local file system, try the parent folder, then put in the rh directory
+                name, rns_parent = rns_client.split_rns_name_and_path(self.rns_address)
+                parent_url = rns_client.locate(rns_parent, resolve_path=False, load_from=['local'])
+                if parent_url is not None:
+                    self._url = Path(parent_url) / name
+                else:
+                    if self.rns_address.startswith(rns_client.default_folder):
+                        rel_path = self.rns_address[len(rns_client.default_folder) + 1:]
+                    else:
+                        rel_path = self.rns_address
+                    self._url = str(Path(rns_client.rh_directory) / rel_path)
+                    rns_client.rns_base_folders.update({self.rns_address: self._url})
             else:
                 # If the url is not absolute, assume that it's relative to the working directory
                 self._url = url if Path(url).expanduser().is_absolute() else \
                     str(Path(rns_client.locate_working_dir()) / url)
         else:
-            if name:
+            if url is None:
                 # If no URL provided for a remote file system default to its name if provided
-                url = name
+                if not name:
+                    raise ValueError(f'Either a URL or name must be provided for remote filesystem {self.fs}.')
+                if self.rns_address.startswith(rns_client.default_folder):
+                    rel_path = self.rns_address[len(rns_client.default_folder) + 1:]
+                else:
+                    rel_path = self.rns_address
+                url = 'runhouse/' + rel_path
             self._url = url if url.startswith("/") else f'/{url}'
 
         self.local_mount = local_mount
@@ -305,7 +321,11 @@ class Folder(Resource):
         """Generate the FSSpec URL using the file system and url of the folder"""
         return f'{self.fs}://{self.url}'
 
-    def ls(self, full_paths: bool = False, resource_type: str = None):
+    def ls(self):
+        """List the contents of the folder"""
+        return self.fsspec_fs.ls(path=self.url) if self.url and Path(self.url).exists() else []
+
+    def resources(self, full_paths: bool = False, resource_type: str = None):
         """List the resources in the *RNS* folder.
 
         Args:
@@ -315,23 +335,12 @@ class Folder(Resource):
         """
         # TODO filter by type
         # TODO allow '*' wildcard for listing all resources (and maybe other wildcard things)
-        fs = self.fsspec_fs
-        # TODO don't exclude physical files that are not resources?
-        physical_children = [path for path in fs.ls(path=self.url)
-                             if (Path(path) / 'config.json').exists()] \
-            if self.url else []
-
-        virtual_children = set()
-        if self.name:  # Anonymous folders can't have non-local rns children
-            for (rns_path, url) in rns_client.rns_base_folders.items():
-                if rns_path.startswith(self.rns_address) and rns_path != self.rns_address:
-                    child_name = Path(rns_path[len(self.rns_address):]).name
-                    virtual_children.add(self.rns_address + '/' + child_name)
+        resources = [path for path in self.ls() if (Path(path) / 'config.json').exists()]
 
         if full_paths:
-            return [self.rns_address + '/' + Path(path).stem for path in physical_children] + list(virtual_children)
+            return [self.rns_address + '/' + Path(path).stem for path in resources]
         else:
-            return [Path(path).stem for path in physical_children + list(virtual_children)]
+            return [Path(path).stem for path in resources]
 
     @property
     def rns_address(self):
@@ -504,7 +513,7 @@ class Folder(Resource):
                             'filenames to file-like-objects')
 
         if overwrite is False:
-            folder_contents = self.ls()
+            folder_contents = self.resources()
             intersection = set(folder_contents).intersection(set(contents.keys()))
             if intersection != set():
                 raise FileExistsError(f'File(s) {intersection} already exist(s) at url'
@@ -563,6 +572,6 @@ def folder(name: Optional[str] = None,
         raise ValueError(f'File system {file_system} not supported.')
 
     if new_folder.name and not dryrun:
-        new_folder.save(name=config['name'], save_to=config['save_to'])
+        new_folder.save(name=new_folder.name, save_to=new_folder.save_to)
 
     return new_folder
