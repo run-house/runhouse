@@ -218,7 +218,7 @@ def blob(data=None,
     if mkdir and fs != rns_client.DEFAULT_FS:
         # create the remote folder for the blob
         folder_url = str(Path(data_url).parent)
-        rh.folder(name=folder_url, fs=fs, save_to=save_to, dryrun=dryrun).mkdir()
+        rh.folder(name=folder_url, fs=fs, save_to=[], dryrun=True).mkdir()
 
     new_blob = Blob.from_config(config, dryrun=dryrun)
 
