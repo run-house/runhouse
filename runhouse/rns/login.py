@@ -51,10 +51,10 @@ def login(token: str = None,
             return None
 
     if download_secrets:
-        Secrets.download_into_env(headers=request_headers)
+        Secrets.download_into_env()
 
     if upload_secrets:
-        Secrets.extract_and_upload(headers=request_headers)
+        Secrets.extract_and_upload()
 
     logger.info('Successfully logged into Runhouse')
     if ret_token:

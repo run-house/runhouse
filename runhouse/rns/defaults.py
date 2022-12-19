@@ -70,14 +70,16 @@ class Defaults:
         """Upload defaults into rns. If defaults is None, upload the defaults from the local config file,
         `~/.rh/config.yaml."""
         if not defaults:
-            defaults = self.load_defaults_from_file(add_base_defaults=False)
+            to_upload = self.load_defaults_from_file(add_base_defaults=False)
+        else:
+            to_upload = copy.deepcopy(defaults)
         # We don't need to save these
-        del defaults['token']
-        del defaults['username']
+        del to_upload['token']
+        del to_upload['username']
 
         endpoint = self.USER_ENDPOINT if entity == 'user' else self.GROUP_ENDPOINT + f'/{entity}'
         resp = requests.put(f'{self.get("api_server_url")}/{endpoint}/config',
-                            data=json.dumps(defaults),
+                            data=json.dumps(to_upload),
                             headers=headers or self.request_headers)
         if resp.status_code != 200:
             raise Exception(f'Failed to update defaults for {entity}, received status code {resp.status_code}')
@@ -128,7 +130,10 @@ class Defaults:
             # Note: local defaults take precedence over downloaded defaults
             existing = self.load_defaults_from_file(config_path=config_path,
                                                     add_base_defaults=False)
-            defaults.update(existing)
+            # TODO [DG] Downloaded take priority over local , is that right?
+            # If we switch this back do the opposite, still need to keep the new token!
+            existing.update(defaults)
+            defaults = existing
         if merge_with_base_defaults:
             defaults = self.merge_with_base_defaults(defaults)
         self.save_defaults(defaults, config_path=config_path)
