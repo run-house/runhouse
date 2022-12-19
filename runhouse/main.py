@@ -39,7 +39,7 @@ def login(token: Optional[str] = typer.Argument(None, help="Your Runhouse API to
                                           download_secrets=download_secrets,
                                           ret_token=True)
     if valid_token:
-        webbrowser.open(f"{rh_config.configs.get('api_server_url')}/dashboard?token={valid_token}")
+        webbrowser.open(f"{configs.get('api_server_url')}/dashboard?token={valid_token}")
         raise typer.Exit()
     else:
         raise typer.Exit(code=1)
