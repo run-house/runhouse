@@ -195,7 +195,7 @@ class Folder(Resource):
         return new_folder
 
     def mkdir(self):
-        """create the bucket if it doesn't already exist"""
+        """create the folder in specified bucket if it doesn't already exist"""
         logging.info(f'Creating new {self.fs} folder: {self.fsspec_url}')
         self.fsspec_fs.mkdirs(self.fsspec_url, exist_ok=True)
 

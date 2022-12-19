@@ -67,8 +67,9 @@ def test_running_send_as_proxy():
 
 def test_get_send_history():
     # Assumes the send already exists
-    remote_sum = rh.send(name='remote_send')
-    history = remote_sum.history()
+    name = 'remote_send'
+    remote_sum = rh.send(name=name)
+    history = remote_sum.history(name=name)
     assert history
 
 

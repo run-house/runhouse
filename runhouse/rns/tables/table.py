@@ -1,51 +1,87 @@
 import shutil
+import uuid
 from pathlib import Path
 from typing import Optional, List, Union
 import time
 import os
 
+import fsspec
 import pyarrow.parquet as pq
 import pyarrow as pa
 import ray.data
 
 from .. import Resource
-from runhouse.rns.folders.folder import Folder
+from runhouse.rns.folders.folder import Folder, PROVIDER_FS_LOOKUP
 import runhouse as rh
-from runhouse.rh_config import rns_client
+from runhouse.rh_config import rns_client, configs
+from ..top_level_rns_fns import save
 
 
 class Table(Resource):
+    RESOURCE_TYPE = 'table'
+    DEFAULT_FOLDER_PATH = '/runhouse/tables'
 
     def __init__(self,
-                 folder: Folder,
-                 name: str = None,
-                 data_source: str = None,
-                 data_config: dict = None,
+                 url: str,
+                 name: Optional[str] = None,
+                 fs: Optional[str] = None,
                  save_to: Optional[List[str]] = None,
                  dryrun: bool = True,
-                 partition_cols: list = None,
+                 partition_cols: Optional[List] = None,
                  **kwargs
                  ):
         super().__init__(name=name,
-                         data_source=data_source,
-                         data_config=data_config,
-                         partition_cols=partition_cols,
                          save_to=save_to,
-                         dryrun=dryrun,
-                         folder=folder)
+                         dryrun=dryrun)
+        self._cached_data = None
+        self.partition_cols = partition_cols
+        self.fs = fs
+        self.fsspec_fs = fsspec.filesystem(self.fs)
+        self.url = url
 
     @staticmethod
     def from_config(config: dict, dryrun=True):
         return Table(**config, dryrun=dryrun)
 
-    def fetch(self, deserializer: Optional[str] = None, return_file_like: bool = False, columns: Optional[list] = None):
+    @property
+    def config_for_rns(self):
+        config = super().config_for_rns
+        table_config = {'url': self.url,
+                        'type': self.RESOURCE_TYPE,
+                        'fs': self.fs}
+        config.update(table_config)
+        return config
+
+    @property
+    def data(self):
+        """Get the blob data"""
+        if self._cached_data is not None:
+            return self._cached_data
+        data = self.fetch()
+        return data
+
+    @data.setter
+    def data(self, new_data):
+        """Update the data blob to new data"""
+        self.save(new_data, overwrite=True)
+
+    def fetch(self, columns: Optional[list] = None):
         # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
         # TODO support columns to fetch a subset of the data
-        pq_table: pa.Table = pq.read_table(self.root_path, columns=columns)
-        return pq_table
+        self._cached_data: pa.Table = pq.read_table(self.root_path, columns=columns)
+
+        return self._cached_data
+
+    @property
+    def fsspec_url(self):
+        return f'{self.fs}://{self.url}'
+
+    @property
+    def root_path(self):
+        return self.fsspec_url if self.fs != rns_client.DEFAULT_FS else self.url
 
     def stream(self, batch_size, drop_last: bool = False, shuffle_seed: Optional[int] = None):
-        df = ray.data.read_parquet(self.fsspec_url)
+        df = ray.data.read_parquet(self.root_path)
         # TODO the latest ray version supports local shuffle inside iter_batches, use that instead?
         # https://docs.ray.io/en/latest/data/api/dataset.html#ray.data.Dataset.iter_batches
         if shuffle_seed is not None:
@@ -56,6 +92,8 @@ class Table(Resource):
 
     def save(self,
              new_data,
+             snapshot: bool = False,
+             save_to: Optional[List[str]] = None,
              overwrite: bool = False,
              partition_cols: Optional[list] = None):
 
@@ -63,24 +101,33 @@ class Table(Resource):
             raise TypeError("Data saved to a runhouse Table must have a to_parquet method, "
                             "ideally backed by PyArrow's `to_parquet`.")
 
-        try:
-            # We should be able to write the data directly to the cloud via fsspec
-            # https://stackoverflow.com/questions/53416226/how-to-write-parquet-file-from-pandas-dataframe-in-s3-in-python
-            # If we fail to write using fsspec, we'll do more manual work by building the table manually and using the
-            # pyarrow API to upload to the cloud
-            new_data.to_parquet(self.fsspec_url)
-        except:
-            pa_table: pa.Table = self.construct_table(new_data)
-            pq.write_to_dataset(pa_table,
-                                root_path=self.root_path,
-                                partition_cols=partition_cols)
+        # TODO [JL] NOTE: this should work but fsspec is pretty unreliable
+        # https://stackoverflow.com/questions/53416226/how-to-write-parquet-file-from-pandas-dataframe-in-s3-in-python
+        # new_data.to_parquet(self.fsspec_url)
 
-        rns_client.save_config(resource=self,
-                               overwrite=overwrite)
+        # Use pyarrow API to write partitioned data - adds an additional step to build the pyarrow table
+        # based on the provided data's format
+        pa_table: pa.Table = self.construct_table(new_data)
+        pq.write_to_dataset(pa_table,
+                            root_path=self.root_path,
+                            partition_cols=partition_cols)
 
-    def history(self, entries=10):
-        # TODO return the history of this URI, including each new url and which runs have overwritten it.
-        pass
+        save(self,
+             save_to=save_to if save_to is not None else self.save_to,
+             snapshot=snapshot,
+             overwrite=overwrite)
+
+    def delete_in_fs(self, recursive: bool = True):
+        """Remove contents of all subdirectories (ex: partitioned data folders)"""
+        # If file(s) are directories, recursively delete contents and then also remove the directory
+
+        # TODO [JL] this should actually delete the folders themselves (per fsspec), but only deletes their contents
+        # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.spec.AbstractFileSystem.rm
+        self.fsspec_fs.rm(self.root_path, recursive=recursive)
+
+    def exists_in_fs(self):
+        # TODO [JL] a little hacky - this checks the contents of the folder to make sure the table file(s) were deleted
+        return self.fsspec_fs.exists(self.root_path) and len(self.fsspec_fs.ls(self.root_path)) > 1
 
     # if provider == 'snowflake':
     #     new_table = SnowflakeTable.from_config(config, create=create)
@@ -120,7 +167,7 @@ class Table(Resource):
                 # If data is none of the above types, see if we have a pandas dataframe
                 return pa.Table.from_pandas(data)
             except:
-                # Saving down to local disk, then uploading to s3 via pyarrow API
+                # Save down to local disk, then upload to data source via pyarrow API
                 tmp_path = f'/tmp/temp_{int(time.time())}.parquet'
                 data.to_parquet(tmp_path)
 
@@ -140,39 +187,56 @@ def table(data=None,
           name: Optional[str] = None,
           folder: Union[Folder, str] = None,
           data_url: Optional[str] = None,
-          data_source: Optional[str] = None,
+          fs: Optional[str] = None,
           data_config: Optional[dict] = None,
           partition_cols: Optional[list] = None,
           save_to: Optional[List[str]] = None,
           load_from: Optional[List[str]] = None,
-          dryrun: bool = False
+          mkdir: bool = False,
+          dryrun: bool = True
           ):
     """ Returns a Table object, which can be used to interact with the table at the given url.
-    If the table does not exist, it will be created if `create` is True.
+    If the table does not exist, it will be saved if `dryrun` is False.
     """
     config = rns_client.load_config(name, load_from=load_from)
 
-    if isinstance(folder, str):
-        folder = rh.folder(name=folder, load_from=load_from)
+    fs = fs or config.get('fs') or PROVIDER_FS_LOOKUP[configs.get('default_provider')]
+    config['fs'] = fs
+
+    data_url = data_url or config.get('url')
+    if data_url is None:
+        # TODO [JL] move some of the default params in this factory method to the defaults module for configurability
+        if fs == rns_client.DEFAULT_FS:
+            # create random url to store in .cache folder of local filesystem
+            data_url = str(Path(f"~/.cache/tables/{uuid.uuid4().hex}").expanduser())
+        else:
+            # save to the default bucket
+            name = name.lstrip('/')
+            data_url = f'{Table.DEFAULT_FOLDER_PATH}/{name}'
+
+    config['url'] = data_url
 
     existing_folder = folder or config.get('folder')
-    if not existing_folder:
-        raise ValueError('A table must container a folder - no folder was provided or exists in the config')
+    if existing_folder is None:
+        folder_url = str(Path(data_url).parent)
+        existing_folder = rh.folder(url=folder_url, save_to=[], fs=fs)
 
-    # TODO look at the data url to determine the folder to instantiate
+    if isinstance(folder, str):
+        existing_folder = rh.folder(url=folder, save_to=[], fs=fs)
 
-    config['folder'] = existing_folder
+    config['folder'] = existing_folder.name if existing_folder else Table.DEFAULT_FOLDER_PATH
 
     new_data = data if Resource.is_picklable(data) else config.get('data')
     config['data'] = new_data
     config['name'] = name or config.get('rns_address', None) or config.get('name')
-    config['data_url'] = data_url or config.get('data_url')
-    config['data_source'] = data_source or config.get('data_source')
     config['data_config'] = data_config or config.get('data_config')
     config['partition_cols'] = partition_cols or config.get('partition_cols')
     config['save_to'] = save_to
 
     new_table = Table.from_config(config, dryrun=dryrun)
+
+    if mkdir and fs != rns_client.DEFAULT_FS:
+        existing_folder.mkdir()
 
     if new_table.name and Resource.is_picklable(new_data) and not dryrun:
         new_table.save(new_data, overwrite=True, partition_cols=partition_cols)
