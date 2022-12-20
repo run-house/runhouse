@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional, List, Union
 import time
 import os
+import copy
 
 import fsspec
 import pyarrow.parquet as pq
@@ -25,6 +26,8 @@ class Table(Resource):
                  url: str,
                  name: Optional[str] = None,
                  fs: Optional[str] = None,
+                 # TODO hold a Folder object
+                 data_config: Optional[dict] = None,
                  save_to: Optional[List[str]] = None,
                  dryrun: bool = True,
                  partition_cols: Optional[List] = None,
@@ -38,6 +41,7 @@ class Table(Resource):
         self.fs = fs
         self.fsspec_fs = fsspec.filesystem(self.fs)
         self.url = url
+        self.data_config = data_config
 
     @staticmethod
     def from_config(config: dict, dryrun=True):
@@ -68,7 +72,8 @@ class Table(Resource):
     def fetch(self, columns: Optional[list] = None):
         # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
         # TODO support columns to fetch a subset of the data
-        self._cached_data: pa.Table = pq.read_table(self.root_path, columns=columns)
+        with fsspec.open(self.fsspec_url, mode='rb', **self.data_config) as t:
+            self._cached_data: pa.Table = pq.read_table(t, columns=columns)
 
         return self._cached_data
 
@@ -128,6 +133,22 @@ class Table(Resource):
     def exists_in_fs(self):
         # TODO [JL] a little hacky - this checks the contents of the folder to make sure the table file(s) were deleted
         return self.fsspec_fs.exists(self.root_path) and len(self.fsspec_fs.ls(self.root_path)) > 1
+
+    def from_cluster(self, cluster):
+        """ Create a remote folder from a url on a cluster. This will create a virtual link into the
+        cluster's filesystem. If you want to create a local copy or mount of the folder, use
+        `Folder(url=<local_url>).sync_from_cluster(<cluster>, <url>)` or
+        `Folder('url').from_cluster(<cluster>).mount(<local_url>)`. """
+        if not cluster.address:
+            raise ValueError('Cluster must be started before copying data from it.')
+        creds = cluster.ssh_creds()
+        data_config = {'host': cluster.address,
+                       'username': creds['ssh_user'],
+                       'key_filename': str(Path(creds['ssh_private_key']).expanduser())}
+        new_table = copy.deepcopy(self)
+        new_table.fs = 'sftp'
+        new_table.data_config = data_config
+        return new_table
 
     # if provider == 'snowflake':
     #     new_table = SnowflakeTable.from_config(config, create=create)
@@ -203,15 +224,21 @@ def table(data=None,
     fs = fs or config.get('fs') or PROVIDER_FS_LOOKUP[configs.get('default_provider')]
     config['fs'] = fs
 
+    name = name or config.get('rns_address') or config.get('name')
+    name = name.lstrip('/') if name is not None else name
+    config['name'] = name
+
     data_url = data_url or config.get('url')
+
     if data_url is None:
         # TODO [JL] move some of the default params in this factory method to the defaults module for configurability
+        if name is None:
+            name = uuid.uuid4().hex
         if fs == rns_client.DEFAULT_FS:
             # create random url to store in .cache folder of local filesystem
-            data_url = str(Path(f"~/.cache/tables/{uuid.uuid4().hex}").expanduser())
+            data_url = str(Path(f"~/.cache/tables/{name}").expanduser())
         else:
             # save to the default bucket
-            name = name.lstrip('/')
             data_url = f'{Table.DEFAULT_FOLDER_PATH}/{name}'
 
     config['url'] = data_url
@@ -228,7 +255,6 @@ def table(data=None,
 
     new_data = data if Resource.is_picklable(data) else config.get('data')
     config['data'] = new_data
-    config['name'] = name or config.get('rns_address', None) or config.get('name')
     config['data_config'] = data_config or config.get('data_config')
     config['partition_cols'] = partition_cols or config.get('partition_cols')
     config['save_to'] = save_to
@@ -238,7 +264,7 @@ def table(data=None,
     if mkdir and fs != rns_client.DEFAULT_FS:
         existing_folder.mkdir()
 
-    if new_table.name and Resource.is_picklable(new_data) and not dryrun:
+    if new_table.name and not dryrun:
         new_table.save(new_data, overwrite=True, partition_cols=partition_cols)
 
     return new_table
