@@ -13,7 +13,6 @@ TEMP_FILE = 'my_file.txt'
 TEMP_FOLDER = 'runhouse-tests'
 
 
-# TODO FAILS - where is tmp_dir being initialized?
 def test_find_working_dir(tmp_path):
     starting_dir = Path(tmp_path, 'subdir/subdir/subdir/subdir')
     d = rns_client.locate_working_dir(cwd=str(starting_dir))
@@ -36,7 +35,6 @@ def test_find_working_dir(tmp_path):
     assert d in str(Path(tmp_path, 'subdir/subdir'))
 
 
-# TODO [JL / DG] FAILS
 def test_set_folder(tmp_path):
     rh.folder('bert_ft', dryrun=False, save_to=['local'])
     runhouse.rns.top_level_rns_fns.set_folder('bert_ft')
@@ -48,7 +46,6 @@ def test_set_folder(tmp_path):
     assert runhouse.rns.top_level_rns_fns.exists('~/bert_ft/my_test_hw')
 
 
-# TODO [JL / DG] FAILS
 def test_contains(tmp_path):
     runhouse.rns.top_level_rns_fns.set_folder('~')
     assert rh.folder('bert_ft').contains('my_test_hw')
@@ -65,7 +62,6 @@ def test_rns_path(tmp_path):
     assert rh.folder('bert_ft').rns_address == rh.configs.get('default_folder') + '/bert_ft'
 
 
-# TODO [JL / DG] FAILS
 def test_ls():
     rh.set_folder('~')
     assert rh.resources() == rh.resources('~/')
@@ -80,7 +76,6 @@ def test_ls():
     assert rh.resources('bert_ft') == ['my_test_hw']
 
 
-# TODO [JL / DG] FAILS
 def test_github_folder():
     # TODO gh_folder = rh.folder(url='https://github.com/pytorch/pytorch', fs='github')
     gh_folder = rh.folder(url='/', fs='github', data_config={'org': 'pytorch',
@@ -120,7 +115,7 @@ def test_create_and_delete_folder_from_s3():
 
 def test_from_cluster():
     # Assumes a rh-cpu is already up from another test
-    cluster = rh.cluster(name='^rh-cpu').up_if_not()
+    cluster = rh.cluster(name='^rh-cpu', save_to=[]).up_if_not()
     folder = rh.folder('runhouse_package', fs='file', url='~/runhouse').from_cluster(cluster)
     assert len(folder.ls()) > 5
 

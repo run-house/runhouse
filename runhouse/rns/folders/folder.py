@@ -115,6 +115,9 @@ class Folder(Resource):
     @staticmethod
     def from_config(config: dict, dryrun=True):
         """ Load config values into the object. """
+        if isinstance(config['fs'], dict):
+            from runhouse.rns.hardware import Cluster
+            config['hardware'] = Cluster.from_config(config['fs'], dryrun=dryrun)
         return Folder(**config, dryrun=dryrun)
 
     @property
@@ -122,7 +125,7 @@ class Folder(Resource):
         if self._url is not None:
             if self.fs == Folder.DEFAULT_FS:
                 return str(Path(self._url).expanduser())
-            elif self.fs == 'sftp' and self._url.startswith('~/'):
+            elif self._fs_str == 'sftp' and self._url.startswith('~/'):
                 # sftp takes relative urls to the home directory but doesn't understand '~'
                 return self._url[2:]
             return self._url
@@ -145,6 +148,16 @@ class Folder(Resource):
 
     @property
     def data_config(self):
+        if isinstance(self.fs, Resource):  # if fs is a cluster
+            if not self.fs.address:
+                raise ValueError('Cluster must be started before copying data from it.')
+            creds = self.fs.ssh_creds()
+            config_creds = {'host': self.fs.address,
+                            'username': creds['ssh_user'],
+                            'key_filename': str(Path(creds['ssh_private_key']).expanduser())}
+            ret_config = self._data_config.copy()
+            ret_config.update(config_creds)
+            return ret_config
         return self._data_config
 
     @data_config.setter
@@ -153,9 +166,16 @@ class Folder(Resource):
         self._fsspec_fs = None
 
     @property
+    def _fs_str(self):
+        if isinstance(self.fs, Resource):  # if fs is a cluster
+            return 'sftp'
+        else:
+            return self.fs
+
+    @property
     def fsspec_fs(self):
         if self._fsspec_fs is None:
-            self._fsspec_fs = fsspec.filesystem(self.fs, **self.data_config)
+            self._fsspec_fs = fsspec.filesystem(self._fs_str, **self.data_config)
         return self._fsspec_fs
 
     @property
@@ -226,7 +246,7 @@ class Folder(Resource):
 
     def mkdir(self):
         """create the folder in specified bucket if it doesn't already exist"""
-        logging.info(f'Creating new {self.fs} folder: {self.fsspec_url}')
+        logging.info(f'Creating new {self._fs_str} folder: {self.fsspec_url}')
         self.fsspec_fs.mkdirs(self.fsspec_url, exist_ok=True)
 
     def mount(self, url=None, tmp=False) -> str:
@@ -271,13 +291,8 @@ class Folder(Resource):
         `Folder('url').from_cluster(<cluster>).mount(<local_url>)`. """
         if not cluster.address:
             raise ValueError('Cluster must be started before copying data from it.')
-        creds = cluster.ssh_creds()
-        data_config = {'host': cluster.address,
-                       'username': creds['ssh_user'],
-                       'key_filename': str(Path(creds['ssh_private_key']).expanduser())}
         new_folder = copy.deepcopy(self)
-        new_folder.fs = 'sftp'
-        new_folder.data_config = data_config
+        new_folder.fs = cluster
         return new_folder
 
     def is_local(self):
@@ -333,7 +348,10 @@ class Folder(Resource):
         else:
             config['url'] = self._url_relative_to_rh_workdir(self.url) if self.url else None
 
-        config['fs'] = self.fs
+        if isinstance(self.fs, Resource):  # If fs is a cluster
+            config['fs'] = self._resource_string_for_subconfig(self.fs)
+        else:
+            config['fs'] = self.fs
 
         return config
 
@@ -365,7 +383,10 @@ class Folder(Resource):
         """
         # TODO filter by type
         # TODO allow '*' wildcard for listing all resources (and maybe other wildcard things)
-        resources = [path for path in self.ls() if (Path(path) / 'config.json').exists()]
+        try:
+            resources = [path for path in self.ls() if (Path(path) / 'config.json').exists()]
+        except FileNotFoundError as e:
+            return []
 
         if full_paths:
             return [self.rns_address + '/' + Path(path).stem for path in resources]
@@ -584,22 +605,38 @@ def folder(name: Optional[str] = None,
 
     file_system = fs or config.get('fs') or Folder.DEFAULT_FS
     config['fs'] = file_system
+    if isinstance(file_system, str):
+        if file_system in ['file', 'github', 'sftp']:
+            new_folder = Folder.from_config(config, dryrun=dryrun)
+        elif file_system == 's3':
+            from .s3_folder import S3Folder
+            new_folder = S3Folder.from_config(config, dryrun=dryrun)
+        elif file_system == 'gcs':
+            # TODO [JL]
+            from .gcp_folder import GCPFolder
+            new_folder = GCPFolder.from_config(config, dryrun=dryrun)
+        elif file_system == 'azure':
+            # TODO [JL]
+            from .azure_folder import AzureFolder
+            new_folder = AzureFolder.from_config(config, dryrun=dryrun)
+        elif file_system in fsspec.available_protocols():
+            logger.warning(f'fsspec file system {file_system} not officially supported. Use at your own risk.')
+            new_folder = Folder.from_config(config, dryrun=dryrun)
+        elif rns_client.exists(file_system, resource_type='cluster', load_from=load_from):
+            config['fs'] = rns_client.load_config(file_system, load_from=load_from)
+        else:
+            raise ValueError(f'File system {file_system} not found. Have you installed the '
+                             f'necessary packages for this fsspec protocol? (e.g. s3fs for s3)')
 
-    if file_system in ['file', 'github', 'sftp']:
+    # If cluster is passed as the fs.
+    if isinstance(config['fs'], dict) or isinstance(config['fs'], Resource):  # if fs is a cluster
         new_folder = Folder.from_config(config, dryrun=dryrun)
-    elif file_system == 's3':
-        from .s3_folder import S3Folder
-        new_folder = S3Folder.from_config(config, dryrun=dryrun)
-    elif file_system == 'gcs':
-        # TODO [JL]
-        from .gcp_folder import GCPFolder
-        new_folder = GCPFolder.from_config(config, dryrun=dryrun)
-    elif file_system == 'azure':
-        # TODO [JL]
-        from .azure_folder import AzureFolder
-        new_folder = AzureFolder.from_config(config, dryrun=dryrun)
-    else:
-        raise ValueError(f'File system {file_system} not supported.')
+
+        # TODO Should we do this instead?
+        # config['hardware'] = config['fs']
+        # config['fs'] = 'sftp'
+        # from .cluster_folder import ClusterFolder
+        # new_folder = ClusterFolder.from_config(config, dryrun=dryrun)
 
     if new_folder.name and not dryrun:
         new_folder.save(name=new_folder.name, save_to=new_folder.save_to)
