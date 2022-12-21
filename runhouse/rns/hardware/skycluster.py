@@ -205,6 +205,11 @@ class Cluster(Resource):
             if cluster_dict['name'] == cluster_name:
                 return cluster_dict
 
+    def up_if_not(self):
+        if not self.is_up():
+            self.up()
+        return self
+
     def up(self,
            region: str = None,
            ):

@@ -81,7 +81,7 @@ class Blob(Resource):
 
     def open(self, mode='rb'):
         """Get a file-like (OpenFile container object) of the blob data"""
-        return fsspec.open(self.fsspec_url, mode=mode)
+        return fsspec.open(self.fsspec_url, mode=mode, **self.data_config)
 
     def fetch(self):
         """Return the data for the user to deserialize"""

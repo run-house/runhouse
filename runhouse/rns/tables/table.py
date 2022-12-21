@@ -41,7 +41,7 @@ class Table(Resource):
         self.fs = fs
         self.fsspec_fs = fsspec.filesystem(self.fs)
         self.url = url
-        self.data_config = data_config
+        self.data_config = data_config or {}
 
     @staticmethod
     def from_config(config: dict, dryrun=True):
@@ -76,6 +76,9 @@ class Table(Resource):
             self._cached_data: pa.Table = pq.read_table(t, columns=columns)
 
         return self._cached_data
+
+    def __getitem__(self, key: Optional[list] = None):
+        return self.data.__getitem__(key)
 
     @property
     def fsspec_url(self):
@@ -214,19 +217,19 @@ def table(data=None,
           save_to: Optional[List[str]] = None,
           load_from: Optional[List[str]] = None,
           mkdir: bool = False,
-          dryrun: bool = True
+          dryrun: bool = False,
           ):
     """ Returns a Table object, which can be used to interact with the table at the given url.
     If the table does not exist, it will be saved if `dryrun` is False.
     """
     config = rns_client.load_config(name, load_from=load_from)
 
-    fs = fs or config.get('fs') or PROVIDER_FS_LOOKUP[configs.get('default_provider')]
+    # fs = fs or config.get('fs') or PROVIDER_FS_LOOKUP[configs.get('default_provider')]
+    fs = fs or config.get('fs') or rns_client.DEFAULT_FS
     config['fs'] = fs
 
     name = name or config.get('rns_address') or config.get('name')
     name = name.lstrip('/') if name is not None else name
-    config['name'] = name
 
     data_url = data_url or config.get('url')
 
@@ -241,6 +244,7 @@ def table(data=None,
             # save to the default bucket
             data_url = f'{Table.DEFAULT_FOLDER_PATH}/{name}'
 
+    config['name'] = name
     config['url'] = data_url
 
     existing_folder = folder or config.get('folder')

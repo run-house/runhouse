@@ -100,8 +100,6 @@ class Folder(Resource):
         self.data_config = data_config or {}
         self.virtual_children = []
 
-        self.fsspec_fs = fsspec.filesystem(self.fs, **self.data_config)
-
         if self._name is None:
             if self.url is None:
                 # Create anonymous folder
@@ -122,7 +120,12 @@ class Folder(Resource):
     @property
     def url(self):
         if self._url is not None:
-            return str(Path(self._url).expanduser())
+            if self.fs == Folder.DEFAULT_FS:
+                return str(Path(self._url).expanduser())
+            elif self.fs == 'sftp' and self._url.startswith('~/'):
+                # sftp takes relative urls to the home directory but doesn't understand '~'
+                return self._url[2:]
+            return self._url
         else:
             return None
 
@@ -130,6 +133,30 @@ class Folder(Resource):
     def url(self, url):
         self._url = url
         self._local_mount_path = None
+
+    @property
+    def fs(self):
+        return self._fs
+
+    @fs.setter
+    def fs(self, data_source):
+        self._fs = data_source
+        self._fsspec_fs = None
+
+    @property
+    def data_config(self):
+        return self._data_config
+
+    @data_config.setter
+    def data_config(self, data_config):
+        self._data_config = data_config
+        self._fsspec_fs = None
+
+    @property
+    def fsspec_fs(self):
+        if self._fsspec_fs is None:
+            self._fsspec_fs = fsspec.filesystem(self.fs, **self.data_config)
+        return self._fsspec_fs
 
     @property
     def local_path(self):
@@ -153,8 +180,10 @@ class Folder(Resource):
             url (:obj:`str`, optional): fsspec URL.
             data_config(:obj:`dict`, optional): Config to move.
         """
+        # TODO [DG] create get_default_url for fs method to be shared
         if url is None:
             url = 'rh/' + self.rns_address
+        data_config = data_config or {}
         with fsspec.open(self.fsspec_url, **self.data_config) as src:
             with fsspec.open(f'{fs}://{url}', **data_config) as dest:
                 # NOTE For packages, maybe use the `ignore` param here to only copy python files.
@@ -165,6 +194,7 @@ class Folder(Resource):
 
     def cp(self, fs, url=None, data_config=None):
         """ Copy the folder to a new filesystem, and return a new Folder object pointing to the new location. """
+        # TODO [DG] use shared method to get default url
         if url is None:
             url = 'runhouse/' + self.rns_address[1:].replace('/', '_') + f'.{self.RESOURCE_TYPE}'
 
@@ -243,9 +273,8 @@ class Folder(Resource):
             raise ValueError('Cluster must be started before copying data from it.')
         creds = cluster.ssh_creds()
         data_config = {'host': cluster.address,
-                       'ssh_creds': {'username': creds['ssh_user'],
-                                     'pkey': creds['ssh_private_key']}
-                       }
+                       'username': creds['ssh_user'],
+                       'key_filename': str(Path(creds['ssh_private_key']).expanduser())}
         new_folder = copy.deepcopy(self)
         new_folder.fs = 'sftp'
         new_folder.data_config = data_config
@@ -323,7 +352,8 @@ class Folder(Resource):
 
     def ls(self):
         """List the contents of the folder"""
-        return self.fsspec_fs.ls(path=self.url) if self.url and Path(self.url).exists() else []
+        # return self.fsspec_fs.ls(path=self.url) if self.url and Path(self.url).exists() else []
+        return self.fsspec_fs.ls(path=self.url) if self.url else []
 
     def resources(self, full_paths: bool = False, resource_type: str = None):
         """List the resources in the *RNS* folder.

@@ -72,7 +72,7 @@ def test_ls():
     assert rh.resources(full_paths=True)
     rh.set_folder('^')
     assert rh.resources() == ['rh-32-cpu', 'rh-gpu', 'rh-cpu', 'rh-4-gpu', 'rh-8-cpu',
-                       'rh-v100', 'rh-8-v100', 'rh-8-gpu', 'rh-4-v100']
+                              'rh-v100', 'rh-8-v100', 'rh-8-gpu', 'rh-4-v100']
     assert rh.resources('bert_ft') == []  # We're still inside builtins so we can't see bert_ft
     assert rh.folder('~/bert_ft', dryrun=False).resources() == ['my_test_hw']
     rh.set_folder('~')
@@ -116,6 +116,13 @@ def test_create_and_delete_folder_from_s3():
     s3_folder.delete_in_fs()
 
     assert not s3_folder.exists_in_fs()
+
+
+def test_from_cluster():
+    # Assumes a rh-cpu is already up from another test
+    cluster = rh.cluster(name='^rh-cpu').up_if_not()
+    folder = rh.folder('runhouse_package', fs='file', url='~/runhouse').from_cluster(cluster)
+    assert len(folder.ls()) > 5
 
 
 if __name__ == '__main__':
