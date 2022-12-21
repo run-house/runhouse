@@ -33,17 +33,23 @@ class S3Folder(Folder):
         # Use skypilot's implementation
         pass
 
-    def empty_bucket(self):
-        for p in self.s3.ls(self.fsspec_url):
+    def empty_folder(self):
+        for p in self.s3.ls(self.url):
             self.s3.rm(p)
 
-    def delete_in_fs(self, *kwargs):
+    def delete_in_fs(self, recurse=True, *kwargs):
         """ Delete the folder itself. """
         try:
-            self.s3.rmdir(self.bucket_name)
-        except OSError:
+            if self.url == self.bucket_name:
+                self.s3.rmdir(self.bucket_name)
+            else:
+                self.s3.rm(self.url, recursive=True)
+        except OSError as e:
             # If folder isn't empty delete its contents first
-            self.empty_bucket()
-            self.delete_in_fs()
+            self.empty_folder()
+            if recurse:
+                self.delete_in_fs(recurse=False)
+            else:
+                raise e
         except Exception as e:
             raise Exception(f'Failed to delete bucket: {e}')

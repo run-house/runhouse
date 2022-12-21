@@ -56,12 +56,13 @@ def save(resource,
          save_to: Optional[List[str]] = None,
          snapshot: bool = False,
          overwrite: bool = True,
-         **kwargs):
+         **snapshot_kwargs):  # TODO [DG] was this supposed to be kwargs for the snapshot?
     """Register the resource, saving it to local working_dir config and/or RNS config store. Uses the resource's
     `self.config_for_rns` to generate the dict to save."""
 
     # TODO handle self.access == 'read' instead of this weird overwrite argument
-    resource_to_save = resource.snapshot() if snapshot else resource
+    snapshot_kwargs = snapshot_kwargs or {}
+    resource_to_save = resource.snapshot(**snapshot_kwargs) if snapshot else resource
     resource_to_save._name = name if name is not None else resource_to_save._name
     rns_client.save_config(resource=resource_to_save,
                            save_to=save_to,

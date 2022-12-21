@@ -98,7 +98,7 @@ class Resource:
              save_to: Optional[List[str]] = None,
              snapshot: bool = False,
              overwrite: bool = True,
-             **kwargs):
+             **snapshot_kwargs):
         """Register the resource, saving it to local working_dir config and RNS config store. Uses the resource's
         `self.config_for_rns` to generate the dict to save."""
 
@@ -114,7 +114,8 @@ class Resource:
         save(self,
              save_to=save_to if save_to is not None else self.save_to,
              snapshot=snapshot,
-             overwrite=overwrite, **kwargs)
+             overwrite=overwrite,
+             **snapshot_kwargs)
 
     def unname(self):
         """ Change the naming of the resource to anonymous and delete any local or RNS configs for the resource."""

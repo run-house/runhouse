@@ -1,5 +1,6 @@
 import unittest
 from pathlib import Path
+import yaml
 
 from ray import cloudpickle as pickle
 import runhouse as rh
@@ -39,9 +40,10 @@ def test_create_and_reload_rns_blob():
     data = pickle.dumps(list(range(50)))
     my_blob = rh.blob(name=name,
                       data=data,
+                      fs='s3',
                       url=f'/{S3_BUCKET}/test_blob.pickle',
                       save_to=['rns'],
-                      mkdir=False,
+                      mkdir=True,
                       dryrun=False
                       )
 
@@ -58,6 +60,14 @@ def test_create_and_reload_rns_blob():
 
     # Delete metadata saved locally and / or the database for the blob and its associated folder
     reloaded_blob.delete_configs(delete_from=['rns'])
+
+
+def test_from_cluster():
+    # Assumes a rh-cpu is already up from another test
+    cluster = rh.cluster(name='^rh-cpu', save_to=[]).up_if_not()
+    config_blob = rh.blob(fs='file', url='/home/ubuntu/.rh/config.yaml').from_cluster(cluster)
+    config_data = yaml.safe_load(config_blob.data)
+    assert len(config_data.keys()) > 4
 
 
 if __name__ == '__main__':

@@ -39,11 +39,14 @@ class Blob(Resource):
             serializer ():
         """
         super().__init__(name=name, dryrun=dryrun, save_to=save_to, load_from=load_from)
+        self._filename = str(Path(url).name) if url else self.name
+        self._folder = Folder(url=str(Path(url).parent) if url is not None else url,
+                              fs=fs,
+                              data_config=data_config,
+                              dryrun=dryrun,
+                              save_to=save_to,
+                              load_from=load_from)
         self._cached_data = None
-        self.fs = fs
-        self.fsspec_fs = fsspec.filesystem(self.fs)
-        self.url = url
-        self.data_config = data_config
 
     # TODO do we need a del?
 
@@ -73,45 +76,63 @@ class Blob(Resource):
     @data.setter
     def data(self, new_data):
         """Update the data blob to new data"""
-        self.save(new_data, overwrite=True)
+        self._cached_data = new_data
+        # TODO should we save here?
+        # self.save(overwrite=True)
+
+    @property
+    def fs(self):
+        return self._folder.fs
+
+    @fs.setter
+    def fs(self, new_fs):
+        self._folder.fs = new_fs
+
+    @property
+    def url(self):
+        return self._folder.url + '/' + self._filename
+
+    @url.setter
+    def url(self, new_url):
+        self._folder.url = str(Path(new_url).parent)
+        self._filename = str(Path(new_url).name)
 
     @property
     def fsspec_url(self):
-        return f'{self.fs}://{self.url}'
+        return self._folder.fsspec_url + '/' + self._filename
 
     def open(self, mode='rb'):
-        """Get a file-like (OpenFile container object) of the blob data"""
-        return fsspec.open(self.fsspec_url, mode=mode, **self.data_config)
+        """Get a file-like (OpenFile container object) of the blob data. User must close the file, or use this
+        method inside of a with statement (e.g. `with my_blob.open() as f:`)."""
+        return self._folder.open(self._filename, mode=mode)
 
     def fetch(self):
         """Return the data for the user to deserialize"""
-        with self.open() as f:
-            try:
-                self._cached_data = f.read()
-            except:
-                raise ValueError(f'Could not read blob data from: {self.fsspec_url}')
+        # try:
+        self._cached_data = self._folder.get(self._filename)
+        # except:
+        #     raise ValueError(f'Could not read blob data from: {self.fsspec_url}')
 
         return self._cached_data
 
     def save(self,
-             new_data,
+             name: str = None,
              save_to: Optional[List[str]] = None,
              snapshot: bool = False,
-             overwrite: bool = True):
-        self._cached_data = new_data
+             overwrite: bool = True,
+             **snapshot_kwargs):
         # TODO figure out default behavior for not overwriting but still saving
         # if not overwrite:
         #     TODO check if data_url is already in use
         #     time = datetime.today().strftime('%Y-%m-%d_%H:%M:%S')
         #     self.data_url = self.data_url + time or time
 
-        fss_file = self.open(mode='wb')
-        with fss_file as f:
-            if not isinstance(new_data, bytes):
+        with self.open(mode='wb') as f:
+            if not isinstance(self.data, bytes):
                 # Avoid TypeError: a bytes-like object is required
-                raise TypeError(f'Cannot save blob with data of type {type(new_data)}, data must be serialized')
+                raise TypeError(f'Cannot save blob with data of type {type(self.data)}, data must be serialized')
 
-            f.write(new_data)
+            f.write(self.data)
 
         save(self,
              save_to=save_to if save_to is not None else self.save_to,
@@ -119,14 +140,12 @@ class Blob(Resource):
              overwrite=overwrite)
 
     def delete_in_fs(self, recursive: bool = True):
-        try:
-            self.fsspec_fs.rm(self.fsspec_url, recursive=recursive)
-        except FileNotFoundError:
-            pass
+        self._folder.rm(self._filename, recursive=recursive)
 
     def exists_in_fs(self):
-        return self.fsspec_fs.exists(self.fsspec_url)
+        return self._folder.fsspec_fs.exists(self.fsspec_url)
 
+    # TODO [DG] get rid of this in favor of just "sync_down(url, fs)" ?
     def sync_from_cluster(self, cluster, url: Optional[str] = None):
         """ Efficiently rsync down a blob from a cluster, into the url of the current Blob object. """
         if not cluster.address:
@@ -142,14 +161,8 @@ class Blob(Resource):
         `Blob('url').from_cluster(<cluster>).mount(<local_url>)`. """
         if not cluster.address:
             raise ValueError('Cluster must be started before copying data from it.')
-        creds = cluster.ssh_creds()
-        data_config = {'host': cluster.address,
-                       'ssh_creds': {'username': creds['ssh_user'],
-                                     'pkey': creds['ssh_private_key']}
-                       }
         new_blob = copy.deepcopy(self)
-        new_blob.fs = 'sftp'
-        new_blob.data_config = data_config
+        new_blob._folder.fs = cluster
         return new_blob
 
 
@@ -194,7 +207,8 @@ def blob(data=None,
     config = rns_client.load_config(name, load_from=load_from)
     config['name'] = name or config.get('rns_address', None) or config.get('name')
 
-    fs = fs or config.get('fs') or PROVIDER_FS_LOOKUP[configs.get('default_provider')]
+    # fs = fs or config.get('fs') or PROVIDER_FS_LOOKUP[configs.get('default_provider')]
+    fs = fs or config.get('fs') or Folder.DEFAULT_FS
     config['fs'] = fs
 
     data_url = url or config.get('url')
@@ -210,8 +224,6 @@ def blob(data=None,
 
     config['url'] = data_url
 
-    new_data = data or config.get('data')
-
     config['save_to'] = save_to
     config['data_config'] = data_config or config.get('data_config')
 
@@ -221,8 +233,9 @@ def blob(data=None,
         rh.folder(name=folder_url, fs=fs, save_to=[], dryrun=True).mkdir()
 
     new_blob = Blob.from_config(config, dryrun=dryrun)
+    new_blob.data = data
 
     if new_blob.name and not dryrun:
-        new_blob.save(new_data, snapshot=snapshot, overwrite=True)
+        new_blob.save(snapshot=snapshot, overwrite=True)
 
     return new_blob

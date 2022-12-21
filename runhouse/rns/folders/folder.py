@@ -46,7 +46,6 @@ class Folder(Resource):
                 Default is "file", the local filesystem to wherever the blob is created.
             data_config ():
             local_path ():
-            serializer ():
         """
         super().__init__(name=name,
                          dryrun=dryrun,
@@ -277,6 +276,7 @@ class Folder(Resource):
             return dest_folder
         return dest_folder.from_cluster(cluster)
 
+    # TODO [DG] get rid of this in favor of just "sync_down(url, fs)" ?
     def sync_from_cluster(self, cluster, url):
         """ Efficiently rsync down a folder from a cluster, into the url of the current Folder object. """
         if not cluster.address:
@@ -366,7 +366,7 @@ class Folder(Resource):
     @property
     def fsspec_url(self):
         """Generate the FSSpec URL using the file system and url of the folder"""
-        return f'{self.fs}://{self.url}'
+        return f'{self._fs_str}://{self.url}'
 
     def ls(self):
         """List the contents of the folder"""
@@ -489,12 +489,22 @@ class Folder(Resource):
 
         return None, None
 
-    def get(self, name):
+    # TODO [DG] rename to open?
+    def open(self, name, mode='rb', encoding=None):
         """ Returns an fsspec file, which must be used as a content manager to be opened!
-        e.g. with my_folder.get('obj_name') as my_file:
+        e.g. with my_folder.open('obj_name') as my_file:
                 pickle.load(my_file)
         """
-        return fsspec.open(self.fsspec_url + '/' + name, mode='rb', **self.data_config)
+        return fsspec.open(urlpath=self.fsspec_url + '/' + name,
+                           mode=mode,
+                           encoding=encoding,
+                           **self.data_config)
+
+    def get(self, name, mode='rb', encoding=None):
+        """ Returns the contents of a file as a string or bytes.
+        """
+        with self.open(name, mode=mode, encoding=encoding) as f:
+            return f.read()
 
     def get_all(self):
         # TODO we're not closing these, do we need to extract file-like objects so we can close them?
@@ -505,9 +515,16 @@ class Folder(Resource):
 
     def delete_in_fs(self, recursive: bool = True):
         try:
-            self.fsspec_fs.rmdir(self.fsspec_url)
+            self.fsspec_fs.rmdir(self.url)
         except Exception as e:
             raise Exception(f"Failed to delete from file system: {e}")
+
+    def rm(self, name, recursive: bool = True):
+        """ Remove a resource from the folder. """
+        try:
+            self.fsspec_fs.rm(self.fsspec_url + '/' + name, recursive=recursive)
+        except FileNotFoundError:
+            pass
 
     def put(self, contents, overwrite=False):
         """

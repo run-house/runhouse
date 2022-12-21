@@ -83,6 +83,13 @@ def test_github_folder():
     assert gh_folder.ls()
 
 
+def test_from_cluster():
+    # Assumes a rh-cpu is already up from another test
+    cluster = rh.cluster(name='^rh-cpu', save_to=[]).up_if_not()
+    folder = rh.folder('runhouse_package', fs='file', url='~/runhouse').from_cluster(cluster)
+    assert len(folder.ls()) > 5
+
+
 def test_create_and_save_data_to_s3_folder():
     data = list(range(50))
     s3_folder = rh.folder(name=TEMP_FOLDER, fs='s3', dryrun=False)
@@ -95,7 +102,7 @@ def test_create_and_save_data_to_s3_folder():
 def test_read_data_from_existing_s3_folder():
     # Note: Uses folder created above
     s3_folder = rh.folder(name=TEMP_FOLDER, load_from=['local'])
-    fss_file: fsspec.core.OpenFile = s3_folder.get(name=TEMP_FILE)
+    fss_file: fsspec.core.OpenFile = s3_folder.open(name=TEMP_FILE)
     with fss_file as f:
         data = pickle.load(f)
 
@@ -111,13 +118,6 @@ def test_create_and_delete_folder_from_s3():
     s3_folder.delete_in_fs()
 
     assert not s3_folder.exists_in_fs()
-
-
-def test_from_cluster():
-    # Assumes a rh-cpu is already up from another test
-    cluster = rh.cluster(name='^rh-cpu', save_to=[]).up_if_not()
-    folder = rh.folder('runhouse_package', fs='file', url='~/runhouse').from_cluster(cluster)
-    assert len(folder.ls()) > 5
 
 
 if __name__ == '__main__':
