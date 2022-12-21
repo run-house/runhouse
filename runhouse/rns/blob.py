@@ -3,12 +3,11 @@ import logging
 import uuid
 from pathlib import Path
 from typing import Optional, List, Dict
-import fsspec
 
 import runhouse as rh
 from runhouse.rns.top_level_rns_fns import save
 from runhouse.rh_config import rns_client, configs
-from runhouse.rns.folders.folder import Folder, PROVIDER_FS_LOOKUP
+from runhouse.rns.folders.folder import Folder, folder
 from runhouse.rns.resource import Resource
 
 logger = logging.getLogger(__name__)
@@ -40,7 +39,8 @@ class Blob(Resource):
         """
         super().__init__(name=name, dryrun=dryrun, save_to=save_to, load_from=load_from)
         self._filename = str(Path(url).name) if url else self.name
-        self._folder = Folder(url=str(Path(url).parent) if url is not None else url,
+        # Use factory method so correct subclass for fs is returned
+        self._folder = folder(url=str(Path(url).parent) if url is not None else url,
                               fs=fs,
                               data_config=data_config,
                               dryrun=dryrun,
@@ -108,11 +108,7 @@ class Blob(Resource):
 
     def fetch(self):
         """Return the data for the user to deserialize"""
-        # try:
         self._cached_data = self._folder.get(self._filename)
-        # except:
-        #     raise ValueError(f'Could not read blob data from: {self.fsspec_url}')
-
         return self._cached_data
 
     def save(self,

@@ -489,7 +489,6 @@ class Folder(Resource):
 
         return None, None
 
-    # TODO [DG] rename to open?
     def open(self, name, mode='rb', encoding=None):
         """ Returns an fsspec file, which must be used as a content manager to be opened!
         e.g. with my_folder.open('obj_name') as my_file:
@@ -506,6 +505,7 @@ class Folder(Resource):
         with self.open(name, mode=mode, encoding=encoding) as f:
             return f.read()
 
+    # TODO [DG] fix this to follow the correct convention above
     def get_all(self):
         # TODO we're not closing these, do we need to extract file-like objects so we can close them?
         return fsspec.open_files(self.fsspec_url, mode='rb', **self.data_config)
