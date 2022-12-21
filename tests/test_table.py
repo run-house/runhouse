@@ -54,7 +54,7 @@ def test_create_and_reload_from_file():
     orig_data_shape = data.shape
     my_table = rh.table(data=data,
                         name='my_test_table',
-                        data_url='table_tests/test_table',
+                        url='table_tests/test_table',
                         save_to=['local'],
                         fs='file',
                         dryrun=False)
@@ -79,7 +79,7 @@ def test_create_and_reload_dask_data_from_s3():
 
     my_table = rh.table(data=orig_data,
                         name='my_test_dask_table',
-                        data_url=f'{BUCKET_NAME}/dask',
+                        url=f'{BUCKET_NAME}/dask',
                         save_to=['rns'],
                         mkdir=True,
                         dryrun=False)
@@ -109,7 +109,7 @@ def test_create_and_reload_huggingface_data_from_s3():
 
     my_table = rh.table(data=orig_data,
                         name='my_test_hf_table',
-                        data_url=f'{BUCKET_NAME}/huggingface',
+                        url=f'{BUCKET_NAME}/huggingface',
                         save_to=['rns'],
                         mkdir=True,
                         dryrun=False)
@@ -133,7 +133,7 @@ def test_create_and_reload_partitioned_data_from_s3():
 
     my_table = rh.table(data=data,
                         name='partitioned_my_test_table',
-                        data_url=f'{BUCKET_NAME}/hf-partitioned',
+                        url=f'{BUCKET_NAME}/hf-partitioned',
                         partition_cols=['label'],
                         save_to=['rns'],
                         mkdir=True,
@@ -158,7 +158,7 @@ def test_stream_data_from_file():
     data = pd.DataFrame({'my_col': list(range(50))})
     my_table = rh.table(data=data,
                         name='my_test_table',
-                        data_url='table_tests/stream_data',
+                        url='table_tests/stream_data',
                         save_to=['local'],
                         fs='file',
                         dryrun=False)
@@ -177,7 +177,7 @@ def test_stream_data_from_s3():
     data = load_sample_data()
     my_table = rh.table(data=data,
                         name='my_test_table',
-                        data_url=f'{BUCKET_NAME}/stream-data',
+                        url=f'{BUCKET_NAME}/stream-data',
                         save_to=['rns'],
                         mkdir=True,
                         dryrun=False)
@@ -197,7 +197,7 @@ def test_create_and_reload_s3():
     table_name = 'my_test_table_s3'
     my_table = rh.table(data=data,
                         name=table_name,
-                        data_url="donnyg-my-test-bucket/my_table.parquet",
+                        url="donnyg-my-test-bucket/my_table.parquet",
                         save_to=['rns'],
                         dryrun=False,
                         mkdir=True)

@@ -25,7 +25,6 @@ class Blob(Resource):
                  data_config: Optional[Dict] = None,
                  dryrun: bool = True,
                  save_to: Optional[List[str]] = None,
-                 load_from: Optional[List[str]] = None,
                  **kwargs
                  ):
         """
@@ -37,15 +36,14 @@ class Blob(Resource):
             data_config ():
             serializer ():
         """
-        super().__init__(name=name, dryrun=dryrun, save_to=save_to, load_from=load_from)
+        super().__init__(name=name, dryrun=dryrun, save_to=save_to)
         self._filename = str(Path(url).name) if url else self.name
         # Use factory method so correct subclass for fs is returned
         self._folder = folder(url=str(Path(url).parent) if url is not None else url,
                               fs=fs,
                               data_config=data_config,
                               dryrun=dryrun,
-                              save_to=save_to,
-                              load_from=load_from)
+                              save_to=save_to)
         self._cached_data = None
 
     # TODO do we need a del?
@@ -98,6 +96,14 @@ class Blob(Resource):
         self._filename = str(Path(new_url).name)
 
     @property
+    def data_config(self):
+        return self._folder.data_config
+
+    @data_config.setter
+    def data_config(self, new_data_config):
+        self._folder.data_config = new_data_config
+
+    @property
     def fsspec_url(self):
         return self._folder.fsspec_url + '/' + self._filename
 
@@ -123,6 +129,7 @@ class Blob(Resource):
         #     time = datetime.today().strftime('%Y-%m-%d_%H:%M:%S')
         #     self.data_url = self.data_url + time or time
 
+        # TODO check if self._cached_data is None, and if so, don't just download it to then save it again?
         with self.open(mode='wb') as f:
             if not isinstance(self.data, bytes):
                 # Avoid TypeError: a bytes-like object is required
@@ -133,7 +140,8 @@ class Blob(Resource):
         save(self,
              save_to=save_to if save_to is not None else self.save_to,
              snapshot=snapshot,
-             overwrite=overwrite)
+             overwrite=overwrite,
+             **snapshot_kwargs)
 
     def delete_in_fs(self, recursive: bool = True):
         self._folder.rm(self._filename, recursive=recursive)
@@ -215,11 +223,10 @@ def blob(data=None,
             data_url = str(Path(f"~/.cache/blobs/{uuid.uuid4().hex}").expanduser())
         else:
             # save to the default bucket
-            name = name.lstrip('/')
+            name = name.lstrip('/')  # TODO [@JL] should we be setting config['name']=name again now?
             data_url = f'{Blob.DEFAULT_FOLDER_PATH}/{name}'
 
     config['url'] = data_url
-
     config['save_to'] = save_to
     config['data_config'] = data_config or config.get('data_config')
 

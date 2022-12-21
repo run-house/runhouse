@@ -20,7 +20,6 @@ class Resource:
 
     def __init__(self,
                  name: Optional[str] = None,
-                 load_from: Optional[List[str]] = None,
                  save_to: Optional[List[str]] = None,
                  dryrun: Optional[bool] = None,
                  ):
@@ -31,7 +30,6 @@ class Resource:
                 rns_client.resolve_rns_path(name))
 
         self.save_to = save_to
-        self.load_from = load_from
         self.dryrun = dryrun
 
     # TODO add a utility to allow a parameter to be specified as "default" and then use the default value

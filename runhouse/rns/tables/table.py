@@ -12,7 +12,7 @@ import pyarrow as pa
 import ray.data
 
 from .. import Resource
-from runhouse.rns.folders.folder import Folder, PROVIDER_FS_LOOKUP
+from runhouse.rns.folders.folder import folder, PROVIDER_FS_LOOKUP
 import runhouse as rh
 from runhouse.rh_config import rns_client, configs
 from ..top_level_rns_fns import save
@@ -26,22 +26,22 @@ class Table(Resource):
                  url: str,
                  name: Optional[str] = None,
                  fs: Optional[str] = None,
-                 # TODO hold a Folder object
                  data_config: Optional[dict] = None,
                  save_to: Optional[List[str]] = None,
                  dryrun: bool = True,
                  partition_cols: Optional[List] = None,
                  **kwargs
                  ):
-        super().__init__(name=name,
-                         save_to=save_to,
-                         dryrun=dryrun)
+        super().__init__(name=name, dryrun=dryrun, save_to=save_to)
+        self._filename = str(Path(url).name) if url else self.name
+        # Use factory method so correct subclass for fs is returned
+        self._folder = folder(url=url,
+                              fs=fs,
+                              data_config=data_config,
+                              dryrun=dryrun,
+                              save_to=save_to)
         self._cached_data = None
         self.partition_cols = partition_cols
-        self.fs = fs
-        self.fsspec_fs = fsspec.filesystem(self.fs)
-        self.url = url
-        self.data_config = data_config or {}
 
     @staticmethod
     def from_config(config: dict, dryrun=True):
@@ -67,8 +67,39 @@ class Table(Resource):
     @data.setter
     def data(self, new_data):
         """Update the data blob to new data"""
-        self.save(new_data, overwrite=True)
+        self._cached_data = new_data
+        # TODO should we save here?
+        # self.save(overwrite=True)
 
+    @property
+    def fs(self):
+        return self._folder.fs
+
+    @fs.setter
+    def fs(self, new_fs):
+        self._folder.fs = new_fs
+
+    @property
+    def url(self):
+        return self._folder.url + '/' + self._filename
+
+    @url.setter
+    def url(self, new_url):
+        self._folder.url = str(Path(new_url).parent)
+
+    @property
+    def fsspec_url(self):
+        return self._folder.fsspec_url
+
+    @property
+    def data_config(self):
+        return self._folder.data_config
+
+    @data_config.setter
+    def data_config(self, new_data_config):
+        self._folder.data_config = new_data_config
+
+    # TODO [JL] use self._folder.open() instead (to use subclassed folders) within subclassed Tables (e.g. Pandas)
     def fetch(self, columns: Optional[list] = None):
         # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
         # TODO support columns to fetch a subset of the data
@@ -80,10 +111,7 @@ class Table(Resource):
     def __getitem__(self, key: Optional[list] = None):
         return self.data.__getitem__(key)
 
-    @property
-    def fsspec_url(self):
-        return f'{self.fs}://{self.url}'
-
+    # TODO [@JL] delete
     @property
     def root_path(self):
         return self.fsspec_url if self.fs != rns_client.DEFAULT_FS else self.url
@@ -98,24 +126,22 @@ class Table(Resource):
                                batch_format="pyarrow",
                                drop_last=drop_last)
 
+    # TODO [@JL] override in subclassed tables (e.g. Pandas)
     def save(self,
-             new_data,
+             name: Optional[str] = None,
              snapshot: bool = False,
              save_to: Optional[List[str]] = None,
              overwrite: bool = False,
-             partition_cols: Optional[list] = None):
-
-        if not hasattr(new_data, 'to_parquet'):
-            raise TypeError("Data saved to a runhouse Table must have a to_parquet method, "
-                            "ideally backed by PyArrow's `to_parquet`.")
+             **snapshot_kwargs):
 
         # TODO [JL] NOTE: this should work but fsspec is pretty unreliable
         # https://stackoverflow.com/questions/53416226/how-to-write-parquet-file-from-pandas-dataframe-in-s3-in-python
         # new_data.to_parquet(self.fsspec_url)
 
+        # TODO check if self._cached_data is None, and if so, don't just download it to then save it again?
         # Use pyarrow API to write partitioned data - adds an additional step to build the pyarrow table
         # based on the provided data's format
-        pa_table: pa.Table = self.construct_table(new_data)
+        pa_table: pa.Table = self.construct_table(self._cached_data)
         pq.write_to_dataset(pa_table,
                             root_path=self.root_path,
                             partition_cols=partition_cols)
@@ -123,7 +149,8 @@ class Table(Resource):
         save(self,
              save_to=save_to if save_to is not None else self.save_to,
              snapshot=snapshot,
-             overwrite=overwrite)
+             overwrite=overwrite,
+             **snapshot_kwargs)
 
     def delete_in_fs(self, recursive: bool = True):
         """Remove contents of all subdirectories (ex: partitioned data folders)"""
@@ -131,11 +158,11 @@ class Table(Resource):
 
         # TODO [JL] this should actually delete the folders themselves (per fsspec), but only deletes their contents
         # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.spec.AbstractFileSystem.rm
-        self.fsspec_fs.rm(self.root_path, recursive=recursive)
+        self._folder.rm('', recursive=recursive)  # Passing in an empty string to delete the contents of the folder
 
     def exists_in_fs(self):
         # TODO [JL] a little hacky - this checks the contents of the folder to make sure the table file(s) were deleted
-        return self.fsspec_fs.exists(self.root_path) and len(self.fsspec_fs.ls(self.root_path)) > 1
+        return self._folder.exists(self.root_path) and len(self._folder.ls(self.root_path)) > 1
 
     def from_cluster(self, cluster):
         """ Create a remote folder from a url on a cluster. This will create a virtual link into the
@@ -144,13 +171,8 @@ class Table(Resource):
         `Folder('url').from_cluster(<cluster>).mount(<local_url>)`. """
         if not cluster.address:
             raise ValueError('Cluster must be started before copying data from it.')
-        creds = cluster.ssh_creds()
-        data_config = {'host': cluster.address,
-                       'username': creds['ssh_user'],
-                       'key_filename': str(Path(creds['ssh_private_key']).expanduser())}
         new_table = copy.deepcopy(self)
-        new_table.fs = 'sftp'
-        new_table.data_config = data_config
+        new_table._folder.fs = cluster
         return new_table
 
     # if provider == 'snowflake':
@@ -209,8 +231,7 @@ class Table(Resource):
 
 def table(data=None,
           name: Optional[str] = None,
-          folder: Union[Folder, str] = None,
-          data_url: Optional[str] = None,
+          url: Optional[str] = None,
           fs: Optional[str] = None,
           data_config: Optional[dict] = None,
           partition_cols: Optional[list] = None,
@@ -231,7 +252,7 @@ def table(data=None,
     name = name or config.get('rns_address') or config.get('name')
     name = name.lstrip('/') if name is not None else name
 
-    data_url = data_url or config.get('url')
+    data_url = url or config.get('url')
 
     if data_url is None:
         # TODO [JL] move some of the default params in this factory method to the defaults module for configurability
@@ -246,29 +267,18 @@ def table(data=None,
 
     config['name'] = name
     config['url'] = data_url
-
-    existing_folder = folder or config.get('folder')
-    if existing_folder is None:
-        folder_url = str(Path(data_url).parent)
-        existing_folder = rh.folder(url=folder_url, save_to=[], fs=fs)
-
-    if isinstance(folder, str):
-        existing_folder = rh.folder(url=folder, save_to=[], fs=fs)
-
-    config['folder'] = existing_folder.name if existing_folder else Table.DEFAULT_FOLDER_PATH
-
-    new_data = data if Resource.is_picklable(data) else config.get('data')
-    config['data'] = new_data
     config['data_config'] = data_config or config.get('data_config')
     config['partition_cols'] = partition_cols or config.get('partition_cols')
     config['save_to'] = save_to
 
-    new_table = Table.from_config(config, dryrun=dryrun)
-
     if mkdir and fs != rns_client.DEFAULT_FS:
-        existing_folder.mkdir()
+        # create the remote folder for the table
+        rh.folder(name=data_url, fs=fs, save_to=[], dryrun=True).mkdir()
+
+    new_table = Table.from_config(config, dryrun=dryrun)
+    new_table.data = data
 
     if new_table.name and not dryrun:
-        new_table.save(new_data, overwrite=True, partition_cols=partition_cols)
+        new_table.save(overwrite=True)
 
     return new_table
