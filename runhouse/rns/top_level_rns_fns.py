@@ -30,9 +30,9 @@ def load(name: str,
     config = rns_client.load_config(name=name, load_from=load_from)
     if not instantiate:
         return config
-    from_config_constructor = getattr(sys.modules['runhouse.rns'], config['type'].capitalize(), None).from_config
+    from_config_constructor = getattr(sys.modules['runhouse.rns'], config['resource_type'].capitalize(), None).from_config
     if not from_config_constructor:
-        raise ValueError(f"Could not find constructor for type {config['type']}")
+        raise ValueError(f"Could not find constructor for type {config['resource_type']}")
     return from_config_constructor(config=config, dryrun=dryrun)
 
 

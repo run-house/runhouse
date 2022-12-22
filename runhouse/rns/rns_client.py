@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class RNSClient:
     """Manage a particular resource with the runhouse database"""
-    CORE_RNS_FIELDS = ["name", "type", "folder", "users", "groups"]
+    CORE_RNS_FIELDS = ["name", "resource_type", "folder", "users", "groups"]
     RH_BUILTINS_FOLDER = '/builtins'
     DEFAULT_FS = 'file'
 
@@ -332,7 +332,7 @@ class RNSClient:
         if not config:
             return False
         if resource_type:
-            return config.get('type') == resource_type
+            return config.get('resource_type') == resource_type
         return True
 
     def locate(self,

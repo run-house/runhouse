@@ -52,7 +52,7 @@ class Blob(Resource):
     def config_for_rns(self):
         config = super().config_for_rns
         blob_config = {'url': self.url,  # pair with data source to create the physical URL
-                       'type': self.RESOURCE_TYPE,
+                       'resource_type': self.RESOURCE_TYPE,
                        'fs': self.fs
                        }
         config.update(blob_config)
@@ -230,7 +230,7 @@ def blob(data=None,
     config['save_to'] = save_to
     config['data_config'] = data_config or config.get('data_config')
 
-    if mkdir and fs != rns_client.DEFAULT_FS:
+    if mkdir:
         # create the remote folder for the blob
         folder_url = str(Path(data_url).parent)
         rh.folder(name=folder_url, fs=fs, save_to=[], dryrun=True).mkdir()

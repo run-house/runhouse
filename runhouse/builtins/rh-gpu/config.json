@@ -1,5 +1,5 @@
 {
-    "type": "cluster",
+    "resource_type": "cluster",
     "name": "/builtins/rh-gpu",
     "rns_address": "/builtins/rh-gpu",
     "instance_type": "K80:1",

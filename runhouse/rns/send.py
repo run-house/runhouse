@@ -426,7 +426,7 @@ def send(fn: Optional[Union[str, Callable]] = None,
     """
 
     config = rh_config.rns_client.load_config(name, load_from=load_from)
-    # type = config.pop('type', 'send')
+    # type = config.pop('resource_type', 'send')
     config['name'] = name or config.get('rns_address', None) or config.get('name')
 
     # TODO handle case where package has been loaded from rns and we don't need to sync default package.

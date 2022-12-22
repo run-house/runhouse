@@ -1,5 +1,5 @@
 {
-    "type": "cluster",
+    "resource_type": "cluster",
     "name": "/builtins/rh-4-v100",
     "rns_address": "/builtins/rh-4-v100",
     "instance_type": "V100:4",

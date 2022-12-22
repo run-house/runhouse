@@ -36,18 +36,11 @@ class Resource:
 
     @property
     def config_for_rns(self):
-        config = {'type': self.RESOURCE_TYPE}
+        config = {'resource_type': self.RESOURCE_TYPE,
+                  'resource_subtype': self.__class__.__name__}
         config_attrs = ['name', 'rns_address']
         self.save_attrs_to_config(config, config_attrs)
         return config
-
-    @staticmethod
-    def is_picklable(obj) -> bool:
-        try:
-            pickle.dumps(obj)
-        except pickle.PicklingError:
-            return False
-        return True
 
     def _resource_string_for_subconfig(self, resource):
         """Returns a string representation of a sub-resource for use in a config."""

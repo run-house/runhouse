@@ -1,21 +1,20 @@
-import shutil
 import uuid
 from pathlib import Path
-from typing import Optional, List, Union
-import time
-import os
+from typing import Optional, List
 import copy
-
+import logging
 import fsspec
 import pyarrow.parquet as pq
 import pyarrow as pa
 import ray.data
 
 from .. import Resource
-from runhouse.rns.folders.folder import folder, PROVIDER_FS_LOOKUP
+from runhouse.rns.folders.folder import folder
 import runhouse as rh
-from runhouse.rh_config import rns_client, configs
+from runhouse.rh_config import rns_client
 from ..top_level_rns_fns import save
+
+logger = logging.getLogger(__name__)
 
 
 class Table(Resource):
@@ -51,8 +50,9 @@ class Table(Resource):
     def config_for_rns(self):
         config = super().config_for_rns
         table_config = {'url': self.url,
-                        'type': self.RESOURCE_TYPE,
-                        'fs': self.fs}
+                        'resource_type': self.RESOURCE_TYPE,
+                        'fs': self.fs,
+                        'resource_subtype': self.__class__.__name__}
         config.update(table_config)
         return config
 
@@ -81,6 +81,8 @@ class Table(Resource):
 
     @property
     def url(self):
+        # TODO [DG] Do we want adding a filename to be the default behavior?
+        #   ex: partitioning, dask, ray will store multiple files in the same folder
         return self._folder.url + '/' + self._filename
 
     @url.setter
@@ -99,10 +101,21 @@ class Table(Resource):
     def data_config(self, new_data_config):
         self._folder.data_config = new_data_config
 
-    # TODO [JL] use self._folder.open() instead (to use subclassed folders) within subclassed Tables (e.g. Pandas)
+    def save(self, name: Optional[str] = None, snapshot: bool = False, save_to: Optional[List[str]] = None,
+             overwrite: bool = False, **snapshot_kwargs):
+        if self._cached_data is None or overwrite:
+            pq.write_to_dataset(self.data,
+                                root_path=self.fs,
+                                partition_cols=self.partition_cols)
+
+        save(self,
+             save_to=save_to if save_to is not None else self.save_to,
+             snapshot=snapshot,
+             overwrite=overwrite,
+             **snapshot_kwargs)
+
     def fetch(self, columns: Optional[list] = None):
         # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
-        # TODO support columns to fetch a subset of the data
         with fsspec.open(self.fsspec_url, mode='rb', **self.data_config) as t:
             self._cached_data: pa.Table = pq.read_table(t, columns=columns)
 
@@ -111,13 +124,8 @@ class Table(Resource):
     def __getitem__(self, key: Optional[list] = None):
         return self.data.__getitem__(key)
 
-    # TODO [@JL] delete
-    @property
-    def root_path(self):
-        return self.fsspec_url if self.fs != rns_client.DEFAULT_FS else self.url
-
     def stream(self, batch_size, drop_last: bool = False, shuffle_seed: Optional[int] = None):
-        df = ray.data.read_parquet(self.root_path)
+        df = ray.data.read_parquet(self.fsspec_url)
         # TODO the latest ray version supports local shuffle inside iter_batches, use that instead?
         # https://docs.ray.io/en/latest/data/api/dataset.html#ray.data.Dataset.iter_batches
         if shuffle_seed is not None:
@@ -125,32 +133,6 @@ class Table(Resource):
         return df.iter_batches(batch_size=batch_size,
                                batch_format="pyarrow",
                                drop_last=drop_last)
-
-    # TODO [@JL] override in subclassed tables (e.g. Pandas)
-    def save(self,
-             name: Optional[str] = None,
-             snapshot: bool = False,
-             save_to: Optional[List[str]] = None,
-             overwrite: bool = False,
-             **snapshot_kwargs):
-
-        # TODO [JL] NOTE: this should work but fsspec is pretty unreliable
-        # https://stackoverflow.com/questions/53416226/how-to-write-parquet-file-from-pandas-dataframe-in-s3-in-python
-        # new_data.to_parquet(self.fsspec_url)
-
-        # TODO check if self._cached_data is None, and if so, don't just download it to then save it again?
-        # Use pyarrow API to write partitioned data - adds an additional step to build the pyarrow table
-        # based on the provided data's format
-        pa_table: pa.Table = self.construct_table(self._cached_data)
-        pq.write_to_dataset(pa_table,
-                            root_path=self.root_path,
-                            partition_cols=partition_cols)
-
-        save(self,
-             save_to=save_to if save_to is not None else self.save_to,
-             snapshot=snapshot,
-             overwrite=overwrite,
-             **snapshot_kwargs)
 
     def delete_in_fs(self, recursive: bool = True):
         """Remove contents of all subdirectories (ex: partitioned data folders)"""
@@ -162,7 +144,7 @@ class Table(Resource):
 
     def exists_in_fs(self):
         # TODO [JL] a little hacky - this checks the contents of the folder to make sure the table file(s) were deleted
-        return self._folder.exists(self.root_path) and len(self._folder.ls(self.root_path)) > 1
+        return self._folder.exists(self.fsspec_url) and len(self._folder.ls(self.fsspec_url)) > 1
 
     def from_cluster(self, cluster):
         """ Create a remote folder from a url on a cluster. This will create a virtual link into the
@@ -175,58 +157,66 @@ class Table(Resource):
         new_table._folder.fs = cluster
         return new_table
 
-    # if provider == 'snowflake':
-    #     new_table = SnowflakeTable.from_config(config, create=create)
-    # elif provider == 'bigquery':
-    #     new_table = BigQueryTable.from_config(config, create=create)
-    # elif provider == 'redshift':
-    #     new_table = RedshiftTable.from_config(config, create=create)
-    # elif provider == 'postgres':
-    #     new_table = PostgresTable.from_config(config, create=create)
-    # elif provider == 'deltalake':
-    #     new_table = DeltaLakeTable.from_config(config, create=create)
-
     @staticmethod
-    def construct_table(data) -> pa.Table:
-        # https://arrow.apache.org/docs/7.0/python/generated/pyarrow.Table.html
-        if isinstance(data, list):
-            # Construct a Table from list of rows / dictionaries.
-            # pylist = [{'int': 1, 'str': 'a'}, {'int': 2, 'str': 'b'}]
-            return pa.Table.from_pylist(data)
+    def import_package(package_name: str):
+        try:
+            from importlib import import_module
+            import_module(package_name)
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(f'`{package_name}` not found in site-packages')
 
-        elif isinstance(data, dict):
-            # Construct a Table from Arrow arrays or columns.
-            # pydict = {'int': [1, 2], 'str': ['a', 'b']}
-            return pa.Table.from_pydict(data)
 
-        elif isinstance(data, (pa.Array, pa.ChunkedArray)):
-            # Construct a Table from Arrow arrays.
-            # Equal-length arrays that should form the table.
-            return pa.Table.from_arrays(data)
+def _load_table_subclass(data, config: dict, dryrun: bool):
+    """Load the relevant Table subclass based on the config or data type provided"""
+    resource_subtype = config.get('resource_subtype', Table.__name__)
 
-        elif isinstance(data, pa.RecordBatch):
-            # Construct a Table from a sequence or iterator of Arrow RecordBatches.
-            return pa.Table.from_batches(data)
+    try:
+        import datasets
+        if resource_subtype == 'HuggingFaceTable' or isinstance(data, datasets.dataset_dict.DatasetDict):
+            from .huggingface_table import HuggingFaceTable
+            return HuggingFaceTable.from_config(config)
+    except ModuleNotFoundError:
+        pass
 
-        else:
-            try:
-                # If data is none of the above types, see if we have a pandas dataframe
-                return pa.Table.from_pandas(data)
-            except:
-                # Save down to local disk, then upload to data source via pyarrow API
-                tmp_path = f'/tmp/temp_{int(time.time())}.parquet'
-                data.to_parquet(tmp_path)
+    try:
+        import pandas as pd
+        if resource_subtype == 'PandasTable' or isinstance(data, pd.DataFrame):
+            from .pandas_table import PandasTable
+            return PandasTable.from_config(config)
+    except ModuleNotFoundError:
+        pass
 
-                data: pa.Table = pq.read_table(tmp_path)
+    try:
+        import dask.dataframe as dd
+        if resource_subtype == 'DaskTable' or isinstance(data, dd.DataFrame):
+            from .dask_table import DaskTable
+            return DaskTable.from_config(config)
+    except ModuleNotFoundError:
+        pass
 
-                dirpath = Path(tmp_path)
-                if dirpath.exists() and dirpath.is_dir():
-                    shutil.rmtree(dirpath)
+    try:
+        import ray
+        if resource_subtype == 'RayTable' or isinstance(data, ray.data.dataset.Dataset):
+            from .ray_table import RayTable
+            return RayTable.from_config(config)
+    except ModuleNotFoundError:
+        pass
 
-                if os.path.exists(tmp_path):
-                    os.remove(tmp_path)
+    try:
+        import cudf
+        if resource_subtype == 'CudfTable' or isinstance(data, cudf.DataFrame):
+            from .cudf_table import CudfTable
+            return CudfTable.from_config(config)
+    except ModuleNotFoundError:
+        pass
 
-                return data
+    if resource_subtype == 'Table' or isinstance(data, pa.Table):
+        new_table = Table.from_config(config, dryrun=dryrun)
+        return new_table
+    else:
+        raise TypeError(f'Unsupported data type {type(data)} for Table construction. '
+                        f'For converting data to pyarrow see: '
+                        f'https://arrow.apache.org/docs/7.0/python/generated/pyarrow.Table.html')
 
 
 def table(data=None,
@@ -245,7 +235,6 @@ def table(data=None,
     """
     config = rns_client.load_config(name, load_from=load_from)
 
-    # fs = fs or config.get('fs') or PROVIDER_FS_LOOKUP[configs.get('default_provider')]
     fs = fs or config.get('fs') or rns_client.DEFAULT_FS
     config['fs'] = fs
 
@@ -271,11 +260,12 @@ def table(data=None,
     config['partition_cols'] = partition_cols or config.get('partition_cols')
     config['save_to'] = save_to
 
-    if mkdir and fs != rns_client.DEFAULT_FS:
+    if mkdir:
         # create the remote folder for the table
+        # TODO [JL / DG] this creates a folder in the wrong location when running with local filesystems
         rh.folder(name=data_url, fs=fs, save_to=[], dryrun=True).mkdir()
 
-    new_table = Table.from_config(config, dryrun=dryrun)
+    new_table = _load_table_subclass(data, config, dryrun)
     new_table.data = data
 
     if new_table.name and not dryrun:

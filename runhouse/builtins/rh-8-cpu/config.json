@@ -1,5 +1,5 @@
 {
-    "type": "cluster",
+    "resource_type": "cluster",
     "name": "/builtins/rh-8-cpu",
     "rns_address": "/builtins/rh-8-cpu",
     "instance_type": "m5.2xlarge",
