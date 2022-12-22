@@ -27,16 +27,14 @@ def tokenize_function(examples):
 def load_sample_data(data_type='huggingface'):
     if data_type == 'huggingface':
         from datasets import load_dataset
-        # dataset = load_dataset("yelp_review_full")
-        dataset = load_dataset("Fraser/mnist-text-small")
+        dataset = load_dataset("rotten_tomatoes")
         tokenized_datasets = dataset.map(tokenize_function, batched=True)
-        # small_train_dataset = tokenized_datasets["train"].shuffle(seed=42).select(range(1000))
         return tokenized_datasets
 
     elif data_type == 'pyarrow':
         df = pd.DataFrame({'int': [1, 2], 'str': ['a', 'b']})
-        pa = pa.Table.from_pandas(df)
-        return pa
+        pa_table = pa.Table.from_pandas(df)
+        return pa_table
 
     elif data_type == 'cudf':
         import cudf
@@ -187,12 +185,12 @@ def test_create_and_reload_huggingface_data_from_s3():
     orig_data: datasets.Dataset.dataset_dict = load_sample_data(data_type='huggingface')
     orig_shape = orig_data.shape
 
-    # my_table = rh.table(data=orig_data,
-    #                     name='my_test_hf_table',
-    #                     url=f'{BUCKET_NAME}/huggingface',
-    #                     save_to=['rns'],
-    #                     fs='s3',
-    #                     mkdir=True)
+    my_table = rh.table(data=orig_data,
+                        name='my_test_hf_table',
+                        url=f'{BUCKET_NAME}/huggingface',
+                        save_to=['rns'],
+                        fs='s3',
+                        mkdir=True)
 
     reloaded_table = rh.table(name='my_test_hf_table', load_from=['rns'], dryrun=True)
     reloaded_data = reloaded_table.data

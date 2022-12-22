@@ -82,7 +82,7 @@ class Table(Resource):
     @property
     def url(self):
         # TODO [DG] Do we want adding a filename to be the default behavior?
-        #   ex: partitioning, dask, ray will store multiple files in the same folder
+        #   ex: partitioning, dask, ray, huggingface will store multiple files in the same folder
         return self._folder.url + '/' + self._filename
 
     @url.setter

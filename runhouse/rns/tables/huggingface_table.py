@@ -1,5 +1,5 @@
+from pathlib import Path
 import fsspec
-
 from typing import Optional, List
 
 from .table import Table
@@ -12,6 +12,14 @@ class HuggingFaceTable(Table):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.fsspec_fs = fsspec.filesystem(self.fs, **self.data_config)
+
+    @property
+    def url(self):
+        return self._folder.url
+
+    @url.setter
+    def url(self, new_url):
+        self._folder.url = str(Path(new_url).parent)
 
     @staticmethod
     def from_config(config: dict, **kwargs):
@@ -37,6 +45,7 @@ class HuggingFaceTable(Table):
     def fetch(self, **kwargs):
         self.import_package('datasets')
         from datasets import load_from_disk
+        # TODO [JL] Not currently working - seems to be some inconsistencies in the fsspec URL sometimes having
+        #   an extra slash (ex: 's3:///runhouse-tests/huggingface')
         self._cached_data = load_from_disk(self.fsspec_url, fs=self.fsspec_fs)
         return self._cached_data
-
