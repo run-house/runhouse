@@ -22,7 +22,7 @@ class Defaults:
     USER_ENDPOINT = 'user/'
     GROUP_ENDPOINT = 'group/'
     CONFIG_PATH = Path('~/.rh/config.yaml').expanduser()
-    # TODO [DG] default sub-dicts for various resources (e.g. defaults.get('cluster').get('type'))
+    # TODO [DG] default sub-dicts for various resources (e.g. defaults.get('cluster').get('resource_type'))
     BASE_DEFAULTS = {'default_folder': '/default',
                      'default_provider': 'cheapest',
                      'default_autostop': -1,
