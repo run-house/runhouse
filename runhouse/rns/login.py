@@ -1,6 +1,6 @@
 import logging
 
-from runhouse import rh_config
+from runhouse.rh_config import configs, rns_client
 from .secrets import Secrets
 
 logger = logging.getLogger(__name__)
@@ -26,26 +26,24 @@ def login(token: str = None,
         console = Console()
         console.print(f'Retrieve your token :key: here to use :person_running: :house: Runhouse for '
                       f'secrets and artifact management: '
-                      f'[link={rh_config.configs.get("api_server_url")}/dashboard/?option=token]'
+                      f'[link={configs.get("api_server_url")}/dashboard/?option=token]'
                       f'https://api.run.house[/link]',
                       style='bold yellow')
         token = typer.prompt("Token", type=str)
 
-    request_headers = {"Authorization": f"Bearer {token}"}
+    # request_headers = {"Authorization": f"Bearer {token}"}
+    configs.set('token', token)
 
     if download_config:
-        rh_config.configs.download_and_save_defaults(headers=request_headers,
-                                                     merge_with_existing=True,
-                                                     merge_with_base_defaults=True,
-                                                     upload_merged=upload_config)
+        configs.download_and_save_defaults()
         # We need to fresh the RNSClient to use the newly loaded configs
-        rh_config.rns_client.refresh_defaults()
+        rns_client.refresh_defaults()
     elif upload_config:
-        rh_config.configs.upload_defaults(headers=request_headers)
+        configs.upload_defaults(defaults=configs.defaults_cache)
     else:
         # If we are not downloading or uploading config, we still want to make sure the token is valid
         try:
-            rh_config.configs.download_defaults(headers=request_headers)
+            configs.download_defaults()
         except:
             logger.error('Failed to validate token')
             return None

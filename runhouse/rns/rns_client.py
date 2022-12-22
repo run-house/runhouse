@@ -33,13 +33,12 @@ class RNSClient:
             else []
         rns_base_folders.append(str(Path(pkgutil.get_loader('runhouse').path).parent / 'builtins'))
         self._index_base_folders(rns_base_folders)
+        self._current_folder = None
 
         self.refresh_defaults()
 
     # TODO [DG] move the below into Defaults() so they never need to be refreshed?
     def refresh_defaults(self):
-        self.current_folder = self._configs.get('default_folder')
-
         use_local_configs = ['local'] if self._configs.get('use_local_configs', True) else []
         use_rns = ['rns'] if self._configs.get('use_rns', self._configs.get('token', False)) else []
 
@@ -77,7 +76,21 @@ class RNSClient:
 
     @property
     def default_folder(self):
-        return self._configs.get('default_folder', None)
+        folder = self._configs.get('default_folder', None)
+        if folder in [None, '/default'] and self._configs.get('username'):
+            folder = '/' + self._configs.get('username')
+            self._configs.set('default_folder', folder)
+        return folder
+
+    @property
+    def current_folder(self):
+        if self._current_folder in [None, '/default']:
+            self._current_folder = self.default_folder
+        return self._current_folder
+
+    @current_folder.setter
+    def current_folder(self, value):
+        self._current_folder = value
 
     @property
     def token(self):
@@ -387,6 +400,3 @@ class RNSClient:
             # TODO should we be raising an error here?
             return
         self.current_folder = self._prev_folders.pop(-1)
-
-    def current_folder(self):
-        return self.current_folder

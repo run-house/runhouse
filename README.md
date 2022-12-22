@@ -30,7 +30,7 @@ having trouble with this, let us know.
 Runhouse is not on Pypi, but we maintain a semi-stable branch in
 Github. It can be installed with: 
 
-`!pip install git+https://github.com/run-house/runhouse.git@latest_patch`
+`pip install git+https://github.com/run-house/runhouse.git@latest_patch`
 
 As we apply patches we may update this version number. We will
 notify you if we want you to upgrade your installation.

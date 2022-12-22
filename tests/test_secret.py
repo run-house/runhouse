@@ -46,11 +46,31 @@ def test_upload_all_provider_secrets():
 
 def test_login():
     # TODO [DG] create a mock account and test this properly in CI
-    rh.login(token='...',
+    token = '...'
+
+    rh.login(token=token,
+             download_config=False,
+             download_secrets=False,
+             upload_secrets=False,
+             upload_config=False)
+
+    rh.login(token=token,
+             download_config=False,
+             download_secrets=False,
+             upload_secrets=True,
+             upload_config=True)
+
+    rh.login(token=token,
              download_config=True,
              download_secrets=True,
              upload_secrets=False,
              upload_config=False)
+
+    rh.login(token=token,
+             download_config=True,
+             download_secrets=True,
+             upload_secrets=True,
+             upload_config=True)
 
     assert rh.rns_client.default_folder == '/...'
 
