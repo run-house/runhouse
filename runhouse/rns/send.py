@@ -146,10 +146,14 @@ class Send(Resource):
             local_path = None
             if not isinstance(req, str) and req.is_local():
                 local_path = Path(req.local_path)
-            elif isinstance(req, str) and Path(req).expanduser().resolve().exists():
-                # Relative paths are relative to the working directory in Folders/Packages!
-                local_path = Path(req).expanduser() if Path(req).expanduser().is_absolute() \
-                    else Path(rh_config.rns_client.locate_working_dir()) / req
+            elif isinstance(req, str):
+                if req.split(':')[0] in ['local', 'reqs']:
+                    req = req.split(':')[1]
+
+                if Path(req).expanduser().resolve().exists():
+                    # Relative paths are relative to the working directory in Folders/Packages!
+                    local_path = Path(req).expanduser() if Path(req).expanduser().is_absolute() \
+                        else Path(rh_config.rns_client.locate_working_dir()) / req
 
             if local_path:
                 try:
@@ -499,7 +503,7 @@ def send(fn: Optional[Union[str, Callable]] = None,
 
     new_send = Send.from_config(config, dryrun=dryrun)
 
-    if load_secrets:
+    if load_secrets and not dryrun:
         new_send.send_secrets()
 
     if new_send.name:

@@ -21,18 +21,25 @@ def login(token: str = None,
     local environment and Runhouse / Vault.
     """
     if not token and is_interactive():
-        import typer
+        from getpass import getpass
         from rich.console import Console
         console = Console()
+        console.print("""
+            ____              __                             @ @ @     
+           / __ \__  ______  / /_  ____  __  __________     []___      
+          / /_/ / / / / __ \/ __ \/ __ \/ / / / ___/ _ \   /    /\____    @@
+         / _, _/ /_/ / / / / / / / /_/ / /_/ (__  )  __/  /_/\_//____/\  @@@@
+        /_/ |_|\__,_/_/ /_/_/ /_/\____/\__,_/____/\___/   | || |||__|||   ||
+        """)
         console.print(f'Retrieve your token :key: here to use :person_running: :house: Runhouse for '
                       f'secrets and artifact management: '
                       f'[link={configs.get("api_server_url")}/dashboard/?option=token]'
                       f'https://api.run.house[/link]',
                       style='bold yellow')
-        token = typer.prompt("Token", type=str)
+        token = getpass("Token: ")
 
-    # request_headers = {"Authorization": f"Bearer {token}"}
-    configs.set('token', token)
+    if token:
+        configs.set('token', token)
 
     if download_config:
         configs.download_and_save_defaults()

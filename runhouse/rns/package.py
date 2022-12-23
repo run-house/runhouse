@@ -11,6 +11,7 @@ from runhouse.rns.folders.folder import Folder
 INSTALL_METHODS = {'local', 'reqs', 'pip', 'conda', 'git', 'gh', 'rh'}
 
 
+# TODO [DG] refactor this into Package and FolderPackage, PipPackage, GitPackage, CondaPackage, etc.
 class Package(Folder):
     RESOURCE_TYPE = 'package'
 

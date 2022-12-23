@@ -12,7 +12,7 @@ import ray.cloudpickle as pickle
 import runhouse.grpc_handler.unary_pb2_grpc as pb2_grpc
 import runhouse.grpc_handler.unary_pb2 as pb2
 from runhouse.rns.package import Package
-from runhouse.rns.top_level_rns_fns import _set_pinned_memory_store
+from runhouse.rns.top_level_rns_fns import _set_pinned_memory_store, remove_pinned_object
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +27,9 @@ class UnaryService(pb2_grpc.UnaryServicer):
         _set_pinned_memory_store(self._shared_objects)
 
     def InstallPackages(self, request, context):
-        logger.info(f"Message received from client: {request.message}")
+        # logger.info(f"Message received from client: {request.message}")
         packages = pickle.loads(request.message)
+        logger.info(f"Message received from client to install packages: {packages}")
         for package in packages:
             if isinstance(package, str):
                 pkg = Package.from_string(package)
@@ -43,6 +44,16 @@ class UnaryService(pb2_grpc.UnaryServicer):
             pkg.install()
             self._installed_packages.append(pkg.name)
         return pb2.MessageResponse(message=pickle.dumps(True), received=True)
+
+    def ClearPins(self, request, context):
+        pins_to_clear = pickle.loads(request.message)
+        logger.info(f"Message received from client to clear pins: {pins_to_clear}")
+        cleared = []
+        for pin in self._shared_objects.keys():
+            if not pins_to_clear or pin in pins_to_clear:
+                remove_pinned_object(pin)
+                cleared.append(pin)
+        return pb2.MessageResponse(message=pickle.dumps(cleared), received=True)
 
     def GetServerResponse(self, request, context):
 

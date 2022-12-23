@@ -286,7 +286,8 @@ class Cluster(Resource):
         to_install = []
         # TODO [DG] validate package strings
         for package in reqs:
-            if isinstance(package, str) and Path(package).expanduser().exists():
+            if isinstance(package, str) and \
+                    (Path(package).expanduser().exists() or package.split(':')[0] in ['local', 'reqs']):
                 package = Package.from_string(package, dryrun=False)
 
             if not isinstance(package, str) and package.is_local():
@@ -299,6 +300,12 @@ class Cluster(Resource):
         logging.info(f'Installing packages on cluster {self.name}: '
                      f'{[req if isinstance(req, str) else req.name for req in reqs]}')
         self.client.install_packages(pickle.dumps(to_install))
+
+    def flush_pins(self, pins: Optional[List[str]] = None):
+        if not self.is_connected():
+            self.connect_grpc()
+        self.client.flush_pins(pins)
+        logger.info(f'Clearing pins on cluster {pins or ""}')
 
     def keep_warm(self, autostop_mins=-1):
         sky.autostop(self.name, autostop_mins, down=True)
@@ -414,10 +421,11 @@ class Cluster(Resource):
     #     connected = True
     #     print(f"SSH tunnel is open to {self.address}:{local_port}")
 
-    def restart_grpc_server(self, _rh_install_url=None):
+    def restart_grpc_server(self, _rh_install_url=None, resync_rh=True):
         # TODO how do we capture errors if this fails?
         # grpc_server_cmd = f'cd ~/sky_workdir; screen -dm python3 -m runhouse.grpc_handler.unary_server'
-        self.sync_runhouse_to_cluster(_install_url=_rh_install_url)
+        if resync_rh:
+            self.sync_runhouse_to_cluster(_install_url=_rh_install_url)
         grpc_server_cmd = f'screen -dm python3 -m runhouse.grpc_handler.unary_server'
         # TODO fuser is not on the gcp boxes. Need to install: https://command-not-found.com/fuser
         status_codes = self.run(commands=[f'fuser -k {UnaryService.DEFAULT_PORT}/tcp',
@@ -481,7 +489,7 @@ class Cluster(Resource):
     def ssh(self):
         subprocess.run(["ssh", f"{self.name}"])
 
-    def run(self, commands: list, stream_logs=False, port_forward=None):
+    def run(self, commands: list, stream_logs=True, port_forward=None):
         """ Run a list of shell commands on the cluster. """
         # TODO add name parameter to create Run object, and use sky.exec (after updating to sky 2.0):
         # sky.exec(commands, cluster_name=self.name, stream_logs=stream_logs, detach=False)
@@ -496,7 +504,7 @@ class Cluster(Resource):
             return_codes.append(ret_code)
         return return_codes
 
-    def run_python(self, commands: list, stream_logs=False, port_forward=None):
+    def run_python(self, commands: list, stream_logs=True, port_forward=None):
         """ Run a list of python commands on the cluster. """
         command_str = '; '.join(commands)
         self.run([f'python3 -c "{command_str}"'], stream_logs=stream_logs, port_forward=port_forward)

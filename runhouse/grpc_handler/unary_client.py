@@ -41,6 +41,10 @@ class UnaryClient(object):
         server_res = self.stub.InstallPackages(message)
         return server_res
 
+    def flush_pins(self, pins=None):
+        message = pb2.Message(message=pickle.dumps(pins or []))
+        self.stub.ClearPins(message)
+
     def call_fn_remotely(self, message):
         """
         Client function to call the rpc for GetServerResponse
