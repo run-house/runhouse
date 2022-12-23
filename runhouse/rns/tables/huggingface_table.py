@@ -1,5 +1,3 @@
-from pathlib import Path
-import fsspec
 from typing import Optional, List
 
 from .table import Table
@@ -37,5 +35,6 @@ class HuggingFaceTable(Table):
         self.import_package('datasets')
 
         from datasets import load_from_disk
+        # TODO [JL] we want to open as file like objects so we can inject our data config
         self._cached_data = load_from_disk(self.fsspec_url, fs=self._folder.fsspec_fs)
         return self._cached_data

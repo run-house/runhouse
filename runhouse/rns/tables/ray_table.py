@@ -1,6 +1,3 @@
-from pathlib import Path
-import fsspec
-
 from typing import Optional, List
 
 from .table import Table

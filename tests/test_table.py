@@ -68,16 +68,15 @@ def test_create_and_reload_from_file():
     orig_data_shape = data.shape
     my_table = rh.table(data=data,
                         name='my_test_table',
-                        url='table_tests/test_table',
+                        url='table_tests/test_table.parquet',
                         save_to=['local'],
                         fs='file',
                         mkdir=True)
 
     reloaded_table = rh.table(name='my_test_table', load_from=['local'], dryrun=True)
-    reloaded_data: pa.Table = reloaded_table.data
+    reloaded_data: pd.DataFrame = reloaded_table.data
 
-    reloaded_df = reloaded_data.to_pandas()
-    assert reloaded_df.shape == orig_data_shape
+    assert reloaded_data.shape == orig_data_shape
 
     del data
     del my_table
@@ -168,8 +167,8 @@ def test_create_and_reload_pandas_data_from_s3():
                         mkdir=True)
 
     reloaded_table = rh.table(name='my_test_pandas_table', load_from=['rns'], dryrun=True)
-    reloaded_data = reloaded_table.data
-    assert reloaded_data
+    reloaded_data: pd.DataFrame = reloaded_table.data
+    assert not reloaded_data.empty()
 
     del orig_data
     del my_table
@@ -205,13 +204,14 @@ def test_create_and_reload_huggingface_data_from_s3():
 
 
 def test_create_and_reload_partitioned_data_from_s3():
-    data = load_sample_data("huggingface")
+    data = load_sample_data("pyarrow")
     orig_data_shape = data.shape
 
     my_table = rh.table(data=data,
                         name='partitioned_my_test_table',
-                        url=f'{BUCKET_NAME}/hf-partitioned',
-                        partition_cols=['label'],
+                        url=f'{BUCKET_NAME}/pyarrow-partitioned',
+                        partition_cols=['int'],
+                        fs='s3',
                         save_to=['rns'],
                         mkdir=True)
 

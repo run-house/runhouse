@@ -103,7 +103,7 @@ class Table(Resource):
              overwrite: bool = False, **snapshot_kwargs):
         if self._cached_data is None or overwrite:
             pq.write_to_dataset(self.data,
-                                root_path=self.fs,
+                                root_path=self.fsspec_url,
                                 partition_cols=self.partition_cols)
 
         save(self,
@@ -113,9 +113,12 @@ class Table(Resource):
              **snapshot_kwargs)
 
     def fetch(self, columns: Optional[list] = None):
+        # TODO [JL] we want to open as file like object so we can inject our data config
+        # Need something like:
+        # with fsspec.open(self.fsspec_url, mode='rb', **self.data_config) as t:
+
         # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
-        with fsspec.open(self.fsspec_url, mode='rb', **self.data_config) as t:
-            self._cached_data: pa.Table = pq.read_table(t, columns=columns)
+        self._cached_data: pa.Table = pq.read_table(self.fsspec_url, columns=columns)
 
         return self._cached_data
 
@@ -261,7 +264,7 @@ def table(data=None,
     if mkdir:
         # create the remote folder for the table
         # TODO [JL / DG] this creates a folder in the wrong location when running with local filesystems
-        rh.folder(name=data_url, fs=fs, save_to=[], dryrun=True).mkdir()
+        rh.folder(url=data_url, fs=fs, save_to=[], dryrun=True).mkdir()
 
     new_table = _load_table_subclass(data, config, dryrun)
     new_table.data = data
