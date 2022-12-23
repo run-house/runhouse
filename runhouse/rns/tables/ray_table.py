@@ -25,7 +25,7 @@ class RayTable(Table):
              overwrite: bool = False,
              **snapshot_kwargs):
         if self._cached_data is None or overwrite:
-            self.data.write_parquet(self._folder.fsspec_url, filesystem=self._folder.fsspec_fs)
+            self.data.write_parquet(self._folder.fsspec_url)
 
         save(self,
              save_to=save_to if save_to is not None else self.save_to,
@@ -35,7 +35,7 @@ class RayTable(Table):
 
     def fetch(self, **kwargs):
         self.import_package('ray')
+
         import ray
-        # TODO [JL] This doesn't work, see the ray docs
-        self._cached_data = ray.data.read_parquet(self._folder.fsspec_url, filesystem=self._folder.fsspec_fs)
+        self._cached_data = ray.data.read_parquet(self._folder.fsspec_url)
         return self._cached_data

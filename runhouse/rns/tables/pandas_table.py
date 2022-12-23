@@ -33,6 +33,7 @@ class PandasTable(Table):
 
     def fetch(self, **kwargs):
         self.import_package('pandas')
+
         import pandas as pd
         # https://pandas.pydata.org/docs/reference/api/pandas.read_parquet.html
         self._cached_data = pd.read_parquet(self._folder.fsspec_url, storage_options=self.data_config)

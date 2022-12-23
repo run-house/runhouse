@@ -37,6 +37,7 @@ class DaskTable(Table):
 
     def fetch(self, **kwargs):
         self.import_package('dask')
+
         import dask.dataframe as dd
         # https://docs.dask.org/en/stable/generated/dask.dataframe.read_parquet.html
         self._cached_data = dd.read_parquet(self._folder.fsspec_url, storage_options=self.data_config)

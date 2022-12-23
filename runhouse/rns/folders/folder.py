@@ -244,7 +244,7 @@ class Folder(Resource):
         return new_folder
 
     def mkdir(self):
-        """create the folder in specified bucket if it doesn't already exist"""
+        """create the folder in specified file system if it doesn't already exist"""
         logging.info(f'Creating new {self._fs_str} folder: {self.fsspec_url}')
         self.fsspec_fs.mkdirs(self.fsspec_url, exist_ok=True)
 
@@ -366,6 +366,9 @@ class Folder(Resource):
     @property
     def fsspec_url(self):
         """Generate the FSSpec URL using the file system and url of the folder"""
+        # TODO [JL] hacky
+        if self.url.startswith("/") and self._fs_str != rns_client.DEFAULT_FS:
+            return f'{self._fs_str}:/{self.url}'
         return f'{self._fs_str}://{self.url}'
 
     def ls(self):

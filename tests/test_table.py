@@ -125,7 +125,6 @@ def test_create_and_reload_ray_data_from_s3():
     reloaded_data = reloaded_table.data
     assert reloaded_data
 
-    # We can convert the data back to its original format as a dask dataframe
     del orig_data
     del my_table
 
@@ -183,7 +182,7 @@ def test_create_and_reload_pandas_data_from_s3():
 
 def test_create_and_reload_huggingface_data_from_s3():
     orig_data: datasets.Dataset.dataset_dict = load_sample_data(data_type='huggingface')
-    orig_shape = orig_data.shape
+    orig_data_dict = orig_data.shape
 
     my_table = rh.table(data=orig_data,
                         name='my_test_hf_table',
@@ -193,11 +192,11 @@ def test_create_and_reload_huggingface_data_from_s3():
                         mkdir=True)
 
     reloaded_table = rh.table(name='my_test_hf_table', load_from=['rns'], dryrun=True)
-    reloaded_data = reloaded_table.data
-    assert reloaded_data.shape == orig_shape
+    reloaded_data_dict = reloaded_table.data
+    assert reloaded_data_dict.shape == orig_data_dict
 
     del orig_data
-    # del my_table
+    del my_table
 
     reloaded_table.delete_configs(delete_from=['rns'])
 

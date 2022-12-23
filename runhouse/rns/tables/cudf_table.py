@@ -33,6 +33,7 @@ class CudfTable(Table):
 
     def fetch(self, **kwargs):
         self.import_package('cudf')
+
         import cudf
         # https://docs.rapids.ai/api/cudf/nightly/api_docs/api/cudf.read_parquet.html
         self._cached_data = cudf.read_parquet(self.fsspec_url)
