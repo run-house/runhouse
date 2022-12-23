@@ -60,11 +60,14 @@ class Defaults:
         return {"Authorization": f"Bearer {self.get('token')}"}
 
     def upload_defaults(self,
-                        defaults: Dict,
+                        defaults: Optional[Dict] = None,
                         headers: Optional[Dict] = None,
                         entity: Optional[str] = 'user'):
         """Upload defaults into rns. If defaults is None, upload the defaults from the local config file,
         `~/.rh/config.yaml."""
+        if not defaults:
+            defaults = self.defaults_cache
+            self.save_defaults()
         to_upload = copy.deepcopy(defaults)
         # We don't need to save these
         to_upload.pop('token', None)

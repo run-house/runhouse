@@ -11,14 +11,6 @@ class PandasTable(Table):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    @property
-    def url(self):
-        return self._folder.url
-
-    @url.setter
-    def url(self, new_url):
-        self._folder.url = str(Path(new_url).parent)
-
     @staticmethod
     def from_config(config: dict, **kwargs):
         """ Load config values into the object. """
@@ -31,7 +23,7 @@ class PandasTable(Table):
              overwrite: bool = False,
              **snapshot_kwargs):
         if self._cached_data is None or overwrite:
-            self.data.to_parquet(self.fsspec_url)
+            self.data.to_parquet(self._folder.fsspec_url)
 
         save(self,
              save_to=save_to if save_to is not None else self.save_to,
@@ -43,6 +35,5 @@ class PandasTable(Table):
         self.import_package('pandas')
         import pandas as pd
         # https://pandas.pydata.org/docs/reference/api/pandas.read_parquet.html
-        self._cached_data = pd.read_parquet(self.fsspec_url, storage_options=self.data_config)
+        self._cached_data = pd.read_parquet(self._folder.fsspec_url, storage_options=self.data_config)
         return self._cached_data
-

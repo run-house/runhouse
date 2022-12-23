@@ -14,15 +14,6 @@ class DaskTable(Table):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    @property
-    def url(self):
-        return self._folder.url
-
-    @url.setter
-    def url(self, new_url):
-        self._folder.url = str(Path(new_url).parent)
-
-
     @staticmethod
     def from_config(config: dict, **kwargs):
         """ Load config values into the object. """
@@ -36,7 +27,7 @@ class DaskTable(Table):
              **snapshot_kwargs):
         # https://docs.dask.org/en/stable/how-to/connect-to-remote-data.html
         if self._cached_data is None or overwrite:
-            self.data.to_parquet(self.fsspec_url)
+            self.data.to_parquet(self._folder.fsspec_url)
 
         save(self,
              save_to=save_to if save_to is not None else self.save_to,
@@ -48,5 +39,5 @@ class DaskTable(Table):
         self.import_package('dask')
         import dask.dataframe as dd
         # https://docs.dask.org/en/stable/generated/dask.dataframe.read_parquet.html
-        self._cached_data = dd.read_parquet(self.fsspec_url, storage_options=self.data_config)
+        self._cached_data = dd.read_parquet(self._folder.fsspec_url, storage_options=self.data_config)
         return self._cached_data

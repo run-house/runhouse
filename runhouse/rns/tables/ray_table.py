@@ -12,15 +12,6 @@ class RayTable(Table):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.fsspec_fs = fsspec.filesystem(self.fs, **self.data_config)
-
-    @property
-    def url(self):
-        return self._folder.url
-
-    @url.setter
-    def url(self, new_url):
-        self._folder.url = str(Path(new_url).parent)
 
     @staticmethod
     def from_config(config: dict, **kwargs):
@@ -34,7 +25,7 @@ class RayTable(Table):
              overwrite: bool = False,
              **snapshot_kwargs):
         if self._cached_data is None or overwrite:
-            self.data.write_parquet(self.fsspec_url, filesystem=self.fsspec_fs)
+            self.data.write_parquet(self._folder.fsspec_url, filesystem=self._folder.fsspec_fs)
 
         save(self,
              save_to=save_to if save_to is not None else self.save_to,
@@ -46,5 +37,5 @@ class RayTable(Table):
         self.import_package('ray')
         import ray
         # TODO [JL] This doesn't work, see the ray docs
-        self._cached_data = ray.data.read_parquet(self.fsspec_url, filesystem=self.fsspec_fs)
+        self._cached_data = ray.data.read_parquet(self._folder.fsspec_url, filesystem=self._folder.fsspec_fs)
         return self._cached_data

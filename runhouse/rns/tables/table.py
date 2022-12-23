@@ -83,11 +83,11 @@ class Table(Resource):
     def url(self):
         # TODO [DG] Do we want adding a filename to be the default behavior?
         #   ex: partitioning, dask, ray, huggingface will store multiple files in the same folder
-        return self._folder.url + '/' + self._filename
+        return self._folder.url
 
     @url.setter
     def url(self, new_url):
-        self._folder.url = str(Path(new_url).parent)
+        self._folder.url = new_url
 
     @property
     def fsspec_url(self):
