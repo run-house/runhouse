@@ -24,7 +24,7 @@ def tokenize_function(examples):
     return tokenizer(examples["text"], padding="max_length", truncation=True)
 
 
-def load_sample_data(data_type='huggingface'):
+def load_sample_data(data_type):
     if data_type == 'huggingface':
         from datasets import load_dataset
         dataset = load_dataset("rotten_tomatoes")
@@ -168,7 +168,7 @@ def test_create_and_reload_pandas_data_from_s3():
 
     reloaded_table = rh.table(name='my_test_pandas_table', load_from=['rns'], dryrun=True)
     reloaded_data: pd.DataFrame = reloaded_table.data
-    assert not reloaded_data.empty()
+    assert orig_data.equals(reloaded_data)
 
     del orig_data
     del my_table
@@ -249,41 +249,22 @@ def test_stream_data_from_file():
 
 
 def test_stream_data_from_s3():
-    data = load_sample_data()
+    data = load_sample_data('pyarrow')
     my_table = rh.table(data=data,
                         name='my_test_table',
                         url=f'{BUCKET_NAME}/stream-data',
                         save_to=['rns'],
+                        fs='s3',
                         mkdir=True)
 
     batches = my_table.stream(batch_size=10)
     for idx, batch in enumerate(batches):
-        assert batch.column_names == ['label', 'text', 'input_ids', 'token_type_ids', 'attention_mask']
+        assert batch.column_names == ['int', 'str']
 
     my_table.delete_configs(delete_from=['rns'])
 
     my_table.delete_in_fs()
     assert not my_table.exists_in_fs()
-
-
-def test_create_and_reload_s3():
-    data = pd.DataFrame({'my_col': list(range(50))})
-    table_name = 'my_test_table_s3'
-    my_table = rh.table(data=data,
-                        name=table_name,
-                        url="donnyg-my-test-bucket/my_table.parquet",
-                        save_to=['rns'],
-                        mkdir=True)
-    del data
-    del my_table
-
-    reloaded_table = rh.table(name=table_name, load_from=['rns'], dryrun=True)
-    assert reloaded_table.data['my_col'].to_pylist() == list(range(50))
-
-    reloaded_table.delete_configs(delete_from=['rns'])
-
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
 
 
 if __name__ == '__main__':

@@ -36,5 +36,7 @@ class HuggingFaceTable(Table):
 
         from datasets import load_from_disk
         # TODO [JL] we want to open as file like objects so we can inject our data config
-        self._cached_data = load_from_disk(self.fsspec_url, fs=self._folder.fsspec_fs)
+        fs = self._folder.fsspec_fs
+        fs.storage_options = self.data_config
+        self._cached_data = load_from_disk(self.fsspec_url, fs=fs)
         return self._cached_data

@@ -113,12 +113,9 @@ class Table(Resource):
              **snapshot_kwargs)
 
     def fetch(self, columns: Optional[list] = None):
-        # TODO [JL] we want to open as file like object so we can inject our data config
-        # Need something like:
-        # with fsspec.open(self.fsspec_url, mode='rb', **self.data_config) as t:
-
         # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
-        self._cached_data: pa.Table = pq.read_table(self.fsspec_url, columns=columns)
+        with fsspec.open(self.fsspec_url, mode='rb', **self.data_config) as t:
+            self._cached_data = pq.read_table(t.full_name, columns=columns)
 
         return self._cached_data
 
@@ -144,8 +141,7 @@ class Table(Resource):
         self._folder.rm('', recursive=recursive)  # Passing in an empty string to delete the contents of the folder
 
     def exists_in_fs(self):
-        # TODO [JL] a little hacky - this checks the contents of the folder to make sure the table file(s) were deleted
-        return self._folder.exists(self.fsspec_url) and len(self._folder.ls(self.fsspec_url)) > 1
+        return self._folder.exists_in_fs() and len(self._folder.ls(self.fsspec_url)) > 1
 
     def from_cluster(self, cluster):
         """ Create a remote folder from a url on a cluster. This will create a virtual link into the
