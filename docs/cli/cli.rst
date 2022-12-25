@@ -12,8 +12,8 @@ Using the CLI, you can login to your Runhouse account.
    :show-inheritance:
 
 
-`You can login to Runhouse with the CLI as follows::`
+`You can login to Runhouse with the CLI command:`
 
 .. code-block:: console
 
-    $ runhouse login token=<MY_TOKEN>
+    $ runhouse login <MY_TOKEN>
