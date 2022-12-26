@@ -242,11 +242,9 @@ def table(data=None,
 
     if data_url is None:
         # TODO [JL] move some of the default params in this factory method to the defaults module for configurability
-        if name is None:
-            name = uuid.uuid4().hex
         if fs == rns_client.DEFAULT_FS:
             # create random url to store in .cache folder of local filesystem
-            data_url = str(Path(f"~/.cache/tables/{name}").expanduser())
+            data_url = str(Path(f"~/.cache/tables/{name or uuid.uuid4().hex}").expanduser())
         else:
             # save to the default bucket
             data_url = f'{Table.DEFAULT_FOLDER_PATH}/{name}'

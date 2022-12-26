@@ -245,8 +245,8 @@ class Folder(Resource):
 
     def mkdir(self):
         """create the folder in specified file system if it doesn't already exist"""
-        logging.info(f'Creating new {self._fs_str} folder: {self.fsspec_url}')
-        self.fsspec_fs.mkdirs(self.fsspec_url, exist_ok=True)
+        logging.info(f'Creating new {self._fs_str} folder: {self.url}')
+        self.fsspec_fs.mkdirs(self.url, exist_ok=True)
 
     def mount(self, url=None, tmp=False) -> str:
         """ Mount the folder locally. """
