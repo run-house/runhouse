@@ -57,35 +57,35 @@ Documentation
    :maxdepth: 1
    :caption: Getting Started
 
-   common_use_cases
-   getting_started
+   tutorials/common_use_cases
+   tutorials/getting_started
 
 
 .. toctree::
    :maxdepth: 1
    :caption: Using Runhouse
 
-   runhouse
-   runhouse.rns
+   cli/cli
+   main
 
    REST API Guide <https://api.run.house/docs>
    Dashboard <https://api.run.house>
    faqs
-   roadmap
+   roadmap/roadmap
 
 .. toctree::
    :maxdepth: 1
    :caption: Tutorials
 
-   send_quickstart
-   data_quickstart
-   tutorials
-   advanced_tutorials
+   tutorials/send_quickstart
+   tutorials/data_quickstart
+   tutorials/basic_tutorials
+   tutorials/advanced_tutorials
 
 .. toctree::
    :maxdepth: 1
    :caption: Security
 
-   secrets
-   access_controls
-   data_policy
+   secrets/secrets
+   access_controls/access_controls
+   data_policy/data_policy

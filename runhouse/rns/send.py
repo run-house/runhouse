@@ -10,9 +10,8 @@ import ray.cloudpickle as pickle
 from runhouse.rns.resource import Resource
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.package import Package
-from runhouse.rns.api_utils.utils import read_response_data
+from runhouse.rns.api_utils.utils import read_response_data, is_jsonable
 from runhouse.rns.api_utils.resource_access import ResourceAccess
-from runhouse.rns.api_utils.validation import is_jsonable
 from runhouse import rh_config
 
 logger = logging.getLogger(__name__)

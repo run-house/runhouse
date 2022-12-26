@@ -81,8 +81,6 @@ class Table(Resource):
 
     @property
     def url(self):
-        # TODO [DG] Do we want adding a filename to be the default behavior?
-        #   ex: partitioning, dask, ray, huggingface will store multiple files in the same folder
         return self._folder.url
 
     @url.setter
@@ -105,7 +103,7 @@ class Table(Resource):
              overwrite: bool = False, **snapshot_kwargs):
         if self._cached_data is None or overwrite:
             pq.write_to_dataset(self.data,
-                                root_path=self.fs,
+                                root_path=self.fsspec_url,
                                 partition_cols=self.partition_cols)
 
         save(self,
@@ -117,7 +115,7 @@ class Table(Resource):
     def fetch(self, columns: Optional[list] = None):
         # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
         with fsspec.open(self.fsspec_url, mode='rb', **self.data_config) as t:
-            self._cached_data: pa.Table = pq.read_table(t, columns=columns)
+            self._cached_data = pq.read_table(t.full_name, columns=columns)
 
         return self._cached_data
 
@@ -143,8 +141,7 @@ class Table(Resource):
         self._folder.rm('', recursive=recursive)  # Passing in an empty string to delete the contents of the folder
 
     def exists_in_fs(self):
-        # TODO [JL] a little hacky - this checks the contents of the folder to make sure the table file(s) were deleted
-        return self._folder.exists(self.fsspec_url) and len(self._folder.ls(self.fsspec_url)) > 1
+        return self._folder.exists_in_fs() and len(self._folder.ls(self.fsspec_url)) > 1
 
     def from_cluster(self, cluster):
         """ Create a remote folder from a url on a cluster. This will create a virtual link into the
@@ -263,7 +260,7 @@ def table(data=None,
     if mkdir:
         # create the remote folder for the table
         # TODO [JL / DG] this creates a folder in the wrong location when running with local filesystems
-        rh.folder(name=data_url, fs=fs, save_to=[], dryrun=True).mkdir()
+        rh.folder(url=data_url, fs=fs, save_to=[], dryrun=True).mkdir()
 
     new_table = _load_table_subclass(data, config, dryrun)
     new_table.data = data

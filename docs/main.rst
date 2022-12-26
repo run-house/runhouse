@@ -12,7 +12,7 @@ Resources
 .. toctree::
    :maxdepth: 1
 
-   resource
+   rh_primitives/resource
 
 
 Compute Abstractions
@@ -22,12 +22,12 @@ Compute Abstractions
 .. toctree::
    :maxdepth: 1
 
-   send
+   rh_primitives/send
 
 .. toctree::
    :maxdepth: 1
 
-   cluster
+   rh_primitives/cluster
 
 
 Data Abstractions
@@ -37,22 +37,22 @@ Data Abstractions
 .. toctree::
    :maxdepth: 1
 
-   blob
+   rh_primitives/blob
 
 
 .. toctree::
    :maxdepth: 1
 
-   folder
+   rh_primitives/folder
 
 
 .. toctree::
    :maxdepth: 1
 
-   package
+   rh_primitives/package
 
 .. toctree::
    :maxdepth: 1
 
-   table
+   rh_primitives/table
 

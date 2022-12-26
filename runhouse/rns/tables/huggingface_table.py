@@ -1,5 +1,3 @@
-from pathlib import Path
-import fsspec
 from typing import Optional, List
 
 from .table import Table
@@ -25,7 +23,7 @@ class HuggingFaceTable(Table):
              **snapshot_kwargs):
         # https://huggingface.co/docs/datasets/v2.8.0/en/process#save
         if self._cached_data is None or overwrite:
-            self.data.save_to_disk(self.fsspec_url, fs=self._folder.fsspec_fs)
+            self.data.save_to_disk(self.url, fs=self._folder.fsspec_fs)
 
         save(self,
              save_to=save_to if save_to is not None else self.save_to,
@@ -35,8 +33,10 @@ class HuggingFaceTable(Table):
 
     def fetch(self, **kwargs):
         self.import_package('datasets')
+
         from datasets import load_from_disk
-        # TODO [JL] Not currently working - seems to be some inconsistencies in the fsspec URL sometimes having
-        #   an extra slash (ex: 's3:///runhouse-tests/huggingface')
-        self._cached_data = load_from_disk(self.fsspec_url, fs=self._folder.fsspec_fs)
+        # TODO [JL] we want to open as file like objects so we can inject our data config
+        fs = self._folder.fsspec_fs
+        fs.storage_options = self.data_config
+        self._cached_data = load_from_disk(self.fsspec_url, fs=fs)
         return self._cached_data
