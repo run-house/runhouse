@@ -441,6 +441,8 @@ def send(fn: Optional[Union[str, Callable]] = None,
 
     processed_reqs = []
     for req in config['reqs']:
+        # TODO [DG] the following is wrong. RNS address doesn't have to start with '/'. However if we check if each
+        #  string exists in RNS this will be incredibly slow, so leave it for now.
         if isinstance(req, str) and req[0] == '/' and \
                 rh_config.rns_client.exists(req, load_from=load_from):
             # If req is an rns address

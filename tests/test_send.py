@@ -24,7 +24,7 @@ def summer(a, b):
 
 
 def test_create_send_from_name_local():
-    local_sum = rh.send(fn=summer, name='local_send', hardware='^rh-cpu', reqs=[], dryrun=False, save_to=['local'])
+    local_sum = rh.send(fn=summer, name='local_send', hardware='^rh-cpu', reqs=['local:./'], save_to=['local'])
     del local_sum
 
     remote_sum = rh.send(name='local_send', load_from=['local'])

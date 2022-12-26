@@ -353,6 +353,7 @@ class GCPSecrets(Secrets):
 
         # We need to do extra stuff if we're in a colab
         if "google.colab" in sys.modules:
+            # TODO [DG] use console.print and make brighter so this stands out from other login print outputs
             print("Please do the following to complete gcp secrets setup:")
             print(f"!gcloud init")
             print(f"!gcloud auth application-default login")

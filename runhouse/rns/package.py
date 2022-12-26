@@ -61,14 +61,12 @@ class Package(Folder):
                     self.pip_install(f'-r {Path(local_path)}/requirements.txt')
                 else:
                     logging.info(f'{local_path}/requirements.txt not found, skipping')
-                sys.path.append(local_path)
             else:
                 if (Path(local_path) / 'setup.py').exists():
                     self.pip_install(f'-e {local_path}')
                 elif (Path(local_path) / 'pyproject.toml').exists():
                     self.pip_install(f'{local_path}')
-                else:
-                    sys.path.append(local_path)
+            sys.path.append(local_path)
         elif self.install_method == 'git':
             self.pip_install(f'git+{self.url}')
         elif self.install_method == 'gh':
@@ -101,7 +99,7 @@ class Package(Folder):
             return Package(url=specifier[4:], install_method='git', dryrun=dryrun)
         elif specifier.startswith('gh:'):
             # TODO [DG] test and make this actually work
-            return Package(url='github.com/' + specifier[3] + '.git', install_method='git', dryrun=dryrun)
+            return Package(url='github.com/' + specifier[3:] + '.git', install_method='git', dryrun=dryrun)
         elif specifier.startswith('pip:'):
             return Package(name=specifier[4:], install_method='pip', dryrun=dryrun)
         elif specifier.startswith('conda:'):
