@@ -232,8 +232,11 @@ class Send(Resource):
         else:
             raise NotImplementedError("Send.enqueue only works with Write or Read access, not Proxy access")
 
-    def remote(self, *args, **kwargs):
+    def remote (self, *args, **kwargs):
         """Map a function over a list of arguments."""
+        # TODO [DG] pin the obj_ref and return a string (printed to log) so result can be retrieved later and we
+        # don't need to init ray here. Also, allow user to pass the string as a param to remote().
+        # TODO [DG] add rpc for listing gettaable strings, plus metadata (e.g. when it was created)
         # We need to ray init here so the returned Ray object ref doesn't throw an error it's deserialized
         import ray
         ray.init(ignore_reinit_error=True)
@@ -471,7 +474,7 @@ def send(fn: Optional[Union[str, Callable]] = None,
                 # TODO put this in the current folder instead?
                 module_path = Path.cwd() / (f'{config["name"]}_fn.py' if config['name'] else 'send_fn.py')
                 logging.info(f'Writing out send function to {str(module_path)} as '
-                             f'functions serialized in notebooks are brittle. Please make'
+                             f'functions serialized in notebooks are brittle. Please make '
                              f'sure the function does not rely on any local variables, '
                              f'including imports (which should be moved inside the function body).')
                 if not config['name']:

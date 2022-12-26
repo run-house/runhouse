@@ -215,6 +215,14 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
                         f'For converting data to pyarrow see: '
                         f'https://arrow.apache.org/docs/7.0/python/generated/pyarrow.Table.html')
 
+# Override the pickle method to clear _cached_data before pickling
+def __getstate__(self):
+    # self._cached_data = None
+    # return self.__getstate__()
+    state = self.__dict__.copy()
+    state['_cached_data'] = None
+    return state
+
 
 def table(data=None,
           name: Optional[str] = None,

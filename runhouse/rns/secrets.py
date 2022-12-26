@@ -456,3 +456,4 @@ class GHSecrets(Secrets):
 # TODO AWS secrets (use https://github.com/99designs/aws-vault ?)
 # TODO Azure secrets
 # TODO GCP secrets
+# TODO custom vault secrets
