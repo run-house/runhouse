@@ -122,6 +122,12 @@ class Table(Resource):
     def __getitem__(self, key: Optional[list] = None):
         return self.data.__getitem__(key)
 
+    def __getstate__(self):
+        """Override the pickle method to clear _cached_data before pickling"""
+        state = self.__dict__.copy()
+        state['_cached_data'] = None
+        return state
+
     def stream(self, batch_size, drop_last: bool = False, shuffle_seed: Optional[int] = None):
         df = ray.data.read_parquet(self.fsspec_url)
         # TODO the latest ray version supports local shuffle inside iter_batches, use that instead?
@@ -214,14 +220,6 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
         raise TypeError(f'Unsupported data type {type(data)} for Table construction. '
                         f'For converting data to pyarrow see: '
                         f'https://arrow.apache.org/docs/7.0/python/generated/pyarrow.Table.html')
-
-# Override the pickle method to clear _cached_data before pickling
-def __getstate__(self):
-    # self._cached_data = None
-    # return self.__getstate__()
-    state = self.__dict__.copy()
-    state['_cached_data'] = None
-    return state
 
 
 def table(data=None,

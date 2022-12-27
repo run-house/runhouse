@@ -243,7 +243,7 @@ class Send(Resource):
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
             return self._call_fn_with_ssh_access(fn_type='remote', args=args, kwargs=kwargs)
         else:
-            raise NotImplementedError("Send.map only works with Write or Read access, not Proxy access")
+            raise NotImplementedError("Send.remote only works with Write or Read access, not Proxy access")
 
     def get(self, obj_ref):
         """Get the result of a Send call that was submitted as async using `remote`.
