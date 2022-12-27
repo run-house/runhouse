@@ -232,7 +232,7 @@ class Send(Resource):
         else:
             raise NotImplementedError("Send.enqueue only works with Write or Read access, not Proxy access")
 
-    def remote (self, *args, **kwargs):
+    def remote(self, *args, **kwargs):
         """Map a function over a list of arguments."""
         # TODO [DG] pin the obj_ref and return a string (printed to log) so result can be retrieved later and we
         # don't need to init ray here. Also, allow user to pass the string as a param to remote().
