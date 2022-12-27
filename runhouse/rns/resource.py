@@ -26,6 +26,10 @@ class Resource:
         self._name, self._rns_folder = None, None
         if name is not None:
             # TODO validate that name complies with a simple regex
+            if name.startswith('/builtins/'):
+                name = name[10:]
+            if name[0] == '^':
+                name = name[1:]
             self._name, self._rns_folder = rns_client.split_rns_name_and_path(
                 rns_client.resolve_rns_path(name))
 
@@ -44,8 +48,6 @@ class Resource:
 
     def _resource_string_for_subconfig(self, resource):
         """Returns a string representation of a sub-resource for use in a config."""
-        # TODO [DG] add __str__ method to resource class and package to prevent things
-        #  like saving a package called "torch==1.12"
         if resource is None or isinstance(resource, str):
             return resource
         if resource.name:

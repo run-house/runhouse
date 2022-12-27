@@ -32,8 +32,15 @@ def test_basic_run():
     # Create temp file where fn's will be stored
     test_cmd = 'echo hi'
     hw = cluster(name='^rh-cpu')
+    hw.up_if_not()
     res = hw.run(commands=[test_cmd])
     assert 'hi' in res[0][1]
+
+def test_restart_grpc():
+    hw = cluster(name='^rh-cpu', load_from=['local'], save_to=[])
+    hw.up_if_not()
+    codes = hw.restart_grpc_server(resync_rh=False)
+    assert codes
 
 
 if __name__ == '__main__':

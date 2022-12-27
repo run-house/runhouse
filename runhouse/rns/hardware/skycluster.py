@@ -75,7 +75,6 @@ class Cluster(Resource):
 
     @property
     def config_for_rns(self):
-        # TODO [DG] if base path in /builtins/ then copy it to user folder
         config = super().config_for_rns
 
         # Also store the ssh keys for the cluster in RNS
@@ -423,21 +422,29 @@ class Cluster(Resource):
 
     def restart_grpc_server(self, _rh_install_url=None, resync_rh=True):
         # TODO how do we capture errors if this fails?
-        # grpc_server_cmd = f'cd ~/sky_workdir; screen -dm python3 -m runhouse.grpc_handler.unary_server'
         if resync_rh:
             self.sync_runhouse_to_cluster(_install_url=_rh_install_url)
         grpc_server_cmd = f'screen -dm python3 -m runhouse.grpc_handler.unary_server'
-        # TODO fuser is not on the gcp boxes. Need to install: https://command-not-found.com/fuser
-        kill_proc_at_port_cmd = f'fuser -k {UnaryService.DEFAULT_PORT}/tcp' if self.provider == 'aws' \
-            else "kill -9 $(netstat -anp | grep 50052 | grep -o '[0-9]*/' | sed 's+/$++')"
-            # f'kill -9 $(lsof -t -i:{UnaryService.DEFAULT_PORT})'
-        status_codes = self.run(commands=[kill_proc_at_port_cmd,
+        kill_proc_cmd = f'pkill -f "python3 -m runhouse.grpc_handler.unary_server"'
+
+        # If we need different commands for debian or ubuntu, we can use this:
+        # Need to get actual provider in case provider == 'cheapest'
+        # handle = sky.global_user_state.get_cluster_from_name(self.name)['handle']
+        # cloud_provider = str(handle.launched_resources.cloud)
+        # ubuntu_kill_proc_cmd = f'fuser -k {UnaryService.DEFAULT_PORT}/tcp'
+        # debian_kill_proc_cmd = "kill -9 $(netstat -anp | grep 50052 | grep -o '[0-9]*/' | sed 's+/$++')"
+        # f'kill -9 $(lsof -t -i:{UnaryService.DEFAULT_PORT})'
+        # kill_proc_at_port_cmd = debian_kill_proc_cmd if cloud_provider == 'GCP' \
+        #     else ubuntu_kill_proc_cmd
+
+        status_codes = self.run(commands=[kill_proc_cmd,
                                           grpc_server_cmd],
                                 stream_logs=True,
                                 )
-        # TODO validate status codes
+        # TODO [DG] test if we still need this
         import time
         time.sleep(2)
+        return status_codes
 
     @contextlib.contextmanager
     def pause_autostop(self):
