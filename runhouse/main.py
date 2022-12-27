@@ -21,22 +21,7 @@ def login(token: Optional[str] = typer.Argument(None, help="Your Runhouse API to
     """Login to Runhouse. Validates token provided, with options to upload or download stored secrets or config between
     local environment and Runhouse / Vault.
     """
-    if not token:
-        console.print(f'Retrieve your token :key: here to use :person_running: :house: Runhouse for '
-                      f'secrets and artifact management: {configs.get("api_server_url")}/dashboard/?option=token',
-                      style='bold yellow')
-        token = typer.prompt("Token", type=str)
-
-    download_config = typer.confirm('Download config from Runhouse to your local .rh folder?')
-    upload_config = typer.confirm('Upload your local config to Runhouse?')
-    download_secrets = typer.confirm('Download secrets from Vault to your local Runhouse config?')
-    upload_secrets = typer.confirm('Upload your enabled cloud provider secrets to Vault?')
-
-    valid_token: str = login_module.login(token=token,
-                                          download_config=download_config,
-                                          upload_config=upload_config,
-                                          upload_secrets=upload_secrets,
-                                          download_secrets=download_secrets,
+    valid_token: str = login_module.login(interactive=True,
                                           ret_token=True)
     if valid_token:
         webbrowser.open(f"{configs.get('api_server_url')}/dashboard?token={valid_token}")

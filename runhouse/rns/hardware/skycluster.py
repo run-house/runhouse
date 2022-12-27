@@ -428,7 +428,10 @@ class Cluster(Resource):
             self.sync_runhouse_to_cluster(_install_url=_rh_install_url)
         grpc_server_cmd = f'screen -dm python3 -m runhouse.grpc_handler.unary_server'
         # TODO fuser is not on the gcp boxes. Need to install: https://command-not-found.com/fuser
-        status_codes = self.run(commands=[f'fuser -k {UnaryService.DEFAULT_PORT}/tcp',
+        kill_proc_at_port_cmd = f'fuser -k {UnaryService.DEFAULT_PORT}/tcp' if self.provider == 'aws' \
+            else "kill -9 $(netstat -anp | grep 50052 | grep -o '[0-9]*/' | sed 's+/$++')"
+            # f'kill -9 $(lsof -t -i:{UnaryService.DEFAULT_PORT})'
+        status_codes = self.run(commands=[kill_proc_at_port_cmd,
                                           grpc_server_cmd],
                                 stream_logs=True,
                                 )

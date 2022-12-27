@@ -1,5 +1,6 @@
 import logging
 
+import typer
 from runhouse.rh_config import configs, rns_client
 from .secrets import Secrets
 
@@ -12,15 +13,16 @@ def is_interactive():
 
 
 def login(token: str = None,
-          download_config: bool = False,
-          upload_config: bool = False,
-          download_secrets: bool = False,
-          upload_secrets: bool = False,
-          ret_token: bool = False):
+          download_config: bool = None,
+          upload_config: bool = None,
+          download_secrets: bool = None,
+          upload_secrets: bool = None,
+          ret_token: bool = False,
+          interactive: bool = False):
     """Login to Runhouse. Validates token provided, with options to upload or download stored secrets or config between
     local environment and Runhouse / Vault.
     """
-    if not token and is_interactive():
+    if not token and (is_interactive() or interactive):
         from getpass import getpass
         from rich.console import Console
         console = Console()
@@ -31,12 +33,18 @@ def login(token: str = None,
          / _, _/ /_/ / / / / / / / /_/ / /_/ (__  )  __/  /_/\_//____/\  @@@@
         /_/ |_|\__,_/_/ /_/_/ /_/\____/\__,_/____/\___/   | || |||__|||   ||
         """)
+        link = f'[link={configs.get("api_server_url")}/dashboard/?option=token]https://api.run.house[/link]' \
+            if is_interactive() \
+            else f'{configs.get("api_server_url")}/dashboard/?option=token'
         console.print(f'Retrieve your token :key: here to use :person_running: :house: Runhouse for '
-                      f'secrets and artifact management: '
-                      f'[link={configs.get("api_server_url")}/dashboard/?option=token]'
-                      f'https://api.run.house[/link]',
+                      f'secrets and artifact management: {link}',
                       style='bold yellow')
         token = getpass("Token: ")
+
+        download_config = download_config if download_config is not None else typer.confirm('Download config from Runhouse to your local .rh folder?')
+        download_secrets = download_secrets if download_secrets is not None else typer.confirm('Download secrets from Vault to your local Runhouse config?')
+        upload_config = upload_config if upload_config is not None else typer.confirm('Upload your local config to Runhouse?')
+        upload_secrets = upload_secrets if upload_secrets is not None else typer.confirm('Upload your enabled cloud provider secrets to Vault?')
 
     if token:
         configs.set('token', token)
@@ -61,6 +69,6 @@ def login(token: str = None,
     if upload_secrets:
         Secrets.extract_and_upload()
 
-    logger.info('Successfully logged into Runhouse')
+    logger.info('Successfully logged into Runhouse.')
     if ret_token:
         return token
