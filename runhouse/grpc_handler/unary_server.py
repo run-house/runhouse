@@ -11,7 +11,7 @@ import ray.cloudpickle as pickle
 
 import runhouse.grpc_handler.unary_pb2_grpc as pb2_grpc
 import runhouse.grpc_handler.unary_pb2 as pb2
-from runhouse.rns.package import Package
+from runhouse.rns.packages.package import Package
 from runhouse.rns.top_level_rns_fns import _set_pinned_memory_store, remove_pinned_object, flush_pinned_memory
 
 logger = logging.getLogger(__name__)

@@ -9,7 +9,7 @@ import ray.cloudpickle as pickle
 
 from runhouse.rns.resource import Resource
 from runhouse.rns.hardware import Cluster
-from runhouse.rns.package import Package
+from runhouse.rns.packages.package import Package
 from runhouse.rns.api_utils.utils import read_response_data, is_jsonable
 from runhouse.rns.api_utils.resource_access import ResourceAccess
 from runhouse import rh_config
@@ -58,7 +58,7 @@ class Send(Resource):
         if reqs is None:
             reqs = [f'reqs:{rh_config.rns_client.locate_working_dir()}']
         self.reqs = reqs
-        self.setup_cmds = setup_cmds
+        self.setup_cmds = setup_cmds or []
         self.image = image  # TODO or self.DEFAULT_IMAGE
         self.access = access or self.DEFAULT_ACCESS
 

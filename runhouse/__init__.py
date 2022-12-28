@@ -9,7 +9,7 @@ from runhouse.rns.top_level_rns_fns import exists, set_folder, unset_folder, cur
     resources, ipython, locate, load, \
     pin_to_memory, get_pinned_object
 
-from .rns.package import package, Package
+from runhouse.rns.packages.package import package, Package
 from .rns.folders.folder import folder
 from .rns.tables.table import table
 from .rns.blob import blob

@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Union
+from typing import List, Optional, Union
 import subprocess
 import logging
 from pathlib import Path
@@ -13,7 +13,7 @@ from sshtunnel import SSHTunnelForwarder, HandlerSSHTunnelForwarderError
 import ray.cloudpickle as pickle
 
 from runhouse.rns.resource import Resource
-from runhouse.rns.package import Package
+from runhouse.rns.packages.package import Package
 from runhouse.grpc_handler.unary_client import UnaryClient
 from runhouse.grpc_handler.unary_server import UnaryService
 from runhouse.rh_config import rns_client, configs, open_grpc_tunnels

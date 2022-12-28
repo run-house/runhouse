@@ -4,7 +4,7 @@
 
 from .resource import Resource
 from .send import Send
-from .package import Package
+from runhouse.rns.packages.package import Package
 from .hardware.skycluster import Cluster
 from .blob import Blob
 from .tables.table import Table
