@@ -2,6 +2,8 @@ import logging
 import grpc
 import time
 
+import ray.cloudpickle as pickle
+
 import runhouse.grpc_handler.unary_pb2_grpc as pb2_grpc
 import runhouse.grpc_handler.unary_pb2 as pb2
 

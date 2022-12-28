@@ -158,5 +158,5 @@ def pop_pinned_object(key: str):
 
 
 def flush_pinned_memory():
-    for key in rh_config.global_pinned_memory_store.keys():
-        rh_config.global_pinned_memory_store.pop(key, None)
+    if rh_config.global_pinned_memory_store:
+        rh_config.global_pinned_memory_store.clear()
