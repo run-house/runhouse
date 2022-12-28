@@ -26,8 +26,8 @@ class Send(Resource):
                  fn_pointers: Tuple[str, str, str],
                  hardware: Optional[Cluster] = None,
                  name: [Optional[str]] = None,
-                 dedicated: Optional[bool] = False,
                  reqs: Optional[List[str]] = None,
+                 setup_cmds: Optional[List[str]] = None,
                  image: Optional[str] = None,  # TODO
                  save_to: Optional[List[str]] = None,
                  dryrun: Optional[bool] = True,
@@ -58,6 +58,7 @@ class Send(Resource):
         if reqs is None:
             reqs = [f'reqs:{rh_config.rns_client.locate_working_dir()}']
         self.reqs = reqs
+        self.setup_cmds = setup_cmds
         self.image = image  # TODO or self.DEFAULT_IMAGE
         self.access = access or self.DEFAULT_ACCESS
 
@@ -105,8 +106,18 @@ class Send(Resource):
 
     def reup_cluster(self):
         logger.info(f"Upping the cluster {self.hardware.name}")
-        # Even if cluster is already up, copies working_dir onto the cluster inside of image
         self.hardware.up()
+        # TODO [DG] this only happens when the cluster comes up, not when a new send is added to the cluster
+        self.hardware.run(self.setup_cmds)
+
+    def run_setup(self, cmds, force=False):
+        to_run = []
+        for cmd in cmds:
+            if force or cmd not in self.setup_cmds:
+                to_run.append(cmd)
+        if to_run:
+            self.setup_cmds.extend(to_run)
+            self.hardware.run(to_run)
 
     @staticmethod
     def extract_fn_paths(raw_fn, reqs):
@@ -324,6 +335,7 @@ class Send(Resource):
         config.update({
             'hardware': self._resource_string_for_subconfig(self.hardware),
             'reqs': [self._resource_string_for_subconfig(package) for package in self.reqs],
+            'setup_cmds': self.setup_cmds,
             'fn_pointers': self.fn_pointers,
         })
         return config
@@ -409,6 +421,7 @@ def send(fn: Optional[Union[str, Callable]] = None,
          name: [Optional[str]] = None,
          hardware: Optional[Union[str, Cluster]] = None,
          reqs: Optional[List[str]] = None,
+         setup_cmds: Optional[List[str]] = None,
          image: Optional[str] = None,  # TODO
          load_from: Optional[List[str]] = None,
          save_to: Optional[List[str]] = None,
@@ -501,6 +514,7 @@ def send(fn: Optional[Union[str, Callable]] = None,
         config['hardware'] = hw_dict
 
     config['image'] = image or config.get('image')
+    config['setup_cmds'] = setup_cmds if setup_cmds is not None else config.get('setup_cmds')
 
     config['access_level'] = config.get('access_level', Send.DEFAULT_ACCESS)
     config['save_to'] = save_to
