@@ -392,16 +392,17 @@ class Cluster(Resource):
 
         return ssh_tunnel, local_port
 
-    def __del__(self):
-        if self.address in open_grpc_tunnels:
-            tunnel, port, refcount = open_grpc_tunnels[self.address]
-            if refcount == 1:
-                tunnel.stop(force=True)
-                open_grpc_tunnels.pop(self.address)
-            else:
-                open_grpc_tunnels[self.address] = (tunnel, port, refcount - 1)
-        elif self._grpc_tunnel:  # Not sure why this would be reached but keeping it just in case
-            self._grpc_tunnel.stop(force=True)
+    # TODO [DG] Remove this for now, for some reason it was causing execution to hang after programs completed
+    # def __del__(self):
+        # if self.address in open_grpc_tunnels:
+        #     tunnel, port, refcount = open_grpc_tunnels[self.address]
+        #     if refcount == 1:
+        #         tunnel.stop(force=True)
+        #         open_grpc_tunnels.pop(self.address)
+        #     else:
+        #         open_grpc_tunnels[self.address] = (tunnel, port, refcount - 1)
+        # elif self._grpc_tunnel:  # Not sure why this would be reached but keeping it just in case
+        #     self._grpc_tunnel.stop(force=True)
 
     # import paramiko
     # ssh = paramiko.SSHClient()
@@ -441,7 +442,7 @@ class Cluster(Resource):
                                           grpc_server_cmd],
                                 stream_logs=True,
                                 )
-        # TODO [DG] test if we still need this
+        # As of 2022-27-Dec still seems we need this.
         import time
         time.sleep(2)
         return status_codes
