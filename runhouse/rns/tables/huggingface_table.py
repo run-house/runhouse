@@ -1,7 +1,11 @@
+import os
 from typing import Optional, List
+
+import datasets.table
 
 from .table import Table
 from ..top_level_rns_fns import save
+from ... import rns_client
 
 
 class HuggingFaceTable(Table):
@@ -26,6 +30,7 @@ class HuggingFaceTable(Table):
             self.data.save_to_disk(self.url, fs=self._folder.fsspec_fs)
 
         save(self,
+             name=name,
              save_to=save_to if save_to is not None else self.save_to,
              snapshot=snapshot,
              overwrite=overwrite,
@@ -36,6 +41,5 @@ class HuggingFaceTable(Table):
 
         from datasets import load_from_disk
         # TODO [JL] we want to open as file like objects so we can inject our data config
-        fs = self._folder.fsspec_fs
-        self._cached_data = load_from_disk(self.url, fs=fs)
+        self._cached_data = load_from_disk(self.url, fs=self._folder.fsspec_fs)
         return self._cached_data

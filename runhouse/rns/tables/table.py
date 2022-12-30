@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 class Table(Resource):
     RESOURCE_TYPE = 'table'
     DEFAULT_FOLDER_PATH = '/runhouse/tables'
+    DEFAULT_CACHE_FOLDER = '.cache/runhouse/tables/'
 
     def __init__(self,
                  url: str,
@@ -174,12 +175,13 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
     resource_subtype = config.get('resource_subtype', Table.__name__)
 
     try:
+        # TODO [JL] For now not supporting HF datasets
         import datasets
-        if resource_subtype == 'HuggingFaceTable' or isinstance(data, datasets.dataset_dict.DatasetDict):
-            from .huggingface_table import HuggingFaceTable
-            return HuggingFaceTable.from_config(config)
+        if resource_subtype == 'HuggingFaceTable' or isinstance(data, datasets.arrow_dataset.Dataset):
+            raise TypeError('Runhouse does not currently do not support HuggingFace datasets. '
+                            'Please convert to pandas or pyarrow first.')
     except ModuleNotFoundError:
-        pass
+        raise ModuleNotFoundError('HuggingFace datasets not currently supported')
 
     try:
         import pandas as pd
@@ -250,7 +252,7 @@ def table(data=None,
         # TODO [JL] move some of the default params in this factory method to the defaults module for configurability
         if fs == rns_client.DEFAULT_FS:
             # create random url to store in .cache folder of local filesystem
-            data_url = str(Path(f"~/.cache/tables/{name or uuid.uuid4().hex}").expanduser())
+            data_url = str(Path(f"~/{Table.DEFAULT_CACHE_FOLDER}/{name or uuid.uuid4().hex}").expanduser())
         else:
             # save to the default bucket
             data_url = f'{Table.DEFAULT_FOLDER_PATH}/{name}'

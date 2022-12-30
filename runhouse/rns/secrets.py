@@ -363,7 +363,7 @@ class GCPSecrets(Secrets):
 
 
 class HFSecrets(Secrets):
-    PROVIDER_NAME = 'hf'
+    PROVIDER_NAME = 'huggingface'
     CREDENTIALS_FILE = os.path.expanduser('~/.huggingface/token')
 
     @classmethod
