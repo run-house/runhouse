@@ -53,7 +53,8 @@ class Table(Resource):
         table_config = {'url': self.url,
                         'resource_type': self.RESOURCE_TYPE,
                         'fs': self.fs,
-                        'resource_subtype': self.__class__.__name__}
+                        'resource_subtype': self.__class__.__name__,
+                        'partition_cols': self.partition_cols}
         config.update(table_config)
         return config
 
@@ -177,15 +178,16 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
     try:
         # TODO [JL] For now not supporting HF datasets
         import datasets
-        if resource_subtype == 'HuggingFaceTable' or isinstance(data, datasets.arrow_dataset.Dataset):
-            raise TypeError('Runhouse does not currently do not support HuggingFace datasets. '
-                            'Please convert to pandas or pyarrow first.')
+        if isinstance(data, datasets.arrow_dataset.Dataset) or resource_subtype == 'HuggingFaceTable':
+            raise TypeError('Runhouse does not currently support HuggingFace datasets. Please convert the dataset '
+                            'object to pandas using `dataset.to_pandas()` or to pyarrow using '
+                            '`dataset.data.table`.')
     except ModuleNotFoundError:
-        raise ModuleNotFoundError('HuggingFace datasets not currently supported')
+        pass
 
     try:
         import pandas as pd
-        if resource_subtype == 'PandasTable' or isinstance(data, pd.DataFrame):
+        if isinstance(data, pd.DataFrame) or resource_subtype == 'PandasTable':
             from .pandas_table import PandasTable
             return PandasTable.from_config(config)
     except ModuleNotFoundError:
@@ -193,7 +195,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
 
     try:
         import dask.dataframe as dd
-        if resource_subtype == 'DaskTable' or isinstance(data, dd.DataFrame):
+        if isinstance(data, dd.DataFrame) or resource_subtype == 'DaskTable':
             from .dask_table import DaskTable
             return DaskTable.from_config(config)
     except ModuleNotFoundError:
@@ -201,7 +203,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
 
     try:
         import ray
-        if resource_subtype == 'RayTable' or isinstance(data, ray.data.dataset.Dataset):
+        if isinstance(data, ray.data.dataset.Dataset) or resource_subtype == 'RayTable':
             from .ray_table import RayTable
             return RayTable.from_config(config)
     except ModuleNotFoundError:
@@ -209,13 +211,13 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
 
     try:
         import cudf
-        if resource_subtype == 'CudfTable' or isinstance(data, cudf.DataFrame):
+        if isinstance(data, cudf.DataFrame) or resource_subtype == 'CudfTable':
             from .cudf_table import CudfTable
             return CudfTable.from_config(config)
     except ModuleNotFoundError:
         pass
 
-    if resource_subtype == 'Table' or isinstance(data, pa.Table):
+    if isinstance(data, pa.Table) or resource_subtype == 'Table':
         new_table = Table.from_config(config, dryrun=dryrun)
         return new_table
     else:
