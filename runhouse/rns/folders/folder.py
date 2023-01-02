@@ -1,5 +1,6 @@
 import copy
 import logging
+import os
 from pathlib import Path
 from typing import Tuple, Dict, Union, Optional, List
 import fsspec
@@ -245,8 +246,13 @@ class Folder(Resource):
 
     def mkdir(self):
         """create the folder in specified file system if it doesn't already exist"""
-        logging.info(f'Creating new {self._fs_str} folder: {self.url}')
-        self.fsspec_fs.mkdirs(self.url, exist_ok=True)
+        # TODO [DG / JL] Should we be accounting for the fact that URL may include the file name?
+        folder_url = self.url
+        if Path(os.path.basename(folder_url)).suffix != '':
+            folder_url = str(Path(folder_url).parent)
+
+        logging.info(f'Creating new {self._fs_str} folder: {folder_url}')
+        self.fsspec_fs.mkdirs(folder_url, exist_ok=True)
 
     def mount(self, url=None, tmp=False) -> str:
         """ Mount the folder locally. """
@@ -366,10 +372,10 @@ class Folder(Resource):
     @property
     def fsspec_url(self):
         """Generate the FSSpec URL using the file system and url of the folder"""
-        # TODO [JL] hacky
         if self.url.startswith("/") and self._fs_str != rns_client.DEFAULT_FS:
             return f'{self._fs_str}:/{self.url}'
-        return f'{self._fs_str}://{self.url}'
+        else:
+            return f'{self._fs_str}://{self.url}'
 
     def ls(self):
         """List the contents of the folder"""

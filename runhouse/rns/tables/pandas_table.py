@@ -1,7 +1,9 @@
+from pathlib import Path
 from typing import Optional, List
 
 from .table import Table
 from ..top_level_rns_fns import save
+from ... import rns_client
 
 
 class PandasTable(Table):
@@ -9,6 +11,16 @@ class PandasTable(Table):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+    @property
+    def root_path(self):
+        """Add suffix to the URL when using a local filesystem to prevent IsADirectoryError.
+        PyArrow will create this suffix for us, but with Pandas we need to do it ourselves."""
+        fsspec_url = self._folder.fsspec_url
+        if self.fs != rns_client.DEFAULT_FS:
+            return fsspec_url
+
+        return fsspec_url if Path(fsspec_url).suffix else f'{fsspec_url}/{Path(fsspec_url).stem}.parquet'
 
     @staticmethod
     def from_config(config: dict, **kwargs):
@@ -22,7 +34,9 @@ class PandasTable(Table):
              overwrite: bool = False,
              **snapshot_kwargs):
         if self._cached_data is None or overwrite:
-            self.data.to_parquet(self._folder.fsspec_url)
+            self.data.to_parquet(self.root_path,
+                                 partition_cols=self.partition_cols,
+                                 storage_options=self.data_config)
 
         save(self,
              name=name,
@@ -36,5 +50,5 @@ class PandasTable(Table):
 
         import pandas as pd
         # https://pandas.pydata.org/docs/reference/api/pandas.read_parquet.html
-        self._cached_data = pd.read_parquet(self._folder.fsspec_url, storage_options=self.data_config)
+        self._cached_data = pd.read_parquet(self.root_path, storage_options=self.data_config)
         return self._cached_data

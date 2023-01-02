@@ -62,17 +62,41 @@ def load_sample_data(data_type):
 
 # ----------------- Run tests -----------------
 
-def test_create_and_reload_from_file():
+def test_create_and_reload_pandas_from_file():
     data = load_sample_data('pandas')
     orig_data_shape = data.shape
     my_table = rh.table(data=data,
-                        name='my_test_table',
-                        url='table_tests/test_table.parquet',
+                        name='my_test_pandas_table',
+                        url='table_tests/test_pandas_table.parquet',
                         save_to=['local'],
                         fs='file',
                         mkdir=True)
 
-    reloaded_table = rh.table(name='my_test_table', load_from=['local'], dryrun=True)
+    reloaded_table = rh.table(name='my_test_pandas_table', load_from=['local'], dryrun=True)
+    reloaded_data: pd.DataFrame = reloaded_table.data
+
+    assert reloaded_data.shape == orig_data_shape
+
+    del data
+    del my_table
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+    reloaded_table.delete_configs(delete_from=['local'])
+
+
+def test_create_and_reload_pyarrow_from_file():
+    data = load_sample_data('pyarrow')
+    orig_data_shape = data.shape
+    my_table = rh.table(data=data,
+                        name='my_test_pyarrow_table',
+                        url='table_tests/pyarrow_test_table',
+                        save_to=['local'],
+                        fs='file',
+                        mkdir=True)
+
+    reloaded_table = rh.table(name='my_test_pyarrow_table', load_from=['local'], dryrun=True)
     reloaded_data: pd.DataFrame = reloaded_table.data
 
     assert reloaded_data.shape == orig_data_shape
@@ -221,7 +245,7 @@ def test_create_and_stream_huggingface_data_from_s3():
                         fs='s3',
                         mkdir=True)
 
-    reloaded_table = rh.table(name='my_test_hf_table', load_from=['rns'], dryrun=True)
+    reloaded_table = rh.table(name='my_test_hf_stream_table', load_from=['rns'], dryrun=True)
     reloaded_data = reloaded_table.data
     assert reloaded_data.shape == orig_data_shape
 
@@ -255,7 +279,7 @@ def test_create_and_reload_partitioned_data_from_s3():
 
     # Let's reload only the column we partitioned on
     reloaded_data = reloaded_table.fetch(columns=['int'])
-    assert reloaded_data.shape == (2,1)
+    assert reloaded_data.shape == (2, 1)
 
     del data
     del my_table

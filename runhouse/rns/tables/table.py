@@ -116,8 +116,11 @@ class Table(Resource):
 
     def fetch(self, columns: Optional[list] = None):
         # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
-        with fsspec.open(self.fsspec_url, mode='rb', **self.data_config) as t:
-            self._cached_data = pq.read_table(t.full_name, columns=columns)
+        try:
+            with fsspec.open(self.fsspec_url, mode='rb', **self.data_config) as t:
+                self._cached_data = pq.read_table(t.full_name, columns=columns)
+        except IsADirectoryError:
+            self._cached_data = pq.read_table(self.fsspec_url, columns=columns)
 
         return self._cached_data
 
@@ -267,7 +270,6 @@ def table(data=None,
 
     if mkdir:
         # create the remote folder for the table
-        # TODO [JL / DG] this creates a folder in the wrong location when running with local filesystems
         rh.folder(url=data_url, fs=fs, save_to=[], dryrun=True).mkdir()
 
     new_table = _load_table_subclass(data, config, dryrun)
