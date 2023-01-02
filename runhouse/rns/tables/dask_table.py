@@ -26,6 +26,7 @@ class DaskTable(Table):
             self.data.to_parquet(self._folder.fsspec_url)
 
         save(self,
+             name=name,
              save_to=save_to if save_to is not None else self.save_to,
              snapshot=snapshot,
              overwrite=overwrite,

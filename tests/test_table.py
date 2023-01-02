@@ -27,9 +27,8 @@ def tokenize_function(examples):
 def load_sample_data(data_type):
     if data_type == 'huggingface':
         from datasets import load_dataset
-        dataset = load_dataset("rotten_tomatoes")
-        tokenized_datasets = dataset.map(tokenize_function, batched=True)
-        return tokenized_datasets
+        dataset = load_dataset("yelp_review_full", split='train[:10%]')
+        return dataset
 
     elif data_type == 'pyarrow':
         df = pd.DataFrame({'int': [1, 2], 'str': ['a', 'b']})
@@ -180,10 +179,14 @@ def test_create_and_reload_pandas_data_from_s3():
 
 
 def test_create_and_reload_huggingface_data_from_s3():
-    orig_data: datasets.Dataset.dataset_dict = load_sample_data(data_type='huggingface')
-    orig_data_dict = orig_data.shape
+    orig_data: datasets.arrow_dataset.Dataset = load_sample_data(data_type='huggingface')
+    orig_data_shape = orig_data.shape
 
-    my_table = rh.table(data=orig_data,
+    # Convert data to a type Runhouse can work with (pyarrow or pandas)
+    # Note: You can also convert the table to pandas using: `orig_data.to_pandas()`
+    orig_data_pa: pa.Table = orig_data.data.table
+
+    my_table = rh.table(data=orig_data_pa,
                         name='my_test_hf_table',
                         url=f'{BUCKET_NAME}/huggingface',
                         save_to=['rns'],
@@ -191,8 +194,41 @@ def test_create_and_reload_huggingface_data_from_s3():
                         mkdir=True)
 
     reloaded_table = rh.table(name='my_test_hf_table', load_from=['rns'], dryrun=True)
-    reloaded_data_dict = reloaded_table.data
-    assert reloaded_data_dict.shape == orig_data_dict
+    reloaded_data = reloaded_table.data
+    assert reloaded_data.shape == orig_data_shape
+
+    del orig_data
+    del my_table
+
+    reloaded_table.delete_configs(delete_from=['rns'])
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+
+def test_create_and_stream_huggingface_data_from_s3():
+    orig_data: datasets.arrow_dataset.Dataset = load_sample_data(data_type='huggingface')
+    orig_data_shape = orig_data.shape
+
+    # Convert data to a type Runhouse can work with (pyarrow or pandas)
+    # Note: You can also convert the table to pandas using: `orig_data.to_pandas()`
+    orig_data_pa: pa.Table = orig_data.data.table
+
+    my_table = rh.table(data=orig_data_pa,
+                        name='my_test_hf_stream_table',
+                        url=f'{BUCKET_NAME}/huggingface-stream',
+                        save_to=['rns'],
+                        fs='s3',
+                        mkdir=True)
+
+    reloaded_table = rh.table(name='my_test_hf_table', load_from=['rns'], dryrun=True)
+    reloaded_data = reloaded_table.data
+    assert reloaded_data.shape == orig_data_shape
+
+    batches = reloaded_table.stream(batch_size=10)
+    for idx, batch in enumerate(batches):
+        assert batch.shape == (10, 2)
+        assert batch.column_names == ['label', 'text']
 
     del orig_data
     del my_table
@@ -215,11 +251,11 @@ def test_create_and_reload_partitioned_data_from_s3():
                         save_to=['rns'],
                         mkdir=True)
 
-    reloaded_table = rh.table(name='partitioned_my_test_table', load_from=['rns'])
-    reloaded_data = reloaded_table.data
+    reloaded_table = rh.table(name='partitioned_my_test_table', load_from=['rns'], dryrun=True)
 
-    reloaded_df = reloaded_data.to_pandas()
-    assert reloaded_df.shape == orig_data_shape
+    # Let's reload only the column we partitioned on
+    reloaded_data = reloaded_table.fetch(columns=['int'])
+    assert reloaded_data.shape == (2,1)
 
     del data
     del my_table

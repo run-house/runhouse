@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 class Table(Resource):
     RESOURCE_TYPE = 'table'
     DEFAULT_FOLDER_PATH = '/runhouse/tables'
+    DEFAULT_CACHE_FOLDER = '.cache/runhouse/tables/'
 
     def __init__(self,
                  url: str,
@@ -52,7 +53,8 @@ class Table(Resource):
         table_config = {'url': self.url,
                         'resource_type': self.RESOURCE_TYPE,
                         'fs': self.fs,
-                        'resource_subtype': self.__class__.__name__}
+                        'resource_subtype': self.__class__.__name__,
+                        'partition_cols': self.partition_cols}
         config.update(table_config)
         return config
 
@@ -174,16 +176,18 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
     resource_subtype = config.get('resource_subtype', Table.__name__)
 
     try:
+        # TODO [JL] For now not supporting HF datasets
         import datasets
-        if resource_subtype == 'HuggingFaceTable' or isinstance(data, datasets.dataset_dict.DatasetDict):
-            from .huggingface_table import HuggingFaceTable
-            return HuggingFaceTable.from_config(config)
+        if isinstance(data, datasets.arrow_dataset.Dataset) or resource_subtype == 'HuggingFaceTable':
+            raise TypeError('Runhouse does not currently support HuggingFace datasets. Please convert the dataset '
+                            'object to pandas using `dataset.to_pandas()` or to pyarrow using '
+                            '`dataset.data.table`.')
     except ModuleNotFoundError:
         pass
 
     try:
         import pandas as pd
-        if resource_subtype == 'PandasTable' or isinstance(data, pd.DataFrame):
+        if isinstance(data, pd.DataFrame) or resource_subtype == 'PandasTable':
             from .pandas_table import PandasTable
             return PandasTable.from_config(config)
     except ModuleNotFoundError:
@@ -191,7 +195,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
 
     try:
         import dask.dataframe as dd
-        if resource_subtype == 'DaskTable' or isinstance(data, dd.DataFrame):
+        if isinstance(data, dd.DataFrame) or resource_subtype == 'DaskTable':
             from .dask_table import DaskTable
             return DaskTable.from_config(config)
     except ModuleNotFoundError:
@@ -199,7 +203,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
 
     try:
         import ray
-        if resource_subtype == 'RayTable' or isinstance(data, ray.data.dataset.Dataset):
+        if isinstance(data, ray.data.dataset.Dataset) or resource_subtype == 'RayTable':
             from .ray_table import RayTable
             return RayTable.from_config(config)
     except ModuleNotFoundError:
@@ -207,13 +211,13 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
 
     try:
         import cudf
-        if resource_subtype == 'CudfTable' or isinstance(data, cudf.DataFrame):
+        if isinstance(data, cudf.DataFrame) or resource_subtype == 'CudfTable':
             from .cudf_table import CudfTable
             return CudfTable.from_config(config)
     except ModuleNotFoundError:
         pass
 
-    if resource_subtype == 'Table' or isinstance(data, pa.Table):
+    if isinstance(data, pa.Table) or resource_subtype == 'Table':
         new_table = Table.from_config(config, dryrun=dryrun)
         return new_table
     else:
@@ -250,7 +254,7 @@ def table(data=None,
         # TODO [JL] move some of the default params in this factory method to the defaults module for configurability
         if fs == rns_client.DEFAULT_FS:
             # create random url to store in .cache folder of local filesystem
-            data_url = str(Path(f"~/.cache/tables/{name or uuid.uuid4().hex}").expanduser())
+            data_url = str(Path(f"~/{Table.DEFAULT_CACHE_FOLDER}/{name or uuid.uuid4().hex}").expanduser())
         else:
             # save to the default bucket
             data_url = f'{Table.DEFAULT_FOLDER_PATH}/{name}'
