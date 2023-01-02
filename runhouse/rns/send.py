@@ -5,6 +5,7 @@ import json
 from typing import Optional, Callable, Union, List, Tuple
 import os
 from pathlib import Path
+import re
 import ray.cloudpickle as pickle
 
 from runhouse.rns.resource import Resource
@@ -118,6 +119,8 @@ class Send(Resource):
         if to_run:
             self.setup_cmds.extend(to_run)
             self.hardware.run(to_run)
+        if self.name:
+            self.save()
 
     @staticmethod
     def extract_fn_paths(raw_fn, reqs):
@@ -403,18 +406,48 @@ class Send(Resource):
                 kill_jupyter_cmd = f'jupyter notebook stop {port_fwd}'
                 self.hardware.run(commands=[kill_jupyter_cmd])
 
-    # TODO
     def keep_warm(self,
                   autostop_mins=None,
-                  regions: List[str] = None,
-                  min_replicas: List[int] = None,
-                  max_replicas: List[int] = None):
-        # TODO: For now just upping the cluster with the autostop provided
+                  # TODO regions: List[str] = None,
+                  # TODO min_replicas: List[int] = None,
+                  # TODO max_replicas: List[int] = None
+                  ):
         if autostop_mins is None:
             logger.info(f"Keeping {self.name} indefinitely warm")
             # keep indefinitely warm if user doesn't specify
             autostop_mins = -1
         self.hardware.keep_warm(autostop_mins=autostop_mins)
+
+    @staticmethod
+    def _handle_nb_fn(fn, fn_pointers, serialize_notebook_fn, name):
+        """Handle the case where the user passes in a notebook function"""
+        if serialize_notebook_fn:
+            # This will all be cloudpickled by the gRPC client and unpickled by the gRPC server
+            # Note that this means the function cannot be saved, and it's better that way because
+            # pickling functions is not meant for long term storage. Case in point, this method will be
+            # sensitive to differences in minor Python versions between the serializing and deserializing envs.
+            return "", 'notebook', fn
+        else:
+            # TODO put this in the current folder instead?
+            module_path = Path.cwd() / (f'{name}_fn.py' if name else 'send_fn.py')
+            logging.info(f'Writing out send function to {str(module_path)} as '
+                         f'functions serialized in notebooks are brittle. Please make '
+                         f'sure the function does not rely on any local variables, '
+                         f'including imports (which should be moved inside the function body).')
+            if not name:
+                logging.warning('You should name Sends that are created in notebooks to avoid naming collisions '
+                                'between the modules that are created to hold their functions '
+                                '(i.e. "send_fn.py" errors.')
+            source = inspect.getsource(fn).strip()
+            with module_path.open('w') as f:
+                f.write(source)
+            return fn_pointers[0], module_path.stem, fn_pointers[2]
+            # from importlib.util import spec_from_file_location, module_from_spec
+            # spec = spec_from_file_location(config['name'], str(module_path))
+            # module = module_from_spec(spec)
+            # spec.loader.exec_module(module)
+            # new_fn = getattr(module, fn_pointers[2])
+            # fn_pointers = Send.extract_fn_paths(raw_fn=new_fn, reqs=config['reqs'])
 
 
 def send(fn: Optional[Union[str, Callable]] = None,
@@ -422,7 +455,7 @@ def send(fn: Optional[Union[str, Callable]] = None,
          hardware: Optional[Union[str, Cluster]] = None,
          reqs: Optional[List[str]] = None,
          setup_cmds: Optional[List[str]] = None,
-         image: Optional[str] = None,  # TODO
+         # TODO image: Optional[str] = None,
          load_from: Optional[List[str]] = None,
          save_to: Optional[List[str]] = None,
          dryrun: Optional[bool] = False,
@@ -445,66 +478,55 @@ def send(fn: Optional[Union[str, Callable]] = None,
     """
 
     config = rh_config.rns_client.load_config(name, load_from=load_from)
-    # type = config.pop('resource_type', 'send')
     config['name'] = name or config.get('rns_address', None) or config.get('name')
-
-    # TODO handle case where package has been loaded from rns and we don't need to sync default package.
-    # TODO [DG] Do we need to append './' if we detect a local function but the workdir
-    # path is not given?
-
-    config['reqs'] = reqs if reqs is not None else config.get('reqs', ['./'])
+    config['reqs'] = reqs if reqs is not None else config.get('reqs', [])
 
     processed_reqs = []
     for req in config['reqs']:
         # TODO [DG] the following is wrong. RNS address doesn't have to start with '/'. However if we check if each
         #  string exists in RNS this will be incredibly slow, so leave it for now.
-        if isinstance(req, str) and req[0] == '/' and \
-                rh_config.rns_client.exists(req, load_from=load_from):
+        if isinstance(req, str) and req[0] == '/' and rh_config.rns_client.exists(req, load_from=load_from):
             # If req is an rns address
             req = rh_config.rns_client.load_config(req, load_from=load_from)
         processed_reqs.append(req)
     config['reqs'] = processed_reqs
 
-    if fn:
+    if callable(fn):
+        if not [req for req in config['reqs'] if './' in req]:
+            config['reqs'].append('./')
         fn_pointers = Send.extract_fn_paths(raw_fn=fn, reqs=config['reqs'])
         if fn_pointers[1] == 'notebook':
-            if serialize_notebook_fn:
-                class FakeModule:
-                    pass
-
-                setattr(FakeModule, fn.__name__, fn)
-                # TODO name this after the notebook, not the send
-                serialization_dir = Path.cwd() / (f'{config["name"]}_fn' if config['name'] else 'send_fn')
-                serialization_dir.mkdir(exist_ok=True, parents=True)
-                pickled_package = Package(name=serialization_dir.stem,
-                                          url=str(serialization_dir),
-                                          install_method='unpickle')
-                # TODO name this after the send
-                pickled_package.put({'functions.pickle': pickle.dumps(FakeModule)})
-                config['reqs'].append(pickled_package)
-                fn_pointers = (fn_pointers[0], pickled_package.name, fn_pointers[2])
-            else:
-                # TODO put this in the current folder instead?
-                module_path = Path.cwd() / (f'{config["name"]}_fn.py' if config['name'] else 'send_fn.py')
-                logging.info(f'Writing out send function to {str(module_path)} as '
-                             f'functions serialized in notebooks are brittle. Please make '
-                             f'sure the function does not rely on any local variables, '
-                             f'including imports (which should be moved inside the function body).')
-                if not config['name']:
-                    logging.warning('You should name Sends that are created in notebooks to avoid naming collisions '
-                                    'between the modules that are created to hold their functions '
-                                    '(i.e. "send_fn.py" errors.')
-                source = inspect.getsource(fn).strip()
-                with module_path.open('w') as f:
-                    f.write(source)
-                fn_pointers = (fn_pointers[0], module_path.stem, fn_pointers[2])
-                # from importlib.util import spec_from_file_location, module_from_spec
-                # spec = spec_from_file_location(config['name'], str(module_path))
-                # module = module_from_spec(spec)
-                # spec.loader.exec_module(module)
-                # new_fn = getattr(module, fn_pointers[2])
-                # fn_pointers = Send.extract_fn_paths(raw_fn=new_fn, reqs=config['reqs'])
+            fn_pointers = Send._handle_nb_fn(fn,
+                                             fn_pointers=fn_pointers,
+                                             serialize_notebook_fn=serialize_notebook_fn,
+                                             name=config['name'])
         config['fn_pointers'] = fn_pointers
+    elif isinstance(fn, str):
+        # Url must match a regex of the form
+        # 'https://github.com/username/repo_name/blob/branch_name/path/to/file.py:func_name'
+        # Use a regex to extract username, repo_name, branch_name, path/to/file.py, and func_name
+        pattern = r'https://github\.com/(?P<username>[^/]+)/(?P<repo_name>[^/]+)/blob/' \
+                  r'(?P<branch_name>[^/]+)/(?P<path>[^:]+):(?P<func_name>.+)'
+        match = re.match(pattern, fn)
+
+        if match:
+            username = match.group('username')
+            repo_name = match.group('repo_name')
+            branch_name = match.group('branch_name')
+            path = match.group('path')
+            func_name = match.group('func_name')
+        else:
+            raise ValueError(f'fn must be a callable or string of the form '
+                             f'"https://github.com/username/repo_name/blob/branch_name/path/to/file.py:func_name"')
+        module_name = Path(path).stem
+        relative_path = str(repo_name / Path(path).parent)
+        config['fn_pointers'] = (relative_path, module_name, func_name)
+        # repo_package = Package(url=f'/',
+        #                        fs='github',
+        #                        data_config={'org': username, 'repo': repo_name, 'sha': branch_name,
+        #                                     'filecache': {'cache_storage': repo_name}},
+        #                        install_method='local')
+        # config['reqs'] = [repo_package] + config['reqs']
 
     config['hardware'] = hardware or config.get('hardware') or Send.DEFAULT_HARDWARE
     if isinstance(config['hardware'], str):
@@ -513,7 +535,7 @@ def send(fn: Optional[Union[str, Callable]] = None,
             raise RuntimeError(f'Hardware {config["hardware"]} not found locally or in RNS.')
         config['hardware'] = hw_dict
 
-    config['image'] = image or config.get('image')
+    # config['image'] = image or config.get('image')
     config['setup_cmds'] = setup_cmds if setup_cmds is not None else config.get('setup_cmds')
 
     config['access_level'] = config.get('access_level', Send.DEFAULT_ACCESS)

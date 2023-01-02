@@ -46,7 +46,7 @@ class Package(Folder):
         return config
 
     def install(self):
-        logging.info(f'Installing package {self.name} with method {self.install_method}.')
+        logging.info(f'Installing package {self.name or self.url} with method {self.install_method}.')
         if self.install_method in ['local', 'reqs']:
             local_path = self.local_path
             if not local_path:

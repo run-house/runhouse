@@ -296,7 +296,7 @@ class Folder(Resource):
         return new_folder
 
     def is_local(self):
-        return (self.url is not None and Path(self.url).exists()) or self._local_mount_path
+        return (self.fs == 'file' and self.url is not None and Path(self.url).exists()) or self._local_mount_path
 
     def share(self,
               users: list,
