@@ -73,14 +73,6 @@ Documentation
    faqs
    roadmap/roadmap
 
-.. toctree::
-   :maxdepth: 1
-   :caption: Tutorials
-
-   tutorials/send_quickstart
-   tutorials/data_quickstart
-   tutorials/basic_tutorials
-   tutorials/advanced_tutorials
 
 .. toctree::
    :maxdepth: 1
