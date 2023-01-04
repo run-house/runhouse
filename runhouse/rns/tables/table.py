@@ -50,11 +50,7 @@ class Table(Resource):
     @property
     def config_for_rns(self):
         config = super().config_for_rns
-        table_config = {'url': self.url,
-                        'resource_type': self.RESOURCE_TYPE,
-                        'fs': self.fs,
-                        'resource_subtype': self.__class__.__name__,
-                        'partition_cols': self.partition_cols}
+        self.save_attrs_to_config(config, ['url', 'fs', 'partition_cols', 'data_config'])
         config.update(table_config)
         return config
 

@@ -10,7 +10,7 @@
   
 </p>
 
-## 🚨 Caution: This is an Unstable Semi-Private Preview 🚨
+## 🚨 Caution: This is an Unstable Alpha 🚨
 
 Runhouse is heavily under development and unstable. We are quite 
 a ways away from having our first stable release. We are sharing
@@ -20,6 +20,39 @@ expect a lot of things to break off the bat.
 If you would be so kind, we would love if you could have a notes doc open
 as you install and try Runhouse for the first time. Your first impressions, 
 pain points, and highlights are very valuable to us.
+
+## 🤨 What is Runhouse?
+
+If PyTorch lets you send any Python code or data `.to(device)`, 
+why can't you do `my_fn.to('a_gcp_a100')` or `my_table.to('parquet_in_s3')`? 
+Runhouse allows just that: send code and data to any of your compute or 
+data infra (with your own cloud creds), all in Python, and continue to use them 
+eagerly exactly as they were. Take a look at this code (our first [tutorial](https://github.com/run-house/tutorials)):
+```python
+import runhouse as rh
+from diffusers import StableDiffusionPipeline
+import torch
+
+def sd_generate(prompt, num_images=1, steps=100, guidance_scale=7.5, model_id='stabilityai/stable-diffusion-2-base'):
+    pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float16, revision='fp16').to('cuda')
+    return pipe([prompt] * num_images, num_inference_steps=steps, guidance_scale=guidance_scale).images
+
+if __name__ == "__main__":
+    gpu = rh.cluster(name='rh-v100', instance_type='V100:1', provider='gcp')
+    generate_gpu = rh.send(fn=sd_generate, hardware=gpu, reqs=['./', 'torch==1.12.0', 'diffusers'])
+
+    images = generate_gpu('A digital illustration of a woman running on the roof of a house.', num_images=2, steps=50)
+    [image.show() for image in images]
+
+```
+There's no magic yaml, DSL, code serialization, or "submitting for execution." 
+And because it's not stateless, we can pin the model to GPU memory, and get ~2.5s/image 
+inference before any compilation. There's much more, like accessing your resources from 
+anywhere with a Python interpreter and an internet connection, or sharing them with collaborators.
+
+## 👨‍🏫 Tutorials
+
+[Can be found here](https://github.com/run-house/tutorials).
 
 ## 🙋‍♂️ Getting Help
 

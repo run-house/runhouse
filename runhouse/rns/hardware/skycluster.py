@@ -57,7 +57,7 @@ class Cluster(Resource):
         self.autostop_mins = autostop_mins if autostop_mins is not None \
             else configs.get('default_autostop')
         self.use_spot = use_spot if use_spot is not None else configs.get('use_spot')
-        self.use_spot = image_id
+        self.image_id = image_id
 
         self.address = None
         self._yaml_path = None
@@ -292,7 +292,9 @@ class Cluster(Resource):
                     (Path(package).expanduser().exists() or package.split(':')[0] in ['local', 'reqs']):
                 package = Package.from_string(package, dryrun=False)
 
-            if not isinstance(package, str) and package.is_local():
+            if not isinstance(package, str) and \
+                    isinstance(package.install_target, Resource) and \
+                    package.install_target.is_local():
                 logging.info(f'Copying local package {package.name} to cluster <{self.name}>')
                 remote_package = package.to_cluster(self, mount=False, return_dest_folder=True)
                 to_install.append(remote_package)
@@ -300,7 +302,7 @@ class Cluster(Resource):
                 to_install.append(package)
         # TODO replace this with figuring out how to stream the logs when we install
         logging.info(f'Installing packages on cluster {self.name}: '
-                     f'{[req if isinstance(req, str) else req.name for req in reqs]}')
+                     f'{[req if isinstance(req, str) else str(req) for req in reqs]}')
         self.client.install_packages(pickle.dumps(to_install))
 
     def flush_pins(self, pins: Optional[List[str]] = None):

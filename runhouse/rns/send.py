@@ -10,7 +10,7 @@ import ray.cloudpickle as pickle
 
 from runhouse.rns.resource import Resource
 from runhouse.rns.hardware import Cluster
-from runhouse.rns.packages.package import Package
+from runhouse.rns.packages import Package, git_package
 from runhouse.rns.api_utils.utils import read_response_data, is_jsonable
 from runhouse.rns.api_utils.resource_access import ResourceAccess
 from runhouse import rh_config
@@ -56,8 +56,8 @@ class Send(Resource):
         # TODO add function setter for better interactivity in notebooks
         self.fn_pointers = fn_pointers
         self.hardware = hardware
-        if reqs is None:
-            reqs = [f'reqs:{rh_config.rns_client.locate_working_dir()}']
+        # if reqs is None:
+        #     reqs = [f'reqs:{rh_config.rns_client.locate_working_dir()}']
         self.reqs = reqs
         self.setup_cmds = setup_cmds or []
         self.image = image  # TODO or self.DEFAULT_IMAGE
@@ -521,6 +521,8 @@ def send(fn: Optional[Union[str, Callable]] = None,
         module_name = Path(path).stem
         relative_path = str(repo_name / Path(path).parent)
         config['fn_pointers'] = (relative_path, module_name, func_name)
+        repo_package = git_package(git_url=f'https://github.com/{username}/{repo_name}.git', revision=branch_name)
+        config['reqs'].insert(0, repo_package)
         # repo_package = Package(url=f'/',
         #                        fs='github',
         #                        data_config={'org': username, 'repo': repo_name, 'sha': branch_name,

@@ -38,11 +38,11 @@ class UnaryService(pb2_grpc.UnaryServicer):
             else:
                 raise ValueError(f"package {package} not recognized")
 
-            if pkg.name in self._installed_packages:
+            if (str(pkg)) in self._installed_packages:
                 continue
-            logger.info(f"Installing package: {pkg.name}")
+            logger.info(f"Installing package: {str(pkg)}")
             pkg.install()
-            self._installed_packages.append(pkg.name)
+            self._installed_packages.append(str(pkg))
         return pb2.MessageResponse(message=pickle.dumps(True), received=True)
 
     def ClearPins(self, request, context):

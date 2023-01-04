@@ -53,7 +53,7 @@ class Resource:
         if resource.name:
             if resource.rns_address.startswith('/builtins/'):
                 # Calls save internally and puts the resource in the current folder
-                resource.name = resource.rns_address[10:]
+                resource.name = rns_client.resolve_rns_path(resource.rns_address[10:])
             resource.save(save_to=self.save_to)
             return resource.rns_address
         return resource.config_for_rns

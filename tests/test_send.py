@@ -122,6 +122,19 @@ def test_maps():
     assert res == [4, 6, 8, 10, 12]
 
 
+def test_send_git_fn():
+    remote_parse = rh.send(fn='https://github.com/huggingface/diffusers/blob/'
+                              'main/examples/dreambooth/train_dreambooth.py:parse_args',
+                           hardware='^rh-cpu',
+                           reqs=['torch==1.12.0 --verbose', 'torchvision==0.13.0', 'datasets', 'evaluate', 'accelerate',
+                                 'pip:./diffusers'
+                                 ])
+    args = remote_parse(input_args=['--pretrained_model_name_or_path', 'stabilityai/stable-diffusion-2-base',
+                                               '--instance_data_dir', 'remote_image_dir',
+                                               '--instance_prompt', f'a photo of sks person'])
+    assert args.pretrained_model_name_or_path == 'stabilityai/stable-diffusion-2-base'
+
+
 def test_send_external_fn():
     """ Test sending a module from reqs, not from working_dir"""
     import torch
