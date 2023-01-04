@@ -34,6 +34,7 @@ class Cluster(Resource):
                  dryrun=True,
                  autostop_mins=None,
                  use_spot=False,
+                 image_id=None,
                  sky_data=None,
                  **kwargs  # We have this here to ignore extra arguments when calling from from_config
                  ):
@@ -56,6 +57,7 @@ class Cluster(Resource):
         self.autostop_mins = autostop_mins if autostop_mins is not None \
             else configs.get('default_autostop')
         self.use_spot = use_spot if use_spot is not None else configs.get('use_spot')
+        self.use_spot = image_id
 
         self.address = None
         self._yaml_path = None
@@ -83,6 +85,7 @@ class Cluster(Resource):
                        'provider': self.provider,
                        'autostop_mins': self.autostop_mins,
                        'use_spot': self.use_spot,
+                       'image_id': self.image_id,
                        'sky_data': self._get_sky_data(),
                        })
         return config
@@ -227,7 +230,7 @@ class Cluster(Resource):
                     instance_type=self.instance_type if ':' not in self.instance_type else None,
                     accelerators=self.instance_type if ':' in self.instance_type else None,
                     region=region,  # TODO
-                    image_id=None,
+                    image_id=self.image_id,
                     use_spot=self.use_spot  # TODO test properly
                 )
             )
@@ -546,6 +549,7 @@ def cluster(name: str,
             load_from: Optional[List[str]] = None,
             dryrun: bool = False,
             use_spot: bool = False,
+            image_id: str = None,
             ) -> Cluster:
     config = rns_client.load_config(name, load_from=load_from)
     config['name'] = name or config.get('rns_address', None) or config.get('name')
@@ -555,6 +559,7 @@ def cluster(name: str,
     config['provider'] = provider or config.get('provider', None)
     config['autostop_mins'] = autostop_mins if autostop_mins is not None else config.get('autostop_mins', None)
     config['use_spot'] = use_spot if use_spot is not None else config.get('use_spot', None)
+    config['image_id'] = image_id if image_id is not None else config.get('image_id', None)
     config['save_to'] = save_to
 
     new_cluster = Cluster.from_config(config, dryrun=dryrun)
