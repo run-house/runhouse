@@ -49,5 +49,5 @@ class HuggingFaceTable(Table):
         from datasets import Dataset
         batches = super().stream(batch_size, drop_last, shuffle_seed)
         # convert to HF dataset before returning
-        hf_batches = [Dataset(batch) for batch in batches]
+        hf_batches = [Dataset.from_pandas(batch.to_pandas()) for batch in batches]
         return hf_batches
