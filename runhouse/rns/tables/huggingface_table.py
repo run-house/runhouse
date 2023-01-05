@@ -1,11 +1,6 @@
-import os
 from typing import Optional, List
 
-import datasets.table
-
 from .table import Table
-from ..top_level_rns_fns import save
-from ... import rns_client
 
 
 class HuggingFaceTable(Table):
@@ -25,21 +20,34 @@ class HuggingFaceTable(Table):
              save_to: Optional[List[str]] = None,
              overwrite: bool = False,
              **snapshot_kwargs):
-        # https://huggingface.co/docs/datasets/v2.8.0/en/process#save
         if self._cached_data is None or overwrite:
-            self.data.save_to_disk(self.url, fs=self._folder.fsspec_fs)
+            import datasets
+            if isinstance(self.data, datasets.arrow_dataset.Dataset):
+                # Under the hood we convert to a pyarrow table before saving to the file system
+                pa_table = self.data.data.table
+                self.data = pa_table
+            elif isinstance(self.data, datasets.arrow_dataset.DatasetDict):
+                # TODO [JL] Add support for dataset dict
+                raise NotImplementedError('Runhouse does not currently support DatasetDict objects, please convert to '
+                                          'a Dataset before saving.')
 
-        save(self,
-             name=name,
-             save_to=save_to if save_to is not None else self.save_to,
-             snapshot=snapshot,
-             overwrite=overwrite,
-             **snapshot_kwargs)
+            super().save(name=name,
+                         save_to=save_to if save_to is not None else self.save_to,
+                         snapshot=snapshot,
+                         overwrite=overwrite,
+                         **snapshot_kwargs)
 
     def fetch(self, **kwargs):
-        self.import_package('datasets')
-
-        from datasets import load_from_disk
-        # TODO [JL] we want to open as file like objects so we can inject our data config
-        self._cached_data = load_from_disk(self.url, fs=self._folder.fsspec_fs)
+        # TODO [JL] Add support for dataset dict
+        from datasets import Dataset
+        # Read as pyarrow table, then convert back to HF dataset
+        pa_table = super().fetch(**kwargs)
+        self._cached_data = Dataset(pa_table)
         return self._cached_data
+
+    def stream(self, batch_size, drop_last: bool = False, shuffle_seed: Optional[int] = None):
+        from datasets import Dataset
+        batches = super().stream(batch_size, drop_last, shuffle_seed)
+        # convert to HF dataset before returning
+        hf_batches = [Dataset(batch) for batch in batches]
+        return hf_batches

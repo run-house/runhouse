@@ -62,7 +62,7 @@ def load_sample_data(data_type):
 
 # ----------------- Run tests -----------------
 
-def test_create_and_reload_pandas_from_file():
+def test_create_and_reload_pandas_locally():
     data = load_sample_data('pandas')
     orig_data_shape = data.shape
     my_table = rh.table(data=data,
@@ -77,16 +77,8 @@ def test_create_and_reload_pandas_from_file():
 
     assert reloaded_data.shape == orig_data_shape
 
-    del data
-    del my_table
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
-
-    reloaded_table.delete_configs(delete_from=['local'])
-
-
-def test_create_and_reload_pyarrow_from_file():
+def test_create_and_reload_pyarrow_locally():
     data = load_sample_data('pyarrow')
     orig_data_shape = data.shape
     my_table = rh.table(data=data,
@@ -184,7 +176,7 @@ def test_create_and_reload_pandas_data_from_s3():
 
     my_table = rh.table(data=orig_data,
                         name='my_test_pandas_table',
-                        url=f'{BUCKET_NAME}/pandas_df.parquet',
+                        url=f'{BUCKET_NAME}/pandas_df',
                         save_to=['rns'],
                         fs='s3',
                         mkdir=True)
@@ -206,11 +198,7 @@ def test_create_and_reload_huggingface_data_from_s3():
     orig_data: datasets.arrow_dataset.Dataset = load_sample_data(data_type='huggingface')
     orig_data_shape = orig_data.shape
 
-    # Convert data to a type Runhouse can work with (pyarrow or pandas)
-    # Note: You can also convert the table to pandas using: `orig_data.to_pandas()`
-    orig_data_pa: pa.Table = orig_data.data.table
-
-    my_table = rh.table(data=orig_data_pa,
+    my_table = rh.table(data=orig_data,
                         name='my_test_hf_table',
                         url=f'{BUCKET_NAME}/huggingface',
                         save_to=['rns'],
@@ -234,11 +222,7 @@ def test_create_and_stream_huggingface_data_from_s3():
     orig_data: datasets.arrow_dataset.Dataset = load_sample_data(data_type='huggingface')
     orig_data_shape = orig_data.shape
 
-    # Convert data to a type Runhouse can work with (pyarrow or pandas)
-    # Note: You can also convert the table to pandas using: `orig_data.to_pandas()`
-    orig_data_pa: pa.Table = orig_data.data.table
-
-    my_table = rh.table(data=orig_data_pa,
+    my_table = rh.table(data=orig_data,
                         name='my_test_hf_stream_table',
                         url=f'{BUCKET_NAME}/huggingface-stream',
                         save_to=['rns'],
@@ -251,11 +235,31 @@ def test_create_and_stream_huggingface_data_from_s3():
 
     batches = reloaded_table.stream(batch_size=10)
     for idx, batch in enumerate(batches):
-        assert batch.shape == (10, 2)
+        assert isinstance(batch, datasets.arrow_dataset.Dataset)
         assert batch.column_names == ['label', 'text']
 
     del orig_data
     del my_table
+
+    reloaded_table.delete_configs(delete_from=['rns'])
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+
+def test_shuffling_data():
+    # [TODO] JL
+    pass
+
+
+def test_load_data_as_iter():
+    orig_data = load_sample_data(data_type='pandas')
+
+    reloaded_table = rh.table(name='my_test_pandas_table', load_from=['rns'], dryrun=True)
+    reloaded_data: pd.DataFrame = next(reloaded_table)
+    assert orig_data.equals(reloaded_data)
+
+    del orig_data
 
     reloaded_table.delete_configs(delete_from=['rns'])
 

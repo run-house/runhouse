@@ -21,10 +21,12 @@ class Table(Resource):
     RESOURCE_TYPE = 'table'
     DEFAULT_FOLDER_PATH = '/runhouse/tables'
     DEFAULT_CACHE_FOLDER = '.cache/runhouse/tables/'
+    STREAM_FORMAT = 'pyarrow'
 
     def __init__(self,
                  url: str,
                  name: Optional[str] = None,
+                 file_name: Optional[str] = None,
                  fs: Optional[str] = None,
                  data_config: Optional[dict] = None,
                  save_to: Optional[List[str]] = None,
@@ -42,6 +44,7 @@ class Table(Resource):
                               save_to=save_to)
         self._cached_data = None
         self.partition_cols = partition_cols
+        self.file_name = file_name
 
     @staticmethod
     def from_config(config: dict, dryrun=True):
@@ -50,8 +53,7 @@ class Table(Resource):
     @property
     def config_for_rns(self):
         config = super().config_for_rns
-        self.save_attrs_to_config(config, ['url', 'fs', 'partition_cols', 'data_config'])
-        config.update(table_config)
+        self.save_attrs_to_config(config, ['url', 'file_name', 'fs', 'partition_cols', 'data_config'])
         return config
 
     @property
@@ -79,6 +81,8 @@ class Table(Resource):
 
     @property
     def url(self):
+        if self.file_name:
+            return f'{self._folder.url}/{self.file_name}'
         return self._folder.url
 
     @url.setter
@@ -87,6 +91,8 @@ class Table(Resource):
 
     @property
     def fsspec_url(self):
+        if self.file_name:
+            return f'{self._folder.fsspec_url}/{self.file_name}'
         return self._folder.fsspec_url
 
     @property
@@ -115,8 +121,17 @@ class Table(Resource):
         try:
             with fsspec.open(self.fsspec_url, mode='rb', **self.data_config) as t:
                 self._cached_data = pq.read_table(t.full_name, columns=columns)
-        except IsADirectoryError:
-            self._cached_data = pq.read_table(self.fsspec_url, columns=columns)
+        except:
+            # When trying to read as file like object could fail for a couple of reasons:
+            # IsADirectoryError: The folder URL is actually a directory and the file has been automatically
+            # generated for us inside the folder (ex: pyarrow table)
+            # The file system is SFTP: since the SFTPFileSystem takes the host as a separate param, we cannot
+            # pass in the data config as a single data_config kwarg
+
+            # When specifying the filesystem don't pass in the fsspec url (which includes the file system prepended)
+            self._cached_data = pq.read_table(self.url,
+                                              columns=columns,
+                                              filesystem=self._folder.fsspec_fs)
 
         return self._cached_data
 
@@ -129,15 +144,25 @@ class Table(Resource):
         state['_cached_data'] = None
         return state
 
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._cached_data is not None:
+            return next(self.data)
+        # If not in memory, stream data in with batch size of 1
+        return self.stream(batch_size=1)
+
     def stream(self, batch_size, drop_last: bool = False, shuffle_seed: Optional[int] = None):
-        df = ray.data.read_parquet(self.fsspec_url)
-        # TODO the latest ray version supports local shuffle inside iter_batches, use that instead?
+        # https://github.com/ray-project/ray/issues/30915
+        # df = ray.data.read_parquet(self.url, filesystem=self._folder.fsspec_fs, dataset_kwargs=self.data_config)
+        df = ray.data.read_parquet(self.url, filesystem=self._folder.fsspec_fs)
+
         # https://docs.ray.io/en/latest/data/api/dataset.html#ray.data.Dataset.iter_batches
-        if shuffle_seed is not None:
-            df.random_shuffle(seed=shuffle_seed)
         return df.iter_batches(batch_size=batch_size,
-                               batch_format="pyarrow",
-                               drop_last=drop_last)
+                               batch_format=self.STREAM_FORMAT,
+                               drop_last=drop_last,
+                               local_shuffle_seed=shuffle_seed)
 
     def delete_in_fs(self, recursive: bool = True):
         """Remove contents of all subdirectories (ex: partitioned data folders)"""
@@ -161,26 +186,16 @@ class Table(Resource):
         new_table._folder.fs = cluster
         return new_table
 
-    @staticmethod
-    def import_package(package_name: str):
-        try:
-            from importlib import import_module
-            import_module(package_name)
-        except ModuleNotFoundError:
-            raise ModuleNotFoundError(f'`{package_name}` not found in site-packages')
-
 
 def _load_table_subclass(data, config: dict, dryrun: bool):
     """Load the relevant Table subclass based on the config or data type provided"""
     resource_subtype = config.get('resource_subtype', Table.__name__)
 
     try:
-        # TODO [JL] For now not supporting HF datasets
         import datasets
-        if isinstance(data, datasets.arrow_dataset.Dataset) or resource_subtype == 'HuggingFaceTable':
-            raise TypeError('Runhouse does not currently support HuggingFace datasets. Please convert the dataset '
-                            'object to pandas using `dataset.to_pandas()` or to pyarrow using '
-                            '`dataset.data.table`.')
+        if resource_subtype == 'HuggingFaceTable' or isinstance(data, datasets.arrow_dataset.Dataset):
+            from .huggingface_table import HuggingFaceTable
+            return HuggingFaceTable.from_config(config)
     except ModuleNotFoundError:
         pass
 
@@ -211,8 +226,8 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
     try:
         import cudf
         if isinstance(data, cudf.DataFrame) or resource_subtype == 'CudfTable':
-            from .cudf_table import CudfTable
-            return CudfTable.from_config(config)
+            from .rapids_table import RapidsTable
+            return RapidsTable.from_config(config)
     except ModuleNotFoundError:
         pass
 
@@ -248,6 +263,14 @@ def table(data=None,
     name = name.lstrip('/') if name is not None else name
 
     data_url = url or config.get('url')
+    file_name = None
+    if data_url:
+        # Extract the file name from the url if provided
+        full_path = Path(data_url)
+        file_suffix = full_path.suffix
+        if file_suffix:
+            data_url = str(full_path.parent)
+            file_name = full_path.name
 
     if data_url is None:
         # TODO [JL] move some of the default params in this factory method to the defaults module for configurability
@@ -260,6 +283,7 @@ def table(data=None,
 
     config['name'] = name
     config['url'] = data_url
+    config['file_name'] = file_name or config.get('file_name')
     config['data_config'] = data_config or config.get('data_config')
     config['partition_cols'] = partition_cols or config.get('partition_cols')
     config['save_to'] = save_to

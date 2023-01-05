@@ -32,8 +32,6 @@ class RayTable(Table):
              **snapshot_kwargs)
 
     def fetch(self, **kwargs):
-        self.import_package('ray')
-
         import ray
-        self._cached_data = ray.data.read_parquet(self._folder.fsspec_url)
+        self._cached_data = ray.data.read_parquet(self._folder.fsspec_url, **self.data_config)
         return self._cached_data
