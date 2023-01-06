@@ -20,13 +20,14 @@ class HuggingFaceTable(Table):
              save_to: Optional[List[str]] = None,
              overwrite: bool = False,
              **snapshot_kwargs):
-        if self._cached_data is None or overwrite:
+        if self._cached_data is not None:
             import datasets
-            if isinstance(self.data, datasets.arrow_dataset.Dataset):
+            hf_dataset = None
+            if isinstance(self.data, datasets.Dataset):
                 # Under the hood we convert to a pyarrow table before saving to the file system
                 pa_table = self.data.data.table
-                self.data = pa_table
-            elif isinstance(self.data, datasets.arrow_dataset.DatasetDict):
+                self.data, hf_dataset = pa_table, self.data
+            elif isinstance(self.data, datasets.DatasetDict):
                 # TODO [JL] Add support for dataset dict
                 raise NotImplementedError('Runhouse does not currently support DatasetDict objects, please convert to '
                                           'a Dataset before saving.')
@@ -36,6 +37,10 @@ class HuggingFaceTable(Table):
                          snapshot=snapshot,
                          overwrite=overwrite,
                          **snapshot_kwargs)
+
+            # Restore the original dataset
+            if hf_dataset is not None:
+                self.data = hf_dataset
 
     def fetch(self, **kwargs):
         # TODO [JL] Add support for dataset dict

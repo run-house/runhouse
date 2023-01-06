@@ -21,7 +21,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
 
     def __init__(self, *args, **kwargs):
         ray.init(address="auto")
-        self.fn_module = None
+        self.imported_modules = {}
         self._installed_packages = []
         self._shared_objects = {}
         _set_pinned_memory_store(self._shared_objects)
@@ -70,15 +70,18 @@ class UnaryService(pb2_grpc.UnaryServicer):
             if relative_path:
                 module_path = str((Path.home() / relative_path).resolve())
                 sys.path.append(module_path)
+                logger.info(f"Appending {module_path} to sys.path")
 
             if module_name == "notebook":
                 fn = fn_name  # Already unpickled above
             else:
-                if self.fn_module and self.fn_module.__name__ == module_name:
-                    self.fn_module = importlib.reload(self.fn_module)
+                if module_name in self.imported_modules:
+                    self.imported_modules[module_name] = importlib.reload(self.imported_modules[module_name])
+                    logger.info(f"Reloaded module {module_name}")
                 else:
-                    self.fn_module = importlib.import_module(module_name)
-                fn = getattr(self.fn_module, fn_name)
+                    self.imported_modules[module_name] = importlib.import_module(module_name)
+                    logger.info(f"Importing module {module_name}")
+                fn = getattr(self.imported_modules[module_name], fn_name)
 
             # TODO other possible fn_types: 'batch', 'streaming'
             if fn_type == 'call':

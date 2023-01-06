@@ -26,17 +26,13 @@ class PandasTable(Table):
              save_to: Optional[List[str]] = None,
              overwrite: bool = False,
              **snapshot_kwargs):
-        if self._cached_data is None or overwrite:
+        if self._cached_data is not None:
+            # TODO make overwrite work
             self.data.to_parquet(self.fsspec_url,
                                  partition_cols=self.partition_cols,
                                  storage_options=self.data_config)
 
-        save(self,
-             name=name,
-             save_to=save_to if save_to is not None else self.save_to,
-             snapshot=snapshot,
-             overwrite=overwrite,
-             **snapshot_kwargs)
+        super().save(name=name, snapshot=snapshot, save_to=save_to, overwrite=overwrite, **snapshot_kwargs)
 
     def fetch(self, **kwargs):
         import pandas as pd

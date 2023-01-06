@@ -12,7 +12,6 @@ from .. import Resource
 from runhouse.rns.folders.folder import folder
 import runhouse as rh
 from runhouse.rh_config import rns_client
-from ..top_level_rns_fns import save
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +52,12 @@ class Table(Resource):
     @property
     def config_for_rns(self):
         config = super().config_for_rns
-        self.save_attrs_to_config(config, ['url', 'file_name', 'fs', 'partition_cols', 'data_config'])
+        if isinstance(self.fs, Resource):
+            config['fs'] = self._resource_string_for_subconfig(self.fs)
+        else:
+            config['fs'] = self.fs
+        self.save_attrs_to_config(config, ['url', 'partition_cols', 'data_config'])
+        config.update(config)
         return config
 
     @property
@@ -105,16 +109,14 @@ class Table(Resource):
 
     def save(self, name: Optional[str] = None, snapshot: bool = False, save_to: Optional[List[str]] = None,
              overwrite: bool = False, **snapshot_kwargs):
-        if self._cached_data is None or overwrite:
+        # TODO fix this logic
+        if self._cached_data is not None:
             pq.write_to_dataset(self.data,
                                 root_path=self.fsspec_url,
-                                partition_cols=self.partition_cols)
+                                partition_cols=self.partition_cols,
+                                existing_data_behavior='overwrite_or_ignore' if overwrite else 'error')
 
-        save(self,
-             save_to=save_to if save_to is not None else self.save_to,
-             snapshot=snapshot,
-             overwrite=overwrite,
-             **snapshot_kwargs)
+        super().save(name=name, snapshot=snapshot, save_to=save_to, overwrite=overwrite, **snapshot_kwargs)
 
     def fetch(self, columns: Optional[list] = None):
         # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
@@ -154,6 +156,8 @@ class Table(Resource):
         return self.stream(batch_size=1)
 
     def stream(self, batch_size, drop_last: bool = False, shuffle_seed: Optional[int] = None):
+        # TODO [JL] handle case where self._cached_data is not None (don't need to stream from file)
+
         # https://github.com/ray-project/ray/issues/30915
         # df = ray.data.read_parquet(self.url, filesystem=self._folder.fsspec_fs, dataset_kwargs=self.data_config)
         df = ray.data.read_parquet(self.url, filesystem=self._folder.fsspec_fs)

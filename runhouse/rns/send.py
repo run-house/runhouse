@@ -534,7 +534,8 @@ def send(fn: Optional[Union[str, Callable]] = None,
     if isinstance(config['hardware'], str):
         hw_dict = rh_config.rns_client.load_config(config['hardware'], load_from=load_from)
         if not hw_dict:
-            raise RuntimeError(f'Hardware {config["hardware"]} not found locally or in RNS.')
+            raise RuntimeError(f'Hardware {rh_config.rns_client.resolve_rns_path(config["hardware"])} '
+                               f'not found locally or in RNS.')
         config['hardware'] = hw_dict
 
     # config['image'] = image or config.get('image')

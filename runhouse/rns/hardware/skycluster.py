@@ -550,7 +550,7 @@ def cluster(name: str,
             save_to: Optional[List[str]] = None,
             load_from: Optional[List[str]] = None,
             dryrun: bool = False,
-            use_spot: bool = False,
+            use_spot: bool = None,
             image_id: str = None,
             ) -> Cluster:
     config = rns_client.load_config(name, load_from=load_from)

@@ -63,7 +63,11 @@ def save(resource,
     # TODO handle self.access == 'read' instead of this weird overwrite argument
     snapshot_kwargs = snapshot_kwargs or {}
     resource_to_save = resource.snapshot(**snapshot_kwargs) if snapshot else resource
-    resource_to_save._name = name if name is not None else resource_to_save._name
+    if name:
+        if '/' in name[1:] or resource_to_save._rns_folder is None:
+            resource_to_save._name, resource_to_save._rns_folder = split_rns_name_and_path(resolve_rns_path(name))
+        else:
+            resource_to_save._name = name
     rns_client.save_config(resource=resource_to_save,
                            save_to=save_to,
                            overwrite=overwrite)
@@ -103,6 +107,11 @@ def ipython():
     import IPython
     IPython.embed()
 
+
+def delete(resource_or_name: str,
+           delete_from=None):
+    """ Delete the resource from the RNS or local config store. """
+    rns_client.delete_configs(resource=resource_or_name, delete_from=delete_from)
 
 # TODO [DG]
 def delete_all(folder: str = None):

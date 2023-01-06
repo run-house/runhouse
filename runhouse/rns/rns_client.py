@@ -199,7 +199,11 @@ class RNSClient:
 
         logger.info(f"Loading config from local file {config_path}")
         with open(config_path, 'r') as f:
-            config = json.load(f)
+            try:
+                config = json.load(f)
+            except json.decoder.JSONDecodeError as e:
+                logger.error(f"Error loading config from {config_path}: {e}")
+                return None
         if rns_address:
             config['name'] = rns_address
         # TODO [DG] do we still need this now that resources are not folders?
@@ -287,14 +291,15 @@ class RNSClient:
                        resource,
                        delete_from: [Optional[str]] = None,
                        ):
-        rns_address = resource.rns_address
-
+        rns_address = resource.rns_address if hasattr(resource, 'rns_address') else self.resolve_rns_path(resource)
         delete_from = delete_from if delete_from is not None else self.save_to
+
         if 'local' in delete_from:
             url = self.locate(rns_address, resolve_path=False, load_from=['local'])
-            if not url:
-                raise ValueError(f'Cannot delete resource {rns_address}, could not find the local config.')
-            shutil.rmtree(url)
+            if url:
+                shutil.rmtree(url)
+            else:
+                logger.info(f'Cannot delete resource {rns_address}, could not find the local config.')
 
         if 'rns' in delete_from:
             resource_uri = self.resource_uri(rns_address)
