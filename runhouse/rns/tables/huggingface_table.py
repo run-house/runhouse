@@ -20,9 +20,10 @@ class HuggingFaceTable(Table):
              save_to: Optional[List[str]] = None,
              overwrite: bool = False,
              **snapshot_kwargs):
+
+        hf_dataset = None
         if self._cached_data is not None:
             import datasets
-            hf_dataset = None
             if isinstance(self.data, datasets.Dataset):
                 # Under the hood we convert to a pyarrow table before saving to the file system
                 pa_table = self.data.data.table
@@ -32,15 +33,15 @@ class HuggingFaceTable(Table):
                 raise NotImplementedError('Runhouse does not currently support DatasetDict objects, please convert to '
                                           'a Dataset before saving.')
 
-            super().save(name=name,
-                         save_to=save_to if save_to is not None else self.save_to,
-                         snapshot=snapshot,
-                         overwrite=overwrite,
-                         **snapshot_kwargs)
+        super().save(name=name,
+                     save_to=save_to if save_to is not None else self.save_to,
+                     snapshot=snapshot,
+                     overwrite=overwrite,
+                     **snapshot_kwargs)
 
-            # Restore the original dataset
-            if hf_dataset is not None:
-                self.data = hf_dataset
+        # Restore the original dataset
+        if hf_dataset is not None:
+            self.data = hf_dataset
 
     def fetch(self, **kwargs):
         # TODO [JL] Add support for dataset dict
@@ -50,9 +51,8 @@ class HuggingFaceTable(Table):
         self._cached_data = Dataset(pa_table)
         return self._cached_data
 
-    def stream(self, batch_size, drop_last: bool = False, shuffle_seed: Optional[int] = None):
+    @staticmethod
+    def to_dataset(data):
+        """Convert to a huggingface dataset"""
         from datasets import Dataset
-        batches = super().stream(batch_size, drop_last, shuffle_seed)
-        # convert to HF dataset before returning
-        hf_batches = [Dataset.from_pandas(batch.to_pandas()) for batch in batches]
-        return hf_batches
+        return Dataset.from_pandas(data.to_pandas())
