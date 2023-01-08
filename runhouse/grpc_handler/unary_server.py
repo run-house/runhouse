@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class UnaryService(pb2_grpc.UnaryServicer):
     DEFAULT_PORT = 50052
+    MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
 
     def __init__(self, *args, **kwargs):
         ray.init(address="auto")
@@ -123,7 +124,10 @@ class UnaryService(pb2_grpc.UnaryServicer):
 
 
 def serve():
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10),
+                         options=[('grpc.max_send_message_length', UnaryService.MAX_MESSAGE_LENGTH),
+                                  ('grpc.max_receive_message_length', UnaryService.MAX_MESSAGE_LENGTH),
+                                  ])
     pb2_grpc.add_UnaryServicer_to_server(UnaryService(), server)
     server.add_insecure_port('[::]:50052')
     server.start()
