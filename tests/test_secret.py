@@ -44,6 +44,11 @@ def test_upload_all_provider_secrets():
     assert True
 
 
+def test_delete_provider_secrets():
+    rh.Secrets.delete(providers=['huggingface'])
+    assert True
+
+
 def test_login():
     # TODO [DG] create a mock account and test this properly in CI
     token = '...'
@@ -73,6 +78,7 @@ def test_login():
              upload_config=True)
 
     assert rh.rns_client.default_folder == '/...'
+
 
 if __name__ == '__main__':
     unittest.main()

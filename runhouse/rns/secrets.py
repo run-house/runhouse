@@ -7,6 +7,7 @@ import configparser
 from typing import List, Dict, Optional
 from pathlib import Path
 import subprocess
+import typer
 
 import sky
 
@@ -49,6 +50,12 @@ class Secrets:
         (ex: ~/.aws/credentials). We currently support AWS, Azure, and GCP. To upload custom secrets for
         additional providers, see Secrets.put()"""
         secrets: list = cls.load_enabled_provider_secrets()
+        for idx, provider_secrets in enumerate(secrets):
+            provider = provider_secrets['provider']
+            upload_secrets = typer.confirm(f'Upload secrets for {provider}?')
+            if not upload_secrets:
+                secrets.pop(idx)
+
         resp = requests.put(f'{rns_client.api_server_url}/{cls.USER_ENDPOINT}',
                             data=json.dumps(secrets),
                             headers=headers or rns_client.request_headers)
@@ -140,6 +147,26 @@ class Secrets:
         return secrets
 
     @classmethod
+    def delete(cls, providers: List[str]):
+        """Delete secrets from Vault for the specified providers"""
+        for provider in providers:
+            provider = provider.lower()
+            provider_cls_name = cls.provider_cls_name(provider)
+
+            p = cls.get_class_from_name(provider_cls_name)
+            if p is not None:
+                p.delete_secrets_from_vault()
+
+            logger.info(f'Successfully deleted {cls.PROVIDER_NAME} secrets from Vault')
+
+    @classmethod
+    def delete_secrets_from_vault(cls):
+        resp = requests.delete(f'{rns_client.api_server_url}/{cls.USER_ENDPOINT}/{cls.PROVIDER_NAME}',
+                               headers=rns_client.request_headers)
+        if resp.status_code != 200:
+            raise Exception(f'Failed to delete {cls.PROVIDER_NAME} secrets from Vault')
+
+    @classmethod
     def load_enabled_provider_secrets(cls,
                                       from_env: bool = False) -> List[Dict[str, str]]:
         """Load secret credentials for all the providers which have been configured locally"""
@@ -171,7 +198,6 @@ class Secrets:
                 logger.warning(f'Received secrets for {provider_name} which are not configured locally. Run `sky check`'
                                f' for instructions on how to configure. If the secret is for a custom provider, you '
                                f'can set the relevant environment variables manually.')
-
 
     @classmethod
     def enabled_providers(cls, as_str: bool = False) -> List:
@@ -353,16 +379,17 @@ class GCPSecrets(Secrets):
 
         # We need to do extra stuff if we're in a colab
         if "google.colab" in sys.modules:
-            # TODO [DG] use console.print and make brighter so this stands out from other login print outputs
-            print("Please do the following to complete gcp secrets setup:")
-            print(f"!gcloud init")
-            print(f"!gcloud auth application-default login")
-            print(f"!cp -r /content/.config/* ~/.config/gcloud")
+            from rich.console import Console
+            console = Console()
+            console.print("Please do the following to complete gcp secrets setup:", style="bold yellow")
+            console.print(f"!gcloud init", style="bold yellow")
+            console.print(f"!gcloud auth application-default login", style="bold yellow")
+            console.print(f"!cp -r /content/.config/* ~/.config/gcloud", style="bold yellow")
 
         cls.save_to_json_file(config, dest_path)
 
 
-class HFSecrets(Secrets):
+class HUGGINGFACESecrets(Secrets):
     PROVIDER_NAME = 'huggingface'
     CREDENTIALS_FILE = os.path.expanduser('~/.huggingface/token')
 
