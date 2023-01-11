@@ -154,7 +154,9 @@ class Package(Resource):
             from runhouse.rns.packages.git_package import git_package
             return git_package(url=url, install_method=install_method, dryrun=dryrun)
 
-        target_and_args = specifier.split(':')[-1]  # Captures either "pip:<path>" or "<path>"
+        target_and_args = specifier
+        if specifier.split(':')[0] in INSTALL_METHODS:
+            target_and_args = specifier.split(':', 1)[1]
         rel_target, args = target_and_args.split(' ', 1) if ' ' in target_and_args else (target_and_args, '')
         # We need to do this because relative paths are relative to the current working directory!
         abs_target = Path(rel_target).expanduser() if Path(rel_target).expanduser().is_absolute() else \
