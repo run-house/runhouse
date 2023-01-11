@@ -62,7 +62,7 @@ install_requires = [
     'pyarrow',
     'sshtunnel',
     'typer',
-    'skypilot @ git+https://github.com/skypilot-org/skypilot.git@30476aa'
+    'skypilot==0.2.2'
 ]
 
 # NOTE: Change the templates/spot-controller.yaml.j2 file if any of the following

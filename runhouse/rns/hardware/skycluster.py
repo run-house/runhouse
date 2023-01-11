@@ -188,7 +188,6 @@ class Cluster(Resource):
         if not cluster_dict['status'].name == 'UP':
             self.address = None
 
-
     @staticmethod
     def get_sky_statuses(cluster_name: str = None):
         """
@@ -288,18 +287,20 @@ class Cluster(Resource):
         to_install = []
         # TODO [DG] validate package strings
         for package in reqs:
-            if isinstance(package, str) and \
-                    (Path(package).expanduser().exists() or package.split(':')[0] in ['local', 'reqs']):
-                package = Package.from_string(package, dryrun=False)
+            if isinstance(package, str):
+                # If the package is a local folder, we need to create the package to sync it over to the cluster
+                pkg_obj = Package.from_string(package, dryrun=False)
+            else:
+                pkg_obj = package
 
-            if not isinstance(package, str) and \
-                    isinstance(package.install_target, Resource) and \
-                    package.install_target.is_local():
-                logging.info(f'Copying local package {package.name} to cluster <{self.name}>')
-                remote_package = package.to_cluster(self, mount=False, return_dest_folder=True)
+            # Should be Folder but avoiding circular import
+            if isinstance(pkg_obj.install_target, Resource) and \
+                    pkg_obj.install_target.is_local():
+                logging.info(f'Copying local package {pkg_obj.name} to cluster <{self.name}>')
+                remote_package = pkg_obj.to_cluster(self, mount=False, return_dest_folder=True)
                 to_install.append(remote_package)
             else:
-                to_install.append(package)
+                to_install.append(package)  # Just appending the string!
         # TODO replace this with figuring out how to stream the logs when we install
         logging.info(f'Installing packages on cluster {self.name}: '
                      f'{[req if isinstance(req, str) else str(req) for req in reqs]}')
@@ -399,15 +400,15 @@ class Cluster(Resource):
 
     # TODO [DG] Remove this for now, for some reason it was causing execution to hang after programs completed
     # def __del__(self):
-        # if self.address in open_grpc_tunnels:
-        #     tunnel, port, refcount = open_grpc_tunnels[self.address]
-        #     if refcount == 1:
-        #         tunnel.stop(force=True)
-        #         open_grpc_tunnels.pop(self.address)
-        #     else:
-        #         open_grpc_tunnels[self.address] = (tunnel, port, refcount - 1)
-        # elif self._grpc_tunnel:  # Not sure why this would be reached but keeping it just in case
-        #     self._grpc_tunnel.stop(force=True)
+    # if self.address in open_grpc_tunnels:
+    #     tunnel, port, refcount = open_grpc_tunnels[self.address]
+    #     if refcount == 1:
+    #         tunnel.stop(force=True)
+    #         open_grpc_tunnels.pop(self.address)
+    #     else:
+    #         open_grpc_tunnels[self.address] = (tunnel, port, refcount - 1)
+    # elif self._grpc_tunnel:  # Not sure why this would be reached but keeping it just in case
+    #     self._grpc_tunnel.stop(force=True)
 
     # import paramiko
     # ssh = paramiko.SSHClient()
@@ -505,7 +506,7 @@ class Cluster(Resource):
     def ssh(self):
         subprocess.run(["ssh", f"{self.name}"])
 
-    def run(self, commands: list, stream_logs=True, port_forward=None):
+    def run(self, commands: list, stream_logs=True, port_forward=None, require_outputs=True):
         """ Run a list of shell commands on the cluster. """
         # TODO add name parameter to create Run object, and use sky.exec (after updating to sky 2.0):
         # sky.exec(commands, cluster_name=self.name, stream_logs=stream_logs, detach=False)
@@ -514,7 +515,7 @@ class Cluster(Resource):
         for command in commands:
             logger.info(f"Running command on {self.name}: {command}")
             ret_code = runner.run(command,
-                                  require_outputs=True,
+                                  require_outputs=require_outputs,
                                   stream_logs=stream_logs,
                                   port_forward=port_forward)
             return_codes.append(ret_code)

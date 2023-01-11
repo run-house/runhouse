@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Tuple, Dict, Union
 
-from ray import cloudpickle as pickle
+import pprint
 
 from runhouse.rh_config import rns_client
 from runhouse.rns.api_utils.resource_access import ResourceAccess
@@ -109,6 +109,13 @@ class Resource:
              snapshot=snapshot,
              overwrite=overwrite,
              **snapshot_kwargs)
+
+    def __str__(self):
+        return pprint.pformat(self.config_for_rns)
+
+    # TODO [DG]
+    def from_name(self, load_from=None):
+        pass
 
     def unname(self):
         """ Change the naming of the resource to anonymous and delete any local or RNS configs for the resource."""

@@ -57,7 +57,7 @@ class Package(Resource):
     def install(self):
         logging.info(f'Installing package {str(self)} with method {self.install_method}.')
         install_cmd = ''
-        install_args = f' self.install_args' if self.install_args else ''
+        install_args = f' {self.install_args}' if self.install_args else ''
         if isinstance(self.install_target, Folder):
             local_path = self.install_target.local_path
             if not local_path:
@@ -67,10 +67,12 @@ class Package(Resource):
                 local_path = self.install_target.mount(url=f'~/{Path(self.install_target.url).stem}')
 
             if self.install_method == 'pip':
-                if (Path(local_path) / 'setup.py').exists():
-                    install_cmd = f'-e {local_path}' + install_args
-                else:
-                    install_cmd = f'{local_path}' + install_args
+                # TODO [DG] Revisit: Would be nice if we could use -e by default, but importlib on the grpc server
+                #  isn't finding the package right after its installed.
+                # if (Path(local_path) / 'setup.py').exists():
+                #     install_cmd = f'-e {local_path}' + install_args
+                # else:
+                install_cmd = f'{local_path}' + install_args
             elif self.install_method == 'conda':
                 install_cmd = f'{local_path}' + install_args
             elif self.install_method == 'reqs':
@@ -152,29 +154,34 @@ class Package(Resource):
             from runhouse.rns.packages.git_package import git_package
             return git_package(url=url, install_method=install_method, dryrun=dryrun)
 
+        target_and_args = specifier.split(':')[-1]  # Captures either "pip:<path>" or "<path>"
+        rel_target, args = target_and_args.split(' ', 1) if ' ' in target_and_args else (target_and_args, '')
+        # We need to do this because relative paths are relative to the current working directory!
+        abs_target = Path(rel_target).expanduser() if Path(rel_target).expanduser().is_absolute() else \
+            Path(rh_config.rns_client.locate_working_dir()) / rel_target
+        if abs_target.exists():
+            target = Folder(url=rel_target)
+        else:
+            target = rel_target
+
         if specifier.startswith('local:'):
-            target = Folder(url=specifier[6:])
             return Package(install_target=target, install_method='local', dryrun=dryrun)
         elif specifier.startswith('reqs:'):
-            target = Folder(url=specifier[5:])
-            return Package(install_target=target, install_method='reqs', dryrun=dryrun)
+            return Package(install_target=target, install_args=args, install_method='reqs', dryrun=dryrun)
         elif specifier.startswith('git+'):
-            return Package(install_target=specifier[4:], install_method='pip', dryrun=dryrun)
+            return Package(install_target=specifier[4:], install_args=args, install_method='pip', dryrun=dryrun)
         elif specifier.startswith('pip:'):
-            target, args = specifier[4:].split(' ', 1) if ' ' in specifier[4:] else (specifier[4:], '')
             return Package(install_target=target, install_args=args, install_method='pip', dryrun=dryrun)
         elif specifier.startswith('conda:'):
-            target, args = specifier[6:].split(' ', 1) if ' ' in specifier[6:] else (specifier[6:], '')
             return Package(install_target=target, install_args=args, install_method='conda', dryrun=dryrun)
         elif specifier.startswith('rh:'):
             # Calling the factory function below
             return package(name=specifier[3:], dryrun=dryrun)
         else:
             if Path(specifier).resolve().exists():
-                target = Folder(url=specifier)
-                return Package(install_target=target, install_method='reqs', dryrun=dryrun)
+                return Package(install_target=target, install_args=args, install_method='reqs', dryrun=dryrun)
             else:
-                return Package(install_target=specifier, install_method='pip', dryrun=dryrun)
+                return Package(install_target=target, install_args=args, install_method='pip', dryrun=dryrun)
 
 
 def package(name=None,

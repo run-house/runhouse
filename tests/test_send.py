@@ -126,8 +126,8 @@ def test_send_git_fn():
     remote_parse = rh.send(fn='https://github.com/huggingface/diffusers/blob/'
                               'main/examples/dreambooth/train_dreambooth.py:parse_args',
                            hardware='^rh-cpu',
-                           reqs=['torch==1.12.0 --verbose', 'torchvision==0.13.0', 'datasets', 'evaluate', 'accelerate',
-                                 'pip:./diffusers'
+                           reqs=['torch==1.12.1 --verbose', 'torchvision==0.13.1', 'transformers', 'datasets',
+                                 'evaluate', 'accelerate', 'pip:./diffusers --verbose',
                                  ])
     args = remote_parse(input_args=['--pretrained_model_name_or_path', 'stabilityai/stable-diffusion-2-base',
                                                '--instance_data_dir', 'remote_image_dir',
