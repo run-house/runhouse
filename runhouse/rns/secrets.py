@@ -214,7 +214,7 @@ class Secrets:
         # Check if the huggingface_hub package is installed
         try:
             import huggingface_hub
-            cloud_names.append('hf')
+            cloud_names.append('huggingface')
         except ModuleNotFoundError:
             pass
 
