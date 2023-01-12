@@ -1,6 +1,7 @@
 from typing import Optional, List
 
 from .table import Table
+from .. import Cluster
 from ..top_level_rns_fns import save
 
 
@@ -13,6 +14,8 @@ class RayTable(Table):
     @staticmethod
     def from_config(config: dict, **kwargs):
         """ Load config values into the object. """
+        if isinstance(config['fs'], dict):
+            config['fs'] = Cluster.from_config(config['fs'], dryrun=dryrun)
         return RayTable(**config)
 
     def save(self,

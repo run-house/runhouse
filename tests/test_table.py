@@ -195,7 +195,7 @@ def test_create_and_reload_pandas_data_from_s3():
 
 
 def test_create_and_reload_huggingface_data_from_s3():
-    orig_data: datasets.arrow_dataset.Dataset = load_sample_data(data_type='huggingface')
+    orig_data: datasets.Dataset = load_sample_data(data_type='huggingface')
     orig_data_shape = orig_data.shape
 
     my_table = rh.table(data=orig_data,
@@ -219,7 +219,7 @@ def test_create_and_reload_huggingface_data_from_s3():
 
 
 def test_create_and_stream_huggingface_data_from_s3():
-    orig_data: datasets.arrow_dataset.Dataset = load_sample_data(data_type='huggingface')
+    orig_data: datasets.Dataset = load_sample_data(data_type='huggingface')
     orig_data_shape = orig_data.shape
 
     my_table = rh.table(data=orig_data,
@@ -235,7 +235,7 @@ def test_create_and_stream_huggingface_data_from_s3():
 
     batches = reloaded_table.stream(batch_size=10)
     for idx, batch in enumerate(batches):
-        assert isinstance(batch, datasets.arrow_dataset.Dataset)
+        assert isinstance(batch, datasets.Dataset)
         assert batch.column_names == ['label', 'text']
 
     del orig_data

@@ -1,6 +1,7 @@
 from typing import Optional, List
 
 from .table import Table
+from .. import Cluster
 
 
 class HuggingFaceTable(Table):
@@ -10,9 +11,11 @@ class HuggingFaceTable(Table):
         super().__init__(**kwargs)
 
     @staticmethod
-    def from_config(config: dict, **kwargs):
+    def from_config(config: dict, dryrun=True):
         """ Load config values into the object. """
-        return HuggingFaceTable(**config)
+        if isinstance(config['fs'], dict):
+            config['fs'] = Cluster.from_config(config['fs'], dryrun=dryrun)
+        return HuggingFaceTable(**config, dryrun=dryrun)
 
     def save(self,
              name: Optional[str] = None,
@@ -25,7 +28,7 @@ class HuggingFaceTable(Table):
         if self._cached_data is not None:
             import datasets
             if isinstance(self.data, datasets.Dataset):
-                # Under the hood we convert to a pyarrow table before saving to the file system
+                # Convert to a pyarrow table before saving to the relevant file system
                 pa_table = self.data.data.table
                 self.data, hf_dataset = pa_table, self.data
             elif isinstance(self.data, datasets.DatasetDict):

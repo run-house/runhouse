@@ -117,7 +117,7 @@ class Folder(Resource):
         """ Load config values into the object. """
         if isinstance(config['fs'], dict):
             from runhouse.rns.hardware import Cluster
-            config['hardware'] = Cluster.from_config(config['fs'], dryrun=dryrun)
+            config['fs'] = Cluster.from_config(config['fs'], dryrun=dryrun)
         return Folder(**config, dryrun=dryrun)
 
     @property
@@ -152,6 +152,7 @@ class Folder(Resource):
             if not self.fs.address:
                 raise ValueError('Cluster must be started before copying data from it.')
             creds = self.fs.ssh_creds()
+            # TODO [JL] on cluster need to resolve key filename to be relative path
             config_creds = {'host': self.fs.address,
                             'username': creds['ssh_user'],
                             'key_filename': str(Path(creds['ssh_private_key']).expanduser())}

@@ -94,7 +94,6 @@ class UnaryService(pb2_grpc.UnaryServicer):
 
         self.register_activity()
         # get the function result from the incoming request
-        logger.info(f"Message received from client: {request.message}")
         try:
             [relative_path, module_name, fn_name, fn_type, args, kwargs] = pickle.loads(request.message)
 

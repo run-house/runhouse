@@ -100,7 +100,8 @@ class Cluster(Resource):
                 config['ray_config'] = yaml.safe_load(f)
             config['public_key'] = self.ssh_creds()['ssh_private_key'] + '.pub'
             config['handle'] = {'cluster_name': config['handle'].cluster_name,
-                                'cluster_yaml': config['handle']._cluster_yaml,  # This is the unresolved path (~/...)
+                                # This is saved as an absolute path - convert it to relative
+                                'cluster_yaml': self._make_yaml_path_relative(yaml_path=config['handle']._cluster_yaml),
                                 'head_ip': config['handle'].head_ip,
                                 'launched_nodes': config['handle'].launched_nodes,
                                 'launched_resources': config['handle'].launched_resources.to_yaml_config()
@@ -125,8 +126,7 @@ class Cluster(Resource):
             raise Exception('Expecting both `ray_config` and `handle` attributes in sky data')
 
         yaml_path = handle_info['cluster_yaml'] + '.tmp'
-        if Path(yaml_path).is_absolute():
-            yaml_path = '~/.sky/generated/' + Path(yaml_path).name
+        yaml_path = self._make_yaml_path_relative(yaml_path)
 
         if not Path(yaml_path).expanduser().parent.exists():
             Path(yaml_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
@@ -139,7 +139,7 @@ class Cluster(Resource):
             cluster_name=self.name,
             cluster_yaml=yaml_path,
             launched_nodes=handle_info['launched_nodes'],
-            head_ip=handle_info['head_ip'],
+            # head_ip=handle_info['head_ip'], # deprecated
             launched_resources=sky.Resources.from_yaml_config(handle_info['launched_resources']),
         )
         sky.global_user_state.add_or_update_cluster(self.name,
@@ -148,6 +148,12 @@ class Cluster(Resource):
                                                     ready=False)
         backend_utils.SSHConfigHelper.add_cluster(
             self.name, [handle_info['head_ip']], ray_config['auth'])
+
+    @staticmethod
+    def _make_yaml_path_relative(yaml_path):
+        if Path(yaml_path).is_absolute():
+            yaml_path = '~/.sky/generated/' + Path(yaml_path).name
+        return yaml_path
 
     # ----------------- Launch/Lifecycle Methods -----------------
 
@@ -493,7 +499,17 @@ class Cluster(Resource):
         return str(user_path)
 
     def ssh_creds(self):
-        return backend_utils.ssh_credential_from_yaml(self._yaml_path)
+        # TODO [JL] we should be able to only use relative path here
+        rel_yaml_path = self._make_yaml_path_relative(self._yaml_path)
+        abs_yaml_path = self._yaml_path
+        for yaml_path in [rel_yaml_path, abs_yaml_path]:
+            try:
+                return backend_utils.ssh_credential_from_yaml(yaml_path)
+            except:
+                pass
+
+        raise Exception(f'Failed to load ssh credentials trying both relative path ({rel_yaml_path}) and '
+                        f'absolute path ({abs_yaml_path})')
 
     def rsync(self, source, dest, up):
         """ Note that ending `source` with a slash will copy the contents of the directory into dest,

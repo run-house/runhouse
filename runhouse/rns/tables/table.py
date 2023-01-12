@@ -1,6 +1,6 @@
 import uuid
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict
 import copy
 import logging
 import fsspec
@@ -8,7 +8,7 @@ import pyarrow.parquet as pq
 import pyarrow as pa
 import ray.data
 
-from .. import Resource
+from .. import Resource, Cluster
 from runhouse.rns.folders.folder import folder
 import runhouse as rh
 from runhouse.rh_config import rns_client
@@ -31,6 +31,7 @@ class Table(Resource):
                  save_to: Optional[List[str]] = None,
                  dryrun: bool = True,
                  partition_cols: Optional[List] = None,
+                 metadata: Optional[Dict] = None,
                  **kwargs
                  ):
         super().__init__(name=name, dryrun=dryrun, save_to=save_to)
@@ -44,20 +45,27 @@ class Table(Resource):
         self._cached_data = None
         self.partition_cols = partition_cols
         self.file_name = file_name
+        self.metadata = metadata or {}
 
     @staticmethod
     def from_config(config: dict, dryrun=True):
+        if isinstance(config['fs'], dict):
+            config['fs'] = Cluster.from_config(config['fs'], dryrun=dryrun)
         return Table(**config, dryrun=dryrun)
 
     @property
     def config_for_rns(self):
         config = super().config_for_rns
-        if isinstance(self.fs, Resource):
+        if isinstance(self._folder, Resource):
             config['fs'] = self._resource_string_for_subconfig(self.fs)
         else:
             config['fs'] = self.fs
-        self.save_attrs_to_config(config, ['url', 'partition_cols', 'data_config'])
+        self.save_attrs_to_config(config, ['url', 'partition_cols', 'data_config', 'metadata'])
         config.update(config)
+
+        # Don't store data config in RNS
+        config.pop('data_config', None)
+
         return config
 
     @property
@@ -109,12 +117,13 @@ class Table(Resource):
 
     def save(self, name: Optional[str] = None, snapshot: bool = False, save_to: Optional[List[str]] = None,
              overwrite: bool = False, **snapshot_kwargs):
-        # TODO fix this logic
         if self._cached_data is not None:
             pq.write_to_dataset(self.data,
                                 root_path=self.fsspec_url,
                                 partition_cols=self.partition_cols,
                                 existing_data_behavior='overwrite_or_ignore' if overwrite else 'error')
+            # Store the number of rows if we use for training later without having to read in the whole table
+            self.metadata['num_rows'] = len(self.data)
 
         super().save(name=name, snapshot=snapshot, save_to=save_to, overwrite=overwrite, **snapshot_kwargs)
 
@@ -127,6 +136,7 @@ class Table(Resource):
             # When trying to read as file like object could fail for a couple of reasons:
             # IsADirectoryError: The folder URL is actually a directory and the file has been automatically
             # generated for us inside the folder (ex: pyarrow table)
+
             # The file system is SFTP: since the SFTPFileSystem takes the host as a separate param, we cannot
             # pass in the data config as a single data_config kwarg
 
@@ -134,7 +144,6 @@ class Table(Resource):
             self._cached_data = pq.read_table(self.url,
                                               columns=columns,
                                               filesystem=self._folder.fsspec_fs)
-
         return self._cached_data
 
     def __getitem__(self, key: Optional[list] = None):
@@ -154,6 +163,10 @@ class Table(Resource):
             return next(self.data)
         # If not in memory, stream data in with batch size of 1
         return self.stream(batch_size=1)
+
+    def __len__(self):
+        # https://pytorch.org/docs/stable/data.html#torch.utils.data.Dataset
+        return self.metadata.get('num_rows') or len(self.data)
 
     def stream(self, batch_size, drop_last: bool = False, shuffle_seed: Optional[int] = None):
         # TODO [JL] handle case where self._cached_data is not None (don't need to stream from file)
@@ -197,7 +210,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
 
     try:
         import datasets
-        if resource_subtype == 'HuggingFaceTable' or isinstance(data, datasets.arrow_dataset.Dataset):
+        if resource_subtype == 'HuggingFaceTable' or isinstance(data, datasets.Dataset):
             from .huggingface_table import HuggingFaceTable
             return HuggingFaceTable.from_config(config)
     except ModuleNotFoundError:
@@ -254,14 +267,16 @@ def table(data=None,
           load_from: Optional[List[str]] = None,
           mkdir: bool = False,
           dryrun: bool = False,
+          metadata: Optional[Dict] = None,
           ):
     """ Returns a Table object, which can be used to interact with the table at the given url.
     If the table does not exist, it will be saved if `dryrun` is False.
     """
     config = rns_client.load_config(name, load_from=load_from)
 
-    fs = fs or config.get('fs') or rns_client.DEFAULT_FS
-    config['fs'] = fs
+    config['fs'] = fs or config.get('fs') or rns_client.DEFAULT_FS
+    if isinstance(config['fs'], str) and rns_client.exists(config['fs'], resource_type='cluster', load_from=load_from):
+        config['fs'] = rns_client.load_config(config['fs'], load_from=load_from)
 
     name = name or config.get('rns_address') or config.get('name')
     name = name.lstrip('/') if name is not None else name
@@ -278,7 +293,7 @@ def table(data=None,
 
     if data_url is None:
         # TODO [JL] move some of the default params in this factory method to the defaults module for configurability
-        if fs == rns_client.DEFAULT_FS:
+        if config['fs'] == rns_client.DEFAULT_FS:
             # create random url to store in .cache folder of local filesystem
             data_url = str(Path(f"~/{Table.DEFAULT_CACHE_FOLDER}/{name or uuid.uuid4().hex}").expanduser())
         else:
@@ -291,13 +306,15 @@ def table(data=None,
     config['data_config'] = data_config or config.get('data_config')
     config['partition_cols'] = partition_cols or config.get('partition_cols')
     config['save_to'] = save_to
+    config['metadata'] = metadata or config.get('metadata')
 
     if mkdir:
         # create the remote folder for the table
         rh.folder(url=data_url, fs=fs, save_to=[], dryrun=True).mkdir()
 
     new_table = _load_table_subclass(data, config, dryrun)
-    new_table.data = data
+    if data is not None:
+        new_table.data = data
 
     if new_table.name and not dryrun:
         new_table.save(overwrite=True)
