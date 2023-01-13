@@ -1,7 +1,7 @@
 from .folder import Folder
 
 
-class GCPFolder(Folder):
+class GCSFolder(Folder):
     RESOURCE_TYPE = 'folder'
     DEFAULT_FS = 'gcp'
 
@@ -12,9 +12,12 @@ class GCPFolder(Folder):
     @staticmethod
     def from_config(config: dict, dryrun=True):
         """ Load config values into the object. """
-        return GCPFolder(**config, dryrun=dryrun)
+        return GCSFolder(**config, dryrun=dryrun)
 
     def rsync(self):
+        pass
+
+    def upload(self, src_url, dest_url, region):
         pass
 
 

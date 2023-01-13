@@ -19,7 +19,7 @@ def test_share():
     p.share(users=['jlewitt1', 'donnyg'], snapshot=True, access_type='write')
 
 def test_reload():
-    rh.exists('/donnyg/runhouse', load_from=['rns'])
+    rh.exists('@/runhouse')
     package = rh.package(name='/donnyg/runhouse')
     print(package.config_for_rns)
     assert 's3://' in package.fsspec_url

@@ -384,7 +384,7 @@ class GCPSecrets(Secrets):
             console.print("Please do the following to complete gcp secrets setup:", style="bold yellow")
             console.print(f"!gcloud init", style="bold yellow")
             console.print(f"!gcloud auth application-default login", style="bold yellow")
-            console.print(f"!cp -r /content/.config/* ~/.config/gcloud", style="bold yellow")
+            console.print(f"!to -r /content/.config/* ~/.config/gcloud", style="bold yellow")
 
         cls.save_to_json_file(config, dest_path)
 

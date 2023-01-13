@@ -21,12 +21,10 @@ class Package(Resource):
                  install_method: str = None,
                  install_target: Union[str, Folder] = None,
                  install_args: str = None,
-                 save_to: Optional[List[str]] = None,
                  dryrun: bool = False,
                  **kwargs  # We have this here to ignore extra arguments when calling from from_config
                  ):
         super().__init__(name=name,
-                         save_to=save_to,
                          dryrun=dryrun,
                          )
         self.install_method = install_method
@@ -191,13 +189,11 @@ def package(name=None,
             install_str=None,
             url=None,
             fs: Optional[str] = Folder.DEFAULT_FS,
-            save_to: Optional[List[str]] = None,
-            load_from: Optional[List[str]] = None,
             dryrun=False,
             local_mount: bool = False,
             data_config: Optional[Dict] = None
             ):
-    config = rh_config.rns_client.load_config(name, load_from=load_from)
+    config = rh_config.rns_client.load_config(name)
     config['name'] = name or config.get('rns_address', None) or config.get('name')
 
     config['install_method'] = install_method or config.get('install_method')
@@ -209,11 +205,6 @@ def package(name=None,
     elif 'install_target' in config and isinstance(config['install_target'], dict):
         config['install_target'] = Folder.from_config(config['install_target'])
 
-    config['save_to'] = save_to
-
     new_package = Package.from_config(config, dryrun=dryrun)
-
-    if new_package.name:
-        new_package.save()
 
     return new_package

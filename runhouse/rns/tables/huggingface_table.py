@@ -20,7 +20,6 @@ class HuggingFaceTable(Table):
     def save(self,
              name: Optional[str] = None,
              snapshot: bool = False,
-             save_to: Optional[List[str]] = None,
              overwrite: bool = False,
              **snapshot_kwargs):
 
@@ -37,7 +36,6 @@ class HuggingFaceTable(Table):
                                           'a Dataset before saving.')
 
         super().save(name=name,
-                     save_to=save_to if save_to is not None else self.save_to,
                      snapshot=snapshot,
                      overwrite=overwrite,
                      **snapshot_kwargs)

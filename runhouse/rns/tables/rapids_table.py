@@ -21,7 +21,6 @@ class RapidsTable(Table):
     def save(self,
              name: Optional[str] = None,
              snapshot: bool = False,
-             save_to: Optional[List[str]] = None,
              overwrite: bool = False,
              **snapshot_kwargs):
         # https://docs.rapids.ai/api/cudf/nightly/api_docs/api/cudf.dataframe.to_parquet
@@ -30,7 +29,6 @@ class RapidsTable(Table):
 
         save(self,
              name=name,
-             save_to=save_to if save_to is not None else self.save_to,
              snapshot=snapshot,
              overwrite=overwrite,
              **snapshot_kwargs)

@@ -28,20 +28,18 @@ class Table(Resource):
                  file_name: Optional[str] = None,
                  fs: Optional[str] = None,
                  data_config: Optional[dict] = None,
-                 save_to: Optional[List[str]] = None,
                  dryrun: bool = True,
                  partition_cols: Optional[List] = None,
                  metadata: Optional[Dict] = None,
                  **kwargs
                  ):
-        super().__init__(name=name, dryrun=dryrun, save_to=save_to)
+        super().__init__(name=name, dryrun=dryrun)
         self._filename = str(Path(url).name) if url else self.name
         # Use factory method so correct subclass for fs is returned
         self._folder = folder(url=url,
                               fs=fs,
                               data_config=data_config,
-                              dryrun=dryrun,
-                              save_to=save_to)
+                              dryrun=dryrun)
         self._cached_data = None
         self.partition_cols = partition_cols
         self.file_name = file_name
@@ -58,13 +56,11 @@ class Table(Resource):
         config = super().config_for_rns
         if isinstance(self._folder, Resource):
             config['fs'] = self._resource_string_for_subconfig(self.fs)
+            config['data_config'] = self._folder._data_config
         else:
             config['fs'] = self.fs
-        self.save_attrs_to_config(config, ['url', 'partition_cols', 'data_config', 'metadata'])
+        self.save_attrs_to_config(config, ['url', 'partition_cols'])
         config.update(config)
-
-        # Don't store data config in RNS
-        config.pop('data_config', None)
 
         return config
 
@@ -115,17 +111,18 @@ class Table(Resource):
     def data_config(self, new_data_config):
         self._folder.data_config = new_data_config
 
-    def save(self, name: Optional[str] = None, snapshot: bool = False, save_to: Optional[List[str]] = None,
+    def save(self, name: Optional[str] = None, snapshot: bool = False,
              overwrite: bool = False, **snapshot_kwargs):
         if self._cached_data is not None:
             pq.write_to_dataset(self.data,
                                 root_path=self.fsspec_url,
                                 partition_cols=self.partition_cols,
                                 existing_data_behavior='overwrite_or_ignore' if overwrite else 'error')
-            # Store the number of rows if we use for training later without having to read in the whole table
-            self.metadata['num_rows'] = len(self.data)
+            if hasattr(self.data, __len__):
+                # Store the number of rows if we use for training later without having to read in the whole table
+                self.metadata['num_rows'] = len(self.data)
 
-        super().save(name=name, snapshot=snapshot, save_to=save_to, overwrite=overwrite, **snapshot_kwargs)
+        super().save(name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
 
     def fetch(self, columns: Optional[list] = None):
         # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
@@ -165,6 +162,10 @@ class Table(Resource):
         return self.stream(batch_size=1)
 
     def __len__(self):
+        if 'num_rows' not in self.metadata \
+            or not self.data \
+            or not hasattr(self.data, '__len__'):
+            raise RuntimeError("Cannot get len for dataset.")
         # https://pytorch.org/docs/stable/data.html#torch.utils.data.Dataset
         return self.metadata.get('num_rows') or len(self.data)
 
@@ -263,8 +264,6 @@ def table(data=None,
           fs: Optional[str] = None,
           data_config: Optional[dict] = None,
           partition_cols: Optional[list] = None,
-          save_to: Optional[List[str]] = None,
-          load_from: Optional[List[str]] = None,
           mkdir: bool = False,
           dryrun: bool = False,
           metadata: Optional[Dict] = None,
@@ -272,11 +271,11 @@ def table(data=None,
     """ Returns a Table object, which can be used to interact with the table at the given url.
     If the table does not exist, it will be saved if `dryrun` is False.
     """
-    config = rns_client.load_config(name, load_from=load_from)
+    config = rns_client.load_config(name)
 
     config['fs'] = fs or config.get('fs') or rns_client.DEFAULT_FS
-    if isinstance(config['fs'], str) and rns_client.exists(config['fs'], resource_type='cluster', load_from=load_from):
-        config['fs'] = rns_client.load_config(config['fs'], load_from=load_from)
+    if isinstance(config['fs'], str) and rns_client.exists(config['fs'], resource_type='cluster'):
+        config['fs'] = rns_client.load_config(config['fs'])
 
     name = name or config.get('rns_address') or config.get('name')
     name = name.lstrip('/') if name is not None else name
@@ -305,18 +304,14 @@ def table(data=None,
     config['file_name'] = file_name or config.get('file_name')
     config['data_config'] = data_config or config.get('data_config')
     config['partition_cols'] = partition_cols or config.get('partition_cols')
-    config['save_to'] = save_to
     config['metadata'] = metadata or config.get('metadata')
 
     if mkdir:
         # create the remote folder for the table
-        rh.folder(url=data_url, fs=fs, save_to=[], dryrun=True).mkdir()
+        rh.folder(url=data_url, fs=fs, dryrun=True).mkdir()
 
     new_table = _load_table_subclass(data, config, dryrun)
     if data is not None:
         new_table.data = data
-
-    if new_table.name and not dryrun:
-        new_table.save(overwrite=True)
 
     return new_table

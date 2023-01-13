@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class RNSClient:
     """Manage a particular resource with the runhouse database"""
     CORE_RNS_FIELDS = ["name", "resource_type", "folder", "users", "groups"]
-    RH_BUILTINS_FOLDER = '/builtins'
+    # RH_BUILTINS_FOLDER = '/builtins'
     DEFAULT_FS = 'file'
 
     def __init__(self, configs) -> None:
@@ -25,6 +25,7 @@ class RNSClient:
         self._prev_folders = []
 
         self.rh_directory = str(Path(self.locate_working_dir()) / 'rh')
+        self.rh_builtins_directory = str(Path(pkgutil.get_loader('runhouse').path).parent / 'builtins')
 
         # TODO allow users to register other base folders
         # Register all the directories in rh folder as rns base folders
@@ -77,14 +78,14 @@ class RNSClient:
     @property
     def default_folder(self):
         folder = self._configs.get('default_folder', None)
-        if folder in [None, '/default'] and self._configs.get('username'):
+        if folder in [None, '~/'] and self._configs.get('username'):
             folder = '/' + self._configs.get('username')
             self._configs.set('default_folder', folder)
         return folder
 
     @property
     def current_folder(self):
-        if self._current_folder in [None, '/default']:
+        if self._current_folder in [None, '~/']:
             self._current_folder = self.default_folder
         return self._current_folder
 
@@ -122,6 +123,13 @@ class RNSClient:
             rns_address = rns_address[1:]
         return rns_address.replace('/', ':')
 
+    @staticmethod
+    def local_to_remote_address(self, rns_address):
+        return rns_address.replace('~', '@')
+
+    def remote_to_local_address(self, rns_address):
+        return rns_address.replace(self.default_folder, '~')
+
     @property
     def request_headers(self):
         return self._configs.request_headers
@@ -156,20 +164,18 @@ class RNSClient:
 
     def load_config(self,
                     name,
-                    load_from: Optional[List[str]] = None,
                     ) -> dict:
         if not name:
             return {}
 
         rns_address = self.resolve_rns_path(name)
-        load_from = load_from if load_from is not None else self.load_from
 
-        if 'local' in load_from:
+        if rns_address[0] in ['~', '^']:
             config = self._load_config_from_local(rns_address)
             if config:
                 return config
 
-        if 'rns' in load_from:
+        if rns_address.startswith('/'):
             resource_uri = self.resource_uri(name)
             logger.info(f"Attempting to load config for {rns_address} from RNS.")
             uri = 'resource/' + resource_uri
@@ -190,7 +196,7 @@ class RNSClient:
         """Load config from local file"""
         # TODO should we handle remote filessytems, or throw an error if fs != 'file'?
         if not url:
-            url = self.locate(rns_address, resolve_path=False, load_from=['local'])
+            url = self.locate(rns_address, resolve_path=False)
             if not url:
                 return None
         config_path = Path(url) / 'config.json'
@@ -206,56 +212,39 @@ class RNSClient:
                 return None
         if rns_address:
             config['name'] = rns_address
-        # TODO [DG] do we still need this now that resources are not folders?
-        if not config.get('url') and not config.get('fs'):
-            config['url'] = url
-            config['fs'] = 'file'
         return config
 
-    # TODO we can support other filesystems too, but for now just supporting local
     def get_rns_address_for_local_path(self, local_path):
         """Get RNS address for local path"""
-        config = self._load_config_from_local(local_path)
-        if config:
-            return config.get('rns_address')
-        return None
+        try:
+            rel_path = str(Path(local_path).relative_to(self.rh_directory))
+            return '~/' + rel_path
+        except ValueError:
+            return None
 
     def save_config(self,
                     resource,
-                    save_to: Optional[List[str]] = None,
                     overwrite: bool = True):
         """Register the resource, saving it to local config folder and/or RNS config store. Uses the resource's
         `self.config_for_rns` to generate the dict to save."""
         rns_address = resource.rns_address
         config = resource.config_for_rns
 
-        if not overwrite and self.exists(rns_address, load_from=save_to):
+        if not overwrite and self.exists(rns_address):
             raise ValueError(f'Resource {rns_address} already exists and overwrite is False.')
 
         config['name'] = rns_address
-        save_to = save_to if save_to is not None else self.save_to
 
-        if 'local' in save_to:
+        if rns_address[0] in ['~', '^']:
             self._save_config_to_local(config, rns_address)
 
-        if 'rns' in save_to:
+        if rns_address.startswith('/'):
             self._save_config_in_rns(config, rns_address)
 
-    def _save_config_to_local(self, config: dict, rns_address: str, url: str = None):
+    def _save_config_to_local(self, config: dict, rns_address: str):
         if not rns_address:
             raise ValueError(f'Cannot save resource without rns address or url.')
-        if not url:
-            url = self.locate(rns_address, resolve_path=False, load_from=['local'])
-            if not url:
-                name, rns_parent = self.split_rns_name_and_path(rns_address)
-                parent_url = self.locate(rns_parent, resolve_path=False, load_from=['local'])
-                if parent_url is not None:
-                    url = Path(parent_url) / name
-                else:
-                    url = str(Path(self.rh_directory) / name)
-                    self.rns_base_folders.update({rns_address: url})
-
-        resource_dir = Path(url)
+        resource_dir = Path(self.locate(rns_address, resolve_path=False))
         resource_dir.mkdir(parents=True, exist_ok=True)
         config_path = resource_dir / 'config.json'
         with open(config_path, 'w') as f:
@@ -289,19 +278,17 @@ class RNSClient:
 
     def delete_configs(self,
                        resource,
-                       delete_from: [Optional[str]] = None,
                        ):
         rns_address = resource.rns_address if hasattr(resource, 'rns_address') else self.resolve_rns_path(resource)
-        delete_from = delete_from if delete_from is not None else self.save_to
 
-        if 'local' in delete_from:
-            url = self.locate(rns_address, resolve_path=False, load_from=['local'])
-            if url:
+        if rns_address[0] in ['~', '^']:
+            url = self.locate(rns_address, resolve_path=False)
+            if url and Path(url).exists():
                 shutil.rmtree(url)
             else:
                 logger.info(f'Cannot delete resource {rns_address}, could not find the local config.')
 
-        if 'rns' in delete_from:
+        if rns_address.startswith('/'):
             resource_uri = self.resource_uri(rns_address)
             uri = 'resource/' + resource_uri
             resp = requests.delete(f'{self.api_server_url}/{uri}', headers=self.request_headers)
@@ -319,20 +306,20 @@ class RNSClient:
             return self.current_folder
         if path.startswith('./'):
             return self.current_folder + '/' + path[2:]
-        if path == '~':
-            return self.default_folder
-        if path.startswith('~/'):
-            return self.default_folder + '/' + path[2:]
+        # if path == '~':
+        #     return '/rh'
+        # if path.startswith('~/'):
+        #     return '/rh/' + path[2:]
         # TODO break out paths for remote rns?
-        # if path == '@':
-        #     return self.default_folder
-        # if path.startswith('@/'):
-        #     return self.default_folder + '/' + path[2:]
-        if path == '^':
-            return self.RH_BUILTINS_FOLDER
-        if path.startswith('^'):
-            return self.RH_BUILTINS_FOLDER + '/' + path[1:]
-        if not path[0] == '/':
+        if path == '@':
+            return self.default_folder
+        if path.startswith('@/'):
+            return self.default_folder + '/' + path[2:]
+        # if path == '^':
+        #     return self.RH_BUILTINS_FOLDER
+        # if path.startswith('^'):
+        #     return self.RH_BUILTINS_FOLDER + '/' + path[1:]
+        if not path[0] in ['/', '~', '^']:
             return self.current_folder + '/' + path
         return path
 
@@ -343,10 +330,8 @@ class RNSClient:
     def exists(self,
                name_or_path,
                resource_type: str = None,
-               load_from: Optional[List[str]] = None,
                ):
-        config = self.load_config(name_or_path,
-                                  load_from=load_from)
+        config = self.load_config(name_or_path)
         if not config:
             return False
         if resource_type:
@@ -356,7 +341,6 @@ class RNSClient:
     def locate(self,
                name,
                resolve_path=True,
-               load_from: Optional[List[str]] = None,
                ):
         """ Return the URL for a resource."""
         # First check if name is in current folder
@@ -367,18 +351,15 @@ class RNSClient:
         if resolve_path:
             name = self.resolve_rns_path(name)
 
-        load_from = load_from if load_from is not None else self.load_from
-        if 'local' in load_from:
-            for (rns_path, url) in self.rns_base_folders.items():
-                if name.startswith(rns_path):
-                    rns_name = name[len(rns_path):]
-                    if rns_name.startswith('/'):
-                        rns_name = rns_name[1:]
-                    return str(Path(url) / rns_name)
+        if name.startswith('~'):
+            return name.replace('~', self.rh_directory)
+
+        if name.startswith('^'):
+            return name.replace('^', self.rh_builtins_directory + '/')
 
         # TODO [DG] see if this breaks anything, also make it traverse the various rns folders to find the resource
-        # if 'rns' in load_from:
-        #     if self.exists(name, load_from=['rns']):
+        # if name.startswith('/'):
+        #     if self.exists(name):
         #         return self.resource_uri(name)
 
         return None
@@ -389,10 +370,10 @@ class RNSClient:
             abs_path = path.rns_address
         else:
             abs_path = self.resolve_rns_path(path)
-            if abs_path == self.resolve_rns_path('~'):
+            if abs_path in ['~', '~/']:
                 create = False
             if create:
-                folder(name=path)  # Uses default save_to
+                folder(name=path, dryrun=False)
 
         self._prev_folders += [self.current_folder]
         self.current_folder = abs_path
@@ -405,3 +386,8 @@ class RNSClient:
             # TODO should we be raising an error here?
             return
         self.current_folder = self._prev_folders.pop(-1)
+
+    def contents(self, name_or_path, full_paths):
+        from runhouse.rns.folders.folder import folder
+        folder_url = self.locate(name_or_path)
+        return folder(name=name_or_path, url=folder_url).resources(full_paths=full_paths)

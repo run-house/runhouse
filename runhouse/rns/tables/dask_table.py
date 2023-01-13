@@ -21,7 +21,6 @@ class DaskTable(Table):
     def save(self,
              name: Optional[str] = None,
              snapshot: bool = False,
-             save_to: Optional[List[str]] = None,
              overwrite: bool = False,
              **snapshot_kwargs):
         # https://docs.dask.org/en/stable/how-to/connect-to-remote-data.html
@@ -30,7 +29,6 @@ class DaskTable(Table):
 
         save(self,
              name=name,
-             save_to=save_to if save_to is not None else self.save_to,
              snapshot=snapshot,
              overwrite=overwrite,
              **snapshot_kwargs)

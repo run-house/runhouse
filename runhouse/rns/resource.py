@@ -20,7 +20,6 @@ class Resource:
 
     def __init__(self,
                  name: Optional[str] = None,
-                 save_to: Optional[List[str]] = None,
                  dryrun: Optional[bool] = None,
                  ):
         self._name, self._rns_folder = None, None
@@ -28,12 +27,11 @@ class Resource:
             # TODO validate that name complies with a simple regex
             if name.startswith('/builtins/'):
                 name = name[10:]
-            if name[0] == '^':
+            if name[0] == '^' and name is not '^':
                 name = name[1:]
             self._name, self._rns_folder = rns_client.split_rns_name_and_path(
                 rns_client.resolve_rns_path(name))
 
-        self.save_to = save_to
         self.dryrun = dryrun
 
     # TODO add a utility to allow a parameter to be specified as "default" and then use the default value
@@ -51,10 +49,11 @@ class Resource:
         if resource is None or isinstance(resource, str):
             return resource
         if resource.name:
-            if resource.rns_address.startswith('/builtins/'):
+            if resource.rns_address.startswith('^'):
                 # Calls save internally and puts the resource in the current folder
-                resource.name = rns_client.resolve_rns_path(resource.rns_address[10:])
-            resource.save(save_to=self.save_to)
+                resource.name = rns_client.resolve_rns_path(resource.rns_address[1:])
+            # TODO [DG] not sure if we should save here
+            resource.save()
             return resource.rns_address
         return resource.config_for_rns
 
@@ -78,9 +77,6 @@ class Resource:
     def name(self, name):
         # Split the name and rns path if path is given (concat with current_folder if just stem is given)
         self._name, self._rns_folder = split_rns_name_and_path(resolve_rns_path(name))
-        # self._rns_folder = rns_parent
-        # self._name = name
-        # self.save()
 
     @rns_address.setter
     def rns_address(self, new_address):
@@ -88,7 +84,6 @@ class Resource:
 
     def save(self,
              name: str = None,
-             save_to: Optional[List[str]] = None,
              snapshot: bool = False,
              overwrite: bool = True,
              **snapshot_kwargs):
@@ -105,17 +100,21 @@ class Resource:
 
         # TODO handle self.access == 'read' instead of this weird overwrite argument
         save(self,
-             save_to=save_to if save_to is not None else self.save_to,
              snapshot=snapshot,
              overwrite=overwrite,
              **snapshot_kwargs)
 
+        return self
+
     def __str__(self):
         return pprint.pformat(self.config_for_rns)
 
-    # TODO [DG]
-    def from_name(self, load_from=None):
-        pass
+    @classmethod
+    def from_name(cls, name, dryrun=False):
+        config = rns_client.load_config(name=name)
+        config['name'] = name
+        # Uses child class's from_config
+        return cls.from_config(config=config, dryrun=dryrun)
 
     def unname(self):
         """ Change the naming of the resource to anonymous and delete any local or RNS configs for the resource."""
@@ -136,9 +135,9 @@ class Resource:
         return resource_history
 
     # TODO delete sub-resources
-    def delete_configs(self, delete_from: [Optional[str]] = None):
+    def delete_configs(self):
         """Delete the resource's config from local working_dir and RNS config store."""
-        rns_client.delete_configs(resource=self, delete_from=delete_from)
+        rns_client.delete_configs(resource=self)
 
     def save_attrs_to_config(self, config, attrs):
         for attr in attrs:
@@ -176,8 +175,8 @@ class Resource:
         if isinstance(access_type, str):
             access_type = ResourceAccess(access_type)
 
-        if not rns_client.exists(self.rns_address, load_from=['rns']):
-            self.save(save_to=['rns'])
+        if not rns_client.exists(self.rns_address):
+            self.save()
         added_users, new_users = rns_client.grant_resource_access(resource_name=self.name,
                                                                   user_emails=users,
                                                                   access_type=access_type)

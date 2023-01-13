@@ -26,7 +26,6 @@ class PandasTable(Table):
     def save(self,
              name: Optional[str] = None,
              snapshot: bool = False,
-             save_to: Optional[List[str]] = None,
              overwrite: bool = False,
              **snapshot_kwargs):
         if self._cached_data is not None:
@@ -35,7 +34,7 @@ class PandasTable(Table):
                                  partition_cols=self.partition_cols,
                                  storage_options=self.data_config)
 
-        super().save(name=name, snapshot=snapshot, save_to=save_to, overwrite=overwrite, **snapshot_kwargs)
+        super().save(name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
 
     def fetch(self, **kwargs):
         import pandas as pd

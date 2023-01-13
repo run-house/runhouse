@@ -1,4 +1,4 @@
-from .rns.send import send
+from .rns.send import send, Send
 from .rns.secrets import Secrets
 from .rns.defaults import Defaults
 from .rns.login import login
@@ -10,10 +10,10 @@ from runhouse.rns.top_level_rns_fns import exists, set_folder, unset_folder, cur
     pin_to_memory, get_pinned_object
 
 from runhouse.rns.packages.package import package, Package
-from .rns.folders.folder import folder
-from .rns.tables.table import table
-from .rns.blob import blob
-from .rns.hardware.skycluster import cluster
+from .rns.folders.folder import folder, Folder
+from .rns.tables.table import table, Table
+from .rns.blob import blob, Blob
+from .rns.hardware.skycluster import cluster, Cluster
 from .rns.kvstores.kvstore import KVStore
 
 # TODO [DG] do this properly

@@ -16,12 +16,10 @@ class GitPackage(Package):
                  install_method: str = None,
                  install_args: str = None,
                  revision: str = None,
-                 save_to: Optional[List[str]] = None,
                  dryrun: bool = False,
                  **kwargs  # We have this here to ignore extra arguments when calling from from_config
                  ):
         super().__init__(name=name,
-                         save_to=save_to,
                          dryrun=dryrun,
                          install_method=install_method,
                          install_target='./' + git_url.split('/')[-1].replace('.git', ''),
@@ -69,11 +67,9 @@ def git_package(name=None,
                 revision: str = None,
                 install_method: str = None,
                 install_str: str = None,
-                save_to: Optional[List[str]] = None,
-                load_from: Optional[List[str]] = None,
                 dryrun=False,
                 ):
-    config = rh_config.rns_client.load_config(name, load_from=load_from)
+    config = rh_config.rns_client.load_config(name)
     config['name'] = name or config.get('rns_address', None) or config.get('name')
 
     config['install_method'] = install_method or config.get('install_method', 'local')
@@ -84,11 +80,6 @@ def git_package(name=None,
             git_url += '.git'
         config['git_url'] = git_url
 
-    config['save_to'] = save_to
-
     new_package = GitPackage.from_config(config, dryrun=dryrun)
-
-    if new_package.name:
-        new_package.save()
 
     return new_package

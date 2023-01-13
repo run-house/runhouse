@@ -30,7 +30,6 @@ class Cluster(Resource):
                  instance_type: str = None,
                  num_instances: int = None,
                  provider: str = None,
-                 save_to: Optional[List[str]] = None,
                  dryrun=True,
                  autostop_mins=None,
                  use_spot=False,
@@ -49,7 +48,7 @@ class Cluster(Resource):
                 -1 to keep up indefinitely.
         """
 
-        super().__init__(name=name, dryrun=dryrun, save_to=save_to)
+        super().__init__(name=name, dryrun=dryrun)
 
         self.instance_type = instance_type
         self.num_instances = num_instances
@@ -69,7 +68,7 @@ class Cluster(Resource):
             self._save_sky_data()
 
         # Checks local SkyDB if cluster is up, and loads connection info if so.
-        self.populate_vars_from_status()
+        self.populate_vars_from_status(dryrun=self.dryrun)
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
@@ -162,7 +161,7 @@ class Cluster(Resource):
         self.populate_vars_from_status()
         return self.address is not None
 
-    def status(self):
+    def status(self, refresh=True):
         """
         Return dict looks like:
          {'name': 'sky-cpunode-donny',
@@ -180,11 +179,11 @@ class Cluster(Resource):
           'metadata': {}}
         More: https://github.com/skypilot-org/skypilot/blob/0c2b291b03abe486b521b40a3069195e56b62324/sky/backends/cloud_vm_ray_backend.py#L1457
         """
-        return self.get_sky_statuses(cluster_name=self.name)
+        return self.get_sky_statuses(cluster_name=self.name, refresh=refresh)
 
-    def populate_vars_from_status(self):
+    def populate_vars_from_status(self, dryrun=False):
         # Try to get the cluster status from SkyDB
-        cluster_dict = self.status()
+        cluster_dict = self.status(refresh=not dryrun)
         if not cluster_dict:
             return
         self.address = cluster_dict['handle'].head_ip
@@ -195,7 +194,7 @@ class Cluster(Resource):
             self.address = None
 
     @staticmethod
-    def get_sky_statuses(cluster_name: str = None):
+    def get_sky_statuses(cluster_name: str = None, refresh: bool = True):
         """
         Get status dicts for all Sky clusters.
         Args:
@@ -205,7 +204,7 @@ class Cluster(Resource):
 
         """
         # TODO [DG] just get status for this cluster
-        all_clusters_status = sky.status(refresh=True)
+        all_clusters_status = sky.status(refresh=refresh)
         if not cluster_name:
             return all_clusters_status
         for cluster_dict in all_clusters_status:
@@ -564,13 +563,11 @@ def cluster(name: str,
             num_instances: int = None,
             provider: str = None,
             autostop_mins: int = None,
-            save_to: Optional[List[str]] = None,
-            load_from: Optional[List[str]] = None,
             dryrun: bool = False,
             use_spot: bool = None,
             image_id: str = None,
             ) -> Cluster:
-    config = rns_client.load_config(name, load_from=load_from)
+    config = rns_client.load_config(name)
     config['name'] = name or config.get('rns_address', None) or config.get('name')
 
     config['instance_type'] = instance_type or config.get('instance_type', None)
@@ -579,11 +576,7 @@ def cluster(name: str,
     config['autostop_mins'] = autostop_mins if autostop_mins is not None else config.get('autostop_mins', None)
     config['use_spot'] = use_spot if use_spot is not None else config.get('use_spot', None)
     config['image_id'] = image_id if image_id is not None else config.get('image_id', None)
-    config['save_to'] = save_to
 
     new_cluster = Cluster.from_config(config, dryrun=dryrun)
-
-    if new_cluster.name:
-        new_cluster.save()
 
     return new_cluster

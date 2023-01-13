@@ -24,7 +24,6 @@ class Blob(Resource):
                  fs: Optional[str] = Folder.DEFAULT_FS,
                  data_config: Optional[Dict] = None,
                  dryrun: bool = True,
-                 save_to: Optional[List[str]] = None,
                  **kwargs
                  ):
         """
@@ -36,14 +35,13 @@ class Blob(Resource):
             data_config ():
             serializer ():
         """
-        super().__init__(name=name, dryrun=dryrun, save_to=save_to)
+        super().__init__(name=name, dryrun=dryrun)
         self._filename = str(Path(url).name) if url else self.name
         # Use factory method so correct subclass for fs is returned
         self._folder = folder(url=str(Path(url).parent) if url is not None else url,
                               fs=fs,
                               data_config=data_config,
-                              dryrun=dryrun,
-                              save_to=save_to)
+                              dryrun=dryrun)
         self._cached_data = None
 
     # TODO do we need a del?
@@ -119,7 +117,6 @@ class Blob(Resource):
 
     def save(self,
              name: str = None,
-             save_to: Optional[List[str]] = None,
              snapshot: bool = False,
              overwrite: bool = True,
              **snapshot_kwargs):
@@ -138,7 +135,6 @@ class Blob(Resource):
             f.write(self.data)
 
         save(self,
-             save_to=save_to if save_to is not None else self.save_to,
              snapshot=snapshot,
              overwrite=overwrite,
              **snapshot_kwargs)
@@ -175,8 +171,6 @@ def blob(data=None,
          url: Optional[str] = None,
          fs: Optional[str] = None,
          data_config: Optional[Dict] = None,
-         load_from: Optional[List[str]] = None,
-         save_to: Optional[List[str]] = None,
          mkdir: bool = False,
          snapshot: bool = False,
          dryrun: bool = True):
@@ -190,25 +184,25 @@ def blob(data=None,
     # 1. Create a remote blob with a name and no URL
     # provide a folder path for which to save in the remote file system
     # Since no URL is explicitly provided, we will save to a bucket called runhouse/blobs/my-blob
-    rh.blob(name="my-blob", data=data, data_source='s3', save_to=['rns'], dryrun=False)
+    rh.blob(name="@/my-blob", data=data, data_source='s3', dryrun=False)
 
     # 2. Create a remote blob with a name and URL
-    rh.blob(name='my-blob', url='/runhouse-tests/my_blob.pickle', data=data, fs='s3', save_to=['rns'], dryrun=False)
+    rh.blob(name='@/my-blob', url='/runhouse-tests/my_blob.pickle', data=data, fs='s3', dryrun=False)
 
     # 3. Create a local blob with a name and a URL
     # save the blob to the local filesystem
-    rh.blob(name=name, data=data, url=str(Path.cwd() / "my_blob.pickle"), save_to=['local'], dryrun=False)
+    rh.blob(name=name, data=data, url=str(Path.cwd() / "my_blob.pickle"), dryrun=False)
 
     # 4. Create a local blob with a name and no URL
     # Since no URL is explicitly provided, we will save to ~/.cache/blobs/my-blob
-    rh.blob(name="my-blob", data=data, save_to=['local'], dryrun=False)
+    rh.blob(name="~/my-blob", data=data, dryrun=False)
 
     # Loading a blob
-    my_local_blob = rh.blob(name="my_blob", load_from=['local'])
-    my_s3_blob = rh.blob(name="my_blob", load_from=['rns'])
+    my_local_blob = rh.blob(name="~/my_blob")
+    my_s3_blob = rh.blob(name="@/my_blob")
 
     """
-    config = rns_client.load_config(name, load_from=load_from)
+    config = rns_client.load_config(name)
     config['name'] = name or config.get('rns_address', None) or config.get('name')
 
     # fs = fs or config.get('fs') or PROVIDER_FS_LOOKUP[configs.get('default_provider')]
@@ -227,13 +221,12 @@ def blob(data=None,
             data_url = f'{Blob.DEFAULT_FOLDER_PATH}/{name}'
 
     config['url'] = data_url
-    config['save_to'] = save_to
     config['data_config'] = data_config or config.get('data_config')
 
     if mkdir:
         # create the remote folder for the blob
         folder_url = str(Path(data_url).parent)
-        rh.folder(name=folder_url, fs=fs, save_to=[], dryrun=True).mkdir()
+        rh.folder(name=folder_url, fs=fs, dryrun=True).mkdir()
 
     new_blob = Blob.from_config(config, dryrun=dryrun)
     new_blob.data = data

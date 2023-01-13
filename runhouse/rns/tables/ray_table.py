@@ -21,7 +21,6 @@ class RayTable(Table):
     def save(self,
              name: Optional[str] = None,
              snapshot: bool = False,
-             save_to: Optional[List[str]] = None,
              overwrite: bool = False,
              **snapshot_kwargs):
         if self._cached_data is None or overwrite:
@@ -29,7 +28,6 @@ class RayTable(Table):
 
         save(self,
              name=name,
-             save_to=save_to if save_to is not None else self.save_to,
              snapshot=snapshot,
              overwrite=overwrite,
              **snapshot_kwargs)

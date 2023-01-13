@@ -1,11 +1,13 @@
 import copy
 import logging
 import os
+import subprocess
 from pathlib import Path
 from typing import Tuple, Dict, Union, Optional, List
 import fsspec
 import tempfile
 import shutil
+import uuid
 
 import runhouse as rh
 from runhouse.rns.resource import Resource
@@ -26,12 +28,13 @@ PROVIDER_FS_LOOKUP = {'aws': 's3',
 class Folder(Resource):
     RESOURCE_TYPE = 'folder'
     DEFAULT_FS = 'file'
+    DEFAULT_FOLDER_PATH = '/runhouse/'
+    DEFAULT_CACHE_FOLDER = '~/.cache/runhouse/'
 
     def __init__(self,
                  name: Optional[str] = None,
                  url: Optional[str] = None,
                  fs: Optional[str] = DEFAULT_FS,
-                 save_to: Optional[List[str]] = None,
                  dryrun: bool = True,
                  local_mount: bool = False,
                  data_config: Optional[Dict] = None,
@@ -49,73 +52,50 @@ class Folder(Resource):
             local_path ():
         """
         super().__init__(name=name,
-                         dryrun=dryrun,
-                         save_to=save_to)
-
-        # TODO if fs='github', check if we need to extract the data_config and url properly, e.g.
-        # rh.Folder(url='https://github.com/pytorch/pytorch', fs='github')
-        # should be resolved as:
-        # rh.Folder(url='/', fs='github', data_config={'org': 'pytorch', 'repo': 'pytorch'})
+                         dryrun=dryrun)
 
         self.fs = fs
 
         # TODO [DG] Should we ever be allowing this to be None?
-        # self._url = url if url is None or Path(url).expanduser().is_absolute() \
-        #     else str(Path(rh.rh_config.locate_working_dir()) / url)
-
-        if self.fs == Folder.DEFAULT_FS:
-            if url is None:
-                # If no URL specified for local file system, try the parent folder, then put in the rh directory
-                name, rns_parent = rns_client.split_rns_name_and_path(self.rns_address)
-                parent_url = rns_client.locate(rns_parent, resolve_path=False, load_from=['local'])
-                if parent_url is not None:
-                    self._url = Path(parent_url) / name
-                else:
-                    if self.rns_address.startswith(rns_client.default_folder):
-                        rel_path = self.rns_address[len(rns_client.default_folder) + 1:]
-                    else:
-                        rel_path = self.rns_address
-                    self._url = str(Path(rns_client.rh_directory) / rel_path)
-                    rns_client.rns_base_folders.update({self.rns_address: self._url})
-            else:
-                # If the url is not absolute, assume that it's relative to the working directory
-                self._url = url if Path(url).expanduser().is_absolute() else \
-                    str(Path(rns_client.locate_working_dir()) / url)
-        else:
-            if url is None:
-                # If no URL provided for a remote file system default to its name if provided
-                if not name:
-                    raise ValueError(f'Either a URL or name must be provided for remote filesystem {self.fs}.')
-                if self.rns_address.startswith(rns_client.default_folder):
-                    rel_path = self.rns_address[len(rns_client.default_folder) + 1:]
-                else:
-                    rel_path = self.rns_address
-                url = 'runhouse/' + rel_path
-            self._url = url if url.startswith("/") else f'/{url}'
+        self._url = self.default_url(self.name, fs) if url is None \
+            else url if Path(url).expanduser().is_absolute() \
+            else str(Path(rns_client.locate_working_dir()) / url)
+        self.data_config = data_config or {}
 
         self.local_mount = local_mount
         self._local_mount_path = None
         if local_mount:
             self.mount(tmp=True)
-        self.data_config = data_config or {}
-        self.virtual_children = []
+        if not self.dryrun and self.is_local():
+            Path(self.url).mkdir(parents=True, exist_ok=True)
 
-        if self._name is None:
-            if self.url is None:
-                # Create anonymous folder
-                self._tempdir = tempfile.TemporaryDirectory()
-                self.url = self._tempdir.name
-                Path(self.url).mkdir(parents=True, exist_ok=True)
-                self.fs = 'file'
-            elif self.fs == 'file':
-                self._name = Path(self.url).stem
-            # If there's a url, but fs != 'file', this is an anonymous Folder with a remote fs (e.g. "github").
+    @classmethod
+    def default_url(cls, rns_address, fs):
+        if fs == Folder.DEFAULT_FS:
+            if rns_address:
+                return str(Path.cwd() / rns_client.split_rns_name_and_path(rns_address)[1])  # saves to cwd / name
+            return Folder.DEFAULT_CACHE_FOLDER + uuid.uuid4().hex
+        else:
+            # If no URL provided for a remote file system default to its name if provided
+            if rns_address:
+                name = rns_address[1:].replace('/', '_') + f'.{cls.RESOURCE_TYPE}'
+                return Folder.DEFAULT_FOLDER_PATH + name
+            return Folder.DEFAULT_FOLDER_PATH + uuid.uuid4().hex
 
     # ----------------------------------
     @staticmethod
     def from_config(config: dict, dryrun=True):
         """ Load config values into the object. """
-        if isinstance(config['fs'], dict):
+        if config['fs'] == 's3':
+            from .s3_folder import S3Folder
+            return S3Folder.from_config(config, dryrun=dryrun)
+        elif config['fs'] == 'gcs':
+            from .gcs_folder import GCSFolder
+            return GCSFolder.from_config(config, dryrun=dryrun)
+        elif config['fs'] == 'azure':
+            from .azure_folder import AzureFolder
+            return AzureFolder.from_config(config, dryrun=dryrun)
+        elif isinstance(config['fs'], dict):
             from runhouse.rns.hardware import Cluster
             config['fs'] = Cluster.from_config(config['fs'], dryrun=dryrun)
         return Folder(**config, dryrun=dryrun)
@@ -213,15 +193,39 @@ class Folder(Resource):
         self.fs = fs
         self.data_config = data_config or {}
 
-    def cp(self, fs, url=None, data_config=None):
+    def to(self, fs, url=None, data_config=None):
         """ Copy the folder to a new filesystem, and return a new Folder object pointing to the new location. """
-        # TODO [DG] use shared method to get default url
-        if url is None:
-            url = 'runhouse/' + self.rns_address[1:].replace('/', '_') + f'.{self.RESOURCE_TYPE}'
+        # silly syntactic sugar to allow `my_remote_folder.to('here')`, clearer than `to('file')`
+        if fs == 'here':
+            fs = 'file'
 
-        logging.info(f'Copying folder from {self.fsspec_url} to {fs}://{url}')
+        url = url or self.default_url(self.name, fs)
 
-        # TODO will this work if the base bucket doesn't exist yet?
+        fs_str = getattr(fs, "name", fs)  # Use fs.name if available, i.e. fs is a cluster
+        logging.info(f'Copying folder from {self.fsspec_url} to {fs_str}://{url}')
+
+        # to_local, to_cluster, to_sftp, and to_blob_storage are also overridden by subclasses to dispatch
+        # to more performant cloud-specific APIs
+        from runhouse.rns.hardware import Cluster
+        if fs == 'file':
+            return self.to_local(url=url, data_config=data_config)
+        elif isinstance(fs, Cluster):  # If fs is a cluster
+            return self.to_cluster(cluster=fs, url=url, return_dest_folder=True)
+        elif fs == 'sftp':
+            return self.to_sftp(url=url, data_config=data_config)
+        elif fs in ['s3', 'gs', 'azure']:
+            return self.to_blob_storage(fs=fs, url=url, data_config=data_config)
+        else:
+            self.fsspec_copy(fs, url, data_config)
+
+        new_folder = copy.deepcopy(self)
+        new_folder.url = url
+        new_folder.fs = fs
+        new_folder.data_config = data_config or {}
+        return new_folder
+
+    def fsspec_copy(self, fs, url, data_config):
+        # Fallback for other fsspec filesystems, but very slow:
         if self.is_local():
             self.fsspec_fs.put(self.url, f'{fs}://{url}', recursive=True)
         else:
@@ -239,11 +243,62 @@ class Folder(Resource):
                 # NOTE For packages, maybe use the `ignore` param here to only copy python files.
                 dest[k] = src[k]
                 # dst.write(src.read())
-        new_folder = copy.deepcopy(self)
-        new_folder.url = url
-        new_folder.fs = fs
-        new_folder.data_config = data_config or {}
-        return new_folder
+
+    def to_local(self, url, data_config):
+        from runhouse.rns.hardware import Cluster
+        if self.fs == 'file':
+            # Simply move the files within local fs
+            shutil.copytree(src=self.url, dst=url)
+        elif self.fs == 'sftp':
+            # Rsync down the files from the remote fs
+            self.rsync(local=url, remote=self.url, data_config=data_config, up=False)
+        elif isinstance(self.fs, Cluster):
+            self.from_cluster(cluster=self.fs, dest_url=self.url)
+        else:
+            self.fsspec_copy('file', url, data_config)
+
+    def to_sftp(self, url, data_config):
+        from runhouse.rns.hardware import Cluster
+        if self.fs == 'file':
+            # Rsync up the files to the remote fs
+            self.rsync(local=self.url, remote=url, data_config=data_config, up=True)
+        elif self.fs == 'sftp':
+            # Simply move the files within stfp fs
+            # TODO [DG] speculation
+            self.fsspec_fs.mv(self.url, url)
+        elif isinstance(self.fs, Cluster):
+            self.fs.run([f'rsync {self.url} {data_config["username"]}@{data_config["host"]}:{url} '
+                         f'--password_file {data_config["key_filename"]}'])
+        else:
+            self.fsspec_copy('file', url, data_config)
+
+    def to_blob_storage(self, fs, url=None, data_config=None):
+        from runhouse.rns.hardware import Cluster
+        folder_config = self.config_for_rns
+        folder_config['fs'] = fs
+        folder_config['url'] = url
+        folder_config['data_config'] = data_config
+        new_folder = Folder.from_config(folder_config)
+        if self.fs == 'file':
+            new_folder.upload(self.url)
+        elif self.fs == 'sftp':
+            # TODO [DG] issue ssh command to server?
+            pass
+        elif isinstance(self.fs, Cluster):
+            pass
+            # TODO [DG] issue ssh command to server? Something like:
+            # self.fs.run([new_folder.upload_command()])
+        else:
+            self.fsspec_copy('file', url, data_config)
+
+    @staticmethod
+    def rsync(local, remote, data_config, up=True):
+        dest_str = f'{data_config["username"]}@{data_config["host"]}:{remote}'
+        src_str = local
+        if not up:
+            src_str, dest_str = dest_str, src_str
+        subprocess.check_call(f'rsync {src_str} {dest_str} '
+                              f'--password_file {data_config["key_filename"]}')
 
     def mkdir(self):
         """create the folder in specified file system if it doesn't already exist"""
@@ -281,26 +336,31 @@ class Folder(Resource):
         dest_folder.fs = 'file'
         if return_dest_folder:
             return dest_folder
-        return dest_folder.from_cluster(cluster)
+        return dest_folder.from_cluster(cluster)  # Just converts to sftp, no actual copy
 
-    # TODO [DG] get rid of this in favor of just "sync_down(url, fs)" ?
-    def sync_from_cluster(self, cluster, url):
-        """ Efficiently rsync down a folder from a cluster, into the url of the current Folder object. """
-        if not cluster.address:
-            raise ValueError('Cluster must be started before copying data to it.')
-        # TODO support fsspec urls (e.g. nonlocal fs's)?
-        cluster.rsync(source=self.url, dest=url, up=False)
+    def from_cluster(self, cluster, dest_url=None):
+        """ Create a remote folder from a url on a cluster.
 
-    def from_cluster(self, cluster):
-        """ Create a remote folder from a url on a cluster. This will create a virtual link into the
-        cluster's filesystem. If you want to create a local copy or mount of the folder, use
-        `Folder(url=<local_url>).sync_from_cluster(<cluster>, <url>)` or
-        `Folder('url').from_cluster(<cluster>).mount(<local_url>)`. """
-        if not cluster.address:
-            raise ValueError('Cluster must be started before copying data from it.')
-        new_folder = copy.deepcopy(self)
-        new_folder.fs = cluster
-        return new_folder
+        If `dest_url=None`, this will not perform any copy, and simply convert the resource to have a remote
+        sftp filesystem into the cluster. If `dest_url` is set, it will rsync down the data and return a folder
+        with fs=='file'.
+
+        """
+        if dest_url:
+            if not cluster.address:
+                raise ValueError('Cluster must be started before copying data from it.')
+            # TODO support fsspec urls (e.g. nonlocal fs's)?
+            cluster.rsync(source=self.url, dest=dest_url, up=False)
+            new_folder = copy.deepcopy(self)
+            new_folder.url = dest_url
+            new_folder.fs = 'local'
+            # Don't need to do anything with _data_config because cluster creds are injected virtually through the
+            # data_config property
+            return new_folder
+        else:
+            new_folder = copy.deepcopy(self)
+            new_folder.fs = cluster
+            return new_folder
 
     def is_local(self):
         return (self.fs == 'file' and self.url is not None and Path(self.url).exists()) or self._local_mount_path
@@ -326,18 +386,19 @@ class Folder(Resource):
                 raise ValueError(f'Invalid mount_compression: {snapshot_compression}. Must be one of '
                                  f'{fsspec.available_compressions()}')
             data_config = {'compression': snapshot_compression} if snapshot_compression else {}
-            snapshot_folder = self.cp(fs=fs, url=snapshot_url, data_config=data_config)
+            snapshot_folder = self.to(fs=fs, url=snapshot_url, data_config=data_config)
 
             # Is this a bad idea? Better to store the snapshot config as the source of truth than the local url
-            snapshot_folder.save(name=self.rns_address, save_to=['rns'])
+            rns_address = rns_client.local_to_remote_address(self.rns_address)
+            snapshot_folder.save(name=rns_address)
 
             return snapshot_folder.share(users=users, access_type=access_type, snapshot=False)
 
         # TODO just call super().share
         if isinstance(access_type, str):
             access_type = ResourceAccess(access_type)
-        if not rns_client.exists(self.rns_address, load_from=['rns']):
-            self.save(save_to=['rns'])
+        if not rns_client.exists(self.rns_address):
+            self.save(name=rns_client.local_to_remote_address(self.rns_address))
         added_users, new_users = rns_client.grant_resource_access(resource_name=self.name,
                                                                   user_emails=users,
                                                                   access_type=access_type)
@@ -349,11 +410,13 @@ class Folder(Resource):
         config_attrs = ['local_mount', 'data_config']
         self.save_attrs_to_config(config, config_attrs)
 
-        if self.fs != Folder.DEFAULT_FS:
+        if self.fs == Folder.DEFAULT_FS:
+            # If folder is local check whether path is relative, and if so take it relative to the working director
+            # rather than to the home directory. If absolute, it's left alone.
+            config['url'] = self._url_relative_to_rh_workdir(self.url) if self.url else None
+        else:
             # if not a local filesystem save path as is (e.g. bucket/path)
             config['url'] = self.url
-        else:
-            config['url'] = self._url_relative_to_rh_workdir(self.url) if self.url else None
 
         if isinstance(self.fs, Resource):  # If fs is a cluster
             config['fs'] = self._resource_string_for_subconfig(self.fs)
@@ -487,16 +550,6 @@ class Folder(Resource):
                           fs=self.fs,
                           dryrun=True).locate('/'.join(segments[i + 1:]))
 
-        if name_or_path in self.virtual_children:
-            child = [r for r in self.virtual_children if r.name == name_or_path][0]
-            return child.url, child.fs
-
-        segments = abs_path.lstrip('/').split('/')
-        # If the child has a different filesystem, this will take over the search from there.
-        if segments[0] in self.virtual_children:
-            child = [r for r in self.virtual_children if r.name == segments[0]][0]
-            return rns_client.locate('/'.join(segments[1:]))
-
         return None, None
 
     def open(self, name, mode='rb', encoding=None):
@@ -549,41 +602,36 @@ class Folder(Resource):
             return
 
         if isinstance(contents, Folder):
-            if self.is_writable():
-                if contents.url is None:  # Should only be the case when Folder is created
-                    contents.url = self.url + '/' + contents.name
-                    contents.fs = self.fs
-                    # The parent can be anonymous, e.g. the 'rh' folder.
-                    # TODO not sure if this should be allowed - if parent folder has no rns address, why would child
-                    # just be put into the default rns folder?
-                    # TODO If the base is named later, figure out what to do with the contents (rename, resave, etc.).
-                    if self.rns_address is None:
-                        contents.rns_path = rns_client.default_folder + '/' + contents.name
-                        rns_client.rns_base_folders.update({contents.rns_address: contents.url})
-                    # We don't need to call .save here to write down because it will be called at the end of the
-                    # folder or resource constructor
-                else:
-                    if contents.name is None:  # Anonymous resource
-                        i = 1
-                        new_name = contents.RESOURCE_TYPE + str(i)
-                        # Resolve naming conflicts if necessary
-                        while rns_client.exists(self.url + '/' + new_name):
-                            i += 1
-                            new_name = contents.RESOURCE_TYPE + str(i)
-                    else:
-                        new_name = contents.name
-
-                    # NOTE For intercloud transfer, we should use Skyplane
-                    with fsspec.open(self.fsspec_url + '/' + new_name, **self.data_config) as dest:
-                        with fsspec.open(contents.fsspec_url, **contents.data_config) as src:
-                            # NOTE For packages, maybe use the `ignore` param here to only copy python files.
-                            new_url = shutil.move(src, dest)
-
-            # TODO put children into directory
+            if not self.is_writable():
+                raise RuntimeError(f'Cannot put files into non-writable folder {self.name or self.url}')
+            if contents.url is None:  # Should only be the case when Folder is created
+                contents.url = self.url + '/' + contents.name
+                contents.fs = self.fs
+                # The parent can be anonymous, e.g. the 'rh' folder.
+                # TODO not sure if this should be allowed - if parent folder has no rns address, why would child
+                # just be put into the default rns folder?
+                # TODO If the base is named later, figure out what to do with the contents (rename, resave, etc.).
+                if self.rns_address is None:
+                    contents.rns_path = rns_client.default_folder + '/' + contents.name
+                    rns_client.rns_base_folders.update({contents.rns_address: contents.url})
+                # We don't need to call .save here to write down because it will be called at the end of the
+                # folder or resource constructor
             else:
-                # TODO check for naming collisions
-                self.virtual_children += [contents]
-                # TODO if contents is named, put it into rh_directory and set explicit rns_path
+                if contents.name is None:  # Anonymous resource
+                    i = 1
+                    new_name = contents.RESOURCE_TYPE + str(i)
+                    # Resolve naming conflicts if necessary
+                    while rns_client.exists(self.url + '/' + new_name):
+                        i += 1
+                        new_name = contents.RESOURCE_TYPE + str(i)
+                else:
+                    new_name = contents.name
+
+                # NOTE For intercloud transfer, we should use Skyplane
+                with fsspec.open(self.fsspec_url + '/' + new_name, **self.data_config) as dest:
+                    with fsspec.open(contents.fsspec_url, **contents.data_config) as src:
+                        # NOTE For packages, maybe use the `ignore` param here to only copy python files.
+                        new_url = shutil.move(src, dest)
             return
 
         if not isinstance(contents, dict):
@@ -614,8 +662,6 @@ class Folder(Resource):
 def folder(name: Optional[str] = None,
            url: Optional[str] = None,
            fs: Optional[str] = None,
-           save_to: Optional[List[str]] = None,
-           load_from: Optional[List[str]] = None,
            dryrun: bool = True,
            local_mount: bool = False,
            data_config: Optional[Dict] = None,
@@ -623,12 +669,11 @@ def folder(name: Optional[str] = None,
     """ Returns a folder object, which can be used to interact with the folder at the given url.
     The folder will be saved if `dryrun` is False.
     """
-    config = rns_client.load_config(name, load_from=load_from)
+    config = rns_client.load_config(name)
     config['name'] = name or config.get('rns_address', None) or config.get('name')
     config['url'] = url or config.get('url')
     config['local_mount'] = local_mount or config.get('local_mount')
     config['data_config'] = data_config or config.get('data_config')
-    config['save_to'] = save_to
 
     file_system = fs or config.get('fs') or Folder.DEFAULT_FS
     config['fs'] = file_system
@@ -639,18 +684,16 @@ def folder(name: Optional[str] = None,
             from .s3_folder import S3Folder
             new_folder = S3Folder.from_config(config, dryrun=dryrun)
         elif file_system == 'gcs':
-            # TODO [JL]
-            from .gcp_folder import GCPFolder
-            new_folder = GCPFolder.from_config(config, dryrun=dryrun)
+            from .gcs_folder import GCSFolder
+            new_folder = GCSFolder.from_config(config, dryrun=dryrun)
         elif file_system == 'azure':
-            # TODO [JL]
             from .azure_folder import AzureFolder
             new_folder = AzureFolder.from_config(config, dryrun=dryrun)
         elif file_system in fsspec.available_protocols():
             logger.warning(f'fsspec file system {file_system} not officially supported. Use at your own risk.')
             new_folder = Folder.from_config(config, dryrun=dryrun)
-        elif rns_client.exists(file_system, resource_type='cluster', load_from=load_from):
-            config['fs'] = rns_client.load_config(file_system, load_from=load_from)
+        elif rns_client.exists(file_system, resource_type='cluster'):
+            config['fs'] = rns_client.load_config(file_system)
         else:
             raise ValueError(f'File system {file_system} not found. Have you installed the '
                              f'necessary packages for this fsspec protocol? (e.g. s3fs for s3)')
@@ -658,14 +701,5 @@ def folder(name: Optional[str] = None,
     # If cluster is passed as the fs.
     if isinstance(config['fs'], dict) or isinstance(config['fs'], Resource):  # if fs is a cluster
         new_folder = Folder.from_config(config, dryrun=dryrun)
-
-        # TODO Should we do this instead?
-        # config['hardware'] = config['fs']
-        # config['fs'] = 'sftp'
-        # from .cluster_folder import ClusterFolder
-        # new_folder = ClusterFolder.from_config(config, dryrun=dryrun)
-
-    if new_folder.name and not dryrun:
-        new_folder.save(name=new_folder.name, save_to=new_folder.save_to)
 
     return new_folder

@@ -30,7 +30,6 @@ class Send(Resource):
                  reqs: Optional[List[str]] = None,
                  setup_cmds: Optional[List[str]] = None,
                  image: Optional[str] = None,  # TODO
-                 save_to: Optional[List[str]] = None,
                  dryrun: Optional[bool] = True,
                  access: Optional[str] = None,
                  **kwargs  # We have this here to ignore extra arguments when calling from from_config
@@ -68,7 +67,7 @@ class Send(Resource):
         # TODO maybe infer setup mode by looking at fields provided
         #  ex: bool(name and not reqs and not hardware and not cluster and not folder and not fn)
         self.dryrun = dryrun
-        super().__init__(name=name, dryrun=dryrun, save_to=save_to)
+        super().__init__(name=name, dryrun=dryrun)
 
         # TODO dedicated vs. shared mode for hardware
 
@@ -119,8 +118,6 @@ class Send(Resource):
         if to_run:
             self.setup_cmds.extend(to_run)
             self.hardware.run(to_run)
-        if self.name:
-            self.save()
 
     @staticmethod
     def extract_fn_paths(raw_fn, reqs):
@@ -456,8 +453,6 @@ def send(fn: Optional[Union[str, Callable]] = None,
          reqs: Optional[List[str]] = None,
          setup_cmds: Optional[List[str]] = None,
          # TODO image: Optional[str] = None,
-         load_from: Optional[List[str]] = None,
-         save_to: Optional[List[str]] = None,
          dryrun: Optional[bool] = False,
          load_secrets: Optional[bool] = False,
          serialize_notebook_fn: Optional[bool] = False,
@@ -477,7 +472,7 @@ def send(fn: Optional[Union[str, Callable]] = None,
         dryrun: Whether to create the Send if it doesn't exist, or load the Send object as a dryrun.
     """
 
-    config = rh_config.rns_client.load_config(name, load_from=load_from)
+    config = rh_config.rns_client.load_config(name)
     config['name'] = name or config.get('rns_address', None) or config.get('name')
     config['reqs'] = reqs if reqs is not None else config.get('reqs', [])
 
@@ -485,9 +480,9 @@ def send(fn: Optional[Union[str, Callable]] = None,
     for req in config['reqs']:
         # TODO [DG] the following is wrong. RNS address doesn't have to start with '/'. However if we check if each
         #  string exists in RNS this will be incredibly slow, so leave it for now.
-        if isinstance(req, str) and req[0] == '/' and rh_config.rns_client.exists(req, load_from=load_from):
+        if isinstance(req, str) and req[0] == '/' and rh_config.rns_client.exists(req):
             # If req is an rns address
-            req = rh_config.rns_client.load_config(req, load_from=load_from)
+            req = rh_config.rns_client.load_config(req)
         processed_reqs.append(req)
     config['reqs'] = processed_reqs
 
@@ -532,7 +527,7 @@ def send(fn: Optional[Union[str, Callable]] = None,
 
     config['hardware'] = hardware or config.get('hardware') or Send.DEFAULT_HARDWARE
     if isinstance(config['hardware'], str):
-        hw_dict = rh_config.rns_client.load_config(config['hardware'], load_from=load_from)
+        hw_dict = rh_config.rns_client.load_config(config['hardware'])
         if not hw_dict:
             raise RuntimeError(f'Hardware {rh_config.rns_client.resolve_rns_path(config["hardware"])} '
                                f'not found locally or in RNS.')
@@ -542,14 +537,10 @@ def send(fn: Optional[Union[str, Callable]] = None,
     config['setup_cmds'] = setup_cmds if setup_cmds is not None else config.get('setup_cmds')
 
     config['access_level'] = config.get('access_level', Send.DEFAULT_ACCESS)
-    config['save_to'] = save_to
 
     new_send = Send.from_config(config, dryrun=dryrun)
 
     if load_secrets and not dryrun:
         new_send.send_secrets()
-
-    if new_send.name:
-        new_send.save()
 
     return new_send

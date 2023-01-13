@@ -9,25 +9,21 @@ def resolve_rns_path(path: str):
 
 
 def exists(name,
-           resource_type: str = None,
-           load_from: Optional[List[str]] = None):
-    return rns_client.exists(name, resource_type=resource_type, load_from=load_from)
+           resource_type: str = None):
+    return rns_client.exists(name, resource_type=resource_type)
 
 
 def locate(name_or_path,
-           resolve_path: bool = True,
-           load_from: Optional[List[str]] = None):
+           resolve_path: bool = True):
     return rns_client.locate(name_or_path,
                              resolve_path=resolve_path,
-                             load_from=load_from
                              )
 
 
 def load(name: str,
-         load_from: Optional[List[str]] = None,
          instantiate: bool = True,
          dryrun: bool = False):
-    config = rns_client.load_config(name=name, load_from=load_from)
+    config = rns_client.load_config(name=name)
     if not instantiate:
         return config
     from_config_constructor = getattr(sys.modules['runhouse.rns'], config['resource_type'].capitalize(), None).from_config
@@ -38,7 +34,6 @@ def load(name: str,
 
 def load_from_path(path: str,
                    instantiate: bool = True,
-                   load_from: Optional[List[str]] = None,
                    ):
     pass
 
@@ -53,7 +48,6 @@ def set_load_from(load_from: List[str]):
 
 def save(resource,
          name: str = None,
-         save_to: Optional[List[str]] = None,
          snapshot: bool = False,
          overwrite: bool = True,
          **snapshot_kwargs):  # TODO [DG] was this supposed to be kwargs for the snapshot?
@@ -69,7 +63,6 @@ def save(resource,
         else:
             resource_to_save._name = name
     rns_client.save_config(resource=resource_to_save,
-                           save_to=save_to,
                            overwrite=overwrite)
 
 
@@ -92,12 +85,10 @@ def split_rns_name_and_path(path: str):
     return rns_client.split_rns_name_and_path(path)
 
 
-# TODO [DG] I don't think this name is intuitive, we should change it
 def resources(path: str = None,
               full_paths=False):
     path = path or current_folder()
-    import runhouse as rh
-    return rh.folder(name=path, save_to=[]).resources(full_paths=full_paths)
+    return rns_client.contents(name_or_path=path, full_paths=full_paths)
 
 
 def ipython():
@@ -108,10 +99,9 @@ def ipython():
     IPython.embed()
 
 
-def delete(resource_or_name: str,
-           delete_from=None):
+def delete(resource_or_name: str):
     """ Delete the resource from the RNS or local config store. """
-    rns_client.delete_configs(resource=resource_or_name, delete_from=delete_from)
+    rns_client.delete_configs(resource=resource_or_name)
 
 # TODO [DG]
 def delete_all(folder: str = None):

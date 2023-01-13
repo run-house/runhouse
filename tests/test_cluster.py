@@ -20,7 +20,7 @@ def test_cluster_sharing():
 
 
 def test_install():
-    c = cluster(name='^rh-cpu', save_to=[])
+    c = cluster(name='^rh-cpu')
     c.install_packages(['./',
                         'torch==1.12.1',
                         # 'conda:jupyterlab',  # TODO [DG] make this actually work
@@ -37,7 +37,7 @@ def test_basic_run():
     assert 'hi' in res[0][1]
 
 def test_restart_grpc():
-    hw = cluster(name='^rh-cpu', load_from=['local'], save_to=[])
+    hw = cluster(name='^rh-cpu')
     hw.up_if_not()
     codes = hw.restart_grpc_server(resync_rh=False)
     assert codes
