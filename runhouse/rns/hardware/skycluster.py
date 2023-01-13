@@ -541,12 +541,24 @@ class Cluster(Resource):
         command_str = '; '.join(commands)
         self.run([f'python3 -c "{command_str}"'], stream_logs=stream_logs, port_forward=port_forward)
 
-    def send_secrets(self, reload=False):
-        if not self._secrets_sent or reload:
+    def send_secrets(self, reload=False, providers: Optional[List[str]] = None):
+        if providers is not None:
+            # Send secrets for specific providers from local configs rather than trying to load from Vault
+            from runhouse import Secrets
+            secrets: list = Secrets.load_provider_secrets(providers=providers)
+            # TODO [JL] change this API so we don't have to convert the list to a dict
+            secrets: dict = {s['provider']: {k: v for k, v in s.items() if k != 'provider'} for s in secrets}
+            load_secrets_cmd = ['import runhouse as rh',
+                                f'rh.Secrets.save_provider_secrets(secrets={secrets})']
+        elif not self._secrets_sent or reload:
             load_secrets_cmd = ['import runhouse as rh',
                                 'rh.Secrets.download_into_env()']
-            self.run_python(load_secrets_cmd, stream_logs=True)
-            self._secrets_sent = True
+        else:
+            # Secrets already sent and not reloading
+            return
+
+        self.run_python(load_secrets_cmd, stream_logs=True)
+        self._secrets_sent = True
 
     def ipython(self):
         # TODO tunnel into python interpreter in cluster

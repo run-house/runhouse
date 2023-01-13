@@ -49,7 +49,7 @@ class Secrets:
         """Upload all locally configured secrets into Vault. Secrets are loaded from their local config files.
         (ex: ~/.aws/credentials). We currently support AWS, Azure, and GCP. To upload custom secrets for
         additional providers, see Secrets.put()"""
-        secrets: list = cls.load_enabled_provider_secrets()
+        secrets: list = cls.load_provider_secrets()
         for idx, provider_secrets in enumerate(secrets):
             provider = provider_secrets['provider']
             upload_secrets = typer.confirm(f'Upload secrets for {provider}?')
@@ -66,8 +66,8 @@ class Secrets:
 
     @classmethod
     def download_into_env(cls,
-                          save_locally: bool = True,
-                          providers: list = None,
+                          save_locally: Optional[bool] = True,
+                          providers: Optional[List] = None,
                           headers: Optional[Dict] = None) -> Dict:
         """Get all user secrets from Vault. Optionally save them down to local config files (where relevant)."""
         logger.info('Getting secrets from Vault.')
@@ -80,15 +80,15 @@ class Secrets:
         if providers is not None:
             secrets = {provider: secrets[provider] for provider in providers}
         if save_locally and secrets:
-            cls.save_enabled_provider_secrets(secrets)
-            logger.info(f'Saved secrets for providers {list(secrets.keys())} from Vault to local config files.')
+            cls.save_provider_secrets(secrets)
+            logger.info(f'Saved secrets from Vault to local config files for providers: {list(secrets)}')
         else:
             return secrets
 
     @classmethod
     def put(cls,
             provider: str,
-            from_env: bool = False,
+            from_env: Optional[bool] = False,
             file_path: Optional[str] = None,
             secret: Optional[dict] = None,
             group: Optional[str] = None):
@@ -122,7 +122,7 @@ class Secrets:
     @classmethod
     def get(cls,
             provider: str,
-            save_to_env: bool = False,
+            save_to_env: Optional[bool] = False,
             group: Optional[str] = None) -> dict:
         """Read secrets from the Vault service for a given provider and optionally save them to their local config.
         If group is provided will read secrets for the specified group."""
@@ -154,9 +154,10 @@ class Secrets:
             provider_cls_name = cls.provider_cls_name(provider)
 
             p = cls.get_class_from_name(provider_cls_name)
-            if p is not None:
-                p.delete_secrets_from_vault()
+            if p is None:
+                continue
 
+            p.delete_secrets_from_vault()
             logger.info(f'Successfully deleted {cls.PROVIDER_NAME} secrets from Vault')
 
     @classmethod
@@ -167,11 +168,14 @@ class Secrets:
             raise Exception(f'Failed to delete {cls.PROVIDER_NAME} secrets from Vault')
 
     @classmethod
-    def load_enabled_provider_secrets(cls,
-                                      from_env: bool = False) -> List[Dict[str, str]]:
-        """Load secret credentials for all the providers which have been configured locally"""
+    def load_provider_secrets(cls,
+                              from_env: Optional[bool] = False,
+                              providers: Optional[List] = None) -> List[Dict[str, str]]:
+        """Load secret credentials for all the providers which have been configured locally, or optionally
+        provide a list of specific providers to load"""
         secrets = []
-        for provider in cls.enabled_providers():
+        providers = providers or cls.enabled_providers()
+        for provider in providers:
             if not from_env and not provider.has_secrets_file():
                 # no secrets file configured for this provider
                 continue
@@ -182,15 +186,19 @@ class Secrets:
         return secrets
 
     @classmethod
-    def save_enabled_provider_secrets(cls,
-                                      secrets: dict):
-        """Save secrets for each configured provider to their respective local configs"""
+    def save_provider_secrets(cls,
+                              secrets: dict):
+        """Save secrets for each provider to their respective local configs"""
         for provider_name, provider_data in secrets.items():
             cls_name = cls.provider_cls_name(provider_name)
             provider_cls = cls.get_class_from_name(cls_name)
             # Save secrets to local config
             if provider_cls is not None:
-                provider_cls.save_secrets(provider_data)
+                try:
+                    provider_cls.save_secrets(provider_data)
+                except Exception as e:
+                    logger.error(f'Failed to save {provider_name} secrets to local config: {e}')
+                    continue
 
         enabled_providers = cls.enabled_providers(as_str=True)
         for provider_name in secrets.keys():
@@ -200,7 +208,7 @@ class Secrets:
                                f'can set the relevant environment variables manually.')
 
     @classmethod
-    def enabled_providers(cls, as_str: bool = False) -> List:
+    def enabled_providers(cls, as_str: Optional[bool] = False) -> List:
         """Returns a list of cloud provider class objects which have been enabled locally. If as_str is True,
         return the names of the providers as strings"""
         sky.check.check(quiet=True)
