@@ -110,6 +110,11 @@ class Blob(Resource):
         method inside of a with statement (e.g. `with my_blob.open() as f:`)."""
         return self._folder.open(self._filename, mode=mode)
 
+    def to(self, fs, url=None, data_config=None):
+        new_table = copy.copy(self)
+        new_table._folder = self._folder.to(fs=fs, url=url, data_config=data_config)
+        return new_table
+
     def fetch(self):
         """Return the data for the user to deserialize"""
         self._cached_data = self._folder.get(self._filename)

@@ -111,6 +111,11 @@ class Table(Resource):
     def data_config(self, new_data_config):
         self._folder.data_config = new_data_config
 
+    def to(self, fs, url=None, data_config=None):
+        new_table = copy.copy(self)
+        new_table._folder = self._folder.to(fs=fs, url=url, data_config=data_config)
+        return new_table
+
     def save(self, name: Optional[str] = None, snapshot: bool = False,
              overwrite: bool = False, **snapshot_kwargs):
         if self._cached_data is not None:
