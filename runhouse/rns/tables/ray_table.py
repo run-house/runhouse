@@ -12,7 +12,7 @@ class RayTable(Table):
         super().__init__(**kwargs)
 
     @staticmethod
-    def from_config(config: dict, **kwargs):
+    def from_config(config: dict, dryrun=True):
         """ Load config values into the object. """
         if isinstance(config['fs'], dict):
             config['fs'] = Cluster.from_config(config['fs'], dryrun=dryrun)
@@ -21,9 +21,9 @@ class RayTable(Table):
     def save(self,
              name: Optional[str] = None,
              snapshot: bool = False,
-             overwrite: bool = False,
+             overwrite: bool = True,
              **snapshot_kwargs):
-        if self._cached_data is None or overwrite:
+        if self._cached_data is not None:
             self.data.write_parquet(self._folder.fsspec_url)
 
         save(self,

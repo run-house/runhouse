@@ -116,18 +116,22 @@ class Table(Resource):
         new_table._folder = self._folder.to(fs=fs, url=url, data_config=data_config)
         return new_table
 
-    def save(self, name: Optional[str] = None, snapshot: bool = False,
-             overwrite: bool = False, **snapshot_kwargs):
+    def save(self,
+             name: Optional[str] = None,
+             snapshot: bool = False,
+             overwrite: bool = True,
+             **snapshot_kwargs):
         if self._cached_data is not None:
             pq.write_to_dataset(self.data,
                                 root_path=self.fsspec_url,
                                 partition_cols=self.partition_cols,
                                 existing_data_behavior='overwrite_or_ignore' if overwrite else 'error')
-            if hasattr(self.data, __len__):
+
+            if hasattr(self.data, '__len__'):
                 # Store the number of rows if we use for training later without having to read in the whole table
                 self.metadata['num_rows'] = len(self.data)
 
-        super().save(name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
+        return super().save(name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
 
     def fetch(self, columns: Optional[list] = None):
         # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
@@ -158,7 +162,9 @@ class Table(Resource):
         return state
 
     def __iter__(self):
-        return self
+        for batch in self.stream(batch_size=256):
+            for item in batch:
+                yield item
 
     def __next__(self):
         if self._cached_data is not None:
@@ -168,8 +174,8 @@ class Table(Resource):
 
     def __len__(self):
         if 'num_rows' not in self.metadata \
-            or not self.data \
-            or not hasattr(self.data, '__len__'):
+                or not self.data \
+                or not hasattr(self.data, '__len__'):
             raise RuntimeError("Cannot get len for dataset.")
         # https://pytorch.org/docs/stable/data.html#torch.utils.data.Dataset
         return self.metadata.get('num_rows') or len(self.data)
@@ -221,6 +227,8 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
             return HuggingFaceTable.from_config(config)
     except ModuleNotFoundError:
         pass
+    except Exception as e:
+        raise e
 
     try:
         import pandas as pd
@@ -229,6 +237,8 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
             return PandasTable.from_config(config)
     except ModuleNotFoundError:
         pass
+    except Exception as e:
+        raise e
 
     try:
         import dask.dataframe as dd
@@ -237,6 +247,8 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
             return DaskTable.from_config(config)
     except ModuleNotFoundError:
         pass
+    except Exception as e:
+        raise e
 
     try:
         import ray
@@ -245,6 +257,8 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
             return RayTable.from_config(config)
     except ModuleNotFoundError:
         pass
+    except Exception as e:
+        raise e
 
     try:
         import cudf
@@ -253,6 +267,8 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
             return RapidsTable.from_config(config)
     except ModuleNotFoundError:
         pass
+    except Exception as e:
+        raise e
 
     if isinstance(data, pa.Table) or resource_subtype == 'Table':
         new_table = Table.from_config(config, dryrun=dryrun)

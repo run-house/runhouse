@@ -235,6 +235,9 @@ class RNSClient:
 
         config['name'] = rns_address
 
+        if rns_address is None:
+            return
+
         if rns_address[0] in ['~', '^']:
             self._save_config_to_local(config, rns_address)
 

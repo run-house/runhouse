@@ -20,7 +20,7 @@ class HuggingFaceTable(Table):
     def save(self,
              name: Optional[str] = None,
              snapshot: bool = False,
-             overwrite: bool = False,
+             overwrite: bool = True,
              **snapshot_kwargs):
 
         hf_dataset = None
@@ -34,6 +34,8 @@ class HuggingFaceTable(Table):
                 # TODO [JL] Add support for dataset dict
                 raise NotImplementedError('Runhouse does not currently support DatasetDict objects, please convert to '
                                           'a Dataset before saving.')
+            else:
+                raise TypeError('Unsupported data type for HuggingFaceTable. Please use a Dataset')
 
         super().save(name=name,
                      snapshot=snapshot,
@@ -43,6 +45,8 @@ class HuggingFaceTable(Table):
         # Restore the original dataset
         if hf_dataset is not None:
             self.data = hf_dataset
+
+        return self
 
     def fetch(self, **kwargs):
         # TODO [JL] Add support for dataset dict

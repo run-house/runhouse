@@ -27,7 +27,7 @@ class Resource:
             # TODO validate that name complies with a simple regex
             if name.startswith('/builtins/'):
                 name = name[10:]
-            if name[0] == '^' and name is not '^':
+            if name[0] == '^' and name != '^':
                 name = name[1:]
             self._name, self._rns_folder = rns_client.split_rns_name_and_path(
                 rns_client.resolve_rns_path(name))

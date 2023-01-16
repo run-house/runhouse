@@ -17,7 +17,7 @@ class PandasTable(Table):
             self.file_name = f'{uuid.uuid4().hex}.parquet'
 
     @staticmethod
-    def from_config(config: dict, **kwargs):
+    def from_config(config: dict, dryrun=True):
         """ Load config values into the object. """
         if isinstance(config['fs'], dict):
             config['fs'] = Cluster.from_config(config['fs'], dryrun=dryrun)
@@ -26,7 +26,7 @@ class PandasTable(Table):
     def save(self,
              name: Optional[str] = None,
              snapshot: bool = False,
-             overwrite: bool = False,
+             overwrite: bool = True,
              **snapshot_kwargs):
         if self._cached_data is not None:
             # TODO make overwrite work
@@ -34,7 +34,7 @@ class PandasTable(Table):
                                  partition_cols=self.partition_cols,
                                  storage_options=self.data_config)
 
-        super().save(name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
+        return super().save(name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
 
     def fetch(self, **kwargs):
         import pandas as pd
