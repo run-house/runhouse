@@ -323,7 +323,7 @@ class Cluster(Resource):
 
     def teardown(self):
         # Stream logs
-        sky.down(self.name, yes=True, stream_logs=True)
+        sky.down(self.name)
         self.address = None
 
     def teardown_and_delete(self):
@@ -558,6 +558,7 @@ class Cluster(Resource):
             return
 
         self.run_python(load_secrets_cmd, stream_logs=True)
+        # TODO [JL] change this to a list to make sure new secrets get sent when the user wants to
         self._secrets_sent = True
 
     def ipython(self):

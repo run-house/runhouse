@@ -14,6 +14,12 @@ from runhouse.rns.resource import Resource
 from runhouse.rh_config import rns_client, configs
 from runhouse.rns.api_utils.resource_access import ResourceAccess
 
+# TODO [DG] flip this when we switch to sshfs
+# import sshfs
+# fsspec.register_implementation("ssh", sshfs.SSHFileSystem)
+# SSHFileSystem is not yet builtin.
+# Line above suggested by fsspec devs: https://github.com/fsspec/filesystem_spec/issues/1071
+
 logger = logging.getLogger(__name__)
 
 PROVIDER_FS_LOOKUP = {'aws': 's3',
@@ -28,6 +34,7 @@ PROVIDER_FS_LOOKUP = {'aws': 's3',
 class Folder(Resource):
     RESOURCE_TYPE = 'folder'
     DEFAULT_FS = 'file'
+    CLUSTER_FS = 'sftp'
     DEFAULT_FOLDER_PATH = '/runhouse/'
     DEFAULT_CACHE_FOLDER = '~/.cache/runhouse/'
 
@@ -105,7 +112,7 @@ class Folder(Resource):
         if self._url is not None:
             if self.fs == Folder.DEFAULT_FS:
                 return str(Path(self._url).expanduser())
-            elif self._fs_str == 'sftp' and self._url.startswith('~/'):
+            elif self._fs_str == self.CLUSTER_FS and self._url.startswith('~/'):
                 # sftp takes relative urls to the home directory but doesn't understand '~'
                 return self._url[2:]
             return self._url
@@ -149,7 +156,7 @@ class Folder(Resource):
     @property
     def _fs_str(self):
         if isinstance(self.fs, Resource):  # if fs is a cluster
-            return 'sftp'
+            return self.CLUSTER_FS
         else:
             return self.fs
 
@@ -678,7 +685,7 @@ def folder(name: Optional[str] = None,
     file_system = fs or config.get('fs') or Folder.DEFAULT_FS
     config['fs'] = file_system
     if isinstance(file_system, str):
-        if file_system in ['file', 'github', 'sftp']:
+        if file_system in ['file', 'github', 'sftp', 'ssh']:
             new_folder = Folder.from_config(config, dryrun=dryrun)
         elif file_system == 's3':
             from .s3_folder import S3Folder
