@@ -23,7 +23,7 @@ pain points, and highlights are very valuable to us.
 
 ## 🤨 What is Runhouse?
 
-If PyTorch lets you send any Python code or data `.to(device)`, 
+PyTorch lets you send a Python function or tensor `.to(device)`, so
 why can't you do `my_fn.to('a_gcp_a100')` or `my_table.to('parquet_in_s3')`? 
 Runhouse allows just that: send code and data to any of your compute or 
 data infra (with your own cloud creds), all in Python, and continue to use them 
@@ -60,7 +60,9 @@ Please request to join our
 [slack workspace here](https://join.slack.com/t/runhouse/shared_invite/zt-1j7pwsok1-vQy0Gesh55A2fPyyEVq8nQ), 
 or email us, or create an issue.
 
-## 🔌 Installation
+## 🐣 Getting Started
+
+### 🔌 Installation
 
 ⚠️ On Apple M1 or M2 machines ⚠️, you will need to install grpcio with conda
 before you install Runhouse - more specifically, before you install Ray. 
@@ -72,57 +74,22 @@ having trouble with this, let us know.
 
 Runhouse is not on Pypi, but we maintain a semi-stable branch in
 Github. It can be installed with: 
-
-`pip install git+https://github.com/run-house/runhouse.git@latest_patch`
-
+```
+pip install git+https://github.com/run-house/runhouse.git@latest_patch
+```
 As we apply patches we may update this version number. We will
 notify you if we want you to upgrade your installation.
 
-## 🔒 Creating an Account for Secrets and Resources
-
-tldr; See this video (WIP) about what features creating an account enables.
-
-Using Runhouse with only the OSS Python package is perfectly fine, and it
-will use your cloud credentials saved into locations like `~/.aws/credentials`
-or `~/.gcp/credentials` by default. Right now we support AWS, GCP, Azure, and
-Hugging Face credentials. However, you can unlock some very unique portability 
-features by creating an account on [api.run.house](https://api.run.house) and 
-saving your secrets, configs, and resources there. Think of the OSS-only 
-experience as akin to Microsoft Office, while creating an account will
-make your cloud resources sharable and accessible from anywhere like Google Docs. 
-For example, if you store your secrets or resources in the Runhouse cloud, you can open a Google Colab, call 
-`runhouse login`, and all of your secrets or resources will be available in 
-the environment. 
-
-**Note that your Runhouse account is not some managed or cloud
-service; all of your compute and data resources are still in the cloud.** The
-"resources" stored in Runhouse are strictly metadata that we've cleverly devised to 
-allow this multiplayer sharing and portability.
-
-Runhouse uses Hashicorp Vault (an industry standard) to store secrets, 
-and provides a web service to allow you access your resources across 
-multiple machines (more on this in tutorial 1). To create an account, 
-visit [api.run.house](https://api.run.house),
-or simply call `runhouse login` from the command line (or 
-`rh.login()` from Python). This will link you to a page to 
-login with your Google account and generate a token, which you can then
-input into the command line or Python prompt. It will then offer for you
-to upload your secrets, which will collect them from the local 
-environment and store them in Vault. You only need to do this the first time
-you log in or your secrets change. It will offer to upload your config as well,
-which contains certain options like the default cloud provider or autostop 
-time, but you can probably just ignore this for now. We provide reasonable 
-defaults in Runhouse, such as selecting the cheapest cloud provider (for which
-you have appropriate credentials) for the given hardware.
-
-## ✈️ Checking and Managing your Clusters with SkyPilot
+### ✈️ Verifying your Cloud Setup with SkyPilot
 
 Runhouse uses [SkyPilot](https://skypilot.readthedocs.io/en/latest/) for 
-much of the heavy lifting with the cloud providers. SkyPilot is a Python
-library that provides a unified interface for launching and managing
-cloud instances. We love it and you should give them a Github star 🤗.
+much of the heavy lifting with launching and managing cloud instances. 
+We love it and you should throw them a Github star 🤗.
 
-To check that your cloud credentials are set up correctly, run `sky check`
+To verify that your cloud credentials are set up correctly, run
+```
+sky check
+```
 in your command line. This will confirm which cloud providers are ready to
 use, and will give detailed instructions if any setup is incomplete.
 
@@ -143,6 +110,32 @@ ssh will just work.
 cluster to autostop after that many minutes of inactivity. By default this
 number is 10 minutes, but you can set it to -1 to disable autostop entirely.
 You can set your default autostop in `~/.rh/config.yaml`.
+
+### 🔒 Creating a Runhouse Account for Secrets and Portability
+
+Using Runhouse with only the OSS Python package is perfectly fine, and it
+will use your cloud credentials saved into locations like `~/.aws/credentials`
+or `~/.config/gcloud` by default (through SkyPilot). However, you can unlock 
+some very unique portability features by creating an account on 
+[api.run.house](https://api.run.house) and saving your secrets, configs, 
+and resources there. Think of the OSS-package-only experience as akin to Microsoft Office, 
+while creating an account will make your cloud resources sharable and accessible 
+from anywhere like Google Docs. For example, if you store your secrets or resources 
+in the Runhouse cloud, you can open a Google Colab, call `runhouse login`, and all 
+of your secrets or resources will be available there with no additional setup. You 
+can see examples of this portability in the [Runhouse Tutorials](https://github.com/run-house/tutorials).  
+
+To create an account, visit [api.run.house](https://api.run.house),
+or simply call `runhouse login` from the command line (or 
+`rh.login()` from Python). **Note that your Runhouse account is not a managed compute 
+or storage service; all of your compute and data resources are still in your own 
+cloud account.**
+
+## 📜 Docs
+
+We don't have real docs yet. We're planning to do a docs sprint in early 
+February, but until then, please rely on the [tutorials](https://github.com/run-house/tutorials) 
+for basic instruction on how to use our APIs.
 
 ## 👷‍♀️ Contributing
 
