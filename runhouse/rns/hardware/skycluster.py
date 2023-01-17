@@ -148,6 +148,12 @@ class Cluster(Resource):
         backend_utils.SSHConfigHelper.add_cluster(
             self.name, [handle_info['head_ip']], ray_config['auth'])
 
+    def __getstate__(self):
+        """ Make sure sky_data is loaded in before pickling. """
+        self.sky_data = self._get_sky_data()
+        state = self.__dict__.copy()
+        return state
+
     @staticmethod
     def _make_yaml_path_relative(yaml_path):
         if Path(yaml_path).is_absolute():
@@ -501,6 +507,11 @@ class Cluster(Resource):
         # TODO [JL] we should be able to only use relative path here
         rel_yaml_path = self._make_yaml_path_relative(self._yaml_path)
         abs_yaml_path = self._yaml_path
+        # If yaml_path doesn't exist, then we have skydata that wasn't yet saved into the local environment
+        # TODO [DG] handle if sky_data is empty (which shouldn't be possible).
+        if not Path(self._yaml_path).exists():
+            self._save_sky_data()
+
         for yaml_path in [rel_yaml_path, abs_yaml_path]:
             try:
                 return backend_utils.ssh_credential_from_yaml(yaml_path)
