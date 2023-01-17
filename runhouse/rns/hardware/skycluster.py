@@ -100,7 +100,7 @@ class Cluster(Resource):
             config['public_key'] = self.ssh_creds()['ssh_private_key'] + '.pub'
             config['handle'] = {'cluster_name': config['handle'].cluster_name,
                                 # This is saved as an absolute path - convert it to relative
-                                'cluster_yaml': self._make_yaml_path_relative(yaml_path=config['handle']._cluster_yaml),
+                                'cluster_yaml': self.relative_yaml_path(yaml_path=config['handle']._cluster_yaml),
                                 'head_ip': config['handle'].head_ip,
                                 'launched_nodes': config['handle'].launched_nodes,
                                 'launched_resources': config['handle'].launched_resources.to_yaml_config()
@@ -116,7 +116,8 @@ class Cluster(Resource):
     def _save_sky_data(self):
         # If we already have an entry for this cluster in the local sky files, ignore the new config
         # TODO [DG] when this is more stable maybe we shouldn't.
-        if sky.global_user_state.get_cluster_from_name(self.name):
+        if sky.global_user_state.get_cluster_from_name(self.name) and self._yaml_path and \
+                Path(self._yaml_path).absolute().exists():
             return
 
         ray_config = self.sky_data.pop('ray_config', {})
@@ -124,19 +125,20 @@ class Cluster(Resource):
         if not ray_config or not handle_info:
             raise Exception('Expecting both `ray_config` and `handle` attributes in sky data')
 
-        yaml_path = handle_info['cluster_yaml'] + '.tmp'
-        yaml_path = self._make_yaml_path_relative(yaml_path)
-
+        yaml_path = handle_info['cluster_yaml']
         if not Path(yaml_path).expanduser().parent.exists():
             Path(yaml_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
 
         with Path(yaml_path).expanduser().open(mode='w+') as f:
             yaml.safe_dump(ray_config, f)
+
+        cluster_abs_path = str(Path(yaml_path).expanduser())
         cloud_provider = sky.clouds.CLOUD_REGISTRY.from_str(handle_info['launched_resources']['cloud'])
-        backend_utils._add_auth_to_cluster_config(cloud_provider, str(Path(yaml_path).expanduser()))
+        backend_utils._add_auth_to_cluster_config(cloud_provider, cluster_abs_path)
+
         handle = CloudVmRayBackend.ResourceHandle(
             cluster_name=self.name,
-            cluster_yaml=yaml_path,
+            cluster_yaml=cluster_abs_path,
             launched_nodes=handle_info['launched_nodes'],
             # head_ip=handle_info['head_ip'], # deprecated
             launched_resources=sky.Resources.from_yaml_config(handle_info['launched_resources']),
@@ -155,7 +157,7 @@ class Cluster(Resource):
         return state
 
     @staticmethod
-    def _make_yaml_path_relative(yaml_path):
+    def relative_yaml_path(yaml_path):
         if Path(yaml_path).is_absolute():
             yaml_path = '~/.sky/generated/' + Path(yaml_path).name
         return yaml_path
@@ -225,9 +227,11 @@ class Cluster(Resource):
     def up(self,
            region: str = None,
            ):
+
+        instance_type = self.num_instances if self.instance_type and ':' not in self.instance_type else None
         if self.provider in ['aws', 'gcp', 'azure', 'cheapest']:
             task = sky.Task(  # run=f'echo SkyPilot cluster {self.name} launched.',
-                num_nodes=self.num_instances if ':' not in self.instance_type else None,
+                num_nodes=instance_type,
                 # workdir=package,
                 # docker_image=image,  # Zongheng: this is experimental, don't use it
                 # envs=None,
@@ -237,8 +241,8 @@ class Cluster(Resource):
             task.set_resources(
                 sky.Resources(
                     cloud=cloud_provider,
-                    instance_type=self.instance_type if ':' not in self.instance_type else None,
-                    accelerators=self.instance_type if ':' in self.instance_type else None,
+                    instance_type=instance_type,
+                    accelerators=instance_type,
                     region=region,  # TODO
                     image_id=self.image_id,
                     use_spot=self.use_spot  # TODO test properly
@@ -504,22 +508,12 @@ class Cluster(Resource):
         return str(user_path)
 
     def ssh_creds(self):
-        # TODO [JL] we should be able to only use relative path here
-        rel_yaml_path = self._make_yaml_path_relative(self._yaml_path)
-        abs_yaml_path = self._yaml_path
-        # If yaml_path doesn't exist, then we have skydata that wasn't yet saved into the local environment
         # TODO [DG] handle if sky_data is empty (which shouldn't be possible).
         if not Path(self._yaml_path).exists():
             self._save_sky_data()
+            self.populate_vars_from_status(dryrun=self.dryrun)
 
-        for yaml_path in [rel_yaml_path, abs_yaml_path]:
-            try:
-                return backend_utils.ssh_credential_from_yaml(yaml_path)
-            except:
-                pass
-
-        raise Exception(f'Failed to load ssh credentials trying both relative path ({rel_yaml_path}) and '
-                        f'absolute path ({abs_yaml_path})')
+        return backend_utils.ssh_credential_from_yaml(self._yaml_path)
 
     def rsync(self, source, dest, up):
         """ Note that ending `source` with a slash will copy the contents of the directory into dest,

@@ -137,7 +137,9 @@ class Folder(Resource):
     def data_config(self):
         if isinstance(self.fs, Resource):  # if fs is a cluster
             if not self.fs.address:
-                raise ValueError('Cluster must be started before copying data from it.')
+                self.fs.populate_vars_from_status(dryrun=False)
+                if not self.fs.address:
+                    raise ValueError('Cluster must be started before copying data from it.')
             creds = self.fs.ssh_creds()
             # TODO [JL] on cluster need to resolve key filename to be relative path
             config_creds = {'host': self.fs.address,

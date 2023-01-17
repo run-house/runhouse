@@ -59,7 +59,7 @@ class Table(Resource):
             config['data_config'] = self._folder._data_config
         else:
             config['fs'] = self.fs
-        self.save_attrs_to_config(config, ['url', 'partition_cols'])
+        self.save_attrs_to_config(config, ['url', 'partition_cols', 'metadata'])
         config.update(config)
 
         return config
@@ -162,6 +162,7 @@ class Table(Resource):
         return state
 
     def __iter__(self):
+        # https://github.com/huggingface/datasets/blob/2.8.0/src/datasets/arrow_dataset.py#L2170
         for batch in self.stream(batch_size=256):
             for item in batch:
                 yield item
@@ -173,12 +174,14 @@ class Table(Resource):
         return self.stream(batch_size=1)
 
     def __len__(self):
-        if 'num_rows' not in self.metadata \
-                or not self.data \
-                or not hasattr(self.data, '__len__'):
-            raise RuntimeError("Cannot get len for dataset.")
         # https://pytorch.org/docs/stable/data.html#torch.utils.data.Dataset
-        return self.metadata.get('num_rows') or len(self.data)
+        len_dataset = self.metadata.get('num_rows')
+        if len_dataset is not None:
+            return len_dataset
+        if not hasattr(self.data, '__len__') or not self.data:
+            raise RuntimeError("Cannot get len for dataset.")
+
+        return len(self.data)
 
     def stream(self, batch_size, drop_last: bool = False, shuffle_seed: Optional[int] = None):
         # TODO [JL] handle case where self._cached_data is not None (don't need to stream from file)
