@@ -343,9 +343,9 @@ class Folder(Resource):
         dest_folder = copy.deepcopy(self)
         dest_folder.url = dest_url
         dest_folder.fs = 'file'
-        if return_dest_folder:
-            return dest_folder
-        return dest_folder.from_cluster(cluster)  # Just converts to sftp, no actual copy
+        if not return_dest_folder:
+            dest_folder.fs = cluster  # Just converts to sftp, no actual copy
+        return dest_folder
 
     def from_cluster(self, cluster, dest_url=None):
         """ Create a remote folder from a url on a cluster.

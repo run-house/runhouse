@@ -20,9 +20,9 @@ def test_github_folder():
 def test_from_cluster():
     # Assumes a rh-cpu is already up from another test
     cluster = rh.cluster(name='^rh-cpu').up_if_not()
-    rh.folder(url=str(Path.cwd())).to(cluster, url='~/tests')
-    tests_folder = rh.folder(fs='file', url='~/tests').from_cluster(cluster)
-    assert 'tests/test_folder.py' in tests_folder.ls()
+    rh.folder(url=str(Path.cwd())).to(cluster, url='~/my_new_tests_folder')
+    tests_folder = rh.folder(fs='file', url='~/my_new_tests_folder').from_cluster(cluster)
+    assert 'my_new_tests_folder/test_folder.py' in tests_folder.ls()
 
 
 def test_create_and_save_data_to_s3_folder():
