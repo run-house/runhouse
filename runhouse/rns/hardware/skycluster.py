@@ -247,12 +247,13 @@ class Cluster(Resource):
                     accelerators=self.instance_type if ':' in self.instance_type else None,
                     region=region,  # TODO
                     image_id=self.image_id,
-                    use_spot=self.use_spot  # TODO test properly
+                    use_spot=self.use_spot
                 )
             )
-            task.set_file_mounts({
-                '~/.rh': '~/.rh',
-            })
+            if Path('~/.rh').expanduser().exists():
+                task.set_file_mounts({
+                    '~/.rh': '~/.rh',
+                })
             sky.launch(task,
                        cluster_name=self.name,
                        idle_minutes_to_autostop=self.autostop_mins,

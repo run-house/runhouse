@@ -7,6 +7,7 @@ from rich.console import Console
 
 from runhouse import configs
 from runhouse.rns import login as login_module  # Need to rename it because it conflicts with the login command
+from runhouse import Cluster
 
 # create an explicit Typer application
 app = typer.Typer(add_completion=False)
@@ -28,6 +29,14 @@ def login(token: Optional[str] = typer.Argument(None, help="Your Runhouse API to
         raise typer.Exit()
     else:
         raise typer.Exit(code=1)
+
+
+@app.command()
+def notebook(cluster: str):
+    """Open a Jupyter notebook on a cluster.
+    """
+    c = Cluster.from_name(cluster)
+    c.notebook()
 
 
 @app.callback()
