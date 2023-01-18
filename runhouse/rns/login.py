@@ -67,7 +67,7 @@ def login(token: str = None,
         Secrets.download_into_env()
 
     if upload_secrets:
-        Secrets.extract_and_upload()
+        Secrets.extract_and_upload(interactive=interactive)
 
     logger.info('Successfully logged into Runhouse.')
     if ret_token:

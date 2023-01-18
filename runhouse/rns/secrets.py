@@ -45,16 +45,20 @@ class Secrets:
         return cls.file_exists(cls.CREDENTIALS_FILE)
 
     @classmethod
-    def extract_and_upload(cls, headers: Optional[Dict] = None):
+    def extract_and_upload(cls,
+                           headers: Optional[Dict] = None,
+                           interactive=True,
+                           providers: Optional[List[str]] = None):
         """Upload all locally configured secrets into Vault. Secrets are loaded from their local config files.
         (ex: ~/.aws/credentials). We currently support AWS, Azure, and GCP. To upload custom secrets for
         additional providers, see Secrets.put()"""
-        secrets: list = cls.load_provider_secrets()
+        secrets: list = cls.load_provider_secrets(providers=providers)
         for idx, provider_secrets in enumerate(secrets):
             provider = provider_secrets['provider']
-            upload_secrets = typer.confirm(f'Upload secrets for {provider}?')
-            if not upload_secrets:
-                secrets.pop(idx)
+            if interactive:
+                upload_secrets = typer.confirm(f'Upload secrets for {provider}?')
+                if not upload_secrets:
+                    secrets.pop(idx)
 
         resp = requests.put(f'{rns_client.api_server_url}/{cls.USER_ENDPOINT}',
                             data=json.dumps(secrets),

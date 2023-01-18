@@ -387,14 +387,14 @@ class Send(Resource):
         http_url = f'{rh_config.rns_client.api_server_url}/{uri}/endpoint'
         return http_url
 
-    def notebook(self, persist=False, sync_package_on_close=None):
+    def notebook(self, persist=False, sync_package_on_close=None, port_forward=8888):
         # Roughly trying to follow:
         # https://towardsdatascience.com/using-jupyter-notebook-running-on-a-remote-docker-container-via-ssh-ea2c3ebb9055
         # https://docs.ray.io/en/latest/ray-core/using-ray-with-jupyter.html
         if self.hardware is None:
             raise RuntimeError("Cannot SSH, running locally")
 
-        tunnel, port_fwd = self.hardware.ssh_tunnel(local_port=8888, num_ports_to_try=10)
+        tunnel, port_fwd = self.hardware.ssh_tunnel(local_port=port_forward, num_ports_to_try=10)
         try:
             install_cmd = "pip install jupyterlab"
             jupyter_cmd = f'jupyter lab --port {port_fwd} --no-browser'
@@ -404,7 +404,7 @@ class Send(Resource):
 
         finally:
             if sync_package_on_close:
-                if sync_package_on_close == 'default':
+                if sync_package_on_close == './':
                     sync_package_on_close = rh_config.rns_client.locate_working_dir()
                 pkg = Package.from_string('local:' + sync_package_on_close)
                 self.hardware.rsync(source=f'~/{pkg.name}', dest=pkg.local_path, up=False)

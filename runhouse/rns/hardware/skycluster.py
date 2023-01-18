@@ -573,9 +573,25 @@ class Cluster(Resource):
         # TODO tunnel into python interpreter in cluster
         pass
 
-    def notebook(self):
-        # TODO start notebook server and forward ports
-        pass
+    def notebook(self, persist=False, sync_package_on_close=None, port_forward=8888):
+        tunnel, port_fwd = self.ssh_tunnel(local_port=port_forward, num_ports_to_try=10)
+        try:
+            install_cmd = "pip install jupyterlab"
+            jupyter_cmd = f'jupyter lab --port {port_fwd} --no-browser'
+            # port_fwd = '-L localhost:8888:localhost:8888 '  # TOOD may need when we add docker support
+            with self.pause_autostop():
+                self.run(commands=[install_cmd, jupyter_cmd], stream_logs=True)
+
+        finally:
+            if sync_package_on_close:
+                if sync_package_on_close == './':
+                    sync_package_on_close = rns_client.locate_working_dir()
+                pkg = Package.from_string('local:' + sync_package_on_close)
+                self.rsync(source=f'~/{pkg.name}', dest=pkg.local_path, up=False)
+            if not persist:
+                tunnel.stop(force=True)
+                kill_jupyter_cmd = f'jupyter notebook stop {port_fwd}'
+                self.run(commands=[kill_jupyter_cmd])
 
 
 # Cluster factory method
