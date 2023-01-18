@@ -70,6 +70,10 @@ class Cluster(Resource):
         # Checks local SkyDB if cluster is up, and loads connection info if so.
         self.populate_vars_from_status(dryrun=True)
 
+        # Cluster status is set to INIT in the Sky DB right after starting, so we need to refresh once
+        if not self.address:
+            self.populate_vars_from_status(dryrun=False)
+
     @staticmethod
     def from_config(config: dict, dryrun=False):
         return Cluster(**config, dryrun=dryrun)
@@ -227,11 +231,9 @@ class Cluster(Resource):
     def up(self,
            region: str = None,
            ):
-
-        instance_type = self.num_instances if self.instance_type and ':' not in self.instance_type else None
         if self.provider in ['aws', 'gcp', 'azure', 'cheapest']:
             task = sky.Task(  # run=f'echo SkyPilot cluster {self.name} launched.',
-                num_nodes=instance_type,
+                num_nodes=self.num_instances if ':' not in self.instance_type else None,
                 # workdir=package,
                 # docker_image=image,  # Zongheng: this is experimental, don't use it
                 # envs=None,
@@ -241,8 +243,8 @@ class Cluster(Resource):
             task.set_resources(
                 sky.Resources(
                     cloud=cloud_provider,
-                    instance_type=instance_type,
-                    accelerators=instance_type,
+                    instance_type=self.instance_type if ':' not in self.instance_type else None,
+                    accelerators=self.instance_type if ':' in self.instance_type else None,
                     region=region,  # TODO
                     image_id=self.image_id,
                     use_spot=self.use_spot  # TODO test properly
@@ -308,10 +310,11 @@ class Cluster(Resource):
             else:
                 pkg_obj = package
 
-            # Should be Folder but avoiding circular import
-            if isinstance(pkg_obj.install_target, Resource) and \
+            from runhouse.rns.folders.folder import Folder
+            if isinstance(pkg_obj.install_target, Folder) and \
                     pkg_obj.install_target.is_local():
-                logging.info(f'Copying local package {pkg_obj.name} to cluster <{self.name}>')
+                pkg_str = pkg_obj.name or Path(pkg_obj.install_target.url).name
+                logging.info(f'Copying local package {pkg_str} to cluster <{self.name}>')
                 remote_package = pkg_obj.to_cluster(self, mount=False, return_dest_folder=True)
                 to_install.append(remote_package)
             else:
