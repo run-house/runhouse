@@ -68,7 +68,7 @@ class Cluster(Resource):
             self._save_sky_data()
 
         # Checks local SkyDB if cluster is up, and loads connection info if so.
-        self.populate_vars_from_status(dryrun=self.dryrun)
+        self.populate_vars_from_status(dryrun=True)
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
@@ -166,7 +166,7 @@ class Cluster(Resource):
 
     # TODO [DG] this sometimes returns True when cluster is not up
     def is_up(self) -> bool:
-        self.populate_vars_from_status()
+        self.populate_vars_from_status(dryrun=False)
         return self.address is not None
 
     def status(self, refresh=True):

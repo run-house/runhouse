@@ -1,5 +1,7 @@
 import inspect
 import logging
+
+import grpc
 import requests
 import json
 from typing import Optional, Callable, Union, List, Tuple
@@ -72,10 +74,19 @@ class Send(Resource):
         # TODO dedicated vs. shared mode for hardware
 
         if not self.dryrun and self.access in ['write', 'read']:
-            if not self.hardware.is_up():
-                self.reup_cluster()
             logging.info('Setting up Send on cluster.')
-            self.hardware.install_packages(self.reqs)
+            if not self.hardware.address:
+                if not self.hardware.is_up():
+                    self.reup_cluster()
+
+            try:
+                self.hardware.install_packages(self.reqs)
+            except grpc.RpcError:
+                if not self.hardware.is_up():
+                    self.reup_cluster()
+                else:
+                    self.hardware.restart_grpc_server(resync_rh=False)
+                self.hardware.install_packages(self.reqs)
             logging.info('Send setup complete.')
 
     # ----------------- Constructor helper methods -----------------
