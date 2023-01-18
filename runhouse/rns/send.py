@@ -2,6 +2,7 @@ import inspect
 import logging
 
 import grpc
+import sshtunnel
 import requests
 import json
 from typing import Optional, Callable, Union, List, Tuple
@@ -57,8 +58,6 @@ class Send(Resource):
         # TODO add function setter for better interactivity in notebooks
         self.fn_pointers = fn_pointers
         self.hardware = hardware
-        # if reqs is None:
-        #     reqs = [f'reqs:{rh_config.rns_client.locate_working_dir()}']
         self.reqs = reqs
         self.setup_cmds = setup_cmds or []
         self.image = image  # TODO or self.DEFAULT_IMAGE
@@ -81,7 +80,7 @@ class Send(Resource):
 
             try:
                 self.hardware.install_packages(self.reqs)
-            except grpc.RpcError:
+            except (grpc.RpcError, sshtunnel.BaseSSHTunnelForwarderError):
                 if not self.hardware.is_up():
                     self.reup_cluster()
                 else:
