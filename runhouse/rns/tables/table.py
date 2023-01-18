@@ -7,6 +7,7 @@ import fsspec
 import pyarrow.parquet as pq
 import pyarrow as pa
 import ray.data
+import numpy as np
 
 from .. import Resource, Cluster
 from runhouse.rns.folders.folder import folder
@@ -21,6 +22,7 @@ class Table(Resource):
     DEFAULT_FOLDER_PATH = '/runhouse/tables'
     DEFAULT_CACHE_FOLDER = '.cache/runhouse/tables/'
     STREAM_FORMAT = 'pyarrow'
+    DEFAULT_BATCH_SIZE = 256
 
     def __init__(self,
                  url: str,
@@ -65,12 +67,20 @@ class Table(Resource):
         return config
 
     @property
+    def stream_format(self):
+        return self.metadata.get('stream_format') or self.STREAM_FORMAT
+
+    @property
     def data(self):
-        """Get the blob data"""
+        """Get the table data. If data is not already cached return a ray dataset. With the dataset object we can
+        stream or convert to other types, for example:
+            data.iter_batches()
+            data.to_pandas()
+            data.to_dask()
+        """
         if self._cached_data is not None:
             return self._cached_data
-        data = self.fetch()
-        return data
+        return self.ray_dataset
 
     @data.setter
     def data(self, new_data):
@@ -96,6 +106,9 @@ class Table(Resource):
     @url.setter
     def url(self, new_url):
         self._folder.url = new_url
+
+    def set_metadata(self, key, val):
+        self.metadata[key] = val
 
     @property
     def fsspec_url(self):
@@ -129,7 +142,7 @@ class Table(Resource):
 
             if hasattr(self.data, '__len__'):
                 # Store the number of rows if we use for training later without having to read in the whole table
-                self.metadata['num_rows'] = len(self.data)
+                self.set_metadata('num_rows', len(self.data))
 
         return super().save(name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
 
@@ -162,39 +175,53 @@ class Table(Resource):
         return state
 
     def __iter__(self):
-        # https://github.com/huggingface/datasets/blob/2.8.0/src/datasets/arrow_dataset.py#L2170
-        for batch in self.stream(batch_size=256):
-            for item in batch:
-                yield item
+        return self
 
     def __next__(self):
-        if self._cached_data is not None:
-            return next(self.data)
-        # If not in memory, stream data in with batch size of 1
         return self.stream(batch_size=1)
 
     def __len__(self):
-        # https://pytorch.org/docs/stable/data.html#torch.utils.data.Dataset
         len_dataset = self.metadata.get('num_rows')
         if len_dataset is not None:
             return len_dataset
+
+        if isinstance(self.data, ray.data.dataset.Dataset):
+            len_dataset = self.data.count()
+            self.set_metadata('num_rows', len_dataset)
+            return len_dataset
+
         if not hasattr(self.data, '__len__') or not self.data:
             raise RuntimeError("Cannot get len for dataset.")
 
-        return len(self.data)
+        len_dataset = len(self.data)
+        self.set_metadata('num_rows', len_dataset)
+        return len_dataset
 
-    def stream(self, batch_size, drop_last: bool = False, shuffle_seed: Optional[int] = None):
-        # TODO [JL] handle case where self._cached_data is not None (don't need to stream from file)
-
+    def stream(self, batch_size, drop_last: Optional[bool] = False, shuffle_seed: Optional[int] = None):
         # https://github.com/ray-project/ray/issues/30915
-        # df = ray.data.read_parquet(self.url, filesystem=self._folder.fsspec_fs, dataset_kwargs=self.data_config)
-        df = ray.data.read_parquet(self.url, filesystem=self._folder.fsspec_fs)
+        df = self.data
 
-        # https://docs.ray.io/en/latest/data/api/dataset.html#ray.data.Dataset.iter_batches
-        return df.iter_batches(batch_size=batch_size,
-                               batch_format=self.STREAM_FORMAT,
-                               drop_last=drop_last,
-                               local_shuffle_seed=shuffle_seed)
+        if self.stream_format == 'torch':
+            # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.iter_torch_batches.html#ray.data.Dataset.iter_torch_batches
+            return df.iter_torch_batches(batch_size=batch_size,
+                                         drop_last=drop_last,
+                                         local_shuffle_seed=shuffle_seed)
+
+        elif self.stream_format == 'tf':
+            # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.iter_tf_batches.html
+            return df.iter_tf_batches(batch_size=batch_size,
+                                      drop_last=drop_last,
+                                      local_shuffle_seed=shuffle_seed)
+        else:
+            # https://docs.ray.io/en/latest/data/api/dataset.html#ray.data.Dataset.iter_batches
+            return df.iter_batches(batch_size=batch_size,
+                                   batch_format=self.stream_format,
+                                   drop_last=drop_last,
+                                   local_shuffle_seed=shuffle_seed)
+
+    @property
+    def ray_dataset(self):
+        return ray.data.read_parquet(self.url, filesystem=self._folder.fsspec_fs)
 
     def delete_in_fs(self, recursive: bool = True):
         """Remove contents of all subdirectories (ex: partitioned data folders)"""

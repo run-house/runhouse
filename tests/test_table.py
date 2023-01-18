@@ -32,8 +32,8 @@ def load_sample_data(data_type):
 
     elif data_type == 'pyarrow':
         df = pd.DataFrame({'int': [1, 2], 'str': ['a', 'b']})
-        pa_table = pa.Table.from_pandas(df)
-        return pa_table
+        arrow_table = pa.Table.from_pandas(df)
+        return arrow_table
 
     elif data_type == 'cudf':
         import cudf

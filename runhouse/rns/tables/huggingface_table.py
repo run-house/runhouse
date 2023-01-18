@@ -1,4 +1,5 @@
 from typing import Optional, List
+import pandas as pd
 
 from .table import Table
 from .. import Cluster
@@ -28,8 +29,8 @@ class HuggingFaceTable(Table):
             import datasets
             if isinstance(self.data, datasets.Dataset):
                 # Convert to a pyarrow table before saving to the relevant file system
-                pa_table = self.data.data.table
-                self.data, hf_dataset = pa_table, self.data
+                arrow_table = self.data.data.table
+                self.data, hf_dataset = arrow_table, self.data
             elif isinstance(self.data, datasets.DatasetDict):
                 # TODO [JL] Add support for dataset dict
                 raise NotImplementedError('Runhouse does not currently support DatasetDict objects, please convert to '
@@ -52,12 +53,31 @@ class HuggingFaceTable(Table):
         # TODO [JL] Add support for dataset dict
         from datasets import Dataset
         # Read as pyarrow table, then convert back to HF dataset
-        pa_table = super().fetch(**kwargs)
-        self._cached_data = Dataset(pa_table)
+        arrow_table = super().fetch(**kwargs)
+        self._cached_data = self.to_dataset(arrow_table)
         return self._cached_data
 
     @staticmethod
     def to_dataset(data):
         """Convert to a huggingface dataset"""
         from datasets import Dataset
-        return Dataset.from_pandas(data.to_pandas())
+        import pyarrow as pa
+
+        if isinstance(data, dict):
+            return Dataset.from_dict(data)
+
+        if isinstance(data, pa.Table):
+            data = data.to_pandas()
+
+        if not isinstance(data, pd.DataFrame):
+            raise TypeError(f'Data must be a dict, Pandas DataFrame, or PyArrow table, not {type(data)}')
+
+        return Dataset.from_pandas(data)
+
+
+
+    def set_format(self, format_type: str, columns: Optional[List] = None):
+        """"Wrapper of Huggingface's `set_format`.
+        Format types include: ['numpy', 'torch', 'tensorflow', 'pandas', 'arrow'].
+        Can optionally specify only certain columns to set format"""
+        self.data.set_format(type=format_type, columns=columns)
