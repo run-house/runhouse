@@ -36,7 +36,16 @@ def notebook(cluster: str):
     """Open a Jupyter notebook on a cluster.
     """
     c = Cluster.from_name(cluster)
+    c.up_if_not()
     c.notebook()
+
+
+@app.command()
+def load_cluster(cluster: str):
+    """Load a cluster from RNS into the local environment, e.g. to be able to ssh.
+    """
+    c = Cluster.from_name(cluster)
+    c.populate_vars_from_status(dryrun=True)
 
 
 @app.callback()

@@ -112,6 +112,8 @@ class Resource:
     @classmethod
     def from_name(cls, name, dryrun=False):
         config = rns_client.load_config(name=name)
+        if not config:
+            raise ValueError(f"Resource {name} not found.")
         config['name'] = name
         # Uses child class's from_config
         return cls.from_config(config=config, dryrun=dryrun)
