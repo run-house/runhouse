@@ -21,7 +21,7 @@ class Table(Resource):
     RESOURCE_TYPE = 'table'
     DEFAULT_FOLDER_PATH = '/runhouse/tables'
     DEFAULT_CACHE_FOLDER = '.cache/runhouse/tables/'
-    STREAM_FORMAT = 'pyarrow'
+    DEFAULT_STREAM_FORMAT = 'pyarrow'
     DEFAULT_BATCH_SIZE = 256
 
     def __init__(self,
@@ -32,6 +32,7 @@ class Table(Resource):
                  data_config: Optional[dict] = None,
                  dryrun: bool = True,
                  partition_cols: Optional[List] = None,
+                 stream_format: Optional[str] = None,
                  metadata: Optional[Dict] = None,
                  **kwargs
                  ):
@@ -45,6 +46,7 @@ class Table(Resource):
         self._cached_data = None
         self.partition_cols = partition_cols
         self.file_name = file_name
+        self.stream_format = stream_format or self.DEFAULT_STREAM_FORMAT
         self.metadata = metadata or {}
 
     @staticmethod
@@ -67,11 +69,7 @@ class Table(Resource):
         return config
 
     @property
-    def stream_format(self):
-        return self.metadata.get('stream_format') or self.STREAM_FORMAT
-
-    @property
-    def data(self):
+    def data(self) -> ray.data.dataset.Dataset:
         """Get the table data. If data is not already cached return a ray dataset. With the dataset object we can
         stream or convert to other types, for example:
             data.iter_batches()
@@ -146,7 +144,7 @@ class Table(Resource):
 
         return super().save(name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
 
-    def fetch(self, columns: Optional[list] = None):
+    def fetch(self, columns: Optional[list] = None) -> pa.Table:
         # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
         try:
             with fsspec.open(self.fsspec_url, mode='rb', **self.data_config) as t:
@@ -199,8 +197,10 @@ class Table(Resource):
 
     def stream(self, batch_size, drop_last: Optional[bool] = False, shuffle_seed: Optional[int] = None):
         # https://github.com/ray-project/ray/issues/30915
+        print("inside table stream")
         df = self.data
-
+        print("df in table stream", df)
+        print("stream format", self.stream_format)
         if self.stream_format == 'torch':
             # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.iter_torch_batches.html#ray.data.Dataset.iter_torch_batches
             return df.iter_torch_batches(batch_size=batch_size,
@@ -315,8 +315,9 @@ def table(data=None,
           fs: Optional[str] = None,
           data_config: Optional[dict] = None,
           partition_cols: Optional[list] = None,
-          mkdir: bool = False,
-          dryrun: bool = False,
+          mkdir: Optional[bool] = False,
+          dryrun: Optional[bool] = False,
+          stream_format: Optional[str] = None,
           metadata: Optional[Dict] = None,
           ):
     """ Returns a Table object, which can be used to interact with the table at the given url.
@@ -355,6 +356,7 @@ def table(data=None,
     config['file_name'] = file_name or config.get('file_name')
     config['data_config'] = data_config or config.get('data_config')
     config['partition_cols'] = partition_cols or config.get('partition_cols')
+    config['stream_format'] = stream_format or config.get('stream_format')
     config['metadata'] = metadata or config.get('metadata')
 
     if mkdir:

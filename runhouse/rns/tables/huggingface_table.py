@@ -50,12 +50,15 @@ class HuggingFaceTable(Table):
         return self
 
     def fetch(self, **kwargs):
-        # TODO [JL] Add support for dataset dict
         from datasets import Dataset
         # Read as pyarrow table, then convert back to HF dataset
         arrow_table = super().fetch(**kwargs)
         self._cached_data = self.to_dataset(arrow_table)
         return self._cached_data
+
+    def stream(self, batch_size, drop_last: Optional[bool] = False, shuffle_seed: Optional[int] = None):
+        for batch in super().stream(batch_size, drop_last, shuffle_seed):
+            yield self.to_dataset(batch)
 
     @staticmethod
     def to_dataset(data):
@@ -73,11 +76,3 @@ class HuggingFaceTable(Table):
             raise TypeError(f'Data must be a dict, Pandas DataFrame, or PyArrow table, not {type(data)}')
 
         return Dataset.from_pandas(data)
-
-
-
-    def set_format(self, format_type: str, columns: Optional[List] = None):
-        """"Wrapper of Huggingface's `set_format`.
-        Format types include: ['numpy', 'torch', 'tensorflow', 'pandas', 'arrow'].
-        Can optionally specify only certain columns to set format"""
-        self.data.set_format(type=format_type, columns=columns)

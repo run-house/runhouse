@@ -8,7 +8,7 @@ from ..top_level_rns_fns import save
 
 class PandasTable(Table):
     DEFAULT_FOLDER_PATH = '/runhouse/pandas-tables'
-    STREAM_FORMAT = 'pandas'
+    DEFAULT_STREAM_FORMAT = 'pandas'
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
