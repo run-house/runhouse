@@ -220,8 +220,6 @@ class Folder(Resource):
             return self.to_local(url=url, data_config=data_config)
         elif isinstance(fs, Cluster):  # If fs is a cluster
             return self.to_cluster(cluster=fs, url=url, return_dest_folder=True)
-        elif fs == 'sftp':
-            return self.to_sftp(url=url, data_config=data_config)
         elif fs in ['s3', 'gs', 'azure']:
             return self.to_blob_storage(fs=fs, url=url, data_config=data_config)
         else:
@@ -258,28 +256,25 @@ class Folder(Resource):
         if self.fs == 'file':
             # Simply move the files within local fs
             shutil.copytree(src=self.url, dst=url)
-        elif self.fs == 'sftp':
-            # Rsync down the files from the remote fs
-            self.rsync(local=url, remote=self.url, data_config=data_config, up=False)
         elif isinstance(self.fs, Cluster):
             self.from_cluster(cluster=self.fs, dest_url=self.url)
         else:
             self.fsspec_copy('file', url, data_config)
 
-    def to_sftp(self, url, data_config):
-        from runhouse.rns.hardware import Cluster
-        if self.fs == 'file':
-            # Rsync up the files to the remote fs
-            self.rsync(local=self.url, remote=url, data_config=data_config, up=True)
-        elif self.fs == 'sftp':
-            # Simply move the files within stfp fs
-            # TODO [DG] speculation
-            self.fsspec_fs.mv(self.url, url)
-        elif isinstance(self.fs, Cluster):
-            self.fs.run([f'rsync {self.url} {data_config["username"]}@{data_config["host"]}:{url} '
-                         f'--password_file {data_config["key_filename"]}'])
-        else:
-            self.fsspec_copy('file', url, data_config)
+    # def to_sftp(self, url, data_config):
+    #     from runhouse.rns.hardware import Cluster
+    #     if self.fs == 'file':
+    #         # Rsync up the files to the remote fs
+    #         self.rsync(local=self.url, remote=url, data_config=data_config, up=True)
+    #     elif self.fs == 'sftp':
+    #         # Simply move the files within stfp fs
+    #         # TODO [DG] speculation
+    #         self.fsspec_fs.mv(self.url, url)
+    #     elif isinstance(self.fs, Cluster):
+    #         self.fs.run([f'rsync {self.url} {data_config["username"]}@{data_config["host"]}:{url} '
+    #                      f'--password_file {data_config["key_filename"]}'])
+    #     else:
+    #         self.fsspec_copy('file', url, data_config)
 
     def to_blob_storage(self, fs, url=None, data_config=None):
         from runhouse.rns.hardware import Cluster
@@ -290,9 +285,6 @@ class Folder(Resource):
         new_folder = Folder.from_config(folder_config)
         if self.fs == 'file':
             new_folder.upload(self.url)
-        elif self.fs == 'sftp':
-            # TODO [DG] issue ssh command to server?
-            pass
         elif isinstance(self.fs, Cluster):
             pass
             # TODO [DG] issue ssh command to server? Something like:
@@ -332,6 +324,7 @@ class Folder(Resource):
 
     def to_cluster(self, cluster, url=None, mount=False, return_dest_folder=False):
         """ Copy the folder onto a cluster. """
+        # TODO only supports local today, needs to branch for different source filesystems like the others
         if not cluster.address:
             raise ValueError('Cluster must be started before copying data to it.')
         # Create tmp_mount if needed
@@ -339,6 +332,7 @@ class Folder(Resource):
             self.mount(tmp=True)
         src_url = self.local_path + '/'  # Need to add slash for rsync to copy the contents of the folder
         dest_url = url or f'~/{Path(self.url).stem}'
+        # TODO [DG] should we just be using dest_folder.mkdir?
         cluster.run_python(["from pathlib import Path",
                             f"Path('{dest_url}').expanduser().parent.mkdir(parents=True, exist_ok=True)"])
         cluster.rsync(source=src_url, dest=dest_url, up=True)

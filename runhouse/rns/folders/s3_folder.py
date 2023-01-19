@@ -28,11 +28,6 @@ class S3Folder(Folder):
         if split_url:
             return split_url[0]
 
-    def rsync(self):
-        # TODO [JL]
-        # Use skypilot's implementation
-        pass
-
     def empty_folder(self):
         for p in self.s3.ls(self.url):
             self.s3.rm(p)
@@ -53,3 +48,24 @@ class S3Folder(Folder):
                 raise e
         except Exception as e:
             raise Exception(f'Failed to delete bucket: {e}')
+
+    def upload(self, src_url):
+        pass
+
+    def download(self, dest_url):
+        pass
+
+    def upload_command(self, otherstuff):
+        pass
+
+    def download_command(self, otherstuff):
+        pass
+
+    def to_cluster(self, cluster, url=None, mount=False, return_dest_folder=False):
+        pass
+
+    def to_local(self, url, data_config):
+        pass
+
+    def to_blob_storage(self, fs, url=None, data_config=None):
+        pass

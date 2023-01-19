@@ -14,5 +14,23 @@ class AzureFolder(Folder):
         """ Load config values into the object. """
         return AzureFolder(**config, dryrun=dryrun)
 
-    def rsync(self):
-        pass
+    def upload(self, src_url):
+        raise NotImplementedError
+
+    def download(self, dest_url):
+        raise NotImplementedError
+
+    def upload_command(self, otherstuff):
+        raise NotImplementedError
+
+    def download_command(self, otherstuff):
+        raise NotImplementedError
+
+    def to_cluster(self, cluster, url=None, mount=False, return_dest_folder=False):
+        raise NotImplementedError
+
+    def to_local(self, url, data_config):
+        raise NotImplementedError
+
+    def to_blob_storage(self, fs, url=None, data_config=None):
+        raise NotImplementedError
