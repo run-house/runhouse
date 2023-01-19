@@ -22,7 +22,7 @@ def login(token: str = None,
     """Login to Runhouse. Validates token provided, with options to upload or download stored secrets or config between
     local environment and Runhouse / Vault.
     """
-    if not token and (is_interactive() or interactive):
+    if is_interactive() or interactive:
         from getpass import getpass
         from rich.console import Console
         console = Console()
@@ -39,7 +39,8 @@ def login(token: str = None,
         console.print(f'Retrieve your token :key: here to use :person_running: :house: Runhouse for '
                       f'secrets and artifact management: {link}',
                       style='bold yellow')
-        token = getpass("Token: ")
+        if not token:
+            token = getpass("Token: ")
 
         download_config = download_config if download_config is not None else typer.confirm('Download config from Runhouse to your local .rh folder?')
         download_secrets = download_secrets if download_secrets is not None else typer.confirm('Download secrets from Vault to your local Runhouse config?')

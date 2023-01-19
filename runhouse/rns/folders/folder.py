@@ -78,7 +78,8 @@ class Folder(Resource):
 
     @classmethod
     def default_url(cls, rns_address, fs):
-        if fs == Folder.DEFAULT_FS:
+        from runhouse.rns.hardware import Cluster
+        if fs == Folder.DEFAULT_FS or isinstance(fs, Cluster):
             if rns_address:
                 return str(Path.cwd() / rns_client.split_rns_name_and_path(rns_address)[1])  # saves to cwd / name
             return Folder.DEFAULT_CACHE_FOLDER + uuid.uuid4().hex
@@ -207,6 +208,7 @@ class Folder(Resource):
         # silly syntactic sugar to allow `my_remote_folder.to('here')`, clearer than `to('file')`
         if fs == 'here':
             fs = 'file'
+            url = str(Path.cwd() / self.url.split('/')[-1]) if url is None else url
 
         url = url or self.default_url(self.name, fs)
 
@@ -219,17 +221,17 @@ class Folder(Resource):
         if fs == 'file':
             return self.to_local(url=url, data_config=data_config)
         elif isinstance(fs, Cluster):  # If fs is a cluster
+            # TODO [DG] change default behavior to return_dest_folder=False
             return self.to_cluster(cluster=fs, url=url, return_dest_folder=True)
         elif fs in ['s3', 'gs', 'azure']:
             return self.to_blob_storage(fs=fs, url=url, data_config=data_config)
         else:
             self.fsspec_copy(fs, url, data_config)
-
-        new_folder = copy.deepcopy(self)
-        new_folder.url = url
-        new_folder.fs = fs
-        new_folder.data_config = data_config or {}
-        return new_folder
+            new_folder = copy.deepcopy(self)
+            new_folder.url = url
+            new_folder.fs = fs
+            new_folder.data_config = data_config or {}
+            return new_folder
 
     def fsspec_copy(self, fs, url, data_config):
         # Fallback for other fsspec filesystems, but very slow:
@@ -257,9 +259,15 @@ class Folder(Resource):
             # Simply move the files within local fs
             shutil.copytree(src=self.url, dst=url)
         elif isinstance(self.fs, Cluster):
-            self.from_cluster(cluster=self.fs, dest_url=self.url)
+            return self.from_cluster(cluster=self.fs, dest_url=url)
         else:
             self.fsspec_copy('file', url, data_config)
+
+        new_folder = copy.deepcopy(self)
+        new_folder.url = url
+        new_folder.fs = 'file'
+        new_folder.data_config = data_config or {}
+        return new_folder
 
     # def to_sftp(self, url, data_config):
     #     from runhouse.rns.hardware import Cluster
@@ -291,6 +299,7 @@ class Folder(Resource):
             # self.fs.run([new_folder.upload_command()])
         else:
             self.fsspec_copy('file', url, data_config)
+        return new_folder
 
     @staticmethod
     def rsync(local, remote, data_config, up=True):
@@ -332,13 +341,13 @@ class Folder(Resource):
             self.mount(tmp=True)
         src_url = self.local_path + '/'  # Need to add slash for rsync to copy the contents of the folder
         dest_url = url or f'~/{Path(self.url).stem}'
-        # TODO [DG] should we just be using dest_folder.mkdir?
-        cluster.run_python(["from pathlib import Path",
-                            f"Path('{dest_url}').expanduser().parent.mkdir(parents=True, exist_ok=True)"])
-        cluster.rsync(source=src_url, dest=dest_url, up=True)
         dest_folder = copy.deepcopy(self)
         dest_folder.url = dest_url
         dest_folder.fs = 'file'
+        dest_folder.mkdir()
+        # cluster.run_python(["from pathlib import Path",
+        #                     f"Path('{dest_url}').expanduser().mkdir(parents=True, exist_ok=True)"])
+        cluster.rsync(source=src_url, dest=dest_url, up=True, contents=True)
         if not return_dest_folder:
             dest_folder.fs = cluster  # Just converts to sftp, no actual copy
         return dest_folder
@@ -355,10 +364,11 @@ class Folder(Resource):
             if not cluster.address:
                 raise ValueError('Cluster must be started before copying data from it.')
             # TODO support fsspec urls (e.g. nonlocal fs's)?
-            cluster.rsync(source=self.url, dest=dest_url, up=False)
+            Path(dest_url).expanduser().mkdir(parents=True, exist_ok=True)
+            cluster.rsync(source=self.url, dest=str(Path(dest_url).expanduser()), up=False, contents=True)
             new_folder = copy.deepcopy(self)
             new_folder.url = dest_url
-            new_folder.fs = 'local'
+            new_folder.fs = 'file'
             # Don't need to do anything with _data_config because cluster creds are injected virtually through the
             # data_config property
             return new_folder
@@ -446,10 +456,14 @@ class Folder(Resource):
         else:
             return f'{self._fs_str}://{self.url}'
 
-    def ls(self):
+    def ls(self, full_paths: bool = True):
         """List the contents of the folder"""
         # return self.fsspec_fs.ls(path=self.url) if self.url and Path(self.url).exists() else []
-        return self.fsspec_fs.ls(path=self.url) if self.url else []
+        paths = self.fsspec_fs.ls(path=self.url) if self.url else []
+        if full_paths:
+            return paths
+        else:
+            return [Path(path).name for path in paths]
 
     def resources(self, full_paths: bool = False, resource_type: str = None):
         """List the resources in the *RNS* folder.

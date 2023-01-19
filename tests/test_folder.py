@@ -54,29 +54,27 @@ def test_create_and_delete_folder_from_s3():
 
     assert not s3_folder.exists_in_fs()
 
-def test_cluster_tos():
-    test_folder = rh.folder(url=Path.cwd())
+def test_cluster_tos(tmp_path):
+    tests_folder = rh.folder(url=str(Path.cwd()))
 
     c = rh.cluster('^rh-cpu').up_if_not()
-    test_folder = test_folder.to(fs=c)
+    # TODO [DG] change default behavior to return the from_cluster folder
+    tests_folder = tests_folder.to(fs=c).from_cluster(c)
+    assert 'test_folder.py' in tests_folder.ls(full_paths=False)
 
     # to local
-    local = test_folder.to('here')
-    assert 'tests/test_folder.py' in local.ls()
-
-    # to sftp
-    sftp = test_folder.to('sftp', data_config=test_folder.data_config)
-    assert 'tests/test_folder.py' in sftp.ls()
+    local = tests_folder.to('here', url=tmp_path)
+    assert 'test_folder.py' in local.ls(full_paths=False)
 
     # to s3
-    s3 = test_folder.to('s3')
-    assert 'tests/test_folder.py' in s3.ls()
+    s3 = tests_folder.to('s3')
+    assert 'test_folder.py' in s3.ls(full_paths=False)
 
     # to gcs
-    gcs = test_folder.to('gcs')
-    assert 'tests/test_folder.py' in gcs.ls()
+    gcs = tests_folder.to('gcs')
+    assert 'test_folder.py' in gcs.ls(full_paths=False)
 
-    # to azure or R2
+    # TODO to azure or R2
 
 
 if __name__ == '__main__':

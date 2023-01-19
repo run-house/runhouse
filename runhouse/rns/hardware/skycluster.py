@@ -519,10 +519,13 @@ class Cluster(Resource):
 
         return backend_utils.ssh_credential_from_yaml(self._yaml_path)
 
-    def rsync(self, source, dest, up):
+    def rsync(self, source, dest, up, contents=False):
         """ Note that ending `source` with a slash will copy the contents of the directory into dest,
         while omitting it will copy the directory itself (adding a directory layer)."""
         # FYI, could be useful: https://github.com/gchamon/sysrsync
+        if contents:
+            source = source + '/'
+            dest = dest + '/'
         ssh_credentials = self.ssh_creds()
         runner = command_runner.SSHCommandRunner(self.address, **ssh_credentials)
         runner.rsync(source, dest, up=up, stream_logs=False)
