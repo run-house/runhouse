@@ -339,6 +339,8 @@ class Folder(Resource):
             self.mount(tmp=True)
         src_url = self.local_path + '/'  # Need to add slash for rsync to copy the contents of the folder
         dest_url = url or f'~/{Path(self.url).stem}'
+        cluster.run_python(["from pathlib import Path",
+                            f"Path('{dest_url}').expanduser().parent.mkdir(parents=True, exist_ok=True)"])
         cluster.rsync(source=src_url, dest=dest_url, up=True)
         dest_folder = copy.deepcopy(self)
         dest_folder.url = dest_url
