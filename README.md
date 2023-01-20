@@ -52,6 +52,14 @@ or email us, or create an issue.
 
 ## 🐣 Getting Started
 
+tldr;
+```commandline
+pip install git+https://github.com/run-house/runhouse.git@latest_patch
+sky check
+# Optionally, for portability (e.g. Colab):
+runhouse login
+```
+
 ### 🔌 Installation
 
 ⚠️ On Apple M1 or M2 machines ⚠️, you will need to install grpcio with conda
