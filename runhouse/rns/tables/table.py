@@ -197,10 +197,7 @@ class Table(Resource):
 
     def stream(self, batch_size, drop_last: Optional[bool] = False, shuffle_seed: Optional[int] = None):
         # https://github.com/ray-project/ray/issues/30915
-        print("inside table stream")
         df = self.data
-        print("df in table stream", df)
-        print("stream format", self.stream_format)
         if self.stream_format == 'torch':
             # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.iter_torch_batches.html#ray.data.Dataset.iter_torch_batches
             return df.iter_torch_batches(batch_size=batch_size,
