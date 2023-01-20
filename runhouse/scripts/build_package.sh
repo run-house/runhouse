@@ -1,4 +1,3 @@
-pip install twine
-python3 ../../setup.py sdist -d ../../dist
-twine upload --repository-url http://3.83.200.25:8080 ../../dist/*
-
+# Run from base directory of runhouse project
+python3 -m build
+twine upload dist/*

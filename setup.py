@@ -106,7 +106,7 @@ setuptools.setup(
     author='Runhouse Team',
     license='Apache 2.0',
     readme='README.md',
-    description='Runhouse: A multiplayer cloud compute and data environment, like Google Docs for ML',
+    description='Runhouse: A multiplayer cloud compute and data environment',
     long_description=long_description,
     long_description_content_type='text/markdown',
     setup_requires=['wheel'],
@@ -128,8 +128,9 @@ setuptools.setup(
         'Topic :: System :: Distributed Computing',
     ],
     project_urls={
-        'Homepage': 'https://api.run.house',
+        'Homepage': 'https://run.house',
         'Issues': 'https://github.com/run-house/runhouse/issues/',
-        'Documentation': 'https://runhouse-docs.readthedocs-hosted.com/en/latest/',
+        # 'Documentation': 'https://runhouse-docs.readthedocs-hosted.com/en/latest/',
     },
 )
+

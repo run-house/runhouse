@@ -303,6 +303,7 @@ class Folder(Resource):
 
     @staticmethod
     def rsync(local, remote, data_config, up=True):
+        # TODO convert this to generate rsync command between two clusters
         dest_str = f'{data_config["username"]}@{data_config["host"]}:{remote}'
         src_str = local
         if not up:

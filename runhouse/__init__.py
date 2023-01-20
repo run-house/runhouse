@@ -17,4 +17,4 @@ from .rns.hardware.skycluster import cluster, Cluster
 from .rns.kvstores.kvstore import KVStore
 
 # TODO [DG] do this properly
-__version__ = '0.0.1'
+__version__ = '0.0.1.1'
