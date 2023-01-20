@@ -1,5 +1,15 @@
 <h1 align="center">🏃‍♀️ Runhouse 🏠</h1>
 
+[//]: # (<p align="center">)
+
+[//]: # (  <a href="https://discord.gg/RnhB6589Hs"> )
+
+[//]: # (    <img alt="Join Discord" src="https://img.shields.io/discord/1065833240625172600?label=Discord&style=for-the-badge">)
+
+[//]: # (  </a>)
+
+[//]: # (</p>)
+
 ## 🚨 Caution: This is an Unstable Alpha 🚨
 
 Runhouse is heavily under development and unstable. We are quite 
@@ -46,9 +56,7 @@ anywhere with a Python interpreter and an internet connection, or sharing them w
 
 ## 🙋‍♂️ Getting Help
 
-Please request to join our 
-[slack workspace here](https://join.slack.com/t/runhouse/shared_invite/zt-1j7pwsok1-vQy0Gesh55A2fPyyEVq8nQ), 
-or email us, or create an issue.
+Please join our [discord server here](https://discord.gg/RnhB6589Hs), or email us, or create an issue.
 
 ## 🐣 Getting Started
 
