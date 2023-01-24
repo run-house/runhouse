@@ -12,14 +12,9 @@
 
 ## 🚨 Caution: This is an Unstable Alpha 🚨
 
-Runhouse is heavily under development and unstable. We are quite 
-a ways away from having our first stable release. We are sharing
+Runhouse is heavily under development. We are sharing
 it privately with a few select people to collect feedback, and
-expect a lot of things to break off the bat.
-
-If you would be so kind, we would love if you could have a notes doc open
-as you install and try Runhouse for the first time. Your first impressions, 
-pain points, and highlights are very valuable to us.
+expect to iterate on the APIs considerably before reaching beta.
 
 ## 🤨 What is Runhouse?
 
@@ -46,7 +41,7 @@ if __name__ == "__main__":
 
 ```
 There's no magic yaml, DSL, code serialization, or "submitting for execution." 
-And because it's not stateless, we can pin the model to GPU memory, and get ~2.5s/image 
+And because it's not stateless, we can pin the model to GPU memory, and get ~1.5s/image 
 inference before any compilation. There's much more, like accessing your resources from 
 anywhere with a Python interpreter and an internet connection, or sharing them with collaborators.
 
