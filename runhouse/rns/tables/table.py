@@ -163,9 +163,6 @@ class Table(Resource):
                                               filesystem=self._folder.fsspec_fs)
         return self._cached_data
 
-    def __getitem__(self, key: Optional[list] = None):
-        return self.data.__getitem__(key)
-
     def __getstate__(self):
         """Override the pickle method to clear _cached_data before pickling"""
         state = self.__dict__.copy()
@@ -173,10 +170,9 @@ class Table(Resource):
         return state
 
     def __iter__(self):
-        return self
-
-    def __next__(self):
-        return self.stream(batch_size=1)
+        for block in self.stream(batch_size=self.DEFAULT_BATCH_SIZE):
+            for sample in block:
+                yield sample
 
     def __len__(self):
         len_dataset = self.metadata.get('num_rows')
@@ -211,6 +207,7 @@ class Table(Resource):
                                       local_shuffle_seed=shuffle_seed)
         else:
             # https://docs.ray.io/en/latest/data/api/dataset.html#ray.data.Dataset.iter_batches
+            # TODO [JL] should we use prefetch_blocks?
             return df.iter_batches(batch_size=batch_size,
                                    batch_format=self.stream_format,
                                    drop_last=drop_last,
