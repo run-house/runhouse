@@ -293,11 +293,14 @@ class Cluster(Resource):
             # rh_package = 'runhouse_nightly-0.0.1.dev20221202-py3-none-any.whl'
             # rh_download_cmd = f'curl https://runhouse-package.s3.amazonaws.com/{rh_package} --output {rh_package}'
             _install_url = _install_url or 'git+https://github.com/run-house/runhouse.git@latest_patch'
-            rh_install_cmd = f'pip install {_install_url}'
-            status_codes = self.run([rh_install_cmd], stream_logs=True)
-
+            status_codes = self.run_pip_install_cmd(package=_install_url)
         if status_codes[0][0] != 0:
             raise ValueError(f'Error installing runhouse on cluster <{self.name}>')
+
+    def run_pip_install_cmd(self, package, stream_logs: Optional[bool] = True):
+        rh_install_cmd = f'pip install {package}'
+        status_codes = self.run([rh_install_cmd], stream_logs=stream_logs)
+        return status_codes
 
     def install_packages(self, reqs: List[Union[Package, str]]):
         if not self.is_connected():
@@ -524,8 +527,8 @@ class Cluster(Resource):
         while omitting it will copy the directory itself (adding a directory layer)."""
         # FYI, could be useful: https://github.com/gchamon/sysrsync
         if contents:
-            source = source + '/'
-            dest = dest + '/'
+            source = source + '/' if not source.endswith('/') else source
+            dest = dest + '/' if not dest.endswith('/') else dest
         ssh_credentials = self.ssh_creds()
         runner = command_runner.SSHCommandRunner(self.address, **ssh_credentials)
         runner.rsync(source, dest, up=up, stream_logs=False)

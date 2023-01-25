@@ -61,6 +61,7 @@ install_requires = [
     'fsspec',
     'pyarrow',
     'sshtunnel',
+    'sshfs',
     'typer',
     'skypilot==0.2.2'
 ]

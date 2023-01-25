@@ -7,7 +7,6 @@ import fsspec
 import pyarrow.parquet as pq
 import pyarrow as pa
 import ray.data
-import numpy as np
 
 from .. import Resource, Cluster
 from runhouse.rns.folders.folder import folder
@@ -23,6 +22,7 @@ class Table(Resource):
     DEFAULT_CACHE_FOLDER = '.cache/runhouse/tables/'
     DEFAULT_STREAM_FORMAT = 'pyarrow'
     DEFAULT_BATCH_SIZE = 256
+    DEFAULT_PREFETCH_BLOCKS = 1
 
     def __init__(self,
                  url: str,
@@ -191,24 +191,26 @@ class Table(Resource):
         self.set_metadata('num_rows', len_dataset)
         return len_dataset
 
-    def stream(self, batch_size, drop_last: Optional[bool] = False, shuffle_seed: Optional[int] = None):
-        # https://github.com/ray-project/ray/issues/30915
+    def stream(self, batch_size, drop_last: Optional[bool] = False, shuffle_seed: Optional[int] = None,
+               prefetch_blocks: Optional[int] = None):
         df = self.data
         if self.stream_format == 'torch':
             # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.iter_torch_batches.html#ray.data.Dataset.iter_torch_batches
             return df.iter_torch_batches(batch_size=batch_size,
+                                         prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
                                          drop_last=drop_last,
                                          local_shuffle_seed=shuffle_seed)
 
         elif self.stream_format == 'tf':
             # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.iter_tf_batches.html
             return df.iter_tf_batches(batch_size=batch_size,
+                                      prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
                                       drop_last=drop_last,
                                       local_shuffle_seed=shuffle_seed)
         else:
             # https://docs.ray.io/en/latest/data/api/dataset.html#ray.data.Dataset.iter_batches
-            # TODO [JL] should we use prefetch_blocks?
             return df.iter_batches(batch_size=batch_size,
+                                   prefetch_blocks=self.DEFAULT_PREFETCH_BLOCKS,
                                    batch_format=self.stream_format,
                                    drop_last=drop_last,
                                    local_shuffle_seed=shuffle_seed)
