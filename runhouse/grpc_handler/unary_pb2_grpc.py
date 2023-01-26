@@ -29,6 +29,11 @@ class UnaryStub(object):
                 request_serializer=unary__pb2.Message.SerializeToString,
                 response_deserializer=unary__pb2.MessageResponse.FromString,
                 )
+        self.GetObject = channel.unary_stream(
+                '/unary.Unary/GetObject',
+                request_serializer=unary__pb2.Message.SerializeToString,
+                response_deserializer=unary__pb2.MessageResponse.FromString,
+                )
 
 
 class UnaryServicer(object):
@@ -55,6 +60,13 @@ class UnaryServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetObject(self, request, context):
+        """streaming RPC
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_UnaryServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -70,6 +82,11 @@ def add_UnaryServicer_to_server(servicer, server):
             ),
             'ClearPins': grpc.unary_unary_rpc_method_handler(
                     servicer.ClearPins,
+                    request_deserializer=unary__pb2.Message.FromString,
+                    response_serializer=unary__pb2.MessageResponse.SerializeToString,
+            ),
+            'GetObject': grpc.unary_stream_rpc_method_handler(
+                    servicer.GetObject,
                     request_deserializer=unary__pb2.Message.FromString,
                     response_serializer=unary__pb2.MessageResponse.SerializeToString,
             ),
@@ -129,6 +146,23 @@ class Unary(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/unary.Unary/ClearPins',
+            unary__pb2.Message.SerializeToString,
+            unary__pb2.MessageResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def GetObject(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(request, target, '/unary.Unary/GetObject',
             unary__pb2.Message.SerializeToString,
             unary__pb2.MessageResponse.FromString,
             options, channel_credentials,

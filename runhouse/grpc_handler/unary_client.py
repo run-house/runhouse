@@ -1,4 +1,6 @@
 import logging
+import sys
+
 import grpc
 import time
 
@@ -6,6 +8,12 @@ import ray.cloudpickle as pickle
 
 import runhouse.grpc_handler.unary_pb2_grpc as pb2_grpc
 import runhouse.grpc_handler.unary_pb2 as pb2
+
+
+class OutputType:
+    STDOUT = "stdout"
+    STDERR = "stderr"
+    RESULT = "result"
 
 
 class UnaryClient(object):
@@ -43,7 +51,25 @@ class UnaryClient(object):
         server_res = self.stub.InstallPackages(message)
         return server_res
 
-    def flush_pins(self, pins=None):
+    def get_object(self, key, stream_logs=False):
+        """
+        Get a value from the server
+        """
+        message = pb2.Message(message=pickle.dumps((key, stream_logs)))
+        # TODO [DG] Handle exceptions!
+        for resp in self.stub.GetObject(message):
+            output_type = resp.output_type
+            server_res = pickle.loads(resp.message)
+            if output_type == OutputType.STDOUT:
+                for line in server_res:
+                    print(line, end='', flush=True)
+            elif output_type == OutputType.STDERR:
+                for line in server_res:
+                    print(line, file=sys.stderr)
+            else:
+                return server_res
+
+    def clear_pins(self, pins=None):
         message = pb2.Message(message=pickle.dumps(pins or []))
         self.stub.ClearPins(message)
 

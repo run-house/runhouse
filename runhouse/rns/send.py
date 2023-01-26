@@ -193,9 +193,13 @@ class Send(Resource):
 
     # ----------------- Send call methods -----------------
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args, stream_logs=False, **kwargs):
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
-            return self._call_fn_with_ssh_access(fn_type='call', args=args, kwargs=kwargs)
+            if stream_logs:
+                run_key = self.remote(*args, **kwargs)
+                return self.hardware.get(run_key, stream_logs=True)
+            else:
+                return self._call_fn_with_ssh_access(fn_type='call', args=args, kwargs=kwargs)
         else:
             # run the function via http url - user only needs Proxy access
             if self.access != ResourceAccess.proxy:
@@ -259,10 +263,14 @@ class Send(Resource):
         # don't need to init ray here. Also, allow user to pass the string as a param to remote().
         # TODO [DG] add rpc for listing gettaable strings, plus metadata (e.g. when it was created)
         # We need to ray init here so the returned Ray object ref doesn't throw an error it's deserialized
-        import ray
-        ray.init(ignore_reinit_error=True)
+        # import ray
+        # ray.init(ignore_reinit_error=True)
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
-            return self._call_fn_with_ssh_access(fn_type='remote', args=args, kwargs=kwargs)
+            run_key = self._call_fn_with_ssh_access(fn_type='remote', args=args, kwargs=kwargs)
+            cluster_name = f'rh.cluster(name="{self.hardware.name}")' if self.hardware.name else 'my_cluster'
+            logger.info(f'Submitted remote call to cluster. Result or logs can be retrieved\n'
+                        f'with run_key {run_key},\n e.g. {cluster_name}.get("{run_key}", stream_logs=True)')
+            return run_key
         else:
             raise NotImplementedError("Send.remote only works with Write or Read access, not Proxy access")
 
@@ -283,14 +291,17 @@ class Send(Resource):
         # https://docs.ray.io/en/latest/ray-core/tasks/patterns/map-reduce.html
         # return ray.get([map.remote(i, map_func) for i in replicas])
         # TODO allow specifying resources per worker for map
+        # TODO [DG] check whether we're on the cluster and if so, just call the function directly via the
+        # helper function currently in UnaryServer
         name = self.name or 'anonymous send'
-        logger.info(f"Running {name} via SSH")
         if self.fn_pointers is None:
             raise RuntimeError(f"No fn pointers saved for {name}")
 
         [relative_path, module_name, fn_name] = self.fn_pointers
         serialized_func: bytes = pickle.dumps([relative_path, module_name, fn_name, fn_type, args, kwargs])
 
+        name = self.name or fn_name or 'anonymous send'
+        logger.info(f"Running {name} via gRPC")
         raw_resp = self.hardware.call_grpc(serialized_func=serialized_func)
         raw_msg: bytes = raw_resp.message
         [res, fn_exception, fn_traceback] = pickle.loads(raw_msg)

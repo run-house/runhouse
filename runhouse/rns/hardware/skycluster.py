@@ -328,10 +328,15 @@ class Cluster(Resource):
                      f'{[req if isinstance(req, str) else str(req) for req in reqs]}')
         self.client.install_packages(pickle.dumps(to_install))
 
-    def flush_pins(self, pins: Optional[List[str]] = None):
+    def get(self, key, default=None, stream_logs=False):
         if not self.is_connected():
             self.connect_grpc()
-        self.client.flush_pins(pins)
+        return self.client.get_object(key, stream_logs=stream_logs) or default
+
+    def clear_pins(self, pins: Optional[List[str]] = None):
+        if not self.is_connected():
+            self.connect_grpc()
+        self.client.clear_pins(pins)
         logger.info(f'Clearing pins on cluster {pins or ""}')
 
     def keep_warm(self, autostop_mins=-1):

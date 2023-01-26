@@ -178,7 +178,7 @@ def test_providing_access_to_send():
     added_users, new_users = my_send.share(users=["dongreenberg", "jlewit1"],
                                            access_type=ResourceAccess.read)
     assert added_users or new_users
-    remote_sum.delete_configs()
+    my_send.delete_configs()
 
 
 def delete_send_from_rns(s):

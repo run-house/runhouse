@@ -10,6 +10,9 @@ service Unary{
   rpc InstallPackages(Message) returns (MessageResponse) {}
   rpc ClearPins(Message) returns (MessageResponse) {}
 
+  // streaming RPC
+  rpc GetObject(Message) returns (stream MessageResponse) {}
+
 }
 
 message Message {
@@ -19,6 +22,7 @@ message Message {
 }
 
 message MessageResponse{
-  bytes message = 1; // will be cloudpickle or json
+  bytes message = 1;
   bool received = 2;
+  string output_type = 3;  // stdout, stderr, return
 }

@@ -3,7 +3,7 @@ from .rns.secrets import Secrets
 from .rns.defaults import Defaults
 from .rns.login import login
 # Note these are global variables that are instantiated within rh_config.py:
-from .rh_config import configs, rns_client
+from .rh_config import configs, rns_client, obj_store
 
 from runhouse.rns.top_level_rns_fns import exists, set_folder, unset_folder, current_folder, \
     resources, ipython, locate, load, \
