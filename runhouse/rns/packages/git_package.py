@@ -49,8 +49,8 @@ class GitPackage(Package):
             logging.info(f'Cloning: git clone {self.git_url}')
             subprocess.check_call(['git', 'clone', self.git_url])
         else:
-            logging.info(f'Pulling: git -C {self.install_target} pull {self.git_url}')
-            subprocess.check_call(f'git -C {self.install_target} pull {self.git_url}'.split(' '))
+            logging.info(f'Pulling: git -C {self.install_target} fetch {self.git_url}')
+            subprocess.check_call(f'git -C {self.install_target} fetch {self.git_url}'.split(' '))
         # Checkout the revision
         logging.info(f'Checking out revision: git checkout {self.revision}')
         subprocess.check_call(['git', '-C', self.install_target, 'checkout', self.revision])
