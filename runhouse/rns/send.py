@@ -537,6 +537,7 @@ def send(fn: Optional[Union[str, Callable]] = None,
         module_name = Path(path).stem
         relative_path = str(repo_name / Path(path).parent)
         config['fn_pointers'] = (relative_path, module_name, func_name)
+        # TODO [DG] check if the user already added this in their reqs
         repo_package = git_package(git_url=f'https://github.com/{username}/{repo_name}.git', revision=branch_name)
         config['reqs'].insert(0, repo_package)
         # repo_package = Package(url=f'/',

@@ -150,7 +150,7 @@ class Package(Resource):
             install_method = match.group(1)
             url = match.group(2)
             from runhouse.rns.packages.git_package import git_package
-            return git_package(url=url, install_method=install_method, dryrun=dryrun)
+            return git_package(git_url=url, install_method=install_method, dryrun=dryrun)
 
         target_and_args = specifier
         if specifier.split(':')[0] in INSTALL_METHODS:

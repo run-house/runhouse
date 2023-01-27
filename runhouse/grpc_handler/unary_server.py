@@ -91,7 +91,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
                 pass
 
             if not logfiles:
-                logfiles = obj_store.get_logfiles(key, log_type='stdout')
+                logfiles = obj_store.get_logfiles(key)
                 open_files = [open(i, "r") for i in logfiles]
                 logger.info(f"Streaming logs for {key} from {logfiles}")
 
@@ -100,8 +100,9 @@ class UnaryService(pb2_grpc.UnaryServicer):
             for i, f in enumerate(open_files):
                 file_lines = f.readlines()
                 if file_lines:
-                    if len(logfiles) > 1:
-                        ret_lines.append(f"Process {i}:")
+                    # TODO [DG] handle .out vs .err, and multiple workers
+                    # if len(logfiles) > 1:
+                    #     ret_lines.append(f"Process {i}:")
                     ret_lines += file_lines
             if ret_lines:
                 yield pb2.MessageResponse(message=pickle.dumps(ret_lines),
@@ -209,7 +210,9 @@ def call_fn_on_cluster(fn, fn_type, fn_name, module_path, args, kwargs):
         # We need to add the module_path to the PYTHONPATH because ray runs remotes in a new process
         # We need to set max_calls to make sure ray doesn't cache the remote function and ignore changes to the module
         # See: https://docs.ray.io/en/releases-2.2.0/ray-core/package-ref.html#ray-remote
-        ray_fn = ray.remote(num_cpus=0, num_gpus=0,
+        # We need non-zero cpus and gpus for Ray to allow access to the compute.
+        # We should see if there's a more elegant way to specify this.
+        ray_fn = ray.remote(num_cpus=0.0001, num_gpus=0.0001,
                             max_calls=len(args) if fn_type in ['map', 'starmap'] else 1,
                             runtime_env={"env_vars": {"PYTHONPATH": module_path or ''}})(logging_wrapped_fn)
         if fn_type == 'map':
