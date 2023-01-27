@@ -53,10 +53,10 @@ class ObjStore:
             return default
 
     def get_obj_refs_list(self, keys: List):
-        return [self.obj_store_cache.get(key, default=key) if isinstance(key, str) else key for key in keys]
+        return [self.obj_store_cache.get(key, key) if isinstance(key, str) else key for key in keys]
 
     def get_obj_refs_dict(self, d: Dict):
-        return {k: self.obj_store_cache.get(v, default=v) if isinstance(v, str) else v for k, v in d.items()}
+        return {k: self.obj_store_cache.get(v, v) if isinstance(v, str) else v for k, v in d.items()}
 
     def keys(self):
         return list(self.obj_store_cache.keys())
