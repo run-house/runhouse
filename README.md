@@ -13,7 +13,7 @@
 ## 🚨 Caution: This is an Unstable Alpha 🚨
 
 Runhouse is heavily under development. We are sharing
-it privately with a few select people to collect feedback, and
+it with a few select people to collect feedback, and
 expect to iterate on the APIs considerably before reaching beta.
 
 ## 🤨 What is Runhouse?
@@ -57,7 +57,7 @@ Please join our [discord server here](https://discord.gg/RnhB6589Hs), or email u
 
 tldr;
 ```commandline
-pip install git+https://github.com/run-house/runhouse.git@latest_patch
+pip install runhouse
 sky check
 # Optionally, for portability (e.g. Colab):
 runhouse login
@@ -76,7 +76,7 @@ having trouble with this, let us know.
 Runhouse is not on Pypi, but we maintain a semi-stable branch in
 Github. It can be installed with: 
 ```
-pip install git+https://github.com/run-house/runhouse.git@latest_patch
+pip install runhouse
 ```
 As we apply patches we may update this version number. We will
 notify you if we want you to upgrade your installation.
