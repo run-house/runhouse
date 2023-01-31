@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 
 class Cluster(Resource):
     RESOURCE_TYPE = "cluster"
-    DEFAULT_AUTOSTOP_MINS = 10
 
     def __init__(self,
                  name,
@@ -51,7 +50,12 @@ class Cluster(Resource):
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
-        return Cluster(**config, dryrun=dryrun)
+        # TODO use 'resource_subtype' in config?
+        if 'ips' in config:
+            return Cluster(**config, dryrun=dryrun)
+        else:
+            from runhouse.rns.hardware import SkyCluster
+            return SkyCluster(**config, dryrun=dryrun)
 
     @property
     def config_for_rns(self):
@@ -149,6 +153,11 @@ class Cluster(Resource):
         if not self.is_connected():
             self.connect_grpc()
         return self.client.get_object(key, stream_logs=stream_logs) or default
+
+    def cancel(self, key, force=False):
+        if not self.is_connected():
+            self.connect_grpc()
+        return self.client.cancel_runs(key, force=force)
 
     def clear_pins(self, pins: Optional[List[str]] = None):
         if not self.is_connected():
@@ -296,11 +305,11 @@ class Cluster(Resource):
     def pause_autostop(self):
         pass
 
-    def call_grpc(self, serialized_func):
+    def run_module(self, relative_path, module_name, fn_name, fn_type, args, kwargs):
         if not self.is_connected():
             self.connect_grpc()
 
-        return self.client.call_fn_remotely(message=serialized_func)
+        return self.client.run_module(relative_path, module_name, fn_name, fn_type, args, kwargs)
 
     def is_connected(self):
         return self.client is not None and self.client.is_connected()

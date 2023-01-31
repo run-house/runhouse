@@ -83,12 +83,17 @@ class UnaryService(pb2_grpc.UnaryServicer):
         returned = False
         while not returned:
             try:
-                ret_obj = obj_store.get(key, timeout=self.LOGGING_WAIT_TIME)
+                res = obj_store.get(key, timeout=self.LOGGING_WAIT_TIME)
                 logger.info(f"Got object of type {type(ret_obj)} back from object store")
+                ret_obj = [res, None, None]
                 returned = True
                 # Don't return yet, go through the loop once more to get any remaining log lines
             except ray.exceptions.GetTimeoutError:
                 pass
+            except ray.exceptions.TaskCancelledError as e:
+                logger.info(f"Attempted to get task {key} that was cancelled.")
+                returned = True
+                ret_obj = [None, e, traceback.format_exc()]
 
             if not logfiles:
                 logfiles = obj_store.get_logfiles(key)
@@ -116,6 +121,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
                                   output_type=OutputType.RESULT)
 
     def ClearPins(self, request, context):
+        self.register_activity()
         pins_to_clear = pickle.loads(request.message)
         logger.info(f"Message received from client to clear pins: {pins_to_clear or 'all'}")
         cleared = []
@@ -130,8 +136,20 @@ class UnaryService(pb2_grpc.UnaryServicer):
         self.register_activity()
         return pb2.MessageResponse(message=pickle.dumps(cleared), received=True)
 
-    def GetServerResponse(self, request, context):
+    def CancelRun(self, request, context):
+        self.register_activity()
+        run_keys, force = pickle.loads(request.message)
+        if not hasattr(run_keys, 'len'):
+            run_keys = [run_keys]
+        obj_refs = obj_store.get_obj_refs_list(run_keys)
+        [ray.cancel(obj_ref, force=force, recursive=True)
+         for obj_ref in obj_refs
+         if isinstance(obj_ref, ray.ObjectRef)]
+        return pb2.MessageResponse(message=pickle.dumps('Cancelled'),
+                                   received=True,
+                                   output_type=OutputType.RESULT)
 
+    def RunModule(self, request, context):
         self.register_activity()
         # get the function result from the incoming request
         try:
@@ -200,7 +218,7 @@ def call_fn_on_cluster(fn, fn_type, fn_name, module_path, args, kwargs):
         res = fn(*args, **kwargs)
     elif fn_type == 'get':
         obj_ref = args[0]
-        res = ray.get(obj_ref)
+        res = obj_store.get(obj_ref)
     else:
         args = obj_store.get_obj_refs_list(args)
         kwargs = obj_store.get_obj_refs_dict(kwargs)

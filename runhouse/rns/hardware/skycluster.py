@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 class SkyCluster(Cluster):
     RESOURCE_TYPE = "cluster"
-    DEFAULT_AUTOSTOP_MINS = 10
 
     def __init__(self,
                  name,

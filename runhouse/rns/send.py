@@ -9,7 +9,6 @@ from typing import Optional, Callable, Union, List, Tuple
 import os
 from pathlib import Path
 import re
-import ray.cloudpickle as pickle
 
 from runhouse.rns.resource import Resource
 from runhouse.rns.hardware import Cluster
@@ -289,6 +288,7 @@ class Send(Resource):
             obj_ref: A single or list of Ray.ObjectRef objects returned by a Send.remote() call. The ObjectRefs
                 must be from the cluster that this Send is running on.
         """
+        # TODO [DG] replace with self.hardware.get()?
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
             arg_list = obj_ref if isinstance(obj_ref, list) else [obj_ref]
             return self._call_fn_with_ssh_access(fn_type='get', args=arg_list, kwargs={})
@@ -306,17 +306,9 @@ class Send(Resource):
             raise RuntimeError(f"No fn pointers saved for {name}")
 
         [relative_path, module_name, fn_name] = self.fn_pointers
-        serialized_func: bytes = pickle.dumps([relative_path, module_name, fn_name, fn_type, args, kwargs])
-
         name = self.name or fn_name or 'anonymous send'
         logger.info(f"Running {name} via gRPC")
-        raw_resp = self.hardware.call_grpc(serialized_func=serialized_func)
-        raw_msg: bytes = raw_resp.message
-        [res, fn_exception, fn_traceback] = pickle.loads(raw_msg)
-        if fn_exception is not None:
-            logger.error(f"Error inside send {fn_type}: {fn_exception}.")
-            logger.error(f"Traceback: {fn_traceback}")
-            raise fn_exception
+        res = self.hardware.run_module(relative_path, module_name, fn_name, fn_type, args, kwargs)
         return res
 
     # TODO [DG] test this properly

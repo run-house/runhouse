@@ -231,8 +231,7 @@ def test_byo_cluster_send():
                    provider='aws',
                    region='us-east-1',
                    image_id='ami-0a313d6098716f372',
-                   name='test-byo-cluster',)
-    c.restart_grpc_server(resync_rh=True)
+                   name='test-byo-cluster',).up_if_not()
     ip = c.address
     creds = c.ssh_creds()
     del c
@@ -265,7 +264,7 @@ def test_byo_cluster_maps():
     pid_res_from_ref = pid_fn(pid_ref)
     assert pid_res_from_ref > pid_res
 
-    re_fn = rh.send(summer, hardware='^rh-cpu')
+    re_fn = rh.send(summer, hardware='different-cluster')
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn.starmap(summands)
     assert res == [4, 6, 8, 10, 12]

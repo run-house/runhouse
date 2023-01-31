@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x0bunary.proto\x12\x05unary\"B\n\x07Message\x12\x0f\n\x07message\x18\x01 \x01(\x0c\x12\x13\n\x0bmodule_name\x18\x02 \x01(\t\x12\x11\n\tfunc_name\x18\x03 \x01(\t\"I\n\x0fMessageResponse\x12\x0f\n\x07message\x18\x01 \x01(\x0c\x12\x10\n\x08received\x18\x02 \x01(\x08\x12\x13\n\x0boutput_type\x18\x03 \x01(\t2\xf3\x01\n\x05Unary\x12=\n\x11GetServerResponse\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse\"\x00\x12;\n\x0fInstallPackages\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse\"\x00\x12\x35\n\tClearPins\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse\"\x00\x12\x37\n\tGetObject\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse\"\x00\x30\x01\x62\x06proto3'
+  serialized_pb=b'\n\x0bunary.proto\x12\x05unary\"B\n\x07Message\x12\x0f\n\x07message\x18\x01 \x01(\x0c\x12\x13\n\x0bmodule_name\x18\x02 \x01(\t\x12\x11\n\tfunc_name\x18\x03 \x01(\t\"I\n\x0fMessageResponse\x12\x0f\n\x07message\x18\x01 \x01(\x0c\x12\x10\n\x08received\x18\x02 \x01(\x08\x12\x13\n\x0boutput_type\x18\x03 \x01(\t2\xa2\x02\n\x05Unary\x12\x35\n\tRunModule\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse\"\x00\x12;\n\x0fInstallPackages\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse\"\x00\x12\x35\n\tClearPins\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse\"\x00\x12\x35\n\tCancelRun\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse\"\x00\x12\x37\n\tGetObject\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse\"\x00\x30\x01\x62\x06proto3'
 )
 
 
@@ -144,11 +144,11 @@ _UNARY = _descriptor.ServiceDescriptor(
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
   serialized_start=166,
-  serialized_end=409,
+  serialized_end=456,
   methods=[
   _descriptor.MethodDescriptor(
-    name='GetServerResponse',
-    full_name='unary.Unary.GetServerResponse',
+    name='RunModule',
+    full_name='unary.Unary.RunModule',
     index=0,
     containing_service=None,
     input_type=_MESSAGE,
@@ -177,9 +177,19 @@ _UNARY = _descriptor.ServiceDescriptor(
     create_key=_descriptor._internal_create_key,
   ),
   _descriptor.MethodDescriptor(
+    name='CancelRun',
+    full_name='unary.Unary.CancelRun',
+    index=3,
+    containing_service=None,
+    input_type=_MESSAGE,
+    output_type=_MESSAGERESPONSE,
+    serialized_options=None,
+    create_key=_descriptor._internal_create_key,
+  ),
+  _descriptor.MethodDescriptor(
     name='GetObject',
     full_name='unary.Unary.GetObject',
-    index=3,
+    index=4,
     containing_service=None,
     input_type=_MESSAGE,
     output_type=_MESSAGERESPONSE,

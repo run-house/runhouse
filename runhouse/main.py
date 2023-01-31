@@ -58,6 +58,22 @@ def ssh(cluster: str, up: Optional[bool] = typer.Option(False, help="Start the c
     subprocess.call(f"ssh {c.name}", shell=True)
 
 
+@app.command()
+def cancel(cluster: str, run_key: str, force: Optional[bool] = typer.Option(False, help="Force cancel")):
+    """Cancel a run on a cluster. """
+    c = SkyCluster.from_name(cluster)
+    c.cancel(run_key, force=force)
+
+
+@app.command()
+def logs(cluster: str, run_key: str, print_results: Optional[bool] = typer.Option(False, help="Print results")):
+    """Get logs from a run on a cluster. """
+    c = SkyCluster.from_name(cluster)
+    res = c.get(run_key, stream_logs=True)
+    if print_results:
+        console.print(res)
+
+
 def load_cluster(cluster: str):
     """Load a cluster from RNS into the local environment, e.g. to be able to ssh.
     """
