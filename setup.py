@@ -62,17 +62,23 @@ install_requires = [
     'pyarrow',
     'sshtunnel',
     'typer',
-    'skypilot==0.2.2'
+    'skypilot==0.2.3'
 ]
 
 # NOTE: Change the templates/spot-controller.yaml.j2 file if any of the following
 # packages dependencies are changed.
 extras_require = {
     'aws': [
-        'awscli',
-        'boto3',
-        # 'Crypto' module used in authentication.py for AWS.
+        # Context on why these versions are strict: https://github.com/fsspec/s3fs/issues/674
+        # and https://github.com/aio-libs/aiobotocore/issues/983
+        # If you don't want to use these exact versions of awscli, boto3, botocore, or aibotocore, you can
+        # install runhouse without the aws extras, install your desired versions of
+        # awscli and boto3, and *then* pip install --upgrade s3fs last (which will revert the botocore version back to
+        # 1.27.52, which s3fs needs, and everything else will still work).
+        'awscli==1.25.60',
+        'boto3==1.24.59',
         'pycryptodome==3.12.0',
+        's3fs==2023.1.0'
     ],
     'azure': ['azure-cli==2.31.0', 'azure-core'],
     'gcp': ['google-api-python-client', 'google-cloud-storage'],
@@ -81,10 +87,6 @@ extras_require = {
 
 extras_require['all'] = sum(extras_require.values(), [])
 
-# Install aws requirements by default, as it is the most common cloud provider,
-# and the installation is quick.
-install_requires += extras_require['aws']
-
 long_description = ''
 readme_filepath = 'README.md'
 if os.path.exists(readme_filepath):
@@ -92,7 +94,7 @@ if os.path.exists(readme_filepath):
     long_description = parse_readme(long_description)
 
 # Flip to True to build the nightly instead of release.
-nightly = True
+nightly = False
 version = find_version('runhouse', '__init__.py')
 
 setuptools.setup(

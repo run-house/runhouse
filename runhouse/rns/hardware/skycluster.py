@@ -140,15 +140,17 @@ class Cluster(Resource):
         cloud_provider = sky.clouds.CLOUD_REGISTRY.from_str(handle_info['launched_resources']['cloud'])
         backend_utils._add_auth_to_cluster_config(cloud_provider, cluster_abs_path)
 
+        resources = sky.Resources.from_yaml_config(handle_info['launched_resources'])
         handle = CloudVmRayBackend.ResourceHandle(
             cluster_name=self.name,
             cluster_yaml=cluster_abs_path,
             launched_nodes=handle_info['launched_nodes'],
             # head_ip=handle_info['head_ip'], # deprecated
-            launched_resources=sky.Resources.from_yaml_config(handle_info['launched_resources']),
+            launched_resources=resources,
         )
         sky.global_user_state.add_or_update_cluster(self.name,
                                                     cluster_handle=handle,
+                                                    requested_resources=[resources],
                                                     is_launch=True,
                                                     ready=False)
         backend_utils.SSHConfigHelper.add_cluster(
@@ -271,6 +273,7 @@ class Cluster(Resource):
 
         self.populate_vars_from_status()
         self.restart_grpc_server()
+        self.sky_data = self._get_sky_data()
 
     def sync_runhouse_to_cluster(self, _install_url=None):
         if not self.address:
@@ -513,9 +516,11 @@ class Cluster(Resource):
         return str(user_path)
 
     def ssh_creds(self):
-        # TODO [DG] handle if sky_data is empty (which shouldn't be possible).
         if not Path(self._yaml_path).exists():
-            self._save_sky_data()
+            if self.sky_data:
+                # If this cluster was serialized and sent over the wire, it will have sky_data (we make sure of that
+                # in __getstate__) but no yaml, and we need to save down the sky data to the sky db and local yaml
+                self._save_sky_data()
             self.populate_vars_from_status(dryrun=self.dryrun)
 
         return backend_utils.ssh_credential_from_yaml(self._yaml_path)

@@ -27,7 +27,7 @@ def test_from_cluster():
 
 def test_create_and_save_data_to_s3_folder():
     data = list(range(50))
-    s3_folder = rh.folder(name=TEMP_FOLDER, fs='s3', dryrun=False)
+    s3_folder = rh.folder(name=TEMP_FOLDER, fs='s3', dryrun=False).save()
     s3_folder.mkdir()
     s3_folder.put({TEMP_FILE: pickle.dumps(data)}, overwrite=True)
 
@@ -42,6 +42,8 @@ def test_read_data_from_existing_s3_folder():
         data = pickle.load(f)
 
     assert data == list(range(50))
+    s3_folder.delete_configs()
+    assert not rh.exists(name=TEMP_FOLDER)
 
 
 def test_create_and_delete_folder_from_s3():
