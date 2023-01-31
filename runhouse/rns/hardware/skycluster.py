@@ -454,12 +454,17 @@ class Cluster(Resource):
     #     connected = True
     #     print(f"SSH tunnel is open to {self.address}:{local_port}")
 
-    def restart_grpc_server(self, _rh_install_url=None, resync_rh=True):
+    def restart_grpc_server(self, _rh_install_url=None, resync_rh=True, restart_ray=False):
         # TODO how do we capture errors if this fails?
         if resync_rh:
             self.sync_runhouse_to_cluster(_install_url=_rh_install_url)
-        grpc_server_cmd = f'screen -dm python3 -m runhouse.grpc_handler.unary_server'
         kill_proc_cmd = f'pkill -f "python3 -m runhouse.grpc_handler.unary_server"'
+        grpc_server_cmd = f'screen -dm python3 -m runhouse.grpc_handler.unary_server'
+        cmds = [kill_proc_cmd]
+        if restart_ray:
+            cmds.append('ray stop')
+            cmds.append('ray start --head')  # Need to set gpus or Ray will block on cpu-only clusters
+        cmds.append(grpc_server_cmd)
 
         # If we need different commands for debian or ubuntu, we can use this:
         # Need to get actual provider in case provider == 'cheapest'
@@ -471,8 +476,7 @@ class Cluster(Resource):
         # kill_proc_at_port_cmd = debian_kill_proc_cmd if cloud_provider == 'GCP' \
         #     else ubuntu_kill_proc_cmd
 
-        status_codes = self.run(commands=[kill_proc_cmd,
-                                          grpc_server_cmd],
+        status_codes = self.run(commands=cmds,
                                 stream_logs=True,
                                 )
         # As of 2022-27-Dec still seems we need this.
