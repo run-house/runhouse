@@ -61,11 +61,11 @@ class GCSFolder(Folder):
         download_command = GcsCloudStorage().make_sync_dir_command(src, dest)
         return download_command
 
-    def to_cluster(self, cluster, url=None, mount=False, return_dest_folder=False):
+    def to_cluster(self, dest_cluster, url=None, mount=False, return_dest_folder=False):
         upload_command = self.upload_command(src=self.url, dest=url)
-        cluster.run([upload_command])
+        dest_cluster.run([upload_command])
         if return_dest_folder:
-            return GCSFolder(url=url, dryrun=True).from_cluster(cluster)
+            return GCSFolder(url=url, dryrun=True).from_cluster(dest_cluster)
 
     def to_local(self, dest_url: str, data_config: dict, return_dest_folder: Optional[bool] = False):
         """ Copy a folder from an GCS bucket to local dir. """

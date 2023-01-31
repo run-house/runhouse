@@ -8,6 +8,7 @@ from typing import List, Dict, Optional
 from pathlib import Path
 import subprocess
 import typer
+import yaml
 
 import sky
 
@@ -154,15 +155,13 @@ class Secrets:
     def delete(cls, providers: List[str]):
         """Delete secrets from Vault for the specified providers"""
         for provider in providers:
-            provider = provider.lower()
             provider_cls_name = cls.provider_cls_name(provider)
-
             p = cls.get_class_from_name(provider_cls_name)
             if p is None:
                 continue
 
             p.delete_secrets_from_vault()
-            logger.info(f'Successfully deleted {cls.PROVIDER_NAME} secrets from Vault')
+            logger.info(f'Successfully deleted {provider} secrets from Vault')
 
     @classmethod
     def delete_secrets_from_vault(cls):
@@ -180,6 +179,12 @@ class Secrets:
         secrets = []
         providers = providers or cls.enabled_providers()
         for provider in providers:
+            if isinstance(provider, str):
+                provider_cls_name = cls.provider_cls_name(provider)
+                provider = cls.get_class_from_name(name=provider_cls_name)
+                if not provider:
+                    continue
+
             if not from_env and not provider.has_secrets_file():
                 # no secrets file configured for this provider
                 continue
@@ -262,6 +267,17 @@ class Secrets:
         config = configparser.ConfigParser()
         config.read(file_path)
         return config
+
+    @staticmethod
+    def read_yaml_file(file_path: str):
+        with open(file_path, 'r') as stream:
+            config = yaml.safe_load(stream)
+        return config
+
+    @staticmethod
+    def save_to_yaml_file(data, file_path):
+        with open(file_path, 'w') as yaml_file:
+            yaml.dump(data, yaml_file, default_flow_style=False)
 
     @staticmethod
     def get_class_from_name(name: str):

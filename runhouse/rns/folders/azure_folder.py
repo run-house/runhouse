@@ -38,7 +38,7 @@ class AzureFolder(Folder):
     def download_command(self, src, dest):
         raise NotImplementedError
 
-    def to_cluster(self, cluster, url=None, mount=False, return_dest_folder=False):
+    def to_cluster(self, dest_cluster, url=None, mount=False, return_dest_folder=False):
         raise NotImplementedError
 
     def to_local(self, dest_url: str, data_config: dict, return_dest_folder: Optional[bool] = False):

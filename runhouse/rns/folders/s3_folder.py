@@ -74,12 +74,12 @@ class S3Folder(Folder):
         download_command = S3CloudStorage().make_sync_dir_command(src, dest)
         return download_command
 
-    def to_cluster(self, cluster, url=None, mount=False, return_dest_folder=False):
+    def to_cluster(self, dest_cluster, url=None, mount=False, return_dest_folder=False):
         """ Copy the folder from a s3 bucket onto a cluster. """
         download_command = self.download_command(src=self.fsspec_url, dest=url)
-        cluster.run([download_command])
+        dest_cluster.run([download_command])
         if return_dest_folder:
-            return S3Folder(url=url, dryrun=True).from_cluster(cluster)
+            return S3Folder(url=url, dryrun=True).from_cluster(dest_cluster)
 
     def to_local(self, dest_url: str, data_config: dict, return_dest_folder: Optional[bool] = False):
         """ Copy a folder from an S3 bucket to local dir. """

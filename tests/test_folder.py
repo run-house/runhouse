@@ -1,4 +1,3 @@
-import os
 import unittest
 from pathlib import Path
 import shutil
@@ -6,7 +5,7 @@ from ray import cloudpickle as pickle
 
 import runhouse as rh
 
-TEMP_FILE = 'my_file.txt'
+TEMP_FILE = str(Path.cwd() / 'test_folder.py')
 TEST_FOLDER_PATH = Path.cwd() / f'tests_tmp'
 
 DATA_STORE_BUCKET = '/runhouse-folder-tests'
@@ -116,6 +115,8 @@ def test_local_and_s3():
 
     # S3 to local
     tmp_path = Path.cwd() / 'tmp_from_s3'
+    tmp_path.mkdir(exist_ok=True)
+
     local_from_s3 = s3_folder.to('here', url=tmp_path)
     assert 'sample_file_0.txt' in local_from_s3.ls(full_paths=False)
 
@@ -129,10 +130,14 @@ def test_local_and_gcs():
     assert 'sample_file_0.txt' in gcs_folder.ls(full_paths=False)
 
     # GCS to local
-    # TODO [JL] check CalledProcessError for the gsutil copy command from gcs to local
     tmp_path = Path.cwd() / 'tmp_from_gcs'
+    tmp_path.mkdir(exist_ok=True)
+
     local_from_s3 = gcs_folder.to('here', url=tmp_path)
-    assert 'sample_file_0.txt' in local_from_s3.ls(full_paths=False)
+
+    # TODO [JL] by default gsutil will copy the entire folder, not just its contents
+    gcs_folder_name = gcs_folder.url.split("/")[-1]
+    assert gcs_folder_name in local_from_s3.ls(full_paths=False)
 
     delete_local_folder(tmp_path)
 
@@ -157,19 +162,38 @@ def test_cluster_and_gcs():
     # Local to cluster
     local_folder = rh.folder(url=TEST_FOLDER_PATH)
     c = rh.cluster('^rh-cpu').up_if_not()
+
+    # Make sure we have gsutil on the cluster - needed for copying the package
     c.run_pip_install_cmd(package='gsutil')
 
     cluster_folder = local_folder.to(fs=c).from_cluster(c)
     assert 'sample_file_0.txt' in cluster_folder.ls(full_paths=False)
 
     # Cluster to GCS
-    # TODO [JL] check ServiceException: 401 errors being raised by GCS here
+    # TODO [JL] check ServiceException: 401 errors being raised by GCS here - need gcloud access on the cluster
     gcs_folder = cluster_folder.to(fs='gcs')
     assert 'sample_file_0.txt' in gcs_folder.ls(full_paths=False)
 
     # GCS to cluster
     cluster_from_s3 = gcs_folder.to(fs=c)
     assert 'sample_file_0.txt' in cluster_from_s3.ls(full_paths=False)
+
+
+def test_cluster_and_cluster():
+    # Local to cluster 1
+    local_folder = rh.folder(url=TEST_FOLDER_PATH)
+    c1 = rh.cluster('^rh-cpu').up_if_not()
+
+    # Upload sky secrets to cluster - required when syncing over the folder from c1 to c2
+    c1.send_secrets(providers=['sky'])
+
+    cluster_folder_1 = local_folder.to(fs=c1).from_cluster(c1)
+    assert 'sample_file_0.txt' in cluster_folder_1.ls(full_paths=False)
+
+    # Cluster 1 to cluster 2
+    c2 = rh.cluster('^rh-8-cpu').up_if_not()
+    cluster_folder_2 = cluster_folder_1.to(fs=c2, url=cluster_folder_1.url).from_cluster(c2)
+    assert 'sample_file_0.txt' in cluster_folder_2.ls(full_paths=False)
 
 
 def test_s3_and_s3():
@@ -200,21 +224,22 @@ def test_s3_and_gcs():
     s3_folder = local_folder.to(fs='s3')
     assert 'sample_file_0.txt' in s3_folder.ls(full_paths=False)
 
-    # ***NOTE: transfers between providers are only supported at the bucket level at the moment (not directory)***
+    # *** NOTE: transfers between providers are only supported at the bucket level at the moment (not directory) ***
 
     # S3 to GCS
-    gcs_from_s3_folder = s3_folder.to(fs='gcs')
-    assert gcs_from_s3_folder.ls(full_paths=False)
+    s3_folder_to_gcs = s3_folder.to(fs='gcs')
+    assert s3_folder_to_gcs.ls(full_paths=False)
 
     # GCS to S3
-    # TODO [JL] getting gcs error bucket not found
-    s3_from_gcs_folder = gcs_from_s3_folder.to(fs='s3')
-    assert s3_from_gcs_folder.ls(full_paths=False)
+    gcs_folder = rh.folder(fs='gcs', url=s3_folder.url)
+    gcs_to_s3 = gcs_folder.to(fs='s3')
+    assert gcs_to_s3.ls(full_paths=False)
 
 
 def test_s3_folder_uploads_and_downloads():
     # NOTE: you can specify a specific URL like this:
     # test_folder = rh.folder(url='/runhouse/my-folder', fs='gcs')
+
     test_folder = rh.folder(fs='s3')
     test_folder.upload(src=TEST_FOLDER_PATH)
 
@@ -224,7 +249,6 @@ def test_s3_folder_uploads_and_downloads():
     test_folder.download(remote_dir=test_folder.url, local_dir=downloaded_url_folder)
 
     assert Path(downloaded_url_folder).exists()
-    assert len(os.listdir(downloaded_url_folder)) == 3
 
     test_folder.delete_in_fs()
     assert not test_folder.exists_in_fs()

@@ -509,11 +509,6 @@ class Cluster(Resource):
         except FileNotFoundError:
             raise Exception(f'File with ssh key not found in: {path_to_file}')
 
-    @staticmethod
-    def path_to_cluster_ssh_key(path_to_file) -> str:
-        user_path = Path(path_to_file).expanduser()
-        return str(user_path)
-
     def ssh_creds(self):
         # TODO [DG] handle if sky_data is empty (which shouldn't be possible).
         if not Path(self._yaml_path).exists():
@@ -557,6 +552,8 @@ class Cluster(Resource):
         self.run([f'python3 -c "{command_str}"'], stream_logs=stream_logs, port_forward=port_forward)
 
     def send_secrets(self, reload=False, providers: Optional[List[str]] = None):
+        """" Upload secrets onto the cluster for specified providers. If none provided will send all locally
+        configured provider secrets. """
         if providers is not None:
             # Send secrets for specific providers from local configs rather than trying to load from Vault
             from runhouse import Secrets

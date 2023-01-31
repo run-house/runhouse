@@ -213,20 +213,19 @@ class Folder(Resource):
             fs = 'file'
             url = str(Path.cwd() / self.url.split('/')[-1]) if url is None else url
 
-        url = url or self.default_url(self.name, fs)
-        url = str(url)  # Make sure it's a string and not a Path
+        url = str(url or self.default_url(self.name, fs))  # Make sure it's a string and not a Path
 
         fs_str = getattr(fs, "name", fs)  # Use fs.name if available, i.e. fs is a cluster
-        logging.info(f'Copying folder from {self.fsspec_url} to the filesystem: {fs_str}, with url: {url}')
+        logging.info(f'Copying folder from {self.fsspec_url} to: {fs_str}, with url: {url}')
 
-        # to_local, to_cluster, to_sftp, and to_blob_storage are also overridden by subclasses to dispatch
+        # to_local, to_cluster and to_data_store are also overridden by subclasses to dispatch
         # to more performant cloud-specific APIs
         from runhouse.rns.hardware import Cluster
         if fs == 'file':
             return self.to_local(dest_url=url, data_config=data_config, return_dest_folder=True)
         elif isinstance(fs, Cluster):  # If fs is a cluster
             # TODO [DG] change default behavior to return_dest_folder=False
-            return self.to_cluster(cluster=fs, url=url, return_dest_folder=True)
+            return self.to_cluster(dest_cluster=fs, url=url, return_dest_folder=True)
         elif fs in ['s3', 'gcs', 'azure']:
             return self.to_data_store(fs=fs, data_store_url=url, data_config=data_config)
         else:
@@ -348,25 +347,47 @@ class Folder(Resource):
         fsspec.fuse.run(fs=remote_fs, path=self.url, mount_point=self._local_mount_path)
         return self._local_mount_path
 
-    def to_cluster(self, cluster, url=None, mount=False, return_dest_folder=True):
-        """ Copy the folder from a file source onto a cluster. """
-        # TODO only supports local today, needs to branch for different source filesystems like the others
-        if not cluster.address:
+    def to_cluster(self, dest_cluster, url=None, mount=False, return_dest_folder=True):
+        """ Copy the folder from a file or cluster source onto a cluster. """
+        if not dest_cluster.address:
             raise ValueError('Cluster must be started before copying data to it.')
+
         # Create tmp_mount if needed
         if not self.is_local() and mount:
             self.mount(tmp=True)
-        src_url = self.local_path + '/'  # Need to add slash for rsync to copy the contents of the folder
+
         dest_url = url or f'~/{Path(self.url).stem}'
+
+        # Need to add slash for rsync to copy the contents of the folder
         dest_folder = copy.deepcopy(self)
         dest_folder.url = dest_url
-        dest_folder.fs = cluster
+        dest_folder.fs = dest_cluster
         dest_folder.mkdir()
-        # cluster.run_python(["from pathlib import Path",
-        #                     f"Path('{dest_url}').expanduser().mkdir(parents=True, exist_ok=True)"])
-        cluster.rsync(source=src_url, dest=dest_url, up=True, contents=True)
+
+        if self.fs == 'file':
+            src_url = self.local_path + '/'
+            dest_cluster.rsync(source=src_url, dest=dest_url, up=True, contents=True)
+
+        elif isinstance(self.fs, Resource):
+            src_url = dest_url
+
+            cluster_creds = self.fs.ssh_creds()
+            creds_file = cluster_creds['ssh_private_key']
+
+            command = f"""rsync -Pavz --filter='dir-merge,- .gitignore' -e "ssh -i '{creds_file}' -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=30s -o ForwardAgent=yes -o ControlMaster=auto -o ControlPersist=300s" {src_url}/ {dest_cluster.address}:{dest_url}"""
+            status_codes = self.fs.run([command])
+            if status_codes[0][0] != 0:
+                raise Exception(f'Error syncing folder to destination cluster ({dest_cluster.name}). '
+                                f'Make sure the source cluster ({self.fs.name}) has the sky keys '
+                                f'loaded in path: {creds_file}. '
+                                f"For example: `my_cluster.send_secrets(providers=['sky'])`")
+
+        else:
+            raise TypeError(f'`to_cluster` not supported for filesystem type {type(self.fs)}')
+
         if return_dest_folder:
             dest_folder.fs = 'file'
+
         return dest_folder
 
     def from_cluster(self, cluster, dest_url=None):
@@ -463,6 +484,7 @@ class Folder(Resource):
         # friends at skypilot :)
         from sky.benchmark.benchmark_utils import _download_remote_dir
         remote_dir = remote_dir.lstrip("/")
+        # TODO [JL] This should be an rsync like command and not a cp - might be easier to write ourselves
         _download_remote_dir(remote_dir, local_dir, bucket_type)
 
     def download_command(self, src, dest):
