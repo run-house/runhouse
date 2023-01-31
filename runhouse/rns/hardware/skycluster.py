@@ -147,9 +147,10 @@ class Cluster(Resource):
             # head_ip=handle_info['head_ip'], # deprecated
             launched_resources=sky.Resources.from_yaml_config(handle_info['launched_resources']),
         )
-        sky.global_user_state.add_or_update_cluster(self.name,
+        sky.global_user_state.add_or_update_cluster(cluster_name=self.name,
                                                     cluster_handle=handle,
                                                     is_launch=True,
+                                                    requested_resources=None,
                                                     ready=False)
         backend_utils.SSHConfigHelper.add_cluster(
             self.name, [handle_info['head_ip']], ray_config['auth'])
@@ -293,13 +294,17 @@ class Cluster(Resource):
             # rh_package = 'runhouse_nightly-0.0.1.dev20221202-py3-none-any.whl'
             # rh_download_cmd = f'curl https://runhouse-package.s3.amazonaws.com/{rh_package} --output {rh_package}'
             _install_url = _install_url or 'git+https://github.com/run-house/runhouse.git@latest_patch'
-            status_codes = self.run_pip_install_cmd(package=_install_url)
+            status_codes = self.pip_install_packages(packages=[_install_url])
         if status_codes[0][0] != 0:
             raise ValueError(f'Error installing runhouse on cluster <{self.name}>')
 
-    def run_pip_install_cmd(self, package, stream_logs: Optional[bool] = True):
-        rh_install_cmd = f'pip install {package}'
-        status_codes = self.run([rh_install_cmd], stream_logs=stream_logs)
+    def pip_install_packages(self, packages: list, stream_logs: Optional[bool] = True):
+        status_codes = []
+        for package in packages:
+            rh_install_cmd = f'pip install {package}'
+            status_code = self.run([rh_install_cmd], stream_logs=stream_logs)
+            status_codes.append(status_code)
+
         return status_codes
 
     def install_packages(self, reqs: List[Union[Package, str]]):

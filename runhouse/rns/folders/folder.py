@@ -109,6 +109,27 @@ class Folder(Resource):
             config['fs'] = Cluster.from_config(config['fs'], dryrun=dryrun)
         return Folder(**config, dryrun=dryrun)
 
+    @classmethod
+    def from_name(cls, name, dryrun=False):
+        config = rns_client.load_config(name=name)
+        if not config:
+            raise ValueError(f"Resource {name} not found.")
+
+        config['name'] = name
+
+        fs = config['fs']
+        if isinstance(fs, str) and fs.startswith("/"):
+            # if the fs is set to a cluster
+            cluster_config: dict = rns_client.load_config(name=fs)
+            if not cluster_config:
+                raise Exception(f'No cluster config saved for {fs}')
+
+            # set the cluster config as the fs
+            config['fs'] = cluster_config
+
+        # Uses child class's from_config
+        return cls.from_config(config=config, dryrun=dryrun)
+
     @property
     def url(self):
         if self._url is not None:

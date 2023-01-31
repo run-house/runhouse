@@ -52,8 +52,6 @@ class Resource:
             if resource.rns_address.startswith('^'):
                 # Calls save internally and puts the resource in the current folder
                 resource.name = rns_client.resolve_rns_path(resource.rns_address[1:])
-            # TODO [DG] not sure if we should save here
-            # resource.save()
             return resource.rns_address
         return resource.config_for_rns
 

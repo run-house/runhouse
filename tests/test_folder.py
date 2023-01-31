@@ -12,7 +12,7 @@ DATA_STORE_BUCKET = '/runhouse-folder-tests'
 DATA_STORE_PATH = f'{DATA_STORE_BUCKET}/folder'
 
 
-def create_folder_with_sample_files():
+def setup():
     from pathlib import Path
     TEST_FOLDER_PATH.mkdir(exist_ok=True)
     for i in range(3):
@@ -32,6 +32,8 @@ def test_github_folder():
                                                              'repo': 'pytorch'})
     assert gh_folder.ls()
 
+
+# ----------------- Run tests -----------------
 
 def test_from_cluster():
     # Assumes a rh-cpu is already up from another test
@@ -121,6 +123,7 @@ def test_local_and_s3():
     assert 'sample_file_0.txt' in local_from_s3.ls(full_paths=False)
 
     delete_local_folder(tmp_path)
+    s3_folder.empty_folder()
 
 
 def test_local_and_gcs():
@@ -137,6 +140,7 @@ def test_local_and_gcs():
     assert 'sample_file_0.txt' in local_from_gcs.ls(full_paths=False)
 
     delete_local_folder(tmp_path)
+    gcs_folder.empty_folder()
 
 
 def test_cluster_and_s3():
@@ -154,6 +158,8 @@ def test_cluster_and_s3():
     cluster_from_s3 = s3_folder.to(fs=c)
     assert 'sample_file_0.txt' in cluster_from_s3.ls(full_paths=False)
 
+    s3_folder.empty_folder()
+
 
 def test_cluster_and_gcs():
     # Local to cluster
@@ -161,19 +167,22 @@ def test_cluster_and_gcs():
     c = rh.cluster('^rh-cpu').up_if_not()
 
     # Make sure we have gsutil on the cluster - needed for copying the package
-    c.run_pip_install_cmd(package='gsutil')
+    c.pip_install_packages(packages=['gsutil', 'gcloud'])
+    c.run(['gcloud auth login', 'gcloud auth application-default login'])
 
     cluster_folder = local_folder.to(fs=c).from_cluster(c)
     assert 'sample_file_0.txt' in cluster_folder.ls(full_paths=False)
 
     # Cluster to GCS
-    # TODO [JL] check ServiceException: 401 errors being raised by GCS here - need gcloud access on the cluster
+    # TODO [JL] 401 errors being raised here - need to enable gcloud access on the cluster for writing to GCS bucket
     gcs_folder = cluster_folder.to(fs='gcs')
     assert 'sample_file_0.txt' in gcs_folder.ls(full_paths=False)
 
     # GCS to cluster
     cluster_from_s3 = gcs_folder.to(fs=c)
     assert 'sample_file_0.txt' in cluster_from_s3.ls(full_paths=False)
+
+    gcs_folder.empty_folder()
 
 
 def test_cluster_and_cluster():
@@ -200,8 +209,11 @@ def test_s3_and_s3():
     assert 'sample_file_0.txt' in s3_folder.ls(full_paths=False)
 
     # from one s3 folder to another s3 folder
-    new_s3 = s3_folder.to(fs='s3')
-    assert 'sample_file_0.txt' in new_s3.ls(full_paths=False)
+    new_s3_folder = s3_folder.to(fs='s3')
+    assert 'sample_file_0.txt' in new_s3_folder.ls(full_paths=False)
+
+    s3_folder.empty_folder()
+    new_s3_folder.empty_folder()
 
 
 def test_gcs_and_gcs():
@@ -211,8 +223,11 @@ def test_gcs_and_gcs():
     assert 'sample_file_0.txt' in gcs_folder.ls(full_paths=False)
 
     # from one gcs folder to another gcs folder
-    new_gcs = gcs_folder.to(fs='gcs')
-    assert 'sample_file_0.txt' in new_gcs.ls(full_paths=False)
+    new_gcs_folder = gcs_folder.to(fs='gcs')
+    assert 'sample_file_0.txt' in new_gcs_folder.ls(full_paths=False)
+
+    gcs_folder.empty_folder()
+    new_gcs_folder.empty_folder()
 
 
 def test_s3_and_gcs():
@@ -231,6 +246,9 @@ def test_s3_and_gcs():
     gcs_folder = rh.folder(fs='gcs', url=s3_folder.url)
     gcs_to_s3 = gcs_folder.to(fs='s3')
     assert gcs_to_s3.ls(full_paths=False)
+
+    s3_folder.empty_folder()
+    gcs_folder.empty_folder()
 
 
 def test_s3_folder_uploads_and_downloads():
@@ -252,5 +270,5 @@ def test_s3_folder_uploads_and_downloads():
 
 
 if __name__ == '__main__':
-    create_folder_with_sample_files()
+    setup()
     unittest.main()
