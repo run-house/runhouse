@@ -133,11 +133,8 @@ def test_local_and_gcs():
     tmp_path = Path.cwd() / 'tmp_from_gcs'
     tmp_path.mkdir(exist_ok=True)
 
-    local_from_s3 = gcs_folder.to('here', url=tmp_path)
-
-    # TODO [JL] by default gsutil will copy the entire folder, not just its contents
-    gcs_folder_name = gcs_folder.url.split("/")[-1]
-    assert gcs_folder_name in local_from_s3.ls(full_paths=False)
+    local_from_gcs = gcs_folder.to('here', url=tmp_path)
+    assert 'sample_file_0.txt' in local_from_gcs.ls(full_paths=False)
 
     delete_local_folder(tmp_path)
 
@@ -246,7 +243,7 @@ def test_s3_folder_uploads_and_downloads():
     assert test_folder.exists_in_fs()
 
     downloaded_url_folder = str(Path.cwd() / 'downloaded_s3')
-    test_folder.download(remote_dir=test_folder.url, local_dir=downloaded_url_folder)
+    test_folder.download(dest=downloaded_url_folder)
 
     assert Path(downloaded_url_folder).exists()
 

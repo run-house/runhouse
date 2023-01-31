@@ -1,3 +1,4 @@
+import subprocess
 from typing import Optional
 
 from .folder import Folder
@@ -46,15 +47,16 @@ class GCSFolder(Folder):
         dest = dest.lstrip("/")
         return f'gsutil -m rsync -r -x \'.git/*\' {src} gs://{dest}'
 
-    @staticmethod
-    def download(remote_dir, local_dir):
+    def download(self, dest):
         """ Download a folder from a GCS bucket to local dir. """
-        # NOTE: Sky doesn't support this API yet for each provider - for now we'll use sky's `_download_remote_dir`
+        # NOTE: Sky doesn't support this API yet for each provider
         # https://github.com/skypilot-org/skypilot/blob/983f5fa3197fe7c4b5a28be240f7b027f7192b15/sky/data/storage.py#L231
-        from sky.data.storage import StoreType
-        return Folder.download_from_remote(remote_dir=remote_dir,
-                                           local_dir=local_dir,
-                                           bucket_type=StoreType.GCS)
+        remote_dir = self.url.lstrip("/")
+        remote_dir = f'gs://{remote_dir}'
+        subprocess.run(['gsutil', '-m', 'rsync', '-r', '-x', '.git/*', remote_dir, dest],
+                       stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL,
+                       check=True)
 
     def download_command(self, src, dest):
         from sky.cloud_stores import GcsCloudStorage
@@ -69,7 +71,7 @@ class GCSFolder(Folder):
 
     def to_local(self, dest_url: str, data_config: dict, return_dest_folder: Optional[bool] = False):
         """ Copy a folder from an GCS bucket to local dir. """
-        self.download(remote_dir=self.url, local_dir=dest_url)
+        self.download(dest=dest_url)
         if return_dest_folder:
             return self.destination_folder(dest_url=dest_url, dest_fs='file', data_config=data_config)
 

@@ -477,15 +477,8 @@ class Folder(Resource):
                        access_denied_message=access_denied_message,
                        bucket_name=self.bucket_name_from_url(self.url))
 
-    @staticmethod
-    def download_from_remote(remote_dir: str, local_dir: str, bucket_type: 'data.StoreType'):
-        """ Download a remote folder from a bucket. """
-        # Note: For now all subclasses rely on this method - in the future each will have its own thanks to our
-        # friends at skypilot :)
-        from sky.benchmark.benchmark_utils import _download_remote_dir
-        remote_dir = remote_dir.lstrip("/")
-        # TODO [JL] This should be an rsync like command and not a cp - might be easier to write ourselves
-        _download_remote_dir(remote_dir, local_dir, bucket_type)
+    def download(self, dest):
+        raise NotImplementedError
 
     def download_command(self, src, dest):
         """ CLI command for downloading folder from remote bucket. Needed when downloading a folder to a cluster. """

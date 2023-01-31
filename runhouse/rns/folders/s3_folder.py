@@ -1,3 +1,4 @@
+import subprocess
 from typing import Optional
 
 from .folder import Folder
@@ -59,15 +60,17 @@ class S3Folder(Folder):
 
         return upload_command
 
-    @staticmethod
-    def download(remote_dir, local_dir):
+    def download(self, dest):
         """ Download a folder from an S3 bucket to local dir. """
-        # NOTE: Sky doesn't support this API yet for each provider - for now we'll use sky's `_download_remote_dir`
+        # NOTE: Sky doesn't support this API yet for each provider
         # https://github.com/skypilot-org/skypilot/blob/983f5fa3197fe7c4b5a28be240f7b027f7192b15/sky/data/storage.py#L231
-        from sky.data.storage import StoreType
-        return Folder.download_from_remote(remote_dir=remote_dir,
-                                           local_dir=local_dir,
-                                           bucket_type=StoreType.S3)
+        remote_dir = self.url.lstrip("/")
+        remote_dir = f's3://{remote_dir}'
+        subprocess.run(
+            ['aws', 's3', 'sync', remote_dir, dest],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True)
 
     def download_command(self, src, dest):
         from sky.cloud_stores import S3CloudStorage
@@ -83,7 +86,7 @@ class S3Folder(Folder):
 
     def to_local(self, dest_url: str, data_config: dict, return_dest_folder: Optional[bool] = False):
         """ Copy a folder from an S3 bucket to local dir. """
-        self.download(remote_dir=self.url, local_dir=dest_url)
+        self.download(dest=dest_url)
         if return_dest_folder:
             return self.destination_folder(dest_url=dest_url, dest_fs='file', data_config=data_config)
 

@@ -30,8 +30,7 @@ class AzureFolder(Folder):
     def upload_command(self, src: str, dest: str):
         raise NotImplementedError
 
-    @staticmethod
-    def download(remote_dir, local_dir):
+    def download(self, dest):
         """ Download a folder from an Azure bucket to local dir. """
         raise NotImplementedError
 
