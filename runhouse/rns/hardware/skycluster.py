@@ -273,7 +273,6 @@ class Cluster(Resource):
 
         self.populate_vars_from_status()
         self.restart_grpc_server()
-        self.sky_data = self._get_sky_data()
 
     def sync_runhouse_to_cluster(self, _install_url=None):
         if not self.address:
