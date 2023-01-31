@@ -8,7 +8,7 @@ from rich.console import Console
 
 from runhouse import configs
 from runhouse.rns import login as login_module  # Need to rename it because it conflicts with the login command
-from runhouse import Cluster
+from runhouse import SkyCluster
 
 # create an explicit Typer application
 app = typer.Typer(add_completion=False)
@@ -37,7 +37,7 @@ def login(token: Optional[str] = typer.Argument(None, help="Your Runhouse API to
 def notebook(cluster: str, up: Optional[bool] = typer.Option(False, help="Start the cluster")):
     """Open a Jupyter notebook on a cluster.
     """
-    c = Cluster.from_name(cluster)
+    c = SkyCluster.from_name(cluster)
     if up:
         c.up_if_not()
     if not c.is_up():
@@ -49,7 +49,7 @@ def notebook(cluster: str, up: Optional[bool] = typer.Option(False, help="Start 
 @app.command()
 def ssh(cluster: str, up: Optional[bool] = typer.Option(False, help="Start the cluster")):
     """SSH into a cluster created elsewhere (so `ssh cluster` doesn't work out of the box) or not yet up. """
-    c = Cluster.from_name(cluster)
+    c = SkyCluster.from_name(cluster)
     if up:
         c.up_if_not()
     if not c.is_up():
@@ -61,7 +61,7 @@ def ssh(cluster: str, up: Optional[bool] = typer.Option(False, help="Start the c
 def load_cluster(cluster: str):
     """Load a cluster from RNS into the local environment, e.g. to be able to ssh.
     """
-    c = Cluster.from_name(cluster)
+    c = SkyCluster.from_name(cluster)
     if not c.address:
         c.populate_vars_from_status(dryrun=True)
 

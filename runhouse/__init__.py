@@ -13,7 +13,7 @@ from .rns.folders.folder import folder, Folder
 from runhouse.rns.packages import package, Package, git_package, GitPackage
 from .rns.tables.table import table, Table
 from .rns.blob import blob, Blob
-from .rns.hardware.skycluster import cluster, Cluster
+from .rns.hardware import cluster, Cluster, SkyCluster
 from .rns.kvstores.kvstore import KVStore
 
 # TODO [DG] do this properly

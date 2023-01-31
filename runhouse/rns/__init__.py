@@ -5,7 +5,7 @@
 from .resource import Resource
 from .send import Send
 from runhouse.rns.packages.package import Package
-from .hardware.skycluster import Cluster
+from .hardware import Cluster, SkyCluster, cluster
 from .blob import Blob
 from .tables.table import Table
 from .secrets import Secrets

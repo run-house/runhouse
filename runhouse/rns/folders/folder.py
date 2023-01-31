@@ -104,8 +104,8 @@ class Folder(Resource):
             from .azure_folder import AzureFolder
             return AzureFolder.from_config(config, dryrun=dryrun)
         elif isinstance(config['fs'], dict):
-            from runhouse.rns.hardware import Cluster
-            config['fs'] = Cluster.from_config(config['fs'], dryrun=dryrun)
+            from runhouse.rns.hardware import SkyCluster
+            config['fs'] = SkyCluster.from_config(config['fs'], dryrun=dryrun)
         return Folder(**config, dryrun=dryrun)
 
     @property
@@ -218,10 +218,10 @@ class Folder(Resource):
 
         # to_local, to_cluster, to_sftp, and to_blob_storage are also overridden by subclasses to dispatch
         # to more performant cloud-specific APIs
-        from runhouse.rns.hardware import Cluster
+        from runhouse.rns.hardware import SkyCluster
         if fs == 'file':
             return self.to_local(url=url, data_config=data_config)
-        elif isinstance(fs, Cluster):  # If fs is a cluster
+        elif isinstance(fs, SkyCluster):  # If fs is a cluster
             # TODO [DG] change default behavior to return_dest_folder=False
             return self.to_cluster(cluster=fs, url=url, return_dest_folder=True)
         elif fs in ['s3', 'gs', 'azure']:
@@ -255,11 +255,11 @@ class Folder(Resource):
                 # dst.write(src.read())
 
     def to_local(self, url, data_config):
-        from runhouse.rns.hardware import Cluster
+        from runhouse.rns.hardware import SkyCluster
         if self.fs == 'file':
             # Simply move the files within local fs
             shutil.copytree(src=self.url, dst=url)
-        elif isinstance(self.fs, Cluster):
+        elif isinstance(self.fs, SkyCluster):
             return self.from_cluster(cluster=self.fs, dest_url=url)
         else:
             self.fsspec_copy('file', url, data_config)
@@ -286,7 +286,7 @@ class Folder(Resource):
     #         self.fsspec_copy('file', url, data_config)
 
     def to_blob_storage(self, fs, url=None, data_config=None):
-        from runhouse.rns.hardware import Cluster
+        from runhouse.rns.hardware import SkyCluster
         folder_config = self.config_for_rns
         folder_config['fs'] = fs
         folder_config['url'] = url
@@ -294,7 +294,7 @@ class Folder(Resource):
         new_folder = Folder.from_config(folder_config)
         if self.fs == 'file':
             new_folder.upload(self.url)
-        elif isinstance(self.fs, Cluster):
+        elif isinstance(self.fs, SkyCluster):
             pass
             # TODO [DG] issue ssh command to server? Something like:
             # self.fs.run([new_folder.upload_command()])

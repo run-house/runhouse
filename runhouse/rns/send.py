@@ -75,12 +75,20 @@ class Send(Resource):
         if not self.dryrun and self.access in ['write', 'read']:
             logging.info('Setting up Send on cluster.')
             if not self.hardware.address:
+                # For SkyCluster, this initial check doesn't trigger a sky.status, which is slow.
+                # If cluster simply doesn't have an address we likely need to up it.
+                if not hasattr(self.hardware, 'up'):
+                    raise ValueError("Cluster must have an address (i.e. be up) or have a reup_cluster method "
+                                     "(e.g. SkyCluster).")
                 if not self.hardware.is_up():
+                    # If this is a SkyCluster, before we up the cluster, run a sky.check to see if the cluster
+                    # is already up but doesn't have an address assigned yet.
                     self.reup_cluster()
 
             try:
                 self.hardware.install_packages(self.reqs)
             except (grpc.RpcError, sshtunnel.BaseSSHTunnelForwarderError):
+                # It's possible that the cluster went down while we were trying to install packages.
                 if not self.hardware.is_up():
                     self.reup_cluster()
                 else:
