@@ -24,7 +24,7 @@ fsspec.register_implementation("ssh", sshfs.SSHFileSystem)
 logger = logging.getLogger(__name__)
 
 PROVIDER_FS_LOOKUP = {'aws': 's3',
-                      'gcp': 'gcs',
+                      'gcp': 'gs',
                       'azure': 'abfs',
                       'oracle': 'ocifs',
                       'databricks': 'dbfs',
@@ -54,7 +54,7 @@ class Folder(Resource):
         Args:
             name ():
             parent (): string path to parent folder, or
-            data_source (): FSSpec protocol, e.g. 's3', 'gcs'. See/run `fsspec.available_protocols()`.
+            data_source (): FSSpec protocol, e.g. 's3', 'gs'. See/run `fsspec.available_protocols()`.
                 Default is "file", the local filesystem to wherever the blob is created.
             data_config ():
             local_path ():
@@ -98,7 +98,7 @@ class Folder(Resource):
         if config['fs'] == 's3':
             from .s3_folder import S3Folder
             return S3Folder.from_config(config, dryrun=dryrun)
-        elif config['fs'] == 'gcs':
+        elif config['fs'] == 'gs':
             from .gcs_folder import GCSFolder
             return GCSFolder.from_config(config, dryrun=dryrun)
         elif config['fs'] == 'azure':
@@ -247,7 +247,7 @@ class Folder(Resource):
         elif isinstance(fs, Cluster):  # If fs is a cluster
             # TODO [DG] change default behavior to return_dest_folder=False
             return self.to_cluster(dest_cluster=fs, url=url, return_dest_folder=True)
-        elif fs in ['s3', 'gcs', 'azure']:
+        elif fs in ['s3', 'gs', 'azure']:
             return self.to_data_store(fs=fs, data_store_url=url, data_config=data_config)
         else:
             self.fsspec_copy(fs, url, data_config)
@@ -792,7 +792,7 @@ def folder(name: Optional[str] = None,
         elif file_system == 's3':
             from .s3_folder import S3Folder
             new_folder = S3Folder.from_config(config, dryrun=dryrun)
-        elif file_system == 'gcs':
+        elif file_system == 'gs':
             from .gcs_folder import GCSFolder
             new_folder = GCSFolder.from_config(config, dryrun=dryrun)
         elif file_system == 'azure':

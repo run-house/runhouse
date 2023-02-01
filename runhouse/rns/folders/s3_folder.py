@@ -1,7 +1,10 @@
+import logging
 import subprocess
 from typing import Optional
 
 from .folder import Folder
+
+logger = logging.getLogger(__name__)
 
 
 class S3Folder(Folder):
@@ -101,9 +104,10 @@ class S3Folder(Folder):
             from sky.data.storage import S3Store
             sync_dir_command = self.upload_command(src=self.fsspec_url, dest=data_store_url)
             self.run_upload_cli_cmd(sync_dir_command, access_denied_message=S3Store.ACCESS_DENIED_MESSAGE)
-        elif fs == 'gcs':
+        elif fs == 'gs':
             from sky.data import data_transfer
             # Note: The sky data transfer API only allows for transfers between buckets, not specific directories.
+            logger.warning('Transfer from S3 to GCS currently supported for buckets only, not specific directories.')
             data_store_url = self.bucket_name_from_url(data_store_url)
             data_transfer.s3_to_gcs(s3_bucket_name=self.bucket_name_from_url(self.url),
                                     gs_bucket_name=data_store_url)

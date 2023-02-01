@@ -29,7 +29,7 @@ class Blob(Resource):
 
         Args:
             name ():
-            fs (): FSSpec protocol, e.g. 's3', 'gcs'. See/run `fsspec.available_protocols()`.
+            fs (): FSSpec protocol, e.g. 's3', 'gs'. See/run `fsspec.available_protocols()`.
                 Default is "file", the local filesystem to wherever the blob is created.
             data_config ():
             serializer ():

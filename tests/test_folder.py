@@ -13,6 +13,12 @@ DATA_STORE_PATH = f'{DATA_STORE_BUCKET}/folder'
 
 
 def setup():
+    # Create buckets in S3 and GCS
+    from sky.data.storage import S3Store, GcsStore
+    S3Store(name='runhouse', source='')
+    GcsStore(name='runhouse', source='')
+
+    # Create local dir with files to upload to cluster, buckets, etc.
     from pathlib import Path
     TEST_FOLDER_PATH.mkdir(exist_ok=True)
     for i in range(3):
@@ -71,7 +77,7 @@ def test_create_and_delete_folder_from_s3():
     assert not s3_folder.exists_in_fs()
 
 
-def test_cluster_tos(tmp_path):
+def test_cluster_tos():
     tests_folder = rh.folder(url=str(Path.cwd()))
 
     c = rh.cluster('^rh-cpu').up_if_not()
@@ -80,18 +86,27 @@ def test_cluster_tos(tmp_path):
     assert 'test_folder.py' in tests_folder.ls(full_paths=False)
 
     # to local
-    local = tests_folder.to('here', url=tmp_path)
+    local = tests_folder.to('here', url=TEST_FOLDER_PATH)
     assert 'test_folder.py' in local.ls(full_paths=False)
 
     # to s3
     s3 = tests_folder.to('s3')
     assert 'test_folder.py' in s3.ls(full_paths=False)
 
-    # to gcs
-    gcs = tests_folder.to('gcs')
-    assert 'test_folder.py' in gcs.ls(full_paths=False)
+    delete_local_folder(TEST_FOLDER_PATH)
+    s3.empty_folder()
 
-    # TODO to azure or R2
+    # to gcs
+    gcs = tests_folder.to('gs')
+    try:
+        assert 'test_folder.py' in gcs.ls(full_paths=False)
+        gcs.empty_folder()
+
+    except:
+        bucket_name = gcs.bucket_name_from_url(gcs.url)
+        print(f"Permissions to gs bucket ({bucket_name}) may not be fully enabled "
+              f"on the cluster {c.name}. For now please manually enable them directly on the cluster. "
+              f"See https://cloud.google.com/sdk/gcloud/reference/auth/login")
 
 
 def test_local_and_cluster():
@@ -129,7 +144,7 @@ def test_local_and_s3():
 def test_local_and_gcs():
     # Local to GCS
     local_folder = rh.folder(url=TEST_FOLDER_PATH)
-    gcs_folder = local_folder.to(fs='gcs')
+    gcs_folder = local_folder.to(fs='gs')
     assert 'sample_file_0.txt' in gcs_folder.ls(full_paths=False)
 
     # GCS to local
@@ -166,23 +181,29 @@ def test_cluster_and_gcs():
     local_folder = rh.folder(url=TEST_FOLDER_PATH)
     c = rh.cluster('^rh-cpu').up_if_not()
 
-    # Make sure we have gsutil on the cluster - needed for copying the package
-    c.pip_install_packages(packages=['gsutil', 'gcloud'])
-    c.run(['gcloud auth login', 'gcloud auth application-default login'])
+    # Make sure we have gsutil and gcloud on the cluster - needed for copying the package + authenticating
+    c.pip_install_packages(packages=['gsutil'])
+    c.run(['sudo snap install google-cloud-cli --classic'])
 
     cluster_folder = local_folder.to(fs=c).from_cluster(c)
     assert 'sample_file_0.txt' in cluster_folder.ls(full_paths=False)
 
     # Cluster to GCS
-    # TODO [JL] 401 errors being raised here - need to enable gcloud access on the cluster for writing to GCS bucket
-    gcs_folder = cluster_folder.to(fs='gcs')
-    assert 'sample_file_0.txt' in gcs_folder.ls(full_paths=False)
+    gcs_folder = cluster_folder.to(fs='gs')
+    try:
+        assert 'sample_file_0.txt' in gcs_folder.ls(full_paths=False)
+        # GCS to cluster
+        cluster_from_gcs = gcs_folder.to(fs=c)
+        assert 'sample_file_0.txt' in cluster_from_gcs.ls(full_paths=False)
 
-    # GCS to cluster
-    cluster_from_s3 = gcs_folder.to(fs=c)
-    assert 'sample_file_0.txt' in cluster_from_s3.ls(full_paths=False)
+        gcs_folder.empty_folder()
 
-    gcs_folder.empty_folder()
+    except:
+        # TODO [JL] automate gcloud access on the cluster for writing to GCS bucket
+        bucket_name = gcs_folder.bucket_name_from_url(gcs_folder.url)
+        raise PermissionError(f"Permissions to gs bucket ({bucket_name}) may not be fully enabled "
+                              f"on the cluster {c.name}. For now please manually enable them directly on the cluster. "
+                              f"See https://cloud.google.com/sdk/gcloud/reference/auth/login")
 
 
 def test_cluster_and_cluster():
@@ -219,11 +240,11 @@ def test_s3_and_s3():
 def test_gcs_and_gcs():
     # Local to GCS
     local_folder = rh.folder(url=TEST_FOLDER_PATH)
-    gcs_folder = local_folder.to(fs='gcs')
+    gcs_folder = local_folder.to(fs='gs')
     assert 'sample_file_0.txt' in gcs_folder.ls(full_paths=False)
 
     # from one gcs folder to another gcs folder
-    new_gcs_folder = gcs_folder.to(fs='gcs')
+    new_gcs_folder = gcs_folder.to(fs='gs')
     assert 'sample_file_0.txt' in new_gcs_folder.ls(full_paths=False)
 
     gcs_folder.empty_folder()
@@ -239,21 +260,30 @@ def test_s3_and_gcs():
     # *** NOTE: transfers between providers are only supported at the bucket level at the moment (not directory) ***
 
     # S3 to GCS
-    s3_folder_to_gcs = s3_folder.to(fs='gcs')
+    s3_folder_to_gcs = s3_folder.to(fs='gs')
     assert s3_folder_to_gcs.ls(full_paths=False)
 
-    # GCS to S3
-    gcs_folder = rh.folder(fs='gcs', url=s3_folder.url)
-    gcs_to_s3 = gcs_folder.to(fs='s3')
-    assert gcs_to_s3.ls(full_paths=False)
-
     s3_folder.empty_folder()
+
+
+def test_gcs_and_s3():
+    # Local to GCS
+    local_folder = rh.folder(url=TEST_FOLDER_PATH)
+    gcs_folder = local_folder.to(fs='gs')
+    assert 'sample_file_0.txt' in gcs_folder.ls(full_paths=False)
+
+    # *** NOTE: transfers between providers are only supported at the bucket level at the moment (not directory) ***
+
+    # GCS to S3
+    gcs_folder_to_s3 = gcs_folder.to(fs='s3')
+    assert gcs_folder_to_s3.ls(full_paths=False)
+
     gcs_folder.empty_folder()
 
 
 def test_s3_folder_uploads_and_downloads():
     # NOTE: you can specify a specific URL like this:
-    # test_folder = rh.folder(url='/runhouse/my-folder', fs='gcs')
+    # test_folder = rh.folder(url='/runhouse/my-folder', fs='gs')
 
     test_folder = rh.folder(fs='s3')
     test_folder.upload(src=TEST_FOLDER_PATH)

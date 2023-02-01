@@ -1,7 +1,10 @@
+import logging
 import subprocess
 from typing import Optional
 
 from .folder import Folder
+
+logger = logging.getLogger(__name__)
 
 
 class GCSFolder(Folder):
@@ -81,14 +84,15 @@ class GCSFolder(Folder):
                       data_config: Optional[dict] = None,
                       return_dest_folder: bool = True):
         """ Copy folder from GCS to another remote data store (ex: GCS, S3, Azure) """
-        if fs == 'gcs':
+        if fs == 'gs':
             # Transfer between GCS folders
             from sky.data.storage import GcsStore
-            sync_dir_command = self.upload_command(src=self.url, dest=data_store_url)
+            sync_dir_command = self.upload_command(src=self.fsspec_url, dest=data_store_url)
             self.run_upload_cli_cmd(sync_dir_command, access_denied_message=GcsStore.ACCESS_DENIED_MESSAGE)
         elif fs == 's3':
             from sky.data import data_transfer
             # Note: The sky data transfer API only allows for transfers between buckets, not specific directories.
+            logger.warning('Transfer from GCS to S3 currently supported for buckets only, not specific directories.')
             data_transfer.gcs_to_s3(gs_bucket_name=self.bucket_name_from_url(self.url),
                                     s3_bucket_name=self.bucket_name_from_url(data_store_url))
         elif fs == 'azure':
