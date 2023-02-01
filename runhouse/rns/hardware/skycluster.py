@@ -148,10 +148,11 @@ class Cluster(Resource):
             # head_ip=handle_info['head_ip'], # deprecated
             launched_resources=resources,
         )
-        sky.global_user_state.add_or_update_cluster(self.name,
+        sky.global_user_state.add_or_update_cluster(cluster_name=self.name,
                                                     cluster_handle=handle,
                                                     requested_resources=[resources],
                                                     is_launch=True,
+                                                    requested_resources=None,
                                                     ready=False)
         backend_utils.SSHConfigHelper.add_cluster(
             self.name, [handle_info['head_ip']], ray_config['auth'])
@@ -294,13 +295,21 @@ class Cluster(Resource):
             # status_codes = self.run(['pip install runhouse-nightly==0.0.2.20221202'], stream_logs=True)
             # rh_package = 'runhouse_nightly-0.0.1.dev20221202-py3-none-any.whl'
             # rh_download_cmd = f'curl https://runhouse-package.s3.amazonaws.com/{rh_package} --output {rh_package}'
-            # TODO need to check user's current version and install same version?
+            
             _install_url = _install_url or 'runhouse'
-            rh_install_cmd = f'pip install {_install_url}'
-            status_codes = self.run([rh_install_cmd], stream_logs=True)
-
+            status_codes = self.pip_install_packages(packages=[_install_url])
+            
         if status_codes[0][0] != 0:
             raise ValueError(f'Error installing runhouse on cluster <{self.name}>')
+
+    def pip_install_packages(self, packages: list, stream_logs: bool = True):
+        status_codes = []
+        for package in packages:
+            rh_install_cmd = f'pip install {package}'
+            status_code = self.run([rh_install_cmd], stream_logs=stream_logs)
+            status_codes.append(status_code)
+
+        return status_codes
 
     def install_packages(self, reqs: List[Union[Package, str]]):
         if not self.is_connected():
@@ -509,11 +518,6 @@ class Cluster(Resource):
         except FileNotFoundError:
             raise Exception(f'File with ssh key not found in: {path_to_file}')
 
-    @staticmethod
-    def path_to_cluster_ssh_key(path_to_file) -> str:
-        user_path = Path(path_to_file).expanduser()
-        return str(user_path)
-
     def ssh_creds(self):
         if not Path(self._yaml_path).exists():
             if self.sky_data:
@@ -529,8 +533,8 @@ class Cluster(Resource):
         while omitting it will copy the directory itself (adding a directory layer)."""
         # FYI, could be useful: https://github.com/gchamon/sysrsync
         if contents:
-            source = source + '/'
-            dest = dest + '/'
+            source = source + '/' if not source.endswith('/') else source
+            dest = dest + '/' if not dest.endswith('/') else dest
         ssh_credentials = self.ssh_creds()
         runner = command_runner.SSHCommandRunner(self.address, **ssh_credentials)
         runner.rsync(source, dest, up=up, stream_logs=False)
@@ -559,6 +563,8 @@ class Cluster(Resource):
         self.run([f'python3 -c "{command_str}"'], stream_logs=stream_logs, port_forward=port_forward)
 
     def send_secrets(self, reload=False, providers: Optional[List[str]] = None):
+        """" Upload secrets onto the cluster for specified providers. If none provided will send all locally
+        configured provider secrets. """
         if providers is not None:
             # Send secrets for specific providers from local configs rather than trying to load from Vault
             from runhouse import Secrets

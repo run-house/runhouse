@@ -13,9 +13,9 @@ NUM_PARTITIONS = 10
 
 
 def setup():
-    import boto3
-    s3 = boto3.client('s3')
-    s3.create_bucket(Bucket=BUCKET_NAME)
+    # Create buckets in S3
+    from sky.data.storage import S3Store
+    S3Store(name=BUCKET_NAME, source='')
 
 
 def tokenize_function(examples):
