@@ -238,6 +238,7 @@ class Cluster(Resource):
             except HandlerSSHTunnelForwarderError as e:
                 # try connecting with a different port - most likely the issue is the port is already taken
                 local_port += 1
+                num_ports_to_try -= 1
                 pass
 
         return ssh_tunnel, local_port
