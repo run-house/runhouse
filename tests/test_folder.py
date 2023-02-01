@@ -66,6 +66,8 @@ def test_read_data_from_existing_s3_folder():
         data = pickle.load(f)
 
     assert data == list(range(50))
+    s3_folder.delete_configs()
+    assert not rh.exists(name=TEMP_FOLDER)
 
 
 def test_create_and_delete_folder_from_s3():

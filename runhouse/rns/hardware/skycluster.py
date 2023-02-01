@@ -140,15 +140,17 @@ class Cluster(Resource):
         cloud_provider = sky.clouds.CLOUD_REGISTRY.from_str(handle_info['launched_resources']['cloud'])
         backend_utils._add_auth_to_cluster_config(cloud_provider, cluster_abs_path)
 
+        resources = sky.Resources.from_yaml_config(handle_info['launched_resources'])
         handle = CloudVmRayBackend.ResourceHandle(
             cluster_name=self.name,
             cluster_yaml=cluster_abs_path,
             launched_nodes=handle_info['launched_nodes'],
             # head_ip=handle_info['head_ip'], # deprecated
-            launched_resources=sky.Resources.from_yaml_config(handle_info['launched_resources']),
+            launched_resources=resources,
         )
         sky.global_user_state.add_or_update_cluster(cluster_name=self.name,
                                                     cluster_handle=handle,
+                                                    requested_resources=[resources],
                                                     is_launch=True,
                                                     requested_resources=None,
                                                     ready=False)
@@ -293,8 +295,10 @@ class Cluster(Resource):
             # status_codes = self.run(['pip install runhouse-nightly==0.0.2.20221202'], stream_logs=True)
             # rh_package = 'runhouse_nightly-0.0.1.dev20221202-py3-none-any.whl'
             # rh_download_cmd = f'curl https://runhouse-package.s3.amazonaws.com/{rh_package} --output {rh_package}'
-            _install_url = _install_url or 'git+https://github.com/run-house/runhouse.git@latest_patch'
+            
+            _install_url = _install_url or 'runhouse'
             status_codes = self.pip_install_packages(packages=[_install_url])
+            
         if status_codes[0][0] != 0:
             raise ValueError(f'Error installing runhouse on cluster <{self.name}>')
 
@@ -515,9 +519,11 @@ class Cluster(Resource):
             raise Exception(f'File with ssh key not found in: {path_to_file}')
 
     def ssh_creds(self):
-        # TODO [DG] handle if sky_data is empty (which shouldn't be possible).
         if not Path(self._yaml_path).exists():
-            self._save_sky_data()
+            if self.sky_data:
+                # If this cluster was serialized and sent over the wire, it will have sky_data (we make sure of that
+                # in __getstate__) but no yaml, and we need to save down the sky data to the sky db and local yaml
+                self._save_sky_data()
             self.populate_vars_from_status(dryrun=self.dryrun)
 
         return backend_utils.ssh_credential_from_yaml(self._yaml_path)

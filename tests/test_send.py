@@ -90,7 +90,7 @@ def test_remote_send_with_multiprocessing():
     re_fn = rh.send(multiproc_torch_sum,
                     name='test_send',
                     hardware='^rh-cpu',
-                    reqs=['./', 'torch==1.12.1']).save()
+                    reqs=['./', 'torch==1.12.1'])
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn(summands)
     assert res == [4, 6, 8, 10, 12]

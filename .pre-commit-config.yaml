@@ -1,0 +1,19 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.1
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+
+  - repo: https://github.com/omnilib/ufmt
+    rev: v1.3.2
+    hooks:
+      - id: ufmt
+        additional_dependencies:
+          - black == 22.6.0
+          - usort == 1.0.4
+
+  # - repo: https://github.com/charliermarsh/ruff-pre-commit
+  #   rev: v0.0.191
+  #   hooks:
+  #     - id: ruff

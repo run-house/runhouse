@@ -10,11 +10,12 @@
 
 [//]: # (</p>)
 
-## 🚨 Caution: This is an Unstable Alpha 🚨
+## 🚨 Caution: This is an Alpha 🚨
 
 Runhouse is heavily under development. We are sharing
-it privately with a few select people to collect feedback, and
-expect to iterate on the APIs considerably before reaching beta.
+it with a few select people to collect feedback, and
+expect to iterate on the APIs considerably before reaching beta 
+(version 0.1.0).
 
 ## 🤨 What is Runhouse?
 
@@ -45,19 +46,20 @@ And because it's not stateless, we can pin the model to GPU memory, and get ~1.5
 inference before any compilation. There's much more, like accessing your resources from 
 anywhere with a Python interpreter and an internet connection, or sharing them with collaborators.
 
-## 👨‍🏫 Tutorials
+## 👨‍🏫 Tutorials / API Walkthrough
 
 [Can be found here](https://github.com/run-house/tutorials).
 
 ## 🙋‍♂️ Getting Help
 
-Please join our [discord server here](https://discord.gg/RnhB6589Hs), or email us, or create an issue.
+Please join our [discord server here](https://discord.gg/RnhB6589Hs) 
+to message us, or email us (donny at run.house or josh at run.house), or create an issue.
 
 ## 🐣 Getting Started
 
 tldr;
 ```commandline
-pip install git+https://github.com/run-house/runhouse.git@latest_patch
+pip install runhouse
 sky check
 # Optionally, for portability (e.g. Colab):
 runhouse login
@@ -73,19 +75,17 @@ for how to install grpc properly on Apple silicon. You'll only know if you did
 this correctly if you run `ray.init()` in a Python interpreter. If you're 
 having trouble with this, let us know.
 
-Runhouse is not on Pypi, but we maintain a semi-stable branch in
-Github. It can be installed with: 
+Runhouse can be installed with: 
 ```
-pip install git+https://github.com/run-house/runhouse.git@latest_patch
+pip install runhouse
 ```
-As we apply patches we may update this version number. We will
-notify you if we want you to upgrade your installation.
+As this is an alpha, we push feature updates every few weeks as new microversions.
 
 ### ✈️ Verifying your Cloud Setup with SkyPilot
 
 Runhouse uses [SkyPilot](https://skypilot.readthedocs.io/en/latest/) for 
 much of the heavy lifting with launching and managing cloud instances. 
-We love it and you should throw them a Github star 🤗.
+We love it and you should [throw them a Github star ⭐️](https://github.com/skypilot-org/skypilot/).
 
 To verify that your cloud credentials are set up correctly, run
 ```
