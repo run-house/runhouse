@@ -84,7 +84,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
         while not returned:
             try:
                 res = obj_store.get(key, timeout=self.LOGGING_WAIT_TIME)
-                logger.info(f"Got object of type {type(ret_obj)} back from object store")
+                logger.info(f"Got object of type {type(res)} back from object store")
                 ret_obj = [res, None, None]
                 returned = True
                 # Don't return yet, go through the loop once more to get any remaining log lines
