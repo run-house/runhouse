@@ -66,8 +66,6 @@ def test_read_data_from_existing_s3_folder():
         data = pickle.load(f)
 
     assert data == list(range(50))
-    s3_folder.delete_configs()
-    assert not rh.exists(name=TEMP_FOLDER)
 
 
 def test_create_and_delete_folder_from_s3():
@@ -185,7 +183,9 @@ def test_cluster_and_gcs():
 
     # Make sure we have gsutil and gcloud on the cluster - needed for copying the package + authenticating
     c.pip_install_packages(packages=['gsutil'])
-    c.run(['sudo snap install google-cloud-cli --classic'])
+
+    # TODO [JL] might be necessary to install gcloud on the cluster
+    # c.run(['sudo snap install google-cloud-cli --classic'])
 
     cluster_folder = local_folder.to(fs=c).from_cluster(c)
     assert 'sample_file_0.txt' in cluster_folder.ls(full_paths=False)

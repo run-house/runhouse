@@ -152,7 +152,6 @@ class Cluster(Resource):
                                                     cluster_handle=handle,
                                                     requested_resources=[resources],
                                                     is_launch=True,
-                                                    requested_resources=None,
                                                     ready=False)
         backend_utils.SSHConfigHelper.add_cluster(
             self.name, [handle_info['head_ip']], ray_config['auth'])
