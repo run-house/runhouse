@@ -20,7 +20,7 @@ class Resource:
 
     def __init__(self,
                  name: Optional[str] = None,
-                 dryrun: Optional[bool] = None,
+                 dryrun: bool = None,
                  ):
         self._name, self._rns_folder = None, None
         if name is not None:

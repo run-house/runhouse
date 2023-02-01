@@ -71,7 +71,7 @@ class Secrets:
 
     @classmethod
     def download_into_env(cls,
-                          save_locally: Optional[bool] = True,
+                          save_locally: bool = True,
                           providers: Optional[List] = None,
                           headers: Optional[Dict] = None) -> Dict:
         """Get all user secrets from Vault. Optionally save them down to local config files (where relevant)."""
@@ -93,7 +93,7 @@ class Secrets:
     @classmethod
     def put(cls,
             provider: str,
-            from_env: Optional[bool] = False,
+            from_env: bool = False,
             file_path: Optional[str] = None,
             secret: Optional[dict] = None,
             group: Optional[str] = None):
@@ -127,7 +127,7 @@ class Secrets:
     @classmethod
     def get(cls,
             provider: str,
-            save_to_env: Optional[bool] = False,
+            save_to_env: bool = False,
             group: Optional[str] = None) -> dict:
         """Read secrets from the Vault service for a given provider and optionally save them to their local config.
         If group is provided will read secrets for the specified group."""
@@ -172,7 +172,7 @@ class Secrets:
 
     @classmethod
     def load_provider_secrets(cls,
-                              from_env: Optional[bool] = False,
+                              from_env: bool = False,
                               providers: Optional[List] = None) -> List[Dict[str, str]]:
         """Load secret credentials for all the providers which have been configured locally, or optionally
         provide a list of specific providers to load"""
@@ -217,7 +217,7 @@ class Secrets:
                                f'can set the relevant environment variables manually.')
 
     @classmethod
-    def enabled_providers(cls, as_str: Optional[bool] = False) -> List:
+    def enabled_providers(cls, as_str: bool = False) -> List:
         """Returns a list of cloud provider class objects which have been enabled locally. If as_str is True,
         return the names of the providers as strings"""
         sky.check.check(quiet=True)

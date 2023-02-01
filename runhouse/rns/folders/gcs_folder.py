@@ -69,7 +69,7 @@ class GCSFolder(Folder):
         if return_dest_folder:
             return GCSFolder(url=url, dryrun=True).from_cluster(dest_cluster)
 
-    def to_local(self, dest_url: str, data_config: dict, return_dest_folder: Optional[bool] = False):
+    def to_local(self, dest_url: str, data_config: dict, return_dest_folder: bool = False):
         """ Copy a folder from an GCS bucket to local dir. """
         self.download(dest=dest_url)
         if return_dest_folder:
@@ -79,7 +79,7 @@ class GCSFolder(Folder):
                       fs: str,
                       data_store_url: Optional[str] = None,
                       data_config: Optional[dict] = None,
-                      return_dest_folder: Optional[bool] = True):
+                      return_dest_folder: bool = True):
         """ Copy folder from GCS to another remote data store (ex: GCS, S3, Azure) """
         if fs == 'gcs':
             # Transfer between GCS folders

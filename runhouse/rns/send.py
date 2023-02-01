@@ -33,7 +33,7 @@ class Send(Resource):
                  reqs: Optional[List[str]] = None,
                  setup_cmds: Optional[List[str]] = None,
                  image: Optional[str] = None,  # TODO
-                 dryrun: Optional[bool] = True,
+                 dryrun: bool = True,
                  access: Optional[str] = None,
                  **kwargs  # We have this here to ignore extra arguments when calling from from_config
                  ):
@@ -463,9 +463,9 @@ def send(fn: Optional[Union[str, Callable]] = None,
          reqs: Optional[List[str]] = None,
          setup_cmds: Optional[List[str]] = None,
          # TODO image: Optional[str] = None,
-         dryrun: Optional[bool] = False,
-         load_secrets: Optional[bool] = False,
-         serialize_notebook_fn: Optional[bool] = False,
+         dryrun: bool = False,
+         load_secrets: bool = False,
+         serialize_notebook_fn: bool = False,
          ):
     """ Factory constructor to construct the Send for various provider types.
 

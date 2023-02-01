@@ -298,7 +298,7 @@ class Cluster(Resource):
         if status_codes[0][0] != 0:
             raise ValueError(f'Error installing runhouse on cluster <{self.name}>')
 
-    def pip_install_packages(self, packages: list, stream_logs: Optional[bool] = True):
+    def pip_install_packages(self, packages: list, stream_logs: bool = True):
         status_codes = []
         for package in packages:
             rh_install_cmd = f'pip install {package}'

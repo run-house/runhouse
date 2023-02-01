@@ -191,7 +191,7 @@ class Table(Resource):
         self.set_metadata('num_rows', len_dataset)
         return len_dataset
 
-    def stream(self, batch_size, drop_last: Optional[bool] = False, shuffle_seed: Optional[int] = None,
+    def stream(self, batch_size, drop_last: bool = False, shuffle_seed: Optional[int] = None,
                prefetch_blocks: Optional[int] = None):
         df = self.data
         if self.stream_format == 'torch':
@@ -311,8 +311,8 @@ def table(data=None,
           fs: Optional[str] = None,
           data_config: Optional[dict] = None,
           partition_cols: Optional[list] = None,
-          mkdir: Optional[bool] = False,
-          dryrun: Optional[bool] = False,
+          mkdir: bool = False,
+          dryrun: bool = False,
           stream_format: Optional[str] = None,
           metadata: Optional[Dict] = None,
           ):

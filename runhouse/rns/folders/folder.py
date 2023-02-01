@@ -285,7 +285,7 @@ class Folder(Resource):
         new_folder.data_config = data_config or {}
         return new_folder
 
-    def to_local(self, dest_url: str, data_config: dict, return_dest_folder: Optional[bool] = False):
+    def to_local(self, dest_url: str, data_config: dict, return_dest_folder: bool = False):
         from runhouse.rns.hardware import Cluster
         if self.fs == 'file':
             # Simply move the files within local fs
@@ -318,7 +318,7 @@ class Folder(Resource):
                       fs: str,
                       data_store_url: Optional[str] = None,
                       data_config: Optional[dict] = None,
-                      return_dest_folder: Optional[bool] = True):
+                      return_dest_folder: bool = True):
         """Local or cluster to blob storage"""
         from runhouse.rns.hardware import Cluster
         local_folder_url = self.url
@@ -357,7 +357,7 @@ class Folder(Resource):
         logging.info(f'Creating new {self._fs_str} folder: {folder_url}')
         self.fsspec_fs.mkdirs(folder_url, exist_ok=True)
 
-    def mount(self, url: Optional[str] = None, tmp: Optional[bool] = False) -> str:
+    def mount(self, url: Optional[str] = None, tmp: bool = False) -> str:
         """ Mount the folder locally. """
         # TODO check that fusepy and FUSE are installed
         if tmp:
@@ -765,9 +765,7 @@ class Folder(Resource):
     @staticmethod
     def bucket_name_from_url(url: str) -> str:
         """Extract the bucket name from a URL (e.g. '/my-bucket/my-folder/my-file.txt' -> 'my-bucket')"""
-        split_urls: list = list(filter(None, url.split('/')))
-        if split_urls:
-            return split_urls[0]
+        return Path(url).parts[1]
 
 
 def folder(name: Optional[str] = None,

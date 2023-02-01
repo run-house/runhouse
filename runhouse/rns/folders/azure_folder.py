@@ -40,7 +40,7 @@ class AzureFolder(Folder):
     def to_cluster(self, dest_cluster, url=None, mount=False, return_dest_folder=False):
         raise NotImplementedError
 
-    def to_local(self, dest_url: str, data_config: dict, return_dest_folder: Optional[bool] = False):
+    def to_local(self, dest_url: str, data_config: dict, return_dest_folder: bool = False):
         """ Copy a folder from an Azure bucket to local dir. """
         raise NotImplementedError
 
@@ -48,6 +48,6 @@ class AzureFolder(Folder):
                       fs: str,
                       data_store_url: Optional[str] = None,
                       data_config: Optional[dict] = None,
-                      return_dest_folder: Optional[bool] = True):
+                      return_dest_folder: bool = True):
         """ Copy folder from Azure to another remote data store (ex: GCS, S3, Azure) """
         raise NotImplementedError
