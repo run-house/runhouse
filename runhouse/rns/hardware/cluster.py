@@ -339,8 +339,8 @@ class Cluster(Resource):
         while omitting it will copy the directory itself (adding a directory layer)."""
         # FYI, could be useful: https://github.com/gchamon/sysrsync
         if contents:
-            source = source + '/'
-            dest = dest + '/'
+            source = source + '/' if not source.endswith('/') else source
+            dest = dest + '/' if not dest.endswith('/') else dest
         ssh_credentials = self.ssh_creds()
         runner = command_runner.SSHCommandRunner(self.address, **ssh_credentials)
         runner.rsync(source, dest, up=up, stream_logs=False)
