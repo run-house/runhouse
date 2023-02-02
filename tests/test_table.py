@@ -175,18 +175,18 @@ def test_create_and_reload_pyarrow_data_from_s3():
 def test_create_and_reload_pandas_data_from_s3():
     orig_data = load_sample_data(data_type='pandas')
 
-    # my_table = rh.table(data=orig_data,
-    #                     name='@/my_test_pandas_table',
-    #                     url=f'/{BUCKET_NAME}/pandas_df',
-    #                     fs='s3',
-    #                     mkdir=True).save()
+    my_table = rh.table(data=orig_data,
+                        name='@/my_test_pandas_table',
+                        url=f'/{BUCKET_NAME}/pandas_df',
+                        fs='s3',
+                        mkdir=True).save()
 
     reloaded_table = rh.table(name='@/my_test_pandas_table', dryrun=True)
     reloaded_data: ray.data.Dataset = reloaded_table.data
     assert orig_data.equals(reloaded_data.to_pandas())
 
     del orig_data
-    # del my_table
+    del my_table
 
     reloaded_table.delete_configs()
 
@@ -279,6 +279,28 @@ def test_load_pyarrow_data_as_iter():
                         mkdir=True).save()
 
     reloaded_table = rh.table(name='@/my_test_pyarrow_table', dryrun=True)
+    reloaded_data: pa.ChunkedArray = next(iter(reloaded_table))
+    assert isinstance(reloaded_data, pa.ChunkedArray)
+
+    del orig_data
+    del my_table
+
+    reloaded_table.delete_configs()
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+
+def test_load_huggingface_data_as_iter():
+    orig_data = load_sample_data(data_type='huggingface')
+
+    my_table = rh.table(data=orig_data,
+                        name='@/my_test_huggingface_table',
+                        url=f'/{BUCKET_NAME}/huggingface',
+                        fs='s3',
+                        mkdir=True).save()
+
+    reloaded_table = rh.table(name='@/my_test_huggingface_table', dryrun=True)
     reloaded_data: pa.ChunkedArray = next(iter(reloaded_table))
     assert isinstance(reloaded_data, pa.ChunkedArray)
 

@@ -30,7 +30,7 @@ class RayTable(Table):
             self.data.write_parquet(self.fsspec_url)
 
             self.num_rows = len(self)
-            logger.info(f'Saved {self.__class__.__name__} data to: {self.fsspec_url}')
+            logger.info(f'Saved {str(self)} to: {self.fsspec_url}')
 
         save(self,
              name=name,

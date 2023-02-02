@@ -35,6 +35,7 @@ class HuggingFaceTable(Table):
                 # Convert to a pyarrow table before saving to the relevant file system
                 arrow_table = self.data.data.table
                 self.data, hf_dataset = arrow_table, self.data
+                self.write_pa_table(self.data, overwrite)
             elif isinstance(self.data, datasets.DatasetDict):
                 # TODO [JL] Add support for dataset dict
                 raise NotImplementedError('Runhouse does not currently support DatasetDict objects, please convert to '
@@ -43,7 +44,7 @@ class HuggingFaceTable(Table):
                 raise TypeError('Unsupported data type for HuggingFaceTable. Please use a Dataset')
 
             self.num_rows = len(self)
-            logger.info(f'Saved {self.__class__.__name__} data to: {self.fsspec_url}')
+            logger.info(f'Saved {str(self)} to: {self.fsspec_url}')
 
         save(self,
              name=name,

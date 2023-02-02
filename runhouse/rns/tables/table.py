@@ -141,10 +141,7 @@ class Table(Resource):
         if self._cached_data is not None:
             data_to_write = self.data
             if isinstance(data_to_write, pa.Table):
-                pq.write_to_dataset(data_to_write,
-                                    root_path=self.fsspec_url,
-                                    partition_cols=self.partition_cols,
-                                    existing_data_behavior='overwrite_or_ignore' if overwrite else 'error')
+                self.write_pa_table(data_to_write, overwrite)
             elif isinstance(data_to_write, ray.data.Dataset):
                 # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.write_parquet.html
                 data_to_write.write_parquet(path=self.fsspec_url)
@@ -152,7 +149,7 @@ class Table(Resource):
                 raise TypeError(f'Invalid Table format {type(data_to_write)}')
 
             self.num_rows = len(self)
-            logger.info(f'Saved {self.__class__.__name__} data to: {self.fsspec_url}')
+            logger.info(f'Saved {str(self)} to: {self.fsspec_url}')
 
         # TODO [JL] separate save to rns and write underlying resource logic
         save(self,
@@ -211,6 +208,9 @@ class Table(Resource):
 
         return len_dataset
 
+    def __str__(self):
+        return self.__class__.__name__
+
     def stream(self, batch_size, drop_last: bool = False, shuffle_seed: Optional[int] = None,
                prefetch_blocks: Optional[int] = None):
         df = self.data
@@ -237,7 +237,15 @@ class Table(Resource):
 
     @property
     def ray_dataset(self):
+        """ Read parquet data as a ray dataset object"""
         return ray.data.read_parquet(self.fsspec_url)
+
+    def write_pa_table(self, data: pa.Table, overwrite: bool):
+        """ Write a pyarrow table to a fsspec url"""
+        pq.write_to_dataset(data,
+                            root_path=self.fsspec_url,
+                            partition_cols=self.partition_cols,
+                            existing_data_behavior='overwrite_or_ignore' if overwrite else 'error')
 
     def delete_in_fs(self, recursive: bool = True):
         """Remove contents of all subdirectories (ex: partitioned data folders)"""
