@@ -25,6 +25,7 @@ class UnaryClient(object):
     """
     DEFAULT_PORT = 50052
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
+    TIMEOUT_SEC = 3
 
     def __init__(self, host, port=DEFAULT_PORT):
         self.host = host

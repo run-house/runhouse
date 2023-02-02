@@ -47,8 +47,6 @@ class Cluster(Resource):
         if not dryrun and self.address:
             # SkyCluster will start ray itself, but will also set address later, so won't reach here.
             self.start_ray()
-            # TODO [DG] check if it's on the cluster before syncing over
-            self.sync_runhouse_to_cluster()
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
@@ -136,8 +134,7 @@ class Cluster(Resource):
             raise ValueError(f'Error installing runhouse on cluster <{self.name}>')
 
     def install_packages(self, reqs: List[Union[Package, str]]):
-        if not self.is_connected():
-            self.connect_grpc()
+        self.check_grpc()
         to_install = []
         # TODO [DG] validate package strings
         for package in reqs:
@@ -162,18 +159,15 @@ class Cluster(Resource):
         self.client.install_packages(pickle.dumps(to_install))
 
     def get(self, key, default=None, stream_logs=False):
-        if not self.is_connected():
-            self.connect_grpc()
+        self.check_grpc()
         return self.client.get_object(key, stream_logs=stream_logs) or default
 
     def cancel(self, key, force=False):
-        if not self.is_connected():
-            self.connect_grpc()
+        self.check_grpc()
         return self.client.cancel_runs(key, force=force)
 
     def clear_pins(self, pins: Optional[List[str]] = None):
-        if not self.is_connected():
-            self.connect_grpc()
+        self.check_grpc()
         self.client.clear_pins(pins)
         logger.info(f'Clearing pins on cluster {pins or ""}')
 
@@ -208,6 +202,43 @@ class Cluster(Resource):
 
         # Connecting to localhost because it's tunneled into the server at the specified port.
         self.client = UnaryClient(host='127.0.0.1', port=connected_port)
+
+    def check_grpc(self, restart_grpc_server=True):
+        if not self.address:
+            raise ValueError(f'No address set for cluster <{self.name}>. Is it up?')
+
+        if not self.client:
+            self.connect_grpc()
+
+        if self.is_connected():
+            return
+
+        self.connect_grpc()
+        if self.is_connected():
+            return
+
+        if restart_grpc_server:
+            self.restart_grpc_server(resync_rh=False)
+            self.connect_grpc()
+            if self.is_connected():
+                return
+
+            self.restart_grpc_server(resync_rh=True)
+            self.connect_grpc()
+            if self.is_connected():
+                return
+
+        raise ValueError(f'Could not connect to cluster <{self.name}>')
+
+        # try:
+        #     self.client.ping()
+        # except Exception as e:
+        #     if restart_if_down:
+        #         self.restart_grpc_server(resync_rh=resync_rh)
+        #         self.connect_grpc(force_reconnect=True)
+        #         self.client.ping()
+        #     else:
+        #         raise e
 
     @staticmethod
     def check_port(ip_address, port):
@@ -315,9 +346,7 @@ class Cluster(Resource):
         pass
 
     def run_module(self, relative_path, module_name, fn_name, fn_type, args, kwargs):
-        if not self.is_connected():
-            self.connect_grpc()
-
+        self.check_grpc()
         return self.client.run_module(relative_path, module_name, fn_name, fn_type, args, kwargs)
 
     def is_connected(self):
