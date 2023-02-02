@@ -219,11 +219,6 @@ class SkyCluster(Cluster):
             if cluster_dict['name'] == cluster_name:
                 return cluster_dict
 
-    def up_if_not(self):
-        if not self.is_up():
-            self.up()
-        return self
-
     def up(self,
            ):
         if self.provider in ['aws', 'gcp', 'azure', 'cheapest']:

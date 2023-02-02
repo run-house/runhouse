@@ -47,6 +47,8 @@ class Cluster(Resource):
         if not dryrun and self.address:
             # SkyCluster will start ray itself, but will also set address later, so won't reach here.
             self.start_ray()
+            # TODO [DG] check if it's on the cluster before syncing over
+            self.sync_runhouse_to_cluster()
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
@@ -70,6 +72,16 @@ class Cluster(Resource):
 
     def is_up(self) -> bool:
         return self.address is not None
+
+    def up_if_not(self):
+        if not self.is_up():
+            if not hassattr(self, 'up'):
+                raise NotImplementedError(f'Cluster <{self.name}> does not have an up method.')
+            self.up()
+        return self
+
+    def keep_warm(self):
+        logger.info(f'cluster.keep_warm will have no effect on self-managed cluster {self.name}.')
 
     def start_ray(self):
         if self.is_up():
@@ -164,10 +176,6 @@ class Cluster(Resource):
             self.connect_grpc()
         self.client.clear_pins(pins)
         logger.info(f'Clearing pins on cluster {pins or ""}')
-
-    def keep_warm(self, autostop_mins=-1):
-        sky.autostop(self.name, autostop_mins, down=True)
-        self.autostop_mins = autostop_mins
 
     # ----------------- gRPC Methods ----------------- #
 

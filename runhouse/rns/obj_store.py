@@ -12,6 +12,7 @@ def current_cluster_name():
             ray_config_data = yaml.safe_load(f)
         return ray_config_data['cluster_name']
     else:
+        # TODO [DG] write this into the cluster fs somewhere (e.g. ~/.rh/this_cluster.yaml)
         return None
 
 THIS_CLUSTER = current_cluster_name()

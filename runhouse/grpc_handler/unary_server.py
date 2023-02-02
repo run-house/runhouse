@@ -33,12 +33,6 @@ class UnaryService(pb2_grpc.UnaryServicer):
 
     def __init__(self, *args, **kwargs):
         ray.init(address="auto")
-
-        self.sky_data = {}
-        with open(os.path.expanduser("~/.sky/sky_ray.yml")) as f:
-            self.sky_data = yaml.safe_load(f)
-        self.cluster_name = self.sky_data.get('cluster_name', 'cluster')
-
         self.imported_modules = {}
         self._installed_packages = []
         self.register_activity()

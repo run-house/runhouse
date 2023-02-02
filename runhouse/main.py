@@ -8,7 +8,7 @@ from rich.console import Console
 
 from runhouse import configs
 from runhouse.rns import login as login_module  # Need to rename it because it conflicts with the login command
-from runhouse import SkyCluster
+from runhouse import cluster
 
 # create an explicit Typer application
 app = typer.Typer(add_completion=False)
@@ -34,50 +34,50 @@ def login(token: Optional[str] = typer.Argument(None, help="Your Runhouse API to
 
 
 @app.command()
-def notebook(cluster: str, up: Optional[bool] = typer.Option(False, help="Start the cluster")):
+def notebook(cluster_name: str, up: Optional[bool] = typer.Option(False, help="Start the cluster")):
     """Open a Jupyter notebook on a cluster.
     """
-    c = SkyCluster.from_name(cluster)
+    c = cluster(name=cluster_name)
     if up:
         c.up_if_not()
     if not c.is_up():
-        console.print(f"Cluster {cluster} is not up. Please run `runhouse notebook {cluster} --up`.")
+        console.print(f"Cluster {cluster_name} is not up. Please run `runhouse notebook {cluster_name} --up`.")
         raise typer.Exit(1)
     c.notebook()
 
 
 @app.command()
-def ssh(cluster: str, up: Optional[bool] = typer.Option(False, help="Start the cluster")):
+def ssh(cluster_name: str, up: Optional[bool] = typer.Option(False, help="Start the cluster")):
     """SSH into a cluster created elsewhere (so `ssh cluster` doesn't work out of the box) or not yet up. """
-    c = SkyCluster.from_name(cluster)
+    c = cluster(name=cluster_name)
     if up:
         c.up_if_not()
     if not c.is_up():
-        console.print(f"Cluster {cluster} is not up. Please run `runhouse ssh {cluster} --up`.")
+        console.print(f"Cluster {cluster_name} is not up. Please run `runhouse ssh {cluster_name} --up`.")
         raise typer.Exit(1)
     subprocess.call(f"ssh {c.name}", shell=True)
 
 
 @app.command()
-def cancel(cluster: str, run_key: str, force: Optional[bool] = typer.Option(False, help="Force cancel")):
+def cancel(cluster_name: str, run_key: str, force: Optional[bool] = typer.Option(False, help="Force cancel")):
     """Cancel a run on a cluster. """
-    c = SkyCluster.from_name(cluster)
+    c = cluster(name=cluster_name)
     c.cancel(run_key, force=force)
 
 
 @app.command()
-def logs(cluster: str, run_key: str, print_results: Optional[bool] = typer.Option(False, help="Print results")):
+def logs(cluster_name: str, run_key: str, print_results: Optional[bool] = typer.Option(False, help="Print results")):
     """Get logs from a run on a cluster. """
-    c = SkyCluster.from_name(cluster)
+    c = cluster(name=cluster_name)
     res = c.get(run_key, stream_logs=True)
     if print_results:
         console.print(res)
 
 
-def load_cluster(cluster: str):
+def load_cluster(cluster_name: str):
     """Load a cluster from RNS into the local environment, e.g. to be able to ssh.
     """
-    c = SkyCluster.from_name(cluster)
+    c = cluster(name=cluster_name)
     if not c.address:
         c.populate_vars_from_status(dryrun=True)
 

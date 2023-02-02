@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from .cluster import Cluster
 from .skycluster import SkyCluster
@@ -17,13 +17,14 @@ def cluster(name: str,
             ips: List[str] = None,
             ssh_creds: Optional[dict] = None,
             dryrun: Optional[bool] = False,
-            ) -> Cluster:
+            ) -> Union[Cluster, SkyCluster]:
     config = rns_client.load_config(name)
     config['name'] = name or config.get('rns_address', None) or config.get('name')
 
     config['ips'] = ips or config.get('ips', None)
-    config['ssh_creds'] = ssh_creds  # ssh creds should only be in Secrets management, not in config
-    if ips:
+    # ssh creds should only be in Secrets management, not in config
+    config['ssh_creds'] = ssh_creds or config.get('ssh_creds', None)
+    if config['ips']:
         return Cluster.from_config(config, dryrun=dryrun)
 
     config['instance_type'] = instance_type or config.get('instance_type', None)
