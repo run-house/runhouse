@@ -42,7 +42,6 @@ def test_github_folder():
 # ----------------- Run tests -----------------
 
 def test_from_cluster():
-    # Assumes a rh-cpu is already up from another test
     cluster = rh.cluster(name='^rh-cpu').up_if_not()
     rh.folder(url=str(Path.cwd())).to(cluster, url='~/my_new_tests_folder')
     tests_folder = rh.folder(fs='file', url='~/my_new_tests_folder').from_cluster(cluster)

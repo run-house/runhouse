@@ -2,7 +2,7 @@ from typing import Optional, List
 import pandas as pd
 
 from .table import Table
-from .. import Cluster
+from .. import SkyCluster
 
 
 class HuggingFaceTable(Table):
@@ -15,7 +15,7 @@ class HuggingFaceTable(Table):
     def from_config(config: dict, dryrun=True):
         """ Load config values into the object. """
         if isinstance(config['fs'], dict):
-            config['fs'] = Cluster.from_config(config['fs'], dryrun=dryrun)
+            config['fs'] = SkyCluster.from_config(config['fs'], dryrun=dryrun)
         return HuggingFaceTable(**config, dryrun=dryrun)
 
     def save(self,

@@ -73,7 +73,7 @@ def test_ls():
 def test_from_name():
     f = rh.Folder.from_name('~/bert_ft', dryrun=True)
     assert f.contains('my_test_hw')
-    c = rh.Cluster.from_name('^rh-cpu', dryrun=True)
+    c = rh.SkyCluster.from_name('^rh-cpu', dryrun=True)
     assert c.instance_type == "m5.large"
 
 

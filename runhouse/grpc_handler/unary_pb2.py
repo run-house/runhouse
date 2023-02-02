@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x0bunary.proto\x12\x05unary\"B\n\x07Message\x12\x0f\n\x07message\x18\x01 \x01(\x0c\x12\x13\n\x0bmodule_name\x18\x02 \x01(\t\x12\x11\n\tfunc_name\x18\x03 \x01(\t\"4\n\x0fMessageResponse\x12\x0f\n\x07message\x18\x01 \x01(\x0c\x12\x10\n\x08received\x18\x02 \x01(\x08\x32\xba\x01\n\x05Unary\x12=\n\x11GetServerResponse\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse\"\x00\x12;\n\x0fInstallPackages\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse\"\x00\x12\x35\n\tClearPins\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse\"\x00\x62\x06proto3'
+  serialized_pb=b'\n\x0bunary.proto\x12\x05unary\"B\n\x07Message\x12\x0f\n\x07message\x18\x01 \x01(\x0c\x12\x13\n\x0bmodule_name\x18\x02 \x01(\t\x12\x11\n\tfunc_name\x18\x03 \x01(\t\"I\n\x0fMessageResponse\x12\x0f\n\x07message\x18\x01 \x01(\x0c\x12\x10\n\x08received\x18\x02 \x01(\x08\x12\x13\n\x0boutput_type\x18\x03 \x01(\t2\xa2\x02\n\x05Unary\x12\x35\n\tRunModule\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse\"\x00\x12;\n\x0fInstallPackages\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse\"\x00\x12\x35\n\tClearPins\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse\"\x00\x12\x35\n\tCancelRun\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse\"\x00\x12\x37\n\tGetObject\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse\"\x00\x30\x01\x62\x06proto3'
 )
 
 
@@ -93,6 +93,13 @@ _MESSAGERESPONSE = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='output_type', full_name='unary.MessageResponse.output_type', index=2,
+      number=3, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -106,7 +113,7 @@ _MESSAGERESPONSE = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=90,
-  serialized_end=142,
+  serialized_end=163,
 )
 
 DESCRIPTOR.message_types_by_name['Message'] = _MESSAGE
@@ -136,12 +143,12 @@ _UNARY = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=145,
-  serialized_end=331,
+  serialized_start=166,
+  serialized_end=456,
   methods=[
   _descriptor.MethodDescriptor(
-    name='GetServerResponse',
-    full_name='unary.Unary.GetServerResponse',
+    name='RunModule',
+    full_name='unary.Unary.RunModule',
     index=0,
     containing_service=None,
     input_type=_MESSAGE,
@@ -163,6 +170,26 @@ _UNARY = _descriptor.ServiceDescriptor(
     name='ClearPins',
     full_name='unary.Unary.ClearPins',
     index=2,
+    containing_service=None,
+    input_type=_MESSAGE,
+    output_type=_MESSAGERESPONSE,
+    serialized_options=None,
+    create_key=_descriptor._internal_create_key,
+  ),
+  _descriptor.MethodDescriptor(
+    name='CancelRun',
+    full_name='unary.Unary.CancelRun',
+    index=3,
+    containing_service=None,
+    input_type=_MESSAGE,
+    output_type=_MESSAGERESPONSE,
+    serialized_options=None,
+    create_key=_descriptor._internal_create_key,
+  ),
+  _descriptor.MethodDescriptor(
+    name='GetObject',
+    full_name='unary.Unary.GetObject',
+    index=4,
     containing_service=None,
     input_type=_MESSAGE,
     output_type=_MESSAGERESPONSE,

@@ -181,8 +181,8 @@ class Folder(Resource):
 
     @property
     def _fs_str(self):
-        # TODO [DG] if on the cluster file system should be set to `file`
         if isinstance(self.fs, Resource):  # if fs is a cluster
+            # TODO [DG] Return 'file' if we're on this cluster
             return self.CLUSTER_FS
         else:
             return self.fs

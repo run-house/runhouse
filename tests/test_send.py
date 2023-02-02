@@ -178,7 +178,7 @@ def test_providing_access_to_send():
     added_users, new_users = my_send.share(users=["dongreenberg", "jlewit1"],
                                            access_type=ResourceAccess.read)
     assert added_users or new_users
-    remote_sum.delete_configs()
+    my_send.delete_configs()
 
 
 def delete_send_from_rns(s):
@@ -224,6 +224,50 @@ def test_http_url_with_curl():
 
     assert True
 
+
+def test_byo_cluster_send():
+    # Spin up a new basic m5.xlarge EC2 instance
+    c = rh.cluster(instance_type='m5.xlarge',
+                   provider='aws',
+                   region='us-east-1',
+                   image_id='ami-0a313d6098716f372',
+                   name='test-byo-cluster',).up_if_not()
+    ip = c.address
+    creds = c.ssh_creds()
+    del c
+    byo_cluster = rh.cluster(name='different-cluster', ips=[ip], ssh_creds=creds).save()
+    re_fn = rh.send(multiproc_torch_sum,
+                    hardware=byo_cluster,
+                    reqs=['./', 'torch==1.12.1'])
+    summands = list(zip(range(5), range(4, 9)))
+    res = re_fn(summands)
+    assert res == [4, 6, 8, 10, 12]
+
+def test_byo_cluster_maps():
+    pid_fn = rh.send(getpid, hardware='different-cluster')
+    num_pids = [1] * 50
+    pids = pid_fn.map(num_pids)
+    assert len(set(pids)) > 1
+
+    pid_ref = pid_fn.remote()
+
+    pids = pid_fn.repeat(num_repeats=50)
+    assert len(set(pids)) > 1
+
+    pids = [pid_fn.enqueue() for _ in range(10)]
+    assert len(pids) == 10
+
+    pid_res = pid_fn.get(pid_ref)
+    assert pid_res > 0
+
+    # Test passing an objectref into a normal call
+    pid_res_from_ref = pid_fn(pid_ref)
+    assert pid_res_from_ref > pid_res
+
+    re_fn = rh.send(summer, hardware='different-cluster')
+    summands = list(zip(range(5), range(4, 9)))
+    res = re_fn.starmap(summands)
+    assert res == [4, 6, 8, 10, 12]
 
 if __name__ == '__main__':
     setup()

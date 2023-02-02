@@ -9,7 +9,6 @@ from typing import Optional, Callable, Union, List, Tuple
 import os
 from pathlib import Path
 import re
-import ray.cloudpickle as pickle
 
 from runhouse.rns.resource import Resource
 from runhouse.rns.hardware import Cluster
@@ -75,12 +74,20 @@ class Send(Resource):
         if not self.dryrun and self.access in ['write', 'read']:
             logging.info('Setting up Send on cluster.')
             if not self.hardware.address:
+                # For SkyCluster, this initial check doesn't trigger a sky.status, which is slow.
+                # If cluster simply doesn't have an address we likely need to up it.
+                if not hasattr(self.hardware, 'up'):
+                    raise ValueError("Cluster must have an address (i.e. be up) or have a reup_cluster method "
+                                     "(e.g. SkyCluster).")
                 if not self.hardware.is_up():
+                    # If this is a SkyCluster, before we up the cluster, run a sky.check to see if the cluster
+                    # is already up but doesn't have an address assigned yet.
                     self.reup_cluster()
 
             try:
                 self.hardware.install_packages(self.reqs)
             except (grpc.RpcError, sshtunnel.BaseSSHTunnelForwarderError):
+                # It's possible that the cluster went down while we were trying to install packages.
                 if not self.hardware.is_up():
                     self.reup_cluster()
                 else:
@@ -193,9 +200,13 @@ class Send(Resource):
 
     # ----------------- Send call methods -----------------
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args, stream_logs=False, **kwargs):
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
-            return self._call_fn_with_ssh_access(fn_type='call', args=args, kwargs=kwargs)
+            if stream_logs:
+                run_key = self.remote(*args, **kwargs)
+                return self.hardware.get(run_key, stream_logs=True)
+            else:
+                return self._call_fn_with_ssh_access(fn_type='call', args=args, kwargs=kwargs)
         else:
             # run the function via http url - user only needs Proxy access
             if self.access != ResourceAccess.proxy:
@@ -259,10 +270,15 @@ class Send(Resource):
         # don't need to init ray here. Also, allow user to pass the string as a param to remote().
         # TODO [DG] add rpc for listing gettaable strings, plus metadata (e.g. when it was created)
         # We need to ray init here so the returned Ray object ref doesn't throw an error it's deserialized
-        import ray
-        ray.init(ignore_reinit_error=True)
+        # import ray
+        # ray.init(ignore_reinit_error=True)
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
-            return self._call_fn_with_ssh_access(fn_type='remote', args=args, kwargs=kwargs)
+            run_key = self._call_fn_with_ssh_access(fn_type='remote', args=args, kwargs=kwargs)
+            cluster_name = f'rh.cluster(name="{self.hardware.rns_address}")' if self.hardware.name else '<my_cluster>'
+            logger.info(f'Submitted remote call to cluster. Result or logs can be retrieved\n'
+                        f'with run_key {run_key},\n e.g. {cluster_name}.get("{run_key}", stream_logs=True)\n'
+                        f'or cancelled with \n {cluster_name}.cancel({run_key})')
+            return run_key
         else:
             raise NotImplementedError("Send.remote only works with Write or Read access, not Proxy access")
 
@@ -273,6 +289,7 @@ class Send(Resource):
             obj_ref: A single or list of Ray.ObjectRef objects returned by a Send.remote() call. The ObjectRefs
                 must be from the cluster that this Send is running on.
         """
+        # TODO [DG] replace with self.hardware.get()?
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
             arg_list = obj_ref if isinstance(obj_ref, list) else [obj_ref]
             return self._call_fn_with_ssh_access(fn_type='get', args=arg_list, kwargs={})
@@ -283,21 +300,16 @@ class Send(Resource):
         # https://docs.ray.io/en/latest/ray-core/tasks/patterns/map-reduce.html
         # return ray.get([map.remote(i, map_func) for i in replicas])
         # TODO allow specifying resources per worker for map
+        # TODO [DG] check whether we're on the cluster and if so, just call the function directly via the
+        # helper function currently in UnaryServer
         name = self.name or 'anonymous send'
-        logger.info(f"Running {name} via SSH")
         if self.fn_pointers is None:
             raise RuntimeError(f"No fn pointers saved for {name}")
 
         [relative_path, module_name, fn_name] = self.fn_pointers
-        serialized_func: bytes = pickle.dumps([relative_path, module_name, fn_name, fn_type, args, kwargs])
-
-        raw_resp = self.hardware.call_grpc(serialized_func=serialized_func)
-        raw_msg: bytes = raw_resp.message
-        [res, fn_exception, fn_traceback] = pickle.loads(raw_msg)
-        if fn_exception is not None:
-            logger.error(f"Error inside send {fn_type}: {fn_exception}.")
-            logger.error(f"Traceback: {fn_traceback}")
-            raise fn_exception
+        name = self.name or fn_name or 'anonymous send'
+        logger.info(f"Running {name} via gRPC")
+        res = self.hardware.run_module(relative_path, module_name, fn_name, fn_type, args, kwargs)
         return res
 
     # TODO [DG] test this properly
@@ -526,6 +538,7 @@ def send(fn: Optional[Union[str, Callable]] = None,
         module_name = Path(path).stem
         relative_path = str(repo_name / Path(path).parent)
         config['fn_pointers'] = (relative_path, module_name, func_name)
+        # TODO [DG] check if the user already added this in their reqs
         repo_package = git_package(git_url=f'https://github.com/{username}/{repo_name}.git', revision=branch_name)
         config['reqs'].insert(0, repo_package)
         # repo_package = Package(url=f'/',

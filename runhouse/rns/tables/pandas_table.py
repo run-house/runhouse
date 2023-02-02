@@ -2,7 +2,7 @@ import uuid
 from typing import Optional, List
 
 from .table import Table
-from .. import Cluster
+from .. import SkyCluster
 from ..top_level_rns_fns import save
 
 
@@ -20,7 +20,7 @@ class PandasTable(Table):
     def from_config(config: dict, dryrun=True):
         """ Load config values into the object. """
         if isinstance(config['fs'], dict):
-            config['fs'] = Cluster.from_config(config['fs'], dryrun=dryrun)
+            config['fs'] = SkyCluster.from_config(config['fs'], dryrun=dryrun)
         return PandasTable(**config)
 
     def save(self,

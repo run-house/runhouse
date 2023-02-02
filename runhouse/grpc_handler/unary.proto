@@ -6,9 +6,13 @@ service Unary{
   // A simple RPC.
   //
   // Obtains the MessageResponse at a given position.
-  rpc GetServerResponse(Message) returns (MessageResponse) {}
+  rpc RunModule(Message) returns (MessageResponse) {}
   rpc InstallPackages(Message) returns (MessageResponse) {}
   rpc ClearPins(Message) returns (MessageResponse) {}
+  rpc CancelRun(Message) returns (MessageResponse) {}
+
+  // streaming RPC
+  rpc GetObject(Message) returns (stream MessageResponse) {}
 
 }
 
@@ -19,6 +23,7 @@ message Message {
 }
 
 message MessageResponse{
-  bytes message = 1; // will be cloudpickle or json
+  bytes message = 1;
   bool received = 2;
+  string output_type = 3;  // stdout, stderr, return
 }

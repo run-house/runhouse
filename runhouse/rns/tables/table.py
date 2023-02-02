@@ -8,7 +8,7 @@ import pyarrow.parquet as pq
 import pyarrow as pa
 import ray.data
 
-from .. import Resource, Cluster
+from .. import Resource, SkyCluster
 from runhouse.rns.folders.folder import folder
 import runhouse as rh
 from runhouse.rh_config import rns_client
@@ -52,7 +52,7 @@ class Table(Resource):
     @staticmethod
     def from_config(config: dict, dryrun=True):
         if isinstance(config['fs'], dict):
-            config['fs'] = Cluster.from_config(config['fs'], dryrun=dryrun)
+            config['fs'] = SkyCluster.from_config(config['fs'], dryrun=dryrun)
         return Table(**config, dryrun=dryrun)
 
     @property

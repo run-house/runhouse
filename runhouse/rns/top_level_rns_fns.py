@@ -127,35 +127,40 @@ def load_all_clusters():
 from runhouse import rh_config
 
 
-def _set_pinned_memory_store(store: dict):
-    rh_config.global_pinned_memory_store = store
-
-
 def pin_to_memory(key: str, value):
-    if rh_config.global_pinned_memory_store is None:
-        rh_config.global_pinned_memory_store = {}
-    rh_config.global_pinned_memory_store[key] = value
+    rh_config.obj_store.put(key, value)
 
 
-def get_pinned_object(key: str):
-    if rh_config.global_pinned_memory_store:
-        return rh_config.global_pinned_memory_store.get(key, None)
+def get_pinned_object(key: str, default=None):
+    return rh_config.obj_store.get(key, default=default)
+
+
+def get(key: str, cluster=None, default=None):
+    from runhouse.rns.hardware.skycluster import SkyCluster
+    if isinstance(cluster, str):
+        if cluster == rh_config.obj_store.cluster_name:
+            # We're currently on cluster, so just get the object from local rh_config.obj_store
+            return rh_config.obj_store.get(key, default=default)
+        else:
+            cluster = SkyCluster.from_name(cluster)
+
+    if cluster.name == rh_config.obj_store.cluster_name:
+        return rh_config.obj_store.get(key, default=default)
     else:
-        return None
+        return cluster.get(key, default=default)
 
 
 def remove_pinned_object(key: str):
-    if rh_config.global_pinned_memory_store:
-        rh_config.global_pinned_memory_store.pop(key, None)
+    rh_config.obj_store.delete(key)
 
 
-def pop_pinned_object(key: str):
-    if rh_config.global_pinned_memory_store:
-        return rh_config.global_pinned_memory_store.pop(key, None)
-    else:
-        return None
+def pop_pinned_object(key: str, default=None):
+    return rh_config.obj_store.pop(key, default=default)
 
 
-def flush_pinned_memory():
-    if rh_config.global_pinned_memory_store:
-        rh_config.global_pinned_memory_store.clear()
+def pinned_keys():
+    return rh_config.obj_store.keys()
+
+
+def clear_pinned_memory():
+    rh_config.obj_store.clear()

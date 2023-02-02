@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 import pytest
 
-from runhouse.rns.hardware.skycluster import Cluster, cluster
+from runhouse.rns.hardware.skycluster import SkyCluster, cluster
 
 
 def test_cluster_config():
@@ -10,7 +10,7 @@ def test_cluster_config():
     if not rh_cpu.is_up():
         rh_cpu.up()
     config = rh_cpu.config_for_rns
-    cluster2 = Cluster.from_config(config)
+    cluster2 = SkyCluster.from_config(config)
     assert cluster2.address == rh_cpu.address
 
 

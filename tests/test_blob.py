@@ -61,7 +61,6 @@ def test_create_and_reload_rns_blob():
 
 
 def test_from_cluster():
-    # Assumes a rh-cpu is already up from another test
     cluster = rh.cluster(name='^rh-cpu').up_if_not()
     config_blob = rh.blob(fs='file', url='/home/ubuntu/.rh/config.yaml').from_cluster(cluster)
     config_data = yaml.safe_load(config_blob.data)
