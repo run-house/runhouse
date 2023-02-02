@@ -142,7 +142,7 @@ class SkyCluster(Cluster):
             # head_ip=handle_info['head_ip'], # deprecated
             launched_resources=resources,
         )
-        sky.global_user_state.add_or_update_cluster(self.name,
+        sky.global_user_state.add_or_update_cluster(cluster_name=self.name,
                                                     cluster_handle=handle,
                                                     requested_resources=[resources],
                                                     is_launch=True,
@@ -281,6 +281,15 @@ class SkyCluster(Cluster):
         sky.autostop(self.name, idle_minutes=self.autostop_mins)
 
     # ----------------- SSH Methods ----------------- #
+
+    @staticmethod
+    def cluster_ssh_key(path_to_file):
+        try:
+            f = open(path_to_file, 'r')
+            private_key = f.read()
+            return private_key
+        except FileNotFoundError:
+            raise Exception(f'File with ssh key not found in: {path_to_file}')
 
     def ssh_creds(self):
         if not Path(self._yaml_path).exists():

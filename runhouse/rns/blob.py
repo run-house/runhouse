@@ -2,11 +2,10 @@ import copy
 import logging
 import uuid
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Optional, Dict
 
 import runhouse as rh
-from runhouse.rns.top_level_rns_fns import save
-from runhouse.rh_config import rns_client, configs
+from runhouse.rh_config import rns_client
 from runhouse.rns.folders.folder import Folder, folder
 from runhouse.rns.resource import Resource
 
@@ -30,7 +29,7 @@ class Blob(Resource):
 
         Args:
             name ():
-            fs (): FSSpec protocol, e.g. 's3', 'gcs'. See/run `fsspec.available_protocols()`.
+            fs (): FSSpec protocol, e.g. 's3', 'gs'. See/run `fsspec.available_protocols()`.
                 Default is "file", the local filesystem to wherever the blob is created.
             data_config ():
             serializer ():
@@ -125,6 +124,7 @@ class Blob(Resource):
              snapshot: bool = False,
              overwrite: bool = True,
              **snapshot_kwargs):
+
         # TODO figure out default behavior for not overwriting but still saving
         # if not overwrite:
         #     TODO check if data_url is already in use
@@ -139,10 +139,7 @@ class Blob(Resource):
 
             f.write(self.data)
 
-        save(self,
-             snapshot=snapshot,
-             overwrite=overwrite,
-             **snapshot_kwargs)
+        return super().save(name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
 
     def delete_in_fs(self, recursive: bool = True):
         self._folder.rm(self._filename, recursive=recursive)
@@ -210,7 +207,6 @@ def blob(data=None,
     config = rns_client.load_config(name)
     config['name'] = name or config.get('rns_address', None) or config.get('name')
 
-    # fs = fs or config.get('fs') or PROVIDER_FS_LOOKUP[configs.get('default_provider')]
     fs = fs or config.get('fs') or Folder.DEFAULT_FS
     config['fs'] = fs
 

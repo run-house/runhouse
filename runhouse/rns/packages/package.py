@@ -125,9 +125,9 @@ class Package(Resource):
                 raise RuntimeError('Conda install failed, check that the package exists and is '
                                    'available for your platform.')
 
-    def to_cluster(self, cluster, url=None, mount=False, return_dest_folder=False):
+    def to_cluster(self, dest_cluster, url=None, mount=False, return_dest_folder=False):
         if isinstance(self.install_target, Folder):
-            new_folder = self.install_target.to_cluster(cluster,
+            new_folder = self.install_target.to_cluster(dest_cluster,
                                                         url=url,
                                                         mount=mount,
                                                         return_dest_folder=return_dest_folder)

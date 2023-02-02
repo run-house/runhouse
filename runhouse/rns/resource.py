@@ -20,7 +20,7 @@ class Resource:
 
     def __init__(self,
                  name: Optional[str] = None,
-                 dryrun: Optional[bool] = None,
+                 dryrun: bool = None,
                  ):
         self._name, self._rns_folder = None, None
         if name is not None:
@@ -52,8 +52,6 @@ class Resource:
             if resource.rns_address.startswith('^'):
                 # Calls save internally and puts the resource in the current folder
                 resource.name = rns_client.resolve_rns_path(resource.rns_address[1:])
-            # TODO [DG] not sure if we should save here
-            resource.save()
             return resource.rns_address
         return resource.config_for_rns
 

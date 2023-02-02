@@ -34,7 +34,7 @@ def login(token: Optional[str] = typer.Argument(None, help="Your Runhouse API to
 
 
 @app.command()
-def notebook(cluster_name: str, up: Optional[bool] = typer.Option(False, help="Start the cluster")):
+def notebook(cluster_name: str, up: bool = typer.Option(False, help="Start the cluster")):
     """Open a Jupyter notebook on a cluster.
     """
     c = cluster(name=cluster_name)
@@ -47,7 +47,7 @@ def notebook(cluster_name: str, up: Optional[bool] = typer.Option(False, help="S
 
 
 @app.command()
-def ssh(cluster_name: str, up: Optional[bool] = typer.Option(False, help="Start the cluster")):
+def ssh(cluster_name: str, up: bool = typer.Option(False, help="Start the cluster")):
     """SSH into a cluster created elsewhere (so `ssh cluster` doesn't work out of the box) or not yet up. """
     c = cluster(name=cluster_name)
     if up:
