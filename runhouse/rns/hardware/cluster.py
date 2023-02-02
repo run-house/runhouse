@@ -75,7 +75,7 @@ class Cluster(Resource):
 
     def up_if_not(self):
         if not self.is_up():
-            if not hassattr(self, 'up'):
+            if not hasattr(self, 'up'):
                 raise NotImplementedError(f'Cluster <{self.name}> does not have an up method.')
             self.up()
         return self
