@@ -355,7 +355,7 @@ class Send(Resource):
         config = super().config_for_rns
 
         config.update({
-            'hardware': self._resource_string_for_subconfig(self.hardware),
+            'hardware': self._resource_string_for_subconfig(self.hardware.save()),
             'reqs': [self._resource_string_for_subconfig(package) for package in self.reqs],
             'setup_cmds': self.setup_cmds,
             'fn_pointers': self.fn_pointers,

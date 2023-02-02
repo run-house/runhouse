@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 import pkgutil
 import contextlib
+import time
 
 import sky
 from sky.utils import command_runner
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 class Cluster(Resource):
     RESOURCE_TYPE = "cluster"
+    GRPC_TIMEOUT = 5  # seconds
 
     def __init__(self,
                  name,
@@ -202,6 +204,10 @@ class Cluster(Resource):
 
         # Connecting to localhost because it's tunneled into the server at the specified port.
         self.client = UnaryClient(host='127.0.0.1', port=connected_port)
+        waited = 0
+        while not self.is_connected() and waited <= self.GRPC_TIMEOUT:
+            time.sleep(.25)
+            waited += .25
 
     def check_grpc(self, restart_grpc_server=True):
         if not self.address:
@@ -337,7 +343,6 @@ class Cluster(Resource):
                                 stream_logs=True,
                                 )
         # As of 2022-27-Dec still seems we need this.
-        import time
         time.sleep(2)
         return status_codes
 
