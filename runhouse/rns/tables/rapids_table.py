@@ -1,8 +1,11 @@
-from typing import Optional, List
+import logging
+from typing import Optional
 
 from .table import Table
 from .. import Cluster
 from ..top_level_rns_fns import save
+
+logger = logging.getLogger(__name__)
 
 
 class RapidsTable(Table):
@@ -27,11 +30,16 @@ class RapidsTable(Table):
         if self._cached_data is not None:
             self.data.to_parquet(self.fsspec_url)
 
+            self.num_rows = len(self)
+            logger.info(f'Saved {self.__class__.__name__} data to: {self.fsspec_url}')
+
         save(self,
              name=name,
              snapshot=snapshot,
              overwrite=overwrite,
              **snapshot_kwargs)
+
+        return self
 
     def fetch(self, **kwargs):
         import cudf

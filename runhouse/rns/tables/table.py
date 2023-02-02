@@ -4,6 +4,7 @@ from typing import Optional, List, Dict
 import copy
 import logging
 import fsspec
+import pandas as pd
 import pyarrow.parquet as pq
 import pyarrow as pa
 import ray.data
@@ -12,6 +13,7 @@ from .. import Resource, Cluster
 from runhouse.rns.folders.folder import folder
 import runhouse as rh
 from runhouse.rh_config import rns_client
+from ..top_level_rns_fns import save
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +50,7 @@ class Table(Resource):
         self.file_name = file_name
         self.stream_format = stream_format or self.DEFAULT_STREAM_FORMAT
         self.metadata = metadata or {}
+        self.num_rows = 0
 
     @staticmethod
     def from_config(config: dict, dryrun=True):
@@ -69,7 +72,7 @@ class Table(Resource):
         return config
 
     @property
-    def data(self) -> ray.data.dataset.Dataset:
+    def data(self) -> ray.data.Dataset:
         """Get the table data. If data is not already cached return a ray dataset. With the dataset object we can
         stream or convert to other types, for example:
             data.iter_batches()
@@ -108,6 +111,9 @@ class Table(Resource):
     def set_metadata(self, key, val):
         self.metadata[key] = val
 
+    def get_metadata(self, key):
+        return self.metadata.get(key)
+
     @property
     def fsspec_url(self):
         if self.file_name:
@@ -133,16 +139,28 @@ class Table(Resource):
              overwrite: bool = True,
              **snapshot_kwargs):
         if self._cached_data is not None:
-            pq.write_to_dataset(self.data,
-                                root_path=self.fsspec_url,
-                                partition_cols=self.partition_cols,
-                                existing_data_behavior='overwrite_or_ignore' if overwrite else 'error')
+            data_to_write = self.data
+            if isinstance(data_to_write, pa.Table):
+                pq.write_to_dataset(data_to_write,
+                                    root_path=self.fsspec_url,
+                                    partition_cols=self.partition_cols,
+                                    existing_data_behavior='overwrite_or_ignore' if overwrite else 'error')
+            elif isinstance(data_to_write, ray.data.Dataset):
+                # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.write_parquet.html
+                data_to_write.write_parquet(path=self.fsspec_url)
+            else:
+                raise TypeError(f'Invalid Table format {type(data_to_write)}')
 
-            if hasattr(self.data, '__len__'):
-                # Store the number of rows if we use for training later without having to read in the whole table
-                self.set_metadata('num_rows', len(self.data))
+            self.num_rows = len(self)
+            logger.info(f'Saved {self.__class__.__name__} data to: {self.fsspec_url}')
 
-        return super().save(name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
+        # TODO [JL] separate save to rns and write underlying resource logic
+        save(self,
+             snapshot=snapshot,
+             overwrite=overwrite,
+             **snapshot_kwargs)
+
+        return self
 
     def fetch(self, columns: Optional[list] = None) -> pa.Table:
         # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
@@ -175,20 +193,22 @@ class Table(Resource):
                 yield sample
 
     def __len__(self):
-        len_dataset = self.metadata.get('num_rows')
-        if len_dataset is not None:
+        len_dataset = self.num_rows
+        if len_dataset != 0:
             return len_dataset
 
-        if isinstance(self.data, ray.data.dataset.Dataset):
+        if isinstance(self.data, pd.DataFrame):
+            len_dataset = self.data.shape[0]
+
+        elif isinstance(self.data, ray.data.Dataset):
             len_dataset = self.data.count()
-            self.set_metadata('num_rows', len_dataset)
-            return len_dataset
 
-        if not hasattr(self.data, '__len__') or not self.data:
-            raise RuntimeError("Cannot get len for dataset.")
+        else:
+            if not hasattr(self.data, '__len__') or not self.data:
+                raise RuntimeError("Cannot get len for dataset.")
+            else:
+                len_dataset = len(self.data)
 
-        len_dataset = len(self.data)
-        self.set_metadata('num_rows', len_dataset)
         return len_dataset
 
     def stream(self, batch_size, drop_last: bool = False, shuffle_seed: Optional[int] = None,
@@ -217,7 +237,7 @@ class Table(Resource):
 
     @property
     def ray_dataset(self):
-        return ray.data.read_parquet(self.url, filesystem=self._folder.fsspec_fs)
+        return ray.data.read_parquet(self.fsspec_url)
 
     def delete_in_fs(self, recursive: bool = True):
         """Remove contents of all subdirectories (ex: partitioned data folders)"""
@@ -278,7 +298,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
 
     try:
         import ray
-        if isinstance(data, ray.data.dataset.Dataset) or resource_subtype == 'RayTable':
+        if isinstance(data, ray.data.Dataset) or resource_subtype == 'RayTable':
             from .ray_table import RayTable
             return RayTable.from_config(config)
     except ModuleNotFoundError:

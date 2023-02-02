@@ -1,9 +1,12 @@
+import logging
 import uuid
-from typing import Optional, List
+from typing import Optional
 
 from .table import Table
 from .. import Cluster
 from ..top_level_rns_fns import save
+
+logger = logging.getLogger(__name__)
 
 
 class PandasTable(Table):
@@ -15,6 +18,11 @@ class PandasTable(Table):
         # PyArrow will create this file and suffix for us, but with Pandas we need to do it ourselves.
         if self.file_name is None:
             self.file_name = f'{uuid.uuid4().hex}.parquet'
+
+    def __iter__(self):
+        for block in self.stream(batch_size=self.DEFAULT_BATCH_SIZE):
+            for idx, row in block.iterrows():
+                yield row
 
     @staticmethod
     def from_config(config: dict, dryrun=True):
@@ -34,7 +42,15 @@ class PandasTable(Table):
                                  partition_cols=self.partition_cols,
                                  storage_options=self.data_config)
 
-        return super().save(name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
+            self.num_rows = len(self)
+            logger.info(f'Saved {self.__class__.__name__} data to: {self.fsspec_url}')
+
+        save(self,
+             snapshot=snapshot,
+             overwrite=overwrite,
+             **snapshot_kwargs)
+
+        return self
 
     def fetch(self, **kwargs):
         import pandas as pd
