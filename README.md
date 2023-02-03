@@ -24,7 +24,7 @@ Runhouse allows just that: send code and data to any of your compute or
 data infra (with your own cloud creds), all in Python, and continue to use them
 eagerly exactly as they were.
 
-Runhouse is for ML Researchers, Engineers, and Data Scientists who are tired of: 
+Runhouse is for ML Researchers, Engineers, and Data Scientists who are tired of:
  - 🚜 manually shuttling code and data around between their local machine, remote instances, and cloud storage,
  - 📤📥 constantly spinning up and down boxes,
  - 🐜 debugging over ssh and notebook tunnels,
@@ -34,6 +34,7 @@ Runhouse is for ML Researchers, Engineers, and Data Scientists who are tired of:
  - 🕵️ and struggling to find their teammates' code and data artifacts.
 
 By way of a visual,
+
 ![img.png](docs/assets/img.png)
 ![img_1.png](docs/assets/img_1.png)
 
@@ -55,7 +56,7 @@ if __name__ == "__main__":
     [image.show() for image in images]
 
 ```
-There's no magic yaml, DSL, code serialization, or "submitting for execution." We're 
+There's no magic yaml, DSL, code serialization, or "submitting for execution." We're
 just spinning up the cluster for you (or using an existing cluster), syncing over your code,
 starting a gRPC connection, and running your code on the cluster.
 
@@ -67,7 +68,7 @@ inference before any compilation.
 On the data side, we can do things like:
 ```python
 # Send a folder up to a cluster (rsync)
-rh.folder(url=input_images_dir).to(fs=gpu, url='dreambooth/instance_images')        
+rh.folder(url=input_images_dir).to(fs=gpu, url='dreambooth/instance_images')
 
 # Stream a table in from anywhere (S3, GCS, local, etc)
 preprocessed_yelp = rh.table(name="preprocessed-tokenized-dataset")
@@ -81,8 +82,8 @@ trained_model.to('s3', url='runhouse/my_bucket').save(name='yelp_fine_tuned_bert
 
 These APIs work from anywhere with a Python interpreter and an internet connection,
 so notebooks, scripts, pipeline DSLs, etc. are all fair game. We currently support AWS,
-GCP, Azure, and Lambda Labs credentials through SkyPilot, as well as BYO cluster (just drop 
-in an ip address and ssh key). 
+GCP, Azure, and Lambda Labs credentials through SkyPilot, as well as BYO cluster (just drop
+in an ip address and ssh key).
 
 ## 👨‍🏫 Tutorials / API Walkthrough
 

@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from runhouse import rh_config
-from runhouse.rns.packages import Package
+from .package import Package
 
 
 class GitPackage(Package):
