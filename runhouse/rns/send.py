@@ -1,3 +1,4 @@
+import copy
 import inspect
 import json
 import logging
@@ -97,36 +98,37 @@ class Send(Resource):
         return Send(**config, dryrun=dryrun)
 
     def to(self, hardware, reqs=None, setup_cmds=None):
-        self.hardware = hardware if hardware else self.hardware
-        self.reqs = reqs if reqs else self.reqs
-        self.setup_cmds = setup_cmds if setup_cmds else self.setup_cmds # Run inside reup_cluster
+        new_send = copy.deepcopy(self)
+        new_send.hardware = hardware if hardware else self.hardware
+        new_send.reqs = reqs if reqs else self.reqs
+        new_send.setup_cmds = setup_cmds if setup_cmds else self.setup_cmds # Run inside reup_cluster
         # TODO [DG] figure out how to run setup_cmds on BYO Cluster
 
         logging.info("Setting up Send on cluster.")
-        if not self.hardware.address:
+        if not new_send.hardware.address:
             # For SkyCluster, this initial check doesn't trigger a sky.status, which is slow.
             # If cluster simply doesn't have an address we likely need to up it.
-            if not hasattr(self.hardware, "up"):
+            if not hasattr(new_send.hardware, "up"):
                 raise ValueError(
                     "Cluster must have an address (i.e. be up) or have a reup_cluster method "
                     "(e.g. SkyCluster)."
                 )
-            if not self.hardware.is_up():
+            if not new_send.hardware.is_up():
                 # If this is a SkyCluster, before we up the cluster, run a sky.check to see if the cluster
                 # is already up but doesn't have an address assigned yet.
-                self.reup_cluster()
+                new_send.reup_cluster()
         try:
-            self.hardware.install_packages(self.reqs)
+            new_send.hardware.install_packages(new_send.reqs)
         except (grpc.RpcError, sshtunnel.BaseSSHTunnelForwarderError):
             # It's possible that the cluster went down while we were trying to install packages.
-            if not self.hardware.is_up():
-                self.reup_cluster()
+            if not new_send.hardware.is_up():
+                new_send.reup_cluster()
             else:
-                self.hardware.restart_grpc_server(resync_rh=False)
-            self.hardware.install_packages(self.reqs)
+                new_send.hardware.restart_grpc_server(resync_rh=False)
+            new_send.hardware.install_packages(new_send.reqs)
         logging.info("Send setup complete.")
 
-        return self
+        return new_send
 
     def reup_cluster(self):
         logger.info(f"Upping the cluster {self.hardware.name}")

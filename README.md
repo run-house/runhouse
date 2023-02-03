@@ -18,6 +18,12 @@ expect to iterate on the APIs considerably before reaching beta
 (version 0.1.0).
 
 ## 👵 Welcome Home!
+PyTorch lets you send a Python function or tensor `.to(device)`, so
+why can't you do `my_fn.to('a_gcp_a100')` or `my_table.to('parquet_in_s3')`?
+Runhouse allows just that: send code and data to any of your compute or
+data infra (with your own cloud creds), all in Python, and continue to use them
+eagerly exactly as they were.
+
 Runhouse is for ML Researchers, Engineers, and Data Scientists who are tired of: 
  - 🚜 manually shuttling code and data around between their local machine, remote instances, and cloud storage,
  - 📤📥 constantly spinning up and down boxes,
@@ -28,15 +34,10 @@ Runhouse is for ML Researchers, Engineers, and Data Scientists who are tired of:
  - 🕵️ and struggling to find their teammates' code and data artifacts.
 
 By way of a visual,
-
 ![img.png](docs/assets/img.png)
 ![img_1.png](docs/assets/img_1.png)
 
-PyTorch lets you send a Python function or tensor `.to(device)`, so
-why can't you do `my_fn.to('a_gcp_a100')` or `my_table.to('parquet_in_s3')`?
-Runhouse allows just that: send code and data to any of your compute or
-data infra (with your own cloud creds), all in Python, and continue to use them
-eagerly exactly as they were. Take a look at this code (adapted from our first [tutorial](https://github.com/run-house/tutorials)):
+Take a look at this code (adapted from our first [tutorial](https://github.com/run-house/tutorials)):
 ```python
 import runhouse as rh
 from diffusers import StableDiffusionPipeline
