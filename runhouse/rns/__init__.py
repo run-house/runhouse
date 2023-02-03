@@ -2,9 +2,9 @@
 #  including coarse selections like 'local' or 'aws'
 # TODO allow registration of user-created resource implementations
 
-from runhouse.rns.packages.package import Package
 from .blob import Blob
 from .hardware import Cluster, cluster, SkyCluster
+from .packages.package import Package
 from .resource import Resource
 from .secrets import Secrets
 from .send import Send
