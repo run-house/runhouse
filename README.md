@@ -17,13 +17,26 @@ it with a few select people to collect feedback, and
 expect to iterate on the APIs considerably before reaching beta
 (version 0.1.0).
 
-## 🤨 What is Runhouse?
+## 👵 Welcome Home!
+Runhouse is for ML Researchers, Engineers, and Data Scientists who are tired of: 
+ - 🚜 manually shuttling code and data around between their local machine, remote instances, and cloud storage,
+ - 📤📥 constantly spinning up and down boxes,
+ - 🐜 debugging over ssh and notebook tunnels,
+ - 🧑‍🔧 translating their code into a pipeline DSL just to use multiple hardware types,
+ - 🪦 debugging in an orchestrator,
+ - 👩‍✈️ missing out on fancy LLM IDE features,
+ - 🕵️ and struggling to find their teammates' code and data artifacts.
+
+By way of a visual,
+
+![img.png](docs/assets/img.png)
+![img_1.png](docs/assets/img_1.png)
 
 PyTorch lets you send a Python function or tensor `.to(device)`, so
 why can't you do `my_fn.to('a_gcp_a100')` or `my_table.to('parquet_in_s3')`?
 Runhouse allows just that: send code and data to any of your compute or
 data infra (with your own cloud creds), all in Python, and continue to use them
-eagerly exactly as they were. Take a look at this code (our first [tutorial](https://github.com/run-house/tutorials)):
+eagerly exactly as they were. Take a look at this code (adapted from our first [tutorial](https://github.com/run-house/tutorials)):
 ```python
 import runhouse as rh
 from diffusers import StableDiffusionPipeline
@@ -35,16 +48,40 @@ def sd_generate(prompt, num_images=1, steps=100, guidance_scale=7.5, model_id='s
 
 if __name__ == "__main__":
     gpu = rh.cluster(name='rh-v100', instance_type='V100:1', provider='gcp')
-    generate_gpu = rh.send(fn=sd_generate, hardware=gpu, reqs=['./', 'torch==1.12.0', 'diffusers'])
+    generate_gpu = rh.send(fn=sd_generate).to(gpu, reqs=['./', 'torch==1.12.0', 'diffusers'])
 
     images = generate_gpu('A digital illustration of a woman running on the roof of a house.', num_images=2, steps=50)
     [image.show() for image in images]
 
 ```
-There's no magic yaml, DSL, code serialization, or "submitting for execution."
+There's no magic yaml, DSL, code serialization, or "submitting for execution." We're 
+just spinning up the cluster for you (or using an existing cluster), syncing over your code,
+starting a gRPC connection, and running your code on the cluster.
+
+**_Runhouse does things for you that you'd spend time doing yourself, in as obvious a way as possible._**
+
 And because it's not stateless, we can pin the model to GPU memory, and get ~1.5s/image
-inference before any compilation. There's much more, like accessing your resources from
-anywhere with a Python interpreter and an internet connection, or sharing them with collaborators.
+inference before any compilation.
+
+On the data side, we can do things like:
+```python
+# Send a folder up to a cluster (rsync)
+rh.folder(url=input_images_dir).to(fs=gpu, url='dreambooth/instance_images')        
+
+# Stream a table in from anywhere (S3, GCS, local, etc)
+preprocessed_yelp = rh.table(name="preprocessed-tokenized-dataset")
+for batch in preprocessed_table.stream(batch_size=batch_size):
+    ...
+
+# Send a model checkpoint up to blob storage
+trained_model = rh.blob(data=pickle.dumps(model))
+trained_model.to('s3', url='runhouse/my_bucket').save(name='yelp_fine_tuned_bert')
+```
+
+These APIs work from anywhere with a Python interpreter and an internet connection,
+so notebooks, scripts, pipeline DSLs, etc. are all fair game. We currently support AWS,
+GCP, Azure, and Lambda Labs credentials through SkyPilot, as well as BYO cluster (just drop 
+in an ip address and ssh key). 
 
 ## 👨‍🏫 Tutorials / API Walkthrough
 

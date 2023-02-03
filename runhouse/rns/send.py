@@ -17,30 +17,29 @@ from runhouse.rns.hardware import Cluster
 from runhouse.rns.packages import git_package, Package
 
 from runhouse.rns.resource import Resource
+from runhouse.rns.run_module_utils import call_fn_by_type, get_fn_by_name
 
 logger = logging.getLogger(__name__)
 
 
 class Send(Resource):
     RESOURCE_TYPE = "send"
-    DEFAULT_HARDWARE = "^rh-cpu"
     DEFAULT_ACCESS = "write"
 
     def __init__(
-        self,
-        fn_pointers: Tuple[str, str, str],
-        hardware: Optional[Cluster] = None,
-        name: [Optional[str]] = None,
-        reqs: Optional[List[str]] = None,
-        setup_cmds: Optional[List[str]] = None,
-        image: Optional[str] = None,  # TODO
-        dryrun: bool = True,
-        access: Optional[str] = None,
-        **kwargs,  # We have this here to ignore extra arguments when calling from from_config
+            self,
+            fn_pointers: Tuple[str, str, str],
+            hardware: Optional[Cluster] = None,
+            name: [Optional[str]] = None,
+            reqs: Optional[List[str]] = None,
+            setup_cmds: Optional[List[str]] = None,
+            dryrun: bool = True,
+            access: Optional[str] = None,
+            **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
-        Create, load, or update a Send ("Serverless endpoint"). A Send is comprised of the package,
-        entrypoint, hardware, and dependencies (requirements or image) to run the service.
+        Create, load, or update a Send ("Serverless endpoint"). A Send is comprised of the
+        entrypoint, hardware, and dependencies to run the service.
 
         Args:
             fn (): A python callable or entrypoint string (module:function) within the package which the user
@@ -52,52 +51,19 @@ class Send(Resource):
                 it to be reloaded and used later or in other environments. If name is left empty, the Send is
                 "anonymous" and will only exist within this Python context. # TODO more about user namespaces.
             hardware ():
-            parent ():
             reqs ():
             cluster ():
         """
-        # TODO add function setter for better interactivity in notebooks
         self.fn_pointers = fn_pointers
         self.hardware = hardware
         self.reqs = reqs
         self.setup_cmds = setup_cmds or []
-        self.image = image  # TODO or self.DEFAULT_IMAGE
         self.access = access or self.DEFAULT_ACCESS
-
-        # if we aren't in setup mode we are presumably calling an existing Send on an existing cluster
-        # ex: Consuming the Send as a reader after the creator has shared it with you
-        # TODO maybe infer setup mode by looking at fields provided
-        #  ex: bool(name and not reqs and not hardware and not cluster and not folder and not fn)
         self.dryrun = dryrun
         super().__init__(name=name, dryrun=dryrun)
 
-        # TODO dedicated vs. shared mode for hardware
-
-        if not self.dryrun and self.access in ["write", "read"]:
-            logging.info("Setting up Send on cluster.")
-            if not self.hardware.address:
-                # For SkyCluster, this initial check doesn't trigger a sky.status, which is slow.
-                # If cluster simply doesn't have an address we likely need to up it.
-                if not hasattr(self.hardware, "up"):
-                    raise ValueError(
-                        "Cluster must have an address (i.e. be up) or have a reup_cluster method "
-                        "(e.g. SkyCluster)."
-                    )
-                if not self.hardware.is_up():
-                    # If this is a SkyCluster, before we up the cluster, run a sky.check to see if the cluster
-                    # is already up but doesn't have an address assigned yet.
-                    self.reup_cluster()
-
-            try:
-                self.hardware.install_packages(self.reqs)
-            except (grpc.RpcError, sshtunnel.BaseSSHTunnelForwarderError):
-                # It's possible that the cluster went down while we were trying to install packages.
-                if not self.hardware.is_up():
-                    self.reup_cluster()
-                else:
-                    self.hardware.restart_grpc_server(resync_rh=False)
-                self.hardware.install_packages(self.reqs)
-            logging.info("Send setup complete.")
+        if not self.dryrun and self.hardware and self.access in ["write", "read"]:
+            self.to(self.hardware, reqs=self.reqs, setup_cmds=setup_cmds)
 
     # ----------------- Constructor helper methods -----------------
 
@@ -129,6 +95,38 @@ class Send(Resource):
             )
 
         return Send(**config, dryrun=dryrun)
+
+    def to(self, hardware, reqs=None, setup_cmds=None):
+        self.hardware = hardware if hardware else self.hardware
+        self.reqs = reqs if reqs else self.reqs
+        self.setup_cmds = setup_cmds if setup_cmds else self.setup_cmds # Run inside reup_cluster
+        # TODO [DG] figure out how to run setup_cmds on BYO Cluster
+
+        logging.info("Setting up Send on cluster.")
+        if not self.hardware.address:
+            # For SkyCluster, this initial check doesn't trigger a sky.status, which is slow.
+            # If cluster simply doesn't have an address we likely need to up it.
+            if not hasattr(self.hardware, "up"):
+                raise ValueError(
+                    "Cluster must have an address (i.e. be up) or have a reup_cluster method "
+                    "(e.g. SkyCluster)."
+                )
+            if not self.hardware.is_up():
+                # If this is a SkyCluster, before we up the cluster, run a sky.check to see if the cluster
+                # is already up but doesn't have an address assigned yet.
+                self.reup_cluster()
+        try:
+            self.hardware.install_packages(self.reqs)
+        except (grpc.RpcError, sshtunnel.BaseSSHTunnelForwarderError):
+            # It's possible that the cluster went down while we were trying to install packages.
+            if not self.hardware.is_up():
+                self.reup_cluster()
+            else:
+                self.hardware.restart_grpc_server(resync_rh=False)
+            self.hardware.install_packages(self.reqs)
+        logging.info("Send setup complete.")
+
+        return self
 
     def reup_cluster(self):
         logger.info(f"Upping the cluster {self.hardware.name}")
@@ -227,7 +225,10 @@ class Send(Resource):
 
     def __call__(self, *args, stream_logs=False, **kwargs):
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
-            if stream_logs:
+            if not self.hardware or self.hardware.name == rh_config.obj_store.cluster_name:
+                fn = get_fn_by_name(module_name=self.fn_pointers[1], fn_name=self.fn_pointers[2])
+                return call_fn_by_type(fn, fn_type, fn_name, relative_path, args, kwargs)
+            elif stream_logs:
                 run_key = self.remote(*args, **kwargs)
                 return self.hardware.get(run_key, stream_logs=True)
             else:
@@ -381,47 +382,47 @@ class Send(Resource):
         return res
 
     # TODO [DG] test this properly
-    def debug(self, redirect_logging=False, timeout=10000, *args, **kwargs):
-        """Run the Send in debug mode. This will run the Send through a tunnel interpreter, which
-        allows the use of breakpoints and other debugging tools, like rh.ipython().
-        FYI, alternative ideas from Ray: https://github.com/ray-project/ray/issues/17197
-        FYI, alternative Modal folks shared: https://github.com/modal-labs/modal-client/pull/32
-        """
-        from paramiko import AutoAddPolicy
-
-        # Importing this here because they're heavy
-        from plumbum.machines.paramiko_machine import ParamikoMachine
-        from rpyc.utils.classic import redirected_stdio
-        from rpyc.utils.zerodeploy import DeployedServer
-
-        creds = self.hardware.ssh_creds()
-        ssh_client = ParamikoMachine(
-            self.hardware.address,
-            user=creds["ssh_user"],
-            keyfile=str(Path(creds["ssh_private_key"]).expanduser()),
-            missing_host_policy=AutoAddPolicy(),
-        )
-        server = DeployedServer(
-            ssh_client, server_class="rpyc.utils.server.ForkingServer"
-        )
-        conn = server.classic_connect()
-
-        if redirect_logging:
-            rlogger = conn.modules.logging.getLogger()
-            rlogger.parent = logging.getLogger()
-
-        conn._config[
-            "sync_request_timeout"
-        ] = timeout  # seconds. May need to be longer for real debugging.
-        conn._config["allow_public_attrs"] = True
-        conn._config["allow_pickle"] = True
-        # This assumes the code is already synced over to the remote container
-        remote_fn = getattr(conn.modules[self.fn.__module__], self.fn.__name__)
-
-        with redirected_stdio(conn):
-            res = remote_fn(*args, **kwargs)
-        conn.close()
-        return res
+    # def debug(self, redirect_logging=False, timeout=10000, *args, **kwargs):
+    #     """Run the Send in debug mode. This will run the Send through a tunnel interpreter, which
+    #     allows the use of breakpoints and other debugging tools, like rh.ipython().
+    #     FYI, alternative ideas from Ray: https://github.com/ray-project/ray/issues/17197
+    #     FYI, alternative Modal folks shared: https://github.com/modal-labs/modal-client/pull/32
+    #     """
+    #     from paramiko import AutoAddPolicy
+    #
+    #     # Importing this here because they're heavy
+    #     from plumbum.machines.paramiko_machine import ParamikoMachine
+    #     from rpyc.utils.classic import redirected_stdio
+    #     from rpyc.utils.zerodeploy import DeployedServer
+    #
+    #     creds = self.hardware.ssh_creds()
+    #     ssh_client = ParamikoMachine(
+    #         self.hardware.address,
+    #         user=creds["ssh_user"],
+    #         keyfile=str(Path(creds["ssh_private_key"]).expanduser()),
+    #         missing_host_policy=AutoAddPolicy(),
+    #     )
+    #     server = DeployedServer(
+    #         ssh_client, server_class="rpyc.utils.server.ForkingServer"
+    #     )
+    #     conn = server.classic_connect()
+    #
+    #     if redirect_logging:
+    #         rlogger = conn.modules.logging.getLogger()
+    #         rlogger.parent = logging.getLogger()
+    #
+    #     conn._config[
+    #         "sync_request_timeout"
+    #     ] = timeout  # seconds. May need to be longer for real debugging.
+    #     conn._config["allow_public_attrs"] = True
+    #     conn._config["allow_pickle"] = True
+    #     # This assumes the code is already synced over to the remote container
+    #     remote_fn = getattr(conn.modules[self.fn.__module__], self.fn.__name__)
+    #
+    #     with redirected_stdio(conn):
+    #         res = remote_fn(*args, **kwargs)
+    #     conn.close()
+    #     return res
 
     @property
     def config_for_rns(self):
@@ -653,7 +654,7 @@ def send(
         #                        install_method='local')
         # config['reqs'] = [repo_package] + config['reqs']
 
-    config["hardware"] = hardware or config.get("hardware") or Send.DEFAULT_HARDWARE
+    config["hardware"] = hardware or config.get("hardware")
     if isinstance(config["hardware"], str):
         hw_dict = rh_config.rns_client.load_config(config["hardware"])
         if not hw_dict:
@@ -663,7 +664,6 @@ def send(
             )
         config["hardware"] = hw_dict
 
-    # config['image'] = image or config.get('image')
     config["setup_cmds"] = (
         setup_cmds if setup_cmds is not None else config.get("setup_cmds")
     )

@@ -33,6 +33,7 @@ class ObjStore:
     def __init__(self, cluster_name: Optional[str] = None):
         self.cluster_name = cluster_name or THIS_CLUSTER
         self._obj_store_cache = {}
+        self.imported_modules = {}
 
     @property
     def obj_store_cache(self):
