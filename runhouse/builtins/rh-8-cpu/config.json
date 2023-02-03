@@ -2,9 +2,9 @@
     "resource_type": "cluster",
     "name": "/builtins/rh-8-cpu",
     "rns_address": "/builtins/rh-8-cpu",
-    "instance_type": "m5.2xlarge",
+    "instance_type": "CPU:8+",
     "num_instances": null,
-    "provider": "aws",
+    "provider": null,
     "autostop_mins": null,
     "use_spot": false
 }

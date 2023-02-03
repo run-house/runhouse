@@ -66,7 +66,8 @@ class Cluster(Resource):
     @property
     def config_for_rns(self):
         config = super().config_for_rns
-        self.save_attrs_to_config(config, ("ips", "_ssh_creds"))
+        self.save_attrs_to_config(config, ["ips"])
+        config['ssh_creds'] = self.ssh_creds()
         # TODO [DG] creds should be shared through secrets management only
         return config
 

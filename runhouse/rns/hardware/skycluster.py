@@ -262,10 +262,13 @@ class SkyCluster(Cluster):
                 sky.Resources(
                     cloud=cloud_provider,
                     instance_type=self.instance_type
-                    if ":" not in self.instance_type
+                    if ":" not in self.instance_type and "CPU" not in self.instance_type
                     else None,
                     accelerators=self.instance_type
-                    if ":" in self.instance_type
+                    if ":" in self.instance_type and "CPU" not in self.instance_type
+                    else None,
+                    cpus=self.instance_type.rsplit(":", 1)[1]
+                    if ":" in self.instance_type and "CPU" in self.instance_type
                     else None,
                     region=self.region,
                     image_id=self.image_id,

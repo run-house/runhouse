@@ -2,9 +2,9 @@
     "resource_type": "cluster",
     "name": "/builtins/rh-cpu",
     "rns_address": "/builtins/rh-cpu",
-    "instance_type": "m5.large",
+    "instance_type": "CPU:2+",
     "num_instances": null,
-    "provider": "aws",
+    "provider": null,
     "autostop_mins": null,
     "use_spot": false
 }

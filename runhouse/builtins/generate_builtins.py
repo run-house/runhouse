@@ -1,14 +1,8 @@
 from runhouse.rns.hardware.skycluster import SkyCluster
 
-rh_cpu = SkyCluster(
-    name="^rh-cpu", instance_type="m5.large", provider="aws", dryrun=False
-)
-rh_8_cpu = SkyCluster(
-    name="^rh-8-cpu", instance_type="m5.2xlarge", provider="aws", dryrun=False
-)
-rh_32_cpu = SkyCluster(
-    name="^rh-32-cpu", instance_type="m5.8xlarge", provider="aws", dryrun=False
-)
+rh_cpu = SkyCluster(name="^rh-cpu", instance_type="CPU:1", dryrun=False)
+rh_8_cpu = SkyCluster(name="^rh-8-cpu", instance_type="CPU:8", dryrun=False)
+rh_32_cpu = SkyCluster(name="^rh-32-cpu", instance_type="CPU:32", dryrun=False)
 rh_gpu = SkyCluster(name="^rh-gpu", instance_type="K80:1", dryrun=False)
 rh_4_gpu = SkyCluster(name="^rh-4-gpu", instance_type="K80:4", dryrun=False)
 rh_8_gpu = SkyCluster(name="^rh-8-gpu", instance_type="K80:8", dryrun=False)
@@ -29,6 +23,6 @@ for cluster in [
     rh_8_v100,
 ]:
     cluster.autostop_mins = None
-    if "cpu" not in cluster.name:
-        cluster.provider = None
-    cluster.save()
+    cluster.provider = None
+    # Need to manually more into builtins because we can't save there
+    cluster.save(name=f'~/{cluster.name}')
