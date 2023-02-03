@@ -28,9 +28,8 @@ class DaskTable(Table):
              **snapshot_kwargs):
         # https://docs.dask.org/en/stable/how-to/connect-to-remote-data.html
         if self._cached_data is not None:
-            self.data.to_parquet(self.fsspec_url)
+            self.data.to_parquet(self.fsspec_url, **self.data_config)
 
-            self.num_rows = len(self)
             logger.info(f'Saved {str(self)} to: {self.fsspec_url}')
 
         save(self,
@@ -44,5 +43,6 @@ class DaskTable(Table):
     def fetch(self, **kwargs):
         import dask.dataframe as dd
         # https://docs.dask.org/en/stable/generated/dask.dataframe.read_parquet.html
-        self._cached_data = dd.read_parquet(self._folder.fsspec_url, storage_options=self.data_config)
+        self._cached_data = dd.read_parquet(self.fsspec_url,
+                                            filesystem=self._folder.fsspec_fs)
         return self._cached_data

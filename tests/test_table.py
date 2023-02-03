@@ -68,7 +68,7 @@ def test_create_and_reload_pandas_locally():
 
     my_table = rh.table(data=orig_data,
                         name='~/my_test_pandas_table',
-                        url='table_tests/test_pandas_table.parquet',
+                        url='table_tests/test_pandas_table',
                         fs='file',
                         mkdir=True).save()
 
@@ -155,16 +155,15 @@ def test_create_and_reload_pyarrow_data_from_s3():
 
     my_table = rh.table(data=orig_data,
                         name='@/my_test_pyarrow_table',
-                        url=f'{BUCKET_NAME}/pyarrow',
+                        url=f'/{BUCKET_NAME}/pyarrow',
                         fs='s3',
-                        mkdir=True)
+                        mkdir=True).save()
 
     reloaded_table = rh.table(name='@/my_test_pyarrow_table', dryrun=True)
     reloaded_data: ray.data.Dataset = reloaded_table.data
     assert reloaded_data.to_pandas().equals(orig_data.to_pandas())
 
     del orig_data
-    del my_table
 
     reloaded_table.delete_configs()
 
@@ -314,6 +313,7 @@ def test_load_huggingface_data_as_iter():
 
 
 def test_create_and_reload_partitioned_data_from_s3():
+    # TODO [JL] partitioning currently only implemented with pyarrow API - see if we can do this with ray
     data = load_sample_data("pyarrow")
 
     my_table = rh.table(data=data,
@@ -375,6 +375,121 @@ def test_stream_data_from_s3():
     batches = reloaded_table.stream(batch_size=10)
     for idx, batch in enumerate(batches):
         assert batch.column_names == ['int', 'str']
+
+    reloaded_table.delete_configs()
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+
+# TODO [JL] Add more tests where data source is SSH (i.e. data lives on a cluster)
+# TODO [JL] Read / write / streaming works for each location
+
+def test_create_and_reload_pandas_data_from_cluster():
+    from runhouse import Folder
+    c1 = rh.cluster(name='^rh-cpu').up_if_not()
+
+    # Make sure the destination folder for the data exists on the cluster
+    data_url_on_cluster = Folder.DEFAULT_CACHE_FOLDER
+    c1.run([f'mkdir -p {data_url_on_cluster}'])
+
+    orig_data = load_sample_data(data_type='pandas')
+
+    my_table = rh.table(data=orig_data,
+                        name='@/my_test_pandas_table',
+                        url=data_url_on_cluster,
+                        fs=c1).save()
+
+    reloaded_table = rh.table(name='@/my_test_pandas_table', dryrun=True)
+
+    reloaded_data: ray.data.Dataset = reloaded_table.data
+    assert orig_data.equals(reloaded_data.to_pandas())
+
+    del orig_data
+    del my_table
+
+    reloaded_table.delete_configs()
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+
+def test_create_and_reload_ray_data_from_cluster():
+    from runhouse import Folder
+    c1 = rh.cluster('^rh-cpu').up_if_not()
+
+    # Make sure the destination folder for the data exists on the cluster. Here we'll create a separate folder since
+    # ray will split the data into multiple parquet files for us
+    data_url_on_cluster = f'{Folder.DEFAULT_CACHE_FOLDER}/ray-data'
+    c1.run([f'mkdir -p {data_url_on_cluster}'])
+
+    orig_data = load_sample_data(data_type='ray')
+
+    my_table = rh.table(data=orig_data,
+                        name='@/my_test_ray_cluster_table',
+                        url=data_url_on_cluster,
+                        fs=c1).save()
+
+    reloaded_table = rh.table(name='@/my_test_ray_cluster_table', dryrun=True)
+    reloaded_data: ray.data.Dataset = reloaded_table.data
+    assert orig_data.to_pandas().equals(reloaded_data.to_pandas())
+
+    del orig_data
+
+    reloaded_table.delete_configs()
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+
+def test_create_and_reload_pyarrow_data_from_cluster():
+    from runhouse import Folder
+    c1 = rh.cluster('^rh-cpu').up_if_not()
+
+    # Make sure the destination folder for the data exists on the cluster. Here we'll create a separate folder since
+    # ray will split the data into multiple parquet files for us
+    data_url_on_cluster = f'{Folder.DEFAULT_CACHE_FOLDER}/pyarrow-data'
+    c1.run([f'mkdir -p {data_url_on_cluster}'])
+
+    orig_data = load_sample_data(data_type='pyarrow')
+
+    my_table = rh.table(data=orig_data,
+                        name='@/my_test_pyarrow_cluster_table',
+                        url=data_url_on_cluster,
+                        fs=c1).save()
+
+    reloaded_table = rh.table(name='@/my_test_pyarrow_cluster_table', dryrun=True)
+    reloaded_data: ray.data.Dataset = reloaded_table.data
+    assert orig_data.to_pandas().equals(reloaded_data.to_pandas())
+
+    del orig_data
+
+    reloaded_table.delete_configs()
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+
+def test_create_and_reload_huggingface_data_from_cluster():
+    from runhouse import Folder
+    c1 = rh.cluster('^rh-cpu').up_if_not()
+
+    # Make sure the destination folder for the data exists on the cluster
+    data_url_on_cluster = f'{Folder.DEFAULT_CACHE_FOLDER}/hf-data'
+    c1.run([f'mkdir -p {data_url_on_cluster}'])
+
+    orig_data = load_sample_data(data_type='huggingface')
+
+    my_table = rh.table(data=orig_data,
+                        name='@/my_test_hf_cluster_table',
+                        url=data_url_on_cluster,
+                        fs=c1).save()
+
+    reloaded_table = rh.table(name='@/my_test_hf_cluster_table', dryrun=True)
+    reloaded_data: ray.data.Dataset = reloaded_table.data
+    assert orig_data.to_pandas().equals(reloaded_data.to_pandas())
+
+    del orig_data
 
     reloaded_table.delete_configs()
 

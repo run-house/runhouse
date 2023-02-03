@@ -29,8 +29,6 @@ class RapidsTable(Table):
         # https://docs.rapids.ai/api/cudf/nightly/api_docs/api/cudf.dataframe.to_parquet
         if self._cached_data is not None:
             self.data.to_parquet(self.fsspec_url)
-
-            self.num_rows = len(self)
             logger.info(f'Saved {str(self)} to: {self.fsspec_url}')
 
         save(self,

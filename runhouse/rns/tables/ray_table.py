@@ -27,9 +27,7 @@ class RayTable(Table):
              overwrite: bool = True,
              **snapshot_kwargs):
         if self._cached_data is not None:
-            self.data.write_parquet(self.fsspec_url)
-
-            self.num_rows = len(self)
+            self.write_ray_dataset(self.data)
             logger.info(f'Saved {str(self)} to: {self.fsspec_url}')
 
         save(self,
@@ -42,5 +40,6 @@ class RayTable(Table):
 
     def fetch(self, **kwargs):
         import ray
-        self._cached_data = ray.data.read_parquet(self._folder.fsspec_url, **self.data_config)
+        self._cached_data = ray.data.read_parquet(self.fsspec_url,
+                                                  filesystem=self._folder.fsspec_fs)
         return self._cached_data

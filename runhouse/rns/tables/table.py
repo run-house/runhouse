@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class Table(Resource):
     RESOURCE_TYPE = 'table'
     DEFAULT_FOLDER_PATH = '/runhouse/tables'
-    DEFAULT_CACHE_FOLDER = '.cache/runhouse/tables/'
+    DEFAULT_CACHE_FOLDER = '.cache/runhouse/tables'
     DEFAULT_STREAM_FORMAT = 'pyarrow'
     DEFAULT_BATCH_SIZE = 256
     DEFAULT_PREFETCH_BLOCKS = 1
@@ -50,7 +50,6 @@ class Table(Resource):
         self.file_name = file_name
         self.stream_format = stream_format or self.DEFAULT_STREAM_FORMAT
         self.metadata = metadata or {}
-        self.num_rows = 0
 
     @staticmethod
     def from_config(config: dict, dryrun=True):
@@ -81,7 +80,7 @@ class Table(Resource):
         """
         if self._cached_data is not None:
             return self._cached_data
-        return self.ray_dataset
+        return self.read_ray_dataset()
 
     @data.setter
     def data(self, new_data):
@@ -141,17 +140,14 @@ class Table(Resource):
         if self._cached_data is not None:
             data_to_write = self.data
             if isinstance(data_to_write, pa.Table):
-                self.write_pa_table(data_to_write, overwrite)
-            elif isinstance(data_to_write, ray.data.Dataset):
-                # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.write_parquet.html
-                data_to_write.write_parquet(path=self.fsspec_url)
-            else:
+                data_to_write = self.pa_table_to_ray_dataset(data_to_write)
+
+            if not isinstance(data_to_write, ray.data.Dataset):
                 raise TypeError(f'Invalid Table format {type(data_to_write)}')
 
-            self.num_rows = len(self)
+            self.write_ray_dataset(data_to_write)
             logger.info(f'Saved {str(self)} to: {self.fsspec_url}')
 
-        # TODO [JL] separate save to rns and write underlying resource logic
         save(self,
              snapshot=snapshot,
              overwrite=overwrite,
@@ -190,10 +186,6 @@ class Table(Resource):
                 yield sample
 
     def __len__(self):
-        len_dataset = self.num_rows
-        if len_dataset != 0:
-            return len_dataset
-
         if isinstance(self.data, pd.DataFrame):
             len_dataset = self.data.shape[0]
 
@@ -235,13 +227,34 @@ class Table(Resource):
                                    drop_last=drop_last,
                                    local_shuffle_seed=shuffle_seed)
 
-    @property
-    def ray_dataset(self):
-        """ Read parquet data as a ray dataset object"""
-        return ray.data.read_parquet(self.fsspec_url)
+    def read_ray_dataset(self, columns: Optional[List[str]] = None):
+        """ Read parquet data as a ray dataset object """
+        # https://docs.ray.io/en/latest/data/api/input_output.html#parquet
+
+        # TODO [JL] we should be able to specify a non SSH / SFTP filesystem here without breaking
+        filesystem = self._folder.fsspec_fs if isinstance(self.fs, Resource) else None
+        dataset = ray.data.read_parquet(self.fsspec_url,
+                                        columns=columns,
+                                        filesystem=filesystem)
+        return dataset
+
+    def write_ray_dataset(self, data_to_write: ray.data.Dataset):
+        # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.write_parquet.html
+        # TODO [JL] support all filesystems without breaking
+        data_to_write.write_parquet(self.fsspec_url,
+                                    filesystem=self._folder.fsspec_fs if isinstance(self.fs, Resource) else None)
+
+    @staticmethod
+    def pa_table_to_ray_dataset(data):
+        """ Convert pyarrow table to a ray Dataset"""
+        return ray.data.from_arrow([data])
 
     def write_pa_table(self, data: pa.Table, overwrite: bool):
-        """ Write a pyarrow table to a fsspec url"""
+        """ Write a pyarrow table to a fsspec url """
+        # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.write_to_dataset.html
+
+        # TODO [JL] big limitation here that SSHFS / SFTP not supported?
+        # https://arrow.apache.org/docs/python/api/filesystems.html#filesystem-implementations
         pq.write_to_dataset(data,
                             root_path=self.fsspec_url,
                             partition_cols=self.partition_cols,

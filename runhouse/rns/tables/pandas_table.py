@@ -3,7 +3,7 @@ import uuid
 from typing import Optional
 
 from .table import Table
-from .. import Cluster
+from .. import Cluster, Resource
 from ..top_level_rns_fns import save
 
 logger = logging.getLogger(__name__)
@@ -37,12 +37,11 @@ class PandasTable(Table):
              overwrite: bool = True,
              **snapshot_kwargs):
         if self._cached_data is not None:
-            # TODO make overwrite work
+            # https://pandas.pydata.org/pandas-docs/version/1.1/reference/api/pandas.DataFrame.to_parquet.html
+            # TODO [JL] this should work with any filesystem, not just SSHFS or SFTP
             self.data.to_parquet(self.fsspec_url,
-                                 partition_cols=self.partition_cols,
-                                 storage_options=self.data_config)
-
-            self.num_rows = len(self)
+                                 filesystem=self._folder.fsspec_fs if isinstance(self.fs, Resource) else None,
+                                 partition_cols=self.partition_cols)
             logger.info(f'Saved {str(self)} to: {self.fsspec_url}')
 
         save(self,

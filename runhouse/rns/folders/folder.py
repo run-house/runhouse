@@ -36,8 +36,8 @@ class Folder(Resource):
     RESOURCE_TYPE = 'folder'
     DEFAULT_FS = 'file'
     CLUSTER_FS = 'ssh'
-    DEFAULT_FOLDER_PATH = '/runhouse/'
-    DEFAULT_CACHE_FOLDER = '~/.cache/runhouse/'
+    DEFAULT_FOLDER_PATH = '/runhouse'
+    DEFAULT_CACHE_FOLDER = '~/.cache/runhouse'
 
     def __init__(self,
                  name: Optional[str] = None,
@@ -66,6 +66,7 @@ class Folder(Resource):
 
         # TODO [DG] Should we ever be allowing this to be None?
         self._url = self.default_url(self.name, fs) if url is None \
+            else url if isinstance(fs, Resource) \
             else url if Path(url).expanduser().is_absolute() \
             else str(Path(rns_client.locate_working_dir()) / url)
         self.data_config = data_config or {}
@@ -83,13 +84,13 @@ class Folder(Resource):
         if fs == Folder.DEFAULT_FS or isinstance(fs, Cluster):
             if rns_address:
                 return str(Path.cwd() / rns_client.split_rns_name_and_path(rns_address)[1])  # saves to cwd / name
-            return Folder.DEFAULT_CACHE_FOLDER + uuid.uuid4().hex
+            return f'{Folder.DEFAULT_CACHE_FOLDER}/{uuid.uuid4().hex}'
         else:
             # If no URL provided for a remote file system default to its name if provided
             if rns_address:
                 name = rns_address[1:].replace('/', '_') + f'.{cls.RESOURCE_TYPE}'
-                return Folder.DEFAULT_FOLDER_PATH + name
-            return Folder.DEFAULT_FOLDER_PATH + uuid.uuid4().hex
+                return f'{Folder.DEFAULT_FOLDER_PATH}/{name}'
+            return f'{Folder.DEFAULT_FOLDER_PATH}/{uuid.uuid4().hex}'
 
     # ----------------------------------
     @staticmethod
@@ -164,11 +165,10 @@ class Folder(Resource):
                 if not self.fs.address:
                     raise ValueError('Cluster must be started before copying data from it.')
             creds = self.fs.ssh_creds()
-            # TODO [JL] on cluster need to resolve key filename to be relative path
             config_creds = {'host': self.fs.address,
                             'username': creds['ssh_user'],
-                            'client_keys': [str(Path(creds['ssh_private_key']).expanduser())]}
-            # 'key_filename': str(Path(creds['ssh_private_key']).expanduser())}
+                            # 'key_filename': str(Path(creds['ssh_private_key']).expanduser())}  # For SFTP
+                            'client_keys': [str(Path(creds['ssh_private_key']).expanduser())]}  # For SSHFS
             ret_config = self._data_config.copy()
             ret_config.update(config_creds)
             return ret_config
@@ -537,7 +537,7 @@ class Folder(Resource):
     @property
     def fsspec_url(self):
         """Generate the FSSpec URL using the file system and url of the folder"""
-        if self.url.startswith("/") and self._fs_str not in [rns_client.DEFAULT_FS, 'sftp']:
+        if self.url.startswith("/") and self._fs_str != rns_client.DEFAULT_FS:
             return f'{self._fs_str}:/{self.url}'
         else:
             return f'{self._fs_str}://{self.url}'
