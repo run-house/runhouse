@@ -15,8 +15,8 @@ import runhouse.grpc_handler.unary_pb2 as pb2
 import runhouse.grpc_handler.unary_pb2_grpc as pb2_grpc
 from runhouse.grpc_handler.unary_client import OutputType
 from runhouse.rh_config import obj_store
-from runhouse.rns.run_module_utils import call_fn_by_type, get_fn_by_name
 from runhouse.rns.packages.package import Package
+from runhouse.rns.run_module_utils import call_fn_by_type, get_fn_by_name
 from runhouse.rns.top_level_rns_fns import (
     clear_pinned_memory,
     pinned_keys,

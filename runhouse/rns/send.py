@@ -27,15 +27,15 @@ class Send(Resource):
     DEFAULT_ACCESS = "write"
 
     def __init__(
-            self,
-            fn_pointers: Tuple[str, str, str],
-            hardware: Optional[Cluster] = None,
-            name: [Optional[str]] = None,
-            reqs: Optional[List[str]] = None,
-            setup_cmds: Optional[List[str]] = None,
-            dryrun: bool = True,
-            access: Optional[str] = None,
-            **kwargs,  # We have this here to ignore extra arguments when calling from from_config
+        self,
+        fn_pointers: Tuple[str, str, str],
+        hardware: Optional[Cluster] = None,
+        name: [Optional[str]] = None,
+        reqs: Optional[List[str]] = None,
+        setup_cmds: Optional[List[str]] = None,
+        dryrun: bool = True,
+        access: Optional[str] = None,
+        **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
         Create, load, or update a Send ("Serverless endpoint"). A Send is comprised of the
@@ -99,7 +99,9 @@ class Send(Resource):
     def to(self, hardware, reqs=None, setup_cmds=None):
         self.hardware = hardware if hardware else self.hardware
         self.reqs = reqs if reqs else self.reqs
-        self.setup_cmds = setup_cmds if setup_cmds else self.setup_cmds # Run inside reup_cluster
+        self.setup_cmds = (
+            setup_cmds if setup_cmds else self.setup_cmds
+        )  # Run inside reup_cluster
         # TODO [DG] figure out how to run setup_cmds on BYO Cluster
 
         logging.info("Setting up Send on cluster.")
@@ -225,9 +227,16 @@ class Send(Resource):
 
     def __call__(self, *args, stream_logs=False, **kwargs):
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
-            if not self.hardware or self.hardware.name == rh_config.obj_store.cluster_name:
-                fn = get_fn_by_name(module_name=self.fn_pointers[1], fn_name=self.fn_pointers[2])
-                return call_fn_by_type(fn, fn_type, fn_name, relative_path, args, kwargs)
+            if (
+                not self.hardware
+                or self.hardware.name == rh_config.obj_store.cluster_name
+            ):
+                fn = get_fn_by_name(
+                    module_name=self.fn_pointers[1], fn_name=self.fn_pointers[2]
+                )
+                return call_fn_by_type(
+                    fn, fn_type, fn_name, relative_path, args, kwargs
+                )
             elif stream_logs:
                 run_key = self.remote(*args, **kwargs)
                 return self.hardware.get(run_key, stream_logs=True)
