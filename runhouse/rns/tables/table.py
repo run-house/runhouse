@@ -203,29 +203,44 @@ class Table(Resource):
     def __str__(self):
         return self.__class__.__name__
 
-    def stream(self, batch_size, drop_last: bool = False, shuffle_seed: Optional[int] = None,
-               prefetch_blocks: Optional[int] = None):
-        df = self.data
+    def stream(self, batch_size: int, drop_last: bool = False, shuffle_seed: Optional[int] = None,
+               shuffle_buffer_size: Optional[int] = None, prefetch_blocks: Optional[int] = None):
+        """Return a local batched iterator over the ray dataset.
+
+        Args:
+            batch_size: The number of rows in each batch. The final batch may include fewer than ``batch_size`` rows if
+                ``drop_last`` is ``False``.
+            drop_last: Whether to drop the last batch if it's incomplete.
+            shuffle_seed: The seed to use for the local random shuffle.
+            shuffle_buffer_size: minimum number of rows that must be in the local in-memory shuffle
+                buffer in order to yield a batch. Must be greater than or equal to ``batch_size``.
+            prefetch_blocks: The number of blocks to prefetch ahead of the current block during the scan.
+        """
+        ray_data = self.data
+
         if self.stream_format == 'torch':
             # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.iter_torch_batches.html#ray.data.Dataset.iter_torch_batches
-            return df.iter_torch_batches(batch_size=batch_size,
-                                         prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
-                                         drop_last=drop_last,
-                                         local_shuffle_seed=shuffle_seed)
+            return ray_data.iter_torch_batches(batch_size=batch_size,
+                                               prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
+                                               drop_last=drop_last,
+                                               local_shuffle_buffer_size=shuffle_buffer_size,
+                                               local_shuffle_seed=shuffle_seed)
 
         elif self.stream_format == 'tf':
             # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.iter_tf_batches.html
-            return df.iter_tf_batches(batch_size=batch_size,
-                                      prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
-                                      drop_last=drop_last,
-                                      local_shuffle_seed=shuffle_seed)
+            return ray_data.iter_tf_batches(batch_size=batch_size,
+                                            prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
+                                            drop_last=drop_last,
+                                            local_shuffle_buffer_size=shuffle_buffer_size,
+                                            local_shuffle_seed=shuffle_seed)
         else:
             # https://docs.ray.io/en/latest/data/api/dataset.html#ray.data.Dataset.iter_batches
-            return df.iter_batches(batch_size=batch_size,
-                                   prefetch_blocks=self.DEFAULT_PREFETCH_BLOCKS,
-                                   batch_format=self.stream_format,
-                                   drop_last=drop_last,
-                                   local_shuffle_seed=shuffle_seed)
+            return ray_data.iter_batches(batch_size=batch_size,
+                                         prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
+                                         batch_format=self.stream_format,
+                                         drop_last=drop_last,
+                                         local_shuffle_buffer_size=shuffle_buffer_size,
+                                         local_shuffle_seed=shuffle_seed)
 
     def read_ray_dataset(self, columns: Optional[List[str]] = None):
         """ Read parquet data as a ray dataset object """
@@ -239,26 +254,22 @@ class Table(Resource):
         return dataset
 
     def write_ray_dataset(self, data_to_write: ray.data.Dataset):
-        # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.write_parquet.html
+        """ Write a ray dataset to a fsspec filesystem """
         # TODO [JL] support all filesystems without breaking
-        data_to_write.write_parquet(self.fsspec_url,
-                                    filesystem=self._folder.fsspec_fs if isinstance(self.fs, Resource) else None)
+        filesystem = self._folder.fsspec_fs if isinstance(self.fs, Resource) else None
+
+        if self.partition_cols:
+            # TODO [JL]
+            #  maybe something like: https://arrow.apache.org/docs/python/generated/pyarrow.parquet.write_to_dataset.html
+            pass
+
+        # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.write_parquet.html
+        data_to_write.write_parquet(self.fsspec_url, filesystem=filesystem)
 
     @staticmethod
     def pa_table_to_ray_dataset(data):
         """ Convert pyarrow table to a ray Dataset"""
         return ray.data.from_arrow([data])
-
-    def write_pa_table(self, data: pa.Table, overwrite: bool):
-        """ Write a pyarrow table to a fsspec url """
-        # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.write_to_dataset.html
-
-        # TODO [JL] big limitation here that SSHFS / SFTP not supported?
-        # https://arrow.apache.org/docs/python/api/filesystems.html#filesystem-implementations
-        pq.write_to_dataset(data,
-                            root_path=self.fsspec_url,
-                            partition_cols=self.partition_cols,
-                            existing_data_behavior='overwrite_or_ignore' if overwrite else 'error')
 
     def delete_in_fs(self, recursive: bool = True):
         """Remove contents of all subdirectories (ex: partitioned data folders)"""
@@ -355,7 +366,7 @@ def table(data=None,
           mkdir: bool = False,
           dryrun: bool = False,
           stream_format: Optional[str] = None,
-          metadata: Optional[Dict] = None,
+          metadata: Optional[dict] = None,
           ):
     """ Returns a Table object, which can be used to interact with the table at the given url.
     If the table does not exist, it will be saved if `dryrun` is False.

@@ -7,6 +7,7 @@ import pandas as pd
 import ray.data
 
 import runhouse as rh
+from runhouse import Folder
 
 TEMP_LOCAL_FOLDER = Path("~/.rh/temp").expanduser()
 BUCKET_NAME = 'runhouse-tests'
@@ -14,7 +15,7 @@ NUM_PARTITIONS = 10
 
 
 def setup():
-    # Create buckets in S3
+    # Create bucket in S3
     from sky.data.storage import S3Store
     S3Store(name=BUCKET_NAME, source='')
 
@@ -32,7 +33,8 @@ def load_sample_data(data_type):
         return dataset
 
     elif data_type == 'pyarrow':
-        df = pd.DataFrame({'int': [1, 2], 'str': ['a', 'b']})
+        df = pd.DataFrame({'int': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                           'str': ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']})
         arrow_table = pa.Table.from_pandas(df)
         return arrow_table
 
@@ -61,7 +63,10 @@ def load_sample_data(data_type):
         raise Exception(f"Unsupported data type {data_type}")
 
 
-# ----------------- Run tests -----------------
+# -----------------------------------------------
+
+# ----------------- Local tests -----------------
+# -----------------------------------------------
 
 def test_create_and_reload_pandas_locally():
     orig_data = load_sample_data('pandas')
@@ -105,51 +110,8 @@ def test_create_and_reload_pyarrow_locally():
     assert not reloaded_table.exists_in_fs()
 
 
-def test_create_and_reload_dask_data_from_s3():
-    orig_data = load_sample_data(data_type='dask')
-    my_table = rh.table(data=orig_data,
-                        name='@/my_test_dask_table',
-                        url=f'/{BUCKET_NAME}/dask',
-                        fs='s3',
-                        mkdir=True).save()
-
-    reloaded_table = rh.table(name='@/my_test_dask_table', dryrun=True)
-    reloaded_data: ray.data.Dataset = reloaded_table.data
-    dask_reloaded_data = reloaded_data.to_dask()
-
-    assert orig_data.to_pandas().equals(dask_reloaded_data.to_pandas())
-
-    del orig_data
-    del my_table
-
-    reloaded_table.delete_configs()
-
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
-
-
-def test_create_and_reload_ray_data_from_s3():
-    orig_data = load_sample_data(data_type='ray')
-
-    my_table = rh.table(data=orig_data,
-                        name='@/my_test_ray_table',
-                        url=f'/{BUCKET_NAME}/ray',
-                        fs='s3',
-                        mkdir=True).save()
-
-    reloaded_table = rh.table(name='@/my_test_ray_table', dryrun=True)
-    reloaded_data: ray.data.Dataset = reloaded_table.data
-    assert reloaded_data.to_pandas().equals(orig_data.to_pandas())
-
-    del orig_data
-    del my_table
-
-    reloaded_table.delete_configs()
-
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
-
-
+# ----------------- S3 tests -----------------
+# --------------------------------------------
 def test_create_and_reload_pyarrow_data_from_s3():
     orig_data = load_sample_data(data_type='pyarrow')
 
@@ -215,6 +177,52 @@ def test_create_and_reload_huggingface_data_from_s3():
     assert not reloaded_table.exists_in_fs()
 
 
+def test_create_and_reload_dask_data_from_s3():
+    orig_data = load_sample_data(data_type='dask')
+    my_table = rh.table(data=orig_data,
+                        name='@/my_test_dask_table',
+                        url=f'/{BUCKET_NAME}/dask',
+                        fs='s3',
+                        mkdir=True).save()
+
+    reloaded_table = rh.table(name='@/my_test_dask_table', dryrun=True)
+    reloaded_data: ray.data.Dataset = reloaded_table.data
+    dask_reloaded_data = reloaded_data.to_dask()
+
+    assert orig_data.to_pandas().equals(dask_reloaded_data.to_pandas())
+
+    del orig_data
+    del my_table
+
+    reloaded_table.delete_configs()
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+
+def test_create_and_reload_ray_data_from_s3():
+    orig_data = load_sample_data(data_type='ray')
+
+    my_table = rh.table(data=orig_data,
+                        name='@/my_test_ray_table',
+                        url=f'/{BUCKET_NAME}/ray',
+                        fs='s3',
+                        mkdir=True).save()
+
+    reloaded_table = rh.table(name='@/my_test_ray_table', dryrun=True)
+    reloaded_data: ray.data.Dataset = reloaded_table.data
+    assert reloaded_data.to_pandas().equals(orig_data.to_pandas())
+
+    del orig_data
+    del my_table
+
+    reloaded_table.delete_configs()
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+
+# ----------------- Streaming -----------------
 def test_create_and_stream_huggingface_data_from_s3():
     orig_data: datasets.Dataset = load_sample_data(data_type='huggingface')
 
@@ -241,11 +249,83 @@ def test_create_and_stream_huggingface_data_from_s3():
     assert not reloaded_table.exists_in_fs()
 
 
-def test_shuffling_data():
-    # [TODO] JL
-    pass
+def test_create_and_stream_huggingface_data_from_cluster():
+    orig_data: datasets.Dataset = load_sample_data(data_type='huggingface')
+
+    c1 = rh.cluster('^rh-cpu').up_if_not()
+
+    # Make sure the destination folder for the data exists on the cluster
+    data_url_on_cluster = f'{Folder.DEFAULT_CACHE_FOLDER}/hf-stream'
+    c1.run([f'mkdir -p {data_url_on_cluster}'])
+
+    my_table = rh.table(data=orig_data,
+                        name='@/hf_stream_table_from_cluster',
+                        url=data_url_on_cluster,
+                        fs=c1,
+                        mkdir=True).save()
+
+    reloaded_table = rh.table(name='@/hf_stream_table_from_cluster', dryrun=True)
+
+    # Stream in as huggingface dataset
+    batches = reloaded_table.stream(batch_size=10, as_dict=False)
+    for idx, batch in enumerate(batches):
+        assert batch.column_names == ['label', 'text']
+        assert batch.shape == (10, 2)
+
+    del orig_data
+    del my_table
+
+    reloaded_table.delete_configs()
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
 
 
+def test_stream_data_from_file():
+    from pathlib import Path
+    url = 'table_tests/stream_data'
+    Path(Path.cwd().parent / url).mkdir(parents=True, exist_ok=True)
+
+    data = pd.DataFrame({'my_col': list(range(50))})
+    my_table = rh.table(data=data,
+                        name='~/my_test_table',
+                        url=url,
+                        fs='file').save()
+
+    reloaded_table = rh.table(name='~/my_test_table', dryrun=True)
+
+    batches = reloaded_table.stream(batch_size=10)
+    for idx, batch in enumerate(batches):
+        assert isinstance(batch, pd.DataFrame)
+        assert batch['my_col'].tolist() == list(range(idx * 10, (idx + 1) * 10))
+
+    reloaded_table.delete_configs()
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+
+def test_stream_data_from_s3():
+    data = load_sample_data('pyarrow')
+    my_table = rh.table(data=data,
+                        name='@/my_test_table',
+                        url=f'/{BUCKET_NAME}/stream-data',
+                        fs='s3',
+                        mkdir=True).save()
+
+    reloaded_table = rh.table(name='@/my_test_table', dryrun=True)
+
+    batches = reloaded_table.stream(batch_size=10)
+    for idx, batch in enumerate(batches):
+        assert batch.column_names == ['int', 'str']
+
+    reloaded_table.delete_configs()
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+
+# ----------------- Iter -----------------
 def test_load_pandas_data_as_iter():
     orig_data = load_sample_data(data_type='pandas')
 
@@ -312,24 +392,24 @@ def test_load_huggingface_data_as_iter():
     assert not reloaded_table.exists_in_fs()
 
 
-def test_create_and_reload_partitioned_data_from_s3():
-    # TODO [JL] partitioning currently only implemented with pyarrow API - see if we can do this with ray
-    data = load_sample_data("pyarrow")
+# ----------------- Shuffling -----------------
+def test_shuffling_pyarrow_data_from_s3():
+    orig_data = load_sample_data(data_type='pyarrow')
 
-    my_table = rh.table(data=data,
-                        name='@/partitioned_my_test_table',
-                        url=f'/{BUCKET_NAME}/pyarrow-partitioned',
-                        partition_cols=['int'],
+    my_table = rh.table(data=orig_data,
+                        name='@/my_test_shuffled_pyarrow_table',
+                        url=f'/{BUCKET_NAME}/pyarrow',
                         fs='s3',
                         mkdir=True).save()
 
-    reloaded_table = rh.table(name='@/partitioned_my_test_table', dryrun=True)
+    reloaded_table = rh.table(name='@/my_test_shuffled_pyarrow_table', dryrun=True)
+    batches = reloaded_table.stream(batch_size=10, shuffle_seed=42, shuffle_buffer_size=10)
+    for idx, batch in enumerate(batches):
+        assert isinstance(batch, pa.Table)
+        assert orig_data.columns[0].to_pylist() != batch.columns[0].to_pylist()
+        assert orig_data.columns[1].to_pylist() != batch.columns[1].to_pylist()
 
-    # Let's reload only the column we partitioned on
-    reloaded_data = reloaded_table.fetch(columns=['int'])
-    assert reloaded_data.shape == (2, 1)
-
-    del data
+    del orig_data
     del my_table
 
     reloaded_table.delete_configs()
@@ -338,55 +418,9 @@ def test_create_and_reload_partitioned_data_from_s3():
     assert not reloaded_table.exists_in_fs()
 
 
-def test_stream_data_from_file():
-    from pathlib import Path
-    url = 'table_tests/stream_data'
-    Path(Path.cwd().parent / url).mkdir(parents=True, exist_ok=True)
-
-    data = pd.DataFrame({'my_col': list(range(50))})
-    my_table = rh.table(data=data,
-                        name='~/my_test_table',
-                        url=url,
-                        fs='file').save()
-
-    reloaded_table = rh.table(name='~/my_test_table', dryrun=True)
-
-    batches = reloaded_table.stream(batch_size=10)
-    for idx, batch in enumerate(batches):
-        assert isinstance(batch, pd.DataFrame)
-        assert batch['my_col'].tolist() == list(range(idx * 10, (idx + 1) * 10))
-
-    reloaded_table.delete_configs()
-
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
-
-
-def test_stream_data_from_s3():
-    data = load_sample_data('pyarrow')
-    my_table = rh.table(data=data,
-                        name='@/my_test_table',
-                        url=f'/{BUCKET_NAME}/stream-data',
-                        fs='s3',
-                        mkdir=True).save()
-
-    reloaded_table = rh.table(name='@/my_test_table', dryrun=True)
-
-    batches = reloaded_table.stream(batch_size=10)
-    for idx, batch in enumerate(batches):
-        assert batch.column_names == ['int', 'str']
-
-    reloaded_table.delete_configs()
-
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
-
-
-# TODO [JL] Add more tests where data source is SSH (i.e. data lives on a cluster)
-# TODO [JL] Read / write / streaming works for each location
-
+# ----------------- Cluster tests -----------------
+# -------------------------------------------------
 def test_create_and_reload_pandas_data_from_cluster():
-    from runhouse import Folder
     c1 = rh.cluster(name='^rh-cpu').up_if_not()
 
     # Make sure the destination folder for the data exists on the cluster
@@ -415,8 +449,7 @@ def test_create_and_reload_pandas_data_from_cluster():
 
 
 def test_create_and_reload_ray_data_from_cluster():
-    from runhouse import Folder
-    c1 = rh.cluster('^rh-cpu').up_if_not()
+    c1 = rh.cluster('rh-32-cpu').up_if_not()
 
     # Make sure the destination folder for the data exists on the cluster. Here we'll create a separate folder since
     # ray will split the data into multiple parquet files for us
@@ -443,7 +476,6 @@ def test_create_and_reload_ray_data_from_cluster():
 
 
 def test_create_and_reload_pyarrow_data_from_cluster():
-    from runhouse import Folder
     c1 = rh.cluster('^rh-cpu').up_if_not()
 
     # Make sure the destination folder for the data exists on the cluster. Here we'll create a separate folder since
@@ -471,7 +503,6 @@ def test_create_and_reload_pyarrow_data_from_cluster():
 
 
 def test_create_and_reload_huggingface_data_from_cluster():
-    from runhouse import Folder
     c1 = rh.cluster('^rh-cpu').up_if_not()
 
     # Make sure the destination folder for the data exists on the cluster
@@ -496,6 +527,9 @@ def test_create_and_reload_huggingface_data_from_cluster():
     reloaded_table.delete_in_fs()
     assert not reloaded_table.exists_in_fs()
 
+
+# TODO [JL] Add more tests where data source is SSH (i.e. data lives on a cluster)
+# TODO [JL] Read / write / streaming works for each location
 
 if __name__ == '__main__':
     setup()
