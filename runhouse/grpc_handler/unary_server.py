@@ -1,29 +1,35 @@
 import importlib
-import sys
 import logging
-from pathlib import Path
-import grpc
-from concurrent import futures
-import traceback
 import os
+import sys
+import traceback
+from concurrent import futures
 from datetime import datetime
-import yaml
 from functools import wraps
+from pathlib import Path
+
+import grpc
 
 import ray
 import ray.cloudpickle as pickle
-from runhouse.grpc_handler.unary_client import OutputType
+import yaml
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-import runhouse.grpc_handler.unary_pb2_grpc as pb2_grpc
 import runhouse.grpc_handler.unary_pb2 as pb2
-from runhouse.rns.packages.package import Package
-from runhouse.rns.top_level_rns_fns import remove_pinned_object, clear_pinned_memory, pinned_keys
+
+import runhouse.grpc_handler.unary_pb2_grpc as pb2_grpc
+from runhouse.grpc_handler.unary_client import OutputType
 from runhouse.rh_config import obj_store
+from runhouse.rns.packages.package import Package
+from runhouse.rns.top_level_rns_fns import (
+    clear_pinned_memory,
+    pinned_keys,
+    remove_pinned_object,
+)
 
 logger = logging.getLogger(__name__)
 
-RAY_LOGFILE_PATH = '/tmp/ray/session_latest/logs'
+RAY_LOGFILE_PATH = "/tmp/ray/session_latest/logs"
 
 
 class UnaryService(pb2_grpc.UnaryServicer):
@@ -48,7 +54,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
         for package in packages:
             if isinstance(package, str):
                 pkg = Package.from_string(package)
-            elif hasattr(package, 'install'):
+            elif hasattr(package, "install"):
                 pkg = package
             else:
                 raise ValueError(f"package {package} not recognized")
@@ -67,9 +73,11 @@ class UnaryService(pb2_grpc.UnaryServicer):
         key, stream_logs = pickle.loads(request.message)
         logger.info(f"Message received from client to get object: {key}")
         if not stream_logs:
-            return pb2.MessageResponse(message=pickle.dumps(obj_store.get(key)),
-                                       received=True,
-                                       output_type=OutputType.RESULT)
+            return pb2.MessageResponse(
+                message=pickle.dumps(obj_store.get(key)),
+                received=True,
+                output_type=OutputType.RESULT,
+            )
 
         logfiles = None
         open_files = None
@@ -104,20 +112,25 @@ class UnaryService(pb2_grpc.UnaryServicer):
                     #     ret_lines.append(f"Process {i}:")
                     ret_lines += file_lines
             if ret_lines:
-                yield pb2.MessageResponse(message=pickle.dumps(ret_lines),
-                                          received=True, output_type=OutputType.STDOUT)
+                yield pb2.MessageResponse(
+                    message=pickle.dumps(ret_lines),
+                    received=True,
+                    output_type=OutputType.STDOUT,
+                )
 
         # We got the object back from the object store, so we're done (but we went through the loop once
         # more to get any remaining log lines)
         [f.close() for f in open_files]
-        yield pb2.MessageResponse(message=pickle.dumps(ret_obj),
-                                  received=True,
-                                  output_type=OutputType.RESULT)
+        yield pb2.MessageResponse(
+            message=pickle.dumps(ret_obj), received=True, output_type=OutputType.RESULT
+        )
 
     def ClearPins(self, request, context):
         self.register_activity()
         pins_to_clear = pickle.loads(request.message)
-        logger.info(f"Message received from client to clear pins: {pins_to_clear or 'all'}")
+        logger.info(
+            f"Message received from client to clear pins: {pins_to_clear or 'all'}"
+        )
         cleared = []
         if pins_to_clear:
             for pin in pins_to_clear:
@@ -133,21 +146,27 @@ class UnaryService(pb2_grpc.UnaryServicer):
     def CancelRun(self, request, context):
         self.register_activity()
         run_keys, force = pickle.loads(request.message)
-        if not hasattr(run_keys, 'len'):
+        if not hasattr(run_keys, "len"):
             run_keys = [run_keys]
         obj_refs = obj_store.get_obj_refs_list(run_keys)
-        [ray.cancel(obj_ref, force=force, recursive=True)
-         for obj_ref in obj_refs
-         if isinstance(obj_ref, ray.ObjectRef)]
-        return pb2.MessageResponse(message=pickle.dumps('Cancelled'),
-                                   received=True,
-                                   output_type=OutputType.RESULT)
+        [
+            ray.cancel(obj_ref, force=force, recursive=True)
+            for obj_ref in obj_refs
+            if isinstance(obj_ref, ray.ObjectRef)
+        ]
+        return pb2.MessageResponse(
+            message=pickle.dumps("Cancelled"),
+            received=True,
+            output_type=OutputType.RESULT,
+        )
 
     def RunModule(self, request, context):
         self.register_activity()
         # get the function result from the incoming request
         try:
-            [relative_path, module_name, fn_name, fn_type, args, kwargs] = pickle.loads(request.message)
+            [relative_path, module_name, fn_name, fn_type, args, kwargs] = pickle.loads(
+                request.message
+            )
 
             module_path = None
             # If relative_path is None, the module is not in the working dir, and should be in the reqs
@@ -161,16 +180,20 @@ class UnaryService(pb2_grpc.UnaryServicer):
             else:
                 if module_name in self.imported_modules:
                     importlib.invalidate_caches()
-                    self.imported_modules[module_name] = importlib.reload(self.imported_modules[module_name])
+                    self.imported_modules[module_name] = importlib.reload(
+                        self.imported_modules[module_name]
+                    )
                     logger.info(f"Reloaded module {module_name}")
                 else:
-                    self.imported_modules[module_name] = importlib.import_module(module_name)
+                    self.imported_modules[module_name] = importlib.import_module(
+                        module_name
+                    )
                     logger.info(f"Importing module {module_name}")
                 fn = getattr(self.imported_modules[module_name], fn_name)
 
             res = call_fn_on_cluster(fn, fn_type, fn_name, module_path, args, kwargs)
             # [res, None, None] is a silly hack for packaging result alongside exception and traceback
-            result = {'message': pickle.dumps([res, None, None]), 'received': True}
+            result = {"message": pickle.dumps([res, None, None]), "received": True}
 
             self.register_activity()
             return pb2.MessageResponse(**result)
@@ -190,7 +213,7 @@ def enable_logging_fn_wrapper(fn, run_key):
         logdir = Path.home() / ".rh/logs" / run_key
         logdir.mkdir(exist_ok=True, parents=True)
         ray_logs_path = Path(RAY_LOGFILE_PATH)
-        stdout_files = list(ray_logs_path.glob(f'worker-{worker_id}-*'))
+        stdout_files = list(ray_logs_path.glob(f"worker-{worker_id}-*"))
         # Create simlinks to the ray log files in the run directory
         logger.info(f"Writing logs on cluster to {logdir}")
         for f in stdout_files:
@@ -206,11 +229,17 @@ def call_fn_on_cluster(fn, fn_type, fn_name, module_path, args, kwargs):
     run_key = f"{fn_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
     # TODO other possible fn_types: 'batch', 'streaming'
-    if fn_type == 'call':
-        args = [obj_store.get(arg, default=arg) if isinstance(arg, str) else arg for arg in args]
-        kwargs = {k: obj_store.get(v, default=v) if isinstance(v, str) else v for k, v in kwargs.items()}
+    if fn_type == "call":
+        args = [
+            obj_store.get(arg, default=arg) if isinstance(arg, str) else arg
+            for arg in args
+        ]
+        kwargs = {
+            k: obj_store.get(v, default=v) if isinstance(v, str) else v
+            for k, v in kwargs.items()
+        }
         res = fn(*args, **kwargs)
-    elif fn_type == 'get':
+    elif fn_type == "get":
         obj_ref = args[0]
         res = obj_store.get(obj_ref)
     else:
@@ -219,30 +248,32 @@ def call_fn_on_cluster(fn, fn_type, fn_name, module_path, args, kwargs):
 
         logging_wrapped_fn = enable_logging_fn_wrapper(fn, run_key)
 
-        has_gpus = ray.cluster_resources().get('GPU', 0) > 0
+        has_gpus = ray.cluster_resources().get("GPU", 0) > 0
 
         # We need to add the module_path to the PYTHONPATH because ray runs remotes in a new process
         # We need to set max_calls to make sure ray doesn't cache the remote function and ignore changes to the module
         # See: https://docs.ray.io/en/releases-2.2.0/ray-core/package-ref.html#ray-remote
         # We need non-zero cpus and gpus for Ray to allow access to the compute.
         # We should see if there's a more elegant way to specify this.
-        ray_fn = ray.remote(num_cpus=0.0001,
-                            num_gpus=0.0001 if has_gpus else None,
-                            max_calls=len(args) if fn_type in ['map', 'starmap'] else 1,
-                            runtime_env={"env_vars": {"PYTHONPATH": module_path or ''}})(logging_wrapped_fn)
-        if fn_type == 'map':
+        ray_fn = ray.remote(
+            num_cpus=0.0001,
+            num_gpus=0.0001 if has_gpus else None,
+            max_calls=len(args) if fn_type in ["map", "starmap"] else 1,
+            runtime_env={"env_vars": {"PYTHONPATH": module_path or ""}},
+        )(logging_wrapped_fn)
+        if fn_type == "map":
             obj_ref = [ray_fn.remote(arg, **kwargs) for arg in args]
-        elif fn_type == 'starmap':
+        elif fn_type == "starmap":
             obj_ref = [ray_fn.remote(*arg, **kwargs) for arg in args]
-        elif fn_type == 'queue' or fn_type == 'remote':
+        elif fn_type == "queue" or fn_type == "remote":
             obj_ref = ray_fn.remote(*args, **kwargs)
-        elif fn_type == 'repeat':
+        elif fn_type == "repeat":
             [num_repeats, args] = args
             obj_ref = [ray_fn.remote(*args, **kwargs) for _ in range(num_repeats)]
         else:
             raise ValueError(f"fn_type {fn_type} not recognized")
 
-        if fn_type == 'remote':
+        if fn_type == "remote":
             obj_store.put_obj_ref(key=run_key, obj_ref=obj_ref)
             res = run_key
         else:
@@ -251,16 +282,19 @@ def call_fn_on_cluster(fn, fn_type, fn_name, module_path, args, kwargs):
 
 
 def serve():
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10),
-                         options=[('grpc.max_send_message_length', UnaryService.MAX_MESSAGE_LENGTH),
-                                  ('grpc.max_receive_message_length', UnaryService.MAX_MESSAGE_LENGTH),
-                                  ])
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=10),
+        options=[
+            ("grpc.max_send_message_length", UnaryService.MAX_MESSAGE_LENGTH),
+            ("grpc.max_receive_message_length", UnaryService.MAX_MESSAGE_LENGTH),
+        ],
+    )
     pb2_grpc.add_UnaryServicer_to_server(UnaryService(), server)
-    server.add_insecure_port('[::]:50052')
+    server.add_insecure_port("[::]:50052")
     server.start()
     logger.info("Server up and running")
     server.wait_for_termination()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     serve()

@@ -1,13 +1,14 @@
 import logging
 import sys
+import time
 
 import grpc
-import time
 
 import ray.cloudpickle as pickle
 
-import runhouse.grpc_handler.unary_pb2_grpc as pb2_grpc
 import runhouse.grpc_handler.unary_pb2 as pb2
+
+import runhouse.grpc_handler.unary_pb2_grpc as pb2_grpc
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ class UnaryClient(object):
     Client for gRPC functionality
     # TODO rename SendClient
     """
+
     DEFAULT_PORT = 50052
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     TIMEOUT_SEC = 3
@@ -30,11 +32,13 @@ class UnaryClient(object):
     def __init__(self, host, port=DEFAULT_PORT):
         self.host = host
         self.port = port
-        self.channel = grpc.insecure_channel(f'{self.host}:{self.port}',
-                                             options=[
-                                                 ('grpc.max_send_message_length', self.MAX_MESSAGE_LENGTH),
-                                                 ('grpc.max_receive_message_length', self.MAX_MESSAGE_LENGTH),
-                                             ])
+        self.channel = grpc.insecure_channel(
+            f"{self.host}:{self.port}",
+            options=[
+                ("grpc.max_send_message_length", self.MAX_MESSAGE_LENGTH),
+                ("grpc.max_receive_message_length", self.MAX_MESSAGE_LENGTH),
+            ],
+        )
         self._connectivity_state = None
 
         def on_state_change(state):
@@ -70,14 +74,16 @@ class UnaryClient(object):
             server_res = pickle.loads(resp.message)
             if output_type == OutputType.STDOUT:
                 for line in server_res:
-                    print(line, end='', flush=True)
+                    print(line, end="", flush=True)
             elif output_type == OutputType.STDERR:
                 for line in server_res:
                     print(line, file=sys.stderr)
             else:
                 [res, fn_exception, fn_traceback] = server_res
                 if fn_exception is not None:
-                    logger.error(f"Error running or getting run_key {key}: {fn_exception}.")
+                    logger.error(
+                        f"Error running or getting run_key {key}: {fn_exception}."
+                    )
                     logger.error(f"Traceback: {fn_traceback}")
                     raise fn_exception
                 return res
@@ -91,7 +97,9 @@ class UnaryClient(object):
         Client function to call the rpc for RunModule
         """
         # Measure the time it takes to send the message
-        serialized_module = pickle.dumps([relative_path, module_name, fn_name, fn_type, args, kwargs])
+        serialized_module = pickle.dumps(
+            [relative_path, module_name, fn_name, fn_type, args, kwargs]
+        )
         start = time.time()
         message = pb2.Message(message=serialized_module)
         server_res = self.stub.RunModule(message)
@@ -105,7 +113,10 @@ class UnaryClient(object):
         return res
 
     def is_connected(self):
-        return self._connectivity_state in [grpc.ChannelConnectivity.READY, grpc.ChannelConnectivity.IDLE]
+        return self._connectivity_state in [
+            grpc.ChannelConnectivity.READY,
+            grpc.ChannelConnectivity.IDLE,
+        ]
 
     def shutdown(self):
         if self.channel:

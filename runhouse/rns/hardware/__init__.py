@@ -1,5 +1,5 @@
-from .cluster_factory import cluster
 from .cluster import Cluster
+from .cluster_factory import cluster
 from .skycluster import SkyCluster
 
 # TODO KubeRayCluster, AnyscaleRayCluster etc.

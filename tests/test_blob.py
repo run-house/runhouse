@@ -1,22 +1,25 @@
 import unittest
 from pathlib import Path
+
+import runhouse as rh
 import yaml
 
 from ray import cloudpickle as pickle
-import runhouse as rh
 
-S3_BUCKET = 'runhouse-tests'
-TEMP_LOCAL_FOLDER = Path(__file__).parents[1] / 'rh'
+S3_BUCKET = "runhouse-tests"
+TEMP_LOCAL_FOLDER = Path(__file__).parents[1] / "rh"
 
 
 def test_create_and_reload_local_blob():
-    name = '~/my_local_blob'
+    name = "~/my_local_blob"
     data = pickle.dumps(list(range(50)))
-    my_blob = rh.blob(data=data,
-                      name=name,
-                      url=str(TEMP_LOCAL_FOLDER / "my_blob.pickle"),
-                      fs='file',
-                      dryrun=False)
+    my_blob = rh.blob(
+        data=data,
+        name=name,
+        url=str(TEMP_LOCAL_FOLDER / "my_blob.pickle"),
+        fs="file",
+        dryrun=False,
+    )
     del data
     del my_blob
 
@@ -37,13 +40,14 @@ def test_create_and_reload_local_blob():
 def test_create_and_reload_rns_blob():
     name = "@/my_s3_blob"
     data = pickle.dumps(list(range(50)))
-    my_blob = rh.blob(name=name,
-                      data=data,
-                      fs='s3',
-                      url=f'/{S3_BUCKET}/test_blob.pickle',
-                      mkdir=True,
-                      dryrun=False
-                      )
+    my_blob = rh.blob(
+        name=name,
+        data=data,
+        fs="s3",
+        url=f"/{S3_BUCKET}/test_blob.pickle",
+        mkdir=True,
+        dryrun=False,
+    )
 
     del data
     del my_blob
@@ -61,11 +65,13 @@ def test_create_and_reload_rns_blob():
 
 
 def test_from_cluster():
-    cluster = rh.cluster(name='^rh-cpu').up_if_not()
-    config_blob = rh.blob(fs='file', url='/home/ubuntu/.rh/config.yaml').from_cluster(cluster)
+    cluster = rh.cluster(name="^rh-cpu").up_if_not()
+    config_blob = rh.blob(fs="file", url="/home/ubuntu/.rh/config.yaml").from_cluster(
+        cluster
+    )
     config_data = yaml.safe_load(config_blob.data)
     assert len(config_data.keys()) > 4
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,5 @@
 import sys
-from typing import Optional, List
+from typing import List, Optional
 
 from runhouse.rh_config import rns_client
 
@@ -8,33 +8,35 @@ def resolve_rns_path(path: str):
     return rns_client.resolve_rns_path(path)
 
 
-def exists(name,
-           resource_type: str = None):
+def exists(name, resource_type: str = None):
     return rns_client.exists(name, resource_type=resource_type)
 
 
-def locate(name_or_path,
-           resolve_path: bool = True):
-    return rns_client.locate(name_or_path,
-                             resolve_path=resolve_path,
-                             )
+def locate(name_or_path, resolve_path: bool = True):
+    return rns_client.locate(
+        name_or_path,
+        resolve_path=resolve_path,
+    )
 
 
-def load(name: str,
-         instantiate: bool = True,
-         dryrun: bool = False):
+def load(name: str, instantiate: bool = True, dryrun: bool = False):
     config = rns_client.load_config(name=name)
     if not instantiate:
         return config
-    from_config_constructor = getattr(sys.modules['runhouse.rns'], config['resource_type'].capitalize(), None).from_config
+    from_config_constructor = getattr(
+        sys.modules["runhouse.rns"], config["resource_type"].capitalize(), None
+    ).from_config
     if not from_config_constructor:
-        raise ValueError(f"Could not find constructor for type {config['resource_type']}")
+        raise ValueError(
+            f"Could not find constructor for type {config['resource_type']}"
+        )
     return from_config_constructor(config=config, dryrun=dryrun)
 
 
-def load_from_path(path: str,
-                   instantiate: bool = True,
-                   ):
+def load_from_path(
+    path: str,
+    instantiate: bool = True,
+):
     pass
 
 
@@ -46,11 +48,13 @@ def set_load_from(load_from: List[str]):
     rns_client.load_from = load_from
 
 
-def save(resource,
-         name: str = None,
-         snapshot: bool = False,
-         overwrite: bool = True,
-         **snapshot_kwargs):  # TODO [DG] was this supposed to be kwargs for the snapshot?
+def save(
+    resource,
+    name: str = None,
+    snapshot: bool = False,
+    overwrite: bool = True,
+    **snapshot_kwargs,
+):  # TODO [DG] was this supposed to be kwargs for the snapshot?
     """Register the resource, saving it to local working_dir config and/or RNS config store. Uses the resource's
     `self.config_for_rns` to generate the dict to save."""
 
@@ -58,12 +62,14 @@ def save(resource,
     snapshot_kwargs = snapshot_kwargs or {}
     resource_to_save = resource.snapshot(**snapshot_kwargs) if snapshot else resource
     if name:
-        if '/' in name[1:] or resource_to_save._rns_folder is None:
-            resource_to_save._name, resource_to_save._rns_folder = split_rns_name_and_path(resolve_rns_path(name))
+        if "/" in name[1:] or resource_to_save._rns_folder is None:
+            (
+                resource_to_save._name,
+                resource_to_save._rns_folder,
+            ) = split_rns_name_and_path(resolve_rns_path(name))
         else:
             resource_to_save._name = name
-    rns_client.save_config(resource=resource_to_save,
-                           overwrite=overwrite)
+    rns_client.save_config(resource=resource_to_save, overwrite=overwrite)
 
 
 def set_folder(path: str, create=False):
@@ -71,9 +77,9 @@ def set_folder(path: str, create=False):
 
 
 def unset_folder():
-    """ Sort of like `cd -`, but with a full stack of the previous folder's set. Resets the
+    """Sort of like `cd -`, but with a full stack of the previous folder's set. Resets the
     current_folder to the previous one on the stack, the current_folder right before the
-    current one was set. """
+    current one was set."""
     rns_client.unset_folder()
 
 
@@ -85,28 +91,30 @@ def split_rns_name_and_path(path: str):
     return rns_client.split_rns_name_and_path(path)
 
 
-def resources(path: str = None,
-              full_paths=False):
+def resources(path: str = None, full_paths=False):
     path = path or current_folder()
     return rns_client.contents(name_or_path=path, full_paths=full_paths)
 
 
 def ipython():
     import subprocess
-    subprocess.Popen('pip install ipython'.split(' '))
+
+    subprocess.Popen("pip install ipython".split(" "))
     # TODO install ipython if not installed
     import IPython
+
     IPython.embed()
 
 
 def delete(resource_or_name: str):
-    """ Delete the resource from the RNS or local config store. """
+    """Delete the resource from the RNS or local config store."""
     rns_client.delete_configs(resource=resource_or_name)
+
 
 # TODO [DG]
 def delete_all(folder: str = None):
-    """ Delete all resources in the given folder, such that the user has peace of mind that they are not consuming
-    any hidden cloud costs. """
+    """Delete all resources in the given folder, such that the user has peace of mind that they are not consuming
+    any hidden cloud costs."""
     pass
 
 
@@ -117,7 +125,7 @@ def sync_down():
 
 # TODO [DG]
 def load_all_clusters():
-    """ Load all clusters in RNS into the local Sky context. """
+    """Load all clusters in RNS into the local Sky context."""
     pass
 
 
@@ -137,6 +145,7 @@ def get_pinned_object(key: str, default=None):
 
 def get(key: str, cluster=None, default=None):
     from runhouse.rns.hardware.skycluster import SkyCluster
+
     if isinstance(cluster, str):
         if cluster == rh_config.obj_store.cluster_name:
             # We're currently on cluster, so just get the object from local rh_config.obj_store
