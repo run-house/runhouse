@@ -25,4 +25,4 @@ for cluster in [
     cluster.autostop_mins = None
     cluster.provider = None
     # Need to manually more into builtins because we can't save there
-    cluster.save(name=f'~/{cluster.name}')
+    cluster.save(name=f"~/{cluster.name}")

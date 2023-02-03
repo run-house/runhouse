@@ -25,5 +25,4 @@ from .rns.secrets import Secrets
 from .rns.send import send, Send
 from .rns.tables.table import table, Table
 
-# TODO [DG] do this properly
-__version__ = "0.0.1.1"
+__version__ = "0.0.2"
