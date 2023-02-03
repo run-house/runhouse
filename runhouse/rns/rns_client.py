@@ -78,14 +78,14 @@ class RNSClient:
     @property
     def default_folder(self):
         folder = self._configs.get('default_folder', None)
-        if folder in [None, '~/'] and self._configs.get('username'):
+        if folder in [None, '~'] and self._configs.get('username'):
             folder = '/' + self._configs.get('username')
             self._configs.set('default_folder', folder)
         return folder
 
     @property
     def current_folder(self):
-        if self._current_folder in [None, '~/']:
+        if self._current_folder in [None, '~']:
             self._current_folder = self.default_folder
         return self._current_folder
 

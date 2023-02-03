@@ -62,11 +62,7 @@ class Cluster(Resource):
     @property
     def config_for_rns(self):
         config = super().config_for_rns
-
-        # Also store the ssh keys for the cluster in RNS
-        config.update({'ips': self.ips,
-                       'ssh_creds': self._ssh_creds
-                       })
+        self.save_attrs_to_config(config, ('ips', '_ssh_creds'))
         # TODO [DG] creds should be shared through secrets management only
         return config
 
@@ -163,6 +159,8 @@ class Cluster(Resource):
     def get(self, key, default=None, stream_logs=False):
         self.check_grpc()
         return self.client.get_object(key, stream_logs=stream_logs) or default
+
+    # TODO [DG] add a method to list all the keys in the cluster
 
     def cancel(self, key, force=False):
         self.check_grpc()

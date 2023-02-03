@@ -275,9 +275,12 @@ class Send(Resource):
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
             run_key = self._call_fn_with_ssh_access(fn_type='remote', args=args, kwargs=kwargs)
             cluster_name = f'rh.cluster(name="{self.hardware.rns_address}")' if self.hardware.name else '<my_cluster>'
-            logger.info(f'Submitted remote call to cluster. Result or logs can be retrieved\n'
-                        f'with run_key {run_key},\n e.g. {cluster_name}.get("{run_key}", stream_logs=True)\n'
-                        f'or cancelled with \n {cluster_name}.cancel({run_key})')
+            logger.info(f'Submitted remote call to cluster. Result or logs can be retrieved'
+                        f'\n with run_key "{run_key}", e.g. '
+                        f'\n`{cluster_name}.get("{run_key}", stream_logs=True)` in python '
+                        f'\n or cancelled with '
+                        f'\n`{cluster_name}.cancel("{run_key}")` in python or '
+                        f'\n`runhouse cancel "{cluster_name}" {run_key}` from the command line.')
             return run_key
         else:
             raise NotImplementedError("Send.remote only works with Write or Read access, not Proxy access")

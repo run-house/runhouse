@@ -59,7 +59,7 @@ def test_rns_path(tmp_path):
 
 def test_ls():
     rh.set_folder('~')
-    assert rh.resources() == rh.resources('~/')
+    assert rh.resources() == rh.resources('~')
     assert rh.resources(full_paths=True)
     rh.set_folder('^')
     assert rh.resources() == ['rh-32-cpu', 'rh-gpu', 'rh-cpu', 'rh-4-gpu', 'rh-8-cpu',

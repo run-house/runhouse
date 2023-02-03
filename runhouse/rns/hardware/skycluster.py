@@ -114,8 +114,10 @@ class SkyCluster(Cluster):
     def _save_sky_data(self):
         # If we already have an entry for this cluster in the local sky files, ignore the new config
         # TODO [DG] when this is more stable maybe we shouldn't.
-        if sky.global_user_state.get_cluster_from_name(self.name) and self._yaml_path and \
-                Path(self._yaml_path).absolute().exists():
+        yaml_path = self._yaml_path or self.sky_data.get('handle', {}).get('cluster_yaml')
+
+        if sky.global_user_state.get_cluster_from_name(self.name) and \
+                Path(yaml_path).expanduser().exists():
             return
 
         ray_config = self.sky_data.pop('ray_config', {})
@@ -123,7 +125,6 @@ class SkyCluster(Cluster):
         if not ray_config or not handle_info:
             raise Exception('Expecting both `ray_config` and `handle` attributes in sky data')
 
-        yaml_path = handle_info['cluster_yaml']
         if not Path(yaml_path).expanduser().parent.exists():
             Path(yaml_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
 
@@ -196,8 +197,6 @@ class SkyCluster(Cluster):
             return
         self.address = cluster_dict['handle'].head_ip
         self._yaml_path = cluster_dict['handle'].cluster_yaml
-        self.autostop_mins = cluster_dict['autostop']
-        self.provider = str(cluster_dict['handle'].launched_resources.cloud).lower()
         if not cluster_dict['status'].name == 'UP':
             self.address = None
 
@@ -221,7 +220,7 @@ class SkyCluster(Cluster):
 
     def up(self,
            ):
-        if self.provider in ['aws', 'gcp', 'azure', 'cheapest']:
+        if self.provider in ['aws', 'gcp', 'azure', 'lambda', 'cheapest']:
             task = sky.Task(
                 num_nodes=self.num_instances if ':' not in self.instance_type else None,
                 # docker_image=image,  # Zongheng: this is experimental, don't use it

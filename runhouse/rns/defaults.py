@@ -23,7 +23,7 @@ class Defaults:
     GROUP_ENDPOINT = 'group/'
     CONFIG_PATH = Path('~/.rh/config.yaml').expanduser()
     # TODO [DG] default sub-dicts for various resources (e.g. defaults.get('cluster').get('resource_type'))
-    BASE_DEFAULTS = {'default_folder': '~/',
+    BASE_DEFAULTS = {'default_folder': '~',
                      'default_provider': 'cheapest',
                      'default_autostop': -1,
                      'use_spot': False,
@@ -96,7 +96,7 @@ class Defaults:
         raw_defaults['username'] = resp_data.get('username')
         raw_defaults['token'] = headers.get('Authorization')[7:]
         raw_defaults['default_folder'] = '/' + raw_defaults['username'] if \
-            raw_defaults.get('default_folder') in ['~/', None] else raw_defaults.get('default_folder')
+            raw_defaults.get('default_folder') in ['~', None] else raw_defaults.get('default_folder')
         formatted = {k: to_bool(v) for k, v in raw_defaults.items()}
 
         return formatted
