@@ -1,7 +1,4 @@
 import unittest
-from pathlib import Path
-
-import pytest
 
 from runhouse.rns.hardware.skycluster import cluster, SkyCluster
 

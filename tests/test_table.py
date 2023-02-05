@@ -76,7 +76,7 @@ def load_sample_data(data_type):
 def test_create_and_reload_pandas_locally():
     data = load_sample_data("pandas")
     orig_data_shape = data.shape
-    my_table = rh.table(
+    rh.table(
         data=data,
         name="~/my_test_pandas_table",
         url="table_tests/test_pandas_table.parquet",
@@ -304,7 +304,7 @@ def test_create_and_reload_partitioned_data_from_s3():
 
     # Let's reload only the column we partitioned on
     reloaded_data = reloaded_table.fetch(columns=["int"])
-    assert reloaded_data.shape == (2, 1)
+    assert reloaded_data.shape == orig_data_shape
 
     del data
     del my_table

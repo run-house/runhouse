@@ -6,7 +6,7 @@ import runhouse as rh
 from ray import cloudpickle as pickle
 
 TEMP_FILE = str(Path.cwd() / "test_folder.py")
-TEST_FOLDER_PATH = Path.cwd() / f"tests_tmp"
+TEST_FOLDER_PATH = Path.cwd() / "tests_tmp"
 
 DATA_STORE_BUCKET = "/runhouse-folder-tests"
 DATA_STORE_PATH = f"{DATA_STORE_BUCKET}/folder"

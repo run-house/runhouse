@@ -13,7 +13,8 @@ repos:
           - black == 22.6.0
           - usort == 1.0.4
 
-  # - repo: https://github.com/charliermarsh/ruff-pre-commit
-  #   rev: v0.0.191
-  #   hooks:
-  #     - id: ruff
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: v0.0.191
+    hooks:
+      - id: ruff
+        args: [--line-length=120, '--ignore=E402,E721,E722,E731,F821', '--per-file-ignores=__init__.py:F401']

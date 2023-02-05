@@ -2,8 +2,6 @@ import unittest
 
 import runhouse as rh
 
-from runhouse import Defaults
-
 
 def test_download_defaults():
     rh.rh_config.configs.defaults_cache["default_folder"] = "nonsense"

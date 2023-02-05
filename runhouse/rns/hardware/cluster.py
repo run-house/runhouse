@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Union
 
 import ray.cloudpickle as pickle
 
-import sky
+# import sky
 from sky.utils import command_runner
 from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
@@ -315,7 +315,7 @@ class Cluster(Resource):
                 )
                 ssh_tunnel.start()
                 connected = True
-            except HandlerSSHTunnelForwarderError as e:
+            except HandlerSSHTunnelForwarderError:
                 # try connecting with a different port - most likely the issue is the port is already taken
                 local_port += 1
                 num_ports_to_try -= 1
@@ -358,8 +358,8 @@ class Cluster(Resource):
         # TODO how do we capture errors if this fails?
         if resync_rh:
             self.sync_runhouse_to_cluster(_install_url=_rh_install_url)
-        kill_proc_cmd = f'pkill -f "python3 -m runhouse.grpc_handler.unary_server"'
-        grpc_server_cmd = f"screen -dm python3 -m runhouse.grpc_handler.unary_server"
+        kill_proc_cmd = 'pkill -f "python3 -m runhouse.grpc_handler.unary_server"'
+        grpc_server_cmd = "screen -dm python3 -m runhouse.grpc_handler.unary_server"
         cmds = [kill_proc_cmd]
         if restart_ray:
             cmds.append("ray stop")

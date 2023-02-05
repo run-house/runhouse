@@ -213,7 +213,7 @@ class SkyCluster(Cluster):
           'autostop': -1,
           'metadata': {}}
         More: https://github.com/skypilot-org/skypilot/blob/0c2b291b03abe486b521b40a3069195e56b62324/sky/backends/cloud_vm_ray_backend.py#L1457
-        """
+        """  # noqa
         return self.get_sky_statuses(cluster_name=self.name, refresh=refresh)
 
     def populate_vars_from_status(self, dryrun=False):
@@ -293,7 +293,7 @@ class SkyCluster(Cluster):
             # subprocess.Popen('kubectl apply -f raycluster.yaml'.split(' '))
             # self.address = cluster_dict['handle'].head_ip
             # self._yaml_path = cluster_dict['handle'].cluster_yaml
-            raise NotImplementedError(f"Kubernetes Cluster provider not yet supported")
+            raise NotImplementedError("Kubernetes Cluster provider not yet supported")
         else:
             raise ValueError(f"Cluster provider {self.provider} not supported.")
 

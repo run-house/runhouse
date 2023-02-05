@@ -441,7 +441,12 @@ class Folder(Resource):
             cluster_creds = self.fs.ssh_creds()
             creds_file = cluster_creds["ssh_private_key"]
 
-            command = f"""rsync -Pavz --filter='dir-merge,- .gitignore' -e "ssh -i '{creds_file}' -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=30s -o ForwardAgent=yes -o ControlMaster=auto -o ControlPersist=300s" {src_url}/ {dest_cluster.address}:{dest_url}"""
+            command = (
+                f"rsync -Pavz --filter='dir-merge,- .gitignore' -e \"ssh -i '{creds_file} '"
+                f"-o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes "
+                f"-o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=30s -o ForwardAgent=yes "
+                f'-o ControlMaster=auto -o ControlPersist=300s" {src_url}/ {dest_cluster.address}:{dest_url}'
+            )
             status_codes = self.fs.run([command])
             if status_codes[0][0] != 0:
                 raise Exception(
@@ -638,7 +643,7 @@ class Folder(Resource):
             resources = [
                 path for path in self.ls() if (Path(path) / "config.json").exists()
             ]
-        except FileNotFoundError as e:
+        except FileNotFoundError:
             return []
 
         if full_paths:
@@ -668,7 +673,7 @@ class Folder(Resource):
 
         segment = Path(self.url)
         while (
-            not str(segment) in rns_client.rns_base_folders.values()
+            str(segment) not in rns_client.rns_base_folders.values()
             and not segment == Path.home()
             and not segment == segment.parent
         ):
@@ -828,7 +833,7 @@ class Folder(Resource):
                         contents.fsspec_url, **contents.data_config
                     ) as src:
                         # NOTE For packages, maybe use the `ignore` param here to only copy python files.
-                        new_url = shutil.move(src, dest)
+                        shutil.move(src, dest)
             return
 
         if not isinstance(contents, dict):

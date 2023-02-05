@@ -58,7 +58,7 @@ def test_cancel_run():
     res = cluster.cancel(key)
     assert res == "Cancelled"
     try:
-        later_res = cluster.get(key, stream_logs=True)
+        cluster.get(key, stream_logs=True)
     except Exception as e:
         assert "This task or its dependency was cancelled by" in str(e)
 

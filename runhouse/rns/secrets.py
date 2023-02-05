@@ -250,7 +250,7 @@ class Secrets:
 
         # Check if the huggingface_hub package is installed
         try:
-            import huggingface_hub
+            import huggingface_hub  # noqa
 
             cloud_names.append("huggingface")
         except ModuleNotFoundError:
@@ -465,12 +465,10 @@ class GCPSecrets(Secrets):
                 "Please do the following to complete gcp secrets setup:",
                 style="bold yellow",
             )
-            console.print(f"!gcloud init", style="bold yellow")
+            console.print("!gcloud init", style="bold yellow")
+            console.print("!gcloud auth application-default login", style="bold yellow")
             console.print(
-                f"!gcloud auth application-default login", style="bold yellow"
-            )
-            console.print(
-                f"!cp -r /content/.config/* ~/.config/gcloud", style="bold yellow"
+                "!cp -r /content/.config/* ~/.config/gcloud", style="bold yellow"
             )
 
         cls.save_to_json_file(config, dest_path)

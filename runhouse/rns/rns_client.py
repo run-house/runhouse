@@ -4,7 +4,7 @@ import os
 import pkgutil
 import shutil
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 import requests
 
@@ -288,7 +288,7 @@ class RNSClient:
 
     def _save_config_to_local(self, config: dict, rns_address: str):
         if not rns_address:
-            raise ValueError(f"Cannot save resource without rns address or url.")
+            raise ValueError("Cannot save resource without rns address or url.")
         resource_dir = Path(self.locate(rns_address, resolve_path=False))
         resource_dir.mkdir(parents=True, exist_ok=True)
         config_path = resource_dir / "config.json"
@@ -381,7 +381,7 @@ class RNSClient:
         #     return self.RH_BUILTINS_FOLDER
         # if path.startswith('^'):
         #     return self.RH_BUILTINS_FOLDER + '/' + path[1:]
-        if not path[0] in ["/", "~", "^"]:
+        if path[0] not in ["/", "~", "^"]:
             return self.current_folder + "/" + path
         return path
 

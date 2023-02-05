@@ -1,9 +1,12 @@
 """
-Runhouse breaks down the silos between machine learning compute and data environments, and makes interacting with cloud resources easy and Pythonic:
+Runhouse breaks down the silos between machine learning compute and data environments, and makes interacting
+with cloud resources easy and Pythonic:
 With Runhouse, you can:
-- Run effortlessly on any hardware in experimentation, research, or production, iterating and debugging like you’re running locally on bare metal.
+- Run effortlessly on any hardware in experimentation, research, or production, iterating and debugging like
+  you’re running locally on bare metal.
 - Scale up, productionize, or share your work without weeks of packaging or translating into platform DSLs.
-- Retain control of their underlying infra, customizing it to your unique needs and continuing to use any ML tools you would from cloud instances.
+- Retain control of their underlying infra, customizing it to your unique needs and continuing to use any ML
+  tools you would from cloud instances.
 """
 import datetime
 

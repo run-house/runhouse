@@ -1,5 +1,5 @@
 import sys
-from typing import List, Optional
+from typing import List
 
 from runhouse.rh_config import rns_client
 

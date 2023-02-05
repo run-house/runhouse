@@ -646,8 +646,8 @@ def send(
             func_name = match.group("func_name")
         else:
             raise ValueError(
-                f"fn must be a callable or string of the form "
-                f'"https://github.com/username/repo_name/blob/branch_name/path/to/file.py:func_name"'
+                "fn must be a callable or string of the form "
+                '"https://github.com/username/repo_name/blob/branch_name/path/to/file.py:func_name"'
             )
         module_name = Path(path).stem
         relative_path = str(repo_name / Path(path).parent)

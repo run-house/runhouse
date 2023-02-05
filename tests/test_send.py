@@ -160,7 +160,7 @@ def test_send_git_fn():
             "--instance_data_dir",
             "remote_image_dir",
             "--instance_prompt",
-            f"a photo of sks person",
+            "a photo of sks person",
         ]
     )
     assert args.pretrained_model_name_or_path == "stabilityai/stable-diffusion-2-base"

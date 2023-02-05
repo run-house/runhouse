@@ -2,7 +2,7 @@
 # https://docs.python.org/3/faq/programming.html#how-do-i-share-global-variables-across-modules
 import logging.config
 
-from runhouse.logger import LOGGING_CONFIG
+# from runhouse.logger import LOGGING_CONFIG
 from runhouse.rns.defaults import Defaults
 from runhouse.rns.obj_store import ObjStore
 from runhouse.rns.rns_client import RNSClient

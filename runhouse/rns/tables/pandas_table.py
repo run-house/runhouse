@@ -1,8 +1,7 @@
 import uuid
-from typing import List, Optional
+from typing import Optional
 
 from .. import SkyCluster
-from ..top_level_rns_fns import save
 
 from .table import Table
 
