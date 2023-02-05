@@ -25,11 +25,12 @@ class DaskTable(Table):
              name: Optional[str] = None,
              snapshot: bool = False,
              overwrite: bool = True,
+             write_index: bool = False,
              **snapshot_kwargs):
         # https://docs.dask.org/en/stable/how-to/connect-to-remote-data.html
         if self._cached_data is not None:
-            self.data.to_parquet(self.fsspec_url, **self.data_config)
-
+            # https://stackoverflow.com/questions/72891631/how-to-remove-null-dask-index-from-parquet-file
+            self.data.to_parquet(self.fsspec_url, write_index=write_index, **self.data_config)
             logger.info(f'Saved {str(self)} to: {self.fsspec_url}')
 
         save(self,

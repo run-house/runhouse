@@ -37,10 +37,13 @@ class PandasTable(Table):
              overwrite: bool = True,
              **snapshot_kwargs):
         if self._cached_data is not None:
+            # TODO [JL] we should be able to specify this explicitly with any filesystem
+            #  NOTE: currently only an issue when with LocalFileSystem
+            filesystem = self._folder.fsspec_fs if isinstance(self.fs, Resource) else None
+
             # https://pandas.pydata.org/pandas-docs/version/1.1/reference/api/pandas.DataFrame.to_parquet.html
-            # TODO [JL] this should work with any filesystem, not just SSHFS or SFTP
             self.data.to_parquet(self.fsspec_url,
-                                 filesystem=self._folder.fsspec_fs if isinstance(self.fs, Resource) else None,
+                                 filesystem=filesystem,
                                  partition_cols=self.partition_cols)
             logger.info(f'Saved {str(self)} to: {self.fsspec_url}')
 

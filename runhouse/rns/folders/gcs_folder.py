@@ -19,11 +19,6 @@ class GCSFolder(Folder):
         """ Load config values into the object. """
         return GCSFolder(**config, dryrun=dryrun)
 
-    def empty_folder(self):
-        """ Remove gcs folder contents, but not the folder itself. """
-        for p in self.fsspec_fs.ls(self.url):
-            self.fsspec_fs.rm(p)
-
     def delete_in_fs(self, recurse=True, *kwargs):
         """ Delete the gcs folder itself along with its contents. """
         try:

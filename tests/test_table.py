@@ -1,3 +1,4 @@
+import shutil
 import unittest
 from pathlib import Path
 
@@ -18,6 +19,10 @@ def setup():
     # Create bucket in S3
     from sky.data.storage import S3Store
     S3Store(name=BUCKET_NAME, source='')
+
+
+def delete_local_folder(path):
+    shutil.rmtree(path)
 
 
 def tokenize_function(examples):
@@ -64,23 +69,61 @@ def load_sample_data(data_type):
 
 
 # -----------------------------------------------
-
 # ----------------- Local tests -----------------
 # -----------------------------------------------
+
+def test_create_and_reload_file_locally():
+    local_url = Path.cwd() / 'table_tests/local_test_table'
+    local_url.mkdir(parents=True, exist_ok=True)
+
+    Path(local_url).mkdir(parents=True, exist_ok=True)
+
+    orig_data = pd.DataFrame({'my_col': list(range(50))})
+    my_table = rh.table(data=orig_data,
+                        name='~/my_local_test_table',
+                        url=str(local_url),
+                        fs='file').save()
+
+    reloaded_table = rh.table(name='~/my_local_test_table', dryrun=True)
+    reloaded_data: ray.data.Dataset = reloaded_table.data
+
+    assert reloaded_data.to_pandas().equals(orig_data)
+
+    batches = reloaded_table.stream(batch_size=10)
+    for idx, batch in enumerate(batches):
+        assert isinstance(batch, pd.DataFrame)
+        assert batch['my_col'].tolist() == list(range(idx * 10, (idx + 1) * 10))
+
+    del orig_data
+    del my_table
+
+    reloaded_table.delete_configs()
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
 
 def test_create_and_reload_pandas_locally():
     orig_data = load_sample_data('pandas')
 
     my_table = rh.table(data=orig_data,
-                        name='~/my_test_pandas_table',
+                        name='~/my_test_local_pandas_table',
                         url='table_tests/test_pandas_table',
                         fs='file',
                         mkdir=True).save()
 
-    reloaded_table = rh.table(name='~/my_test_pandas_table', dryrun=True)
+    reloaded_table = rh.table(name='~/my_test_local_pandas_table', dryrun=True)
     reloaded_data: ray.data.Dataset = reloaded_table.data
 
     assert orig_data.equals(reloaded_data.to_pandas())
+
+    batches = reloaded_table.stream(batch_size=10)
+    for idx, batch in enumerate(batches):
+        assert isinstance(batch, pd.DataFrame)
+        assert batch['id'].tolist() == list(range(1, 7))
+
+    del orig_data
+    del my_table
 
     reloaded_table.delete_configs()
 
@@ -91,15 +134,100 @@ def test_create_and_reload_pandas_locally():
 def test_create_and_reload_pyarrow_locally():
     orig_data = load_sample_data('pyarrow')
     my_table = rh.table(data=orig_data,
-                        name='~/my_test_pyarrow_table',
+                        name='~/my_test_local_pyarrow_table',
                         url='table_tests/pyarrow_test_table',
                         fs='file',
                         mkdir=True).save()
 
-    reloaded_table = rh.table(name='~/my_test_pyarrow_table', dryrun=True)
+    reloaded_table = rh.table(name='~/my_test_local_pyarrow_table', dryrun=True)
     reloaded_data: ray.data.Dataset = reloaded_table.data
 
     assert orig_data.to_pandas().equals(reloaded_data.to_pandas())
+
+    batches = reloaded_table.stream(batch_size=10)
+    for idx, batch in enumerate(batches):
+        assert isinstance(batch, pa.Table)
+        assert batch['int'].to_pylist() == list(range(1, 11))
+
+    del orig_data
+    del my_table
+
+    reloaded_table.delete_configs()
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+
+def test_create_and_reload_ray_locally():
+    orig_data = load_sample_data('ray')
+    my_table = rh.table(data=orig_data,
+                        name='~/my_test_local_ray_table',
+                        url='table_tests/ray_test_table',
+                        fs='file',
+                        mkdir=True).save()
+
+    reloaded_table = rh.table(name='~/my_test_local_ray_table', dryrun=True)
+    reloaded_data: ray.data.Dataset = reloaded_table.data
+
+    assert orig_data.to_pandas().equals(reloaded_data.to_pandas())
+
+    batches = reloaded_table.stream(batch_size=10)
+    for idx, batch in enumerate(batches):
+        assert isinstance(batch, pa.Table)
+        assert batch['value'].to_pylist() == list(range(idx * 10, (idx + 1) * 10))
+
+    del orig_data
+    del my_table
+
+    reloaded_table.delete_configs()
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+
+def test_create_and_reload_huggingface_locally():
+    orig_data = load_sample_data('huggingface')
+    my_table = rh.table(data=orig_data,
+                        name='~/my_test_local_huggingface_table',
+                        url='table_tests/huggingface_test_table',
+                        fs='file',
+                        mkdir=True).save()
+
+    reloaded_table = rh.table(name='~/my_test_local_huggingface_table', dryrun=True)
+    reloaded_data: ray.data.Dataset = reloaded_table.data
+
+    assert orig_data.to_pandas().equals(reloaded_data.to_pandas())
+
+    batches = reloaded_table.stream(batch_size=10, as_dict=False)
+    for idx, batch in enumerate(batches):
+        assert batch.column_names == ['label', 'text']
+        assert batch.shape == (10, 2)
+
+    del orig_data
+    del my_table
+
+    reloaded_table.delete_configs()
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+
+def test_create_and_reload_dask_locally():
+    orig_data = load_sample_data('dask')
+    my_table = rh.table(data=orig_data,
+                        name='~/my_test_local_dask_table',
+                        url='table_tests/dask_test_table',
+                        fs='file',
+                        mkdir=True).save()
+
+    reloaded_table = rh.table(name='~/my_test_local_dask_table', dryrun=True)
+    reloaded_data: 'dask.dataframe.core.DataFrame' = reloaded_table.data.to_dask()
+    assert reloaded_data.columns.to_list() == ['a', 'b']
+
+    batches = reloaded_table.stream(batch_size=10)
+    for idx, batch in enumerate(batches):
+        assert batch.column_names == ['a', 'b']
+        assert batch.shape == (10, 2)
 
     del orig_data
     del my_table
@@ -125,7 +253,12 @@ def test_create_and_reload_pyarrow_data_from_s3():
     reloaded_data: ray.data.Dataset = reloaded_table.data
     assert reloaded_data.to_pandas().equals(orig_data.to_pandas())
 
+    batches = reloaded_table.stream(batch_size=10)
+    for idx, batch in enumerate(batches):
+        assert batch.column_names == ['int', 'str']
+
     del orig_data
+    del my_table
 
     reloaded_table.delete_configs()
 
@@ -146,6 +279,11 @@ def test_create_and_reload_pandas_data_from_s3():
     reloaded_data: ray.data.Dataset = reloaded_table.data
     assert orig_data.equals(reloaded_data.to_pandas())
 
+    batches = reloaded_table.stream(batch_size=10)
+    for idx, batch in enumerate(batches):
+        assert isinstance(batch, pd.DataFrame)
+        assert batch['id'].tolist() == list(range(1, 7))
+
     del orig_data
     del my_table
 
@@ -165,8 +303,12 @@ def test_create_and_reload_huggingface_data_from_s3():
                         mkdir=True).save()
 
     reloaded_table = rh.table(name='@/my_test_hf_table', dryrun=True)
-    reloaded_data: ray.data.Dataset = reloaded_table.data
-    assert reloaded_data.to_pandas().equals(orig_data.to_pandas())
+
+    # Stream in as huggingface dataset
+    batches = reloaded_table.stream(batch_size=10, as_dict=False)
+    for idx, batch in enumerate(batches):
+        assert batch.column_names == ['label', 'text']
+        assert batch.shape == (10, 2)
 
     del orig_data
     del my_table
@@ -186,10 +328,13 @@ def test_create_and_reload_dask_data_from_s3():
                         mkdir=True).save()
 
     reloaded_table = rh.table(name='@/my_test_dask_table', dryrun=True)
-    reloaded_data: ray.data.Dataset = reloaded_table.data
-    dask_reloaded_data = reloaded_data.to_dask()
+    reloaded_data: 'dask.dataframe.core.DataFrame' = reloaded_table.data.to_dask()
+    assert reloaded_data.columns.to_list() == ['a', 'b']
 
-    assert orig_data.to_pandas().equals(dask_reloaded_data.to_pandas())
+    batches = reloaded_table.stream(batch_size=10)
+    for idx, batch in enumerate(batches):
+        assert batch.column_names == ['a', 'b']
+        assert batch.shape == (10, 2)
 
     del orig_data
     del my_table
@@ -213,111 +358,13 @@ def test_create_and_reload_ray_data_from_s3():
     reloaded_data: ray.data.Dataset = reloaded_table.data
     assert reloaded_data.to_pandas().equals(orig_data.to_pandas())
 
-    del orig_data
-    del my_table
-
-    reloaded_table.delete_configs()
-
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
-
-
-# ----------------- Streaming -----------------
-def test_create_and_stream_huggingface_data_from_s3():
-    orig_data: datasets.Dataset = load_sample_data(data_type='huggingface')
-
-    my_table = rh.table(data=orig_data,
-                        name='@/my_test_hf_stream_table',
-                        url=f'/{BUCKET_NAME}/huggingface-stream',
-                        fs='s3',
-                        mkdir=True).save()
-
-    reloaded_table = rh.table(name='@/my_test_hf_stream_table', dryrun=True)
-
-    # Stream in as huggingface dataset
-    batches = reloaded_table.stream(batch_size=10, as_dict=False)
-    for idx, batch in enumerate(batches):
-        assert batch.column_names == ['label', 'text']
-        assert batch.shape == (10, 2)
-
-    del orig_data
-    del my_table
-
-    reloaded_table.delete_configs()
-
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
-
-
-def test_create_and_stream_huggingface_data_from_cluster():
-    orig_data: datasets.Dataset = load_sample_data(data_type='huggingface')
-
-    c1 = rh.cluster('^rh-cpu').up_if_not()
-
-    # Make sure the destination folder for the data exists on the cluster
-    data_url_on_cluster = f'{Folder.DEFAULT_CACHE_FOLDER}/hf-stream'
-    c1.run([f'mkdir -p {data_url_on_cluster}'])
-
-    my_table = rh.table(data=orig_data,
-                        name='@/hf_stream_table_from_cluster',
-                        url=data_url_on_cluster,
-                        fs=c1,
-                        mkdir=True).save()
-
-    reloaded_table = rh.table(name='@/hf_stream_table_from_cluster', dryrun=True)
-
-    # Stream in as huggingface dataset
-    batches = reloaded_table.stream(batch_size=10, as_dict=False)
-    for idx, batch in enumerate(batches):
-        assert batch.column_names == ['label', 'text']
-        assert batch.shape == (10, 2)
-
-    del orig_data
-    del my_table
-
-    reloaded_table.delete_configs()
-
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
-
-
-def test_stream_data_from_file():
-    from pathlib import Path
-    url = 'table_tests/stream_data'
-    Path(Path.cwd().parent / url).mkdir(parents=True, exist_ok=True)
-
-    data = pd.DataFrame({'my_col': list(range(50))})
-    my_table = rh.table(data=data,
-                        name='~/my_test_table',
-                        url=url,
-                        fs='file').save()
-
-    reloaded_table = rh.table(name='~/my_test_table', dryrun=True)
-
     batches = reloaded_table.stream(batch_size=10)
     for idx, batch in enumerate(batches):
-        assert isinstance(batch, pd.DataFrame)
-        assert batch['my_col'].tolist() == list(range(idx * 10, (idx + 1) * 10))
+        assert isinstance(batch, pa.Table)
+        assert batch['value'].to_pylist() == list(range(idx * 10, (idx + 1) * 10))
 
-    reloaded_table.delete_configs()
-
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
-
-
-def test_stream_data_from_s3():
-    data = load_sample_data('pyarrow')
-    my_table = rh.table(data=data,
-                        name='@/my_test_table',
-                        url=f'/{BUCKET_NAME}/stream-data',
-                        fs='s3',
-                        mkdir=True).save()
-
-    reloaded_table = rh.table(name='@/my_test_table', dryrun=True)
-
-    batches = reloaded_table.stream(batch_size=10)
-    for idx, batch in enumerate(batches):
-        assert batch.column_names == ['int', 'str']
+    del orig_data
+    del my_table
 
     reloaded_table.delete_configs()
 
@@ -421,8 +468,7 @@ def test_shuffling_pyarrow_data_from_s3():
 # ----------------- Cluster tests -----------------
 # -------------------------------------------------
 def test_create_and_reload_pandas_data_from_cluster():
-    c1 = rh.cluster(name='^rh-cpu').up_if_not()
-
+    c1 = rh.cluster(name='^rh-cpu').up_if_not().save()
     # Make sure the destination folder for the data exists on the cluster
     data_url_on_cluster = Folder.DEFAULT_CACHE_FOLDER
     c1.run([f'mkdir -p {data_url_on_cluster}'])
@@ -439,6 +485,11 @@ def test_create_and_reload_pandas_data_from_cluster():
     reloaded_data: ray.data.Dataset = reloaded_table.data
     assert orig_data.equals(reloaded_data.to_pandas())
 
+    batches = reloaded_table.stream(batch_size=10)
+    for idx, batch in enumerate(batches):
+        assert isinstance(batch, pd.DataFrame)
+        assert batch['id'].tolist() == list(range(1, 7))
+
     del orig_data
     del my_table
 
@@ -449,7 +500,7 @@ def test_create_and_reload_pandas_data_from_cluster():
 
 
 def test_create_and_reload_ray_data_from_cluster():
-    c1 = rh.cluster('rh-32-cpu').up_if_not()
+    c1 = rh.cluster('^rh-cpu').up_if_not()
 
     # Make sure the destination folder for the data exists on the cluster. Here we'll create a separate folder since
     # ray will split the data into multiple parquet files for us
@@ -467,7 +518,13 @@ def test_create_and_reload_ray_data_from_cluster():
     reloaded_data: ray.data.Dataset = reloaded_table.data
     assert orig_data.to_pandas().equals(reloaded_data.to_pandas())
 
+    batches = reloaded_table.stream(batch_size=10)
+    for idx, batch in enumerate(batches):
+        assert isinstance(batch, pa.Table)
+        assert batch['value'].to_pylist() == list(range(idx * 10, (idx + 1) * 10))
+
     del orig_data
+    del my_table
 
     reloaded_table.delete_configs()
 
@@ -494,7 +551,12 @@ def test_create_and_reload_pyarrow_data_from_cluster():
     reloaded_data: ray.data.Dataset = reloaded_table.data
     assert orig_data.to_pandas().equals(reloaded_data.to_pandas())
 
+    batches = reloaded_table.stream(batch_size=10)
+    for idx, batch in enumerate(batches):
+        assert batch.column_names == ['int', 'str']
+
     del orig_data
+    del my_table
 
     reloaded_table.delete_configs()
 
@@ -520,16 +582,20 @@ def test_create_and_reload_huggingface_data_from_cluster():
     reloaded_data: ray.data.Dataset = reloaded_table.data
     assert orig_data.to_pandas().equals(reloaded_data.to_pandas())
 
+    # Stream in as huggingface dataset
+    batches = reloaded_table.stream(batch_size=10, as_dict=False)
+    for idx, batch in enumerate(batches):
+        assert batch.column_names == ['label', 'text']
+        assert batch.shape == (10, 2)
+
     del orig_data
+    del my_table
 
     reloaded_table.delete_configs()
 
     reloaded_table.delete_in_fs()
     assert not reloaded_table.exists_in_fs()
 
-
-# TODO [JL] Add more tests where data source is SSH (i.e. data lives on a cluster)
-# TODO [JL] Read / write / streaming works for each location
 
 if __name__ == '__main__':
     setup()

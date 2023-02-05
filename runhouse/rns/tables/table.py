@@ -244,10 +244,10 @@ class Table(Resource):
 
     def read_ray_dataset(self, columns: Optional[List[str]] = None):
         """ Read parquet data as a ray dataset object """
-        # https://docs.ray.io/en/latest/data/api/input_output.html#parquet
-
-        # TODO [JL] we should be able to specify a non SSH / SFTP filesystem here without breaking
+        # TODO [JL] we should be able to specify all filesystems here without breaking
         filesystem = self._folder.fsspec_fs if isinstance(self.fs, Resource) else None
+
+        # https://docs.ray.io/en/latest/data/api/input_output.html#parquet
         dataset = ray.data.read_parquet(self.fsspec_url,
                                         columns=columns,
                                         filesystem=filesystem)
@@ -255,16 +255,13 @@ class Table(Resource):
 
     def write_ray_dataset(self, data_to_write: ray.data.Dataset):
         """ Write a ray dataset to a fsspec filesystem """
-        # TODO [JL] support all filesystems without breaking
-        filesystem = self._folder.fsspec_fs if isinstance(self.fs, Resource) else None
-
         if self.partition_cols:
-            # TODO [JL]
-            #  maybe something like: https://arrow.apache.org/docs/python/generated/pyarrow.parquet.write_to_dataset.html
+            # TODO [JL]: https://arrow.apache.org/docs/python/generated/pyarrow.parquet.write_to_dataset.html
+            logger.warning('Partitioning by column not currently supported.')
             pass
 
         # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.write_parquet.html
-        data_to_write.write_parquet(self.fsspec_url, filesystem=filesystem)
+        data_to_write.write_parquet(self.fsspec_url, filesystem=self._folder.fsspec_fs)
 
     @staticmethod
     def pa_table_to_ray_dataset(data):
@@ -274,10 +271,8 @@ class Table(Resource):
     def delete_in_fs(self, recursive: bool = True):
         """Remove contents of all subdirectories (ex: partitioned data folders)"""
         # If file(s) are directories, recursively delete contents and then also remove the directory
-
-        # TODO [JL] this should actually delete the folders themselves (per fsspec), but only deletes their contents
         # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.spec.AbstractFileSystem.rm
-        self._folder.rm('', recursive=recursive)  # Passing in an empty string to delete the contents of the folder
+        self._folder.fsspec_fs.rm(self.url, recursive=recursive)
 
     def exists_in_fs(self):
         return self._folder.exists_in_fs() and len(self._folder.ls(self.fsspec_url)) > 1
@@ -300,7 +295,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
 
     try:
         import datasets
-        if resource_subtype == 'HuggingFaceTable' or isinstance(data, datasets.Dataset):
+        if isinstance(data, datasets.Dataset) or resource_subtype == 'HuggingFaceTable':
             from .huggingface_table import HuggingFaceTable
             return HuggingFaceTable.from_config(config)
     except ModuleNotFoundError:
@@ -341,8 +336,10 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
     try:
         import cudf
         if isinstance(data, cudf.DataFrame) or resource_subtype == 'CudfTable':
-            from .rapids_table import RapidsTable
-            return RapidsTable.from_config(config)
+            # TODO [JL]
+            # from .rapids_table import RapidsTable
+            # return RapidsTable.from_config(config)
+            raise NotImplementedError('Cudf not currently supported')
     except ModuleNotFoundError:
         pass
     except Exception as e:

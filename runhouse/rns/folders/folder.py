@@ -480,7 +480,8 @@ class Folder(Resource):
 
     def empty_folder(self):
         """ Remove folder contents, but not the folder itself. """
-        raise NotImplementedError
+        for p in self.fsspec_fs.ls(self.url):
+            self.fsspec_fs.rm(p)
 
     def upload(self, src: str, region: Optional[str] = None):
         """ Upload a folder to a remote bucket. """
@@ -805,7 +806,8 @@ def folder(name: Optional[str] = None,
             config['fs'] = rns_client.load_config(file_system)
         else:
             raise ValueError(f'File system {file_system} not found. Have you installed the '
-                             f'necessary packages for this fsspec protocol? (e.g. s3fs for s3)')
+                             f'necessary packages for this fsspec protocol? (e.g. s3fs for s3). If the file system '
+                             f'is a cluster (ex: /my-user/rh-cpu), make sure the cluster config has been saved.')
 
     # If cluster is passed as the fs.
     if isinstance(config['fs'], dict) or isinstance(config['fs'], Resource):  # if fs is a cluster
