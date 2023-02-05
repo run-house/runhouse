@@ -140,7 +140,7 @@ class Table(Resource):
         if self._cached_data is not None:
             data_to_write = self.data
             if isinstance(data_to_write, pa.Table):
-                data_to_write = self.pa_table_to_ray_dataset(data_to_write)
+                data_to_write = self.ray_dataset_from_arrow(data_to_write)
 
             if not isinstance(data_to_write, ray.data.Dataset):
                 raise TypeError(f'Invalid Table format {type(data_to_write)}')
@@ -244,13 +244,10 @@ class Table(Resource):
 
     def read_ray_dataset(self, columns: Optional[List[str]] = None):
         """ Read parquet data as a ray dataset object """
-        # TODO [JL] we should be able to specify all filesystems here without breaking
-        filesystem = self._folder.fsspec_fs if isinstance(self.fs, Resource) else None
-
         # https://docs.ray.io/en/latest/data/api/input_output.html#parquet
         dataset = ray.data.read_parquet(self.fsspec_url,
                                         columns=columns,
-                                        filesystem=filesystem)
+                                        filesystem=self._folder.fsspec_fs)
         return dataset
 
     def write_ray_dataset(self, data_to_write: ray.data.Dataset):
@@ -264,9 +261,9 @@ class Table(Resource):
         data_to_write.write_parquet(self.fsspec_url, filesystem=self._folder.fsspec_fs)
 
     @staticmethod
-    def pa_table_to_ray_dataset(data):
-        """ Convert pyarrow table to a ray Dataset"""
-        return ray.data.from_arrow([data])
+    def ray_dataset_from_arrow(data):
+        """ Convert an Arrow Table to a ray Dataset"""
+        return ray.data.from_arrow(data)
 
     def delete_in_fs(self, recursive: bool = True):
         """Remove contents of all subdirectories (ex: partitioned data folders)"""

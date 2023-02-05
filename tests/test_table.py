@@ -108,7 +108,7 @@ def test_create_and_reload_pandas_locally():
 
     my_table = rh.table(data=orig_data,
                         name='~/my_test_local_pandas_table',
-                        url='table_tests/test_pandas_table',
+                        url='table_tests/pandas_test_table',
                         fs='file',
                         mkdir=True).save()
 
@@ -238,6 +238,7 @@ def test_create_and_reload_dask_locally():
     assert not reloaded_table.exists_in_fs()
 
 
+# --------------------------------------------
 # ----------------- S3 tests -----------------
 # --------------------------------------------
 def test_create_and_reload_pyarrow_data_from_s3():
@@ -245,7 +246,7 @@ def test_create_and_reload_pyarrow_data_from_s3():
 
     my_table = rh.table(data=orig_data,
                         name='@/my_test_pyarrow_table',
-                        url=f'/{BUCKET_NAME}/pyarrow',
+                        url=f'/{BUCKET_NAME}/pyarrow_df',
                         fs='s3',
                         mkdir=True).save()
 
@@ -298,7 +299,7 @@ def test_create_and_reload_huggingface_data_from_s3():
 
     my_table = rh.table(data=orig_data,
                         name='@/my_test_hf_table',
-                        url=f'/{BUCKET_NAME}/huggingface',
+                        url=f'/{BUCKET_NAME}/huggingface_data',
                         fs='s3',
                         mkdir=True).save()
 
@@ -350,7 +351,7 @@ def test_create_and_reload_ray_data_from_s3():
 
     my_table = rh.table(data=orig_data,
                         name='@/my_test_ray_table',
-                        url=f'/{BUCKET_NAME}/ray',
+                        url=f'/{BUCKET_NAME}/ray_data',
                         fs='s3',
                         mkdir=True).save()
 
@@ -384,7 +385,9 @@ def test_load_pandas_data_as_iter():
 
     reloaded_table = rh.table(name='@/my_test_pandas_table', dryrun=True)
     reloaded_data: ray.data.Dataset = next(iter(reloaded_table))
+
     assert isinstance(reloaded_data, pd.Series)
+    assert reloaded_data.to_dict() == {'id': 1, 'grade': 'a'}
 
     del orig_data
     del my_table
@@ -400,13 +403,15 @@ def test_load_pyarrow_data_as_iter():
 
     my_table = rh.table(data=orig_data,
                         name='@/my_test_pyarrow_table',
-                        url=f'/{BUCKET_NAME}/pyarrow',
+                        url=f'/{BUCKET_NAME}/pyarrow-data',
                         fs='s3',
                         mkdir=True).save()
 
     reloaded_table = rh.table(name='@/my_test_pyarrow_table', dryrun=True)
     reloaded_data: pa.ChunkedArray = next(iter(reloaded_table))
+
     assert isinstance(reloaded_data, pa.ChunkedArray)
+    assert reloaded_data.to_pylist() == list(range(1, 11))
 
     del orig_data
     del my_table
@@ -422,7 +427,7 @@ def test_load_huggingface_data_as_iter():
 
     my_table = rh.table(data=orig_data,
                         name='@/my_test_huggingface_table',
-                        url=f'/{BUCKET_NAME}/huggingface',
+                        url=f'/{BUCKET_NAME}/huggingface-dataset',
                         fs='s3',
                         mkdir=True).save()
 
@@ -465,20 +470,22 @@ def test_shuffling_pyarrow_data_from_s3():
     assert not reloaded_table.exists_in_fs()
 
 
+# -------------------------------------------------
 # ----------------- Cluster tests -----------------
 # -------------------------------------------------
 def test_create_and_reload_pandas_data_from_cluster():
-    c1 = rh.cluster(name='^rh-cpu').up_if_not().save()
+    cluster = rh.cluster(name='^rh-cpu').up_if_not().save()
+
     # Make sure the destination folder for the data exists on the cluster
-    data_url_on_cluster = Folder.DEFAULT_CACHE_FOLDER
-    c1.run([f'mkdir -p {data_url_on_cluster}'])
+    data_url_on_cluster = f'{Folder.DEFAULT_CACHE_FOLDER}/pandas-data'
+    cluster.run([f'mkdir -p {data_url_on_cluster}'])
 
     orig_data = load_sample_data(data_type='pandas')
 
     my_table = rh.table(data=orig_data,
                         name='@/my_test_pandas_table',
                         url=data_url_on_cluster,
-                        fs=c1).save()
+                        fs=cluster).save()
 
     reloaded_table = rh.table(name='@/my_test_pandas_table', dryrun=True)
 
@@ -500,19 +507,17 @@ def test_create_and_reload_pandas_data_from_cluster():
 
 
 def test_create_and_reload_ray_data_from_cluster():
-    c1 = rh.cluster('^rh-cpu').up_if_not()
+    cluster = rh.cluster('^rh-cpu').up_if_not()
 
-    # Make sure the destination folder for the data exists on the cluster. Here we'll create a separate folder since
-    # ray will split the data into multiple parquet files for us
     data_url_on_cluster = f'{Folder.DEFAULT_CACHE_FOLDER}/ray-data'
-    c1.run([f'mkdir -p {data_url_on_cluster}'])
+    cluster.run([f'mkdir -p {data_url_on_cluster}'])
 
     orig_data = load_sample_data(data_type='ray')
 
     my_table = rh.table(data=orig_data,
                         name='@/my_test_ray_cluster_table',
                         url=data_url_on_cluster,
-                        fs=c1).save()
+                        fs=cluster).save()
 
     reloaded_table = rh.table(name='@/my_test_ray_cluster_table', dryrun=True)
     reloaded_data: ray.data.Dataset = reloaded_table.data
@@ -533,19 +538,17 @@ def test_create_and_reload_ray_data_from_cluster():
 
 
 def test_create_and_reload_pyarrow_data_from_cluster():
-    c1 = rh.cluster('^rh-cpu').up_if_not()
+    cluster = rh.cluster('^rh-cpu').up_if_not()
 
-    # Make sure the destination folder for the data exists on the cluster. Here we'll create a separate folder since
-    # ray will split the data into multiple parquet files for us
     data_url_on_cluster = f'{Folder.DEFAULT_CACHE_FOLDER}/pyarrow-data'
-    c1.run([f'mkdir -p {data_url_on_cluster}'])
+    cluster.run([f'mkdir -p {data_url_on_cluster}'])
 
     orig_data = load_sample_data(data_type='pyarrow')
 
     my_table = rh.table(data=orig_data,
                         name='@/my_test_pyarrow_cluster_table',
                         url=data_url_on_cluster,
-                        fs=c1).save()
+                        fs=cluster).save()
 
     reloaded_table = rh.table(name='@/my_test_pyarrow_cluster_table', dryrun=True)
     reloaded_data: ray.data.Dataset = reloaded_table.data
@@ -565,18 +568,17 @@ def test_create_and_reload_pyarrow_data_from_cluster():
 
 
 def test_create_and_reload_huggingface_data_from_cluster():
-    c1 = rh.cluster('^rh-cpu').up_if_not()
+    cluster = rh.cluster('^rh-cpu').up_if_not()
 
-    # Make sure the destination folder for the data exists on the cluster
     data_url_on_cluster = f'{Folder.DEFAULT_CACHE_FOLDER}/hf-data'
-    c1.run([f'mkdir -p {data_url_on_cluster}'])
+    cluster.run([f'mkdir -p {data_url_on_cluster}'])
 
     orig_data = load_sample_data(data_type='huggingface')
 
     my_table = rh.table(data=orig_data,
                         name='@/my_test_hf_cluster_table',
                         url=data_url_on_cluster,
-                        fs=c1).save()
+                        fs=cluster).save()
 
     reloaded_table = rh.table(name='@/my_test_hf_cluster_table', dryrun=True)
     reloaded_data: ray.data.Dataset = reloaded_table.data
@@ -586,6 +588,37 @@ def test_create_and_reload_huggingface_data_from_cluster():
     batches = reloaded_table.stream(batch_size=10, as_dict=False)
     for idx, batch in enumerate(batches):
         assert batch.column_names == ['label', 'text']
+        assert batch.shape == (10, 2)
+
+    del orig_data
+    del my_table
+
+    reloaded_table.delete_configs()
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+
+def test_create_and_reload_dask_data_from_cluster():
+    cluster = rh.cluster('^rh-cpu').up_if_not()
+
+    data_url_on_cluster = f'{Folder.DEFAULT_CACHE_FOLDER}/dask-data'
+    cluster.run([f'mkdir -p {data_url_on_cluster}'])
+
+    orig_data = load_sample_data(data_type='dask')
+
+    my_table = rh.table(data=orig_data,
+                        name='@/my_test_dask_cluster_table',
+                        url=data_url_on_cluster,
+                        fs=cluster).save()
+
+    reloaded_table = rh.table(name='@/my_test_dask_cluster_table', dryrun=True)
+    reloaded_data: 'dask.dataframe.core.DataFrame' = reloaded_table.data.to_dask()
+    assert reloaded_data.columns.to_list() == ['a', 'b']
+
+    batches = reloaded_table.stream(batch_size=10)
+    for idx, batch in enumerate(batches):
+        assert batch.column_names == ['a', 'b']
         assert batch.shape == (10, 2)
 
     del orig_data
