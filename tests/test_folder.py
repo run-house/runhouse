@@ -22,12 +22,10 @@ def setup():
     # Create local dir with files to upload to cluster, buckets, etc.
     from pathlib import Path
 
-    TEST_FOLDER_PATH.mkdir(exist_ok=True)
+    TEST_FOLDER_PATH.mkdir(parents=True, exist_ok=True)
     for i in range(3):
         output_file = Path(f"{TEST_FOLDER_PATH}/sample_file_{i}.txt")
         output_file.write_text(f"file{i}")
-
-    return str(TEST_FOLDER_PATH)
 
 
 def delete_local_folder(path):
