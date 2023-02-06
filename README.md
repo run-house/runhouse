@@ -35,8 +35,11 @@ Runhouse is for ML Researchers, Engineers, and Data Scientists who are tired of:
 
 By way of a visual,
 
-![img.png](docs/assets/img.png)
-![img_1.png](docs/assets/img_1.png)
+[//]: # (![img.png]&#40;docs/assets/img.png&#41;)
+
+[//]: # (![img_1.png]&#40;docs/assets/img_1.png&#41;)
+![img.png](https://raw.githubusercontent.com/run-house/runhouse/main/docs/assets/img.png)
+![img_1.png](https://raw.githubusercontent.com/run-house/runhouse/main/docs/assets/img_1.png)
 
 Take a look at this code (adapted from our first [tutorial](https://github.com/run-house/tutorials)):
 ```python
@@ -90,6 +93,7 @@ in an ip address and ssh key).
 tldr;
 ```commandline
 pip install runhouse
+# Or "runhouse[aws]", "runhouse[gcp]", "runhouse[azure]", "runhouse[all]"
 sky check
 # Optionally, for portability (e.g. Colab):
 runhouse login
@@ -109,6 +113,17 @@ Runhouse can be installed with:
 ```
 pip install runhouse
 ```
+
+Depending on which cloud providers you plan to use, you can also install the following
+additional dependencies (to install the right versions of tools like boto, gsutil, etc.):
+```commandline
+pip install "runhouse[aws]"
+pip install "runhouse[gcp]"
+pip install "runhouse[azure]"
+# Or
+pip install "runhouse[all]"
+```
+
 As this is an alpha, we push feature updates every few weeks as new microversions.
 
 ### ✈️ Verifying your Cloud Setup with SkyPilot
