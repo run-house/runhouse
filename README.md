@@ -164,7 +164,7 @@ To create an account, visit [api.run.house](https://api.run.house),
 or simply call `runhouse login` from the command line (or
 `rh.login()` from Python).
 
-> **Note**
+> **Note:**
 These portability features only ever store light metadata about your resources
 (e.g. my_folder_name -> [provider, bucket, path]) on our API servers. All the actual data and compute
 stays inside your own cloud account and never hits our servers. The Secrets service stores
@@ -182,7 +182,7 @@ of the APIs.
 ## 🙋‍♂️ Getting Help
 
 Please join our [discord server here](https://discord.gg/RnhB6589Hs)
-to message us, or email us (donny at run.house or josh at run.house), or create an issue.
+to message us, or email us (first name at run.house), or create an issue.
 
 ## 👷‍♀️ Contributing
 

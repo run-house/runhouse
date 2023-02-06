@@ -48,7 +48,9 @@ def test_rns_path(tmp_path):
     )
 
 
-@unittest.skip("TODO: [DG] This whole business is hanging on by a thread, we need to overhaul it.")
+@unittest.skip(
+    "TODO: [DG] This whole business is hanging on by a thread, we need to overhaul it."
+)
 def test_ls():
     rh.set_folder("~")
     assert rh.resources() == rh.resources("~")

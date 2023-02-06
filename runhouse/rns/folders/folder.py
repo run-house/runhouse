@@ -746,12 +746,7 @@ class Folder(Resource):
         e.g. with my_folder.open('obj_name') as my_file:
                 pickle.load(my_file)
         """
-        return fsspec.open(
-            urlpath=self.fsspec_url + "/" + name,
-            mode=mode,
-            encoding=encoding,
-            **self.data_config,
-        )
+        return self.fsspec_fs.open(self.url + "/" + name, mode=mode, encoding=encoding)
 
     def get(self, name, mode="rb", encoding=None):
         """Returns the contents of a file as a string or bytes."""

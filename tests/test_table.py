@@ -553,7 +553,7 @@ def test_create_and_reload_pandas_data_from_cluster():
 
 
 def test_create_and_reload_ray_data_from_cluster():
-    cluster = rh.cluster("^rh-cpu").up_if_not()
+    cluster = rh.cluster("^rh-cpu").up_if_not().save()
 
     data_url_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/ray-data"
     cluster.run([f"mkdir -p {data_url_on_cluster}"])
@@ -586,7 +586,7 @@ def test_create_and_reload_ray_data_from_cluster():
 
 
 def test_create_and_reload_pyarrow_data_from_cluster():
-    cluster = rh.cluster("^rh-cpu").up_if_not()
+    cluster = rh.cluster("^rh-cpu").up_if_not().save()
 
     data_url_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/pyarrow-data"
     cluster.run([f"mkdir -p {data_url_on_cluster}"])
@@ -618,7 +618,7 @@ def test_create_and_reload_pyarrow_data_from_cluster():
 
 
 def test_create_and_reload_huggingface_data_from_cluster():
-    cluster = rh.cluster("^rh-cpu").up_if_not()
+    cluster = rh.cluster("^rh-cpu").up_if_not().save()
 
     data_url_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/hf-data"
     cluster.run([f"mkdir -p {data_url_on_cluster}"])
@@ -652,7 +652,7 @@ def test_create_and_reload_huggingface_data_from_cluster():
 
 
 def test_create_and_reload_dask_data_from_cluster():
-    cluster = rh.cluster("^rh-cpu").up_if_not()
+    cluster = rh.cluster("^rh-cpu").up_if_not().save()
 
     data_url_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/dask-data"
     cluster.run([f"mkdir -p {data_url_on_cluster}"])

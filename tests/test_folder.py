@@ -217,25 +217,6 @@ def test_cluster_and_gcs():
         )
 
 
-def test_cluster_and_cluster():
-    # Local to cluster 1
-    local_folder = rh.folder(url=TEST_FOLDER_PATH)
-    c1 = rh.cluster("^rh-cpu").up_if_not()
-
-    # Upload sky secrets to cluster - required when syncing over the folder from c1 to c2
-    c1.send_secrets(providers=["sky"])
-
-    cluster_folder_1 = local_folder.to(fs=c1).from_cluster(c1)
-    assert "sample_file_0.txt" in cluster_folder_1.ls(full_paths=False)
-
-    # Cluster 1 to cluster 2
-    c2 = rh.cluster("^rh-8-cpu").up_if_not()
-    cluster_folder_2 = cluster_folder_1.to(
-        fs=c2, url=cluster_folder_1.url
-    ).from_cluster(c2)
-    assert "sample_file_0.txt" in cluster_folder_2.ls(full_paths=False)
-
-
 def test_s3_and_s3():
     # Local to S3
     local_folder = rh.folder(url=TEST_FOLDER_PATH)
@@ -310,6 +291,25 @@ def test_s3_folder_uploads_and_downloads():
 
     test_folder.delete_in_fs()
     assert not test_folder.exists_in_fs()
+
+
+def test_cluster_and_cluster():
+    # Local to cluster 1
+    local_folder = rh.folder(url=TEST_FOLDER_PATH)
+    c1 = rh.cluster("^rh-cpu").up_if_not()
+
+    # Upload sky secrets to cluster - required when syncing over the folder from c1 to c2
+    c1.send_secrets(providers=["sky"])
+
+    cluster_folder_1 = local_folder.to(fs=c1).from_cluster(c1)
+    assert "sample_file_0.txt" in cluster_folder_1.ls(full_paths=False)
+
+    # Cluster 1 to cluster 2
+    c2 = rh.cluster("^rh-8-cpu").up_if_not()
+    cluster_folder_2 = cluster_folder_1.to(
+        fs=c2, url=cluster_folder_1.url
+    ).from_cluster(c2)
+    assert "sample_file_0.txt" in cluster_folder_2.ls(full_paths=False)
 
 
 if __name__ == "__main__":
