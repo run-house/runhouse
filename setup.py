@@ -88,7 +88,7 @@ extras_require = {
         "s3fs==2023.1.0",
     ],
     "azure": ["azure-cli==2.31.0", "azure-core"],
-    "gcp": ["google-api-python-client", "google-cloud-storage"],
+    "gcp": ["google-api-python-client", "google-cloud-storage", 'gcsfs'],
     "docker": ["docker"],
 }
 

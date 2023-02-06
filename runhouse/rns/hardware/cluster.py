@@ -433,8 +433,7 @@ class Cluster(Resource):
         self, commands: list, stream_logs=True, port_forward=None, require_outputs=True
     ):
         """Run a list of shell commands on the cluster."""
-        # TODO add name parameter to create Run object, and use sky.exec (after updating to sky 2.0):
-        # sky.exec(commands, cluster_name=self.name, stream_logs=stream_logs, detach=False)
+        # TODO [DG] Add a command to each run which registers activity on the cluster
         runner = command_runner.SSHCommandRunner(self.address, **self.ssh_creds())
         return_codes = []
         for command in commands:

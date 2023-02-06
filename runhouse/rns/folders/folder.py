@@ -433,17 +433,16 @@ class Folder(Resource):
         dest_folder.mkdir()
 
         if self.fs == "file":
-            src_url = self.local_path + "/"
-            dest_cluster.rsync(source=src_url, dest=dest_url, up=True, contents=True)
+            dest_cluster.rsync(source=self.url, dest=dest_url, up=True, contents=True)
 
         elif isinstance(self.fs, Resource):
-            src_url = dest_url
+            src_url = self.url
 
             cluster_creds = self.fs.ssh_creds()
             creds_file = cluster_creds["ssh_private_key"]
 
             command = (
-                f"rsync -Pavz --filter='dir-merge,- .gitignore' -e \"ssh -i '{creds_file} '"
+                f"rsync -Pavz --filter='dir-merge,- .gitignore' -e \"ssh -i '{creds_file}' "
                 f"-o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes "
                 f"-o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=30s -o ForwardAgent=yes "
                 f'-o ControlMaster=auto -o ControlPersist=300s" {src_url}/ {dest_cluster.address}:{dest_url}'

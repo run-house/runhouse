@@ -36,7 +36,6 @@ Runhouse is for ML Researchers, Engineers, and Data Scientists who are tired of:
 By way of a visual,
 
 [//]: # (![img.png]&#40;docs/assets/img.png&#41;)
-
 [//]: # (![img_1.png]&#40;docs/assets/img_1.png&#41;)
 ![img.png](https://raw.githubusercontent.com/run-house/runhouse/main/docs/assets/img.png)
 ![img_1.png](https://raw.githubusercontent.com/run-house/runhouse/main/docs/assets/img_1.png)

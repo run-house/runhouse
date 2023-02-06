@@ -119,6 +119,8 @@ def test_cluster_tos():
 def test_local_and_cluster():
     # Local to cluster
     local_folder = rh.folder(url=TEST_FOLDER_PATH)
+    local_folder.mkdir()
+    local_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
     c = rh.cluster("^rh-cpu").up_if_not()
     cluster_folder = local_folder.to(fs=c).from_cluster(c)
     assert "sample_file_0.txt" in cluster_folder.ls(full_paths=False)
@@ -189,7 +191,7 @@ def test_cluster_and_gcs():
     c = rh.cluster("^rh-cpu").up_if_not()
 
     # Make sure we have gsutil and gcloud on the cluster - needed for copying the package + authenticating
-    c.pip_install_packages(packages=["gsutil"])
+    c.install_packages(["gsutil"])
 
     # TODO [JL] might be necessary to install gcloud on the cluster
     # c.run(['sudo snap install google-cloud-cli --classic'])
