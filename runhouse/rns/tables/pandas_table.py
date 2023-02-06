@@ -2,9 +2,10 @@ import logging
 import uuid
 from typing import Optional
 
-from .table import Table
 from .. import SkyCluster
 from ..top_level_rns_fns import save
+
+from .table import Table
 
 logger = logging.getLogger(__name__)
 
@@ -40,13 +41,13 @@ class PandasTable(Table):
     ):
         if self._cached_data is not None:
             # https://pandas.pydata.org/pandas-docs/version/1.1/reference/api/pandas.DataFrame.to_parquet.html
-            self.data.to_parquet(self.fsspec_url,
-                                 storage_options=self.data_config,
-                                 partition_cols=self.partition_cols)
+            self.data.to_parquet(
+                self.fsspec_url,
+                storage_options=self.data_config,
+                partition_cols=self.partition_cols,
+            )
 
-        save(
-            self, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs
-        )
+        save(self, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
 
         return self
 

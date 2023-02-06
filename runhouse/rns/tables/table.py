@@ -6,24 +6,24 @@ from typing import Dict, List, Optional
 
 import fsspec
 import pandas as pd
-import pyarrow.parquet as pq
 import pyarrow as pa
+import pyarrow.parquet as pq
 import ray.data
 
 import runhouse as rh
 from runhouse.rh_config import rns_client
 from runhouse.rns.folders.folder import folder
-from ..top_level_rns_fns import save
 from .. import Resource, SkyCluster
+from ..top_level_rns_fns import save
 
 logger = logging.getLogger(__name__)
 
 
 class Table(Resource):
-    RESOURCE_TYPE = 'table'
-    DEFAULT_FOLDER_PATH = '/runhouse/tables'
-    DEFAULT_CACHE_FOLDER = '.cache/runhouse/tables'
-    DEFAULT_STREAM_FORMAT = 'pyarrow'
+    RESOURCE_TYPE = "table"
+    DEFAULT_FOLDER_PATH = "/runhouse/tables"
+    DEFAULT_CACHE_FOLDER = ".cache/runhouse/tables"
+    DEFAULT_STREAM_FORMAT = "pyarrow"
     DEFAULT_BATCH_SIZE = 256
     DEFAULT_PREFETCH_BLOCKS = 1
 
@@ -144,14 +144,12 @@ class Table(Resource):
                 data_to_write = self.ray_dataset_from_arrow(data_to_write)
 
             if not isinstance(data_to_write, ray.data.Dataset):
-                raise TypeError(f'Invalid Table format {type(data_to_write)}')
+                raise TypeError(f"Invalid Table format {type(data_to_write)}")
 
             self.write_ray_dataset(data_to_write)
-            logger.info(f'Saved {str(self)} to: {self.fsspec_url}')
+            logger.info(f"Saved {str(self)} to: {self.fsspec_url}")
 
-        save(
-            self, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs
-        )
+        save(self, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
 
         return self
 
@@ -193,7 +191,7 @@ class Table(Resource):
             len_dataset = self.data.count()
 
         else:
-            if not hasattr(self.data, '__len__') or not self.data:
+            if not hasattr(self.data, "__len__") or not self.data:
                 raise RuntimeError("Cannot get len for dataset.")
             else:
                 len_dataset = len(self.data)
@@ -208,7 +206,8 @@ class Table(Resource):
         batch_size: int,
         drop_last: bool = False,
         shuffle_seed: Optional[int] = None,
-        shuffle_buffer_size: Optional[int] = None, prefetch_blocks: Optional[int] = None,
+        shuffle_buffer_size: Optional[int] = None,
+        prefetch_blocks: Optional[int] = None,
     ):
         """Return a local batched iterator over the ray dataset.
 
@@ -254,18 +253,18 @@ class Table(Resource):
             )
 
     def read_ray_dataset(self, columns: Optional[List[str]] = None):
-        """ Read parquet data as a ray dataset object """
+        """Read parquet data as a ray dataset object"""
         # https://docs.ray.io/en/latest/data/api/input_output.html#parquet
-        dataset = ray.data.read_parquet(self.fsspec_url,
-                                        columns=columns,
-                                        filesystem=self._folder.fsspec_fs)
+        dataset = ray.data.read_parquet(
+            self.fsspec_url, columns=columns, filesystem=self._folder.fsspec_fs
+        )
         return dataset
 
     def write_ray_dataset(self, data_to_write: ray.data.Dataset):
-        """ Write a ray dataset to a fsspec filesystem """
+        """Write a ray dataset to a fsspec filesystem"""
         if self.partition_cols:
             # TODO [JL]: https://arrow.apache.org/docs/python/generated/pyarrow.parquet.write_to_dataset.html
-            logger.warning('Partitioning by column not currently supported.')
+            logger.warning("Partitioning by column not currently supported.")
             pass
 
         # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.write_parquet.html
@@ -273,7 +272,7 @@ class Table(Resource):
 
     @staticmethod
     def ray_dataset_from_arrow(data):
-        """ Convert an Arrow Table to a ray Dataset"""
+        """Convert an Arrow Table to a ray Dataset"""
         return ray.data.from_arrow(data)
 
     def delete_in_fs(self, recursive: bool = True):
@@ -303,7 +302,8 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
 
     try:
         import datasets
-        if isinstance(data, datasets.Dataset) or resource_subtype == 'HuggingFaceTable':
+
+        if isinstance(data, datasets.Dataset) or resource_subtype == "HuggingFaceTable":
             from .huggingface_table import HuggingFaceTable
 
             return HuggingFaceTable.from_config(config)
@@ -354,7 +354,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
             # from .rapids_table import RapidsTable
 
             # return RapidsTable.from_config(config)
-            raise NotImplementedError('Cudf not currently supported')
+            raise NotImplementedError("Cudf not currently supported")
     except ModuleNotFoundError:
         pass
     except Exception as e:

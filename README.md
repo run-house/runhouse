@@ -85,15 +85,6 @@ so notebooks, scripts, pipeline DSLs, etc. are all fair game. We currently suppo
 GCP, Azure, and Lambda Labs credentials through SkyPilot, as well as BYO cluster (just drop
 in an ip address and ssh key).
 
-## 👨‍🏫 Tutorials / API Walkthrough
-
-[Can be found here](https://github.com/run-house/tutorials).
-
-## 🙋‍♂️ Getting Help
-
-Please join our [discord server here](https://discord.gg/RnhB6589Hs)
-to message us, or email us (donny at run.house or josh at run.house), or create an issue.
-
 ## 🐣 Getting Started
 
 tldr;
@@ -122,62 +113,63 @@ As this is an alpha, we push feature updates every few weeks as new microversion
 
 ### ✈️ Verifying your Cloud Setup with SkyPilot
 
+Runhouse supports both BYO cluster, where you interact with existing compute via their
+IP address and SSH key, and autoscaled clusters, where we spin up and down cloud instances
+in your own cloud account for you. If you only plan to use BYO clusters, you can
+disregard the following.
+
 Runhouse uses [SkyPilot](https://skypilot.readthedocs.io/en/latest/) for
-much of the heavy lifting with launching and managing cloud instances.
+much of the heavy lifting with launching and terminating cloud instances.
 We love it and you should [throw them a Github star ⭐️](https://github.com/skypilot-org/skypilot/).
 
-To verify that your cloud credentials are set up correctly, run
+To verify that your cloud credentials are set up correctly for autoscaling, run
 ```
 sky check
 ```
 in your command line. This will confirm which cloud providers are ready to
-use, and will give detailed instructions if any setup is incomplete.
-
-All Runhouse compute are SkyPilot clusters right now, so you should use
-their CLI to do basic management operations. Some important ones are:
-* `sky status --refresh` - Get the status of the clusters *you launched from
-this machine*. This will not pull the status for all the machines you've
-launched from various environments. We plan to add this feature soon.
-* `sky down --all` - This will take down (terminate, without persisting the
-disk image) all clusters in the local SkyPilot context (the ones that show
-when you run `sky status --refresh`). However, the best way to confirm that you don't
-have any machines left running is always to check the cloud provider's UI.
-* `sky down <cluster_name>` - This will take down a specific cluster.
-* `ssh <cluster_name>` - This will ssh into the head node of the cluster.
-SkyPilot cleverly adds the host information to your `~/.ssh/config` file, so
-ssh will just work.
-* `sky autostop -i <minutes, or -1> <cluster_name>` - This will set the
-cluster to autostop after that many minutes of inactivity. By default this
-number is 10 minutes, but you can set it to -1 to disable autostop entirely.
-You can set your default autostop in `~/.rh/config.yaml`.
+use, and will give detailed instructions if any setup is incomplete. SkyPilot also
+provides an excellent suite of CLI commands for basic instance management operations.
+There are a few that you'll be reaching for frequently when using Runhouse with autoscaling
+that you should familiarize yourself with,
+[here](https://github.com/run-house/tutorials/tree/main/x00_Overview#01--clusters).
 
 ### 🔒 Creating a Runhouse Account for Secrets and Portability
 
-Using Runhouse with only the OSS Python package is perfectly fine, and it
-will use your cloud credentials saved into locations like `~/.aws/credentials`
-or `~/.config/gcloud` by default (through SkyPilot). However, you can unlock
-some very unique portability features by creating an account on
-[api.run.house](https://api.run.house) and saving your secrets, configs,
-and resources there. Think of the OSS-package-only experience as akin to Microsoft Office,
+Using Runhouse with only the OSS Python package is perfectly fine. However,
+you can unlock some unique portability features by creating an (always free)
+account on [api.run.house](https://api.run.house) and saving your secrets and/or
+resource metadata there. For example, you can open a Google Colab, call `runhouse login`,
+and all of your secrets or resources will be ready to use there with no additional setup.
+Think of the OSS-package-only experience as akin to Microsoft Office,
 while creating an account will make your cloud resources sharable and accessible
-from anywhere like Google Docs. For example, if you store your secrets or resources
-in the Runhouse cloud, you can open a Google Colab, call `runhouse login`, and all
-of your secrets or resources will be available there with no additional setup. You
-can see examples of this portability in the [Runhouse Tutorials](https://github.com/run-house/tutorials).
+from anywhere like Google Docs. You
+can see examples of this portability in the
+[Runhouse Tutorials](https://github.com/run-house/tutorials).
 
 To create an account, visit [api.run.house](https://api.run.house),
 or simply call `runhouse login` from the command line (or
-`rh.login()` from Python). **Note that your Runhouse account is not a managed compute
-or storage service; all of your compute and data resources are still in your own
-cloud account.**
+`rh.login()` from Python).
 
-## 📜 Docs
+> **Note**
+These portability features only ever store light metadata about your resources
+(e.g. my_folder_name -> [provider, bucket, path]) on our API servers. All the actual data and compute
+stays inside your own cloud account and never hits our servers. The Secrets service stores
+your secrets in Hashicorp Vault (an industry standard for secrets management), and our secrets
+APIs simply call Vault's APIs. We never store secrets on our API servers. We plan to add
+support for BYO secrets management shortly. Let us know if you need it and which system you use.
 
-We don't have real docs yet. We're planning to do a docs sprint in early
-February, but until then, please rely on the [tutorials](https://github.com/run-house/tutorials)
-for basic instruction on how to use our APIs.
+## 👨‍🏫 Tutorials / API Walkthrough / Docs
+
+[Can be found here](https://github.com/run-house/tutorials).
+We're planning to do a docs sprint in late February, but for now,
+our tutorials have been structured to provide a comprehensive walkthrough
+of the APIs.
+
+## 🙋‍♂️ Getting Help
+
+Please join our [discord server here](https://discord.gg/RnhB6589Hs)
+to message us, or email us (donny at run.house or josh at run.house), or create an issue.
 
 ## 👷‍♀️ Contributing
 
-We welcome contributions! Please contact us if you're interested. There
-is so much to do.
+We welcome contributions! Please contact us if you're interested.

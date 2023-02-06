@@ -27,11 +27,11 @@ class RayTable(Table):
         name: Optional[str] = None,
         snapshot: bool = False,
         overwrite: bool = True,
-        **snapshot_kwargs
+        **snapshot_kwargs,
     ):
         if self._cached_data is not None:
             self.write_ray_dataset(self.data)
-            logger.info(f'Saved {str(self)} to: {self.fsspec_url}')
+            logger.info(f"Saved {str(self)} to: {self.fsspec_url}")
 
         save(self, name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
 

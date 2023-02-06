@@ -69,7 +69,7 @@ install_requires = [
     "sshtunnel",
     "sshfs",
     "typer",
-    "skypilot==0.2.3",
+    "skypilot==0.2.4",
 ]
 
 # NOTE: Change the templates/spot-controller.yaml.j2 file if any of the following
