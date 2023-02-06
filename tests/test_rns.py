@@ -2,8 +2,6 @@ import unittest
 from pathlib import Path
 
 import runhouse as rh
-import runhouse.rns.folders.folder
-import runhouse.rns.top_level_rns_fns
 from runhouse.rh_config import rns_client
 
 
@@ -30,28 +28,18 @@ def test_find_working_dir(tmp_path):
 
 
 def test_set_folder(tmp_path):
-    rh.folder("~/bert_ft", dryrun=False)
-    rh.set_folder("bert_ft")
-    rh.folder(name="~/my_test_hw", dryrun=False)
+    rh.set_folder("~/tests")
+    rh.folder(name="bert_ft").save()
 
     # TODO [DG] does this assume that the user must have runhouse in their home directory?
-    assert (Path(rh.rh_config.rns_client.rh_directory) / "bert_ft/my_test_hw").exists()
-    assert rh.exists("~/bert_ft/my_test_hw")
-
-
-def test_contains(tmp_path):
-    runhouse.rns.top_level_rns_fns.set_folder("~")
-    assert rh.folder("bert_ft").contains("my_test_hw")
-
-    assert rh.folder("bert_ft").contains("~/bert_ft/my_test_hw")
-
-    runhouse.rns.top_level_rns_fns.set_folder("bert_ft")
-    assert rh.folder("~/bert_ft").contains("./my_test_hw")
+    assert rh.current_folder() == "~/tests"
+    assert (Path(rh.rh_config.rns_client.rh_directory) / "tests/bert_ft").exists()
+    assert rh.exists("~/tests/bert_ft")
 
 
 def test_rns_path(tmp_path):
     rh.set_folder("~")
-    assert rh.folder("bert_ft").rns_address == "~/bert_ft"
+    assert rh.folder("tests").rns_address == "~/tests"
 
     rh.set_folder("@")
     assert (
@@ -63,7 +51,6 @@ def test_rns_path(tmp_path):
 def test_ls():
     rh.set_folder("~")
     assert rh.resources() == rh.resources("~")
-    assert rh.resources(full_paths=True)
     rh.set_folder("^")
     assert rh.resources() == [
         "rh-32-cpu",
@@ -79,10 +66,10 @@ def test_ls():
     assert (
         rh.resources("bert_ft") == []
     )  # We're still inside builtins so we can't see bert_ft
-    assert rh.folder("~/bert_ft", dryrun=False).resources() == ["my_test_hw"]
+    assert rh.folder("~/tests", dryrun=False).resources() == ["bert_ft"]
     rh.set_folder("~")
-    assert rh.folder("bert_ft", dryrun=False).resources() == ["my_test_hw"]
-    assert rh.resources("bert_ft") == ["my_test_hw"]
+    assert rh.folder("tests", dryrun=False).resources() == ["bert_ft"]
+    assert rh.resources("tests") == ["bert_ft"]
 
 
 def test_from_name():

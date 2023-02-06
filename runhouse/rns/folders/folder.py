@@ -68,7 +68,7 @@ class Folder(Resource):
 
         # TODO [DG] Should we ever be allowing this to be None?
         self._url = (
-            self.default_url(self.name, fs)
+            self.default_url(self.rns_address, fs)
             if url is None
             else url
             if isinstance(fs, Resource)
@@ -92,7 +92,7 @@ class Folder(Resource):
         if fs == Folder.DEFAULT_FS or isinstance(fs, Cluster):
             if rns_address:
                 return str(
-                    Path.cwd() / rns_client.split_rns_name_and_path(rns_address)[1]
+                    Path.cwd() / rns_client.split_rns_name_and_path(rns_address)[0]
                 )  # saves to cwd / name
             return f"{Folder.DEFAULT_CACHE_FOLDER}/{uuid.uuid4().hex}"
         else:
