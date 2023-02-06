@@ -151,7 +151,9 @@ class Table(Resource):
 
         save(
             self, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs
-        )return self
+        )
+
+        return self
 
     def fetch(self, columns: Optional[list] = None) -> pa.Table:
         # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
@@ -226,7 +228,8 @@ class Table(Resource):
             return ray_data.iter_torch_batches(
                 batch_size=batch_size,
                 prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
-                drop_last=drop_last,local_shuffle_buffer_size=shuffle_buffer_size,
+                drop_last=drop_last,
+                local_shuffle_buffer_size=shuffle_buffer_size,
                 local_shuffle_seed=shuffle_seed,
             )
 
@@ -235,7 +238,8 @@ class Table(Resource):
             return ray_data.iter_tf_batches(
                 batch_size=batch_size,
                 prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
-                drop_last=drop_last,local_shuffle_buffer_size=shuffle_buffer_size,
+                drop_last=drop_last,
+                local_shuffle_buffer_size=shuffle_buffer_size,
                 local_shuffle_seed=shuffle_seed,
             )
         else:
