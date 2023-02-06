@@ -5,24 +5,25 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import fsspec
-import pyarrow as pa
+import pandas as pd
 import pyarrow.parquet as pq
+import pyarrow as pa
 import ray.data
 
 import runhouse as rh
 from runhouse.rh_config import rns_client
 from runhouse.rns.folders.folder import folder
-
+from ..top_level_rns_fns import save
 from .. import Resource, SkyCluster
 
 logger = logging.getLogger(__name__)
 
 
 class Table(Resource):
-    RESOURCE_TYPE = "table"
-    DEFAULT_FOLDER_PATH = "/runhouse/tables"
-    DEFAULT_CACHE_FOLDER = ".cache/runhouse/tables/"
-    DEFAULT_STREAM_FORMAT = "pyarrow"
+    RESOURCE_TYPE = 'table'
+    DEFAULT_FOLDER_PATH = '/runhouse/tables'
+    DEFAULT_CACHE_FOLDER = '.cache/runhouse/tables'
+    DEFAULT_STREAM_FORMAT = 'pyarrow'
     DEFAULT_BATCH_SIZE = 256
     DEFAULT_PREFETCH_BLOCKS = 1
 
@@ -69,7 +70,7 @@ class Table(Resource):
         return config
 
     @property
-    def data(self) -> ray.data.dataset.Dataset:
+    def data(self) -> ray.data.Dataset:
         """Get the table data. If data is not already cached return a ray dataset. With the dataset object we can
         stream or convert to other types, for example:
             data.iter_batches()
@@ -78,7 +79,7 @@ class Table(Resource):
         """
         if self._cached_data is not None:
             return self._cached_data
-        return self.ray_dataset
+        return self.read_ray_dataset()
 
     @data.setter
     def data(self, new_data):
@@ -108,6 +109,9 @@ class Table(Resource):
     def set_metadata(self, key, val):
         self.metadata[key] = val
 
+    def get_metadata(self, key):
+        return self.metadata.get(key)
+
     @property
     def fsspec_url(self):
         if self.file_name:
@@ -135,20 +139,19 @@ class Table(Resource):
         **snapshot_kwargs,
     ):
         if self._cached_data is not None:
-            pq.write_to_dataset(
-                self.data,
-                root_path=self.fsspec_url,
-                partition_cols=self.partition_cols,
-                existing_data_behavior="overwrite_or_ignore" if overwrite else "error",
-            )
+            data_to_write = self.data
+            if isinstance(data_to_write, pa.Table):
+                data_to_write = self.ray_dataset_from_arrow(data_to_write)
 
-            if hasattr(self.data, "__len__"):
-                # Store the number of rows if we use for training later without having to read in the whole table
-                self.set_metadata("num_rows", len(self.data))
+            if not isinstance(data_to_write, ray.data.Dataset):
+                raise TypeError(f'Invalid Table format {type(data_to_write)}')
 
-        return super().save(
-            name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs
-        )
+            self.write_ray_dataset(data_to_write)
+            logger.info(f'Saved {str(self)} to: {self.fsspec_url}')
+
+        save(
+            self, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs
+        )return self
 
     def fetch(self, columns: Optional[list] = None) -> pa.Table:
         # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
@@ -181,70 +184,99 @@ class Table(Resource):
                 yield sample
 
     def __len__(self):
-        len_dataset = self.metadata.get("num_rows")
-        if len_dataset is not None:
-            return len_dataset
+        if isinstance(self.data, pd.DataFrame):
+            len_dataset = self.data.shape[0]
 
-        if isinstance(self.data, ray.data.dataset.Dataset):
+        elif isinstance(self.data, ray.data.Dataset):
             len_dataset = self.data.count()
-            self.set_metadata("num_rows", len_dataset)
-            return len_dataset
 
-        if not hasattr(self.data, "__len__") or not self.data:
-            raise RuntimeError("Cannot get len for dataset.")
+        else:
+            if not hasattr(self.data, '__len__') or not self.data:
+                raise RuntimeError("Cannot get len for dataset.")
+            else:
+                len_dataset = len(self.data)
 
-        len_dataset = len(self.data)
-        self.set_metadata("num_rows", len_dataset)
         return len_dataset
+
+    def __str__(self):
+        return self.__class__.__name__
 
     def stream(
         self,
-        batch_size,
+        batch_size: int,
         drop_last: bool = False,
         shuffle_seed: Optional[int] = None,
-        prefetch_blocks: Optional[int] = None,
+        shuffle_buffer_size: Optional[int] = None, prefetch_blocks: Optional[int] = None,
     ):
-        df = self.data
+        """Return a local batched iterator over the ray dataset.
+
+        Args:
+            batch_size: The number of rows in each batch. The final batch may include fewer than ``batch_size`` rows if
+                ``drop_last`` is ``False``.
+            drop_last: Whether to drop the last batch if it's incomplete.
+            shuffle_seed: The seed to use for the local random shuffle.
+            shuffle_buffer_size: minimum number of rows that must be in the local in-memory shuffle
+                buffer in order to yield a batch. Must be greater than or equal to ``batch_size``.
+            prefetch_blocks: The number of blocks to prefetch ahead of the current block during the scan.
+        """
+        ray_data = self.data
+
         if self.stream_format == "torch":
             # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.iter_torch_batches.html#ray.data.Dataset.iter_torch_batches
-            return df.iter_torch_batches(
+            return ray_data.iter_torch_batches(
                 batch_size=batch_size,
                 prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
-                drop_last=drop_last,
+                drop_last=drop_last,local_shuffle_buffer_size=shuffle_buffer_size,
                 local_shuffle_seed=shuffle_seed,
             )
 
         elif self.stream_format == "tf":
             # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.iter_tf_batches.html
-            return df.iter_tf_batches(
+            return ray_data.iter_tf_batches(
                 batch_size=batch_size,
                 prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
-                drop_last=drop_last,
+                drop_last=drop_last,local_shuffle_buffer_size=shuffle_buffer_size,
                 local_shuffle_seed=shuffle_seed,
             )
         else:
             # https://docs.ray.io/en/latest/data/api/dataset.html#ray.data.Dataset.iter_batches
-            return df.iter_batches(
+            return ray_data.iter_batches(
                 batch_size=batch_size,
-                prefetch_blocks=self.DEFAULT_PREFETCH_BLOCKS,
+                prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
                 batch_format=self.stream_format,
                 drop_last=drop_last,
+                local_shuffle_buffer_size=shuffle_buffer_size,
                 local_shuffle_seed=shuffle_seed,
             )
 
-    @property
-    def ray_dataset(self):
-        return ray.data.read_parquet(self.url, filesystem=self._folder.fsspec_fs)
+    def read_ray_dataset(self, columns: Optional[List[str]] = None):
+        """ Read parquet data as a ray dataset object """
+        # https://docs.ray.io/en/latest/data/api/input_output.html#parquet
+        dataset = ray.data.read_parquet(self.fsspec_url,
+                                        columns=columns,
+                                        filesystem=self._folder.fsspec_fs)
+        return dataset
+
+    def write_ray_dataset(self, data_to_write: ray.data.Dataset):
+        """ Write a ray dataset to a fsspec filesystem """
+        if self.partition_cols:
+            # TODO [JL]: https://arrow.apache.org/docs/python/generated/pyarrow.parquet.write_to_dataset.html
+            logger.warning('Partitioning by column not currently supported.')
+            pass
+
+        # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.write_parquet.html
+        data_to_write.write_parquet(self.fsspec_url, filesystem=self._folder.fsspec_fs)
+
+    @staticmethod
+    def ray_dataset_from_arrow(data):
+        """ Convert an Arrow Table to a ray Dataset"""
+        return ray.data.from_arrow(data)
 
     def delete_in_fs(self, recursive: bool = True):
         """Remove contents of all subdirectories (ex: partitioned data folders)"""
         # If file(s) are directories, recursively delete contents and then also remove the directory
-
-        # TODO [JL] this should actually delete the folders themselves (per fsspec), but only deletes their contents
         # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.spec.AbstractFileSystem.rm
-        self._folder.rm(
-            "", recursive=recursive
-        )  # Passing in an empty string to delete the contents of the folder
+        self._folder.fsspec_fs.rm(self.url, recursive=recursive)
 
     def exists_in_fs(self):
         return self._folder.exists_in_fs() and len(self._folder.ls(self.fsspec_url)) > 1
@@ -267,8 +299,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
 
     try:
         import datasets
-
-        if resource_subtype == "HuggingFaceTable" or isinstance(data, datasets.Dataset):
+        if isinstance(data, datasets.Dataset) or resource_subtype == 'HuggingFaceTable':
             from .huggingface_table import HuggingFaceTable
 
             return HuggingFaceTable.from_config(config)
@@ -278,8 +309,6 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
         raise e
 
     try:
-        import pandas as pd
-
         if isinstance(data, pd.DataFrame) or resource_subtype == "PandasTable":
             from .pandas_table import PandasTable
 
@@ -304,7 +333,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
     try:
         import ray
 
-        if isinstance(data, ray.data.dataset.Dataset) or resource_subtype == "RayTable":
+        if isinstance(data, ray.data.Dataset) or resource_subtype == "RayTable":
             from .ray_table import RayTable
 
             return RayTable.from_config(config)
@@ -317,9 +346,11 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
         import cudf
 
         if isinstance(data, cudf.DataFrame) or resource_subtype == "CudfTable":
-            from .rapids_table import RapidsTable
+            # TODO [JL]
+            # from .rapids_table import RapidsTable
 
-            return RapidsTable.from_config(config)
+            # return RapidsTable.from_config(config)
+            raise NotImplementedError('Cudf not currently supported')
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -346,7 +377,7 @@ def table(
     mkdir: bool = False,
     dryrun: bool = False,
     stream_format: Optional[str] = None,
-    metadata: Optional[Dict] = None,
+    metadata: Optional[dict] = None,
 ):
     """Returns a Table object, which can be used to interact with the table at the given url.
     If the table does not exist, it will be saved if `dryrun` is False.

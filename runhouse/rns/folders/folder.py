@@ -35,11 +35,11 @@ PROVIDER_FS_LOOKUP = {
 
 
 class Folder(Resource):
-    RESOURCE_TYPE = "folder"
-    DEFAULT_FS = "file"
-    CLUSTER_FS = "ssh"
-    DEFAULT_FOLDER_PATH = "/runhouse/"
-    DEFAULT_CACHE_FOLDER = "~/.cache/runhouse/"
+    RESOURCE_TYPE = 'folder'
+    DEFAULT_FS = 'file'
+    CLUSTER_FS = 'ssh'
+    DEFAULT_FOLDER_PATH = '/runhouse'
+    DEFAULT_CACHE_FOLDER = '~/.cache/runhouse'
 
     def __init__(
         self,
@@ -71,7 +71,8 @@ class Folder(Resource):
             self.default_url(self.name, fs)
             if url is None
             else url
-            if Path(url).expanduser().is_absolute()
+            if isinstance(fs, Resource) \
+            else url if Path(url).expanduser().is_absolute()
             else str(Path(rns_client.locate_working_dir()) / url)
         )
         self.data_config = data_config or {}
@@ -92,13 +93,13 @@ class Folder(Resource):
                 return str(
                     Path.cwd() / rns_client.split_rns_name_and_path(rns_address)[1]
                 )  # saves to cwd / name
-            return Folder.DEFAULT_CACHE_FOLDER + uuid.uuid4().hex
+            return f'{Folder.DEFAULT_CACHE_FOLDER}/{uuid.uuid4().hex}'
         else:
             # If no URL provided for a remote file system default to its name if provided
             if rns_address:
                 name = rns_address[1:].replace("/", "_") + f".{cls.RESOURCE_TYPE}"
-                return Folder.DEFAULT_FOLDER_PATH + name
-            return Folder.DEFAULT_FOLDER_PATH + uuid.uuid4().hex
+                return f'{Folder.DEFAULT_FOLDER_PATH}/{name}'
+            return f'{Folder.DEFAULT_FOLDER_PATH}/{uuid.uuid4().hex}'
 
     # ----------------------------------
     @staticmethod
@@ -179,13 +180,10 @@ class Folder(Resource):
                         "Cluster must be started before copying data from it."
                     )
             creds = self.fs.ssh_creds()
-            # TODO [JL] on cluster need to resolve key filename to be relative path
-            config_creds = {
-                "host": self.fs.address,
-                "username": creds["ssh_user"],
-                "client_keys": [str(Path(creds["ssh_private_key"]).expanduser())],
-            }
-            # 'key_filename': str(Path(creds['ssh_private_key']).expanduser())}
+            config_creds = {'host': self.fs.address,
+                            'username': creds['ssh_user'],
+                            # 'key_filename': str(Path(creds['ssh_private_key']).expanduser())}  # For SFTP
+                            'client_keys': [str(Path(creds['ssh_private_key']).expanduser())]}  # For SSHFS
             ret_config = self._data_config.copy()
             ret_config.update(config_creds)
             return ret_config
@@ -551,7 +549,8 @@ class Folder(Resource):
 
     def empty_folder(self):
         """Remove folder contents, but not the folder itself."""
-        raise NotImplementedError
+        for p in self.fsspec_fs.ls(self.url):
+            self.fsspec_fs.rm(p)
 
     def upload(self, src: str, region: Optional[str] = None):
         """Upload a folder to a remote bucket."""
@@ -613,11 +612,8 @@ class Folder(Resource):
     @property
     def fsspec_url(self):
         """Generate the FSSpec URL using the file system and url of the folder"""
-        if self.url.startswith("/") and self._fs_str not in [
-            rns_client.DEFAULT_FS,
-            "sftp",
-        ]:
-            return f"{self._fs_str}:/{self.url}"
+        if self.url.startswith("/") and self._fs_str != rns_client.DEFAULT_FS:
+            return f'{self._fs_str}:/{self.url}'
         else:
             return f"{self._fs_str}://{self.url}"
 
@@ -914,10 +910,9 @@ def folder(
         elif rns_client.exists(file_system, resource_type="cluster"):
             config["fs"] = rns_client.load_config(file_system)
         else:
-            raise ValueError(
-                f"File system {file_system} not found. Have you installed the "
-                f"necessary packages for this fsspec protocol? (e.g. s3fs for s3)"
-            )
+            raise ValueError(f'File system {file_system} not found. Have you installed the '
+                             f'necessary packages for this fsspec protocol? (e.g. s3fs for s3). If the file system '
+                             f'is a cluster (ex: /my-user/rh-cpu), make sure the cluster config has been saved.')
 
     # If cluster is passed as the fs.
     if isinstance(config["fs"], dict) or isinstance(
