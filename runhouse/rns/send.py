@@ -228,13 +228,15 @@ class Send(Resource):
     # ----------------- Send call methods -----------------
 
     def __call__(self, *args, stream_logs=False, **kwargs):
+        fn_type = 'call'
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
             if (
                 not self.hardware
                 or self.hardware.name == rh_config.obj_store.cluster_name
             ):
+                [relative_path, module_name, fn_name] = self.fn_pointers
                 fn = get_fn_by_name(
-                    module_name=self.fn_pointers[1], fn_name=self.fn_pointers[2]
+                    module_name=module_name, fn_name=fn_name
                 )
                 return call_fn_by_type(
                     fn, fn_type, fn_name, relative_path, args, kwargs
@@ -244,7 +246,7 @@ class Send(Resource):
                 return self.hardware.get(run_key, stream_logs=True)
             else:
                 return self._call_fn_with_ssh_access(
-                    fn_type="call", args=args, kwargs=kwargs
+                    fn_type=fn_type, args=args, kwargs=kwargs
                 )
         else:
             # run the function via http url - user only needs Proxy access
