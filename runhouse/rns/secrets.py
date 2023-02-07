@@ -478,7 +478,7 @@ class GCPSecrets(Secrets):
         cls.save_to_json_file(config, dest_path)
 
 
-class LambdaSecrets(Secrets):
+class LAMBDASecrets(Secrets):
     PROVIDER_NAME = "lambda"
     CREDENTIALS_FILE = os.path.expanduser("~/.lambda_cloud/lambda_keys")
     SSH_KEYS_PATH = Path.home() / ".ssh"
