@@ -10,7 +10,6 @@ from typing import Dict, List, Optional
 import requests
 
 import sky
-import toml
 import typer
 import yaml
 
@@ -310,18 +309,6 @@ class Secrets:
         Path(file_path).parent.mkdir(parents=True, exist_ok=True)
         with open(file_path, "w") as yaml_file:
             yaml.dump(data, yaml_file, default_flow_style=False)
-
-    @staticmethod
-    def read_toml_file(file_path: str):
-        with open(file_path, "r") as stream:
-            config = toml.load(stream)
-        return config
-
-    @staticmethod
-    def save_to_toml_file(data: dict, file_path: str):
-        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-        with open(file_path, "w+") as f:
-            toml.dump(data, f)
 
     @staticmethod
     def get_class_from_name(name: str):
