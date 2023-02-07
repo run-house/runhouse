@@ -6,7 +6,7 @@ import runhouse as rh
 def test_get_all_secrets():
     secrets = rh.Secrets.download_into_env(save_locally=True)
     providers = rh.Secrets.enabled_providers(as_str=True)
-    assert set(providers) == {"aws", "gcp", "sky", "hf"}
+    assert set(providers) == {"aws", "gcp", "lambda" "sky", "hf"}
     assert secrets
 
 

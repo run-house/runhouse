@@ -504,6 +504,7 @@ class LAMBDASecrets(Secrets):
     @classmethod
     def save_secrets(cls, secrets: dict, file_path: Optional[str] = None):
         dest_path = file_path or cls.CREDENTIALS_FILE
+        Path(dest_path).parent.mkdir(parents=True, exist_ok=True)
         with open(dest_path, "w") as f:
             f.write(f'api_key = {secrets["api_key"]}\n')
             f.write(f'ssh_key_name = {secrets["ssh_key_name"]}\n')
