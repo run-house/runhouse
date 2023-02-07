@@ -10,6 +10,7 @@ from typing import Dict, List, Optional
 import requests
 
 import sky
+import toml
 import typer
 import yaml
 
@@ -246,7 +247,10 @@ class Secrets:
         if "local" in cloud_names:
             cloud_names.remove("local")
 
+        # We don't need to save the sky key if we're saving the ssh keys.
         cloud_names.append("sky")
+        # Uncomment when we decide on approach here.
+        # cloud_names.append("ssh")
 
         # Check if the huggingface_hub package is installed
         try:
@@ -272,16 +276,16 @@ class Secrets:
         )
 
     @staticmethod
+    def read_config_file(file_path: str):
+        config = configparser.ConfigParser()
+        config.read(file_path)
+        return config
+
+    @staticmethod
     def save_to_config_file(parser, file_path: str):
         Path(file_path).parent.mkdir(parents=True, exist_ok=True)
         with open(file_path, "w+") as f:
             parser.write(f)
-
-    @staticmethod
-    def save_to_json_file(data: dict, file_path: str):
-        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-        with open(file_path, "w+") as f:
-            json.dump(data, f)
 
     @staticmethod
     def read_json_file(file_path: str) -> Dict:
@@ -290,10 +294,10 @@ class Secrets:
         return config_data
 
     @staticmethod
-    def read_config_file(file_path: str):
-        config = configparser.ConfigParser()
-        config.read(file_path)
-        return config
+    def save_to_json_file(data: dict, file_path: str):
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+        with open(file_path, "w+") as f:
+            json.dump(data, f)
 
     @staticmethod
     def read_yaml_file(file_path: str):
@@ -303,8 +307,21 @@ class Secrets:
 
     @staticmethod
     def save_to_yaml_file(data, file_path):
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
         with open(file_path, "w") as yaml_file:
             yaml.dump(data, yaml_file, default_flow_style=False)
+
+    @staticmethod
+    def read_toml_file(file_path: str):
+        with open(file_path, "r") as stream:
+            config = toml.load(stream)
+        return config
+
+    @staticmethod
+    def save_to_toml_file(data: dict, file_path: str):
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+        with open(file_path, "w+") as f:
+            toml.dump(data, f)
 
     @staticmethod
     def get_class_from_name(name: str):
@@ -474,6 +491,80 @@ class GCPSecrets(Secrets):
         cls.save_to_json_file(config, dest_path)
 
 
+class LambdaSecrets(Secrets):
+    PROVIDER_NAME = "lambda"
+    CREDENTIALS_FILE = os.path.expanduser("~/.lambda_cloud/lambda_keys")
+    SSH_KEYS_PATH = Path.home() / ".ssh"
+
+    @classmethod
+    def read_secrets(cls, from_env: bool = False, file_path: Optional[str] = None):
+        if from_env:
+            raise NotImplementedError(
+                "Lambda secrets cannot be read from environment variables."
+            )
+        else:
+            from sky.clouds.lambda_cloud import lambda_utils
+
+            client = lambda_utils.LambdaCloudClient()
+            api_key = client.api_key
+            ssh_key_name = client.ssh_key_name
+        return {
+            "provider": cls.PROVIDER_NAME,
+            "api_key": api_key,
+            "ssh_key_name": ssh_key_name,
+        }
+
+    @classmethod
+    def save_secrets(cls, secrets: dict, file_path: Optional[str] = None):
+        dest_path = file_path or cls.CREDENTIALS_FILE
+        with open(dest_path, "w") as f:
+            f.write(f'api_key = {secrets["api_key"]}\n')
+            f.write(f'ssh_key_name = {secrets["ssh_key_name"]}\n')
+
+
+class SSHSecrets(Secrets):
+    PROVIDER_NAME = "ssh"
+    CREDENTIALS_FILE = os.path.expanduser("~/.ssh")
+
+    @classmethod
+    def read_secrets(cls, from_env: bool = False, file_path: Optional[str] = None):
+        if from_env:
+            raise NotImplementedError(
+                "SSH secrets cannot be read from environment variables."
+            )
+        else:
+            creds_path = Path(file_path or cls.CREDENTIALS_FILE).expanduser()
+            config_data = {}
+            for f in creds_path.glob("*"):
+                # TODO do we need to support pem files?
+                if f.suffix == ".pub":
+                    if not Path(creds_path / f.stem).exists():
+                        logger.warning(
+                            f"Private key {f.stem} not found for public key {f.name}, skipping."
+                        )
+                        continue
+                    # Grab public key
+                    config_data[f.name] = Path(creds_path / f).read_text()
+                    # Grab corresponding private key
+                    config_data[f.stem] = Path(creds_path / f.stem).read_text()
+        config_data["provider"] = cls.PROVIDER_NAME
+        return config_data
+
+    @classmethod
+    def save_secrets(cls, secrets: dict, file_path: Optional[str] = None):
+        dest_path = Path(file_path or cls.CREDENTIALS_FILE).expanduser()
+        dest_path.mkdir(parents=True, exist_ok=True)
+        for key_name, key in secrets.items():
+            if key_name == "provider":
+                continue
+            key_path = dest_path / key_name
+            if key_path.exists():
+                logger.warning(f"Key {key_name} already exists, skipping.")
+                continue
+            key_path.write_text(key)
+            key_path.chmod(0o600)
+
+
 class HUGGINGFACESecrets(Secrets):
     PROVIDER_NAME = "huggingface"
     CREDENTIALS_FILE = os.path.expanduser("~/.huggingface/token")
@@ -545,9 +636,6 @@ class SKYSecrets(Secrets):
             secrets["ssh_private_key"],
             secrets["ssh_public_key"],
         )
-        # TODO do we need to register the keys with cloud providers? Probably not, sky does this for us later.
-        # backend_utils._add_auth_to_cluster_config(sky.clouds.CLOUD_REGISTRY.from_str(self.provider),
-        #                                                   Path(yaml_path).expanduser())
 
 
 # TODO [DG] untested, test this
