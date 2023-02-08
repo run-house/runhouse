@@ -614,9 +614,11 @@ class Folder(Resource):
     @property
     def fsspec_url(self):
         """Generate the FSSpec URL using the file system and url of the folder"""
-        if self.url.startswith("/") and self._fs_str != rns_client.DEFAULT_FS:
+        if self.url.startswith("/") and self._fs_str not in [rns_client.DEFAULT_FS, self.CLUSTER_FS]:
             return f"{self._fs_str}:/{self.url}"
         else:
+            # For local, ssh / sftp filesystems we need both slashes
+            # e.g.: 'ssh:///home/ubuntu/.cache/runhouse/tables/dede71ef83ce45ffa8cb27d746f97ee8'
             return f"{self._fs_str}://{self.url}"
 
     def ls(self, full_paths: bool = True):
@@ -671,14 +673,14 @@ class Folder(Resource):
 
         segment = Path(self.url)
         while (
-            str(segment) not in rns_client.rns_base_folders.values()
-            and not segment == Path.home()
-            and not segment == segment.parent
+                str(segment) not in rns_client.rns_base_folders.values()
+                and not segment == Path.home()
+                and not segment == segment.parent
         ):
             segment = segment.parent
 
         if (
-            segment == Path.home() or segment == segment.parent
+                segment == Path.home() or segment == segment.parent
         ):  # TODO throw an error instead?
             return rns_client.default_folder + "/" + self.name
         else:
@@ -737,7 +739,7 @@ class Folder(Resource):
         if not str(greatest_common_folder) == self.url:
             return Folder(
                 url=str(greatest_common_folder), fs=self.fs, dryrun=True
-            ).locate("/".join(segments[i + 1 :]))
+            ).locate("/".join(segments[i + 1:]))
 
         return None, None
 
@@ -820,10 +822,10 @@ class Folder(Resource):
 
                 # NOTE For intercloud transfer, we should use Skyplane
                 with fsspec.open(
-                    self.fsspec_url + "/" + new_name, **self.data_config
+                        self.fsspec_url + "/" + new_name, **self.data_config
                 ) as dest:
                     with fsspec.open(
-                        contents.fsspec_url, **contents.data_config
+                            contents.fsspec_url, **contents.data_config
                     ) as src:
                         # NOTE For packages, maybe use the `ignore` param here to only copy python files.
                         shutil.move(src, dest)
@@ -866,12 +868,12 @@ class Folder(Resource):
 
 
 def folder(
-    name: Optional[str] = None,
-    url: Optional[Union[str, Path]] = None,
-    fs: Optional[str] = None,
-    dryrun: bool = True,
-    local_mount: bool = False,
-    data_config: Optional[Dict] = None,
+        name: Optional[str] = None,
+        url: Optional[Union[str, Path]] = None,
+        fs: Optional[str] = None,
+        dryrun: bool = True,
+        local_mount: bool = False,
+        data_config: Optional[Dict] = None,
 ):
     """Returns a folder object, which can be used to interact with the folder at the given url.
     The folder will be saved if `dryrun` is False.
@@ -915,7 +917,7 @@ def folder(
 
     # If cluster is passed as the fs.
     if isinstance(config["fs"], dict) or isinstance(
-        config["fs"], Resource
+            config["fs"], Resource
     ):  # if fs is a cluster
         new_folder = Folder.from_config(config, dryrun=dryrun)
 
