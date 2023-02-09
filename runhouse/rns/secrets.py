@@ -170,22 +170,21 @@ class Secrets:
     def delete(cls, providers: List[str]):
         """Delete secrets from Vault for the specified providers"""
         for provider in providers:
-            provider_cls_name = cls.provider_cls_name(provider)
-            p = cls.get_class_from_name(provider_cls_name)
-            if p is None:
-                continue
-
-            p.delete_secrets_from_vault()
-            logger.info(f"Successfully deleted {provider} secrets from Vault")
+            deleted_secrets: bool = cls.delete_secrets_from_vault(provider=provider)
+            if deleted_secrets:
+                logger.info(f"Successfully deleted {provider} secrets from Vault")
 
     @classmethod
-    def delete_secrets_from_vault(cls):
+    def delete_secrets_from_vault(cls, provider: str):
         resp = requests.delete(
-            f"{rns_client.api_server_url}/{cls.USER_ENDPOINT}/{cls.PROVIDER_NAME}",
+            f"{rns_client.api_server_url}/{cls.USER_ENDPOINT}/{provider}",
             headers=rns_client.request_headers,
         )
         if resp.status_code != 200:
-            raise Exception(f"Failed to delete {cls.PROVIDER_NAME} secrets from Vault")
+            logger.error(f"Failed to delete {provider} secrets from Vault: {json.loads(resp.content)}")
+            return False
+
+        return True
 
     @classmethod
     def load_provider_secrets(
