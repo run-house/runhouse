@@ -247,9 +247,9 @@ class Secrets:
             cloud_names.remove("local")
 
         # We don't need to save the sky key if we're saving the ssh keys.
-        cloud_names.append("sky")
+        # cloud_names.append("sky")
         # Uncomment when we decide on approach here.
-        # cloud_names.append("ssh")
+        cloud_names.append("ssh")
 
         # Check if the huggingface_hub package is installed
         try:
