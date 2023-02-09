@@ -82,8 +82,8 @@ class Folder(Resource):
         self._local_mount_path = None
         if local_mount:
             self.mount(tmp=True)
-        if not self.dryrun and self.is_local():
-            Path(self.url).mkdir(parents=True, exist_ok=True)
+        if not self.dryrun:
+            self.mkdir()
 
     @classmethod
     def default_url(cls, rns_address, fs):
