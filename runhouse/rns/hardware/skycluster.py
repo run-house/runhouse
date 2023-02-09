@@ -331,6 +331,9 @@ class SkyCluster(Cluster):
             raise Exception(f"File with ssh key not found in: {path_to_file}")
 
     def ssh_creds(self):
+        if not self._yaml_path:
+            return None
+
         if not Path(self._yaml_path).exists():
             if self.sky_data:
                 # If this cluster was serialized and sent over the wire, it will have sky_data (we make sure of that
