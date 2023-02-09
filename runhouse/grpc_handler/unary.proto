@@ -10,6 +10,7 @@ service Unary{
   rpc InstallPackages(Message) returns (MessageResponse) {}
   rpc ClearPins(Message) returns (MessageResponse) {}
   rpc CancelRun(Message) returns (MessageResponse) {}
+  rpc AddSecrets(Message) returns (MessageResponse) {}
 
   // streaming RPC
   rpc GetObject(Message) returns (stream MessageResponse) {}

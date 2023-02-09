@@ -105,3 +105,40 @@ def login(
     logger.info("Successfully logged into Runhouse.")
     if ret_token:
         return token
+
+
+def logout():
+    """Logout from Runhouse. Option to Remove all secrets stored in Vault. Token is deleted from config."""
+    # TODO [JL] instead of only relying on sky - also save enabled providers in rh config?
+    enabled_providers = Secrets.enabled_providers(as_str=True)
+    for provider in enabled_providers:
+        delete_provider_from_config = typer.confirm(
+            f"Remove secrets for {provider} from Runhouse config?"
+        )
+        if delete_provider_from_config and configs.get(provider):
+            configs.delete(provider)
+
+        delete_provider_file = typer.confirm(f"Delete credentials file for {provider}?")
+        if delete_provider_file:
+            p = Secrets.get_class_from_name(name=Secrets.provider_cls_name(provider))
+            if p is None:
+                logger.info(
+                    f"{provider} not a builtin provider. Runhouse does not currently store custom "
+                    f"secrets data in local configs."
+                )
+                continue
+
+            # Deleting secrets for builtin provider or one recognized by sky
+            provider_path = p.CREDENTIALS_FILE
+            p.delete_secrets_file(provider_path)
+            logger.info(f"Deleted {provider} credentials file in path: {provider_path}")
+
+    # Delete token from config
+    configs.delete(key="token")
+
+    delete_config = typer.confirm("Delete your local Runhouse config file?")
+    if delete_config:
+        # Delete the credentials file on the file system
+        Secrets.delete_secrets_file(configs.CONFIG_PATH)
+
+    logger.info("Successfully logged out of Runhouse.")

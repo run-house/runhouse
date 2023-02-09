@@ -46,7 +46,7 @@ def test_upload_all_provider_secrets():
 
 
 def test_delete_provider_secrets():
-    rh.Secrets.delete(providers=["huggingface"])
+    rh.Secrets.delete_from_vault(providers=["huggingface"])
     assert True
 
 
@@ -87,6 +87,11 @@ def test_login():
     )
 
     assert rh.rns_client.default_folder == "/..."
+
+
+def test_logout():
+    rh.logout()
+    assert True
 
 
 if __name__ == "__main__":

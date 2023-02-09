@@ -158,3 +158,7 @@ class Defaults:
         if not res and key in self.BASE_DEFAULTS:
             res = self.BASE_DEFAULTS[key]
         return res
+
+    def delete(self, key: str):
+        self.defaults_cache.pop(key, None)
+        self.save_defaults()

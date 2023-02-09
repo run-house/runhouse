@@ -5,7 +5,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import requests
 
@@ -31,12 +31,14 @@ class Secrets:
 
     @classmethod
     def read_secrets(
-        cls, from_env: bool = False, file_path: Optional[str] = None
+            cls, from_env: bool = False, file_path: Optional[str] = None
     ) -> Dict:
         raise NotImplementedError
 
     @classmethod
-    def save_secrets(cls, secrets: Dict, file_path: Optional[str] = None) -> Dict:
+    def save_secrets(
+            cls, secrets: Dict, file_path: Optional[str] = None, overwrite: bool = False
+    ) -> Dict:
         raise NotImplementedError
 
     @classmethod
@@ -47,14 +49,13 @@ class Secrets:
 
     @classmethod
     def extract_and_upload(
-        cls,
-        headers: Optional[Dict] = None,
-        interactive=True,
-        providers: Optional[List[str]] = None,
+            cls,
+            headers: Optional[Dict] = None,
+            interactive=True,
+            providers: Optional[List[str]] = None,
     ):
         """Upload all locally configured secrets into Vault. Secrets are loaded from their local config files.
-        (ex: ~/.aws/credentials). We currently support AWS, Azure, and GCP. To upload custom secrets for
-        additional providers, see Secrets.put()"""
+        (ex: ~/.aws/credentials). To upload custom secrets for custom providers, see Secrets.put()"""
         secrets: list = cls.load_provider_secrets(providers=providers)
         for idx, provider_secrets in enumerate(secrets):
             provider = provider_secrets["provider"]
@@ -77,10 +78,10 @@ class Secrets:
 
     @classmethod
     def download_into_env(
-        cls,
-        save_locally: bool = True,
-        providers: Optional[List] = None,
-        headers: Optional[Dict] = None,
+            cls,
+            save_locally: bool = True,
+            providers: Optional[List] = None,
+            headers: Optional[Dict] = None,
     ) -> Dict:
         """Get all user secrets from Vault. Optionally save them down to local config files (where relevant)."""
         logger.info("Getting secrets from Vault.")
@@ -104,12 +105,12 @@ class Secrets:
 
     @classmethod
     def put(
-        cls,
-        provider: str,
-        from_env: bool = False,
-        file_path: Optional[str] = None,
-        secret: Optional[dict] = None,
-        group: Optional[str] = None,
+            cls,
+            provider: str,
+            from_env: bool = False,
+            file_path: Optional[str] = None,
+            secret: Optional[dict] = None,
+            group: Optional[str] = None,
     ):
         """Upload locally configured secrets for a specified provider into Vault.
         To upload secrets for a custom provider (i.e. not AWS, GCP or Azure), include the secret param and specify
@@ -142,7 +143,7 @@ class Secrets:
 
     @classmethod
     def get(
-        cls, provider: str, save_to_env: bool = False, group: Optional[str] = None
+            cls, provider: str, save_to_env: bool = False, group: Optional[str] = None
     ) -> dict:
         """Read secrets from the Vault service for a given provider and optionally save them to their local config.
         If group is provided will read secrets for the specified group."""
@@ -167,32 +168,44 @@ class Secrets:
         return secrets
 
     @classmethod
-    def delete(cls, providers: List[str]):
-        """Delete secrets from Vault for the specified providers"""
+    def delete_from_vault(cls, providers: Optional[List[str]] = None):
+        """Delete secrets from Vault for specified providers (builtin or custom).
+        If none are provided, will delete secrets for all providers which have been enabled in the local environment."""
+        providers = providers or cls.enabled_providers(as_str=True)
         for provider in providers:
-            provider_cls_name = cls.provider_cls_name(provider)
-            p = cls.get_class_from_name(provider_cls_name)
-            if p is None:
-                continue
-
-            p.delete_secrets_from_vault()
-            logger.info(f"Successfully deleted {provider} secrets from Vault")
+            url = f"{rns_client.api_server_url}/{cls.USER_ENDPOINT}/{provider}"
+            resp = requests.delete(url, headers=rns_client.request_headers)
+            if resp.status_code != 200:
+                logger.error(
+                    f"Failed to delete secrets from Vault: {json.loads(resp.content)}"
+                )
 
     @classmethod
-    def delete_secrets_from_vault(cls):
-        resp = requests.delete(
-            f"{rns_client.api_server_url}/{cls.USER_ENDPOINT}/{cls.PROVIDER_NAME}",
-            headers=rns_client.request_headers,
-        )
-        if resp.status_code != 200:
-            raise Exception(f"Failed to delete {cls.PROVIDER_NAME} secrets from Vault")
+    def to(cls, hardware: Union[str, "Cluster"], providers: Optional[List] = None):
+        """Copy secrets to the desired hardware for a list of builtin providers. If no providers are specified
+        will load all builtin providers that are already enabled."""
+        provider_secrets = cls.load_provider_secrets(providers=providers)
+        if isinstance(hardware, str):
+            from runhouse import cluster
+
+            hardware = cluster(name=hardware)
+
+        hardware_name = hardware.name
+        if not hardware.is_up():
+            raise RuntimeError(
+                f"Hardware {hardware_name} is not up. Run `{hardware_name}.up()` to re-up the cluster."
+            )
+
+        # Send provider secrets over RPC, then on the cluster save each provider's secrets into their respective files
+        hardware.add_secrets(provider_secrets)
+        logger.info(f"Finished copying secrets onto cluster {hardware_name}")
 
     @classmethod
     def load_provider_secrets(
-        cls, from_env: bool = False, providers: Optional[List] = None
+            cls, from_env: bool = False, providers: Optional[List] = None
     ) -> List[Dict[str, str]]:
         """Load secret credentials for all the providers which have been configured locally, or optionally
-        provide a list of specific providers to load"""
+        provide a list of specific providers to load."""
         secrets = []
         providers = providers or cls.enabled_providers()
         for provider in providers:
@@ -233,7 +246,7 @@ class Secrets:
                 logger.warning(
                     f"Received secrets for {provider_name} which are not configured locally. Run `sky check`"
                     f" for instructions on how to configure. If the secret is for a custom provider, you "
-                    f"can set the relevant environment variables manually."
+                    f"can set the relevant environment variables or save them to their respective local files manually."
                 )
 
     @classmethod
@@ -264,6 +277,10 @@ class Secrets:
             ]
 
         return [c for c in cls.__subclasses__() if c.PROVIDER_NAME in cloud_names]
+
+    @staticmethod
+    def delete_secrets_file(file_path: str):
+        Path(file_path).unlink(missing_ok=True)
 
     @classmethod
     def set_endpoint(cls, group: Optional[str] = None):
@@ -369,7 +386,9 @@ class AWSSecrets(Secrets):
         }
 
     @classmethod
-    def save_secrets(cls, secrets: dict, file_path: Optional[str] = None):
+    def save_secrets(
+            cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
+    ):
         dest_path = file_path or cls.CREDENTIALS_FILE
         parser = configparser.ConfigParser()
         section_name = "default"
@@ -385,7 +404,8 @@ class AWSSecrets(Secrets):
             value=secrets["secret_key"],
         )
 
-        cls.save_to_config_file(parser, dest_path)
+        if overwrite:
+            cls.save_to_config_file(parser, dest_path)
 
 
 class AZURESecrets(Secrets):
@@ -408,7 +428,9 @@ class AZURESecrets(Secrets):
         return {"provider": cls.PROVIDER_NAME, "subscription_id": subscription_id}
 
     @classmethod
-    def save_secrets(cls, secrets: dict, file_path: Optional[str] = None):
+    def save_secrets(
+            cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
+    ):
         dest_path = file_path or cls.CREDENTIALS_FILE
         parser = configparser.ConfigParser()
         section_name = "AzureCloud"
@@ -419,7 +441,8 @@ class AZURESecrets(Secrets):
             value=secrets["subscription_id"],
         )
 
-        cls.save_to_config_file(parser, dest_path)
+        if overwrite:
+            cls.save_to_config_file(parser, dest_path)
 
 
 class GCPSecrets(Secrets):
@@ -450,7 +473,9 @@ class GCPSecrets(Secrets):
         }
 
     @classmethod
-    def save_secrets(cls, secrets: dict, file_path: Optional[str] = None):
+    def save_secrets(
+            cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
+    ):
         dest_path = file_path or cls.CREDENTIALS_FILE
         config = cls.read_json_file(dest_path) if cls.file_exists(dest_path) else {}
         config["client_id"] = secrets["client_id"]
@@ -471,7 +496,8 @@ class GCPSecrets(Secrets):
                 "!cp -r /content/.config/* ~/.config/gcloud", style="bold yellow"
             )
 
-        cls.save_to_json_file(config, dest_path)
+        if overwrite:
+            cls.save_to_json_file(config, dest_path)
 
 
 class HUGGINGFACESecrets(Secrets):
@@ -491,14 +517,18 @@ class HUGGINGFACESecrets(Secrets):
         return {"provider": cls.PROVIDER_NAME, "token": token}
 
     @classmethod
-    def save_secrets(cls, secrets: dict, file_path: Optional[str] = None):
+    def save_secrets(
+            cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
+    ):
         # TODO check properly if hf needs to be installed
         try:
             import huggingface_hub
         except ModuleNotFoundError:
             subprocess.run(["pip", "install", "--upgrade", "huggingface-hub"])
             import huggingface_hub
-        huggingface_hub.login(token=secrets["token"])
+
+        if overwrite:
+            huggingface_hub.login(token=secrets["token"])
 
 
 class SKYSecrets(Secrets):
@@ -532,7 +562,9 @@ class SKYSecrets(Secrets):
         }
 
     @classmethod
-    def save_secrets(cls, secrets: dict, file_path: Optional[str] = None):
+    def save_secrets(
+            cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
+    ):
         private_key_path = file_path or cls.PRIVATE_KEY_FILE
         if private_key_path.endswith(".pem"):
             public_key_path = private_key_path.rsplit(".", 1)[0] + ".pub"
@@ -569,13 +601,15 @@ class GHSecrets(Secrets):
         return {"provider": cls.PROVIDER_NAME, "token": token}
 
     @classmethod
-    def save_secrets(cls, secrets: dict, file_path: Optional[str] = None):
+    def save_secrets(
+            cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
+    ):
         dest_path = file_path or cls.CREDENTIALS_FILE
         config = cls.read_yaml_file(dest_path) if cls.file_exists(dest_path) else {}
         config["github.com"] = {"oauth_token": secrets["token"]}
 
-        cls.save_to_yaml_file(config, dest_path)
-
+        if overwrite:
+            cls.save_to_yaml_file(config, dest_path)
 
 # TODO AWS secrets (use https://github.com/99designs/aws-vault ?)
 # TODO Azure secrets

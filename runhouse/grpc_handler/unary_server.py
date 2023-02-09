@@ -185,6 +185,23 @@ class UnaryService(pb2_grpc.UnaryServicer):
             self.register_activity()
             return pb2.MessageResponse(message=pickle.dumps(message), received=False)
 
+    def AddSecrets(self, request, context):
+        from runhouse import Secrets
+
+        self.register_activity()
+        secrets_to_add = pickle.loads(request.message)
+        for secrets in secrets_to_add:
+            provider = secrets.pop("provider")
+            p = Secrets.get_class_from_name(Secrets.provider_cls_name(provider))
+            if p is None:
+                logger.error(f"Received provider {provider} which is not a builtin")
+                continue
+
+            # If the provider is a builtin we can use its appropriate class's save method on the cluster
+            p.save_secrets(secrets, overwrite=True)
+
+        return pb2.MessageResponse(message=pickle.dumps("Added Secrets"), received=True)
+
 
 def serve():
     server = grpc.server(

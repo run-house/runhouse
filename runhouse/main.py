@@ -35,6 +35,12 @@ def login(token: Optional[str] = typer.Argument(None, help="Your Runhouse API to
 
 
 @app.command()
+def logout():
+    login_module.logout()
+    raise typer.Exit()
+
+
+@app.command()
 def notebook(
     cluster_name: str, up: bool = typer.Option(False, help="Start the cluster")
 ):
