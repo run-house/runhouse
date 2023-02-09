@@ -46,7 +46,7 @@ class Folder(Resource):
         name: Optional[str] = None,
         url: Optional[str] = None,
         fs: Optional[str] = DEFAULT_FS,
-        dryrun: bool = True,
+        dryrun: bool = False,
         local_mount: bool = False,
         data_config: Optional[Dict] = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
@@ -871,7 +871,7 @@ def folder(
         name: Optional[str] = None,
         url: Optional[Union[str, Path]] = None,
         fs: Optional[str] = None,
-        dryrun: bool = True,
+        dryrun: bool = False,
         local_mount: bool = False,
         data_config: Optional[Dict] = None,
 ):

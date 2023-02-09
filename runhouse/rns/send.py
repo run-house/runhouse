@@ -34,7 +34,7 @@ class Send(Resource):
         name: [Optional[str]] = None,
         reqs: Optional[List[str]] = None,
         setup_cmds: Optional[List[str]] = None,
-        dryrun: bool = True,
+        dryrun: bool = False,
         access: Optional[str] = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):

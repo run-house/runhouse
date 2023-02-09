@@ -34,7 +34,7 @@ class Table(Resource):
         file_name: Optional[str] = None,
         fs: Optional[str] = None,
         data_config: Optional[dict] = None,
-        dryrun: bool = True,
+        dryrun: bool = False,
         partition_cols: Optional[List] = None,
         stream_format: Optional[str] = None,
         metadata: Optional[Dict] = None,
