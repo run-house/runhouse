@@ -1,6 +1,6 @@
 import unittest
 
-from runhouse.rns.hardware.skycluster import cluster, SkyCluster
+from runhouse.rns.hardware import cluster, SkyCluster
 
 
 def test_cluster_config():
