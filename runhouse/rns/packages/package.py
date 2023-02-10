@@ -172,10 +172,12 @@ class Package(Resource):
     @staticmethod
     def from_string(specifier: str, dryrun=False):
         # Use regex to check if specifier matches '<method>:https://github.com/<path>' or 'https://github.com/<path>'
-        match = re.search(r"(?:<(.*)>:)?https://github.com/(.*)", specifier)
+        match = re.search(
+            r"^(?:(?P<method>[^:]+):)?(?P<path>https://github.com/.+)", specifier
+        )
         if match:
-            install_method = match.group(1)
-            url = match.group(2)
+            install_method = match.group("method")
+            url = "https://github.com/" + match.group("path")
             from runhouse.rns.packages.git_package import git_package
 
             return git_package(
@@ -208,13 +210,6 @@ class Package(Resource):
                 install_target=target,
                 install_args=args,
                 install_method="reqs",
-                dryrun=dryrun,
-            )
-        elif specifier.startswith("git+"):
-            return Package(
-                install_target=specifier[4:],
-                install_args=args,
-                install_method="pip",
                 dryrun=dryrun,
             )
         elif specifier.startswith("pip:"):
