@@ -228,16 +228,14 @@ class Send(Resource):
     # ----------------- Send call methods -----------------
 
     def __call__(self, *args, stream_logs=False, **kwargs):
-        fn_type = 'call'
+        fn_type = "call"
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
             if (
                 not self.hardware
                 or self.hardware.name == rh_config.obj_store.cluster_name
             ):
                 [relative_path, module_name, fn_name] = self.fn_pointers
-                fn = get_fn_by_name(
-                    module_name=module_name, fn_name=fn_name
-                )
+                fn = get_fn_by_name(module_name=module_name, fn_name=fn_name)
                 return call_fn_by_type(
                     fn, fn_type, fn_name, relative_path, args, kwargs
                 )

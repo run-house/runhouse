@@ -55,7 +55,7 @@ def test_create_and_save_data_to_s3_folder():
     data = list(range(50))
     s3_folder = rh.folder(url=DATA_STORE_PATH, fs="s3")
     s3_folder.mkdir()
-    s3_folder.put({'test_data.py': pickle.dumps(data)}, overwrite=True)
+    s3_folder.put({"test_data.py": pickle.dumps(data)}, overwrite=True)
 
     assert s3_folder.exists_in_fs()
 
@@ -63,7 +63,7 @@ def test_create_and_save_data_to_s3_folder():
 def test_read_data_from_existing_s3_folder():
     # Note: Uses folder created above
     s3_folder = rh.folder(url=DATA_STORE_PATH, fs="s3")
-    fss_file: "fsspec.core.OpenFile" = s3_folder.open(name='test_data.py')
+    fss_file: "fsspec.core.OpenFile" = s3_folder.open(name="test_data.py")
     with fss_file as f:
         data = pickle.load(f)
 
