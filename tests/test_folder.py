@@ -5,11 +5,10 @@ from pathlib import Path
 import runhouse as rh
 from ray import cloudpickle as pickle
 
-TEMP_FILE = str(Path.cwd() / "test_folder.py")
 TEST_FOLDER_PATH = Path.cwd() / "tests_tmp"
 
 DATA_STORE_BUCKET = "/runhouse-folder-tests"
-DATA_STORE_PATH = f"{DATA_STORE_BUCKET}/folder"
+DATA_STORE_PATH = f"{DATA_STORE_BUCKET}/test-folder"
 
 
 def setup():
@@ -56,7 +55,7 @@ def test_create_and_save_data_to_s3_folder():
     data = list(range(50))
     s3_folder = rh.folder(url=DATA_STORE_PATH, fs="s3")
     s3_folder.mkdir()
-    s3_folder.put({TEMP_FILE: pickle.dumps(data)}, overwrite=True)
+    s3_folder.put({'test_data.py': pickle.dumps(data)}, overwrite=True)
 
     assert s3_folder.exists_in_fs()
 
@@ -64,7 +63,7 @@ def test_create_and_save_data_to_s3_folder():
 def test_read_data_from_existing_s3_folder():
     # Note: Uses folder created above
     s3_folder = rh.folder(url=DATA_STORE_PATH, fs="s3")
-    fss_file: "fsspec.core.OpenFile" = s3_folder.open(name=TEMP_FILE)
+    fss_file: "fsspec.core.OpenFile" = s3_folder.open(name='test_data.py')
     with fss_file as f:
         data = pickle.load(f)
 
