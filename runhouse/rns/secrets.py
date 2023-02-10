@@ -13,7 +13,7 @@ import sky
 import typer
 import yaml
 
-from runhouse.rh_config import rns_client
+from runhouse.rh_config import configs, rns_client
 
 logger = logging.getLogger(__name__)
 
@@ -31,13 +31,13 @@ class Secrets:
 
     @classmethod
     def read_secrets(
-            cls, from_env: bool = False, file_path: Optional[str] = None
+        cls, from_env: bool = False, file_path: Optional[str] = None
     ) -> Dict:
         raise NotImplementedError
 
     @classmethod
     def save_secrets(
-            cls, secrets: Dict, file_path: Optional[str] = None, overwrite: bool = False
+        cls, secrets: Dict, file_path: Optional[str] = None, overwrite: bool = False
     ) -> Dict:
         raise NotImplementedError
 
@@ -49,10 +49,10 @@ class Secrets:
 
     @classmethod
     def extract_and_upload(
-            cls,
-            headers: Optional[Dict] = None,
-            interactive=True,
-            providers: Optional[List[str]] = None,
+        cls,
+        headers: Optional[Dict] = None,
+        interactive=True,
+        providers: Optional[List[str]] = None,
     ):
         """Upload all locally configured secrets into Vault. Secrets are loaded from their local config files.
         (ex: ~/.aws/credentials). To upload custom secrets for custom providers, see Secrets.put()"""
@@ -78,10 +78,10 @@ class Secrets:
 
     @classmethod
     def download_into_env(
-            cls,
-            save_locally: bool = True,
-            providers: Optional[List] = None,
-            headers: Optional[Dict] = None,
+        cls,
+        save_locally: bool = True,
+        providers: Optional[List] = None,
+        headers: Optional[Dict] = None,
     ) -> Dict:
         """Get all user secrets from Vault. Optionally save them down to local config files (where relevant)."""
         logger.info("Getting secrets from Vault.")
@@ -105,12 +105,12 @@ class Secrets:
 
     @classmethod
     def put(
-            cls,
-            provider: str,
-            from_env: bool = False,
-            file_path: Optional[str] = None,
-            secret: Optional[dict] = None,
-            group: Optional[str] = None,
+        cls,
+        provider: str,
+        from_env: bool = False,
+        file_path: Optional[str] = None,
+        secret: Optional[dict] = None,
+        group: Optional[str] = None,
     ):
         """Upload locally configured secrets for a specified provider into Vault.
         To upload secrets for a custom provider (i.e. not AWS, GCP or Azure), include the secret param and specify
@@ -143,7 +143,7 @@ class Secrets:
 
     @classmethod
     def get(
-            cls, provider: str, save_to_env: bool = False, group: Optional[str] = None
+        cls, provider: str, save_to_env: bool = False, group: Optional[str] = None
     ) -> dict:
         """Read secrets from the Vault service for a given provider and optionally save them to their local config.
         If group is provided will read secrets for the specified group."""
@@ -202,7 +202,7 @@ class Secrets:
 
     @classmethod
     def load_provider_secrets(
-            cls, from_env: bool = False, providers: Optional[List] = None
+        cls, from_env: bool = False, providers: Optional[List] = None
     ) -> List[Dict[str, str]]:
         """Load secret credentials for all the providers which have been configured locally, or optionally
         provide a list of specific providers to load."""
@@ -281,6 +281,11 @@ class Secrets:
     @staticmethod
     def delete_secrets_file(file_path: str):
         Path(file_path).unlink(missing_ok=True)
+
+    @classmethod
+    def save_secret_to_config(cls):
+        """Save the loaded provider config path to the runhouse config saved on the local file system."""
+        configs.update(cls.PROVIDER_NAME, cls.CREDENTIALS_FILE)
 
     @classmethod
     def set_endpoint(cls, group: Optional[str] = None):
@@ -387,7 +392,7 @@ class AWSSecrets(Secrets):
 
     @classmethod
     def save_secrets(
-            cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
+        cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
     ):
         dest_path = file_path or cls.CREDENTIALS_FILE
         parser = configparser.ConfigParser()
@@ -406,6 +411,7 @@ class AWSSecrets(Secrets):
 
         if overwrite:
             cls.save_to_config_file(parser, dest_path)
+            cls.save_secret_to_config()
 
 
 class AZURESecrets(Secrets):
@@ -429,7 +435,7 @@ class AZURESecrets(Secrets):
 
     @classmethod
     def save_secrets(
-            cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
+        cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
     ):
         dest_path = file_path or cls.CREDENTIALS_FILE
         parser = configparser.ConfigParser()
@@ -443,6 +449,7 @@ class AZURESecrets(Secrets):
 
         if overwrite:
             cls.save_to_config_file(parser, dest_path)
+            cls.save_secret_to_config()
 
 
 class GCPSecrets(Secrets):
@@ -474,7 +481,7 @@ class GCPSecrets(Secrets):
 
     @classmethod
     def save_secrets(
-            cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
+        cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
     ):
         dest_path = file_path or cls.CREDENTIALS_FILE
         config = cls.read_json_file(dest_path) if cls.file_exists(dest_path) else {}
@@ -498,6 +505,7 @@ class GCPSecrets(Secrets):
 
         if overwrite:
             cls.save_to_json_file(config, dest_path)
+            cls.save_secret_to_config()
 
 
 class HUGGINGFACESecrets(Secrets):
@@ -518,7 +526,7 @@ class HUGGINGFACESecrets(Secrets):
 
     @classmethod
     def save_secrets(
-            cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
+        cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
     ):
         # TODO check properly if hf needs to be installed
         try:
@@ -529,6 +537,7 @@ class HUGGINGFACESecrets(Secrets):
 
         if overwrite:
             huggingface_hub.login(token=secrets["token"])
+            cls.save_secret_to_config()
 
 
 class SKYSecrets(Secrets):
@@ -563,7 +572,7 @@ class SKYSecrets(Secrets):
 
     @classmethod
     def save_secrets(
-            cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
+        cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
     ):
         private_key_path = file_path or cls.PRIVATE_KEY_FILE
         if private_key_path.endswith(".pem"):
@@ -571,15 +580,17 @@ class SKYSecrets(Secrets):
         else:
             public_key_path = private_key_path + ".pub"
 
-        sky.authentication._save_key_pair(
-            private_key_path,
-            public_key_path,
-            secrets["ssh_private_key"],
-            secrets["ssh_public_key"],
-        )
-        # TODO do we need to register the keys with cloud providers? Probably not, sky does this for us later.
-        # backend_utils._add_auth_to_cluster_config(sky.clouds.CLOUD_REGISTRY.from_str(self.provider),
-        #                                                   Path(yaml_path).expanduser())
+        if overwrite:
+            sky.authentication._save_key_pair(
+                private_key_path,
+                public_key_path,
+                secrets["ssh_private_key"],
+                secrets["ssh_public_key"],
+            )
+            # TODO do we need to register the keys with cloud providers? Probably not, sky does this for us later.
+            # backend_utils._add_auth_to_cluster_config(sky.clouds.CLOUD_REGISTRY.from_str(self.provider),
+            #                                                   Path(yaml_path).expanduser())
+            cls.save_secret_to_config()
 
 
 # TODO [DG] untested, test this
@@ -602,7 +613,7 @@ class GHSecrets(Secrets):
 
     @classmethod
     def save_secrets(
-            cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
+        cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
     ):
         dest_path = file_path or cls.CREDENTIALS_FILE
         config = cls.read_yaml_file(dest_path) if cls.file_exists(dest_path) else {}
@@ -610,6 +621,8 @@ class GHSecrets(Secrets):
 
         if overwrite:
             cls.save_to_yaml_file(config, dest_path)
+            cls.save_secret_to_config()
+
 
 # TODO AWS secrets (use https://github.com/99designs/aws-vault ?)
 # TODO Azure secrets

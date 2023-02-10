@@ -50,6 +50,21 @@ def test_delete_provider_secrets():
     assert True
 
 
+def test_sending_secrets_to_cluster():
+    from runhouse import Secrets
+
+    cluster = rh.cluster(name="^rh-cpu").up_if_not()
+
+    enabled_providers = Secrets.enabled_providers()
+    rh.Secrets.to(cluster, providers=enabled_providers)
+
+    for p in enabled_providers:
+        creds_file = p.CREDENTIALS_FILE
+        # TODO [JL] confirm creds file exists on the clusters file system
+
+    assert True
+
+
 def test_login():
     # TODO [DG] create a mock account and test this properly in CI
     token = "..."
@@ -90,8 +105,14 @@ def test_login():
 
 
 def test_logout():
+    from runhouse import configs, Secrets
+
     rh.logout()
-    assert True
+    enabled_providers = Secrets.enabled_providers(as_str=True)
+    for provider in enabled_providers:
+        assert not configs.get(provider)
+
+    assert not configs.get("token")
 
 
 if __name__ == "__main__":
