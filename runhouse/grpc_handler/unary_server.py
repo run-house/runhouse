@@ -192,7 +192,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
         secrets_to_add = pickle.loads(request.message)
         for provider_secrets in secrets_to_add:
             provider_name = provider_secrets.pop("provider")
-            p = Secrets.get_class_from_name(Secrets.provider_cls_name(provider_name))
+            p = Secrets.builtin_provider_class_from_name(provider_name)
             if p is None:
                 logger.error(
                     f"Received provider {provider_name} which is not a builtin. "

@@ -156,9 +156,7 @@ def logout(
 
     rh_config_path = configs.CONFIG_PATH
     if interactive_session:
-        delete_rh_config_file = typer.confirm(
-            f"Delete your local Runhouse config file?"
-        )
+        delete_rh_config_file = typer.confirm("Delete your local Runhouse config file?")
 
     if delete_rh_config_file:
         # Delete the credentials file on the file system

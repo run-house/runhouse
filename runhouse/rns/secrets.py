@@ -4,6 +4,7 @@ import logging
 import os
 import subprocess
 import sys
+from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -127,14 +128,13 @@ class Secrets:
         If from_env is True, will read secrets from environment variables instead of local config files.
         If file_path is provided, will read the secrets directly from the file
         If group is provided, will attribute the secrets to the specified group"""
-        provider = provider.lower()
-        if provider in cls.builtin_providers(as_str=True):
+        provider_name = provider.lower()
+        if provider_name in cls.builtin_providers(as_str=True):
             # if a supported cloud provider is given, use the provider's built-in class
-            provider_cls_name = cls.provider_cls_name(provider)
-            p = cls.get_class_from_name(provider_cls_name)
+            p = cls.builtin_provider_class_from_name(provider_name)
             if not from_env and not p.has_secrets_file():
                 # no secrets file configured for this provider
-                raise Exception(f"No local secrets file found for {provider}")
+                raise Exception(f"No local secrets file found for {provider_name}")
 
             secret = p.read_secrets(from_env=from_env, file_path=file_path)
 
@@ -156,22 +156,21 @@ class Secrets:
     ) -> dict:
         """Read secrets from the Vault service for a given provider and optionally save them to their local config.
         If group is provided will read secrets for the specified group."""
-        provider = provider.lower()
+        provider_name = provider.lower()
         endpoint = cls.set_endpoint(group)
-        url = f"{rns_client.api_server_url}/{endpoint}/{provider}"
+        url = f"{rns_client.api_server_url}/{endpoint}/{provider_name}"
         resp = requests.get(url, headers=rns_client.request_headers)
         if resp.status_code != 200:
-            raise Exception(f"Failed to get secrets from Vault for {provider}")
+            raise Exception(f"Failed to get secrets from Vault for {provider_name}")
 
-        secrets = cls.load_resp_data(resp).get(provider, {})
+        secrets = cls.load_resp_data(resp).get(provider_name, {})
         if not secrets:
-            raise Exception(f"Failed to load secrets for {provider}")
+            raise Exception(f"Failed to load secrets for {provider_name}")
 
-        cls_name = cls.provider_cls_name(provider)
-        p = cls.get_class_from_name(cls_name)
+        p = cls.builtin_provider_class_from_name(provider_name)
 
         if save_to_env and p is not None:
-            logger.info(f"Saving secrets for {provider} to local config")
+            logger.info(f"Saving secrets for {provider_name} to local config")
             p.save_secrets(secrets)
 
         return secrets
@@ -225,11 +224,10 @@ class Secrets:
         """Load secret credentials for all the providers which have been configured locally, or optionally
         provide a list of specific providers to load."""
         secrets = []
-        providers = providers or cls.builtin_providers()
+        providers = providers or cls.configured_providers()
         for provider in providers:
             if isinstance(provider, str):
-                provider_cls_name = cls.provider_cls_name(provider)
-                provider = cls.get_class_from_name(name=provider_cls_name)
+                provider = cls.builtin_provider_class_from_name(provider)
                 if not provider:
                     continue
 
@@ -247,9 +245,9 @@ class Secrets:
     @classmethod
     def save_provider_secrets(cls, secrets: dict):
         """Save secrets for each provider to their respective local configs"""
-        builtin_providers = cls.builtin_providers(as_str=True)
+        configured_providers = cls.configured_providers(as_str=True)
         for provider_name, provider_data in secrets.items():
-            if provider_name not in builtin_providers:
+            if provider_name not in configured_providers:
                 logger.warning(
                     f"Received secrets for {provider_name} which are not configured locally. Run `sky check`"
                     f" for instructions on how to configure. If the secret is for a custom provider, you "
@@ -257,8 +255,7 @@ class Secrets:
                 )
                 continue
 
-            cls_name = cls.provider_cls_name(provider_name)
-            provider_cls = cls.get_class_from_name(cls_name)
+            provider_cls = cls.builtin_provider_class_from_name(provider_name)
             if provider_cls is not None:
                 try:
                     provider_cls.save_secrets(provider_data, overwrite=True)
@@ -361,16 +358,12 @@ class Secrets:
             yaml.dump(data, yaml_file, default_flow_style=False)
 
     @staticmethod
-    def get_class_from_name(name: str):
+    def builtin_provider_class_from_name(name: str):
         try:
-            return getattr(sys.modules[__name__], name)
+            return Providers[name.upper()].value
         except:
             # could be a custom provider, in which case there is no built-in class
             return None
-
-    @staticmethod
-    def provider_cls_name(provider: str):
-        return provider.upper() + "Secrets"
 
     @staticmethod
     def load_resp_data(resp) -> Dict:
@@ -446,7 +439,7 @@ class AWSSecrets(Secrets):
             cls.save_secret_to_config()
 
 
-class AZURESecrets(Secrets):
+class AzureSecrets(Secrets):
     PROVIDER_NAME = "azure"
     CREDENTIALS_FILE = os.path.expanduser("~/.azure/clouds.config")
 
@@ -540,7 +533,7 @@ class GCPSecrets(Secrets):
             cls.save_secret_to_config()
 
 
-class LAMBDASecrets(Secrets):
+class LambdaSecrets(Secrets):
     PROVIDER_NAME = "lambda"
     CREDENTIALS_FILE = os.path.expanduser("~/.lambda_cloud/lambda_keys")
     SSH_KEYS_PATH = Path.home() / ".ssh"
@@ -577,7 +570,7 @@ class LAMBDASecrets(Secrets):
             cls.save_secret_to_config()
 
 
-class HUGGINGFACESecrets(Secrets):
+class HuggingFaceSecrets(Secrets):
     PROVIDER_NAME = "huggingface"
     CREDENTIALS_FILE = os.path.expanduser("~/.huggingface/token")
 
@@ -609,7 +602,7 @@ class HUGGINGFACESecrets(Secrets):
             cls.save_secret_to_config()
 
 
-class SKYSecrets(Secrets):
+class SkySecrets(Secrets):
     PROVIDER_NAME = "sky"
     PRIVATE_KEY_FILE = os.path.expanduser(sky.authentication.PRIVATE_SSH_KEY_PATH)
     PUBLIC_KEY_FILE = os.path.expanduser(sky.authentication.PUBLIC_SSH_KEY_PATH)
@@ -699,6 +692,15 @@ class GHSecrets(Secrets):
         if overwrite:
             cls.save_to_yaml_file(config, dest_path)
             cls.save_secret_to_config()
+
+
+class Providers(Enum):
+    AWS = AWSSecrets()
+    AZURE = AzureSecrets()
+    GCP = GCPSecrets()
+    HUGGINGFACE = HuggingFaceSecrets()
+    LAMBDA = LambdaSecrets()
+    SKY = SkySecrets()
 
 
 # TODO AWS secrets (use https://github.com/99designs/aws-vault ?)
