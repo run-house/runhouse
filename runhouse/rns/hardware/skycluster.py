@@ -64,13 +64,13 @@ class SkyCluster(Cluster):
         self.sky_data = sky_data
         if self.sky_data is not None:
             self._save_sky_data()
+        else:
+            # Checks local SkyDB if cluster is up, and loads connection info if so.
+            self.populate_vars_from_status(dryrun=True)
 
-        # Checks local SkyDB if cluster is up, and loads connection info if so.
-        self.populate_vars_from_status(dryrun=True)
-
-        # Cluster status is set to INIT in the Sky DB right after starting, so we need to refresh once
-        if not self.address:
-            self.populate_vars_from_status(dryrun=False)
+            # Cluster status is set to INIT in the Sky DB right after starting, so we need to refresh once
+            if not self.address:
+                self.populate_vars_from_status(dryrun=False)
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
@@ -173,9 +173,13 @@ class SkyCluster(Cluster):
             is_launch=True,
             ready=False,
         )
-        backend_utils.SSHConfigHelper.add_cluster(
-            self.name, [handle_info["head_ip"]], ray_config["auth"]
-        )
+        # Refresh the cluster status before saving the ssh info so SkyPilot has a chance to wipe the .ssh/config if
+        # the cluster went down
+        self.populate_vars_from_status(dryrun=False)
+        if self.address:
+            backend_utils.SSHConfigHelper.add_cluster(
+                self.name, [handle_info["head_ip"]], ray_config["auth"]
+            )
 
     def __getstate__(self):
         """Make sure sky_data is loaded in before pickling."""
@@ -214,6 +218,9 @@ class SkyCluster(Cluster):
           'metadata': {}}
         More: https://github.com/skypilot-org/skypilot/blob/0c2b291b03abe486b521b40a3069195e56b62324/sky/backends/cloud_vm_ray_backend.py#L1457
         """  # noqa
+        # return backend_utils._refresh_cluster_record(
+        #     self.name, force_refresh=refresh, acquire_per_cluster_status_lock=False
+        # )
         return self.get_sky_statuses(cluster_name=self.name, refresh=refresh)
 
     def populate_vars_from_status(self, dryrun=False):
@@ -331,15 +338,14 @@ class SkyCluster(Cluster):
             raise Exception(f"File with ssh key not found in: {path_to_file}")
 
     def ssh_creds(self):
-        if not self._yaml_path:
-            return None
-
-        if not Path(self._yaml_path).exists():
+        if not self._yaml_path or not Path(self._yaml_path).exists():
             if self.sky_data:
                 # If this cluster was serialized and sent over the wire, it will have sky_data (we make sure of that
                 # in __getstate__) but no yaml, and we need to save down the sky data to the sky db and local yaml
                 self._save_sky_data()
-            self.populate_vars_from_status(dryrun=self.dryrun)
+            else:
+                # To avoid calling this twice (once in save_sky_data)
+                self.populate_vars_from_status(dryrun=self.dryrun)
 
         return backend_utils.ssh_credential_from_yaml(self._yaml_path)
 

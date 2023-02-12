@@ -113,7 +113,7 @@ setuptools.setup(
     version=version + f'.dev{datetime.datetime.today().strftime("%Y%m%d")}'
     if nightly
     else version,
-    packages=setuptools.find_packages(),
+    packages=setuptools.find_packages(exclude=["tests"]),
     author="Runhouse Team",
     license="Apache 2.0",
     readme="README.md",

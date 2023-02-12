@@ -171,6 +171,13 @@ class Folder(Resource):
         self._fs = data_source
         self._fsspec_fs = None
 
+    # TODO figure out how to free sshfs properly (https://github.com/ronf/asyncssh/issues/112)
+    # def __del__(self):
+    #     if self.local_mount:
+    #         self.unmount()
+    #     if self._fsspec_fs and hasattr(self._fsspec_fs, "close"):
+    #         self._fsspec_fs.close()
+
     @property
     def data_config(self):
         if isinstance(self.fs, Resource):  # if fs is a cluster
