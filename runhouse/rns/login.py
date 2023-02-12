@@ -129,7 +129,7 @@ def logout(
     configured_providers = Secrets.configured_providers()
     for provider in configured_providers:
         provider_name = provider.PROVIDER_NAME
-        provider_creds_path: str = provider.credentials_path()
+        provider_creds_path: str = provider.default_credentials_path()
 
         if interactive_session:
             remove_from_rh_config = typer.confirm(

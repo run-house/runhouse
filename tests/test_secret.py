@@ -56,18 +56,16 @@ def test_sending_secrets_to_cluster():
     configured_providers = rh.Secrets.configured_providers()
 
     rh.Secrets.to(cluster, providers=configured_providers)
-
     # Confirm the secrets now exist on the cluster
-    for p in configured_providers:
-        provider_name = p.PROVIDER_NAME
-        p_str = str(p())
+    for provider_cls in configured_providers:
+        provider_name = provider_cls.PROVIDER_NAME
+        p_str = str(provider_cls())
         command = [
             f"from runhouse.rns.secrets import {p_str}",
             f"print({p_str}.has_secrets_file())",
         ]
         status_codes = cluster.run_python(command)
-        resp = status_codes[0][1].rstrip("\n").split("\n")[-1]
-        if resp.lower() == "false":
+        if "False" in status_codes[0][1]:
             assert False, f"No credentials file found on cluster for {provider_name}"
 
     assert True
