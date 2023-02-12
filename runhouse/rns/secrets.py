@@ -5,7 +5,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import requests
 
@@ -46,13 +46,14 @@ class Secrets:
 
     @classmethod
     def has_secrets_file(cls) -> bool:
-        if not cls.CREDENTIALS_FILE:
+        file_path = cls.credentials_path()
+        if not file_path:
             return False
-        return cls.file_exists(cls.CREDENTIALS_FILE)
+        return cls.file_exists(file_path)
 
     @classmethod
     def credentials_path(cls):
-        return cls.CREDENTIALS_FILE
+        return configs.get(cls.PROVIDER_NAME) or cls.CREDENTIALS_FILE
 
     @classmethod
     def extract_and_upload(
@@ -299,6 +300,16 @@ class Secrets:
 
         return [c for c in cls.__subclasses__() if c.PROVIDER_NAME in cloud_names]
 
+    @classmethod
+    def configured_providers(cls, as_str: bool = False) -> List:
+        """Return list of builtin providers which have been configured in the local filesystem."""
+        configured_providers = [
+            p for p in cls.builtin_providers() if p.has_secrets_file()
+        ]
+        if as_str:
+            return [c.PROVIDER_NAME for c in configured_providers]
+        return configured_providers
+
     @staticmethod
     def delete_secrets_file(file_path: str):
         Path(file_path).unlink(missing_ok=True)
@@ -415,7 +426,7 @@ class AWSSecrets(Secrets):
     def save_secrets(
         cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
     ):
-        dest_path = file_path or cls.CREDENTIALS_FILE
+        dest_path = file_path or cls.credentials_path()
         parser = configparser.ConfigParser()
         section_name = "default"
         parser.add_section(section_name)
@@ -448,7 +459,7 @@ class AZURESecrets(Secrets):
                     f"AZURE_SUBSCRIPTION_ID must is not set for {cls.PROVIDER_NAME}"
                 )
         else:
-            creds_file = file_path or cls.CREDENTIALS_FILE
+            creds_file = file_path or cls.credentials_path()
             config = cls.read_config_file(creds_file)
             subscription_id = config["AzureCloud"]["subscription"]
 
@@ -458,7 +469,7 @@ class AZURESecrets(Secrets):
     def save_secrets(
         cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
     ):
-        dest_path = file_path or cls.CREDENTIALS_FILE
+        dest_path = file_path or cls.credentials_path()
         parser = configparser.ConfigParser()
         section_name = "AzureCloud"
         parser.add_section(section_name)
@@ -489,7 +500,7 @@ class GCPSecrets(Secrets):
                     f"CLIENT_ID and CLIENT_SECRET must be set for {cls.PROVIDER_NAME}"
                 )
         else:
-            creds_file = file_path or cls.CREDENTIALS_FILE
+            creds_file = file_path or cls.credentials_path()
             config_data = cls.read_json_file(creds_file)
             client_id = config_data["client_id"]
             client_secret = config_data["client_secret"]
@@ -504,7 +515,7 @@ class GCPSecrets(Secrets):
     def save_secrets(
         cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
     ):
-        dest_path = file_path or cls.CREDENTIALS_FILE
+        dest_path = file_path or cls.credentials_path()
         config = cls.read_json_file(dest_path) if cls.file_exists(dest_path) else {}
         config["client_id"] = secrets["client_id"]
         config["client_secret"] = secrets["client_secret"]
@@ -556,7 +567,7 @@ class LAMBDASecrets(Secrets):
     def save_secrets(
         cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
     ):
-        dest_path = file_path or cls.CREDENTIALS_FILE
+        dest_path = file_path or cls.credentials_path()
         Path(dest_path).parent.mkdir(parents=True, exist_ok=True)
 
         if overwrite:
@@ -577,7 +588,7 @@ class HUGGINGFACESecrets(Secrets):
                 f"Reading secrets from env is not supported for {cls.PROVIDER_NAME}"
             )
         else:
-            creds_path = file_path or cls.CREDENTIALS_FILE
+            creds_path = file_path or cls.credentials_path()
             token = Path(creds_path).read_text()
 
         return {"provider": cls.PROVIDER_NAME, "token": token}
@@ -604,14 +615,18 @@ class SKYSecrets(Secrets):
     PUBLIC_KEY_FILE = os.path.expanduser(sky.authentication.PUBLIC_SSH_KEY_PATH)
 
     @classmethod
-    def credentials_path(cls):
+    def credentials_path(cls) -> Tuple:
+        config_creds = configs.get(cls.PROVIDER_NAME)
+        if config_creds:
+            return tuple(config_creds)
         return cls.PRIVATE_KEY_FILE, cls.PUBLIC_KEY_FILE
 
     @classmethod
     def has_secrets_file(cls) -> bool:
-        return cls.file_exists(cls.PRIVATE_KEY_FILE) and cls.file_exists(
-            cls.PUBLIC_KEY_FILE
-        )
+        secret_files: tuple = cls.credentials_path()
+        if not secret_files:
+            return False
+        return all(cls.file_exists(s) for s in secret_files)
 
     @classmethod
     def read_secrets(cls, from_env: bool = False, file_path: Optional[str] = None):
@@ -620,8 +635,8 @@ class SKYSecrets(Secrets):
                 f"Reading secrets from env is not supported for {cls.PROVIDER_NAME}"
             )
         else:
-            private_key_file = file_path or cls.PRIVATE_KEY_FILE
-            public_key_file = file_path or cls.PUBLIC_KEY_FILE
+            private_key_file = cls.PRIVATE_KEY_FILE
+            public_key_file = cls.PUBLIC_KEY_FILE
 
             private_key = Path(private_key_file).read_text()
             public_key = Path(public_key_file).read_text()
@@ -636,7 +651,7 @@ class SKYSecrets(Secrets):
     def save_secrets(
         cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
     ):
-        private_key_path = file_path or cls.PRIVATE_KEY_FILE
+        private_key_path = cls.PRIVATE_KEY_FILE
         if private_key_path.endswith(".pem"):
             public_key_path = private_key_path.rsplit(".", 1)[0] + ".pub"
         else:
@@ -667,7 +682,7 @@ class GHSecrets(Secrets):
                 f"Reading secrets from env is not supported for {cls.PROVIDER_NAME}"
             )
         else:
-            creds_file = file_path or cls.CREDENTIALS_FILE
+            creds_file = file_path or cls.credentials_path()
             config_data = cls.read_yaml_file(creds_file)
             token = config_data["github.com"]["oauth_token"]
 
@@ -677,7 +692,7 @@ class GHSecrets(Secrets):
     def save_secrets(
         cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
     ):
-        dest_path = file_path or cls.CREDENTIALS_FILE
+        dest_path = file_path or cls.credentials_path()
         config = cls.read_yaml_file(dest_path) if cls.file_exists(dest_path) else {}
         config["github.com"] = {"oauth_token": secrets["token"]}
 

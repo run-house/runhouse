@@ -125,43 +125,44 @@ def logout(
     Returns:
         None
     """
-    builtin_providers = Secrets.builtin_providers()
-    for provider in builtin_providers:
+    interactive_session = is_interactive() or interactive
+    configured_providers = Secrets.configured_providers()
+    for provider in configured_providers:
         provider_name = provider.PROVIDER_NAME
-        provider_path = configs.get(provider_name)
-        if provider_path is None:
-            # If the provider hasn't been saved to the runhouse config
-            continue
+        provider_creds_path: str = provider.credentials_path()
 
-        if is_interactive() or interactive:
+        if interactive_session:
             remove_from_rh_config = typer.confirm(
                 f"Remove secrets for {provider_name} from Runhouse config?"
             )
 
             delete_credentials_file = typer.confirm(
-                f"Delete credentials file for {provider_name} ({provider_path})?"
+                f"Delete credentials file for {provider_name}?"
             )
 
-        if remove_from_rh_config:
+        if remove_from_rh_config and configs.get(provider_name):
             configs.delete(provider_name)
+            logger.info(f"Removed {provider_name} from Runhouse config")
 
         if delete_credentials_file:
-            # Deleting secrets for builtin provider or one recognized by sky
-            provider.delete_secrets_file(provider_path)
+            provider.delete_secrets_file(provider_creds_path)
             logger.info(
-                f"Deleted {provider_name} credentials file in path: {provider_path}"
+                f"Deleted {provider_name} credentials file from path: {provider_creds_path}"
             )
 
     # Delete token from config
     # TODO [JL] invalidate the token stored in RNS?
     configs.delete(key="token")
 
-    if is_interactive() or interactive:
-        delete_rh_config_file = typer.confirm("Delete your local Runhouse config file?")
+    rh_config_path = configs.CONFIG_PATH
+    if interactive_session:
+        delete_rh_config_file = typer.confirm(
+            f"Delete your local Runhouse config file?"
+        )
 
     if delete_rh_config_file:
         # Delete the credentials file on the file system
-        Secrets.delete_secrets_file(configs.CONFIG_PATH)
-        logger.info(f"Deleted Runhouse config file from path: {configs.CONFIG_PATH}")
+        Secrets.delete_secrets_file(rh_config_path)
+        logger.info(f"Deleted Runhouse config file from path: {rh_config_path}")
 
     logger.info("Successfully logged out of Runhouse.")

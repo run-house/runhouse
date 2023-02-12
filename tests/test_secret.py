@@ -51,19 +51,15 @@ def test_delete_provider_secrets():
 
 
 def test_sending_secrets_to_cluster():
-    from runhouse import configs
-
     cluster = rh.cluster(name="^rh-cpu").up_if_not()
 
-    builtin_providers = rh.Secrets.builtin_providers()
-    rh.Secrets.to(cluster, providers=builtin_providers)
+    configured_providers = rh.Secrets.configured_providers()
 
-    for p in builtin_providers:
+    rh.Secrets.to(cluster, providers=configured_providers)
+
+    # Confirm the secrets now exist on the cluster
+    for p in configured_providers:
         provider_name = p.PROVIDER_NAME
-        if not configs.get(provider_name):
-            # If not enabled in the local environment
-            continue
-
         p_str = str(p())
         command = [
             f"from runhouse.rns.secrets import {p_str}",
@@ -119,13 +115,12 @@ def test_login():
 def test_logout():
     from runhouse import configs, Secrets
 
-    builtin_providers = Secrets.builtin_providers(as_str=True)
-    configured_providers = [p for p in builtin_providers if configs.get(p)]
+    configured_providers = Secrets.configured_providers(as_str=True)
 
-    rh.logout()
+    rh.logout(remove_from_rh_config=True)
 
-    for provider_name in configured_providers:
-        assert not configs.get(provider_name)
+    for provider in configured_providers:
+        assert not configs.get(provider)
 
     assert not configs.get("token")
 

@@ -199,7 +199,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
                     f"Runhouse currently only supports adding secrets for builtin providers only."
                 )
                 continue
-
+            credentials_path = p.credentials_path()
             # Save secrets into the class's default location on the cluster
             try:
                 p.save_secrets(provider_secrets, overwrite=True)
@@ -209,7 +209,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
                 )
                 continue
 
-            logger.info(f"Added secrets for {provider_name} to: {p.credentials_path()}")
+            logger.info(f"Added secrets for {provider_name} to: {credentials_path}")
 
         logger.info("Finished adding all provider secrets to cluster")
         self.register_activity()
