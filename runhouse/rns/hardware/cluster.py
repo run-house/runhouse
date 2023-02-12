@@ -190,7 +190,7 @@ class Cluster(Resource):
     def add_secrets(self, provider_secrets: list):
         """Copy secrets from current environment onto the cluster"""
         self.check_grpc()
-        return self.client.add_secrets(provider_secrets)
+        return self.client.add_secrets(pickle.dumps(provider_secrets))
 
     # TODO [DG] add a method to list all the keys in the cluster
 
@@ -456,39 +456,12 @@ class Cluster(Resource):
     def run_python(self, commands: list, stream_logs=True, port_forward=None):
         """Run a list of python commands on the cluster."""
         command_str = "; ".join(commands)
-        self.run(
+        status_codes = self.run(
             [f'python3 -c "{command_str}"'],
             stream_logs=stream_logs,
             port_forward=port_forward,
         )
-
-    def send_secrets(self, reload=False, providers: Optional[List[str]] = None):
-        if providers is not None:
-            # Send secrets for specific providers from local configs rather than trying to load from Vault
-            from runhouse import Secrets
-
-            secrets: list = Secrets.load_provider_secrets(providers=providers)
-            # TODO [JL] change this API so we don't have to convert the list to a dict
-            secrets: dict = {
-                s["provider"]: {k: v for k, v in s.items() if k != "provider"}
-                for s in secrets
-            }
-            load_secrets_cmd = [
-                "import runhouse as rh",
-                f"rh.Secrets.save_provider_secrets(secrets={secrets})",
-            ]
-        elif not self._secrets_sent or reload:
-            load_secrets_cmd = [
-                "import runhouse as rh",
-                "rh.Secrets.download_into_env()",
-            ]
-        else:
-            # Secrets already sent and not reloading
-            return
-
-        self.run_python(load_secrets_cmd, stream_logs=True)
-        # TODO [JL] change this to a list to make sure new secrets get sent when the user wants to
-        self._secrets_sent = True
+        return status_codes
 
     def ipython(self):
         # TODO tunnel into python interpreter in cluster

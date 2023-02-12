@@ -5,7 +5,7 @@ import runhouse as rh
 
 def test_get_all_secrets():
     secrets = rh.Secrets.download_into_env(save_locally=True)
-    providers = rh.Secrets.enabled_providers(as_str=True)
+    providers = rh.Secrets.builtin_providers(as_str=True)
     assert set(providers) == {"aws", "gcp", "sky", "hf"}
     assert secrets
 
@@ -51,16 +51,28 @@ def test_delete_provider_secrets():
 
 
 def test_sending_secrets_to_cluster():
-    from runhouse import Secrets
+    from runhouse import configs
 
     cluster = rh.cluster(name="^rh-cpu").up_if_not()
 
-    enabled_providers = Secrets.enabled_providers()
-    rh.Secrets.to(cluster, providers=enabled_providers)
+    builtin_providers = rh.Secrets.builtin_providers()
+    rh.Secrets.to(cluster, providers=builtin_providers)
 
-    for p in enabled_providers:
-        creds_file = p.CREDENTIALS_FILE
-        # TODO [JL] confirm creds file exists on the clusters file system
+    for p in builtin_providers:
+        provider_name = p.PROVIDER_NAME
+        if not configs.get(provider_name):
+            # If not enabled in the local environment
+            continue
+
+        p_str = str(p())
+        command = [
+            f"from runhouse.rns.secrets import {p_str}",
+            f"print({p_str}.has_secrets_file())",
+        ]
+        status_codes = cluster.run_python(command)
+        resp = status_codes[0][1].rstrip("\n").split("\n")[-1]
+        if resp.lower() == "false":
+            assert False, f"No credentials file found on cluster for {provider_name}"
 
     assert True
 
@@ -107,10 +119,13 @@ def test_login():
 def test_logout():
     from runhouse import configs, Secrets
 
+    builtin_providers = Secrets.builtin_providers(as_str=True)
+    configured_providers = [p for p in builtin_providers if configs.get(p)]
+
     rh.logout()
-    enabled_providers = Secrets.enabled_providers(as_str=True)
-    for provider in enabled_providers:
-        assert not configs.get(provider)
+
+    for provider_name in configured_providers:
+        assert not configs.get(provider_name)
 
     assert not configs.get("token")
 

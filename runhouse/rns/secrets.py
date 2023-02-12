@@ -29,6 +29,9 @@ class Secrets:
     USER_ENDPOINT = "user/secret"
     GROUP_ENDPOINT = "group/secret"
 
+    def __str__(self):
+        return str(self.__class__.__name__)
+
     @classmethod
     def read_secrets(
         cls, from_env: bool = False, file_path: Optional[str] = None
@@ -46,6 +49,10 @@ class Secrets:
         if not cls.CREDENTIALS_FILE:
             return False
         return cls.file_exists(cls.CREDENTIALS_FILE)
+
+    @classmethod
+    def credentials_path(cls):
+        return cls.CREDENTIALS_FILE
 
     @classmethod
     def extract_and_upload(
@@ -94,6 +101,7 @@ class Secrets:
 
         secrets = cls.load_resp_data(resp)
         if providers is not None:
+            # TODO [JL] change API so we don't have to reformat the results?
             secrets = {provider: secrets[provider] for provider in providers}
         if save_locally and secrets:
             cls.save_provider_secrets(secrets)
@@ -119,7 +127,7 @@ class Secrets:
         If file_path is provided, will read the secrets directly from the file
         If group is provided, will attribute the secrets to the specified group"""
         provider = provider.lower()
-        if provider in cls.enabled_providers(as_str=True):
+        if provider in cls.builtin_providers(as_str=True):
             # if a supported cloud provider is given, use the provider's built-in class
             provider_cls_name = cls.provider_cls_name(provider)
             p = cls.get_class_from_name(provider_cls_name)
@@ -171,7 +179,7 @@ class Secrets:
     def delete_from_vault(cls, providers: Optional[List[str]] = None):
         """Delete secrets from Vault for specified providers (builtin or custom).
         If none are provided, will delete secrets for all providers which have been enabled in the local environment."""
-        providers = providers or cls.enabled_providers(as_str=True)
+        providers = providers or cls.builtin_providers(as_str=True)
         for provider in providers:
             url = f"{rns_client.api_server_url}/{cls.USER_ENDPOINT}/{provider}"
             resp = requests.delete(url, headers=rns_client.request_headers)
@@ -184,7 +192,6 @@ class Secrets:
     def to(cls, hardware: Union[str, "Cluster"], providers: Optional[List] = None):
         """Copy secrets to the desired hardware for a list of builtin providers. If no providers are specified
         will load all builtin providers that are already enabled."""
-        provider_secrets = cls.load_provider_secrets(providers=providers)
         if isinstance(hardware, str):
             from runhouse import cluster
 
@@ -196,8 +203,18 @@ class Secrets:
                 f"Hardware {hardware_name} is not up. Run `{hardware_name}.up()` to re-up the cluster."
             )
 
-        # Send provider secrets over RPC, then on the cluster save each provider's secrets into their respective files
+        provider_secrets: list = cls.load_provider_secrets(providers=providers)
+        if not provider_secrets:
+            # If no secrets saved in local config files, check if they exist in Vault
+            vault_secrets: dict = cls.download_into_env(save_locally=False)
+            # TODO [JL] change this API so we don't have to convert the list to a dict?
+            provider_secrets: list = [
+                {"provider": k, **v} for k, v in vault_secrets.items()
+            ]
+
+        # Send provider secrets over RPC to the cluster, then save each provider's secrets into their respective files
         hardware.add_secrets(provider_secrets)
+
         logger.info(f"Finished copying secrets onto cluster {hardware_name}")
 
     @classmethod
@@ -207,7 +224,7 @@ class Secrets:
         """Load secret credentials for all the providers which have been configured locally, or optionally
         provide a list of specific providers to load."""
         secrets = []
-        providers = providers or cls.enabled_providers()
+        providers = providers or cls.builtin_providers()
         for provider in providers:
             if isinstance(provider, str):
                 provider_cls_name = cls.provider_cls_name(provider)
@@ -219,40 +236,44 @@ class Secrets:
                 # no secrets file configured for this provider
                 continue
 
+            configs.set(provider.PROVIDER_NAME, provider.credentials_path())
             provider_secrets = provider.read_secrets(from_env=from_env)
             if provider_secrets:
                 secrets.append(provider_secrets)
+
         return secrets
 
     @classmethod
     def save_provider_secrets(cls, secrets: dict):
         """Save secrets for each provider to their respective local configs"""
+        builtin_providers = cls.builtin_providers(as_str=True)
         for provider_name, provider_data in secrets.items():
+            if provider_name not in builtin_providers:
+                logger.warning(
+                    f"Received secrets for {provider_name} which are not configured locally. Run `sky check`"
+                    f" for instructions on how to configure. If the secret is for a custom provider, you "
+                    f"can set the relevant environment variables or save them to their respective local files manually."
+                )
+                continue
+
             cls_name = cls.provider_cls_name(provider_name)
             provider_cls = cls.get_class_from_name(cls_name)
-            # Save secrets to local config
             if provider_cls is not None:
                 try:
-                    provider_cls.save_secrets(provider_data)
+                    provider_cls.save_secrets(provider_data, overwrite=True)
                 except Exception as e:
                     logger.error(
                         f"Failed to save {provider_name} secrets to local config: {e}"
                     )
                     continue
 
-        enabled_providers = cls.enabled_providers(as_str=True)
-        for provider_name in secrets.keys():
-            if provider_name not in enabled_providers:
-                logger.warning(
-                    f"Received secrets for {provider_name} which are not configured locally. Run `sky check`"
-                    f" for instructions on how to configure. If the secret is for a custom provider, you "
-                    f"can set the relevant environment variables or save them to their respective local files manually."
-                )
+            # Make sure local config reflects this provider has been enabled
+            configs.set(provider_name, provider_cls.credentials_path())
 
     @classmethod
-    def enabled_providers(cls, as_str: bool = False) -> List:
-        """Returns a list of cloud provider class objects which have been enabled locally. If as_str is True,
-        return the names of the providers as strings"""
+    def builtin_providers(cls, as_str: bool = False) -> List:
+        """Returns a list of cloud provider class objects which Runhouse supports out of the box.
+        If as_str is True, return the names of the providers as strings"""
         sky.check.check(quiet=True)
         clouds = sky.global_user_state.get_enabled_clouds()
         cloud_names = [str(c).lower() for c in clouds]
@@ -284,8 +305,8 @@ class Secrets:
 
     @classmethod
     def save_secret_to_config(cls):
-        """Save the loaded provider config path to the runhouse config saved on the local file system."""
-        configs.update(cls.PROVIDER_NAME, cls.CREDENTIALS_FILE)
+        """Save the loaded provider config path to the runhouse config saved in the file system."""
+        configs.set(cls.PROVIDER_NAME, cls.credentials_path())
 
     @classmethod
     def set_endpoint(cls, group: Optional[str] = None):
@@ -508,6 +529,43 @@ class GCPSecrets(Secrets):
             cls.save_secret_to_config()
 
 
+class LAMBDASecrets(Secrets):
+    PROVIDER_NAME = "lambda"
+    CREDENTIALS_FILE = os.path.expanduser("~/.lambda_cloud/lambda_keys")
+    SSH_KEYS_PATH = Path.home() / ".ssh"
+
+    @classmethod
+    def read_secrets(cls, from_env: bool = False, file_path: Optional[str] = None):
+        if from_env:
+            raise NotImplementedError(
+                "Lambda secrets cannot be read from environment variables."
+            )
+        else:
+            from sky.clouds.lambda_cloud import lambda_utils
+
+            client = lambda_utils.LambdaCloudClient()
+            api_key = client.api_key
+            ssh_key_name = client.ssh_key_name
+        return {
+            "provider": cls.PROVIDER_NAME,
+            "api_key": api_key,
+            "ssh_key_name": ssh_key_name,
+        }
+
+    @classmethod
+    def save_secrets(
+        cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
+    ):
+        dest_path = file_path or cls.CREDENTIALS_FILE
+        Path(dest_path).parent.mkdir(parents=True, exist_ok=True)
+
+        if overwrite:
+            with open(dest_path, "w") as f:
+                f.write(f'api_key = {secrets["api_key"]}\n')
+                f.write(f'ssh_key_name = {secrets["ssh_key_name"]}\n')
+            cls.save_secret_to_config()
+
+
 class HUGGINGFACESecrets(Secrets):
     PROVIDER_NAME = "huggingface"
     CREDENTIALS_FILE = os.path.expanduser("~/.huggingface/token")
@@ -544,6 +602,10 @@ class SKYSecrets(Secrets):
     PROVIDER_NAME = "sky"
     PRIVATE_KEY_FILE = os.path.expanduser(sky.authentication.PRIVATE_SSH_KEY_PATH)
     PUBLIC_KEY_FILE = os.path.expanduser(sky.authentication.PUBLIC_SSH_KEY_PATH)
+
+    @classmethod
+    def credentials_path(cls):
+        return cls.PRIVATE_KEY_FILE, cls.PUBLIC_KEY_FILE
 
     @classmethod
     def has_secrets_file(cls) -> bool:

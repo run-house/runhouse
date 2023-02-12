@@ -125,16 +125,21 @@ def logout(
     Returns:
         None
     """
-    enabled_providers = Secrets.enabled_providers()
-    for provider in enabled_providers:
+    builtin_providers = Secrets.builtin_providers()
+    for provider in builtin_providers:
         provider_name = provider.PROVIDER_NAME
+        provider_path = configs.get(provider_name)
+        if provider_path is None:
+            # If the provider hasn't been saved to the runhouse config
+            continue
+
         if is_interactive() or interactive:
             remove_from_rh_config = typer.confirm(
                 f"Remove secrets for {provider_name} from Runhouse config?"
             )
 
             delete_credentials_file = typer.confirm(
-                f"Delete credentials file for {provider_name}?"
+                f"Delete credentials file for {provider_name} ({provider_path})?"
             )
 
         if remove_from_rh_config:
@@ -142,13 +147,13 @@ def logout(
 
         if delete_credentials_file:
             # Deleting secrets for builtin provider or one recognized by sky
-            provider_path = provider.CREDENTIALS_FILE
             provider.delete_secrets_file(provider_path)
             logger.info(
                 f"Deleted {provider_name} credentials file in path: {provider_path}"
             )
 
     # Delete token from config
+    # TODO [JL] invalidate the token stored in RNS?
     configs.delete(key="token")
 
     if is_interactive() or interactive:

@@ -131,7 +131,7 @@ class Defaults:
             config_path.parent.mkdir(parents=True, exist_ok=True)
 
         with config_path.open("w") as stream:
-            yaml.dump(defaults, stream)
+            yaml.safe_dump(defaults, stream)
 
     def download_and_save_defaults(
         self,

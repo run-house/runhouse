@@ -190,16 +190,29 @@ class UnaryService(pb2_grpc.UnaryServicer):
 
         self.register_activity()
         secrets_to_add = pickle.loads(request.message)
-        for secrets in secrets_to_add:
-            provider = secrets.pop("provider")
-            p = Secrets.get_class_from_name(Secrets.provider_cls_name(provider))
+        for provider_secrets in secrets_to_add:
+            provider_name = provider_secrets.pop("provider")
+            p = Secrets.get_class_from_name(Secrets.provider_cls_name(provider_name))
             if p is None:
-                logger.error(f"Received provider {provider} which is not a builtin")
+                logger.error(
+                    f"Received provider {provider_name} which is not a builtin. "
+                    f"Runhouse currently only supports adding secrets for builtin providers only."
+                )
                 continue
 
-            # If the provider is a builtin we can use its appropriate class's save method on the cluster
-            p.save_secrets(secrets, overwrite=True)
+            # Save secrets into the class's default location on the cluster
+            try:
+                p.save_secrets(provider_secrets, overwrite=True)
+            except Exception as e:
+                logger.error(
+                    f"Failed to save {provider_name} secrets to local config: {e}"
+                )
+                continue
 
+            logger.info(f"Added secrets for {provider_name} to: {p.credentials_path()}")
+
+        logger.info("Finished adding all provider secrets to cluster")
+        self.register_activity()
         return pb2.MessageResponse(message=pickle.dumps("Added Secrets"), received=True)
 
 

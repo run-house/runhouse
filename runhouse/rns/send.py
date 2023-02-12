@@ -466,9 +466,6 @@ class Send(Resource):
             raise RuntimeError("Hardware must be specified and up to ssh into a Send")
         self.hardware.ssh()
 
-    def send_secrets(self, reload=False):
-        self.hardware.send_secrets(reload=reload)
-
     def http_url(self, curl_command=False, *args, **kwargs) -> str:
         """Return the endpoint needed to run the Send on the remote cluster, or provide the curl command if requested"""
         resource_uri = rh_config.rns_client.resource_uri(name=self.name)
@@ -684,6 +681,8 @@ def send(
     new_send = Send.from_config(config, dryrun=dryrun)
 
     if load_secrets and not dryrun:
-        new_send.send_secrets()
+        from runhouse import Secrets
+
+        Secrets.to(hardware=new_send.hardware)
 
     return new_send
