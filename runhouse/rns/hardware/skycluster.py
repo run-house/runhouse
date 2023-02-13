@@ -32,14 +32,10 @@ class SkyCluster(Cluster):
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
-        Args:
-            name:
-            instance_type: Type of cloud instance to use for the cluster
-            num_instances: Number of instances to use for the cluster
-            provider: Cloud provider to use for the cluster
-            dryrun:
-            autostop_mins: Number of minutes to keep the cluster up for following inactivity, or
-                -1 to keep up indefinitely.
+        On-demand SkyPilot Cluster.
+
+        .. note::
+            To build a cluster, please use the factory function :func:`cluster`.
         """
 
         super().__init__(name=name, dryrun=dryrun)

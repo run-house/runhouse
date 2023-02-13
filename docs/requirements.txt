@@ -1,3 +1,4 @@
+sphinx==4.5.0
 sphinx-rtd-theme==1.1.1
 sphinx-book-theme==0.3.3
 sphinx-thebe==0.1.2

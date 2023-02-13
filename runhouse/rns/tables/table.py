@@ -39,6 +39,12 @@ class Table(Resource):
         metadata: Optional[Dict] = None,
         **kwargs,
     ):
+        """
+        The Runhouse Table object.
+
+        .. note::
+            To build a Table, please use the factory function :func:`table`.
+        """
         super().__init__(name=name, dryrun=dryrun)
         self._filename = str(Path(url).name) if url else self.name
         # Use factory method so correct subclass for fs is returned
@@ -348,8 +354,21 @@ def table(
     stream_format: Optional[str] = None,
     metadata: Optional[Dict] = None,
 ):
-    """Returns a Table object, which can be used to interact with the table at the given url.
-    If the table does not exist, it will be saved if `dryrun` is False.
+    """Constructs a Table object, which can be used to interact with the table at the given url.
+
+    Args:
+        data: Data to be stored in the table.
+        name (Optional[str]): Name for the table, to reuse it later on.
+        url (Optional[str]): Full path to the data file.
+        fs (Optional[str]): File system. Currently this must be one of
+            ["file", "github", "sftp", "ssh", "s3", "gcs", "azure"].
+        data_config (Optional[dict]): The data config to pass to the underlying fsspec handler.
+        partition_cols (Optional[list]): List of columns to partition the table by.
+        mkdir (bool): Whether to (Default: ``False``)
+        dryrun (bool): Whether to save the table if it does not exist. (Default: ``False``)
+        stream_format (Optional[str]): Format to stream the Table as.
+            Currently this must be one of ["pyarrow", "torch", "tf", "pandas"]
+        metadata (Optional[dict]): Metadata to store for the table.
     """
     config = rns_client.load_config(name)
 

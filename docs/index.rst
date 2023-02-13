@@ -90,6 +90,7 @@ Documentation
    cli/cli
    main
 
+   Tutorials <https://github.com/run-house/tutorials>
    REST API Guide <https://api.run.house/docs>
    Dashboard <https://api.run.house>
 

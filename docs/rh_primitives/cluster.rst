@@ -1,18 +1,12 @@
 Cluster
 ====================================
 A cluster is a Runhouse primitive used for abstracting a particular hardware configuration.
+This can be either an on-demand cluster (requires valid cloud credentials) or a BYO
+(bring-your-own) cluster (requires IP address and ssh creds).
 
-It contains the following attributes:
+A cluster is assigned a name, through which it can be accessed and reused later on.
 
-- :code:`name`: Name the cluster to re-use later on.
-- :code:`instance_type`: See below for default builtins supported. You may also create your own.
-- :code:`num_instances`: Number of instances to create.
-- :code:`create`: For the creation of a cluster for the first time should be :code:`True`.
-- :code:`autostop_mins`: Automatically down the cluster after specified number of minutes.
-- :code:`use_spot`: Use spot instance.
-- :code:`sky_data`: Config data for the cluster. Runhouse will generally provide this for you under the hood.
-
-Runhouse provides a number of convenient builtin default instance types:
+Runhouse also provides a number of convenient builtin default instance types:
 
 .. list-table::
    :widths: 25 25 25 25
@@ -60,16 +54,15 @@ Runhouse provides a number of convenient builtin default instance types:
     preceded by :code:`^`. For example, :code:`^rh-4-gpu`.
 
 .. autoclass:: runhouse.rns.hardware.cluster.Cluster
-   :members:
-   :exclude-members:
+  :members:
+  :exclude-members:
 
     .. automethod:: __init__
 
-
 SkyCluster
 ~~~~~~~~~~
-A SkyCluster is a Runhouse primitive used for abstracting a particular hardware configuration.
-
+A SkyCluster is a cluster that uses SkyPilot functionality underneath to handle
+various cluster properties.
 
 .. autoclass:: runhouse.rns.hardware.skycluster.SkyCluster
    :members:

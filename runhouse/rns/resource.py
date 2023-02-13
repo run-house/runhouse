@@ -27,6 +27,23 @@ class Resource:
         name: Optional[str] = None,
         dryrun: bool = None,
     ):
+        """
+        Runhouse abstraction for objects that can be saved, shared, and reused.
+
+        Runhouse currently supports the following builtin Resource types:
+
+        # TODO: link these to corresponding docs
+
+        - Compute Abstractions
+            - Cluster
+            - Send
+
+        - Data Abstractions
+            - Blob
+            - Folder
+            - Package
+            - Table
+        """
         self._name, self._rns_folder = None, None
         if name is not None:
             # TODO validate that name complies with a simple regex
@@ -167,16 +184,13 @@ class Resource:
         """Grant access to the resource for list of users. If a user has a Runhouse account they
         will receive an email notifying them of their new access. If the user does not have a Runhouse account they will
         also receive instructions on creating one, after which they will be able to have access to the Resource.
-        Note: You can only grant resource access to other users if you have Write / Read privileges for the Resource.
+
+        .. note::
+            You can only grant resource access to other users if you have Write / Read privileges for the Resource.
 
         Args:
             users (list): list of user emails and / or runhouse account usernames.
             access_type (:obj:`ResourceAccess`, optional): access type to provide for the resource.
-
-        Example:
-            .. code-block:: python
-
-               added_users, new_users = my_send.share(users=["username1", "user@gmail.com"], access_type='read')
 
         Returns:
             Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]: Tuple of two dictionaries.
@@ -185,6 +199,8 @@ class Resource:
 
             `new_users`: users who do not have Runhouse accounts.
 
+        Example:
+            >>> added_users, new_users = my_send.share(users=["username1", "user@gmail.com"], access_type='read')
         """
         if isinstance(access_type, str):
             access_type = ResourceAccess(access_type)

@@ -39,21 +39,11 @@ class Send(Resource):
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
-        Create, load, or update a Send ("Serverless endpoint"). A Send is comprised of the
-        entrypoint, hardware, and dependencies to run the service.
+        Runhouse Send ("Serverless ENDpoint") object. It comprises of the entrypoint, hardware/cluster,
+        and dependencies necessary to run the service.
 
-        Args:
-            fn (): A python callable or entrypoint string (module:function) within the package which the user
-                can call to run remotely as a microservice. The Send object is callable, taking the same inputs
-                 and producing the same outputs as fn. For example, if we create
-                 `my_send = Send(fn=lambda x: x+1, hardware=my_hw)`, we can call it with `my_send(4)`, and
-                 the fn will run remotely on `my_hw`.
-            name (): A URI to persist this Send's metadata to Runhouse's Resource Naming System (RNS), which allows
-                it to be reloaded and used later or in other environments. If name is left empty, the Send is
-                "anonymous" and will only exist within this Python context. # TODO more about user namespaces.
-            hardware ():
-            reqs ():
-            cluster ():
+        .. note::
+                To create a Send, please use the factory function :func:`send`.
         """
         self.fn_pointers = fn_pointers
         self.hardware = hardware
@@ -587,19 +577,40 @@ def send(
     load_secrets: bool = False,
     serialize_notebook_fn: bool = False,
 ):
-    """Factory constructor to construct the Send for various provider types.
+    """Factory function for constructing a Runhouse Send object.
 
-    fn: The function which will execute on the remote cluster when this send is called.
-    name: Name of the Send to create or retrieve, either from a local config or from the RNS.
-    hardware: Hardware to use for the Send, either a string name of a Cluster object, or a Cluster object.
-    package: Package to send to the remote cluster, either a string name of a Package, package url,
-        or a Package object.
-    reqs: List of requirements to install on the remote cluster, or path to a requirements.txt file. If a list
-        of pypi packages is provided, including 'requirements.txt' in the list will install the requirements
-        in `package`. By default, if reqs is left as None, we'll set it to ['requirements.txt'], which installs
-        just the requirements of package. If an empty list is provided, no requirements will be installed.
-    image (TODO): Docker image id to use on the remote cluster, or path to Dockerfile.
-    dryrun: Whether to create the Send if it doesn't exist, or load the Send object as a dryrun.
+    Args:
+        fn (Optional[str or Callable]): The function to execute on the remote hardware when the send is called.
+        name (Optional[str]): Name of the Send to create or retrieve.
+            This can be either from a local config or from the RNS.
+        hardware (Optional[str or Cluster]): Hardware (cluster) to use for the Send.
+            This can be either the string name of a Cluster object, or a Cluster object.
+        reqs (Optional[List[str]]): List of requirements to install on the remote cluster, or path to the
+            requirements.txt file. If a list of pypi packages is provided, including 'requirements.txt' in
+            the list will install the requirements in `package`. By default, we'll set it to ['requirements.txt'],
+            which installs just the requirements of package. If set to an empty list, no requirements will be installed.
+            # TODO: reword this a bit
+        dryrun (bool): Whether to create the Send if it doesn't exist, or load the Send object as a dryrun.
+            (Default: ``False``)
+        load_secrets (bool): Whether or not to send secrets; only applicable if `dryrun` is set to ``False``.
+            (Default: ``False``)
+        serialize_notebook_fn (bool): If function is of a notebook setting, whether or not to serialized the function.
+            (Default: ``False``)
+
+    Returns:
+        Send: The resulting Send object.
+
+    Example:
+        >>> def sum(a, b):
+        >>>    return a + b
+        >>>
+        >>> # creating the send
+        >>> summer = rh.send(fn=sum, hardware=cluster, reqs=['requirements.txt'])
+        >>> # or, equivalently
+        >>> summer = rh.send(fn=sum).to(cluster, reqs=['requirements.txt'])
+        >>>
+        >>> # using the send
+        >>> summer(5, 8)  # returns 13
     """
 
     config = rh_config.rns_client.load_config(name)

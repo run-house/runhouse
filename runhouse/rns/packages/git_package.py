@@ -19,6 +19,13 @@ class GitPackage(Package):
         dryrun: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
+        """
+        Runhouse Github Package resource.
+
+        Example:
+            >>> rh.GitPackage(git_url='https://github.com/runhouse/runhouse.git',
+            >>>               install_method='pip', revision='v0.0.1')
+        """
         super().__init__(
             name=name,
             dryrun=dryrun,

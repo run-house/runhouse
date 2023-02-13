@@ -25,6 +25,9 @@ class Package(Resource):
         dryrun: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
+        """
+        Runhouse Package resource.
+        """
         super().__init__(
             name=name,
             dryrun=dryrun,
@@ -252,15 +255,36 @@ class Package(Resource):
 
 
 def package(
-    name=None,
-    install_method=None,
-    install_str=None,
-    url=None,
-    fs: Optional[str] = Folder.DEFAULT_FS,
-    dryrun=False,
+    name: str = None,
+    install_method: str = None,
+    install_str: str = None,
+    url: str = None,
+    fs: str = Folder.DEFAULT_FS,
+    dryrun: bool = False,
     local_mount: bool = False,
     data_config: Optional[Dict] = None,
-):
+) -> Package:
+    """
+    Builds an instance of :class:`Package`.
+
+    Args:
+        name (str): Name to assign the pacakge.
+        install_method (str): Method for installing the package. Options: ["pip", "conda", "reqs"]
+        install_str (str): Additional arguments to install.  # TODO: not too sure about this
+        url (str): URL of the package to install.
+        fs (str): File system. Currently this must be one of
+            ["file", "github", "sftp", "ssh", "s3", "gcs", "azure"].
+            We are working to add additional file system support.
+        dryrun (bool): Whether to install the package locally. (Default: ``False``)
+        local_mount (bool): Whether to locally mount the installed package. (Default: ``False``)
+        data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
+
+    Returns:
+        Package: The resulting package.
+
+    Example:
+        >>> # TODO
+    """
     config = rh_config.rns_client.load_config(name)
     config["name"] = name or config.get("rns_address", None) or config.get("name")
 

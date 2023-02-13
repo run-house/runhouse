@@ -13,17 +13,17 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath('.'))
-sys.path.insert(0, os.path.abspath('../'))
+sys.path.insert(0, os.path.abspath("."))
+sys.path.insert(0, os.path.abspath("../"))
 
 # -- Project information -----------------------------------------------------
 
-project = 'Runhouse'
-copyright = '2023, Runhouse Inc'
-author = 'the Runhouse team 🏃‍♀️🏠'
+project = "Runhouse"
+copyright = "2023, Runhouse Inc"
+author = "the Runhouse team 🏃‍♀️🏠"
 
 # The full version, including alpha/beta/rc tags
-release = '0.0.1'
+release = "0.0.1"
 
 # -- General configuration ---------------------------------------------------
 
@@ -31,35 +31,35 @@ release = '0.0.1'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.autosectionlabel',
-    'sphinx_click.ext',
-    'myst_parser',
-    'sphinx_thebe',
-    'sphinx_copybutton'
+    "sphinx.ext.autodoc",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.autosectionlabel",
+    "sphinx_click.ext",
+    "myst_parser",
+    "sphinx_thebe",
+    "sphinx_copybutton",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-# html_theme = 'sphinx_rtd_theme'
-html_theme = 'sphinx_book_theme'
+html_theme = "sphinx_rtd_theme"
+# html_theme = 'sphinx_book_theme'
 
 html_title = "Runhouse"
-html_logo = 'assets/rh_1.jpeg'
-html_favicon = 'assets/favicon.ico'
+html_logo = "assets/rh_1.jpeg"
+html_favicon = "assets/favicon.ico"
 
 html_theme_options = {
     "repository_url": "https://github.com/run-house/runhouse",
@@ -70,10 +70,10 @@ html_theme_options = {
     "home_page_in_toc": True,
     "use_download_button": True,
     "use_issues_button": True,
-    "use_edit_page_button": False
+    "use_edit_page_button": False,
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]

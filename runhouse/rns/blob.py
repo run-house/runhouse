@@ -27,13 +27,10 @@ class Blob(Resource):
         **kwargs,
     ):
         """
+        Runhouse Blob object
 
-        Args:
-            name ():
-            fs (): FSSpec protocol, e.g. 's3', 'gs'. See/run `fsspec.available_protocols()`.
-                Default is "file", the local filesystem to wherever the blob is created.
-            data_config ():
-            serializer ():
+        .. note::
+                To build a Blob, please use the factory function :func:`blob`.
         """
         super().__init__(name=name, dryrun=dryrun)
         self._filename = str(Path(url).name) if url else self.name
@@ -187,34 +184,42 @@ def blob(
     mkdir: bool = False,
     snapshot: bool = False,
     dryrun: bool = True,
-):
+) -> Blob:
     """Returns a Blob object, which can be used to interact with the resource at the given url
 
-    Examples:
-    # Creating the blob data - note the data should be provided as a serialized object, runhouse does not provide the
-    # serialization functionality
-    data = json.dumps(list(range(50))
+    Args:
+        data: Blob data. This should be provided as a serialized object.
+        name (Optional[str]): Name to give the blob object, to be reused later on.
+        url (Optional[str]): Url (or path) of the blob object.
+        fs (Optional[str]): File system. Currently this must be one of
+            ["file", "github", "sftp", "ssh", "s3", "gcs", "azure"].
+            We are working to add additional file system support.
+        data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
+        mkdir (bool): Whether to create a remote folder for the blob. (Default: ``False``)
+        snapshot (bool): Whether to save a snapshot instead of the full blob. (Default: ``False``)
+        dryrun (bool): Whether or not to save the blob. (Default: ``False``)
 
-    # 1. Create a remote blob with a name and no URL
-    # provide a folder path for which to save in the remote file system
-    # Since no URL is explicitly provided, we will save to a bucket called runhouse/blobs/my-blob
-    rh.blob(name="@/my-blob", data=data, data_source='s3', dryrun=False)
+    Returns:
+        Blob: The resulting blob.
 
-    # 2. Create a remote blob with a name and URL
-    rh.blob(name='@/my-blob', url='/runhouse-tests/my_blob.pickle', data=data, fs='s3', dryrun=False)
+    Example:
+        >>> data = json.dumps(list(range(50))
+        >>>
+        >>> # Remote blob with name and no URL (saved to bucket called runhouse/blobs/my-blob)
+        >>> rh.blob(name="@/my-blob", data=data, data_source='s3', dryrun=False)
+        >>>
+        >>> # Remote blob with name and URL
+        >>> rh.blob(name='@/my-blob', url='/runhouse-tests/my_blob.pickle', data=data, fs='s3', dryrun=False)
+        >>>
+        >>> # Local blob with name and URL, save to local filesystem
+        >>> rh.blob(name=name, data=data, url=str(Path.cwd() / "my_blob.pickle"), dryrun=False)
+        >>>
+        >>> # Local blob with name and no URL (saved to ~/.cache/blobs/my-blob)
+        >>> rh.blob(name="~/my-blob", data=data, dryrun=False)
 
-    # 3. Create a local blob with a name and a URL
-    # save the blob to the local filesystem
-    rh.blob(name=name, data=data, url=str(Path.cwd() / "my_blob.pickle"), dryrun=False)
-
-    # 4. Create a local blob with a name and no URL
-    # Since no URL is explicitly provided, we will save to ~/.cache/blobs/my-blob
-    rh.blob(name="~/my-blob", data=data, dryrun=False)
-
-    # Loading a blob
-    my_local_blob = rh.blob(name="~/my_blob")
-    my_s3_blob = rh.blob(name="@/my_blob")
-
+        >>> # Loading a blob
+        >>> my_local_blob = rh.blob(name="~/my_blob")
+        >>> my_s3_blob = rh.blob(name="@/my_blob")
     """
     config = rns_client.load_config(name)
     config["name"] = name or config.get("rns_address", None) or config.get("name")

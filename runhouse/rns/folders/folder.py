@@ -52,15 +52,13 @@ class Folder(Resource):
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
+        Runhouse Folder object.
+
+        .. note::
+            To build a folder, please use the factory function :func:`folder`.
+
         TODO [DG] Update
         Include loud warning that relative paths are relative to the git root / working directory!
-        Args:
-            name ():
-            parent (): string path to parent folder, or
-            data_source (): FSSpec protocol, e.g. 's3', 'gs'. See/run `fsspec.available_protocols()`.
-                Default is "file", the local filesystem to wherever the blob is created.
-            data_config ():
-            local_path ():
         """
         super().__init__(name=name, dryrun=dryrun)
 
@@ -513,7 +511,10 @@ class Folder(Resource):
         """Granting access to the resource for list of users (via their emails). If a user has a Runhouse account they
         will receive an email notifying them of their new access. If the user does not have a Runhouse account they will
         also receive instructions on creating one, after which they will be able to have access to the Resource.
-        Note: You can only grant resource access to other users if you have Write / Read privileges for the Resource"""
+
+        .. note::
+            You can only grant resource access to other users if you have Write / Read privileges for the Resource
+        """
         if self.is_local() and snapshot:
             # raise ValueError('Cannot share a local resource.')
             fs = snapshot_fs or PROVIDER_FS_LOOKUP[configs.get("default_provider")]
@@ -879,9 +880,24 @@ def folder(
     dryrun: bool = True,
     local_mount: bool = False,
     data_config: Optional[Dict] = None,
-):
-    """Returns a folder object, which can be used to interact with the folder at the given url.
-    The folder will be saved if `dryrun` is False.
+) -> Folder:
+    """Creates a Runhouse folder object, which can be used to interact with the folder at the given url (path).
+
+    Args:
+        name (Optional[str]): Name to give the folder, to be re-used later on.
+        url (Optional[str or Path]): Url (or path) that the folder is located at.
+        fs (Optional[str]): File system. Currently this must be one of
+            ["file", "github", "sftp", "ssh", "s3", "gcs", "azure"].
+            We are working to add additional file system support.
+        dryrun (bool): Whether or not to save the folder. (Default: ``False``)
+        local_mount (bool): Whether or not to mount the folder locally. (Default: ``False``)
+        data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
+
+    Returns:
+        Folder: The resulting folder.
+
+    Example:
+        >>> rh.folder(name='training_imgs', url='remote_directory/images', fs='s3')
     """
     config = rns_client.load_config(name)
     config["name"] = name or config.get("rns_address", None) or config.get("name")
