@@ -1,7 +1,4 @@
 .. runhouse documentation master file, created by
-   sphinx-quickstart on Thu Nov 24 01:40:52 2022.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
 
 Runhouse 🏃‍♀️🏠
 ====================================
@@ -9,33 +6,59 @@ Runhouse 🏃‍♀️🏠
 .. raw:: html
 
    <p style="text-align:left">
-   <strong>A multiplayer cloud compute and data environment, like Google Docs for ML</strong>
+   <strong>Programmable remote compute and data across environments and users</strong>
    </p>
 
    <p style="text-align:left">
-   <a class="reference external image-reference" style="vertical-align:9.5px" href="https://join.slack.com/t/runhouse/shared_invite/zt-1j7pwsok1-vQy0Gesh55A2fPyyEVq8nQ"><img src="https://img.shields.io/badge/Runhouse-Join%20Slack-fedcba?logo=slack" style="height:27px"></a>
+   <a class="reference external image-reference" style="vertical-align:9.5px" href="https://discord.gg/RnhB6589Hs"><img alt="Join Discord" src="https://img.shields.io/discord/1065833240625172600?label=Discord&style=for-the-badge"></a>
    <script async defer src="https://buttons.github.io/buttons.js"></script>
    <a class="github-button" href="https://github.com/run-house/runhouse" data-show-count="true" data-size="large" aria-label="Star run-house/runhouse on GitHub">Star</a>
    <a class="github-button" href="https://github.com/run-house/runhouse/subscription" data-icon="octicon-eye" data-size="large" aria-label="Watch run-house/runhouse on GitHub">Watch</a>
    </p>
 
-Runhouse breaks down the silos between machine learning compute and data environments, and makes interacting with cloud resources easy and Pythonic:
+PyTorch lets you send a model or tensor :code:`.to(device)`, so why can't you do :code:`my_fn.to('a_gcp_a100')`,
+or :code:`my_table.to('parquet_in_s3')`?
+Runhouse allows just that: send code and data to any of your compute or data infra (with your own cloud creds),
+all in Python, and continue to use them eagerly exactly as they were.
 
-With Runhouse, you can:
+Runhouse is for ML Researchers, Engineers, and Data Scientists who are tired of:
 
-- Run effortlessly on any hardware in experimentation, research, or production, iterating and debugging like you're running locally on bare metal.
-- Scale up, productionize, or share your work without weeks of packaging or translating into platform DSLs.
-- Retain control of their underlying infra, customizing it to your unique needs and continuing to use any ML tools you would from cloud instances.
-
+- 🚜 Manually shuttling code and data around between their local machine, remote instances, and cloud storage
+- 📤📥 Constantly spinning up and down boxes
+- 🐜 Debugging over ssh and notebook tunnels
+- 🧑‍🔧 Translating their code into a pipeline DSL just to use multiple hardware types
+- 🪦 Debugging in an orchestrator
+- 👩‍✈️ Missing out on fancy LLM IDE features
+- 🕵️ Struggling to find their teammates' code and data artifacts.
 
 .. warning::
-   🚨 **Caution: This is an Unstable Semi-Private Preview** 🚨
+    🚨 **This is an Alpha** 🚨
 
-   Runhouse is heavily under development and unstable. We are quite a ways away from having our first stable release. We are sharing it privately with a few select people to collect feedback, and expect a lot of things to break off the bat.
+    Runhouse is heavily under development. We are sharing it with a few select people to collect feedback, and expect to iterate on the APIs considerably before reaching beta (version 0.1.0).
 
-   If you would be so kind, we would love if you could have a notes doc open as you install and try Runhouse for the first time. Your first impressions, pain points, and highlights are very valuable to us.
 
-Contribute
+Getting Started 🐣
+------------------------------------
+.. code-block:: console
+
+    $ pip install runhouse
+    # Or "runhouse[aws]", "runhouse[gcp]", "runhouse[azure]", "runhouse[all]"
+    $ sky check
+    # Optionally, for portability (e.g. Colab):
+    $ runhouse login
+
+.. tip::
+   See the :ref:`Installation` section for more detailed instructions.
+
+
+Tutorials 👨‍🏫
+------------------------------------
+Our `tutorials <https://github.com/run-house/tutorials/>`_ have been structured to provide a comprehensive walk through of the APIs,
+as well as introduce you to the tools and usage patterns of Runhouse.
+We've devised them to chart a fun path through our features.
+
+
+Contribute 👷‍♀️
 ------------------------------------
 We'd love for you to contribute to Runhouse! Please reach out to us with any questions or support requests 🙂
 
@@ -44,10 +67,8 @@ We'd love for you to contribute to Runhouse! Please reach out to us with any que
 
 Join the Community!
 ------------------------------------
-- Slack: `Coming Soon`...
-- Discord: `Coming Soon`...
-- Twitter: `Coming Soon`...
-
+- `Discord <https://discord.gg/RnhB6589Hs/>`_
+- `Twitter <https://twitter.com/runhouse_/>`_
 
 
 Documentation
@@ -65,14 +86,12 @@ Documentation
    :maxdepth: 1
    :caption: Using Runhouse
 
+   installation
    cli/cli
    main
 
    REST API Guide <https://api.run.house/docs>
    Dashboard <https://api.run.house>
-   faqs
-   roadmap/roadmap
-
 
 .. toctree::
    :maxdepth: 1
@@ -80,4 +99,3 @@ Documentation
 
    secrets/secrets
    access_controls/access_controls
-   data_policy/data_policy

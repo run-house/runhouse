@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.abspath('../'))
 # -- Project information -----------------------------------------------------
 
 project = 'Runhouse'
-copyright = '2022, Runhouse Inc'
+copyright = '2023, Runhouse Inc'
 author = 'the Runhouse team 🏃‍♀️🏠'
 
 # The full version, including alpha/beta/rc tags

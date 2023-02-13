@@ -59,14 +59,25 @@ Runhouse provides a number of convenient builtin default instance types:
     When using one of our builtin instances, you can reference it by using the name of the instance type
     preceded by :code:`^`. For example, :code:`^rh-4-gpu`.
 
-.. autoclass:: runhouse.rns.hardware.skycluster.Cluster
+.. autoclass:: runhouse.rns.hardware.cluster.Cluster
    :members:
    :exclude-members:
 
     .. automethod:: __init__
 
 
+SkyCluster
+~~~~~~~~~~
+A SkyCluster is a Runhouse primitive used for abstracting a particular hardware configuration.
+
+
+.. autoclass:: runhouse.rns.hardware.skycluster.SkyCluster
+   :members:
+   :exclude-members:
+
+    .. automethod:: __init__
+
 Cluster Factory Method
 ~~~~~~~~~~~~~~~~~~~~~~
 
-.. autofunction:: runhouse.rns.hardware.skycluster.cluster
+.. autofunction:: runhouse.rns.hardware.cluster_factory.cluster

@@ -1,10 +1,6 @@
 Access Controls
 ====================================
-`This guide will introduce you to core Runhouse concepts.`
 
-
-Access Controls
-------------------
 We currently provide three types of access controls across all Runhouse resources:
 
 - :code:`Write`: Full control over the resource, including modifying the config for the resource.
