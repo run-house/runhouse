@@ -7,6 +7,6 @@ secrets
 ---------------------------
 [PLACEHOLDER]
 
-.. autoclass:: runhouse.rns.secrets.Secrets
+.. autoclass:: runhouse.Secrets
    :members:
    :exclude-members:

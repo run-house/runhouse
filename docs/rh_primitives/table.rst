@@ -1,11 +1,15 @@
 Table
 ====================================
-[PLACEHOLDER]
+A table is a Runhouse primitive used for abstracting a particular tabular data storage configuration.
+
+
+Table Factory Method
+~~~~~~~~~~~~~~~~~~~~
+
+.. autofunction:: runhouse.table
 
 Table
 ~~~~~
-
-A table is a Runhouse primitive used for abstracting a particular tabular data storage configuration.
 
 .. tip::
     Run :code:`fsspec.available_protocols()` for a list of available data sources. Runhouse provides
@@ -16,14 +20,8 @@ A table is a Runhouse primitive used for abstracting a particular tabular data s
     Check out this `tutorial <https://github.com/run-house/tutorials/tree/main/t05_BERT_pipeline/>`_
     for more details on creating and using a table.
 
-.. autoclass:: runhouse.rns.tables.table.Table
+.. autoclass:: runhouse.Table
    :members:
    :exclude-members:
 
     .. automethod:: __init__
-
-
-Table Factory Method
-~~~~~~~~~~~~~~~~~~~~
-
-.. autofunction:: runhouse.rns.tables.table.table

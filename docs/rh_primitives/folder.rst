@@ -1,18 +1,18 @@
 Folder
 ====================================
-
-Folder
-~~~~~~
 [PLACEHOLDER]
-
-.. autoclass:: runhouse.rns.folders.folder.Folder
-   :members:
-   :exclude-members:
-
-    .. automethod:: __init__
-
 
 Folder Factory Method
 ~~~~~~~~~~~~~~~~~~~~~
 
-.. autofunction:: runhouse.rns.folders.folder.folder
+.. autofunction:: runhouse.folder
+
+
+Folder
+~~~~~~
+
+.. autoclass:: runhouse.Folder
+   :members:
+   :exclude-members:
+
+    .. automethod:: __init__

@@ -2,10 +2,17 @@ Package
 ====================================
 [PLACEHOLDER]
 
+
+Package Factory Method
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. autofunction:: runhouse.package
+
+
 Package
 ~~~~~~~~~~
 
-.. autoclass:: runhouse.rns.packages.Package
+.. autoclass:: runhouse.Package
    :members:
    :exclude-members:
 
@@ -15,15 +22,8 @@ Package
 GitPackage
 ~~~~~~~~~~
 
-.. autoclass:: runhouse.rns.packages.GitPackage
+.. autoclass:: runhouse.GitPackage
    :members:
    :exclude-members:
 
     .. automethod:: __init__
-
-
-
-Package Factory Method
-~~~~~~~~~~~~~~~~~~~~~~
-
-.. autofunction:: runhouse.rns.packages.package
