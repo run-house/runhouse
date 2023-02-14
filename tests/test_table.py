@@ -684,6 +684,128 @@ def test_create_and_reload_dask_data_from_cluster():
     assert not reloaded_table.exists_in_fs()
 
 
+# -------------------------------------------------
+# ----------------- Fetching tests -----------------
+# -------------------------------------------------
+def test_create_and_fetch_pyarrow_data_from_s3():
+    orig_data = load_sample_data(data_type="pyarrow")
+
+    my_table = rh.table(
+        data=orig_data,
+        name="@/my_test_fetch_pyarrow_table",
+        url=f"/{BUCKET_NAME}/pyarrow",
+        fs="s3",
+        mkdir=True,
+    ).save()
+
+    reloaded_table = rh.table(name="@/my_test_fetch_pyarrow_table", dryrun=True)
+    reloaded_data: pa.Table = reloaded_table.fetch()
+    assert orig_data == reloaded_data
+
+    del orig_data
+    del my_table
+
+    reloaded_table.delete_configs()
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+
+def test_create_and_fetch_pandas_data_from_s3():
+    orig_data = load_sample_data(data_type="pandas")
+
+    my_table = rh.table(
+        data=orig_data,
+        name="@/my_test_fetch_pandas_table",
+        url=f"/{BUCKET_NAME}/pandas",
+        fs="s3",
+        mkdir=True,
+    ).save()
+
+    reloaded_table = rh.table(name="@/my_test_fetch_pandas_table", dryrun=True)
+    reloaded_data: pd.DataFrame = reloaded_table.fetch()
+    assert orig_data.equals(reloaded_data)
+
+    del orig_data
+    del my_table
+
+    reloaded_table.delete_configs()
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+
+def test_create_and_fetch_huggingface_data_from_s3():
+    orig_data = load_sample_data(data_type="huggingface")
+    my_table = rh.table(
+        data=orig_data,
+        name="@/my_test_fetch_huggingface_table",
+        url=f"/{BUCKET_NAME}/huggingface",
+        fs="s3",
+        mkdir=True,
+    ).save()
+
+    reloaded_table = rh.table(name="@/my_test_fetch_huggingface_table", dryrun=True)
+    reloaded_data: datasets.Dataset = reloaded_table.fetch()
+    assert orig_data == reloaded_data
+
+    del orig_data
+    del my_table
+
+    reloaded_table.delete_configs()
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+
+def test_create_and_fetch_ray_data_from_s3():
+    orig_data = load_sample_data(data_type="ray")
+
+    my_table = rh.table(
+        data=orig_data,
+        name="@/my_test_fetch_ray_table",
+        url=f"/{BUCKET_NAME}/ray",
+        fs="s3",
+        mkdir=True,
+    ).save()
+
+    reloaded_table = rh.table(name="@/my_test_fetch_ray_table", dryrun=True)
+    reloaded_data: ray.data.Dataset = reloaded_table.fetch()
+    assert orig_data.to_pandas().equals(reloaded_data.to_pandas())
+
+    del orig_data
+    del my_table
+
+    reloaded_table.delete_configs()
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+
+def test_create_and_fetch_dask_data_from_s3():
+    orig_data = load_sample_data(data_type="dask")
+
+    my_table = rh.table(
+        data=orig_data,
+        name="@/my_test_fetch_dask_table",
+        url=f"/{BUCKET_NAME}/dask",
+        fs="s3",
+        mkdir=True,
+    ).save()
+
+    reloaded_table = rh.table(name="@/my_test_fetch_dask_table", dryrun=True)
+    reloaded_data: "dask.dataframe.core.DataFrame" = reloaded_table.fetch()
+    assert orig_data.npartitions == reloaded_data.npartitions
+
+    del orig_data
+    del my_table
+
+    reloaded_table.delete_configs()
+
+    reloaded_table.delete_in_fs()
+    assert not reloaded_table.exists_in_fs()
+
+
 if __name__ == "__main__":
     setup()
     unittest.main()

@@ -1,9 +1,6 @@
 import logging
 from typing import Optional
 
-import pandas as pd
-import ray.data
-
 from .. import SkyCluster
 from ..top_level_rns_fns import save
 
@@ -86,24 +83,26 @@ class HuggingFaceTable(Table):
 
     @staticmethod
     def to_dataset(data):
-        """Convert to a huggingface dataset"""
+        """Convert to a HuggingFace Dataset. Relevant when fetching the data or when choosing to stream the data
+        in as a Dataset."""
+        import pandas as pd
         import pyarrow as pa
+        import ray.data
         from datasets import Dataset
 
         if isinstance(data, Dataset):
             return data
 
-        from datasets import Dataset
-
-        if isinstance(data, dict):
+        elif isinstance(data, dict):
             return Dataset.from_dict(data)
 
-        if isinstance(data, (pa.Table, ray.data.Dataset)):
-            data = data.to_pandas()
+        elif isinstance(data, pd.DataFrame):
+            return Dataset.from_pandas(data)
 
-        if not isinstance(data, pd.DataFrame):
+        elif isinstance(data, (pa.Table, ray.data.Dataset)):
+            return Dataset.from_pandas(data.to_pandas())
+
+        else:
             raise TypeError(
                 f"Data must be a dict, Pandas DataFrame, ray Dataset, or PyArrow table, not {type(data)}"
             )
-
-        return Dataset.from_pandas(data)

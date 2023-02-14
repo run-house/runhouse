@@ -49,7 +49,7 @@ class DaskTable(Table):
 
         # https://docs.dask.org/en/stable/generated/dask.dataframe.read_parquet.html
         self._cached_data = dd.read_parquet(
-            self.fsspec_url, filesystem=self._folder.fsspec_fs
+            self.fsspec_url, storage_options=self.data_config
         )
 
         return self._cached_data

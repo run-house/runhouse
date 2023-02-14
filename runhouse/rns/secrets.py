@@ -181,7 +181,9 @@ class Secrets:
             headers=rns_client.request_headers,
         )
         if resp.status_code != 200:
-            logger.error(f"Failed to delete {provider} secrets from Vault: {json.loads(resp.content)}")
+            logger.error(
+                f"Failed to delete {provider} secrets from Vault: {json.loads(resp.content)}"
+            )
             return False
 
         return True
