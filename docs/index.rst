@@ -14,6 +14,7 @@ Runhouse 🏃‍♀️🏠
    <script async defer src="https://buttons.github.io/buttons.js"></script>
    <a class="github-button" href="https://github.com/run-house/runhouse" data-show-count="true" data-size="large" aria-label="Star run-house/runhouse on GitHub">Star</a>
    <a class="github-button" href="https://github.com/run-house/runhouse/subscription" data-icon="octicon-eye" data-size="large" aria-label="Watch run-house/runhouse on GitHub">Watch</a>
+   <a class="github-button" href="https://github.com/run-house/runhouse/fork" data-icon="octicon-repo-forked" data-size="large" aria-label="Fork run-house/runhouse on GitHub">Fork</a>
    </p>
 
 PyTorch lets you send a model or tensor :code:`.to(device)`, so why can't you do :code:`my_fn.to('a_gcp_a100')`,
@@ -30,6 +31,11 @@ Runhouse is for ML Researchers, Engineers, and Data Scientists who are tired of:
 - 🪦 Debugging in an orchestrator
 - 👩‍✈️ Missing out on fancy LLM IDE features
 - 🕵️ Struggling to find their teammates' code and data artifacts.
+
+
+There's no magic yaml, DSL, code serialization, or "submitting for execution." We're just spinning up the cluster for you (or using an existing cluster), syncing over your code, starting a gRPC connection, and running your code on the cluster.
+
+*Runhouse does things for you that you'd spend time doing yourself, in as obvious a way as possible.*
 
 .. warning::
     🚨 **This is an Alpha** 🚨
@@ -73,15 +79,6 @@ Join the Community!
 
 Documentation
 --------------------
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Getting Started
-
-   tutorials/common_use_cases
-   tutorials/getting_started
-
-
 .. toctree::
    :maxdepth: 1
    :caption: Using Runhouse
@@ -100,3 +97,14 @@ Documentation
 
    secrets/secrets
    access_controls/access_controls
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Runhouse Architecture
+
+   overview/overview
+   overview/clusters
+   overview/sends
+   overview/notebooks
+   overview/accessibility
+   overview/secrets

@@ -1,6 +1,9 @@
-Package
+Packages
 ====================================
 [PLACEHOLDER]
+
+Package
+~~~~~~~~~~
 
 .. autoclass:: runhouse.rns.packages.Package
    :members:
@@ -11,7 +14,6 @@ Package
 
 GitPackage
 ~~~~~~~~~~
-[PLACEHOLDER]
 
 .. autoclass:: runhouse.rns.packages.GitPackage
    :members:

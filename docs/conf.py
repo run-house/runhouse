@@ -23,7 +23,7 @@ copyright = "2023, Runhouse Inc"
 author = "the Runhouse team 🏃‍♀️🏠"
 
 # The full version, including alpha/beta/rc tags
-release = "0.0.1"
+release = "0.0.2"
 
 # -- General configuration ---------------------------------------------------
 
@@ -58,8 +58,8 @@ html_theme = "sphinx_rtd_theme"
 # html_theme = 'sphinx_book_theme'
 
 html_title = "Runhouse"
-html_logo = "assets/rh_1.jpeg"
-html_favicon = "assets/favicon.ico"
+html_logo = "_static/rh_1.jpeg"
+html_favicon = "_static/favicon.ico"
 
 html_theme_options = {
     "repository_url": "https://github.com/run-house/runhouse",
