@@ -40,7 +40,7 @@ By way of a visual,
 ![img.png](https://raw.githubusercontent.com/run-house/runhouse/main/docs/assets/img.png)
 ![img_1.png](https://raw.githubusercontent.com/run-house/runhouse/main/docs/assets/img_1.png)
 
-Take a look at this code (adapted from our first [tutorial](https://github.com/run-house/tutorials)):
+Take a look at this code (adapted from our first [tutorial](https://github.com/run-house/tutorials/tree/main/t01_Stable_Diffusion)):
 ```python
 import runhouse as rh
 from diffusers import StableDiffusionPipeline
@@ -145,7 +145,7 @@ use, and will give detailed instructions if any setup is incomplete. SkyPilot al
 provides an excellent suite of CLI commands for basic instance management operations.
 There are a few that you'll be reaching for frequently when using Runhouse with autoscaling
 that you should familiarize yourself with,
-[here](https://github.com/run-house/tutorials/tree/main/x00_Overview#01--clusters).
+[here](https://github.com/run-house/tutorials/tree/main/t00_Overview#01-clusters).
 
 ### 🔒 Creating a Runhouse Account for Secrets and Portability
 
