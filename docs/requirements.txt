@@ -12,3 +12,4 @@ sshtunnel==0.4.0
 typer==0.4.2
 skypilot==0.2.4
 fsspec==2022.10.0
+runhouse
