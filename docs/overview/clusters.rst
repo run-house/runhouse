@@ -1,17 +1,20 @@
 Clusters
 ====================================
 
-Clusters represent a set of machines which can be sent code or data, or a machine spec that could be spun up in the
-event that we have some code or data to send to the machine. Generally they are Ray clusters under the hood.
+A :ref:`Cluster` represents a set of machines which can be sent code or data, or a machine spec that could be spun up in the
+event that we have some code or data to send to the machine.
+Generally they are `Ray clusters <https://docs.ray.io/en/latest/cluster/getting-started.html/>`_ under the hood.
+
 There are a few kinds of clusters today:
 
 BYO Cluster
 ~~~~~~~~~~~
 This is a machine or group of machines specified by IP addresses and SSH credentials, which can be dispatched code
-or data through the Runhouse APIs. This is useful if you have an on-prem instance, or an account with Paperspace,
-Coreweave, or another vertical provider, or simply want to spin up machines yourself through the cloud UI.
+or data through the Runhouse APIs. This is useful if you have an on-prem instance, or an account with `Paperspace <https://www.paperspace.com/>`_,
+`CoreWeave <https://www.coreweave.com/>`_, or another vertical provider, or simply want to spin up machines
+yourself through the cloud UI.
 
-You can use the cluster factory constructor like so:
+You can use the :ref:`Cluster Factory Method` constructor like so:
 
 .. code-block:: python
 
@@ -22,7 +25,8 @@ You can use the cluster factory constructor like so:
 
 On-Demand Clusters
 ~~~~~~~~~~~~~~~~~~
-Runhouse can spin up and down boxes for you as needed using SkyPilot. When you define a SkyPilot "cluster,"
+Runhouse can spin up and down boxes for you as needed using `SkyPilot <https://github.com/skypilot-org/skypilot/>`_.
+When you define a SkyPilot "cluster,"
 you're primarily defining the configuration for us to spin up the compute resources on-demand.
 When someone then calls a send or similar, we'll spin the box back up for you. You can also create these through the
 cluster factory constructor:
@@ -42,7 +46,8 @@ You can use the cluster factory constructor like so:
 
 
 
-SkyPilot also provides an excellent suite of CLI commands for basic instance management operations. Some important ones are:
+SkyPilot also provides an excellent suite of CLI commands for basic instance management operations.
+Some important ones are:
 
 :code:`sky status --refresh`: Get the status of the clusters you launched from this machine.
 This will not pull the status for all the machines you've launched from various environments.
@@ -63,10 +68,10 @@ By default this number is 10 minutes, but you can set it to -1 to disable autost
 
 Existing Clusters
 ~~~~~~~~~~~~~~~~~~
-"Existing cluster" can mean either a saved SkyCluster config, which will be brought back up if needed,
-or a BYO or SkyCluster that's already up. If you save the Cluster to Runhouse RNS, you'll be able to dispatch
-to it from any environment. Multiple users or environments can send requests to a cluster without issue, and either
-the OS or Ray (depending on the call to the cluster) will handle the resource contention.
+"Existing cluster" can mean either a saved :ref:`SkyCluster` config, which will be brought back up if needed,
+or a BYO or SkyCluster that's already up. If you save the Cluster to the :ref:`Resource Name System (RNS)`,
+you'll be able to dispatch to it from any environment. Multiple users or environments can send requests to a cluster
+without issue, and either the OS or Ray (depending on the call to the cluster) will handle the resource contention.
 
 You can load an existing cluster by name from local or Runhouse RNS simply by:
 
@@ -82,11 +87,13 @@ You can load an existing cluster by name from local or Runhouse RNS simply by:
 
 
 Advanced Cluster Usage
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
 
 To start an ssh session into the cluster so you can poke around or debug:
 
-:code:`ssh rh-v100`
+.. code-block:: console
+
+    $ ssh rh-v100
 
 or in Python:
 
@@ -96,10 +103,11 @@ or in Python:
     # or
     # my_send.ssh()
 
-
 If you prefer to work in notebooks, you can tunnel a JupyterLab server into your local browser:
 
-:code:`runhouse notebook my_cluster`
+.. code-block:: console
+
+    $ runhouse notebook my_cluster
 
 or in Python:
 
@@ -110,22 +118,29 @@ or in Python:
     my_cluster.notebook()
 
 
-The Runhouse in Notebooks section goes more in depth on notebooks.
+The :ref:`Notebooks` section goes more in depth on notebooks.
 
 To run a shell command on the cluster:
 
-:code:`gpu.run(['git clone ...', 'pip install ...'])`
+.. code-block:: python
 
-This is useful for installing more complex dependencies. gpu.run_setup(...) will make sure the command is only run once when the cluster is first created.
+    gpu.run(['git clone ...', 'pip install ...'])
+
+This is useful for installing more complex dependencies. :code-python:`gpu.run_setup(...)` will make sure the command is
+only run once when the cluster is first created.
 
 To run any Python on the cluster:
 
-:code:`gpu.run_python(['import torch', 'print(torch.__version__)'])`
+.. code-block:: python
+
+    gpu.run_python(['import torch', 'print(torch.__version__)'])
 
 This is useful for debugging, or for running a script that you don't want to send to the cluster
 (e.g. because it has too many dependencies).
 
-If you want to run an application on the cluster that requires a port to be open, e.g. Tensorboard, Gradio.
+If you want to run an application on the cluster that requires a port to be open,
+e.g. `Tensorboard <https://www.tensorflow.org/tensorboard/>`_, `Gradio <https://gradio.app/>`_.
 
-:code:`gpu.ssh_tunnel(local_port=7860, remote_port=7860)`
+.. code-block:: python
 
+    gpu.ssh_tunnel(local_port=7860, remote_port=7860)

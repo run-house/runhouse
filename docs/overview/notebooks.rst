@@ -4,7 +4,9 @@ Notebooks
 If you prefer to work or debug in notebooks, you can call the following to tunnel a JupyterLab server into your local
 browser from your Runhouse cluster or send:
 
-:code:`runhouse notebook my_cluster`
+.. code-block:: console
+
+    $ runhouse notebook my_cluster
 
 or in Python:
 

@@ -12,7 +12,7 @@ It achieves the above by providing four pillar features:
 
 Compute
 ~~~~~~~
-The :ref:`Sends`, :ref:`Clusters`, and Package APIs allow a seamless flow of code and execution across local and remote compute.
+The :ref:`Sends`, :ref:`Clusters`, and :ref:`Packages` APIs allow a seamless flow of code and execution across local and remote compute.
 They blur the line between program execution and deployment, providing both a path of least resistence for running a
 sub-routine on specific hardware, while unceremoniously turning that sub-routine into a reusable service.
 
@@ -22,7 +22,7 @@ and rich debugging and accessibility interfaces built-in.
 
 Data
 ~~~~
-The Folder, Table, and Blob APIs provide a simple interface for storing, recalling, and moving data between the
+The :ref:`Folders`, :ref:`Tables`, and :ref:`Blob` APIs provide a simple interface for storing, recalling, and moving data between the
 user's laptop, remote compute, cloud storage, and specialized storage (e.g. data warehouses).
 They provide least-common-denominator APIs across providers, allowing users to easily specify the actions they want
 to take on the data without needed to dig into provider-specific APIs.
@@ -33,7 +33,7 @@ Accessibility
 ~~~~~~~~~~~~~
 Runhouse strives to provide a Google-Docs-like experience for portability and sharing of resources across users and environments.
 
-The Resource Naming System (RNS) allows resources to be named, persisted, and recalled across environments.
+The :ref:`Resource Name System (RNS)` allows resources to be named, persisted, and recalled across environments.
 It consists of a lightweight metadata standard for each resource type which captures the information needed to load
 it in a new environment (e.g. Folder -> provider, bucket, path, etc.), and a mechanism for saving and loading from
 either the working git repo or a remote Runhouse key-value metadata store.
@@ -41,7 +41,7 @@ either the working git repo or a remote Runhouse key-value metadata store.
 The metadata store allows resources to be shared across users and environments, while the git approach allows for
 local persistence and versioning or sharing across OSS projects.
 
-The Secrets API provides a simple interface for storing and retrieving secrets to a allow a more seamless
+The :ref:`Secrets Management` API provides a simple interface for storing and retrieving secrets to a allow a more seamless
 experience when accessing resources across environments. It provides a simple interface for storing and retrieving
 secrets from a variety of providers (e.g. AWS, Azure, GCP, Hugging Face, Github, etc.) as well as SSH Keys and
 custom secrets, and stores them in Hashicorp Vault.
