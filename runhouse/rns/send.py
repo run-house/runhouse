@@ -59,15 +59,8 @@ class Send(Resource):
     # ----------------- Constructor helper methods -----------------
 
     @staticmethod
-    def from_config(config, dryrun=True):
-        """Create a Send object from a config dictionary.
-
-        Args:
-            config (dict): Dictionary of config values.
-
-        Returns:
-            Send: Send object created from config values.
-        """
+    def from_config(config: dict, dryrun: bool = True):
+        """Create a Send object from a config dictionary."""
         config["reqs"] = [
             Package.from_config(package, dryrun=True)
             if isinstance(package, dict)
@@ -87,7 +80,17 @@ class Send(Resource):
 
         return Send(**config, dryrun=dryrun)
 
-    def to(self, hardware, reqs=None, setup_cmds=None):
+    def to(
+        self,
+        hardware: Optional[Union[str, Cluster]],
+        reqs: Optional[List[str]] = None,
+        setup_cmds: Optional[List[str]] = None,
+    ):
+        """
+        Set up a Send on the given hardware, install the reqs, and run setup_cmds.
+
+        See the args of the factory function :func:`send` for more information.
+        """
         new_send = copy.deepcopy(self)
         new_send.hardware = hardware if hardware else self.hardware
         new_send.reqs = reqs if reqs else self.reqs
@@ -123,12 +126,14 @@ class Send(Resource):
         return new_send
 
     def reup_cluster(self):
+        """Re-up the cluster the Send is on."""
         logger.info(f"Upping the cluster {self.hardware.name}")
         self.hardware.up()
         # TODO [DG] this only happens when the cluster comes up, not when a new send is added to the cluster
         self.hardware.run(self.setup_cmds)
 
-    def run_setup(self, cmds, force=False):
+    def run_setup(self, cmds: List[str], force: bool = False):
+        """Run the given setup commands on the hardware."""
         to_run = []
         for cmd in cmds:
             if force or cmd not in self.setup_cmds:
@@ -138,7 +143,7 @@ class Send(Resource):
             self.hardware.run(to_run)
 
     @staticmethod
-    def extract_fn_paths(raw_fn, reqs):
+    def extract_fn_paths(raw_fn: Callable, reqs: List[str]):
         """Get the path to the module, module name, and function name to be able to import it on the server"""
         if not isinstance(raw_fn, Callable):
             raise TypeError(
@@ -259,7 +264,7 @@ class Send(Resource):
             res = read_response_data(resp)
             return res
 
-    def repeat(self, num_repeats, *args, **kwargs):
+    def repeat(self, num_repeats: int, *args, **kwargs):
         """Repeat the Send call multiple times.
 
         Args:
@@ -288,7 +293,7 @@ class Send(Resource):
             )
 
     def starmap(self, args_lists, **kwargs):
-        """Like Send.map() except that the elements of the iterable are expected to be iterables
+        """Like :func:`map` except that the elements of the iterable are expected to be iterables
         that are unpacked as arguments. An iterable of [(1,2), (3, 4)] results in [func(1,2), func(3,4)]."""
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
             return self._call_fn_with_ssh_access(
@@ -300,12 +305,7 @@ class Send(Resource):
             )
 
     def enqueue(self, *args, **kwargs):
-        """Enqueue a Send call to be run later.
-
-        Args:
-            *args: Positional arguments to pass to the Send
-            **kwargs: Keyword arguments to pass to the Send
-        """
+        """Enqueue a Send call to be run later."""
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
             return self._call_fn_with_ssh_access(
                 fn_type="queue", args=args, kwargs=kwargs
@@ -316,7 +316,7 @@ class Send(Resource):
             )
 
     def remote(self, *args, **kwargs):
-        """Map a function over a list of arguments."""
+        """Run async remote call on cluster."""
         # TODO [DG] pin the obj_ref and return a string (printed to log) so result can be retrieved later and we
         # don't need to init ray here. Also, allow user to pass the string as a param to remote().
         # TODO [DG] add rpc for listing gettaable strings, plus metadata (e.g. when it was created)
@@ -452,15 +452,19 @@ class Send(Resource):
     #                    f"{ssh_user}@{address} docker exec -it ray_container /bin/bash -c {cmd}".split(' '))
 
     def ssh(self):
+        """SSH into the hardware."""
         if self.hardware is None:
             raise RuntimeError("Hardware must be specified and up to ssh into a Send")
         self.hardware.ssh()
 
     def send_secrets(self, reload=False):
+        """Send secrets to the hardware."""
         self.hardware.send_secrets(reload=reload)
 
     def http_url(self, curl_command=False, *args, **kwargs) -> str:
-        """Return the endpoint needed to run the Send on the remote cluster, or provide the curl command if requested"""
+        """
+        Return the endpoint needed to run the Send on the remote cluster, or provide the curl command if requested.
+        """
         resource_uri = rh_config.rns_client.resource_uri(name=self.name)
         uri = f"proxy/{resource_uri}"
         if curl_command:
@@ -488,6 +492,7 @@ class Send(Resource):
         return http_url
 
     def notebook(self, persist=False, sync_package_on_close=None, port_forward=8888):
+        """Tunnel into and launch notebook from the hardware."""
         # Roughly trying to follow:
         # https://towardsdatascience.com/using-jupyter-notebook-running-on-a-remote-docker-container-via-ssh-ea2c3ebb9055
         # https://docs.ray.io/en/latest/ray-core/using-ray-with-jupyter.html
@@ -524,6 +529,7 @@ class Send(Resource):
         # TODO min_replicas: List[int] = None,
         # TODO max_replicas: List[int] = None
     ):
+        """Keep the hardware warm for autostop_mins. If autostop_mins is ``None`` or -1, keep warm indefinitely."""
         if autostop_mins is None:
             logger.info(f"Keeping {self.name} indefinitely warm")
             # keep indefinitely warm if user doesn't specify

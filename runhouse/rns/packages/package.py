@@ -60,6 +60,7 @@ class Package(Resource):
         return f"Package: {self.install_target}"
 
     def install(self):
+        """Install package."""
         logging.info(
             f"Installing package {str(self)} with method {self.install_method}."
         )
@@ -123,6 +124,7 @@ class Package(Resource):
 
     @staticmethod
     def pip_install(install_cmd: str):
+        """Run pip install."""
         logging.info(f"Running: pip install {install_cmd}")
         subprocess.check_call(
             [sys.executable, "-m", "pip", "install"] + install_cmd.split(" ")
@@ -130,6 +132,7 @@ class Package(Resource):
 
     @staticmethod
     def conda_install(install_cmd: str):
+        """Run conda install."""
         logging.info(f"Running: conda install {install_cmd}")
         # check if conda is installed, and if not, install it
         try:
@@ -153,6 +156,7 @@ class Package(Resource):
                 )
 
     def to_cluster(self, dest_cluster, url=None, mount=False, return_dest_folder=False):
+        """Returns a copy of the package on the destination cluster."""
         if isinstance(self.install_target, Folder):
             new_folder = self.install_target.to_cluster(
                 dest_cluster,

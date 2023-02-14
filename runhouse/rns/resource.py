@@ -144,13 +144,14 @@ class Resource:
         return cls.from_config(config=config, dryrun=dryrun)
 
     def unname(self):
-        """Change the naming of the resource to anonymous and delete any local or RNS configs for the resource."""
+        """Remove the name of the resource. This changes the resource name to anonymous and deletes any local
+        or RNS configs for the resource."""
         self.delete_configs()
         self._name = None
 
     @staticmethod
     def history(name: str, entries: int = 10) -> List[Dict]:
-        """Return the history of this resource, including specific config fields (e.g. blob URL) and which runs
+        """Return the history of the resource, including specific config fields (e.g. blob URL) and which runs
         have overwritten it."""
         resource_uri = rns_client.resource_uri(name)
         resp = requests.get(
@@ -170,7 +171,8 @@ class Resource:
         """Delete the resource's config from local working_dir and RNS config store."""
         rns_client.delete_configs(resource=self)
 
-    def save_attrs_to_config(self, config, attrs):
+    def save_attrs_to_config(self, config: Dict, attrs: List[str]):
+        """Save the given attributes to the config"""
         for attr in attrs:
             val = self.__getattribute__(attr)
             if val:
@@ -180,7 +182,7 @@ class Resource:
     def share(
         self, users: list, access_type: Union[ResourceAccess, str] = ResourceAccess.read
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
-        """Grant access to the resource for list of users. If a user has a Runhouse account they
+        """Grant access to the resource for the list of users. If a user has a Runhouse account they
         will receive an email notifying them of their new access. If the user does not have a Runhouse account they will
         also receive instructions on creating one, after which they will be able to have access to the Resource.
 

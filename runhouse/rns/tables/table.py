@@ -76,8 +76,12 @@ class Table(Resource):
 
     @property
     def data(self) -> ray.data.dataset.Dataset:
-        """Get the table data. If data is not already cached return a ray dataset. With the dataset object we can
-        stream or convert to other types, for example:
+        """Get the table data. If data is not already cached, return a Ray dataset.
+
+        With the dataset object we can stream or convert to other types, for example:
+
+        .. code-block:: python
+
             data.iter_batches()
             data.to_pandas()
             data.to_dask()
@@ -129,6 +133,7 @@ class Table(Resource):
         self._folder.data_config = new_data_config
 
     def to(self, fs, url=None, data_config=None):
+        """Copy and return the table on the given filesystem and URL."""
         new_table = copy.copy(self)
         new_table._folder = self._folder.to(fs=fs, url=url, data_config=data_config)
         return new_table
@@ -140,6 +145,7 @@ class Table(Resource):
         overwrite: bool = True,
         **snapshot_kwargs,
     ):
+        """Save the table to RNS."""
         if self._cached_data is not None:
             pq.write_to_dataset(
                 self.data,
@@ -176,7 +182,7 @@ class Table(Resource):
         return self._cached_data
 
     def __getstate__(self):
-        """Override the pickle method to clear _cached_data before pickling"""
+        """Override the pickle method to clear _cached_data before pickling."""
         state = self.__dict__.copy()
         state["_cached_data"] = None
         return state
@@ -210,6 +216,7 @@ class Table(Resource):
         shuffle_seed: Optional[int] = None,
         prefetch_blocks: Optional[int] = None,
     ):
+        """Stream the data in the table."""
         df = self.data
         if self.stream_format == "torch":
             # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.iter_torch_batches.html#ray.data.Dataset.iter_torch_batches
@@ -253,13 +260,15 @@ class Table(Resource):
         )  # Passing in an empty string to delete the contents of the folder
 
     def exists_in_fs(self):
+        """Whether table exists in file system"""
         return self._folder.exists_in_fs() and len(self._folder.ls(self.fsspec_url)) > 1
 
     def from_cluster(self, cluster):
         """Create a remote folder from a url on a cluster. This will create a virtual link into the
-        cluster's filesystem. If you want to create a local copy or mount of the folder, use
-        `Folder(url=<local_url>).sync_from_cluster(<cluster>, <url>)` or
-        `Folder('url').from_cluster(<cluster>).mount(<local_url>)`."""
+        cluster's filesystem.
+
+        If you want to create a local copy or mount of the folder, use
+        ``Folder('url').from_cluster(<cluster>).mount(<local_url>)``."""
         if not cluster.address:
             raise ValueError("Cluster must be started before copying data from it.")
         new_table = copy.deepcopy(self)

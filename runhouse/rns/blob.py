@@ -62,7 +62,7 @@ class Blob(Resource):
 
     @property
     def data(self):
-        """Get the blob data"""
+        """Get the blob data."""
         # TODO this caching is dumb, either get rid of it or replace with caching from fsspec
         if self._cached_data is not None:
             return self._cached_data
@@ -71,7 +71,7 @@ class Blob(Resource):
 
     @data.setter
     def data(self, new_data):
-        """Update the data blob to new data"""
+        """Update the data blob to new data."""
         self._cached_data = new_data
         # TODO should we save here?
         # self.save(overwrite=True)
@@ -105,18 +105,19 @@ class Blob(Resource):
     def fsspec_url(self):
         return self._folder.fsspec_url + "/" + self._filename
 
-    def open(self, mode="rb"):
+    def open(self, mode: str = "rb"):
         """Get a file-like (OpenFile container object) of the blob data. User must close the file, or use this
         method inside of a with statement (e.g. `with my_blob.open() as f:`)."""
         return self._folder.open(self._filename, mode=mode)
 
-    def to(self, fs, url=None, data_config=None):
+    def to(self, fs, url: Optional[str] = None, data_config: Optional[dict] = None):
+        """Return a copy of the table on the destination fs and url."""
         new_table = copy.copy(self)
         new_table._folder = self._folder.to(fs=fs, url=url, data_config=data_config)
         return new_table
 
     def fetch(self):
-        """Return the data for the user to deserialize"""
+        """Return the data for the user to deserialize/"""
         self._cached_data = self._folder.get(self._filename)
         return self._cached_data
 
@@ -127,7 +128,7 @@ class Blob(Resource):
         overwrite: bool = True,
         **snapshot_kwargs,
     ):
-
+        """Save the blob to RNS."""
         # TODO figure out default behavior for not overwriting but still saving
         # if not overwrite:
         #     TODO check if data_url is already in use
@@ -149,9 +150,11 @@ class Blob(Resource):
         )
 
     def delete_in_fs(self, recursive: bool = True):
+        """Delete the blob in the file system."""
         self._folder.rm(self._filename, recursive=recursive)
 
     def exists_in_fs(self):
+        """Check whether the blob exists in the file system"""
         return self._folder.fsspec_fs.exists(self.fsspec_url)
 
     # TODO [DG] get rid of this in favor of just "sync_down(url, fs)" ?
@@ -165,9 +168,11 @@ class Blob(Resource):
 
     def from_cluster(self, cluster):
         """Create a remote blob from a url on a cluster. This will create a virtual link into the
-        cluster's filesystem. If you want to create a local copy or mount of the blob, use
-        `Blob(url=<local_url>).sync_from_cluster(<cluster>, <url>)` or
-        `Blob('url').from_cluster(<cluster>).mount(<local_url>)`."""
+        cluster's filesystem.
+
+        If you want to create a local copy or mount of the blob, use
+        ``Blob(url=<local_url>).sync_from_cluster(<cluster>, <url>)`` or
+        ``Blob('url').from_cluster(<cluster>).mount(<local_url>)``."""
         if not cluster.address:
             raise ValueError("Cluster must be started before copying data from it.")
         new_blob = copy.deepcopy(self)

@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class Secrets:
     """Handles cluster secrets management (reading and writing) across all major cloud providers.
     Secrets are stored in Vault.
-    Checks for locally configured secrets before pulling down or saving to Vault"""
+    Checks for locally configured secrets before pulling down or saving to Vault."""
 
     PROVIDER_NAME = None
     CREDENTIALS_FILE = None
@@ -54,7 +54,7 @@ class Secrets:
     ):
         """Upload all locally configured secrets into Vault. Secrets are loaded from their local config files.
         (ex: ~/.aws/credentials). We currently support AWS, Azure, and GCP. To upload custom secrets for
-        additional providers, see Secrets.put()"""
+        additional providers, see :func:`put`."""
         secrets: list = cls.load_provider_secrets(providers=providers)
         for idx, provider_secrets in enumerate(secrets):
             provider = provider_secrets["provider"]
@@ -112,8 +112,10 @@ class Secrets:
         group: Optional[str] = None,
     ):
         """Upload locally configured secrets for a specified provider into Vault.
+
         To upload secrets for a custom provider (i.e. not AWS, GCP or Azure), include the secret param and specify
         the keys and values to upload.
+
         If from_env is True, will read secrets from environment variables instead of local config files.
         If file_path is provided, will read the secrets directly from the file
         If group is provided, will attribute the secrets to the specified group"""
@@ -168,7 +170,7 @@ class Secrets:
 
     @classmethod
     def delete(cls, providers: List[str]):
-        """Delete secrets from Vault for the specified providers"""
+        """Delete secrets from Vault for the specified providers."""
         for provider in providers:
             provider_cls_name = cls.provider_cls_name(provider)
             p = cls.get_class_from_name(provider_cls_name)
@@ -213,7 +215,7 @@ class Secrets:
 
     @classmethod
     def save_provider_secrets(cls, secrets: dict):
-        """Save secrets for each provider to their respective local configs"""
+        """Save secrets for each provider to their respective local configs."""
         for provider_name, provider_data in secrets.items():
             cls_name = cls.provider_cls_name(provider_name)
             provider_cls = cls.get_class_from_name(cls_name)
@@ -239,7 +241,7 @@ class Secrets:
     @classmethod
     def enabled_providers(cls, as_str: bool = False) -> List:
         """Returns a list of cloud provider class objects which have been enabled locally. If as_str is True,
-        return the names of the providers as strings"""
+        return the names of the providers as strings."""
         sky.check.check(quiet=True)
         clouds = sky.global_user_state.get_enabled_clouds()
         cloud_names = [str(c).lower() for c in clouds]
