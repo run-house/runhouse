@@ -56,9 +56,6 @@ class Folder(Resource):
 
         .. note::
             To build a folder, please use the factory function :func:`folder`.
-
-        TODO [DG] Update
-        Include loud warning that relative paths are relative to the git root / working directory!
         """
         super().__init__(name=name, dryrun=dryrun)
 
@@ -899,6 +896,8 @@ def folder(
     Example:
         >>> rh.folder(name='training_imgs', url='remote_directory/images', fs='s3')
     """
+    # TODO [DG] Include loud warning that relative paths are relative to the git root / working directory!
+
     config = rns_client.load_config(name)
     config["name"] = name or config.get("rns_address", None) or config.get("name")
     config["url"] = url or config.get("url")

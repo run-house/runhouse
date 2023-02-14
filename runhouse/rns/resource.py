@@ -32,17 +32,16 @@ class Resource:
 
         Runhouse currently supports the following builtin Resource types:
 
-        # TODO: link these to corresponding docs
-
         - Compute Abstractions
-            - Cluster
-            - Send
+            - Cluster :py:class:`.hardware.cluster.Cluster`
+            - Send :py:class:`.send.Send`
+            - Package :py:class:`.packages.package.Package`
+
 
         - Data Abstractions
-            - Blob
-            - Folder
-            - Package
-            - Table
+            - Blob :py:class:`.blob.Blob`
+            - Folder :py:class:`.folders.folder.Folder`
+            - Table :py:class:`.tables.table.Table`
         """
         self._name, self._rns_folder = None, None
         if name is not None:

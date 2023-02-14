@@ -353,7 +353,7 @@ def table(
     dryrun: bool = False,
     stream_format: Optional[str] = None,
     metadata: Optional[Dict] = None,
-):
+) -> Table:
     """Constructs a Table object, which can be used to interact with the table at the given url.
 
     Args:
@@ -369,6 +369,22 @@ def table(
         stream_format (Optional[str]): Format to stream the Table as.
             Currently this must be one of ["pyarrow", "torch", "tf", "pandas"]
         metadata (Optional[dict]): Metadata to store for the table.
+
+    Returns:
+        Table: The resulting Table object.
+
+    Example:
+        >>> # Create and save (pandas) table
+        >>> rh.table(
+        >>>    data=data,
+        >>>    name="~/my_test_pandas_table",
+        >>>    url="table_tests/test_pandas_table.parquet",
+        >>>    fs="file",
+        >>>    mkdir=True,
+        >>> )
+        >>>
+        >>> # Load table from above
+        >>> reloaded_table = rh.table(name="~/my_test_pandas_table", dryrun=True)
     """
     config = rns_client.load_config(name)
 

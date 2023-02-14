@@ -87,7 +87,6 @@ Documentation
    cli/cli
    main
 
-   Tutorials <https://github.com/run-house/tutorials>
    REST API Guide <https://api.run.house/docs>
    Dashboard <https://api.run.house>
 
@@ -108,3 +107,12 @@ Documentation
    overview/notebooks
    overview/accessibility
    overview/secrets
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Tutorials
+
+   10 min Quickstart: Stable Diffusion and FLAN T-5 <https://github.com/run-house/tutorials/tree/main/t01_Stable_Diffusion>
+   Dreambooth Training and Inference <https://github.com/run-house/tutorials/tree/main/t02_Dreambooth>
+   DALL-E to SD img2img in a Notebook <https://github.com/run-house/tutorials/tree/main/t03_DALLE_SD_pipeline>
+   BERT Full Pipeline <https://github.com/run-house/tutorials/tree/main/t05_BERT_pipeline>
