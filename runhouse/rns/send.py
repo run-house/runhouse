@@ -159,7 +159,12 @@ class Send(Resource):
             else None
         )
 
-        if not module_path or raw_fn.__name__ == "<lambda>":
+        # TODO better way of detecting if in a notebook or interactive Python env
+        if (
+            not module_path
+            or module_path.endswith("ipynb")
+            or raw_fn.__name__ == "<lambda>"
+        ):
             # The only time __file__ wouldn't be present is if the function is defined in an interactive
             # interpreter or a notebook. We can't import on the server in that case, so we need to cloudpickle
             # the fn to send it over. The __call__ function will serialize the function if we return it this way.
