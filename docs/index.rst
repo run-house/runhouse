@@ -57,22 +57,10 @@ Getting Started 🐣
    See the :ref:`Installation` section for more detailed instructions.
 
 
-Tutorials 👨‍🏫
+Contributing and Community
 ------------------------------------
-Our `tutorials <https://github.com/run-house/tutorials/>`_ have been structured to provide a comprehensive walk through of the APIs,
-as well as introduce you to the tools and usage patterns of Runhouse.
-We've devised them to chart a fun path through our features.
-
-
-Contribute 👷‍♀️
-------------------------------------
-We'd love for you to contribute to Runhouse! Please reach out to us with any questions or support requests 🙂
-
 - `Issue Tracker <https://github.com/run-house/runhouse/issues/>`_
-- `Source Code <https://github.com/run-house/runhouse/>`_
-
-Join the Community!
-------------------------------------
+- `Contributing <https://github.com/run-house/runhouse/blob/main/CONTRIBUTING.md>`_
 - `Discord <https://discord.gg/RnhB6589Hs/>`_
 - `Twitter <https://twitter.com/runhouse_/>`_
 
