@@ -47,7 +47,8 @@ To verify that your cloud credentials are set up correctly for autoscaling, run:
 This will confirm which cloud providers are ready to use, and will give detailed instructions if any setup is incomplete.
 SkyPilot also provides an excellent suite of CLI commands for basic instance management operations.
 There are a few that you'll be reaching for frequently when using Runhouse with autoscaling that you
-should familiarize yourself with, `here <https://github.com/run-house/tutorials/tree/main/t00_Overview/>`_.
+should familiarize yourself with,
+`here <https://runhouse-docs.readthedocs-hosted.com/en/latest/overview/clusters.html#on-demand-clusters/>`_.
 
 
 Secrets and Portability
