@@ -71,7 +71,8 @@ class Cluster(Resource):
     def config_for_rns(self):
         config = super().config_for_rns
         self.save_attrs_to_config(config, ["ips"])
-        config["ssh_creds"] = self.ssh_creds()
+        if self.ips is not None:
+            config["ssh_creds"] = self.ssh_creds()
         # TODO [DG] creds should be shared through secrets management only
         return config
 
@@ -455,8 +456,7 @@ class Cluster(Resource):
         require_outputs: bool = True,
     ):
         """Run a list of shell commands on the cluster."""
-        # TODO add name parameter to create Run object, and use sky.exec (after updating to sky 2.0):
-        # sky.exec(commands, cluster_name=self.name, stream_logs=stream_logs, detach=False)
+        # TODO [DG] Add a command to each run which registers activity on the cluster
         runner = command_runner.SSHCommandRunner(self.address, **self.ssh_creds())
         return_codes = []
         for command in commands:

@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_test_cluster():
-    return rh.cluster(name="test-cpu").up_if_not()
+    return rh.cluster(name="^rh-cpu").up_if_not()
 
 
 def do_printing_and_logging():

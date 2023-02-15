@@ -25,4 +25,4 @@ from .rns.secrets import Secrets
 from .rns.send import send, Send
 from .rns.tables.table import table, Table
 
-__version__ = "0.0.2"
+__version__ = "0.0.2.3"

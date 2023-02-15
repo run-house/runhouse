@@ -9,7 +9,7 @@ def test_download_defaults():
     rh.configs.upload_defaults(defaults=local_defaults)
     loaded_defaults = rh.configs.download_defaults()
     assert local_defaults == loaded_defaults
-    assert rh.rns_client.default_folder == "/dongreenberg"
+    assert rh.rns_client.default_folder == "nonsense"
 
 
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ class Blob(Resource):
         name: Optional[str] = None,
         fs: Optional[str] = Folder.DEFAULT_FS,
         data_config: Optional[Dict] = None,
-        dryrun: bool = True,
+        dryrun: bool = False,
         **kwargs,
     ):
         """
@@ -188,8 +188,8 @@ def blob(
     data_config: Optional[Dict] = None,
     mkdir: bool = False,
     snapshot: bool = False,
-    dryrun: bool = True,
-) -> Blob:
+    dryrun: bool = False,
+):
     """Returns a Blob object, which can be used to interact with the resource at the given url
 
     Args:

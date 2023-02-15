@@ -69,7 +69,7 @@ install_requires = [
     "sshtunnel",
     "sshfs",
     "typer",
-    "skypilot==0.2.3",
+    "skypilot==0.2.4",
 ]
 
 # NOTE: Change the templates/spot-controller.yaml.j2 file if any of the following
@@ -88,7 +88,7 @@ extras_require = {
         "s3fs==2023.1.0",
     ],
     "azure": ["azure-cli==2.31.0", "azure-core"],
-    "gcp": ["google-api-python-client", "google-cloud-storage"],
+    "gcp": ["google-api-python-client", "google-cloud-storage", "gcsfs"],
     "docker": ["docker"],
 }
 
@@ -113,7 +113,7 @@ setuptools.setup(
     version=version + f'.dev{datetime.datetime.today().strftime("%Y%m%d")}'
     if nightly
     else version,
-    packages=setuptools.find_packages(),
+    packages=setuptools.find_packages(exclude=["tests"]),
     author="Runhouse Team",
     license="Apache 2.0",
     readme="README.md",

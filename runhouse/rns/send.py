@@ -34,7 +34,7 @@ class Send(Resource):
         name: [Optional[str]] = None,
         reqs: Optional[List[str]] = None,
         setup_cmds: Optional[List[str]] = None,
-        dryrun: bool = True,
+        dryrun: bool = False,
         access: Optional[str] = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
@@ -91,8 +91,11 @@ class Send(Resource):
 
         See the args of the factory function :func:`send` for more information.
         """
+        hw_backup = self.hardware
+        self.hardware = None
         new_send = copy.deepcopy(self)
-        new_send.hardware = hardware if hardware else self.hardware
+        self.hardware = hw_backup
+        new_send.hardware = hardware
         new_send.reqs = reqs if reqs else self.reqs
         new_send.setup_cmds = (
             setup_cmds if setup_cmds else self.setup_cmds
@@ -175,18 +178,29 @@ class Send(Resource):
             fn_name = raw_fn.__name__
         else:
             root_path = os.path.dirname(module_path)
-            # module_name = getattr(module.__spec__, 'name', inspect.getmodulename(module_path))
-            module_name = (
-                module.__spec__.name
-                if getattr(module, "__package__", False)
-                else inspect.getmodulename(module_path)
-            )
+            module_name = inspect.getmodulename(module_path)
             # TODO __qualname__ doesn't work when fn is aliased funnily, like torch.sum
             fn_name = getattr(raw_fn, "__qualname__", raw_fn.__name__)
 
-        # if module is not in a package, we need to add its parent directory to the path to import it
-        # if not getattr(module, '__package__', None):
-        #     module_path = os.path.dirname(module.__file__)
+            # Adapted from https://github.com/modal-labs/modal-client/blob/main/modal/_function_utils.py#L94
+            if getattr(module, "__package__", None):
+                module_path = os.path.abspath(module.__file__)
+                package_paths = [
+                    os.path.abspath(p) for p in __import__(module.__package__).__path__
+                ]
+                base_dirs = [
+                    base_dir
+                    for base_dir in package_paths
+                    if os.path.commonpath((base_dir, module_path)) == base_dir
+                ]
+
+                if len(base_dirs) != 1:
+                    logger.info(f"Module files: {module_path}")
+                    logger.info(f"Package paths: {package_paths}")
+                    logger.info(f"Base dirs: {base_dirs}")
+                    raise Exception("Wasn't able to find the package directory!")
+                root_path = os.path.dirname(base_dirs[0])
+                module_name = module.__spec__.name
 
         remote_import_path = None
         for req in reqs:
@@ -194,7 +208,7 @@ class Send(Resource):
             if not isinstance(req, str) and req.is_local():
                 local_path = Path(req.local_path)
             elif isinstance(req, str):
-                if req.split(":")[0] in ["local", "reqs"]:
+                if req.split(":")[0] in ["local", "reqs", "pip"]:
                     req = req.split(":")[1]
 
                 if Path(req).expanduser().resolve().exists():
@@ -208,10 +222,8 @@ class Send(Resource):
             if local_path:
                 try:
                     # Module path relative to package
-                    remote_import_path = (
-                        local_path.name
-                        + "/"
-                        + str(Path(root_path).relative_to(local_path))
+                    remote_import_path = str(
+                        local_path.name / Path(root_path).relative_to(local_path)
                     )
                 except ValueError:  # Not a subdirectory
                     pass
@@ -228,14 +240,14 @@ class Send(Resource):
     # ----------------- Send call methods -----------------
 
     def __call__(self, *args, stream_logs=False, **kwargs):
+        fn_type = "call"
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
             if (
                 not self.hardware
                 or self.hardware.name == rh_config.obj_store.cluster_name
             ):
-                fn = get_fn_by_name(
-                    module_name=self.fn_pointers[1], fn_name=self.fn_pointers[2]
-                )
+                [relative_path, module_name, fn_name] = self.fn_pointers
+                fn = get_fn_by_name(module_name=module_name, fn_name=fn_name)
                 return call_fn_by_type(
                     fn, fn_type, fn_name, relative_path, args, kwargs
                 )
@@ -244,7 +256,7 @@ class Send(Resource):
                 return self.hardware.get(run_key, stream_logs=True)
             else:
                 return self._call_fn_with_ssh_access(
-                    fn_type="call", args=args, kwargs=kwargs
+                    fn_type=fn_type, args=args, kwargs=kwargs
                 )
         else:
             # run the function via http url - user only needs Proxy access

@@ -84,7 +84,7 @@ def get_fn_by_name(module_name, fn_name):
     return fn
 
 
-RAY_LOGFILE_PATH = "/tmp/ray/session_latest/logs"
+RAY_LOGFILE_PATH = Path("/tmp/ray/session_latest/logs")
 
 
 def enable_logging_fn_wrapper(fn, run_key):
@@ -95,7 +95,7 @@ def enable_logging_fn_wrapper(fn, run_key):
         worker_id = ray._private.worker.global_worker.worker_id.hex()
         logdir = Path.home() / ".rh/logs" / run_key
         logdir.mkdir(exist_ok=True, parents=True)
-        ray_logs_path = Path(RAY_LOGFILE_PATH)
+        ray_logs_path = RAY_LOGFILE_PATH
         stdout_files = list(ray_logs_path.glob(f"worker-{worker_id}-*"))
         # Create simlinks to the ray log files in the run directory
         logger.info(f"Writing logs on cluster to {logdir}")

@@ -117,7 +117,7 @@ class RNSClient:
 
     @property
     def current_folder(self):
-        if self._current_folder in [None, "~"]:
+        if not self._current_folder:
             self._current_folder = self.default_folder
         return self._current_folder
 
