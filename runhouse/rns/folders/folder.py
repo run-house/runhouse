@@ -59,6 +59,9 @@ class Folder(Resource):
         """
         super().__init__(name=name, dryrun=dryrun)
 
+        self._fs = None
+        self._fsspec_fs = None
+
         self.fs = fs
 
         # TODO [DG] Should we ever be allowing this to be None?
@@ -188,6 +191,7 @@ class Folder(Resource):
                 "username": creds["ssh_user"],
                 # 'key_filename': str(Path(creds['ssh_private_key']).expanduser())}  # For SFTP
                 "client_keys": [str(Path(creds["ssh_private_key"]).expanduser())],
+                "connect_timeout": "3s"
             }  # For SSHFS
             ret_config = self._data_config.copy()
             ret_config.update(config_creds)
@@ -696,11 +700,9 @@ class Folder(Resource):
         return url is not None
 
     def locate(self, name_or_path) -> (str, str):
-        """Locate the local url of a Folder given an rns path.
+        """Locate the local url of a Folder given an rns path."""
+        # Note: Keep in mind we're using both _rns_ path and physical path logic below. Be careful!
 
-        .. note::
-            Keep in mind we're using both _rns_ path and physical path logic below. Be careful!
-        """
         # If the path is already given relative to the current folder:
         if (Path(self.url) / name_or_path).exists():
             return str(Path(self.url) / name_or_path), self.fs

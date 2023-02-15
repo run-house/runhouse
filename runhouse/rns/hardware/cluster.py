@@ -158,7 +158,6 @@ class Cluster(Resource):
 
     def install_packages(self, reqs: List[Union[Package, str]]):
         """Install the given packages on the cluster."""
-        self.check_grpc()
         to_install = []
         # TODO [DG] validate package strings
         for package in reqs:
@@ -189,6 +188,7 @@ class Cluster(Resource):
             f"Installing packages on cluster {self.name}: "
             f"{[req if isinstance(req, str) else str(req) for req in reqs]}"
         )
+        self.check_grpc()
         self.client.install_packages(pickle.dumps(to_install))
 
     def get(self, key, default=None, stream_logs=False):
@@ -420,6 +420,13 @@ class Cluster(Resource):
         # if self.client:
         #     self.client.shutdown()
 
+    def __getstate__(self):
+        """Delete non-serializable elements (e.g. thread locks) before pickling."""
+        state = self.__dict__.copy()
+        state["client"] = None
+        state["_grpc_tunnel"] = None
+        return state
+
     # ----------------- SSH Methods ----------------- #
 
     def ssh_creds(self):
@@ -456,7 +463,7 @@ class Cluster(Resource):
         require_outputs: bool = True,
     ):
         """Run a list of shell commands on the cluster."""
-        # TODO [DG] Add a command to each run which registers activity on the cluster
+        # TODO [DG] suspect autostop while running?
         runner = command_runner.SSHCommandRunner(self.address, **self.ssh_creds())
         return_codes = []
         for command in commands:

@@ -1,3 +1,4 @@
+import asyncio
 import copy
 import inspect
 import json
@@ -82,7 +83,7 @@ class Send(Resource):
 
     def to(
         self,
-        hardware: Optional[Union[str, Cluster]],
+        hardware: Union[str, Cluster],
         reqs: Optional[List[str]] = None,
         setup_cmds: Optional[List[str]] = None,
     ):
@@ -91,6 +92,9 @@ class Send(Resource):
 
         See the args of the factory function :func:`send` for more information.
         """
+        # We need to backup the hardware here so the __getstate__ method of the cluster
+        # doesn't wipe the client and _grpc_client of this send's cluster when
+        # deepcopy copies it.
         hw_backup = self.hardware
         self.hardware = None
         new_send = copy.deepcopy(self)
@@ -117,7 +121,7 @@ class Send(Resource):
                 new_send.reup_cluster()
         try:
             new_send.hardware.install_packages(new_send.reqs)
-        except (grpc.RpcError, sshtunnel.BaseSSHTunnelForwarderError):
+        except (grpc.RpcError, sshtunnel.BaseSSHTunnelForwarderError, asyncio.exceptions.TimeoutError):
             # It's possible that the cluster went down while we were trying to install packages.
             if not new_send.hardware.is_up():
                 new_send.reup_cluster()
