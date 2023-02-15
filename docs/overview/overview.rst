@@ -12,7 +12,7 @@ It achieves the above by providing four pillar features:
 
 Compute
 ~~~~~~~
-The :ref:`Sends`, :ref:`Clusters`, and :ref:`Packages` APIs allow a seamless flow of code and execution across local and remote compute.
+The :ref:`Sends`, :ref:`Clusters`, and :ref:`Package` APIs allow a seamless flow of code and execution across local and remote compute.
 They blur the line between program execution and deployment, providing both a path of least resistence for running a
 sub-routine on specific hardware, while unceremoniously turning that sub-routine into a reusable service.
 
@@ -22,7 +22,7 @@ and rich debugging and accessibility interfaces built-in.
 
 Data
 ~~~~
-The :ref:`Folders`, :ref:`Tables`, and :ref:`Blob` APIs provide a simple interface for storing, recalling, and moving data between the
+The :ref:`Folder`, :ref:`Table`, and :ref:`Blob` APIs provide a simple interface for storing, recalling, and moving data between the
 user's laptop, remote compute, cloud storage, and specialized storage (e.g. data warehouses).
 They provide least-common-denominator APIs across providers, allowing users to easily specify the actions they want
 to take on the data without needed to dig into provider-specific APIs.

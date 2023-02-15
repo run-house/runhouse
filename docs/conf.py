@@ -35,6 +35,7 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
     "sphinx.ext.autosectionlabel",
+    'sphinx_autodoc_typehints',
     "sphinx_click.ext",
     "myst_parser",
     "sphinx_thebe",
@@ -54,8 +55,8 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "sphinx_rtd_theme"
-# html_theme = 'sphinx_book_theme'
+# html_theme = "sphinx_rtd_theme"
+html_theme = 'sphinx_book_theme'
 
 html_title = "Runhouse"
 html_logo = "_static/rh_1.jpeg"
@@ -72,6 +73,12 @@ html_theme_options = {
     "use_issues_button": True,
     "use_edit_page_button": False,
 }
+
+html_show_sourcelink = False
+
+# pygments_style = None
+# autosummary_generate = True
+# napolean_use_rtype = False
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

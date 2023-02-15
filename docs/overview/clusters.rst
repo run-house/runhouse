@@ -3,7 +3,7 @@ Clusters
 
 A :ref:`Cluster` represents a set of machines which can be sent code or data, or a machine spec that could be spun up in the
 event that we have some code or data to send to the machine.
-Generally they are `Ray clusters <https://docs.ray.io/en/latest/cluster/getting-started.html/>`_ under the hood.
+Generally they are `Ray clusters <https://docs.ray.io/en/latest/cluster/getting-started.html>`_ under the hood.
 
 There are a few kinds of clusters today:
 
