@@ -54,4 +54,3 @@ To get secrets for a specific provider:
 .. code-block:: python
 
     my_creds = rh.Secrets.get(provider="aws")
-

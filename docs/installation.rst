@@ -35,8 +35,8 @@ Runhouse supports both BYO cluster, where you interact with existing compute via
 where we spin up and down cloud instances in your own cloud account for you.
 If you only plan to use BYO clusters, you can disregard the following.
 
-Runhouse uses `SkyPilot <https://github.com/skypilot-org/skypilot/>`_ for much of the heavy lifting with launching and terminating cloud instances.
-We love it and you should throw them a Github star ⭐️.
+Runhouse uses `SkyPilot <https://skypilot.readthedocs.io/en/latest/>`_ for much of the heavy lifting with launching and terminating cloud instances.
+We love it and you should `throw them a Github star <https://github.com/skypilot-org/skypilot/>`_ ⭐️.
 
 To verify that your cloud credentials are set up correctly for autoscaling, run:
 

@@ -1,6 +1,5 @@
 Blob
 ====================================
-[PLACEHOLDER]
 
 Blob Factory Method
 ~~~~~~~~~~~~~~~~~~~
