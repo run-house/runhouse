@@ -1,7 +1,7 @@
 .. runhouse documentation master file, created by
 
 Runhouse 🏃‍♀️🏠
-====================================
+============
 
 .. raw:: html
 
@@ -44,7 +44,7 @@ There's no magic yaml, DSL, code serialization, or "submitting for execution." W
 
 
 Getting Started 🐣
-------------------------------------
+------------------
 .. code-block:: console
 
     $ pip install runhouse
@@ -57,16 +57,8 @@ Getting Started 🐣
    See the :ref:`Installation` section for more detailed instructions.
 
 
-Contributing and Community
-------------------------------------
-- `Issue Tracker <https://github.com/run-house/runhouse/issues/>`_
-- `Contributing <https://github.com/run-house/runhouse/blob/main/CONTRIBUTING.md>`_
-- `Discord <https://discord.gg/RnhB6589Hs/>`_
-- `Twitter <https://twitter.com/runhouse_/>`_
-
-
-Documentation
---------------------
+Table of Contents
+-----------------
 .. toctree::
    :maxdepth: 1
    :caption: Using Runhouse
@@ -103,3 +95,11 @@ Documentation
    Dreambooth Training and Inference <https://github.com/run-house/tutorials/tree/main/t02_Dreambooth>
    DALL-E to SD img2img in a Notebook <https://github.com/run-house/tutorials/tree/main/t03_DALLE_SD_pipeline>
    BERT Full Pipeline <https://github.com/run-house/tutorials/tree/main/t05_BERT_pipeline>
+
+
+Contributing and Community
+--------------------------
+- `Issue Tracker <https://github.com/run-house/runhouse/issues/>`_
+- `Contributing <https://github.com/run-house/runhouse/blob/main/CONTRIBUTING.md>`_
+- `Discord <https://discord.gg/RnhB6589Hs/>`_
+- `Twitter <https://twitter.com/runhouse_/>`_
