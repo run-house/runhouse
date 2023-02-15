@@ -35,7 +35,7 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
     "sphinx.ext.autosectionlabel",
-    'sphinx_autodoc_typehints',
+    "sphinx_autodoc_typehints",
     "sphinx_click.ext",
     "myst_parser",
     "sphinx_thebe",
@@ -56,7 +56,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 # a list of builtin themes.
 #
 # html_theme = "sphinx_rtd_theme"
-html_theme = 'sphinx_book_theme'
+html_theme = "sphinx_book_theme"
 
 html_title = "Runhouse"
 html_logo = "_static/rh_1.jpeg"

@@ -6,8 +6,8 @@ Runhouse allows you to send code a cluster, but still interact with it as a nati
 When you do this, the following steps occur:
 
 1. We check if the cluster is up, and bring up the cluster if not (only possible for autoscaled SkyClusters)
-2. We check that the cluster's gRPC server has started to handle requests to do things like install packages, run modules, get previously executed results, etc. If it hasn't, we install Runhouse on the cluster and start the gRPC server. The gRPC server inits Ray.
-3. We collect the dependencies from the :code:`reqs` parameter and install them on the cluster via :code:`cluster.install_packages()`. By default, we'll sync over the working git repo and install its requirements.txt if it has one.
+2. We check that the cluster's gRPC server has started to handle requests to do things like install packages, run modules, get previously executed results, etc. If it hasn't, we install Runhouse on the cluster and start the gRPC server. The gRPC server initializes Ray.
+3. We collect the dependencies from the :code:`reqs` parameter and install them on the cluster via :code:`cluster.install_packages()`. By default, we'll sync over the working git repo and install its :code:`requirements.txt` if it has one.
 
 
 When you run your send module, we send a gRPC request to the cluster with the module name and function entrypoint to run.
@@ -29,7 +29,7 @@ Advanced Send Usage
 ~~~~~~~~~~~~~~~~~~~
 There are a number of ways to call a Send beyond just :code:`__call__`.
 
-:code:`.remote` will call the function async (using Ray) and return a reference (Ray ObjectRef)
+:code:`.remote` will call the function async (using Ray) and return a reference (`Ray ObjectRef <https://docs.ray.io/en/latest/ray-core/objects.html>`_)
 to the object on the cluster. You can pass the ref into another send and it will be automatically
 dereferenced once on the cluster. This is a convenient way to avoid passing large objects back and forth to your
 laptop, or to run longer execution in notebooks without locking up the kernel.

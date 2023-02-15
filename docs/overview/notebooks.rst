@@ -34,7 +34,3 @@ If you want to sync down your code or data to local from the cluster afterwards:
 .. code-block:: python
 
     rh.folder(url='remote_directory', fs=rh.cluster('my_cluster').to('here', url='local_directory')
-
-
-
-

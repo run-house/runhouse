@@ -1,6 +1,5 @@
 Folder
 ====================================
-[PLACEHOLDER]
 
 Folder Factory Method
 ~~~~~~~~~~~~~~~~~~~~~

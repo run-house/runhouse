@@ -126,7 +126,7 @@ To run a shell command on the cluster:
 
     gpu.run(['git clone ...', 'pip install ...'])
 
-This is useful for installing more complex dependencies. :code-python:`gpu.run_setup(...)` will make sure the command is
+This is useful for installing more complex dependencies. :code:`gpu.run_setup(...)` will make sure the command is
 only run once when the cluster is first created.
 
 To run any Python on the cluster:

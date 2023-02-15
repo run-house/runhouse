@@ -1,6 +1,5 @@
 Package
 ====================================
-[PLACEHOLDER]
 
 
 Package Factory Method
