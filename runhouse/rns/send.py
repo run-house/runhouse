@@ -121,7 +121,11 @@ class Send(Resource):
                 new_send.reup_cluster()
         try:
             new_send.hardware.install_packages(new_send.reqs)
-        except (grpc.RpcError, sshtunnel.BaseSSHTunnelForwarderError, asyncio.exceptions.TimeoutError):
+        except (
+            grpc.RpcError,
+            sshtunnel.BaseSSHTunnelForwarderError,
+            asyncio.exceptions.TimeoutError,
+        ):
             # It's possible that the cluster went down while we were trying to install packages.
             if not new_send.hardware.is_up():
                 new_send.reup_cluster()

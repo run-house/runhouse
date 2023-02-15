@@ -191,7 +191,7 @@ class Folder(Resource):
                 "username": creds["ssh_user"],
                 # 'key_filename': str(Path(creds['ssh_private_key']).expanduser())}  # For SFTP
                 "client_keys": [str(Path(creds["ssh_private_key"]).expanduser())],
-                "connect_timeout": "3s"
+                "connect_timeout": "3s",
             }  # For SSHFS
             ret_config = self._data_config.copy()
             ret_config.update(config_creds)
