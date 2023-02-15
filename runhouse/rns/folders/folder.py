@@ -44,7 +44,7 @@ class Folder(Resource):
     def __init__(
         self,
         name: Optional[str] = None,
-        url: Optional[str] = None,
+        path: Optional[str] = None,
         fs: Optional[str] = DEFAULT_FS,
         dryrun: bool = False,
         local_mount: bool = False,
@@ -65,14 +65,14 @@ class Folder(Resource):
         self.fs = fs
 
         # TODO [DG] Should we ever be allowing this to be None?
-        self._url = (
-            self.default_url(self.rns_address, fs)
-            if url is None
-            else url
+        self._path = (
+            self.default_path(self.rns_address, fs)
+            if path is None
+            else path
             if isinstance(fs, Resource)
-            else url
-            if Path(url).expanduser().is_absolute()
-            else str(Path(rns_client.locate_working_dir()) / url)
+            else path
+            if Path(path).expanduser().is_absolute()
+            else str(Path(rns_client.locate_working_dir()) / path)
         )
         self.data_config = data_config or {}
 
@@ -84,7 +84,7 @@ class Folder(Resource):
             self.mkdir()
 
     @classmethod
-    def default_url(cls, rns_address, fs):
+    def default_path(cls, rns_address, fs):
         from runhouse.rns.hardware import Cluster
 
         if fs == Folder.DEFAULT_FS or isinstance(fs, Cluster):
@@ -94,7 +94,7 @@ class Folder(Resource):
                 )  # saves to cwd / name
             return f"{Folder.DEFAULT_CACHE_FOLDER}/{uuid.uuid4().hex}"
         else:
-            # If no URL provided for a remote file system default to its name if provided
+            # If no path provided for a remote file system default to its name if provided
             if rns_address:
                 name = rns_address[1:].replace("/", "_") + f".{cls.RESOURCE_TYPE}"
                 return f"{Folder.DEFAULT_FOLDER_PATH}/{name}"
@@ -144,20 +144,20 @@ class Folder(Resource):
         return cls.from_config(config=config, dryrun=dryrun)
 
     @property
-    def url(self):
-        if self._url is not None:
+    def path(self):
+        if self._path is not None:
             if self.fs == Folder.DEFAULT_FS:
-                return str(Path(self._url).expanduser())
-            elif self._fs_str == self.CLUSTER_FS and self._url.startswith("~/"):
-                # sftp takes relative urls to the home directory but doesn't understand '~'
-                return self._url[2:]
-            return self._url
+                return str(Path(self._path).expanduser())
+            elif self._fs_str == self.CLUSTER_FS and self._path.startswith("~/"):
+                # sftp takes relative paths to the home directory but doesn't understand '~'
+                return self._path[2:]
+            return self._path
         else:
             return None
 
-    @url.setter
-    def url(self, url):
-        self._url = url
+    @path.setter
+    def path(self, path):
+        self._path = path
         self._local_mount_path = None
 
     @property
@@ -220,7 +220,7 @@ class Folder(Resource):
     @property
     def local_path(self):
         if self.is_local():
-            return self._local_mount_path or str(Path(self.url).expanduser())
+            return self._local_mount_path or str(Path(self.path).expanduser())
         else:
             return None
 
@@ -232,37 +232,37 @@ class Folder(Resource):
         return self.fsspec_fs.__class__.mkdirs == fsspec.AbstractFileSystem.mkdirs
 
     def mv(
-        self, fs, url: Optional[str] = None, data_config: Optional[dict] = None
+        self, fs, path: Optional[str] = None, data_config: Optional[dict] = None
     ) -> None:
         """Move the folder to a new filesystem."""
-        # TODO [DG] create get_default_url for fs method to be shared
-        if url is None:
-            url = "rh/" + self.rns_address
+        # TODO [DG] create get_default_path for fs method to be shared
+        if path is None:
+            path = "rh/" + self.rns_address
         data_config = data_config or {}
         with fsspec.open(self.fsspec_url, **self.data_config) as src:
-            with fsspec.open(f"{fs}://{url}", **data_config) as dest:
+            with fsspec.open(f"{fs}://{path}", **data_config) as dest:
                 # NOTE For packages, maybe use the `ignore` param here to only copy python files.
-                new_url = shutil.move(src, dest)
-        self.url = new_url
+                new_path = shutil.move(src, dest)
+        self.path = new_path
         self.fs = fs
         self.data_config = data_config or {}
 
-    def to(self, fs, url: Optional[str] = None, data_config: Optional[dict] = None):
+    def to(self, fs, path: Optional[str] = None, data_config: Optional[dict] = None):
         """Copy the folder to a new filesystem, and return a new Folder object pointing to the new location."""
         # silly syntactic sugar to allow `my_remote_folder.to('here')`, clearer than `to('file')`
         if fs == "here":
             fs = "file"
-            url = str(Path.cwd() / self.url.split("/")[-1]) if url is None else url
+            path = str(Path.cwd() / self.path.split("/")[-1]) if path is None else path
 
-        url = str(
-            url or self.default_url(self.name, fs)
+        path = str(
+            path or self.default_path(self.name, fs)
         )  # Make sure it's a string and not a Path
 
         fs_str = getattr(
             fs, "name", fs
         )  # Use fs.name if available, i.e. fs is a cluster
         logging.info(
-            f"Copying folder from {self.fsspec_url} to: {fs_str}, with url: {url}"
+            f"Copying folder from {self.fsspec_url} to: {fs_str}, with path: {path}"
         )
 
         # to_local, to_cluster and to_data_store are also overridden by subclasses to dispatch
@@ -271,37 +271,37 @@ class Folder(Resource):
 
         if fs == "file":
             return self.to_local(
-                dest_url=url, data_config=data_config, return_dest_folder=True
+                dest_path=path, data_config=data_config, return_dest_folder=True
             )
         elif isinstance(fs, Cluster):  # If fs is a cluster
             # TODO [DG] change default behavior to return_dest_folder=False
-            return self.to_cluster(dest_cluster=fs, url=url, return_dest_folder=True)
+            return self.to_cluster(dest_cluster=fs, path=path, return_dest_folder=True)
         elif fs in ["s3", "gs", "azure"]:
             return self.to_data_store(
-                fs=fs, data_store_url=url, data_config=data_config
+                fs=fs, data_store_path=path, data_config=data_config
             )
         else:
-            self.fsspec_copy(fs, url, data_config)
+            self.fsspec_copy(fs, path, data_config)
             new_folder = copy.deepcopy(self)
-            new_folder.url = url
+            new_folder.path = path
             new_folder.fs = fs
             new_folder.data_config = data_config or {}
             return new_folder
 
-    def fsspec_copy(self, fs: str, url: str, data_config: dict):
-        """Copy the fsspec filesystem to the given new filesystem and url."""
+    def fsspec_copy(self, fs: str, path: str, data_config: dict):
+        """Copy the fsspec filesystem to the given new filesystem and path."""
         # Fallback for other fsspec filesystems, but very slow:
         if self.is_local():
-            self.fsspec_fs.put(self.url, f"{fs}://{url}", recursive=True)
+            self.fsspec_fs.put(self.path, f"{fs}://{path}", recursive=True)
         else:
             # TODO this is really really slow, maybe use skyplane, as follows:
-            # src_url = f'local://{self.url}' if self.is_local() else self.fsspec_url
-            # subprocess.run(['skyplane', 'sync', src_url, f'{fs}://{url}'])
+            # src_url = f'local://{self.path}' if self.is_local() else self.fsspec_url
+            # subprocess.run(['skyplane', 'sync', src_url, f'{fs}://{path}'])
 
             # FYI: from https://github.com/fsspec/filesystem_spec/issues/909
             # TODO [DG]: Copy chunks https://github.com/fsspec/filesystem_spec/issues/909#issuecomment-1204212507
             src = fsspec.get_mapper(self.fsspec_url, create=False, **self.data_config)
-            dest = fsspec.get_mapper(f"{fs}://{url}", create=True, **data_config)
+            dest = fsspec.get_mapper(f"{fs}://{path}", create=True, **data_config)
             # dest.fs.mkdir(dest.root, create_parents=True)
             import tqdm
 
@@ -312,78 +312,78 @@ class Folder(Resource):
 
     def destination_folder(
         self,
-        dest_url: str,
+        dest_path: str,
         dest_fs: Optional[str] = "file",
         data_config: Optional[dict] = None,
     ):
         """Returns a new Folder object pointing to the destination folder."""
         new_folder = copy.deepcopy(self)
-        new_folder.url = dest_url
+        new_folder.path = dest_path
         new_folder.fs = dest_fs
         new_folder.data_config = data_config or {}
         return new_folder
 
     def to_local(
-        self, dest_url: str, data_config: dict, return_dest_folder: bool = False
+        self, dest_path: str, data_config: dict, return_dest_folder: bool = False
     ):
         """Copies folder to local."""
         from runhouse.rns.hardware import Cluster
 
         if self.fs == "file":
             # Simply move the files within local fs
-            shutil.copytree(src=self.url, dst=dest_url)
+            shutil.copytree(src=self.path, dst=dest_path)
         elif isinstance(self.fs, Cluster):
-            return self.from_cluster(cluster=self.fs, dest_url=dest_url)
+            return self.from_cluster(cluster=self.fs, dest_path=dest_path)
         else:
-            self.fsspec_copy("file", dest_url, data_config)
+            self.fsspec_copy("file", dest_path, data_config)
 
         if return_dest_folder:
             return self.destination_folder(
-                dest_url=dest_url, dest_fs="file", data_config=data_config
+                dest_path=dest_path, dest_fs="file", data_config=data_config
             )
 
     # TODO [DG] Any reason to keep this?
-    # def to_sftp(self, url, data_config):
+    # def to_sftp(self, path, data_config):
     #     from runhouse.rns.hardware import Cluster
     #     if self.fs == 'file':
     #         # Rsync up the files to the remote fs
-    #         self.rsync(local=self.url, remote=url, data_config=data_config, up=True)
+    #         self.rsync(local=self.path, remote=path, data_config=data_config, up=True)
     #     elif self.fs == 'sftp':
     #         # Simply move the files within stfp fs
     #         # TODO [DG] speculation
-    #         self.fsspec_fs.mv(self.url, url)
+    #         self.fsspec_fs.mv(self.path, path)
     #     elif isinstance(self.fs, Cluster):
-    #         self.fs.run([f'rsync {self.url} {data_config["username"]}@{data_config["host"]}:{url} '
+    #         self.fs.run([f'rsync {self.path} {data_config["username"]}@{data_config["host"]}:{path} '
     #                      f'--password_file {data_config["key_filename"]}'])
     #     else:
-    #         self.fsspec_copy('file', url, data_config)
+    #         self.fsspec_copy('file', path, data_config)
 
     def to_data_store(
         self,
         fs: str,
-        data_store_url: Optional[str] = None,
+        data_store_path: Optional[str] = None,
         data_config: Optional[dict] = None,
         return_dest_folder: bool = True,  # note: unused
     ):
         """Local or cluster to blob storage."""
         from runhouse.rns.hardware import Cluster
 
-        local_folder_url = self.url
+        local_folder_path = self.path
 
         folder_config = self.config_for_rns
         folder_config["fs"] = fs
-        folder_config["url"] = data_store_url
+        folder_config["path"] = data_store_path
         folder_config["data_config"] = data_config
         new_folder = Folder.from_config(folder_config)
 
         if self.fs == "file":
-            new_folder.upload(src=local_folder_url)
+            new_folder.upload(src=local_folder_path)
         elif isinstance(self.fs, Cluster):
             self.fs.run(
-                [new_folder.upload_command(src=local_folder_url, dest=new_folder.url)]
+                [new_folder.upload_command(src=local_folder_path, dest=new_folder.path)]
             )
         else:
-            self.fsspec_copy("file", data_store_url, data_config)
+            self.fsspec_copy("file", data_store_path, data_config)
 
         return new_folder
 
@@ -402,25 +402,27 @@ class Folder(Resource):
 
     def mkdir(self):
         """Create the folder in specified file system if it doesn't already exist."""
-        folder_url = self.url
-        if Path(os.path.basename(folder_url)).suffix != "":
-            folder_url = str(Path(folder_url).parent)
+        folder_path = self.path
+        if Path(os.path.basename(folder_path)).suffix != "":
+            folder_path = str(Path(folder_path).parent)
 
-        logging.info(f"Creating new {self._fs_str} folder: {folder_url}")
-        self.fsspec_fs.mkdirs(folder_url, exist_ok=True)
+        logging.info(f"Creating new {self._fs_str} folder: {folder_path}")
+        self.fsspec_fs.mkdirs(folder_path, exist_ok=True)
 
-    def mount(self, url: Optional[str] = None, tmp: bool = False) -> str:
+    def mount(self, path: Optional[str] = None, tmp: bool = False) -> str:
         """Mount the folder locally."""
         # TODO check that fusepy and FUSE are installed
         if tmp:
             self._local_mount_path = tempfile.mkdtemp()
         else:
-            self._local_mount_path = url
+            self._local_mount_path = path
         remote_fs = self.fsspec_fs
-        fsspec.fuse.run(fs=remote_fs, path=self.url, mount_point=self._local_mount_path)
+        fsspec.fuse.run(
+            fs=remote_fs, path=self.path, mount_point=self._local_mount_path
+        )
         return self._local_mount_path
 
-    def to_cluster(self, dest_cluster, url=None, mount=False, return_dest_folder=True):
+    def to_cluster(self, dest_cluster, path=None, mount=False, return_dest_folder=True):
         """Copy the folder from a file or cluster source onto a destination cluster."""
         if not dest_cluster.address:
             raise ValueError("Cluster must be started before copying data to it.")
@@ -429,19 +431,19 @@ class Folder(Resource):
         if not self.is_local() and mount:
             self.mount(tmp=True)
 
-        dest_url = url or f"~/{Path(self.url).stem}"
+        dest_path = path or f"~/{Path(self.path).stem}"
 
         # Need to add slash for rsync to copy the contents of the folder
         dest_folder = copy.deepcopy(self)
-        dest_folder.url = dest_url
+        dest_folder.path = dest_path
         dest_folder.fs = dest_cluster
         dest_folder.mkdir()
 
         if self.fs == "file":
-            dest_cluster.rsync(source=self.url, dest=dest_url, up=True, contents=True)
+            dest_cluster.rsync(source=self.path, dest=dest_path, up=True, contents=True)
 
         elif isinstance(self.fs, Resource):
-            src_url = self.url
+            src_path = self.path
 
             cluster_creds = self.fs.ssh_creds()
             creds_file = cluster_creds["ssh_private_key"]
@@ -450,7 +452,7 @@ class Folder(Resource):
                 f"rsync -Pavz --filter='dir-merge,- .gitignore' -e \"ssh -i '{creds_file}' "
                 f"-o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes "
                 f"-o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=30s -o ForwardAgent=yes "
-                f'-o ControlMaster=auto -o ControlPersist=300s" {src_url}/ {dest_cluster.address}:{dest_url}'
+                f'-o ControlMaster=auto -o ControlPersist=300s" {src_path}/ {dest_cluster.address}:{dest_path}'
             )
             status_codes = self.fs.run([command])
             if status_codes[0][0] != 0:
@@ -471,26 +473,26 @@ class Folder(Resource):
 
         return dest_folder
 
-    def from_cluster(self, cluster, dest_url=None):
-        """Create a remote folder from a url on a cluster.
+    def from_cluster(self, cluster, dest_path=None):
+        """Create a remote folder from a path on a cluster.
 
-        If `dest_url=None`, this will not perform any copy, and simply convert the resource to have a remote
-        sftp filesystem into the cluster. If `dest_url` is set, it will rsync down the data and return a folder
+        If `dest_path=None`, this will not perform any copy, and simply convert the resource to have a remote
+        sftp filesystem into the cluster. If `dest_path` is set, it will rsync down the data and return a folder
         with fs=='file'.
         """
-        if dest_url:
+        if dest_path:
             if not cluster.address:
                 raise ValueError("Cluster must be started before copying data from it.")
             # TODO support fsspec urls (e.g. nonlocal fs's)?
-            Path(dest_url).expanduser().mkdir(parents=True, exist_ok=True)
+            Path(dest_path).expanduser().mkdir(parents=True, exist_ok=True)
             cluster.rsync(
-                source=self.url,
-                dest=str(Path(dest_url).expanduser()),
+                source=self.path,
+                dest=str(Path(dest_path).expanduser()),
                 up=False,
                 contents=True,
             )
             new_folder = copy.deepcopy(self)
-            new_folder.url = dest_url
+            new_folder.path = dest_path
             new_folder.fs = "file"
             # Don't need to do anything with _data_config because cluster creds are injected virtually through the
             # data_config property
@@ -503,7 +505,7 @@ class Folder(Resource):
     def is_local(self):
         """Whether the folder is on the local filesystem."""
         return (
-            self.fs == "file" and self.url is not None and Path(self.url).exists()
+            self.fs == "file" and self.path is not None and Path(self.path).exists()
         ) or self._local_mount_path
 
     def share(
@@ -513,7 +515,7 @@ class Folder(Resource):
         snapshot: bool = True,
         snapshot_fs: str = None,
         snapshot_compression: str = None,
-        snapshot_url: str = None,
+        snapshot_path: str = None,
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
         """Granting access to the resource for list of users (via their emails). If a user has a Runhouse account they
         will receive an email notifying them of their new access. If the user does not have a Runhouse account they will
@@ -537,9 +539,11 @@ class Folder(Resource):
             data_config = (
                 {"compression": snapshot_compression} if snapshot_compression else {}
             )
-            snapshot_folder = self.to(fs=fs, url=snapshot_url, data_config=data_config)
+            snapshot_folder = self.to(
+                fs=fs, path=snapshot_path, data_config=data_config
+            )
 
-            # Is this a bad idea? Better to store the snapshot config as the source of truth than the local url
+            # Is this a bad idea? Better to store the snapshot config as the source of truth than the local path
             rns_address = rns_client.local_to_remote_address(self.rns_address)
             snapshot_folder.save(name=rns_address)
 
@@ -559,7 +563,7 @@ class Folder(Resource):
 
     def empty_folder(self):
         """Remove folder contents, but not the folder itself."""
-        for p in self.fsspec_fs.ls(self.url):
+        for p in self.fsspec_fs.ls(self.path):
             self.fsspec_fs.rm(p)
 
     def upload(self, src: str, region: Optional[str] = None):
@@ -578,7 +582,7 @@ class Folder(Resource):
         run_upload_cli(
             command=sync_dir_command,
             access_denied_message=access_denied_message,
-            bucket_name=self.bucket_name_from_url(self.url),
+            bucket_name=self.bucket_name_from_path(self.path),
         )
 
     def download(self, dest):
@@ -597,12 +601,12 @@ class Folder(Resource):
         if self.fs == Folder.DEFAULT_FS:
             # If folder is local check whether path is relative, and if so take it relative to the working director
             # rather than to the home directory. If absolute, it's left alone.
-            config["url"] = (
-                self._url_relative_to_rh_workdir(self.url) if self.url else None
+            config["path"] = (
+                self._path_relative_to_rh_workdir(self.path) if self.path else None
             )
         else:
             # if not a local filesystem save path as is (e.g. bucket/path)
-            config["url"] = self.url
+            config["path"] = self.path
 
         if isinstance(self.fs, Resource):  # If fs is a cluster
             config["fs"] = self._resource_string_for_subconfig(self.fs)
@@ -612,29 +616,29 @@ class Folder(Resource):
         return config
 
     @staticmethod
-    def _url_relative_to_rh_workdir(url):
+    def _path_relative_to_rh_workdir(path):
         rh_workdir = Path(rns_client.locate_working_dir())
         try:
-            return str(Path(url).relative_to(rh_workdir))
+            return str(Path(path).relative_to(rh_workdir))
         except ValueError:
-            return url
+            return path
 
     @property
     def fsspec_url(self):
-        """Generate the FSSpec URL using the file system and url of the folder"""
-        if self.url.startswith("/") and self._fs_str not in [
+        """Generate the FSSpec URL using the file system and path of the folder"""
+        if self.path.startswith("/") and self._fs_str not in [
             rns_client.DEFAULT_FS,
             self.CLUSTER_FS,
         ]:
-            return f"{self._fs_str}:/{self.url}"
+            return f"{self._fs_str}:/{self.path}"
         else:
             # For local, ssh / sftp filesystems we need both slashes
             # e.g.: 'ssh:///home/ubuntu/.cache/runhouse/tables/dede71ef83ce45ffa8cb27d746f97ee8'
-            return f"{self._fs_str}://{self.url}"
+            return f"{self._fs_str}://{self.path}"
 
     def ls(self, full_paths: bool = True):
         """List the contents of the folder"""
-        paths = self.fsspec_fs.ls(path=self.url) if self.url else []
+        paths = self.fsspec_fs.ls(path=self.path) if self.path else []
         if full_paths:
             return paths
         else:
@@ -670,13 +674,13 @@ class Folder(Resource):
         if self._rns_folder:
             return str(Path(self._rns_folder) / self.name)
 
-        if self.url in rns_client.rns_base_folders.values():
+        if self.path in rns_client.rns_base_folders.values():
             if self._rns_folder:
                 return self._rns_folder + "/" + self.name
             else:
                 return rns_client.default_folder + "/" + self.name
 
-        segment = Path(self.url)
+        segment = Path(self.path)
         while (
             str(segment) not in rns_client.rns_base_folders.values()
             and not segment == Path.home()
@@ -689,25 +693,25 @@ class Folder(Resource):
         ):  # TODO throw an error instead?
             return rns_client.default_folder + "/" + self.name
         else:
-            base_folder = Folder(url=str(segment), dryrun=True)
+            base_folder = Folder(path=str(segment), dryrun=True)
             base_folder_path = base_folder.rns_address
-            relative_path = str(Path(self.url).relative_to(base_folder.url))
+            relative_path = str(Path(self.path).relative_to(base_folder.path))
             return base_folder_path + "/" + relative_path
 
     def contains(self, name_or_path) -> bool:
-        """Whether url of a Folder exists locally."""
-        url, fs = self.locate(name_or_path)
-        return url is not None
+        """Whether path of a Folder exists locally."""
+        path, fs = self.locate(name_or_path)
+        return path is not None
 
     def locate(self, name_or_path) -> (str, str):
-        """Locate the local url of a Folder given an rns path."""
+        """Locate the local path of a Folder given an rns path."""
         # Note: Keep in mind we're using both _rns_ path and physical path logic below. Be careful!
 
         # If the path is already given relative to the current folder:
-        if (Path(self.url) / name_or_path).exists():
-            return str(Path(self.url) / name_or_path), self.fs
+        if (Path(self.path) / name_or_path).exists():
+            return str(Path(self.path) / name_or_path), self.fs
 
-        # If name or path uses ~/ or ./, need to resolve with folder url
+        # If name or path uses ~/ or ./, need to resolve with folder path
         abs_path = rns_client.resolve_rns_path(name_or_path)
         rns_path = self.rns_address
 
@@ -716,11 +720,11 @@ class Folder(Resource):
             return None, None
 
         if abs_path == rns_path:
-            return self.url, self.fs
+            return self.path, self.fs
         try:
-            child_url = Path(self.url) / Path(abs_path).relative_to(rns_path)
-            if child_url.exists():
-                return str(child_url), self.fs
+            child_path = Path(self.path) / Path(abs_path).relative_to(rns_path)
+            if child_path.exists():
+                return str(child_path), self.fs
         except ValueError:
             pass
 
@@ -734,15 +738,15 @@ class Folder(Resource):
             )  # If only a single element, would have been found in ls above.
 
         # Look for lowest folder in the path that exists in filesystem, and recurse from that folder
-        greatest_common_folder = Path(self.url)
+        greatest_common_folder = Path(self.path)
         i = 0
         for i, seg in enumerate(segments):
             if not (greatest_common_folder / seg).exists():
                 break
             greatest_common_folder = greatest_common_folder / seg
-        if not str(greatest_common_folder) == self.url:
+        if not str(greatest_common_folder) == self.path:
             return Folder(
-                url=str(greatest_common_folder), fs=self.fs, dryrun=True
+                path=str(greatest_common_folder), fs=self.fs, dryrun=True
             ).locate("/".join(segments[i + 1 :]))
 
         return None, None
@@ -757,7 +761,7 @@ class Folder(Resource):
             with my_folder.open('obj_name') as my_file:
                 pickle.load(my_file)
         """
-        return self.fsspec_fs.open(self.url + "/" + name, mode=mode, encoding=encoding)
+        return self.fsspec_fs.open(self.path + "/" + name, mode=mode, encoding=encoding)
 
     def get(self, name, mode="rb", encoding=None):
         """Returns the contents of a file as a string or bytes."""
@@ -774,12 +778,12 @@ class Folder(Resource):
         """Whether the folder exists in the filesystem."""
         return self.fsspec_fs.exists(
             self.fsspec_url
-        ) or rh.rns.top_level_rns_fns.exists(self.url)
+        ) or rh.rns.top_level_rns_fns.exists(self.path)
 
     def delete_in_fs(self, recursive: bool = True):
         """Delete from file system."""
         try:
-            self.fsspec_fs.rmdir(self.url)
+            self.fsspec_fs.rmdir(self.path)
         except Exception as e:
             raise Exception(f"Failed to delete from file system: {e}")
 
@@ -809,10 +813,10 @@ class Folder(Resource):
         if isinstance(contents, Folder):
             if not self.is_writable():
                 raise RuntimeError(
-                    f"Cannot put files into non-writable folder {self.name or self.url}"
+                    f"Cannot put files into non-writable folder {self.name or self.path}"
                 )
-            if contents.url is None:  # Should only be the case when Folder is created
-                contents.url = self.url + "/" + contents.name
+            if contents.path is None:  # Should only be the case when Folder is created
+                contents.path = self.path + "/" + contents.name
                 contents.fs = self.fs
                 # The parent can be anonymous, e.g. the 'rh' folder.
                 # TODO not sure if this should be allowed - if parent folder has no rns address, why would child
@@ -821,7 +825,7 @@ class Folder(Resource):
                 if self.rns_address is None:
                     contents.rns_path = rns_client.default_folder + "/" + contents.name
                     rns_client.rns_base_folders.update(
-                        {contents.rns_address: contents.url}
+                        {contents.rns_address: contents.path}
                     )
                 # We don't need to call .save here to write down because it will be called at the end of the
                 # folder or resource constructor
@@ -830,7 +834,7 @@ class Folder(Resource):
                     i = 1
                     new_name = contents.RESOURCE_TYPE + str(i)
                     # Resolve naming conflicts if necessary
-                    while rns_client.exists(self.url + "/" + new_name):
+                    while rns_client.exists(self.path + "/" + new_name):
                         i += 1
                         new_name = contents.RESOURCE_TYPE + str(i)
                 else:
@@ -858,8 +862,8 @@ class Folder(Resource):
             intersection = set(folder_contents).intersection(set(contents.keys()))
             if intersection != set():
                 raise FileExistsError(
-                    f"File(s) {intersection} already exist(s) at url"
-                    f"{self.url}, cannot save them without overwriting."
+                    f"File(s) {intersection} already exist(s) at path"
+                    f"{self.path}, cannot save them without overwriting."
                 )
         # TODO figure out default behavior for not overwriting but still saving
         # if not overwrite:
@@ -878,24 +882,24 @@ class Folder(Resource):
                 f.write(raw_file)
 
     @staticmethod
-    def bucket_name_from_url(url: str) -> str:
-        """Extract the bucket name from a URL (e.g. '/my-bucket/my-folder/my-file.txt' -> 'my-bucket')"""
-        return Path(url).parts[1]
+    def bucket_name_from_path(path: str) -> str:
+        """Extract the bucket name from a path (e.g. '/my-bucket/my-folder/my-file.txt' -> 'my-bucket')"""
+        return Path(path).parts[1]
 
 
 def folder(
     name: Optional[str] = None,
-    url: Optional[Union[str, Path]] = None,
+    path: Optional[Union[str, Path]] = None,
     fs: Optional[str] = None,
     dryrun: bool = False,
     local_mount: bool = False,
     data_config: Optional[Dict] = None,
 ) -> Folder:
-    """Creates a Runhouse folder object, which can be used to interact with the folder at the given url (path).
+    """Creates a Runhouse folder object, which can be used to interact with the folder at the given path (path).
 
     Args:
         name (Optional[str]): Name to give the folder, to be re-used later on.
-        url (Optional[str or Path]): Url (or path) that the folder is located at.
+        path (Optional[str or Path]): Path (or path) that the folder is located at.
         fs (Optional[str]): File system. Currently this must be one of
             ["file", "github", "sftp", "ssh", "s3", "gcs", "azure"].
             We are working to add additional file system support.
@@ -907,13 +911,13 @@ def folder(
         Folder: The resulting folder.
 
     Example:
-        >>> rh.folder(name='training_imgs', url='remote_directory/images', fs='s3')
+        >>> rh.folder(name='training_imgs', path='remote_directory/images', fs='s3')
     """
     # TODO [DG] Include loud warning that relative paths are relative to the git root / working directory!
 
     config = rns_client.load_config(name)
     config["name"] = name or config.get("rns_address", None) or config.get("name")
-    config["url"] = url or config.get("url")
+    config["path"] = path or config.get("path")
     config["local_mount"] = local_mount or config.get("local_mount")
     config["data_config"] = data_config or config.get("data_config")
 

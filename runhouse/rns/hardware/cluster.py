@@ -173,7 +173,7 @@ class Cluster(Resource):
                 isinstance(pkg_obj.install_target, Folder)
                 and pkg_obj.install_target.is_local()
             ):
-                pkg_str = pkg_obj.name or Path(pkg_obj.install_target.url).name
+                pkg_str = pkg_obj.name or Path(pkg_obj.install_target.path).name
                 logging.info(
                     f"Copying local package {pkg_str} to cluster <{self.name}>"
                 )

@@ -68,9 +68,10 @@ And because it's not stateless, we can pin the model to GPU memory, and get ~1.5
 inference before any compilation.
 
 On the data side, we can do things like:
+
 ```python
 # Send a folder up to a cluster (rsync)
-rh.folder(url=input_images_dir).to(fs=gpu, url='dreambooth/instance_images')
+rh.folder(path=input_images_dir).to(fs=gpu, path='dreambooth/instance_images')
 
 # Stream a table in from anywhere (S3, GCS, local, etc)
 preprocessed_yelp = rh.table(name="preprocessed-tokenized-dataset")
@@ -79,7 +80,7 @@ for batch in preprocessed_table.stream(batch_size=batch_size):
 
 # Send a model checkpoint up to blob storage
 trained_model = rh.blob(data=pickle.dumps(model))
-trained_model.to('s3', url='runhouse/my_bucket').save(name='yelp_fine_tuned_bert')
+trained_model.to('s3', path='runhouse/my_bucket').save(name='yelp_fine_tuned_bert')
 ```
 
 These APIs work from anywhere with a Python interpreter and an internet connection,

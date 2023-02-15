@@ -136,7 +136,7 @@ class RNSClient:
     def _index_base_folders(self, lst):
         self.rns_base_folders = {}
         for folder in lst:
-            config = self._load_config_from_local(url=folder)
+            config = self._load_config_from_local(path=folder)
             rns_path = str(Path(self.default_folder) / Path(folder).name)
             if config:
                 rns_path = config.get("rns_address")
@@ -234,14 +234,14 @@ class RNSClient:
             return config
         return {}
 
-    def _load_config_from_local(self, rns_address=None, url=None) -> Optional[dict]:
+    def _load_config_from_local(self, rns_address=None, path=None) -> Optional[dict]:
         """Load config from local file"""
         # TODO should we handle remote filessytems, or throw an error if fs != 'file'?
-        if not url:
-            url = self.locate(rns_address, resolve_path=False)
-            if not url:
+        if not path:
+            path = self.locate(rns_address, resolve_path=False)
+            if not path:
                 return None
-        config_path = Path(url) / "config.json"
+        config_path = Path(path) / "config.json"
         if not config_path.exists():
             return None
 
@@ -288,7 +288,7 @@ class RNSClient:
 
     def _save_config_to_local(self, config: dict, rns_address: str):
         if not rns_address:
-            raise ValueError("Cannot save resource without rns address or url.")
+            raise ValueError("Cannot save resource without rns address or path.")
         resource_dir = Path(self.locate(rns_address, resolve_path=False))
         resource_dir.mkdir(parents=True, exist_ok=True)
         config_path = resource_dir / "config.json"
@@ -340,9 +340,9 @@ class RNSClient:
         )
 
         if rns_address[0] in ["~", "^"]:
-            url = self.locate(rns_address, resolve_path=False)
-            if url and Path(url).exists():
-                shutil.rmtree(url)
+            path = self.locate(rns_address, resolve_path=False)
+            if path and Path(path).exists():
+                shutil.rmtree(path)
             else:
                 logger.info(
                     f"Cannot delete resource {rns_address}, could not find the local config."
@@ -406,7 +406,7 @@ class RNSClient:
         name,
         resolve_path=True,
     ):
-        """Return the URL for a resource."""
+        """Return the path for a resource."""
         # First check if name is in current folder
 
         if name == "/":
@@ -456,6 +456,6 @@ class RNSClient:
         from runhouse.rns.folders.folder import folder
 
         folder_url = self.locate(name_or_path)
-        return folder(name=name_or_path, url=folder_url).resources(
+        return folder(name=name_or_path, path=folder_url).resources(
             full_paths=full_paths
         )

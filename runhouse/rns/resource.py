@@ -117,7 +117,7 @@ class Resource:
         `self.config_for_rns` to generate the dict to save."""
 
         # TODO deal with logic of saving anonymous folder for the first time after naming, i.e.
-        # Path(tempfile.gettempdir()).relative_to(self.url) ...
+        # Path(tempfile.gettempdir()).relative_to(self.path) ...
         if name:
             if "/" in name[1:] or self._rns_folder is None:
                 self._name, self._rns_folder = split_rns_name_and_path(
@@ -151,7 +151,7 @@ class Resource:
 
     @staticmethod
     def history(name: str, entries: int = 10) -> List[Dict]:
-        """Return the history of the resource, including specific config fields (e.g. blob URL) and which runs
+        """Return the history of the resource, including specific config fields (e.g. blob path) and which runs
         have overwritten it."""
         resource_uri = rns_client.resource_uri(name)
         resp = requests.get(

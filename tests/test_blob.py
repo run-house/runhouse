@@ -16,10 +16,10 @@ def test_create_and_reload_local_blob():
     my_blob = rh.blob(
         data=data,
         name=name,
-        url=str(TEMP_LOCAL_FOLDER / "my_blob.pickle"),
+        path=str(TEMP_LOCAL_FOLDER / "my_blob.pickle"),
         fs="file",
         dryrun=False,
-    )
+    ).save()
     del data
     del my_blob
 
@@ -44,10 +44,10 @@ def test_create_and_reload_rns_blob():
         name=name,
         data=data,
         fs="s3",
-        url=f"/{S3_BUCKET}/test_blob.pickle",
+        path=f"/{S3_BUCKET}/test_blob.pickle",
         mkdir=True,
         dryrun=False,
-    )
+    ).save()
 
     del data
     del my_blob
@@ -66,7 +66,7 @@ def test_create_and_reload_rns_blob():
 
 def test_from_cluster():
     cluster = rh.cluster(name="^rh-cpu").up_if_not()
-    config_blob = rh.blob(url="/home/ubuntu/.rh/config.yaml").from_cluster(cluster)
+    config_blob = rh.blob(path="/home/ubuntu/.rh/config.yaml").from_cluster(cluster)
     config_data = yaml.safe_load(config_blob.data)
     assert len(config_data.keys()) > 4
 

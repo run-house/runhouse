@@ -267,15 +267,15 @@ class Send(Resource):
                     fn_type=fn_type, args=args, kwargs=kwargs
                 )
         else:
-            # run the function via http url - user only needs Proxy access
+            # run the function via http path - user only needs Proxy access
             if self.access != ResourceAccess.proxy:
-                raise RuntimeError("Running http url requires proxy access")
+                raise RuntimeError("Running http path requires proxy access")
             if not rh_config.rns_client.token:
                 raise ValueError(
-                    "Token must be saved in the local .rh config in order to use an http url"
+                    "Token must be saved in the local .rh config in order to use an http path"
                 )
             http_url = self.http_url()
-            logger.info(f"Running {self.name} via http url: {http_url}")
+            logger.info(f"Running {self.name} via http path: {http_url}")
             resp = requests.post(
                 http_url,
                 data=json.dumps({"args": args, "kwargs": kwargs}),
@@ -700,7 +700,7 @@ def send(
             revision=branch_name,
         )
         config["reqs"].insert(0, repo_package)
-        # repo_package = Package(url=f'/',
+        # repo_package = Package(path=f'/',
         #                        fs='github',
         #                        data_config={'org': username, 'repo': repo_name, 'sha': branch_name,
         #                                     'filecache': {'cache_storage': repo_name}},

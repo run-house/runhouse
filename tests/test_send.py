@@ -217,7 +217,7 @@ def delete_send_from_rns(s):
     )
     if resp.status_code != 200:
         raise Exception(
-            f"Failed to delete_configs send data from url: {json.loads(resp.content)}"
+            f"Failed to delete_configs send data from path: {json.loads(resp.content)}"
         )
 
     try:
