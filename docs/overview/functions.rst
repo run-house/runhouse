@@ -5,7 +5,7 @@ Runhouse allows you to function code a cluster, but still interact with it as a 
 (see `tutorial 01 <https://github.com/run-house/tutorials/tree/main/t01_Stable_Diffusion/>`_).
 When you do this, the following steps occur:
 
-1. We check if the cluster is up, and bring up the cluster if not (only possible for autoscaled SkyClusters)
+1. We check if the cluster is up, and bring up the cluster if not (only possible for OnDemandClusters)
 2. We check that the cluster's gRPC server has started to handle requests to do things like install packages, run modules, get previously executed results, etc. If it hasn't, we install Runhouse on the cluster and start the gRPC server. The gRPC server initializes Ray.
 3. We collect the dependencies from the :code:`reqs` parameter and install them on the cluster via :code:`cluster.install_packages()`. By default, we'll sync over the working git repo and install its :code:`requirements.txt` if it has one.
 

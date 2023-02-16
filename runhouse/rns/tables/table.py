@@ -13,7 +13,7 @@ import ray.data
 import runhouse as rh
 from runhouse.rh_config import rns_client
 from runhouse.rns.folders.folder import folder
-from .. import Resource, SkyCluster
+from .. import Resource, OnDemandCluster
 from ..top_level_rns_fns import save
 
 logger = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ class Table(Resource):
     @staticmethod
     def from_config(config: dict, dryrun=True):
         if isinstance(config["fs"], dict):
-            config["fs"] = SkyCluster.from_config(config["fs"], dryrun=dryrun)
+            config["fs"] = OnDemandCluster.from_config(config["fs"], dryrun=dryrun)
         return Table(**config, dryrun=dryrun)
 
     @property

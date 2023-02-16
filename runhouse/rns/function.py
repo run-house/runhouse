@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class Function(Resource):
-    RESOURCE_TYPE = "send"  # TODO [DG] rename when rns store supports saving this type
+    RESOURCE_TYPE = "function"  # TODO [DG] rename when rns store supports saving this type
     DEFAULT_ACCESS = "write"
 
     def __init__(
@@ -108,15 +108,15 @@ class Function(Resource):
 
         logging.info("Setting up Function on cluster.")
         if not new_function.hardware.address:
-            # For SkyCluster, this initial check doesn't trigger a sky.status, which is slow.
+            # For OnDemandCluster, this initial check doesn't trigger a sky.status, which is slow.
             # If cluster simply doesn't have an address we likely need to up it.
             if not hasattr(new_function.hardware, "up"):
                 raise ValueError(
                     "Cluster must have an address (i.e. be up) or have a reup_cluster method "
-                    "(e.g. SkyCluster)."
+                    "(e.g. OnDemandCluster)."
                 )
             if not new_function.hardware.is_up():
-                # If this is a SkyCluster, before we up the cluster, run a sky.check to see if the cluster
+                # If this is a OnDemandCluster, before we up the cluster, run a sky.check to see if the cluster
                 # is already up but doesn't have an address assigned yet.
                 new_function.reup_cluster()
         try:

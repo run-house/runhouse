@@ -1,7 +1,7 @@
 import logging
 from typing import Optional
 
-from .. import SkyCluster
+from .. import OnDemandCluster
 from ..top_level_rns_fns import save
 
 from .table import Table
@@ -19,7 +19,7 @@ class RayTable(Table):
     def from_config(config: dict, dryrun=True):
         """Load config values into the object."""
         if isinstance(config["fs"], dict):
-            config["fs"] = SkyCluster.from_config(config["fs"], dryrun=dryrun)
+            config["fs"] = OnDemandCluster.from_config(config["fs"], dryrun=dryrun)
         return RayTable(**config)
 
     def save(

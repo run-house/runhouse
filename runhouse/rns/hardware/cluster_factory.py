@@ -3,7 +3,7 @@ from typing import List, Optional, Union
 from runhouse.rh_config import rns_client
 
 from .cluster import Cluster
-from .skycluster import SkyCluster
+from .on_demand_cluster import OnDemandCluster
 
 
 # Cluster factory method
@@ -19,7 +19,7 @@ def cluster(
     ips: List[str] = None,
     ssh_creds: Optional[dict] = None,
     dryrun: Optional[bool] = False,
-) -> Union[Cluster, SkyCluster]:
+) -> Union[Cluster, OnDemandCluster]:
     """
     Builds an instance of :class:`Cluster`.
 
@@ -40,7 +40,7 @@ def cluster(
         dryrun:
 
     Returns:
-        Cluster or SkyCluster: The resulting cluster.
+        Cluster or OnDemandCluster: The resulting cluster.
 
     Example:
         >>> # BYO Cluster
@@ -48,7 +48,7 @@ def cluster(
         >>>          ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'},
         >>>          name='rh-a10x')
 
-        >>> # On-Demand SkyPilot Cluster (SkyCluster)
+        >>> # On-Demand SkyPilot Cluster (OnDemandCluster)
         >>> gpu = rh.cluster(name='rh-4-a100s',
         >>>                  instance_type='A100:4',
         >>>                  provider='gcp',
@@ -83,6 +83,6 @@ def cluster(
     )
     config["region"] = region if region is not None else config.get("region", None)
 
-    new_cluster = SkyCluster.from_config(config, dryrun=dryrun)
+    new_cluster = OnDemandCluster.from_config(config, dryrun=dryrun)
 
     return new_cluster

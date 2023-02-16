@@ -20,12 +20,12 @@ Cluster
 
     .. automethod:: __init__
 
-SkyCluster
+OnDemandCluster
 ~~~~~~~~~~
-A SkyCluster is a cluster that uses SkyPilot functionality underneath to handle
+A OnDemandCluster is a cluster that uses SkyPilot functionality underneath to handle
 various cluster properties.
 
-.. autoclass:: runhouse.SkyCluster
+.. autoclass:: runhouse.OnDemandCluster
    :members:
    :exclude-members:
 

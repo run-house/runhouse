@@ -144,14 +144,14 @@ def get_pinned_object(key: str, default=None):
 
 
 def get(key: str, cluster=None, default=None):
-    from runhouse.rns.hardware.skycluster import SkyCluster
+    from runhouse.rns.hardware.on_demand_cluster import OnDemandCluster
 
     if isinstance(cluster, str):
         if cluster == rh_config.obj_store.cluster_name:
             # We're currently on cluster, so just get the object from local rh_config.obj_store
             return rh_config.obj_store.get(key, default=default)
         else:
-            cluster = SkyCluster.from_name(cluster)
+            cluster = OnDemandCluster.from_name(cluster)
 
     if cluster.name == rh_config.obj_store.cluster_name:
         return rh_config.obj_store.get(key, default=default)

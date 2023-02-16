@@ -54,7 +54,7 @@ class Cluster(Resource):
         self.client = None
 
         if not dryrun and self.address:
-            # SkyCluster will start ray itself, but will also set address later, so won't reach here.
+            # OnDemandCluster will start ray itself, but will also set address later, so won't reach here.
             self.start_ray()
 
     @staticmethod
@@ -63,9 +63,9 @@ class Cluster(Resource):
         if "ips" in config:
             return Cluster(**config, dryrun=dryrun)
         else:
-            from runhouse.rns.hardware import SkyCluster
+            from runhouse.rns.hardware import OnDemandCluster
 
-            return SkyCluster(**config, dryrun=dryrun)
+            return OnDemandCluster(**config, dryrun=dryrun)
 
     @property
     def config_for_rns(self):

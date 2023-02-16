@@ -14,7 +14,7 @@ from runhouse.rns.hardware.cluster import Cluster
 logger = logging.getLogger(__name__)
 
 
-class SkyCluster(Cluster):
+class OnDemandCluster(Cluster):
     RESOURCE_TYPE = "cluster"
 
     def __init__(
@@ -70,7 +70,7 @@ class SkyCluster(Cluster):
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
-        return SkyCluster(**config, dryrun=dryrun)
+        return OnDemandCluster(**config, dryrun=dryrun)
 
     @property
     def config_for_rns(self):

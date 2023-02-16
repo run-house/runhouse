@@ -104,7 +104,7 @@ class UnaryClient(object):
         message = pb2.Message(message=serialized_module)
         server_res = self.stub.RunModule(message)
         end = time.time()
-        logging.info(f"Time to function message: {round(end - start, 2)} seconds")
+        logging.info(f"Time to send message: {round(end - start, 2)} seconds")
         [res, fn_exception, fn_traceback] = pickle.loads(server_res.message)
         if fn_exception is not None:
             logger.error(f"Error inside function {fn_type}: {fn_exception}.")

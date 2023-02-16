@@ -68,8 +68,8 @@ By default this number is 10 minutes, but you can set it to -1 to disable autost
 
 Existing Clusters
 ~~~~~~~~~~~~~~~~~~
-"Existing cluster" can mean either a saved :ref:`SkyCluster` config, which will be brought back up if needed,
-or a BYO or SkyCluster that's already up. If you save the Cluster to the :ref:`Resource Name System (RNS)`,
+"Existing cluster" can mean either a saved :ref:`OnDemandCluster` config, which will be brought back up if needed,
+or a BYO or OnDemandCluster that's already up. If you save the Cluster to the :ref:`Resource Name System (RNS)`,
 you'll be able to dispatch to it from any environment. Multiple users or environments can function requests to a cluster
 without issue, and either the OS or Ray (depending on the call to the cluster) will handle the resource contention.
 
