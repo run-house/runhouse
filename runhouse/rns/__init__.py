@@ -7,5 +7,5 @@ from .hardware import Cluster, cluster, SkyCluster
 from .packages.package import Package
 from .resource import Resource
 from .secrets import Secrets
-from .send import Send
+from .function import Function
 from .tables.table import Table

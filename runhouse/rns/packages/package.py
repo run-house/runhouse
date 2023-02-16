@@ -119,7 +119,7 @@ class Package(Resource):
         else:
             raise ValueError(
                 f"Unknown install_method {self.install_method}. Try using cluster.run() or "
-                f"send.run_setup() to install instead."
+                f"function.run_setup() to install instead."
             )
 
     @staticmethod

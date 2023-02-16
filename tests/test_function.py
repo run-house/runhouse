@@ -24,62 +24,62 @@ def summer(a, b):
     return a + b
 
 
-def test_create_send_from_name_local():
-    local_sum = rh.send(
-        fn=summer, name="local_send", hardware="^rh-cpu", reqs=["local:./"]
+def test_create_function_from_name_local():
+    local_sum = rh.function(
+        fn=summer, name="local_function", hardware="^rh-cpu", reqs=["local:./"]
     ).save()
     del local_sum
 
-    remote_sum = rh.send(name="local_send")
+    remote_sum = rh.function(name="local_function")
     res = remote_sum(1, 5)
     assert res == 6
 
     remote_sum.delete_configs()
-    assert rh.exists("local_send") is False
+    assert rh.exists("local_function") is False
 
 
-def test_create_send_from_rns():
-    remote_sum = rh.send(
-        fn=summer, name="@/remote_send", hardware="^rh-cpu", reqs=[], dryrun=True
+def test_create_function_from_rns():
+    remote_sum = rh.function(
+        fn=summer, name="@/remote_function", hardware="^rh-cpu", reqs=[], dryrun=True
     ).save()
     del remote_sum
 
-    remote_sum = rh.send(name="@/remote_send")
+    remote_sum = rh.function(name="@/remote_function")
     res = remote_sum(1, 5)
     assert res == 6
 
     remote_sum.delete_configs()
-    assert rh.exists("@/remote_send") is False
+    assert rh.exists("@/remote_function") is False
 
 
 @unittest.skip("Not yet implemented.")
-def test_running_send_as_proxy():
-    remote_sum = rh.send(
-        fn=summer, name="@/remote_send", hardware="^rh-cpu", reqs=[], dryrun=False
+def test_running_function_as_proxy():
+    remote_sum = rh.function(
+        fn=summer, name="@/remote_function", hardware="^rh-cpu", reqs=[], dryrun=False
     ).save()
     del remote_sum
 
-    remote_sum = rh.send(name="@/remote_send")
+    remote_sum = rh.function(name="@/remote_function")
     remote_sum.access = ResourceAccess.proxy
     res = remote_sum(1, 5)
     assert res == 6
 
     remote_sum.delete_configs()
-    assert rh.exists("@remote_send") is False
+    assert rh.exists("@remote_function") is False
 
 
-def test_get_send_history():
-    remote_sum = rh.send(
-        fn=summer, name="@/remote_send", hardware="^rh-cpu", reqs=[], dryrun=True
+def test_get_function_history():
+    remote_sum = rh.function(
+        fn=summer, name="@/remote_function", hardware="^rh-cpu", reqs=[], dryrun=True
     ).save()
-    remote_sum = rh.send(
-        fn=summer, name="@/remote_send", hardware="^rh-cpu", reqs=["torch"], dryrun=True
+    remote_sum = rh.function(
+        fn=summer, name="@/remote_function", hardware="^rh-cpu", reqs=["torch"], dryrun=True
     ).save()
-    remote_sum = rh.send(
-        fn=summer, name="@/remote_send", hardware="^rh-cpu", reqs=[], dryrun=True
+    remote_sum = rh.function(
+        fn=summer, name="@/remote_function", hardware="^rh-cpu", reqs=[], dryrun=True
     ).save()
-    name = "@/remote_send"
-    remote_sum = rh.send(name=name)
+    name = "@/remote_function"
+    remote_sum = rh.function(name=name)
     history = remote_sum.history(name=name)
     assert len(history) >= 3
     assert "torch" in history[1]["data"]["reqs"]
@@ -95,10 +95,10 @@ def multiproc_torch_sum(inputs):
         return P.starmap(torch_summer, inputs)
 
 
-def test_remote_send_with_multiprocessing():
-    re_fn = rh.send(
+def test_remote_function_with_multiprocessing():
+    re_fn = rh.function(
         multiproc_torch_sum,
-        name="test_send",
+        name="test_function",
         hardware="^rh-cpu",
         reqs=["./", "torch==1.12.1"],
     )
@@ -112,7 +112,7 @@ def getpid(a=0):
 
 
 def test_maps():
-    pid_fn = rh.send(getpid, hardware="^rh-cpu")
+    pid_fn = rh.function(getpid, hardware="^rh-cpu")
     num_pids = [1] * 50
     pids = pid_fn.map(num_pids)
     assert len(set(pids)) > 1
@@ -132,14 +132,14 @@ def test_maps():
     pid_res_from_ref = pid_fn(pid_ref)
     assert pid_res_from_ref > pid_res
 
-    re_fn = rh.send(summer, hardware="^rh-cpu")
+    re_fn = rh.function(summer, hardware="^rh-cpu")
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn.starmap(summands)
     assert res == [4, 6, 8, 10, 12]
 
 
-def test_send_git_fn():
-    remote_parse = rh.send(
+def test_function_git_fn():
+    remote_parse = rh.function(
         fn="https://github.com/huggingface/diffusers/blob/"
         "main/examples/dreambooth/train_dreambooth.py:parse_args",
         hardware="^rh-cpu",
@@ -167,11 +167,11 @@ def test_send_git_fn():
 
 
 @unittest.skip("Not working properly.")
-def test_send_external_fn():
-    """Test sending a module from reqs, not from working_dir"""
+def test_function_external_fn():
+    """Test functioning a module from reqs, not from working_dir"""
     import torch
 
-    re_fn = rh.send(torch.sum, hardware="^rh-cpu", reqs=["torch"])
+    re_fn = rh.function(torch.sum, hardware="^rh-cpu", reqs=["torch"])
     res = re_fn(torch.arange(5))
     assert int(res) == 10
 
@@ -179,7 +179,7 @@ def test_send_external_fn():
 @unittest.skip("Runs indefinitely.")
 def test_notebook():
     nb_sum = lambda x: multiproc_torch_sum(x)
-    re_fn = rh.send(
+    re_fn = rh.function(
         nb_sum, hardware="^rh-cpu", reqs=["./", "torch==1.12.1"], dryrun=True
     )
     re_fn.notebook()
@@ -192,23 +192,23 @@ def test_notebook():
 @unittest.skip("Runs indefinitely.")
 def test_ssh():
     # TODO do this properly
-    my_send = rh.send(name="local_send")
-    my_send.ssh()
+    my_function = rh.function(name="local_function")
+    my_function.ssh()
     assert True
 
 
-def test_providing_access_to_send():
-    my_send = rh.send(
-        fn=summer, name="@/remote_send", hardware="^rh-cpu", dryrun=True
+def test_providing_access_to_function():
+    my_function = rh.function(
+        fn=summer, name="@/remote_function", hardware="^rh-cpu", dryrun=True
     ).save()
-    added_users, new_users = my_send.share(
+    added_users, new_users = my_function.share(
         users=["dongreenberg", "jlewit1"], access_type=ResourceAccess.read
     )
     assert added_users or new_users
-    my_send.delete_configs()
+    my_function.delete_configs()
 
 
-def delete_send_from_rns(s):
+def delete_function_from_rns(s):
     server_url = s.rns_client.api_server_url
     resource_request_uri = s.rns_client.resource_uri(s.name)
     resp = requests.delete(
@@ -217,7 +217,7 @@ def delete_send_from_rns(s):
     )
     if resp.status_code != 200:
         raise Exception(
-            f"Failed to delete_configs send data from path: {json.loads(resp.content)}"
+            f"Failed to delete_configs function data from path: {json.loads(resp.content)}"
         )
 
     try:
@@ -230,7 +230,7 @@ def delete_send_from_rns(s):
 @unittest.skip("Not yet implemented.")
 def test_http_url():
     # TODO [DG] shouldn't have to specify fn here as a callable / at all?
-    s = rh.send(fn=summer, name="test_send", hardware="^rh-cpu")
+    s = rh.function(fn=summer, name="test_function", hardware="^rh-cpu")
 
     # Generate and call the URL
     http_url = s.http_url()
@@ -238,26 +238,26 @@ def test_http_url():
 
     res = s(a=1, b=2)
 
-    # delete_configs the Send data from the RNS
-    # delete_send_from_rns(s)
+    # delete_configs the Function data from the RNS
+    # delete_function_from_rns(s)
 
     assert res == 3
 
 
 @unittest.skip("Not yet implemented.")
 def test_http_url_with_curl():
-    # NOTE: Assumes the Send has already been created and deployed to running cluster
-    s = rh.send(name="test_send")
+    # NOTE: Assumes the Function has already been created and deployed to running cluster
+    s = rh.function(name="test_function")
     curl_cmd = s.http_url(a=1, b=2, curl_command=True)
     print(curl_cmd)
 
-    # delete_configs the send data from the RNS
-    delete_send_from_rns(s)
+    # delete_configs the function data from the RNS
+    delete_function_from_rns(s)
 
     assert True
 
 
-def test_byo_cluster_send():
+def test_byo_cluster_function():
     # Spin up a new basic m5.xlarge EC2 instance
     c = rh.cluster(
         instance_type="m5.xlarge",
@@ -270,7 +270,7 @@ def test_byo_cluster_send():
     creds = c.ssh_creds()
     del c
     byo_cluster = rh.cluster(name="different-cluster", ips=[ip], ssh_creds=creds).save()
-    re_fn = rh.send(
+    re_fn = rh.function(
         multiproc_torch_sum, hardware=byo_cluster, reqs=["./", "torch==1.12.1"]
     )
     summands = list(zip(range(5), range(4, 9)))
@@ -279,7 +279,7 @@ def test_byo_cluster_send():
 
 
 def test_byo_cluster_maps():
-    pid_fn = rh.send(getpid, hardware="different-cluster")
+    pid_fn = rh.function(getpid, hardware="different-cluster")
     num_pids = [1] * 50
     pids = pid_fn.map(num_pids)
     assert len(set(pids)) > 1
@@ -299,7 +299,7 @@ def test_byo_cluster_maps():
     pid_res_from_ref = pid_fn(pid_ref)
     assert pid_res_from_ref > pid_res
 
-    re_fn = rh.send(summer, hardware="different-cluster")
+    re_fn = rh.function(summer, hardware="different-cluster")
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn.starmap(summands)
     assert res == [4, 6, 8, 10, 12]

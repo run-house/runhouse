@@ -4,7 +4,7 @@ import unittest
 
 import runhouse as rh
 
-from tests.test_send import multiproc_torch_sum
+from tests.test_function import multiproc_torch_sum
 
 TEMP_FILE = "my_file.txt"
 TEMP_FOLDER = "~/runhouse-tests"
@@ -27,7 +27,7 @@ def do_printing_and_logging():
 
 def test_get_from_cluster():
     cluster = get_test_cluster()
-    print_fn = rh.send(fn=do_printing_and_logging, hardware=cluster)
+    print_fn = rh.function(fn=do_printing_and_logging, hardware=cluster)
     key = print_fn.remote()
     assert isinstance(key, str)
     res = cluster.get(key, stream_logs=True)
@@ -36,7 +36,7 @@ def test_get_from_cluster():
 
 def test_stream_logs():
     cluster = get_test_cluster()
-    print_fn = rh.send(fn=do_printing_and_logging, hardware=cluster)
+    print_fn = rh.function(fn=do_printing_and_logging, hardware=cluster)
     res = print_fn(stream_logs=True)
     # TODO [DG] assert that the logs are streamed
     assert res == list(range(50))
@@ -44,7 +44,7 @@ def test_stream_logs():
 
 def test_multiprocessing_streaming():
     cluster = get_test_cluster()
-    re_fn = rh.send(multiproc_torch_sum, hardware=cluster, reqs=["./", "torch==1.12.1"])
+    re_fn = rh.function(multiproc_torch_sum, hardware=cluster, reqs=["./", "torch==1.12.1"])
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn(summands, stream_logs=True)
     assert res == [4, 6, 8, 10, 12]
@@ -52,7 +52,7 @@ def test_multiprocessing_streaming():
 
 def test_cancel_run():
     cluster = get_test_cluster()
-    print_fn = rh.send(fn=do_printing_and_logging, hardware=cluster)
+    print_fn = rh.function(fn=do_printing_and_logging, hardware=cluster)
     key = print_fn.remote()
     assert isinstance(key, str)
     res = cluster.cancel(key)

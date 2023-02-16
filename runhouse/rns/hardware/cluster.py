@@ -35,7 +35,7 @@ class Cluster(Resource):
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
-        The Runhouse cluster, or hardware. This is where you can run Sends or access/transfer data
+        The Runhouse cluster, or hardware. This is where you can run Functions or access/transfer data
         between. You can BYO (bring-your-own) cluster by providing cluster IP and ssh_creds, or
         this can be an on-demand cluster that is spun up/down through
         `SkyPilot <https://github.com/skypilot-org/skypilot>`_, using your cloud credentials.
@@ -492,9 +492,9 @@ class Cluster(Resource):
         )
 
     def send_secrets(self, reload: bool = False, providers: Optional[List[str]] = None):
-        """Send secrets for the given providers."""
+        """Function secrets for the given providers."""
         if providers is not None:
-            # Send secrets for specific providers from local configs rather than trying to load from Vault
+            # Function secrets for specific providers from local configs rather than trying to load from Vault
             from runhouse import Secrets
 
             secrets: list = Secrets.load_provider_secrets(providers=providers)

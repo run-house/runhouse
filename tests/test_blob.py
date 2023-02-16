@@ -66,7 +66,7 @@ def test_create_and_reload_rns_blob():
 
 def test_from_cluster():
     cluster = rh.cluster(name="^rh-cpu").up_if_not()
-    config_blob = rh.blob(path="/home/ubuntu/.rh/config.yaml").from_cluster(cluster)
+    config_blob = rh.blob(path="/home/ubuntu/.rh/config.yaml", fs=cluster)
     config_data = yaml.safe_load(config_blob.data)
     assert len(config_data.keys()) > 4
 

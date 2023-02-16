@@ -34,7 +34,7 @@ class Resource:
 
         - Compute Abstractions
             - Cluster :py:class:`.hardware.cluster.Cluster`
-            - Send :py:class:`.send.Send`
+            - Function :py:class:`.function.Function`
             - Package :py:class:`.packages.package.Package`
 
 
@@ -201,7 +201,7 @@ class Resource:
             `new_users`: users who do not have Runhouse accounts.
 
         Example:
-            >>> added_users, new_users = my_send.share(users=["username1", "user@gmail.com"], access_type='read')
+            >>> added_users, new_users = my_function.share(users=["username1", "user@gmail.com"], access_type='read')
         """
         if isinstance(access_type, str):
             access_type = ResourceAccess(access_type)

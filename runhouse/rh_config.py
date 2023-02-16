@@ -19,5 +19,5 @@ open_grpc_tunnels = {}
 
 rns_client = RNSClient(configs=configs)
 
-# To allow pinning objects to memory inside a send, e.g. to save time sending to cuda over and over
+# To allow pinning objects to memory inside a function, e.g. to save time sending to cuda over and over
 obj_store = ObjStore()

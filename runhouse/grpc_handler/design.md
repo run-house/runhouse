@@ -1,4 +1,4 @@
-# GRPC for Send Execution
+# GRPC for Function Execution
 
 ### Quick links:
 * https://grpc.io/docs/languages/python/basics/
