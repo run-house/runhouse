@@ -69,4 +69,4 @@ class SkySecrets(Secrets):
         # TODO do we need to register the keys with cloud providers? Probably not, sky does this for us later.
         # backend_utils._add_auth_to_cluster_config(sky.clouds.CLOUD_REGISTRY.from_str(self.provider),
         #                                                   Path(yaml_path).expanduser())
-        cls.save_secret_to_config()
+        cls.add_provider_to_rh_config()

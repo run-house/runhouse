@@ -35,4 +35,4 @@ class GHSecrets(Secrets):
         config["github.com"] = {"oauth_token": secrets["token"]}
 
         cls.save_to_yaml_file(config, dest_path)
-        cls.save_secret_to_config()
+        cls.add_provider_to_rh_config()

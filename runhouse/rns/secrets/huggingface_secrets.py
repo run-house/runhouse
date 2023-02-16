@@ -39,4 +39,4 @@ class HuggingFaceSecrets(Secrets):
         )
 
         huggingface_hub.login(token=secrets["token"])
-        cls.save_secret_to_config()
+        cls.add_provider_to_rh_config()

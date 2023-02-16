@@ -34,13 +34,13 @@ class UnaryStub(object):
             request_serializer=unary__pb2.Message.SerializeToString,
             response_deserializer=unary__pb2.MessageResponse.FromString,
         )
-        self.AddSecrets = channel.unary_unary(
-            "/unary.Unary/AddSecrets",
+        self.PutObject = channel.unary_unary(
+            "/unary.Unary/PutObject",
             request_serializer=unary__pb2.Message.SerializeToString,
             response_deserializer=unary__pb2.MessageResponse.FromString,
         )
-        self.PutObject = channel.unary_unary(
-            "/unary.Unary/PutObject",
+        self.AddSecrets = channel.unary_unary(
+            "/unary.Unary/AddSecrets",
             request_serializer=unary__pb2.Message.SerializeToString,
             response_deserializer=unary__pb2.MessageResponse.FromString,
         )
@@ -81,13 +81,13 @@ class UnaryServicer(object):
         context.set_details("Method not implemented!")
         raise NotImplementedError("Method not implemented!")
 
-    def AddSecrets(self, request, context):
+    def PutObject(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details("Method not implemented!")
         raise NotImplementedError("Method not implemented!")
 
-    def PutObject(self, request, context):
+    def AddSecrets(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details("Method not implemented!")
@@ -265,35 +265,6 @@ class Unary(object):
         )
 
     @staticmethod
-    def AddSecrets(
-        request,
-        target,
-        options=(),
-        channel_credentials=None,
-        call_credentials=None,
-        insecure=False,
-        compression=None,
-        wait_for_ready=None,
-        timeout=None,
-        metadata=None,
-    ):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            "/unary.Unary/AddSecrets",
-            unary__pb2.Message.SerializeToString,
-            unary__pb2.MessageResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-        )
-
-    @staticmethod
     def PutObject(
         request,
         target,
@@ -310,6 +281,35 @@ class Unary(object):
             request,
             target,
             "/unary.Unary/PutObject",
+            unary__pb2.Message.SerializeToString,
+            unary__pb2.MessageResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+        )
+
+    @staticmethod
+    def AddSecrets(
+        request,
+        target,
+        options=(),
+        channel_credentials=None,
+        call_credentials=None,
+        insecure=False,
+        compression=None,
+        wait_for_ready=None,
+        timeout=None,
+        metadata=None,
+    ):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            "/unary.Unary/AddSecrets",
             unary__pb2.Message.SerializeToString,
             unary__pb2.MessageResponse.FromString,
             options,

@@ -61,4 +61,4 @@ class GCPSecrets(Secrets):
             )
 
         cls.save_to_json_file(config, dest_path)
-        cls.save_secret_to_config()
+        cls.add_provider_to_rh_config()

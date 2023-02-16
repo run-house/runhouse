@@ -37,4 +37,4 @@ class LambdaSecrets(Secrets):
         with open(dest_path, "w") as f:
             f.write(f'api_key = {secrets["api_key"]}\n')
 
-        cls.save_secret_to_config()
+        cls.add_provider_to_rh_config()

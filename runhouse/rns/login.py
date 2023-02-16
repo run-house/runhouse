@@ -130,8 +130,7 @@ def logout(
     interactive_session: bool = (
         interactive if interactive is not None else is_interactive()
     )
-    configured_providers = Secrets.configured_providers()
-    for provider in configured_providers:
+    for provider in Secrets.enabled_providers():
         provider_name: str = provider.PROVIDER_NAME
         provider_creds_path: Union[str, tuple] = provider.default_credentials_path()
 

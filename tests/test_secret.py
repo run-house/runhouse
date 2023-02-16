@@ -5,9 +5,8 @@ import runhouse as rh
 
 def test_get_all_secrets():
     vault_secrets = rh.Secrets.download_into_env(save_locally=False)
-    providers = rh.Secrets.configured_providers(as_str=True)
-    assert set(providers) == set(list(vault_secrets)), "Mismatch between secrets saved in Vault and " \
-                                                       "secrets saved locally!"
+    providers = rh.Secrets.enabled_providers(as_str=True)
+    assert set(list(vault_secrets)).issubset(providers), "Secrets saved in Vault which are not enabled locally!"
 
 
 def test_upload_user_provider_secrets():
@@ -47,12 +46,12 @@ def test_delete_provider_secrets():
 
 def test_sending_secrets_to_cluster():
     cluster = rh.cluster(name="^rh-cpu", provider="lambda").up_if_not()
-    configured_providers = rh.Secrets.configured_providers()
+    enabled_providers = rh.Secrets.enabled_providers()
 
-    cluster.send_secrets(providers=configured_providers)
+    cluster.send_secrets(providers=enabled_providers)
 
     # Confirm the secrets now exist on the cluster
-    for provider_cls in configured_providers:
+    for provider_cls in enabled_providers:
         provider_name = provider_cls.PROVIDER_NAME
         command = [
             f"from runhouse.rns.secrets.{provider_name}_secrets import {str(provider_cls)}",
@@ -108,12 +107,12 @@ def test_login():
 
 
 def test_logout():
-    configured_providers = rh.Secrets.configured_providers(as_str=True)
+    enabled_providers = rh.Secrets.enabled_providers(as_str=True)
     current_config: dict = rh.configs.load_defaults_from_file()
 
     rh.logout(delete_loaded_secrets=True, delete_rh_config_file=True)
 
-    for provider_name in configured_providers:
+    for provider_name in enabled_providers:
         p = rh.Secrets.builtin_provider_class_from_name(provider_name)
         assert not p.has_secrets_file()
         assert not rh.configs.get(provider_name)
@@ -122,12 +121,7 @@ def test_logout():
 
     # Add back what we deleted as part of the logout
     rh.configs.save_defaults(defaults=current_config)
-    rh.Secrets.download_into_env(providers=configured_providers)
-
-
-# TODO [JL] Add tests for custom secret file paths
-def test_custom_secrets_paths():
-    pass
+    rh.Secrets.download_into_env(providers=enabled_providers, save_locally=True)
 
 
 if __name__ == "__main__":

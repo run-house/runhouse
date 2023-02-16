@@ -57,4 +57,4 @@ class SSHSecrets(Secrets):
             key_path.write_text(key)
             key_path.chmod(0o600)
 
-        cls.save_secret_to_config()
+        cls.add_provider_to_rh_config()

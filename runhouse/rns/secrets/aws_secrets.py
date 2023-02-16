@@ -68,4 +68,4 @@ class AWSSecrets(Secrets):
         )
 
         cls.save_to_config_file(parser, dest_path)
-        cls.save_secret_to_config()
+        cls.add_provider_to_rh_config()

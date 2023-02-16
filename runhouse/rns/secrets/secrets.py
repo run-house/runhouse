@@ -198,24 +198,22 @@ class Secrets:
                 f"Hardware {hardware_name} is not up. Run `hardware_obj.up()` to re-up the cluster."
             )
 
-        configured_providers: list = cls.configured_providers(as_str=True)
+        enabled_providers: list = cls.enabled_providers(as_str=True)
         provider_secrets: list = cls.load_provider_secrets(providers=providers)
-        if not provider_secrets or len(provider_secrets) < len(configured_providers):
-            # If no secrets found in local config files or secrets are missing for some configured providers,
-            # check if they exist in Vault
+        if not provider_secrets or len(provider_secrets) < len(enabled_providers):
+            # If no secrets found in the enabled providers' config files check if they exist in Vault
             vault_secrets: dict = cls.download_into_env(save_locally=False)
             providers_in_vault = list(vault_secrets)
             # TODO [JL] change this API so we don't have to convert the dict to a list?
             provider_secrets: list = [
                 {"provider": k, **v} for k, v in vault_secrets.items()
             ]
-            missing_providers = list(
-                set(configured_providers) - set(providers_in_vault)
-            )
+            missing_providers = list(set(enabled_providers) - set(providers_in_vault))
             if missing_providers:
                 raise Exception(
-                    f"Failed to find secrets stored in Vault for providers: {missing_providers}. "
-                    f"Please configure secrets locally or upload directly to Vault with `rh.Secrets.put(...)` "
+                    f"Failed to find secrets locally or in Vault for providers: {missing_providers}. "
+                    f"For enabling locally save the secrets to the provider's default credentials file, "
+                    f"or upload the secrets directly to Vault (e.g: `rh.Secrets.put({missing_providers[0]}))`"
                 )
 
         # Send provider secrets over RPC to the cluster, then save each provider's secrets into their default
@@ -241,7 +239,7 @@ class Secrets:
         """Load secret credentials for all the providers which have been configured locally, or optionally
         provide a list of specific providers to load."""
         secrets = []
-        providers = providers or cls.configured_providers()
+        providers = providers or cls.enabled_providers()
         for provider in providers:
             if isinstance(provider, str):
                 provider = cls.builtin_provider_class_from_name(provider)
@@ -262,9 +260,9 @@ class Secrets:
     @classmethod
     def save_provider_secrets(cls, secrets: dict):
         """Save secrets for each provider to their respective local configs"""
-        configured_providers = cls.configured_providers(as_str=True)
+        enabled_providers = cls.enabled_providers(as_str=True)
         for provider_name, provider_data in secrets.items():
-            if provider_name not in configured_providers:
+            if provider_name not in enabled_providers:
                 logger.warning(
                     f"Received secrets for {provider_name} which Runhouse did not detect as configured. "
                     f"Run `sky check` for instructions on how to enable them. If the secret is not supported by "
@@ -289,7 +287,7 @@ class Secrets:
     @classmethod
     def enabled_providers(cls, as_str: bool = False) -> List:
         """Returns a list of cloud providers which Runhouse supports out of the box that have also been confirmed as
-        enabled via sky. If as_str is True, return the names of the providers as strings"""
+        enabled via sky. If as_str is True, return the names of the enabled providers as strings"""
         sky.check.check(quiet=True)
         clouds = sky.global_user_state.get_enabled_clouds()
         cloud_names = [str(c).lower() for c in clouds]
@@ -298,7 +296,6 @@ class Secrets:
 
         cloud_names.append("sky")
 
-        # Check if the huggingface_hub package is installed
         try:
             import huggingface_hub  # noqa
 
@@ -307,30 +304,16 @@ class Secrets:
             pass
 
         if as_str:
-            return [
-                c.PROVIDER_NAME
-                for c in cls.all_supported_providers()
-                if c.PROVIDER_NAME in cloud_names
-            ]
+            return cloud_names
 
-        return [c for c in cls.all_supported_providers() if c.PROVIDER_NAME in cloud_names]
+        return [cls.builtin_provider_class_from_name(c) for c in cloud_names]
 
     @classmethod
-    def all_supported_providers(cls) -> list:
+    def builtin_providers(cls) -> list:
         """Return list of all Runhouse providers (as class objects) supported out of the box."""
         from runhouse.rns.secrets.providers import Providers
 
         return [e.value for e in Providers]
-
-    @classmethod
-    def configured_providers(cls, as_str: bool = False) -> List:
-        """Return list of enabled providers which have been configured in the local filesystem."""
-        configured_providers = [
-            p for p in cls.enabled_providers() if p.has_secrets_file()
-        ]
-        if as_str:
-            return [c.PROVIDER_NAME for c in configured_providers]
-        return configured_providers
 
     @classmethod
     def check_secrets_for_mismatches(
@@ -363,7 +346,7 @@ class Secrets:
                 Secrets.delete_secrets_file(f)
 
     @classmethod
-    def save_secret_to_config(cls):
+    def add_provider_to_rh_config(cls):
         """Save the loaded provider config path to the runhouse config saved in the file system."""
         configs.set(cls.PROVIDER_NAME, cls.default_credentials_path())
 
