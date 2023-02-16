@@ -14,7 +14,7 @@ from runhouse.rns.hardware.cluster import Cluster
 logger = logging.getLogger(__name__)
 
 
-class SkyCluster(Cluster):
+class OnDemandCluster(Cluster):
     RESOURCE_TYPE = "cluster"
 
     def __init__(
@@ -69,7 +69,7 @@ class SkyCluster(Cluster):
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
-        return SkyCluster(**config, dryrun=dryrun)
+        return OnDemandCluster(**config, dryrun=dryrun)
 
     @property
     def config_for_rns(self):
@@ -132,6 +132,7 @@ class SkyCluster(Cluster):
             sky.global_user_state.get_cluster_from_name(self.name)
             and Path(yaml_path).expanduser().exists()
         ):
+            self.populate_vars_from_status(dryrun=True)
             return
 
         ray_config = self.sky_data.pop("ray_config", {})
@@ -179,8 +180,7 @@ class SkyCluster(Cluster):
     def __getstate__(self):
         """Make sure sky_data is loaded in before pickling."""
         self.sky_data = self._get_sky_data()
-        state = self.__dict__.copy()
-        return state
+        return super().__getstate__()
 
     @staticmethod
     def relative_yaml_path(yaml_path):
@@ -225,6 +225,7 @@ class SkyCluster(Cluster):
         # return backend_utils._refresh_cluster_record(
         #     self.name, force_refresh=refresh, acquire_per_cluster_status_lock=False
         # )
+        # TODO [DG] Use new sky.status where you can pass cluster name
         return self.get_sky_statuses(cluster_name=self.name, refresh=refresh)
 
     def populate_vars_from_status(self, dryrun: bool = False):
@@ -342,7 +343,11 @@ class SkyCluster(Cluster):
             raise Exception(f"File with ssh key not found in: {path_to_file}")
 
     def ssh_creds(self):
-        if not self._yaml_path or not Path(self._yaml_path).exists():
+        if (
+            not self._yaml_path
+            or not self._yaml_path
+            or not Path(self._yaml_path).exists()
+        ):
             if self.sky_data:
                 # If this cluster was serialized and sent over the wire, it will have sky_data (we make sure of that
                 # in __getstate__) but no yaml, and we need to save down the sky data to the sky db and local yaml

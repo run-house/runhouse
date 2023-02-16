@@ -2,7 +2,7 @@ Clusters
 ====================================
 
 A :ref:`Cluster` represents a set of machines which can be sent code or data, or a machine spec that could be spun up in the
-event that we have some code or data to send to the machine.
+event that we have some code or data to function to the machine.
 Generally they are `Ray clusters <https://docs.ray.io/en/latest/cluster/getting-started.html>`_ under the hood.
 
 There are a few kinds of clusters today:
@@ -28,7 +28,7 @@ On-Demand Clusters
 Runhouse can spin up and down boxes for you as needed using `SkyPilot <https://github.com/skypilot-org/skypilot/>`_.
 When you define a SkyPilot "cluster,"
 you're primarily defining the configuration for us to spin up the compute resources on-demand.
-When someone then calls a send or similar, we'll spin the box back up for you. You can also create these through the
+When someone then calls a function or similar, we'll spin the box back up for you. You can also create these through the
 cluster factory constructor:
 
 You can use the cluster factory constructor like so:
@@ -68,9 +68,9 @@ By default this number is 10 minutes, but you can set it to -1 to disable autost
 
 Existing Clusters
 ~~~~~~~~~~~~~~~~~~
-"Existing cluster" can mean either a saved :ref:`SkyCluster` config, which will be brought back up if needed,
-or a BYO or SkyCluster that's already up. If you save the Cluster to the :ref:`Resource Name System (RNS)`,
-you'll be able to dispatch to it from any environment. Multiple users or environments can send requests to a cluster
+"Existing cluster" can mean either a saved :ref:`OnDemandCluster` config, which will be brought back up if needed,
+or a BYO or OnDemandCluster that's already up. If you save the Cluster to the :ref:`Resource Name System (RNS)`,
+you'll be able to dispatch to it from any environment. Multiple users or environments can function requests to a cluster
 without issue, and either the OS or Ray (depending on the call to the cluster) will handle the resource contention.
 
 You can load an existing cluster by name from local or Runhouse RNS simply by:
@@ -101,7 +101,7 @@ or in Python:
 
     my_cluster.ssh()
     # or
-    # my_send.ssh()
+    # my_function.ssh()
 
 If you prefer to work in notebooks, you can tunnel a JupyterLab server into your local browser:
 
@@ -113,7 +113,7 @@ or in Python:
 
 .. code-block:: python
 
-    my_send.notebook()
+    my_function.notebook()
     # or
     my_cluster.notebook()
 
@@ -135,7 +135,7 @@ To run any Python on the cluster:
 
     gpu.run_python(['import torch', 'print(torch.__version__)'])
 
-This is useful for debugging, or for running a script that you don't want to send to the cluster
+This is useful for debugging, or for running a script that you don't want to function to the cluster
 (e.g. because it has too many dependencies).
 
 If you want to run an application on the cluster that requires a port to be open,

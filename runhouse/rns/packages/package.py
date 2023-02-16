@@ -56,7 +56,7 @@ class Package(Resource):
         if isinstance(self.install_target, Folder):
             # if self.install_target.name:
             #     return f'Package: {self.install_target.name}'
-            return f"Package: {self.install_target.url}"
+            return f"Package: {self.install_target.path}"
         return f"Package: {self.install_target}"
 
     def install(self):
@@ -73,7 +73,7 @@ class Package(Resource):
             elif not self.install_target.is_local():
                 # TODO [DG] replace this with empty mount() call to be put in tmp folder by Folder
                 local_path = self.install_target.mount(
-                    url=f"~/{Path(self.install_target.url).stem}"
+                    path=f"~/{Path(self.install_target.path).stem}"
                 )
 
             if self.install_method == "pip":
@@ -119,7 +119,7 @@ class Package(Resource):
         else:
             raise ValueError(
                 f"Unknown install_method {self.install_method}. Try using cluster.run() or "
-                f"send.run_setup() to install instead."
+                f"function.run_setup() to install instead."
             )
 
     @staticmethod
@@ -155,12 +155,14 @@ class Package(Resource):
                     "available for your platform."
                 )
 
-    def to_cluster(self, dest_cluster, url=None, mount=False, return_dest_folder=False):
+    def to_cluster(
+        self, dest_cluster, path=None, mount=False, return_dest_folder=False
+    ):
         """Returns a copy of the package on the destination cluster."""
         if isinstance(self.install_target, Folder):
             new_folder = self.install_target.to_cluster(
                 dest_cluster,
-                url=url,
+                path=path,
                 mount=mount,
                 return_dest_folder=return_dest_folder,
             )
@@ -206,7 +208,7 @@ class Package(Resource):
             else Path(rh_config.rns_client.locate_working_dir()) / rel_target
         )
         if abs_target.exists():
-            target = Folder(url=rel_target)
+            target = Folder(path=rel_target)
         else:
             target = rel_target
 
@@ -258,7 +260,7 @@ def package(
     install_method: str = None,
     install_str: str = None,
     url: str = None,
-    fs: str = Folder.DEFAULT_FS,
+    system: str = Folder.DEFAULT_FS,
     dryrun: bool = False,
     local_mount: bool = False,
     data_config: Optional[Dict] = None,
@@ -271,7 +273,7 @@ def package(
         install_method (str): Method for installing the package. Options: ["pip", "conda", "reqs"]
         install_str (str): Additional arguments to install.  # TODO: not too sure about this
         url (str): URL of the package to install.
-        fs (str): File system. Currently this must be one of
+        system (str): File system. Currently this must be one of
             ["file", "github", "sftp", "ssh", "s3", "gcs", "azure"].
             We are working to add additional file system support.
         dryrun (bool): Whether to install the package locally. (Default: ``False``)
@@ -290,7 +292,7 @@ def package(
     config["install_method"] = install_method or config.get("install_method")
     if url is not None:
         config["install_target"] = Folder(
-            url=url, fs=fs, local_mount=local_mount, data_config=data_config
+            path=url, system=system, local_mount=local_mount, data_config=data_config
         )
         config["install_args"] = install_str
     elif install_str is not None:

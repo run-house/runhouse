@@ -1,7 +1,7 @@
 .. runhouse documentation master file, created by
 
 Runhouse 🏃‍♀️🏠
-====================================
+============
 
 .. raw:: html
 
@@ -17,9 +17,9 @@ Runhouse 🏃‍♀️🏠
    <a class="github-button" href="https://github.com/run-house/runhouse/fork" data-icon="octicon-repo-forked" data-size="large" aria-label="Fork run-house/runhouse on GitHub">Fork</a>
    </p>
 
-PyTorch lets you send a model or tensor :code:`.to(device)`, so why can't you do :code:`my_fn.to('a_gcp_a100')`,
+PyTorch lets you function a model or tensor :code:`.to(device)`, so why can't you do :code:`my_fn.to('a_gcp_a100')`,
 or :code:`my_table.to('parquet_in_s3')`?
-Runhouse allows just that: send code and data to any of your compute or data infra (with your own cloud creds),
+Runhouse allows just that: function code and data to any of your compute or data infra (with your own cloud creds),
 all in Python, and continue to use them eagerly exactly as they were.
 
 Runhouse is for ML Researchers, Engineers, and Data Scientists who are tired of:
@@ -44,7 +44,7 @@ There's no magic yaml, DSL, code serialization, or "submitting for execution." W
 
 
 Getting Started 🐣
-------------------------------------
+------------------
 .. code-block:: console
 
     $ pip install runhouse
@@ -57,28 +57,8 @@ Getting Started 🐣
    See the :ref:`Installation` section for more detailed instructions.
 
 
-Tutorials 👨‍🏫
-------------------------------------
-Our `tutorials <https://github.com/run-house/tutorials/>`_ have been structured to provide a comprehensive walk through of the APIs,
-as well as introduce you to the tools and usage patterns of Runhouse.
-We've devised them to chart a fun path through our features.
-
-
-Contribute 👷‍♀️
-------------------------------------
-We'd love for you to contribute to Runhouse! Please reach out to us with any questions or support requests 🙂
-
-- `Issue Tracker <https://github.com/run-house/runhouse/issues/>`_
-- `Source Code <https://github.com/run-house/runhouse/>`_
-
-Join the Community!
-------------------------------------
-- `Discord <https://discord.gg/RnhB6589Hs/>`_
-- `Twitter <https://twitter.com/runhouse_/>`_
-
-
-Documentation
---------------------
+Table of Contents
+-----------------
 .. toctree::
    :maxdepth: 1
    :caption: Using Runhouse
@@ -102,7 +82,7 @@ Documentation
 
    overview/overview
    overview/clusters
-   overview/sends
+   overview/functions
    overview/notebooks
    overview/accessibility
    overview/secrets
@@ -115,3 +95,11 @@ Documentation
    Dreambooth Training and Inference <https://github.com/run-house/tutorials/tree/main/t02_Dreambooth>
    DALL-E to SD img2img in a Notebook <https://github.com/run-house/tutorials/tree/main/t03_DALLE_SD_pipeline>
    BERT Full Pipeline <https://github.com/run-house/tutorials/tree/main/t05_BERT_pipeline>
+
+
+Contributing and Community
+--------------------------
+- `Issue Tracker <https://github.com/run-house/runhouse/issues/>`_
+- `Contributing <https://github.com/run-house/runhouse/blob/main/CONTRIBUTING.md>`_
+- `Discord <https://discord.gg/RnhB6589Hs/>`_
+- `Twitter <https://twitter.com/runhouse_/>`_

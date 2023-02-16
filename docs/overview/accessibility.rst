@@ -60,7 +60,7 @@ only the name, e.g.
 
 .. code-block:: python
 
-    rh.send(name='my_send')
+    rh.function(name='my_function')
     rh.cluster(name='~/my_name')
     rh.table(name='@/my_datasets/my_table')
 
@@ -68,7 +68,7 @@ You may need to pass the full rns_address if the resource is not in rh.current_f
 
 .. code-block:: python
 
-    rh.exists(name='my_send')
+    rh.exists(name='my_function')
     rh.exists(name='~/local_resource')
     rh.exists(name='@/my/rns_path/to/my_table')
 
@@ -136,7 +136,7 @@ instances. You can override this setting in the cluster factory constructor:
 
 Clusters can start and stop dynamically to save money. If you set :code:`autostop = 10`, the cluster will terminate after
 10 minutes of inactivity. If you set :code:`autostop = -1`, the cluster will stay up indefinitely.
-After the cluster terminates, if you call a Send which is on that cluster, the Send will automatically start the
+After the cluster terminates, if you call a Function which is on that cluster, the Function will automatically start the
 cluster again. You can also call :code:`cluster.keep_warm(autostop=-1)` to control this for an existing cluster:
 
 .. code-block:: python
@@ -161,7 +161,7 @@ Now that you've changed some configs, you probably want to save them to Runhouse
 
 Viewing RPC Logs
 ~~~~~~~~~~~~~~~~
-If you didn't run your send with :code:`stream_logs=True` and otherwise need to see the logs for Runhouse
+If you didn't run your function with :code:`stream_logs=True` and otherwise need to see the logs for Runhouse
 on a particular cluster, you can ssh into the cluster with :code:`ssh <cluster name>` and :code:`screen -r` (and use control A+D to exit.
 If you control-C you will stop the server). The server runs inside that screen instance, so logs are written to there.
 

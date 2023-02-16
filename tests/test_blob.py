@@ -16,10 +16,10 @@ def test_create_and_reload_local_blob():
     my_blob = rh.blob(
         data=data,
         name=name,
-        url=str(TEMP_LOCAL_FOLDER / "my_blob.pickle"),
-        fs="file",
+        path=str(TEMP_LOCAL_FOLDER / "my_blob.pickle"),
+        system="file",
         dryrun=False,
-    )
+    ).save()
     del data
     del my_blob
 
@@ -28,8 +28,8 @@ def test_create_and_reload_local_blob():
     assert reloaded_data == list(range(50))
 
     # Delete the blob itself
-    reloaded_blob.delete_in_fs()
-    assert not reloaded_blob.exists_in_fs()
+    reloaded_blob.delete_in_system()
+    assert not reloaded_blob.exists_in_system()
 
     # Delete metadata saved locally and / or the database for the blob
     reloaded_blob.delete_configs()
@@ -43,11 +43,11 @@ def test_create_and_reload_rns_blob():
     my_blob = rh.blob(
         name=name,
         data=data,
-        fs="s3",
-        url=f"/{S3_BUCKET}/test_blob.pickle",
+        system="s3",
+        path=f"/{S3_BUCKET}/test_blob.pickle",
         mkdir=True,
         dryrun=False,
-    )
+    ).save()
 
     del data
     del my_blob
@@ -57,8 +57,8 @@ def test_create_and_reload_rns_blob():
     assert reloaded_data == list(range(50))
 
     # Delete the blob itself from the filesystem
-    reloaded_blob.delete_in_fs()
-    assert not reloaded_blob.exists_in_fs()
+    reloaded_blob.delete_in_system()
+    assert not reloaded_blob.exists_in_system()
 
     # Delete metadata saved locally and / or the database for the blob and its associated folder
     reloaded_blob.delete_configs()
@@ -66,7 +66,7 @@ def test_create_and_reload_rns_blob():
 
 def test_from_cluster():
     cluster = rh.cluster(name="^rh-cpu").up_if_not()
-    config_blob = rh.blob(url="/home/ubuntu/.rh/config.yaml").from_cluster(cluster)
+    config_blob = rh.blob(path="/home/ubuntu/.rh/config.yaml", system=cluster)
     config_data = yaml.safe_load(config_blob.data)
     assert len(config_data.keys()) > 4
 

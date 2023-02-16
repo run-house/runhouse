@@ -77,8 +77,8 @@ def test_ls():
 
 def test_from_name():
     f = rh.Folder.from_name("~/tests/bert_ft", dryrun=True)
-    assert f.url
-    c = rh.SkyCluster.from_name("^rh-cpu", dryrun=True)
+    assert f.path
+    c = rh.OnDemandCluster.from_name("^rh-cpu", dryrun=True)
     assert c.instance_type == "CPU:2+"
 
 

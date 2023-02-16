@@ -4,7 +4,7 @@ Access Controls
 We currently provide three types of access controls across all Runhouse resources:
 
 - :code:`Write`: Full control over the resource, including modifying the config for the resource.
-- :code:`Read`: Cannot modify the config, but can access the resource directly (e.g. ssh level for a Send).
+- :code:`Read`: Cannot modify the config, but can access the resource directly (e.g. ssh level for a Function).
 - :code:`Proxy`: Only have http access to the resource, unable to access the resource directly.
 
 .. tip::

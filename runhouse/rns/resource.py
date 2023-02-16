@@ -33,8 +33,8 @@ class Resource:
         Runhouse currently supports the following builtin Resource types:
 
         - Compute Abstractions
-            - Cluster :py:class:`.hardware.cluster.Cluster`
-            - Send :py:class:`.send.Send`
+            - Cluster :py:class:`.system.cluster.Cluster`
+            - Function :py:class:`.function.Function`
             - Package :py:class:`.packages.package.Package`
 
 
@@ -117,7 +117,7 @@ class Resource:
         `self.config_for_rns` to generate the dict to save."""
 
         # TODO deal with logic of saving anonymous folder for the first time after naming, i.e.
-        # Path(tempfile.gettempdir()).relative_to(self.url) ...
+        # Path(tempfile.gettempdir()).relative_to(self.path) ...
         if name:
             if "/" in name[1:] or self._rns_folder is None:
                 self._name, self._rns_folder = split_rns_name_and_path(
@@ -151,7 +151,7 @@ class Resource:
 
     @staticmethod
     def history(name: str, entries: int = 10) -> List[Dict]:
-        """Return the history of the resource, including specific config fields (e.g. blob URL) and which runs
+        """Return the history of the resource, including specific config fields (e.g. blob path) and which runs
         have overwritten it."""
         resource_uri = rns_client.resource_uri(name)
         resp = requests.get(
@@ -201,7 +201,7 @@ class Resource:
             `new_users`: users who do not have Runhouse accounts.
 
         Example:
-            >>> added_users, new_users = my_send.share(users=["username1", "user@gmail.com"], access_type='read')
+            >>> added_users, new_users = my_function.share(users=["username1", "user@gmail.com"], access_type='read')
         """
         if isinstance(access_type, str):
             access_type = ResourceAccess(access_type)

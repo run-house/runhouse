@@ -3,7 +3,8 @@
 # TODO allow registration of user-created resource implementations
 
 from .blob import Blob
-from .hardware import Cluster, cluster, SkyCluster
+from .function import Function
+from .hardware import Cluster, cluster, OnDemandCluster
 from .packages.package import Package
 from .resource import Resource
 from .secrets.secrets import Secrets

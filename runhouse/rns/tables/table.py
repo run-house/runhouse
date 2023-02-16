@@ -13,7 +13,7 @@ import ray.data
 import runhouse as rh
 from runhouse.rh_config import rns_client
 from runhouse.rns.folders.folder import folder
-from .. import Resource, SkyCluster
+from .. import OnDemandCluster, Resource
 from ..top_level_rns_fns import save
 
 logger = logging.getLogger(__name__)
@@ -29,10 +29,10 @@ class Table(Resource):
 
     def __init__(
         self,
-        url: str,
+        path: str,
         name: Optional[str] = None,
         file_name: Optional[str] = None,
-        fs: Optional[str] = None,
+        system: Optional[str] = None,
         data_config: Optional[dict] = None,
         dryrun: bool = False,
         partition_cols: Optional[List] = None,
@@ -47,9 +47,11 @@ class Table(Resource):
             To build a Table, please use the factory function :func:`table`.
         """
         super().__init__(name=name, dryrun=dryrun)
-        self._filename = str(Path(url).name) if url else self.name
-        # Use factory method so correct subclass for fs is returned
-        self._folder = folder(url=url, fs=fs, data_config=data_config, dryrun=dryrun)
+        self._filename = str(Path(path).name) if path else self.name
+        # Use factory method so correct subclass for system is returned
+        self._folder = folder(
+            path=path, system=system, data_config=data_config, dryrun=dryrun
+        )
         self._cached_data = None
         self.partition_cols = partition_cols
         self.file_name = file_name
@@ -58,19 +60,21 @@ class Table(Resource):
 
     @staticmethod
     def from_config(config: dict, dryrun=True):
-        if isinstance(config["fs"], dict):
-            config["fs"] = SkyCluster.from_config(config["fs"], dryrun=dryrun)
+        if isinstance(config["system"], dict):
+            config["system"] = OnDemandCluster.from_config(
+                config["system"], dryrun=dryrun
+            )
         return Table(**config, dryrun=dryrun)
 
     @property
     def config_for_rns(self):
         config = super().config_for_rns
         if isinstance(self._folder, Resource):
-            config["fs"] = self._resource_string_for_subconfig(self.fs)
+            config["system"] = self._resource_string_for_subconfig(self.system)
             config["data_config"] = self._folder._data_config
         else:
-            config["fs"] = self.fs
-        self.save_attrs_to_config(config, ["url", "partition_cols", "metadata"])
+            config["system"] = self.system
+        self.save_attrs_to_config(config, ["path", "partition_cols", "metadata"])
         config.update(config)
 
         return config
@@ -99,22 +103,22 @@ class Table(Resource):
         # self.save(overwrite=True)
 
     @property
-    def fs(self):
-        return self._folder.fs
+    def system(self):
+        return self._folder.system
 
-    @fs.setter
-    def fs(self, new_fs):
-        self._folder.fs = new_fs
+    @system.setter
+    def system(self, new_system):
+        self._folder.system = new_system
 
     @property
-    def url(self):
+    def path(self):
         if self.file_name:
-            return f"{self._folder.url}/{self.file_name}"
-        return self._folder.url
+            return f"{self._folder.path}/{self.file_name}"
+        return self._folder.path
 
-    @url.setter
-    def url(self, new_url):
-        self._folder.url = new_url
+    @path.setter
+    def path(self, new_path):
+        self._folder.path = new_path
 
     def set_metadata(self, key, val):
         self.metadata[key] = val
@@ -136,10 +140,12 @@ class Table(Resource):
     def data_config(self, new_data_config):
         self._folder.data_config = new_data_config
 
-    def to(self, fs, url=None, data_config=None):
-        """Copy and return the table on the given filesystem and URL."""
+    def to(self, system, path=None, data_config=None):
+        """Copy and return the table on the given filesystem and path."""
         new_table = copy.copy(self)
-        new_table._folder = self._folder.to(fs=fs, url=url, data_config=data_config)
+        new_table._folder = self._folder.to(
+            system=system, path=path, data_config=data_config
+        )
         return new_table
 
     def save(
@@ -172,15 +178,15 @@ class Table(Resource):
                 self._cached_data = pq.read_table(t.full_name, columns=columns)
         except:
             # When trying to read as file like object could fail for a couple of reasons:
-            # IsADirectoryError: The folder URL is actually a directory and the file has been automatically
+            # IsADirectoryError: The folder path is actually a directory and the file has been automatically
             # generated for us inside the folder (ex: pyarrow table)
 
             # The file system is SFTP: since the SFTPFileSystem takes the host as a separate param, we cannot
             # pass in the data config as a single data_config kwarg
 
-            # When specifying the filesystem don't pass in the fsspec url (which includes the file system prepended)
+            # When specifying the filesystem don't pass in the fsspec path (which includes the file system prepended)
             self._cached_data = pq.read_table(
-                self.url, columns=columns, filesystem=self._folder.fsspec_fs
+                self.path, columns=columns, filesystem=self._folder.fsspec_fs
             )
         return self._cached_data
 
@@ -277,26 +283,29 @@ class Table(Resource):
         """Convert an Arrow Table to a ray Dataset"""
         return ray.data.from_arrow(data)
 
-    def delete_in_fs(self, recursive: bool = True):
+    def delete_in_system(self, recursive: bool = True):
         """Remove contents of all subdirectories (ex: partitioned data folders)"""
         # If file(s) are directories, recursively delete contents and then also remove the directory
         # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.spec.AbstractFileSystem.rm
-        self._folder.fsspec_fs.rm(self.url, recursive=recursive)
+        self._folder.fsspec_fs.rm(self.path, recursive=recursive)
 
-    def exists_in_fs(self):
+    def exists_in_system(self):
         """Whether table exists in file system"""
-        return self._folder.exists_in_fs() and len(self._folder.ls(self.fsspec_url)) > 1
+        return (
+            self._folder.exists_in_system()
+            and len(self._folder.ls(self.fsspec_url)) > 1
+        )
 
     def from_cluster(self, cluster):
-        """Create a remote folder from a url on a cluster. This will create a virtual link into the
+        """Create a remote folder from a path on a cluster. This will create a virtual link into the
         cluster's filesystem.
 
         If you want to create a local copy or mount of the folder, use
-        ``Folder('url').from_cluster(<cluster>).mount(<local_url>)``."""
+        ``Folder('path').from_cluster(<cluster>).mount(<local_path>)``."""
         if not cluster.address:
             raise ValueError("Cluster must be started before copying data from it.")
         new_table = copy.deepcopy(self)
-        new_table._folder.fs = cluster
+        new_table._folder.system = cluster
         return new_table
 
 
@@ -378,8 +387,8 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
 def table(
     data=None,
     name: Optional[str] = None,
-    url: Optional[str] = None,
-    fs: Optional[str] = None,
+    path: Optional[str] = None,
+    system: Optional[str] = None,
     data_config: Optional[dict] = None,
     partition_cols: Optional[list] = None,
     mkdir: bool = False,
@@ -387,13 +396,13 @@ def table(
     stream_format: Optional[str] = None,
     metadata: Optional[dict] = None,
 ) -> Table:
-    """Constructs a Table object, which can be used to interact with the table at the given url.
+    """Constructs a Table object, which can be used to interact with the table at the given path.
 
     Args:
         data: Data to be stored in the table.
         name (Optional[str]): Name for the table, to reuse it later on.
-        url (Optional[str]): Full path to the data file.
-        fs (Optional[str]): File system. Currently this must be one of
+        path (Optional[str]): Full path to the data file.
+        system (Optional[str]): File system. Currently this must be one of
             ["file", "github", "sftp", "ssh", "s3", "gcs", "azure"].
         data_config (Optional[dict]): The data config to pass to the underlying fsspec handler.
         partition_cols (Optional[list]): List of columns to partition the table by.
@@ -411,8 +420,8 @@ def table(
         >>> rh.table(
         >>>    data=data,
         >>>    name="~/my_test_pandas_table",
-        >>>    url="table_tests/test_pandas_table.parquet",
-        >>>    fs="file",
+        >>>    path="table_tests/test_pandas_table.parquet",
+        >>>    system="file",
         >>>    mkdir=True,
         >>> )
         >>>
@@ -421,40 +430,40 @@ def table(
     """
     config = rns_client.load_config(name)
 
-    config["fs"] = fs or config.get("fs") or rns_client.DEFAULT_FS
-    if isinstance(config["fs"], str) and rns_client.exists(
-        config["fs"], resource_type="cluster"
+    config["system"] = system or config.get("system") or rns_client.DEFAULT_FS
+    if isinstance(config["system"], str) and rns_client.exists(
+        config["system"], resource_type="cluster"
     ):
-        config["fs"] = rns_client.load_config(config["fs"])
+        config["system"] = rns_client.load_config(config["system"])
 
     name = name or config.get("rns_address") or config.get("name")
     name = name.lstrip("/") if name is not None else name
 
-    data_url = url or config.get("url")
+    data_path = path or config.get("path")
     file_name = None
-    if data_url:
-        # Extract the file name from the url if provided
-        full_path = Path(data_url)
+    if data_path:
+        # Extract the file name from the path if provided
+        full_path = Path(data_path)
         file_suffix = full_path.suffix
         if file_suffix:
-            data_url = str(full_path.parent)
+            data_path = str(full_path.parent)
             file_name = full_path.name
 
-    if data_url is None:
+    if data_path is None:
         # TODO [JL] move some of the default params in this factory method to the defaults module for configurability
-        if config["fs"] == rns_client.DEFAULT_FS:
-            # create random url to store in .cache folder of local filesystem
-            data_url = str(
+        if config["system"] == rns_client.DEFAULT_FS:
+            # create random path to store in .cache folder of local filesystem
+            data_path = str(
                 Path(
                     f"~/{Table.DEFAULT_CACHE_FOLDER}/{name or uuid.uuid4().hex}"
                 ).expanduser()
             )
         else:
             # save to the default bucket
-            data_url = f"{Table.DEFAULT_FOLDER_PATH}/{name}"
+            data_path = f"{Table.DEFAULT_FOLDER_PATH}/{name}"
 
     config["name"] = name
-    config["url"] = data_url
+    config["path"] = data_path
     config["file_name"] = file_name or config.get("file_name")
     config["data_config"] = data_config or config.get("data_config")
     config["partition_cols"] = partition_cols or config.get("partition_cols")
@@ -463,7 +472,7 @@ def table(
 
     if mkdir:
         # create the remote folder for the table
-        rh.folder(url=data_url, fs=fs, dryrun=True).mkdir()
+        rh.folder(path=data_path, system=system, dryrun=True).mkdir()
 
     new_table = _load_table_subclass(data, config, dryrun)
     if data is not None:

@@ -30,16 +30,16 @@ class S3Folder(Folder):
 
     def empty_folder(self):
         """Remove s3 folder contents, but not the folder itself."""
-        for p in self.s3.ls(self.url):
+        for p in self.s3.ls(self.path):
             self.s3.rm(p)
 
-    def delete_in_fs(self, recurse=True, *kwargs):
+    def delete_in_system(self, recurse=True, *kwargs):
         """Delete the s3 folder itself along with its contents."""
         try:
             from sky.data.storage import S3Store
 
             S3Store(
-                name=self.bucket_name_from_url(self.url), source=self._fsspec_fs
+                name=self.bucket_name_from_path(self.path), source=self._fsspec_fs
             ).delete()
         except Exception as e:
             raise e
@@ -53,10 +53,10 @@ class S3Folder(Folder):
 
         # Initialize the S3Store object which creates the bucket if it does not exist
         s3_store = S3Store(
-            name=self.bucket_name_from_url(self.url), source=src, region=region
+            name=self.bucket_name_from_path(self.path), source=src, region=region
         )
 
-        sync_dir_command = self.upload_command(src=src, dest=self.url)
+        sync_dir_command = self.upload_command(src=src, dest=self.path)
         self.run_upload_cli_cmd(
             sync_dir_command, access_denied_message=s3_store.ACCESS_DENIED_MESSAGE
         )
@@ -76,7 +76,7 @@ class S3Folder(Folder):
         """Download a folder from an S3 bucket to local dir."""
         # NOTE: Sky doesn't support this API yet for each provider
         # https://github.com/skypilot-org/skypilot/blob/983f5fa3197fe7c4b5a28be240f7b027f7192b15/sky/data/storage.py#L231
-        remote_dir = self.url.lstrip("/")
+        remote_dir = self.path.lstrip("/")
         remote_dir = f"s3://{remote_dir}"
         subprocess.run(
             ["aws", "s3", "sync", remote_dir, dest],
@@ -91,59 +91,61 @@ class S3Folder(Folder):
         download_command = S3CloudStorage().make_sync_dir_command(src, dest)
         return download_command
 
-    def to_cluster(self, dest_cluster, url=None, mount=False, return_dest_folder=False):
+    def to_cluster(
+        self, dest_cluster, path=None, mount=False, return_dest_folder=False
+    ):
         """Copy the folder from a s3 bucket onto a cluster."""
-        download_command = self.download_command(src=self.fsspec_url, dest=url)
+        download_command = self.download_command(src=self.fsspec_url, dest=path)
         dest_cluster.run([download_command])
         if return_dest_folder:
-            return S3Folder(url=url, dryrun=True).from_cluster(dest_cluster)
+            return S3Folder(path=path, dryrun=True).from_cluster(dest_cluster)
 
     def to_local(
-        self, dest_url: str, data_config: dict, return_dest_folder: bool = False
+        self, dest_path: str, data_config: dict, return_dest_folder: bool = False
     ):
         """Copy a folder from an S3 bucket to local dir."""
-        self.download(dest=dest_url)
+        self.download(dest=dest_path)
         if return_dest_folder:
             return self.destination_folder(
-                dest_url=dest_url, dest_fs="file", data_config=data_config
+                dest_path=dest_path, dest_system="file", data_config=data_config
             )
 
     def to_data_store(
         self,
-        fs: str,
-        data_store_url: Optional[str] = None,
+        system: str,
+        data_store_path: Optional[str] = None,
         data_config: Optional[dict] = None,
         return_dest_folder: bool = True,
     ):
         """Copy folder from S3 to another remote data store (ex: S3, GCP, Azure)"""
-        if fs == "s3":
+        if system == "s3":
             # Transfer between S3 folders
             from sky.data.storage import S3Store
 
             sync_dir_command = self.upload_command(
-                src=self.fsspec_url, dest=data_store_url
+                src=self.fsspec_url, dest=data_store_path
             )
             self.run_upload_cli_cmd(
                 sync_dir_command, access_denied_message=S3Store.ACCESS_DENIED_MESSAGE
             )
-        elif fs == "gs":
+        elif system == "gs":
             from sky.data import data_transfer
 
             # Note: The sky data transfer API only allows for transfers between buckets, not specific directories.
             logger.warning(
                 "Transfer from S3 to GCS currently supported for buckets only, not specific directories."
             )
-            data_store_url = self.bucket_name_from_url(data_store_url)
+            data_store_path = self.bucket_name_from_path(data_store_path)
             data_transfer.s3_to_gcs(
-                s3_bucket_name=self.bucket_name_from_url(self.url),
-                gs_bucket_name=data_store_url,
+                s3_bucket_name=self.bucket_name_from_path(self.path),
+                gs_bucket_name=data_store_path,
             )
-        elif fs == "azure":
+        elif system == "azure":
             raise NotImplementedError("Azure not yet supported")
         else:
-            raise ValueError(f"Invalid fs: {fs}")
+            raise ValueError(f"Invalid system: {system}")
 
         if return_dest_folder:
             return self.destination_folder(
-                dest_url=data_store_url, dest_fs=fs, data_config=data_config
+                dest_path=data_store_path, dest_system=system, data_config=data_config
             )

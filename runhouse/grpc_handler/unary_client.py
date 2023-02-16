@@ -22,7 +22,7 @@ class OutputType:
 class UnaryClient(object):
     """
     Client for gRPC functionality
-    # TODO rename SendClient
+    # TODO rename ClusterClient
     """
 
     DEFAULT_PORT = 50052
@@ -101,7 +101,7 @@ class UnaryClient(object):
         """
         Client function to call the rpc for RunModule
         """
-        # Measure the time it takes to send the message
+        # Measure the time it takes to function the message
         serialized_module = pickle.dumps(
             [relative_path, module_name, fn_name, fn_type, args, kwargs]
         )
@@ -112,7 +112,7 @@ class UnaryClient(object):
         logging.info(f"Time to send message: {round(end - start, 2)} seconds")
         [res, fn_exception, fn_traceback] = pickle.loads(server_res.message)
         if fn_exception is not None:
-            logger.error(f"Error inside send {fn_type}: {fn_exception}.")
+            logger.error(f"Error inside function {fn_type}: {fn_exception}.")
             logger.error(f"Traceback: {fn_traceback}")
             raise fn_exception
         return res

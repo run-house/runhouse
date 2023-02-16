@@ -12,7 +12,7 @@ It achieves the above by providing four pillar features:
 
 Compute
 ~~~~~~~
-The :ref:`Sends`, :ref:`Clusters`, and :ref:`Package` APIs allow a seamless flow of code and execution across local and remote compute.
+The :ref:`Functions`, :ref:`Clusters`, and :ref:`Package` APIs allow a seamless flow of code and execution across local and remote compute.
 They blur the line between program execution and deployment, providing both a path of least resistence for running a
 sub-routine on specific hardware, while unceremoniously turning that sub-routine into a reusable service.
 

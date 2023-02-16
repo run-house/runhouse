@@ -1,6 +1,6 @@
 import unittest
 
-from runhouse.rns.hardware import cluster, SkyCluster
+from runhouse.rns.hardware import cluster, OnDemandCluster
 
 
 def test_cluster_config():
@@ -8,7 +8,7 @@ def test_cluster_config():
     if not rh_cpu.is_up():
         rh_cpu.up()
     config = rh_cpu.config_for_rns
-    cluster2 = SkyCluster.from_config(config)
+    cluster2 = OnDemandCluster.from_config(config)
     assert cluster2.address == rh_cpu.address
 
 

@@ -6,7 +6,7 @@ Python API
 Resources
 ------------------------------------
 Resources are the Runhouse abstraction for objects that can be saved, shared, and reused.
-This includes both compute abstractions (clusters, sends, packages) and data abstractions
+This includes both compute abstractions (clusters, functions, packages) and data abstractions
 (blobs, folders, tables).
 
 .. toctree::
@@ -17,7 +17,7 @@ This includes both compute abstractions (clusters, sends, packages) and data abs
 
 Compute Abstractions
 ------------------------------------
-The Send, Cluster, and Package APIs allow a seamless flow of code and execution across local and remote compute.
+The Function, Cluster, and Package APIs allow a seamless flow of code and execution across local and remote compute.
 They blur the line between program execution and deployment, providing both a path of least resistence for running
 a sub-routine on specific hardware, while unceremoniously turning that sub-routine into a reusable service.
 They also provide convenient dependency isolation and management, provider-agnostic provisioning and termination,
@@ -32,7 +32,7 @@ and rich debugging and accessibility interfaces built-in.
 .. toctree::
    :maxdepth: 1
 
-   rh_primitives/send
+   rh_primitives/function
 
 
 .. toctree::

@@ -35,7 +35,7 @@ class Cluster(Resource):
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
-        The Runhouse cluster, or hardware. This is where you can run Sends or access/transfer data
+        The Runhouse cluster, or system. This is where you can run Functions or access/transfer data
         between. You can BYO (bring-your-own) cluster by providing cluster IP and ssh_creds, or
         this can be an on-demand cluster that is spun up/down through
         `SkyPilot <https://github.com/skypilot-org/skypilot>`_, using your cloud credentials.
@@ -53,7 +53,7 @@ class Cluster(Resource):
         self.client = None
 
         if not dryrun and self.address:
-            # SkyCluster will start ray itself, but will also set address later, so won't reach here.
+            # OnDemandCluster will start ray itself, but will also set address later, so won't reach here.
             self.start_ray()
 
     @staticmethod
@@ -62,9 +62,9 @@ class Cluster(Resource):
         if "ips" in config:
             return Cluster(**config, dryrun=dryrun)
         else:
-            from runhouse.rns.hardware import SkyCluster
+            from runhouse.rns.hardware import OnDemandCluster
 
-            return SkyCluster(**config, dryrun=dryrun)
+            return OnDemandCluster(**config, dryrun=dryrun)
 
     @property
     def config_for_rns(self):
@@ -157,7 +157,6 @@ class Cluster(Resource):
 
     def install_packages(self, reqs: List[Union[Package, str]]):
         """Install the given packages on the cluster."""
-        self.check_grpc()
         to_install = []
         # TODO [DG] validate package strings
         for package in reqs:
@@ -173,7 +172,7 @@ class Cluster(Resource):
                 isinstance(pkg_obj.install_target, Folder)
                 and pkg_obj.install_target.is_local()
             ):
-                pkg_str = pkg_obj.name or Path(pkg_obj.install_target.url).name
+                pkg_str = pkg_obj.name or Path(pkg_obj.install_target.path).name
                 logging.info(
                     f"Copying local package {pkg_str} to cluster <{self.name}>"
                 )
@@ -188,6 +187,7 @@ class Cluster(Resource):
             f"Installing packages on cluster {self.name}: "
             f"{[req if isinstance(req, str) else str(req) for req in reqs]}"
         )
+        self.check_grpc()
         self.client.install_packages(pickle.dumps(to_install))
 
     def get(self, key, default=None, stream_logs=False):
@@ -424,6 +424,13 @@ class Cluster(Resource):
         # if self.client:
         #     self.client.shutdown()
 
+    def __getstate__(self):
+        """Delete non-serializable elements (e.g. thread locks) before pickling."""
+        state = self.__dict__.copy()
+        state["client"] = None
+        state["_grpc_tunnel"] = None
+        return state
+
     # ----------------- SSH Methods ----------------- #
 
     def ssh_creds(self):
@@ -460,7 +467,7 @@ class Cluster(Resource):
         require_outputs: bool = True,
     ):
         """Run a list of shell commands on the cluster."""
-        # TODO [DG] Add a command to each run which registers activity on the cluster
+        # TODO [DG] suspect autostop while running?
         runner = command_runner.SSHCommandRunner(self.address, **self.ssh_creds())
         return_codes = []
         for command in commands:

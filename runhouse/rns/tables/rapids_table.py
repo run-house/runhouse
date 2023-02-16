@@ -1,7 +1,7 @@
 import logging
 from typing import Optional
 
-from .. import SkyCluster
+from .. import OnDemandCluster
 from ..top_level_rns_fns import save
 from .table import Table
 
@@ -17,8 +17,10 @@ class RapidsTable(Table):
     @staticmethod
     def from_config(config: dict, dryrun=True):
         """Load config values into the object."""
-        if isinstance(config["fs"], dict):
-            config["fs"] = SkyCluster.from_config(config["fs"], dryrun=dryrun)
+        if isinstance(config["system"], dict):
+            config["system"] = OnDemandCluster.from_config(
+                config["system"], dryrun=dryrun
+            )
         return RapidsTable(**config)
 
     def save(

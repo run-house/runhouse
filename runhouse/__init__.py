@@ -17,12 +17,12 @@ from .rns.blob import blob, Blob
 from .rns.defaults import Defaults
 
 from .rns.folders.folder import folder, Folder
-from .rns.hardware import cluster, Cluster, SkyCluster
+from .rns.function import function, Function, send
+from .rns.hardware import cluster, Cluster, OnDemandCluster
 from .rns.kvstores.kvstore import KVStore
 from .rns.login import login, logout
 from .rns.packages import git_package, GitPackage, package, Package
 from .rns.secrets.secrets import Secrets
-from .rns.send import send, Send
 from .rns.tables.table import table, Table
 
-__version__ = "0.0.2.3"
+__version__ = "0.0.3"

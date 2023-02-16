@@ -19,13 +19,13 @@ class GCSFolder(Folder):
         """Load config values into the object."""
         return GCSFolder(**config, dryrun=dryrun)
 
-    def delete_in_fs(self, recurse=True, *kwargs):
+    def delete_in_system(self, recurse=True, *kwargs):
         """Delete the gcs folder itself along with its contents."""
         try:
             from sky.data.storage import GcsStore
 
             GcsStore(
-                name=self.bucket_name_from_url(self.url), source=self._fsspec_fs
+                name=self.bucket_name_from_path(self.path), source=self._fsspec_fs
             ).delete()
         except Exception as e:
             raise e
@@ -39,10 +39,10 @@ class GCSFolder(Folder):
 
         # Initialize the GcsStore object which creates the bucket if it does not exist
         gcs_store = GcsStore(
-            name=self.bucket_name_from_url(self.url), source=src, region=region
+            name=self.bucket_name_from_path(self.path), source=src, region=region
         )
 
-        sync_dir_command = self.upload_command(src=src, dest=self.url)
+        sync_dir_command = self.upload_command(src=src, dest=self.path)
         self.run_upload_cli_cmd(
             sync_dir_command, access_denied_message=gcs_store.ACCESS_DENIED_MESSAGE
         )
@@ -56,7 +56,7 @@ class GCSFolder(Folder):
         """Download a folder from a GCS bucket to local dir."""
         # NOTE: Sky doesn't support this API yet for each provider
         # https://github.com/skypilot-org/skypilot/blob/983f5fa3197fe7c4b5a28be240f7b027f7192b15/sky/data/storage.py#L231
-        remote_dir = self.url.lstrip("/")
+        remote_dir = self.path.lstrip("/")
         remote_dir = f"gs://{remote_dir}"
         subprocess.run(
             ["gsutil", "-m", "rsync", "-r", "-x", ".git/*", remote_dir, dest],
@@ -71,41 +71,43 @@ class GCSFolder(Folder):
         download_command = GcsCloudStorage().make_sync_dir_command(src, dest)
         return download_command
 
-    def to_cluster(self, dest_cluster, url=None, mount=False, return_dest_folder=False):
-        upload_command = self.upload_command(src=self.url, dest=url)
+    def to_cluster(
+        self, dest_cluster, path=None, mount=False, return_dest_folder=False
+    ):
+        upload_command = self.upload_command(src=self.path, dest=path)
         dest_cluster.run([upload_command])
         if return_dest_folder:
-            return GCSFolder(url=url, dryrun=True).from_cluster(dest_cluster)
+            return GCSFolder(path=path, dryrun=True).from_cluster(dest_cluster)
 
     def to_local(
-        self, dest_url: str, data_config: dict, return_dest_folder: bool = False
+        self, dest_path: str, data_config: dict, return_dest_folder: bool = False
     ):
         """Copy a folder from an GCS bucket to local dir."""
-        self.download(dest=dest_url)
+        self.download(dest=dest_path)
         if return_dest_folder:
             return self.destination_folder(
-                dest_url=dest_url, dest_fs="file", data_config=data_config
+                dest_path=dest_path, dest_system="file", data_config=data_config
             )
 
     def to_data_store(
         self,
-        fs: str,
-        data_store_url: Optional[str] = None,
+        system: str,
+        data_store_path: Optional[str] = None,
         data_config: Optional[dict] = None,
         return_dest_folder: bool = True,
     ):
         """Copy folder from GCS to another remote data store (ex: GCS, S3, Azure)"""
-        if fs == "gs":
+        if system == "gs":
             # Transfer between GCS folders
             from sky.data.storage import GcsStore
 
             sync_dir_command = self.upload_command(
-                src=self.fsspec_url, dest=data_store_url
+                src=self.fsspec_url, dest=data_store_path
             )
             self.run_upload_cli_cmd(
                 sync_dir_command, access_denied_message=GcsStore.ACCESS_DENIED_MESSAGE
             )
-        elif fs == "s3":
+        elif system == "s3":
             from sky.data import data_transfer
 
             # Note: The sky data transfer API only allows for transfers between buckets, not specific directories.
@@ -113,15 +115,15 @@ class GCSFolder(Folder):
                 "Transfer from GCS to S3 currently supported for buckets only, not specific directories."
             )
             data_transfer.gcs_to_s3(
-                gs_bucket_name=self.bucket_name_from_url(self.url),
-                s3_bucket_name=self.bucket_name_from_url(data_store_url),
+                gs_bucket_name=self.bucket_name_from_path(self.path),
+                s3_bucket_name=self.bucket_name_from_path(data_store_path),
             )
-        elif fs == "azure":
+        elif system == "azure":
             raise NotImplementedError("Azure not yet supported")
         else:
-            raise ValueError(f"Invalid fs: {fs}")
+            raise ValueError(f"Invalid system: {system}")
 
         if return_dest_folder:
             return self.destination_folder(
-                dest_url=data_store_url, dest_fs=fs, data_config=data_config
+                dest_path=data_store_path, dest_system=system, data_config=data_config
             )

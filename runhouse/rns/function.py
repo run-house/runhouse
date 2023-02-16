@@ -1,3 +1,4 @@
+import asyncio
 import copy
 import inspect
 import json
@@ -23,14 +24,16 @@ from runhouse.rns.run_module_utils import call_fn_by_type, get_fn_by_name
 logger = logging.getLogger(__name__)
 
 
-class Send(Resource):
-    RESOURCE_TYPE = "send"
+class Function(Resource):
+    RESOURCE_TYPE = (
+        "function"  # TODO [DG] rename when rns store supports saving this type
+    )
     DEFAULT_ACCESS = "write"
 
     def __init__(
         self,
         fn_pointers: Tuple[str, str, str],
-        hardware: Optional[Cluster] = None,
+        system: Optional[Cluster] = None,
         name: [Optional[str]] = None,
         reqs: Optional[List[str]] = None,
         setup_cmds: Optional[List[str]] = None,
@@ -39,28 +42,28 @@ class Send(Resource):
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
-        Runhouse Send ("Serverless ENDpoint") object. It comprises of the entrypoint, hardware/cluster,
+        Runhouse Function ("Serverless ENDpoint") object. It comprises of the entrypoint, system/cluster,
         and dependencies necessary to run the service.
 
         .. note::
-                To create a Send, please use the factory function :func:`send`.
+                To create a Function, please use the factory function :func:`function`.
         """
         self.fn_pointers = fn_pointers
-        self.hardware = hardware
+        self.system = system
         self.reqs = reqs
         self.setup_cmds = setup_cmds or []
         self.access = access or self.DEFAULT_ACCESS
         self.dryrun = dryrun
         super().__init__(name=name, dryrun=dryrun)
 
-        if not self.dryrun and self.hardware and self.access in ["write", "read"]:
-            self.to(self.hardware, reqs=self.reqs, setup_cmds=setup_cmds)
+        if not self.dryrun and self.system and self.access in ["write", "read"]:
+            self.to(self.system, reqs=self.reqs, setup_cmds=setup_cmds)
 
     # ----------------- Constructor helper methods -----------------
 
     @staticmethod
     def from_config(config: dict, dryrun: bool = True):
-        """Create a Send object from a config dictionary."""
+        """Create a Function object from a config dictionary."""
         config["reqs"] = [
             Package.from_config(package, dryrun=True)
             if isinstance(package, dict)
@@ -69,8 +72,8 @@ class Send(Resource):
         ]
         # TODO validate which fields need to be present in the config
 
-        if isinstance(config["hardware"], dict):
-            config["hardware"] = Cluster.from_config(config["hardware"], dryrun=dryrun)
+        if isinstance(config["system"], dict):
+            config["system"] = Cluster.from_config(config["system"], dryrun=dryrun)
 
         if "fn_pointers" not in config:
             raise ValueError(
@@ -78,79 +81,86 @@ class Send(Resource):
                 "to a python file, module, and function name."
             )
 
-        return Send(**config, dryrun=dryrun)
+        return Function(**config, dryrun=dryrun)
 
     def to(
         self,
-        hardware: Optional[Union[str, Cluster]],
+        system: Union[str, Cluster],
         reqs: Optional[List[str]] = None,
         setup_cmds: Optional[List[str]] = None,
     ):
         """
-        Set up a Send on the given hardware, install the reqs, and run setup_cmds.
+        Set up a Function on the given system, install the reqs, and run setup_cmds.
 
-        See the args of the factory function :func:`send` for more information.
+        See the args of the factory function :func:`function` for more information.
         """
-        hw_backup = self.hardware
-        self.hardware = None
-        new_send = copy.deepcopy(self)
-        self.hardware = hw_backup
-        new_send.hardware = hardware
-        new_send.reqs = reqs if reqs else self.reqs
-        new_send.setup_cmds = (
+        # We need to backup the system here so the __getstate__ method of the cluster
+        # doesn't wipe the client and _grpc_client of this function's cluster when
+        # deepcopy copies it.
+        hw_backup = self.system
+        self.system = None
+        new_function = copy.deepcopy(self)
+        self.system = hw_backup
+        new_function.system = system
+        new_function.reqs = reqs if reqs else self.reqs
+        new_function.setup_cmds = (
             setup_cmds if setup_cmds else self.setup_cmds
         )  # Run inside reup_cluster
         # TODO [DG] figure out how to run setup_cmds on BYO Cluster
 
-        logging.info("Setting up Send on cluster.")
-        if not new_send.hardware.address:
-            # For SkyCluster, this initial check doesn't trigger a sky.status, which is slow.
+        logging.info("Setting up Function on cluster.")
+        if not new_function.system.address:
+            # For OnDemandCluster, this initial check doesn't trigger a sky.status, which is slow.
             # If cluster simply doesn't have an address we likely need to up it.
-            if not hasattr(new_send.hardware, "up"):
+            if not hasattr(new_function.system, "up"):
                 raise ValueError(
                     "Cluster must have an address (i.e. be up) or have a reup_cluster method "
-                    "(e.g. SkyCluster)."
+                    "(e.g. OnDemandCluster)."
                 )
-            if not new_send.hardware.is_up():
-                # If this is a SkyCluster, before we up the cluster, run a sky.check to see if the cluster
+            if not new_function.system.is_up():
+                # If this is a OnDemandCluster, before we up the cluster, run a sky.check to see if the cluster
                 # is already up but doesn't have an address assigned yet.
-                new_send.reup_cluster()
+                new_function.reup_cluster()
         try:
-            new_send.hardware.install_packages(new_send.reqs)
-        except (grpc.RpcError, sshtunnel.BaseSSHTunnelForwarderError):
+            new_function.system.install_packages(new_function.reqs)
+        except (
+            grpc.RpcError,
+            sshtunnel.BaseSSHTunnelForwarderError,
+            asyncio.exceptions.TimeoutError,
+        ):
             # It's possible that the cluster went down while we were trying to install packages.
-            if not new_send.hardware.is_up():
-                new_send.reup_cluster()
+            if not new_function.system.is_up():
+                new_function.reup_cluster()
             else:
-                new_send.hardware.restart_grpc_server(resync_rh=False)
-            new_send.hardware.install_packages(new_send.reqs)
-        logging.info("Send setup complete.")
+                new_function.system.restart_grpc_server(resync_rh=False)
+            new_function.system.install_packages(new_function.reqs)
+        logging.info("Function setup complete.")
 
-        return new_send
+        return new_function
 
     def reup_cluster(self):
-        """Re-up the cluster the Send is on."""
-        logger.info(f"Upping the cluster {self.hardware.name}")
-        self.hardware.up()
-        # TODO [DG] this only happens when the cluster comes up, not when a new send is added to the cluster
-        self.hardware.run(self.setup_cmds)
+        """Re-up the cluster the Function is on."""
+        logger.info(f"Upping the cluster {self.system.name}")
+        self.system.up()
+        # TODO [DG] this only happens when the cluster comes up, not when a new function is added to the cluster
+        self.system.run(self.setup_cmds)
 
     def run_setup(self, cmds: List[str], force: bool = False):
-        """Run the given setup commands on the hardware."""
+        """Run the given setup commands on the system."""
         to_run = []
         for cmd in cmds:
             if force or cmd not in self.setup_cmds:
                 to_run.append(cmd)
         if to_run:
             self.setup_cmds.extend(to_run)
-            self.hardware.run(to_run)
+            self.system.run(to_run)
 
     @staticmethod
     def extract_fn_paths(raw_fn: Callable, reqs: List[str]):
         """Get the path to the module, module name, and function name to be able to import it on the server"""
         if not isinstance(raw_fn, Callable):
             raise TypeError(
-                f"Invalid fn for Send, expected Callable but received {type(raw_fn)}"
+                f"Invalid fn for Function, expected Callable but received {type(raw_fn)}"
             )
         # Background on all these dunders: https://docs.python.org/3/reference/import.html
         module = inspect.getmodule(raw_fn)
@@ -170,7 +180,7 @@ class Send(Resource):
         ):
             # The only time __file__ wouldn't be present is if the function is defined in an interactive
             # interpreter or a notebook. We can't import on the server in that case, so we need to cloudpickle
-            # the fn to send it over. The __call__ function will serialize the function if we return it this way.
+            # the fn to function it over. The __call__ function will serialize the function if we return it this way.
             # This is a short-term hack.
             # return None, "notebook", raw_fn.__name__
             root_path = os.getcwd()
@@ -237,15 +247,12 @@ class Send(Resource):
     # else:
     #     full_name = func_name
 
-    # ----------------- Send call methods -----------------
+    # ----------------- Function call methods -----------------
 
     def __call__(self, *args, stream_logs=False, **kwargs):
         fn_type = "call"
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
-            if (
-                not self.hardware
-                or self.hardware.name == rh_config.obj_store.cluster_name
-            ):
+            if not self.system or self.system.name == rh_config.obj_store.cluster_name:
                 [relative_path, module_name, fn_name] = self.fn_pointers
                 fn = get_fn_by_name(module_name=module_name, fn_name=fn_name)
                 return call_fn_by_type(
@@ -253,21 +260,21 @@ class Send(Resource):
                 )
             elif stream_logs:
                 run_key = self.remote(*args, **kwargs)
-                return self.hardware.get(run_key, stream_logs=True)
+                return self.system.get(run_key, stream_logs=True)
             else:
                 return self._call_fn_with_ssh_access(
                     fn_type=fn_type, args=args, kwargs=kwargs
                 )
         else:
-            # run the function via http url - user only needs Proxy access
+            # run the function via http path - user only needs Proxy access
             if self.access != ResourceAccess.proxy:
-                raise RuntimeError("Running http url requires proxy access")
+                raise RuntimeError("Running http path requires proxy access")
             if not rh_config.rns_client.token:
                 raise ValueError(
-                    "Token must be saved in the local .rh config in order to use an http url"
+                    "Token must be saved in the local .rh config in order to use an http path"
                 )
             http_url = self.http_url()
-            logger.info(f"Running {self.name} via http url: {http_url}")
+            logger.info(f"Running {self.name} via http path: {http_url}")
             resp = requests.post(
                 http_url,
                 data=json.dumps({"args": args, "kwargs": kwargs}),
@@ -275,19 +282,19 @@ class Send(Resource):
             )
             if resp.status_code != 200:
                 raise Exception(
-                    f"Failed to run Send endpoint: {json.loads(resp.content)}"
+                    f"Failed to run Function endpoint: {json.loads(resp.content)}"
                 )
 
             res = read_response_data(resp)
             return res
 
     def repeat(self, num_repeats: int, *args, **kwargs):
-        """Repeat the Send call multiple times.
+        """Repeat the Function call multiple times.
 
         Args:
-            num_repeats (int): Number of times to repeat the Send call.
-            *args: Positional arguments to pass to the Send
-            **kwargs: Keyword arguments to pass to the Send
+            num_repeats (int): Number of times to repeat the Function call.
+            *args: Positional arguments to pass to the Function
+            **kwargs: Keyword arguments to pass to the Function
         """
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
             return self._call_fn_with_ssh_access(
@@ -295,7 +302,7 @@ class Send(Resource):
             )
         else:
             raise NotImplementedError(
-                "Send.repeat only works with Write or Read access, not Proxy access"
+                "Function.repeat only works with Write or Read access, not Proxy access"
             )
 
     def map(self, arg_list, **kwargs):
@@ -306,7 +313,7 @@ class Send(Resource):
             )
         else:
             raise NotImplementedError(
-                "Send.map only works with Write or Read access, not Proxy access"
+                "Function.map only works with Write or Read access, not Proxy access"
             )
 
     def starmap(self, args_lists, **kwargs):
@@ -318,18 +325,18 @@ class Send(Resource):
             )
         else:
             raise NotImplementedError(
-                "Send.starmap only works with Write or Read access, not Proxy access"
+                "Function.starmap only works with Write or Read access, not Proxy access"
             )
 
     def enqueue(self, *args, **kwargs):
-        """Enqueue a Send call to be run later."""
+        """Enqueue a Function call to be run later."""
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
             return self._call_fn_with_ssh_access(
                 fn_type="queue", args=args, kwargs=kwargs
             )
         else:
             raise NotImplementedError(
-                "Send.enqueue only works with Write or Read access, not Proxy access"
+                "Function.enqueue only works with Write or Read access, not Proxy access"
             )
 
     def remote(self, *args, **kwargs):
@@ -345,8 +352,8 @@ class Send(Resource):
                 fn_type="remote", args=args, kwargs=kwargs
             )
             cluster_name = (
-                f'rh.cluster(name="{self.hardware.rns_address}")'
-                if self.hardware.name
+                f'rh.cluster(name="{self.system.rns_address}")'
+                if self.system.name
                 else "<my_cluster>"
             )
             logger.info(
@@ -360,17 +367,17 @@ class Send(Resource):
             return run_key
         else:
             raise NotImplementedError(
-                "Send.remote only works with Write or Read access, not Proxy access"
+                "Function.remote only works with Write or Read access, not Proxy access"
             )
 
     def get(self, obj_ref):
-        """Get the result of a Send call that was submitted as async using `remote`.
+        """Get the result of a Function call that was submitted as async using `remote`.
 
         Args:
-            obj_ref: A single or list of Ray.ObjectRef objects returned by a Send.remote() call. The ObjectRefs
-                must be from the cluster that this Send is running on.
+            obj_ref: A single or list of Ray.ObjectRef objects returned by a Function.remote() call. The ObjectRefs
+                must be from the cluster that this Function is running on.
         """
-        # TODO [DG] replace with self.hardware.get()?
+        # TODO [DG] replace with self.system.get()?
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
             arg_list = obj_ref if isinstance(obj_ref, list) else [obj_ref]
             return self._call_fn_with_ssh_access(
@@ -378,7 +385,7 @@ class Send(Resource):
             )
         else:
             raise NotImplementedError(
-                "Send.get only works with Write or Read access, not Proxy access"
+                "Function.get only works with Write or Read access, not Proxy access"
             )
 
     def _call_fn_with_ssh_access(self, fn_type, args, kwargs):
@@ -387,21 +394,21 @@ class Send(Resource):
         # TODO allow specifying resources per worker for map
         # TODO [DG] check whether we're on the cluster and if so, just call the function directly via the
         # helper function currently in UnaryServer
-        name = self.name or "anonymous send"
+        name = self.name or "anonymous function"
         if self.fn_pointers is None:
             raise RuntimeError(f"No fn pointers saved for {name}")
 
         [relative_path, module_name, fn_name] = self.fn_pointers
-        name = self.name or fn_name or "anonymous send"
+        name = self.name or fn_name or "anonymous function"
         logger.info(f"Running {name} via gRPC")
-        res = self.hardware.run_module(
+        res = self.system.run_module(
             relative_path, module_name, fn_name, fn_type, args, kwargs
         )
         return res
 
     # TODO [DG] test this properly
     # def debug(self, redirect_logging=False, timeout=10000, *args, **kwargs):
-    #     """Run the Send in debug mode. This will run the Send through a tunnel interpreter, which
+    #     """Run the Function in debug mode. This will run the Function through a tunnel interpreter, which
     #     allows the use of breakpoints and other debugging tools, like rh.ipython().
     #     FYI, alternative ideas from Ray: https://github.com/ray-project/ray/issues/17197
     #     FYI, alternative Modal folks shared: https://github.com/modal-labs/modal-client/pull/32
@@ -413,9 +420,9 @@ class Send(Resource):
     #     from rpyc.utils.classic import redirected_stdio
     #     from rpyc.utils.zerodeploy import DeployedServer
     #
-    #     creds = self.hardware.ssh_creds()
+    #     creds = self.system.ssh_creds()
     #     ssh_client = ParamikoMachine(
-    #         self.hardware.address,
+    #         self.system.address,
     #         user=creds["ssh_user"],
     #         keyfile=str(Path(creds["ssh_private_key"]).expanduser()),
     #         missing_host_policy=AutoAddPolicy(),
@@ -450,7 +457,7 @@ class Send(Resource):
 
         config.update(
             {
-                "hardware": self._resource_string_for_subconfig(self.hardware.save()),
+                "system": self._resource_string_for_subconfig(self.system.save()),
                 "reqs": [
                     self._resource_string_for_subconfig(package)
                     for package in self.reqs
@@ -461,7 +468,7 @@ class Send(Resource):
         )
         return config
 
-    # TODO maybe reuse these if we starting putting each send in its own container
+    # TODO maybe reuse these if we starting putting each function in its own container
     # @staticmethod
     # def run_ssh_cmd_in_cluster(ssh_key, ssh_user, address, cmd, port_fwd=None):
     #     subprocess.run("ssh -tt -o IdentitiesOnly=yes -i "
@@ -469,10 +476,10 @@ class Send(Resource):
     #                    f"{ssh_user}@{address} docker exec -it ray_container /bin/bash -c {cmd}".split(' '))
 
     def ssh(self):
-        """SSH into the hardware."""
-        if self.hardware is None:
-            raise RuntimeError("Hardware must be specified and up to ssh into a Send")
-        self.hardware.ssh()
+        """SSH into the system."""
+        if self.system is None:
+            raise RuntimeError("System must be specified and up to ssh into a Function")
+        self.system.ssh()
 
     def send_secrets(self):
         """Send secrets to the hardware."""
@@ -480,7 +487,7 @@ class Send(Resource):
 
     def http_url(self, curl_command=False, *args, **kwargs) -> str:
         """
-        Return the endpoint needed to run the Send on the remote cluster, or provide the curl command if requested.
+        Return the endpoint needed to run the Function on the remote cluster, or provide the curl command if requested.
         """
         resource_uri = rh_config.rns_client.resource_uri(name=self.name)
         uri = f"proxy/{resource_uri}"
@@ -488,7 +495,7 @@ class Send(Resource):
             # NOTE: curl command should include args and kwargs - this will help us generate better API docs
             if not is_jsonable(args) or not is_jsonable(kwargs):
                 raise Exception(
-                    "Invalid Send func params provided, must be able to convert args and kwargs to json"
+                    "Invalid Function func params provided, must be able to convert args and kwargs to json"
                 )
 
             return (
@@ -504,40 +511,38 @@ class Send(Resource):
                 )
             )
 
-        # HTTP URL needed to run the Send remotely
+        # HTTP URL needed to run the Function remotely
         http_url = f"{rh_config.rns_client.api_server_url}/{uri}/endpoint"
         return http_url
 
     def notebook(self, persist=False, sync_package_on_close=None, port_forward=8888):
-        """Tunnel into and launch notebook from the hardware."""
+        """Tunnel into and launch notebook from the system."""
         # Roughly trying to follow:
         # https://towardsdatascience.com/using-jupyter-notebook-running-on-a-remote-docker-container-via-ssh-ea2c3ebb9055
         # https://docs.ray.io/en/latest/ray-core/using-ray-with-jupyter.html
-        if self.hardware is None:
+        if self.system is None:
             raise RuntimeError("Cannot SSH, running locally")
 
-        tunnel, port_fwd = self.hardware.ssh_tunnel(
+        tunnel, port_fwd = self.system.ssh_tunnel(
             local_port=port_forward, num_ports_to_try=10
         )
         try:
             install_cmd = "pip install jupyterlab"
             jupyter_cmd = f"jupyter lab --port {port_fwd} --no-browser"
             # port_fwd = '-L localhost:8888:localhost:8888 '  # TOOD may need when we add docker support
-            with self.hardware.pause_autostop():
-                self.hardware.run(commands=[install_cmd, jupyter_cmd], stream_logs=True)
+            with self.system.pause_autostop():
+                self.system.run(commands=[install_cmd, jupyter_cmd], stream_logs=True)
 
         finally:
             if sync_package_on_close:
                 if sync_package_on_close == "./":
                     sync_package_on_close = rh_config.rns_client.locate_working_dir()
                 pkg = Package.from_string("local:" + sync_package_on_close)
-                self.hardware.rsync(
-                    source=f"~/{pkg.name}", dest=pkg.local_path, up=False
-                )
+                self.system.rsync(source=f"~/{pkg.name}", dest=pkg.local_path, up=False)
             if not persist:
                 tunnel.stop(force=True)
                 kill_jupyter_cmd = f"jupyter notebook stop {port_fwd}"
-                self.hardware.run(commands=[kill_jupyter_cmd])
+                self.system.run(commands=[kill_jupyter_cmd])
 
     def keep_warm(
         self,
@@ -546,12 +551,12 @@ class Send(Resource):
         # TODO min_replicas: List[int] = None,
         # TODO max_replicas: List[int] = None
     ):
-        """Keep the hardware warm for autostop_mins. If autostop_mins is ``None`` or -1, keep warm indefinitely."""
+        """Keep the system warm for autostop_mins. If autostop_mins is ``None`` or -1, keep warm indefinitely."""
         if autostop_mins is None:
             logger.info(f"Keeping {self.name} indefinitely warm")
             # keep indefinitely warm if user doesn't specify
             autostop_mins = -1
-        self.hardware.keep_warm(autostop_mins=autostop_mins)
+        self.system.keep_warm(autostop_mins=autostop_mins)
 
     @staticmethod
     def _handle_nb_fn(fn, fn_pointers, serialize_notebook_fn, name):
@@ -564,18 +569,18 @@ class Send(Resource):
             return "", "notebook", fn
         else:
             # TODO put this in the current folder instead?
-            module_path = Path.cwd() / (f"{name}_fn.py" if name else "send_fn.py")
+            module_path = Path.cwd() / (f"{name}_fn.py" if name else "sent_fn.py")
             logging.info(
-                f"Writing out send function to {str(module_path)} as "
+                f"Writing out function function to {str(module_path)} as "
                 f"functions serialized in notebooks are brittle. Please make "
                 f"sure the function does not rely on any local variables, "
                 f"including imports (which should be moved inside the function body)."
             )
             if not name:
                 logging.warning(
-                    "You should name Sends that are created in notebooks to avoid naming collisions "
+                    "You should name Functions that are created in notebooks to avoid naming collisions "
                     "between the modules that are created to hold their functions "
-                    '(i.e. "send_fn.py" errors.'
+                    '(i.e. "sent_fn.py" errors.'
                 )
             source = inspect.getsource(fn).strip()
             with module_path.open("w") as f:
@@ -586,13 +591,13 @@ class Send(Resource):
             # module = module_from_spec(spec)
             # spec.loader.exec_module(module)
             # new_fn = getattr(module, fn_pointers[2])
-            # fn_pointers = Send.extract_fn_paths(raw_fn=new_fn, reqs=config['reqs'])
+            # fn_pointers = Function.extract_fn_paths(raw_fn=new_fn, reqs=config['reqs'])
 
 
-def send(
+def function(
     fn: Optional[Union[str, Callable]] = None,
     name: [Optional[str]] = None,
-    hardware: Optional[Union[str, Cluster]] = None,
+    system: Optional[Union[str, Cluster]] = None,
     reqs: Optional[List[str]] = None,
     setup_cmds: Optional[List[str]] = None,
     # TODO image: Optional[str] = None,
@@ -600,20 +605,20 @@ def send(
     load_secrets: bool = False,
     serialize_notebook_fn: bool = False,
 ):
-    """Factory function for constructing a Runhouse Send object.
+    """Factory function for constructing a Runhouse Function object.
 
     Args:
-        fn (Optional[str or Callable]): The function to execute on the remote hardware when the send is called.
-        name (Optional[str]): Name of the Send to create or retrieve.
+        fn (Optional[str or Callable]): The function to execute on the remote system when the function is called.
+        name (Optional[str]): Name of the Function to create or retrieve.
             This can be either from a local config or from the RNS.
-        hardware (Optional[str or Cluster]): Hardware (cluster) to use for the Send.
+        system (Optional[str or Cluster]): Hardware (cluster) on which to execute the Function.
             This can be either the string name of a Cluster object, or a Cluster object.
         reqs (Optional[List[str]]): List of requirements to install on the remote cluster, or path to the
             requirements.txt file. If a list of pypi packages is provided, including 'requirements.txt' in
             the list will install the requirements in `package`. By default, we'll set it to ['requirements.txt'],
             which installs just the requirements of package. If set to an empty list, no requirements will be installed.
             # TODO: reword this a bit
-        dryrun (bool): Whether to create the Send if it doesn't exist, or load the Send object as a dryrun.
+        dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
             (Default: ``False``)
         load_secrets (bool): Whether or not to send secrets; only applicable if `dryrun` is set to ``False``.
             (Default: ``False``)
@@ -621,18 +626,18 @@ def send(
             (Default: ``False``)
 
     Returns:
-        Send: The resulting Send object.
+        Function: The resulting Function object.
 
     Example:
         >>> def sum(a, b):
         >>>    return a + b
         >>>
-        >>> # creating the send
-        >>> summer = rh.send(fn=sum, hardware=cluster, reqs=['requirements.txt'])
+        >>> # creating the function
+        >>> summer = rh.function(fn=sum, system=cluster, reqs=['requirements.txt'])
         >>> # or, equivalently
-        >>> summer = rh.send(fn=sum).to(cluster, reqs=['requirements.txt'])
+        >>> summer = rh.function(fn=sum).to(cluster, reqs=['requirements.txt'])
         >>>
-        >>> # using the send
+        >>> # using the function
         >>> summer(5, 8)  # returns 13
     """
 
@@ -653,9 +658,9 @@ def send(
     if callable(fn):
         if not [req for req in config["reqs"] if "./" in req]:
             config["reqs"].append("./")
-        fn_pointers = Send.extract_fn_paths(raw_fn=fn, reqs=config["reqs"])
+        fn_pointers = Function.extract_fn_paths(raw_fn=fn, reqs=config["reqs"])
         if fn_pointers[1] == "notebook":
-            fn_pointers = Send._handle_nb_fn(
+            fn_pointers = Function._handle_nb_fn(
                 fn,
                 fn_pointers=fn_pointers,
                 serialize_notebook_fn=serialize_notebook_fn,
@@ -692,32 +697,36 @@ def send(
             revision=branch_name,
         )
         config["reqs"].insert(0, repo_package)
-        # repo_package = Package(url=f'/',
-        #                        fs='github',
+        # repo_package = Package(path=f'/',
+        #                        system='github',
         #                        data_config={'org': username, 'repo': repo_name, 'sha': branch_name,
         #                                     'filecache': {'cache_storage': repo_name}},
         #                        install_method='local')
         # config['reqs'] = [repo_package] + config['reqs']
 
-    config["hardware"] = hardware or config.get("hardware")
-    if isinstance(config["hardware"], str):
-        hw_dict = rh_config.rns_client.load_config(config["hardware"])
+    config["system"] = system or config.get("system")
+    if isinstance(config["system"], str):
+        hw_dict = rh_config.rns_client.load_config(config["system"])
         if not hw_dict:
             raise RuntimeError(
-                f'Hardware {rh_config.rns_client.resolve_rns_path(config["hardware"])} '
+                f'Cluster {rh_config.rns_client.resolve_rns_path(config["system"])} '
                 f"not found locally or in RNS."
             )
-        config["hardware"] = hw_dict
+        config["system"] = hw_dict
 
     config["setup_cmds"] = (
         setup_cmds if setup_cmds is not None else config.get("setup_cmds")
     )
 
-    config["access_level"] = config.get("access_level", Send.DEFAULT_ACCESS)
+    config["access_level"] = config.get("access_level", Function.DEFAULT_ACCESS)
 
-    new_send = Send.from_config(config, dryrun=dryrun)
+    new_function = Function.from_config(config, dryrun=dryrun)
 
     if load_secrets and not dryrun:
-        new_send.send_secrets()
+        new_function.send_secrets()
 
-    return new_send
+    return new_function
+
+
+# Briefly keep for BC.
+send = function
