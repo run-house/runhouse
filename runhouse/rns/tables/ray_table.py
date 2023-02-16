@@ -18,8 +18,10 @@ class RayTable(Table):
     @staticmethod
     def from_config(config: dict, dryrun=True):
         """Load config values into the object."""
-        if isinstance(config["fs"], dict):
-            config["fs"] = OnDemandCluster.from_config(config["fs"], dryrun=dryrun)
+        if isinstance(config["system"], dict):
+            config["system"] = OnDemandCluster.from_config(
+                config["system"], dryrun=dryrun
+            )
         return RayTable(**config)
 
     def save(

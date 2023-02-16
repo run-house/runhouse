@@ -33,7 +33,7 @@ class S3Folder(Folder):
         for p in self.s3.ls(self.path):
             self.s3.rm(p)
 
-    def delete_in_fs(self, recurse=True, *kwargs):
+    def delete_in_system(self, recurse=True, *kwargs):
         """Delete the s3 folder itself along with its contents."""
         try:
             from sky.data.storage import S3Store
@@ -107,18 +107,18 @@ class S3Folder(Folder):
         self.download(dest=dest_path)
         if return_dest_folder:
             return self.destination_folder(
-                dest_path=dest_path, dest_fs="file", data_config=data_config
+                dest_path=dest_path, dest_system="file", data_config=data_config
             )
 
     def to_data_store(
         self,
-        fs: str,
+        system: str,
         data_store_path: Optional[str] = None,
         data_config: Optional[dict] = None,
         return_dest_folder: bool = True,
     ):
         """Copy folder from S3 to another remote data store (ex: S3, GCP, Azure)"""
-        if fs == "s3":
+        if system == "s3":
             # Transfer between S3 folders
             from sky.data.storage import S3Store
 
@@ -128,7 +128,7 @@ class S3Folder(Folder):
             self.run_upload_cli_cmd(
                 sync_dir_command, access_denied_message=S3Store.ACCESS_DENIED_MESSAGE
             )
-        elif fs == "gs":
+        elif system == "gs":
             from sky.data import data_transfer
 
             # Note: The sky data transfer API only allows for transfers between buckets, not specific directories.
@@ -140,12 +140,12 @@ class S3Folder(Folder):
                 s3_bucket_name=self.bucket_name_from_path(self.path),
                 gs_bucket_name=data_store_path,
             )
-        elif fs == "azure":
+        elif system == "azure":
             raise NotImplementedError("Azure not yet supported")
         else:
-            raise ValueError(f"Invalid fs: {fs}")
+            raise ValueError(f"Invalid system: {system}")
 
         if return_dest_folder:
             return self.destination_folder(
-                dest_path=data_store_path, dest_fs=fs, data_config=data_config
+                dest_path=data_store_path, dest_system=system, data_config=data_config
             )

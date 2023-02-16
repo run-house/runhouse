@@ -95,7 +95,10 @@ def test_create_and_reload_file_locally():
 
     orig_data = pd.DataFrame({"my_col": list(range(50))})
     my_table = rh.table(
-        data=orig_data, name="~/my_local_test_table", path=str(local_path), fs="file"
+        data=orig_data,
+        name="~/my_local_test_table",
+        path=str(local_path),
+        system="file",
     ).save()
 
     reloaded_table = rh.table(name="~/my_local_test_table", dryrun=True)
@@ -113,8 +116,8 @@ def test_create_and_reload_file_locally():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 def test_create_and_reload_pandas_locally():
@@ -124,7 +127,7 @@ def test_create_and_reload_pandas_locally():
         data=orig_data,
         name="~/my_test_local_pandas_table",
         path="table_tests/pandas_test_table",
-        fs="file",
+        system="file",
         mkdir=True,
     ).save()
 
@@ -143,8 +146,8 @@ def test_create_and_reload_pandas_locally():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 def test_create_and_reload_pyarrow_locally():
@@ -153,7 +156,7 @@ def test_create_and_reload_pyarrow_locally():
         data=orig_data,
         name="~/my_test_local_pyarrow_table",
         path="table_tests/pyarrow_test_table",
-        fs="file",
+        system="file",
         mkdir=True,
     ).save()
 
@@ -172,8 +175,8 @@ def test_create_and_reload_pyarrow_locally():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 def test_create_and_reload_ray_locally():
@@ -182,7 +185,7 @@ def test_create_and_reload_ray_locally():
         data=orig_data,
         name="~/my_test_local_ray_table",
         path="table_tests/ray_test_table",
-        fs="file",
+        system="file",
         mkdir=True,
     ).save()
 
@@ -201,8 +204,8 @@ def test_create_and_reload_ray_locally():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 def test_create_and_reload_huggingface_locally():
@@ -211,7 +214,7 @@ def test_create_and_reload_huggingface_locally():
         data=orig_data,
         name="~/my_test_local_huggingface_table",
         path="table_tests/huggingface_test_table",
-        fs="file",
+        system="file",
         mkdir=True,
     ).save()
 
@@ -230,8 +233,8 @@ def test_create_and_reload_huggingface_locally():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 def test_create_and_reload_dask_locally():
@@ -240,7 +243,7 @@ def test_create_and_reload_dask_locally():
         data=orig_data,
         name="~/my_test_local_dask_table",
         path="table_tests/dask_test_table",
-        fs="file",
+        system="file",
         mkdir=True,
     ).save()
 
@@ -258,8 +261,8 @@ def test_create_and_reload_dask_locally():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 # --------------------------------------------
@@ -272,7 +275,7 @@ def test_create_and_reload_pyarrow_data_from_s3():
         data=orig_data,
         name="@/my_test_pyarrow_table",
         path=f"/{BUCKET_NAME}/pyarrow_df",
-        fs="s3",
+        system="s3",
         mkdir=True,
     ).save()
 
@@ -289,8 +292,8 @@ def test_create_and_reload_pyarrow_data_from_s3():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 def test_create_and_reload_pandas_data_from_s3():
@@ -300,7 +303,7 @@ def test_create_and_reload_pandas_data_from_s3():
         data=orig_data,
         name="@/my_test_pandas_table",
         path=f"/{BUCKET_NAME}/pandas_df",
-        fs="s3",
+        system="s3",
         mkdir=True,
     ).save()
 
@@ -318,8 +321,8 @@ def test_create_and_reload_pandas_data_from_s3():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 def test_create_and_reload_huggingface_data_from_s3():
@@ -329,7 +332,7 @@ def test_create_and_reload_huggingface_data_from_s3():
         data=orig_data,
         name="@/my_test_hf_table",
         path=f"/{BUCKET_NAME}/huggingface_data",
-        fs="s3",
+        system="s3",
         mkdir=True,
     ).save()
 
@@ -346,8 +349,8 @@ def test_create_and_reload_huggingface_data_from_s3():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 def test_create_and_reload_dask_data_from_s3():
@@ -356,7 +359,7 @@ def test_create_and_reload_dask_data_from_s3():
         data=orig_data,
         name="@/my_test_dask_table",
         path=f"/{BUCKET_NAME}/dask",
-        fs="s3",
+        system="s3",
         mkdir=True,
     ).save()
 
@@ -374,8 +377,8 @@ def test_create_and_reload_dask_data_from_s3():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 def test_create_and_reload_ray_data_from_s3():
@@ -385,7 +388,7 @@ def test_create_and_reload_ray_data_from_s3():
         data=orig_data,
         name="@/my_test_ray_table",
         path=f"/{BUCKET_NAME}/ray_data",
-        fs="s3",
+        system="s3",
         mkdir=True,
     ).save()
 
@@ -403,8 +406,8 @@ def test_create_and_reload_ray_data_from_s3():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 # ----------------- Iter -----------------
@@ -415,7 +418,7 @@ def test_load_pandas_data_as_iter():
         data=orig_data,
         name="@/my_test_pandas_table",
         path=f"/{BUCKET_NAME}/pandas",
-        fs="s3",
+        system="s3",
         mkdir=True,
     ).save()
 
@@ -430,8 +433,8 @@ def test_load_pandas_data_as_iter():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 def test_load_pyarrow_data_as_iter():
@@ -441,7 +444,7 @@ def test_load_pyarrow_data_as_iter():
         data=orig_data,
         name="@/my_test_pyarrow_table",
         path=f"/{BUCKET_NAME}/pyarrow-data",
-        fs="s3",
+        system="s3",
         mkdir=True,
     ).save()
 
@@ -456,8 +459,8 @@ def test_load_pyarrow_data_as_iter():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 def test_load_huggingface_data_as_iter():
@@ -467,7 +470,7 @@ def test_load_huggingface_data_as_iter():
         data=orig_data,
         name="@/my_test_huggingface_table",
         path=f"/{BUCKET_NAME}/huggingface-dataset",
-        fs="s3",
+        system="s3",
         mkdir=True,
     ).save()
 
@@ -480,8 +483,8 @@ def test_load_huggingface_data_as_iter():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 # ----------------- Shuffling -----------------
@@ -492,7 +495,7 @@ def test_shuffling_pyarrow_data_from_s3():
         data=orig_data,
         name="@/my_test_shuffled_pyarrow_table",
         path=f"/{BUCKET_NAME}/pyarrow",
-        fs="s3",
+        system="s3",
         mkdir=True,
     ).save()
 
@@ -510,8 +513,8 @@ def test_shuffling_pyarrow_data_from_s3():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 # -------------------------------------------------
@@ -530,7 +533,7 @@ def test_create_and_reload_pandas_data_from_cluster():
         data=orig_data,
         name="@/my_test_pandas_table",
         path=data_path_on_cluster,
-        fs=cluster,
+        system=cluster,
     ).save()
 
     reloaded_table = rh.table(name="@/my_test_pandas_table", dryrun=True)
@@ -548,8 +551,8 @@ def test_create_and_reload_pandas_data_from_cluster():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 def test_create_and_reload_ray_data_from_cluster():
@@ -564,7 +567,7 @@ def test_create_and_reload_ray_data_from_cluster():
         data=orig_data,
         name="@/my_test_ray_cluster_table",
         path=data_path_on_cluster,
-        fs=cluster,
+        system=cluster,
     ).save()
 
     reloaded_table = rh.table(name="@/my_test_ray_cluster_table", dryrun=True)
@@ -581,8 +584,8 @@ def test_create_and_reload_ray_data_from_cluster():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 def test_create_and_reload_pyarrow_data_from_cluster():
@@ -597,7 +600,7 @@ def test_create_and_reload_pyarrow_data_from_cluster():
         data=orig_data,
         name="@/my_test_pyarrow_cluster_table",
         path=data_path_on_cluster,
-        fs=cluster,
+        system=cluster,
     ).save()
 
     reloaded_table = rh.table(name="@/my_test_pyarrow_cluster_table", dryrun=True)
@@ -613,8 +616,8 @@ def test_create_and_reload_pyarrow_data_from_cluster():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 def test_create_and_reload_huggingface_data_from_cluster():
@@ -629,7 +632,7 @@ def test_create_and_reload_huggingface_data_from_cluster():
         data=orig_data,
         name="@/my_test_hf_cluster_table",
         path=data_path_on_cluster,
-        fs=cluster,
+        system=cluster,
     ).save()
 
     reloaded_table = rh.table(name="@/my_test_hf_cluster_table", dryrun=True)
@@ -647,8 +650,8 @@ def test_create_and_reload_huggingface_data_from_cluster():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 def test_create_and_reload_dask_data_from_cluster():
@@ -663,7 +666,7 @@ def test_create_and_reload_dask_data_from_cluster():
         data=orig_data,
         name="@/my_test_dask_cluster_table",
         path=data_path_on_cluster,
-        fs=cluster,
+        system=cluster,
     ).save()
 
     reloaded_table = rh.table(name="@/my_test_dask_cluster_table", dryrun=True)
@@ -680,8 +683,8 @@ def test_create_and_reload_dask_data_from_cluster():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 # -------------------------------------------------
@@ -694,7 +697,7 @@ def test_create_and_fetch_pyarrow_data_from_s3():
         data=orig_data,
         name="@/my_test_fetch_pyarrow_table",
         path=f"/{BUCKET_NAME}/pyarrow",
-        fs="s3",
+        system="s3",
         mkdir=True,
     ).save()
 
@@ -707,8 +710,8 @@ def test_create_and_fetch_pyarrow_data_from_s3():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 def test_create_and_fetch_pandas_data_from_s3():
@@ -718,7 +721,7 @@ def test_create_and_fetch_pandas_data_from_s3():
         data=orig_data,
         name="@/my_test_fetch_pandas_table",
         path=f"/{BUCKET_NAME}/pandas",
-        fs="s3",
+        system="s3",
         mkdir=True,
     ).save()
 
@@ -731,8 +734,8 @@ def test_create_and_fetch_pandas_data_from_s3():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 def test_create_and_fetch_huggingface_data_from_s3():
@@ -741,7 +744,7 @@ def test_create_and_fetch_huggingface_data_from_s3():
         data=orig_data,
         name="@/my_test_fetch_huggingface_table",
         path=f"/{BUCKET_NAME}/huggingface",
-        fs="s3",
+        system="s3",
         mkdir=True,
     ).save()
 
@@ -754,8 +757,8 @@ def test_create_and_fetch_huggingface_data_from_s3():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 def test_create_and_fetch_ray_data_from_s3():
@@ -765,7 +768,7 @@ def test_create_and_fetch_ray_data_from_s3():
         data=orig_data,
         name="@/my_test_fetch_ray_table",
         path=f"/{BUCKET_NAME}/ray",
-        fs="s3",
+        system="s3",
         mkdir=True,
     ).save()
 
@@ -778,8 +781,8 @@ def test_create_and_fetch_ray_data_from_s3():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 def test_create_and_fetch_dask_data_from_s3():
@@ -789,7 +792,7 @@ def test_create_and_fetch_dask_data_from_s3():
         data=orig_data,
         name="@/my_test_fetch_dask_table",
         path=f"/{BUCKET_NAME}/dask",
-        fs="s3",
+        system="s3",
         mkdir=True,
     ).save()
 
@@ -802,8 +805,8 @@ def test_create_and_fetch_dask_data_from_s3():
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_fs()
-    assert not reloaded_table.exists_in_fs()
+    reloaded_table.delete_in_system()
+    assert not reloaded_table.exists_in_system()
 
 
 if __name__ == "__main__":

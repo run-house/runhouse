@@ -19,7 +19,7 @@ class AzureFolder(Folder):
         """Remove Azure folder contents, but not the folder itself."""
         raise NotImplementedError
 
-    def delete_in_fs(self, recurse=True, *kwargs):
+    def delete_in_system(self, recurse=True, *kwargs):
         """Delete the Azure folder itself."""
         raise NotImplementedError
 
@@ -50,7 +50,7 @@ class AzureFolder(Folder):
 
     def to_data_store(
         self,
-        fs: str,
+        system: str,
         data_store_path: Optional[str] = None,
         data_config: Optional[dict] = None,
         return_dest_folder: bool = True,

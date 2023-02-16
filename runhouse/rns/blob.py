@@ -21,7 +21,7 @@ class Blob(Resource):
         self,
         path: Optional[str] = None,
         name: Optional[str] = None,
-        fs: Optional[str] = Folder.DEFAULT_FS,
+        system: Optional[str] = Folder.DEFAULT_FS,
         data_config: Optional[Dict] = None,
         dryrun: bool = False,
         **kwargs,
@@ -34,10 +34,10 @@ class Blob(Resource):
         """
         super().__init__(name=name, dryrun=dryrun)
         self._filename = str(Path(path).name) if path else self.name
-        # Use factory method so correct subclass for fs is returned
+        # Use factory method so correct subclass for system is returned
         self._folder = folder(
             path=str(Path(path).parent) if path is not None else path,
-            fs=fs,
+            system=system,
             data_config=data_config,
             dryrun=dryrun,
         )
@@ -51,7 +51,7 @@ class Blob(Resource):
         blob_config = {
             "path": self.path,  # pair with data source to create the physical URL
             "resource_type": self.RESOURCE_TYPE,
-            "fs": self.fs,
+            "system": self.system,
         }
         config.update(blob_config)
         return config
@@ -75,12 +75,12 @@ class Blob(Resource):
         self._cached_data = new_data
 
     @property
-    def fs(self):
-        return self._folder.fs
+    def system(self):
+        return self._folder.system
 
-    @fs.setter
-    def fs(self, new_fs):
-        self._folder.fs = new_fs
+    @system.setter
+    def system(self, new_system):
+        self._folder.system = new_system
 
     @property
     def path(self):
@@ -108,10 +108,14 @@ class Blob(Resource):
         method inside of a with statement (e.g. `with my_blob.open() as f:`)."""
         return self._folder.open(self._filename, mode=mode)
 
-    def to(self, fs, path: Optional[str] = None, data_config: Optional[dict] = None):
-        """Return a copy of the table on the destination fs and path."""
+    def to(
+        self, system, path: Optional[str] = None, data_config: Optional[dict] = None
+    ):
+        """Return a copy of the table on the destination system and path."""
         new_table = copy.copy(self)
-        new_table._folder = self._folder.to(fs=fs, path=path, data_config=data_config)
+        new_table._folder = self._folder.to(
+            system=system, path=path, data_config=data_config
+        )
         return new_table
 
     def fetch(self):
@@ -147,20 +151,20 @@ class Blob(Resource):
             name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs
         )
 
-    def delete_in_fs(self, recursive: bool = True):
+    def delete_in_system(self, recursive: bool = True):
         """Delete the blob in the file system."""
         self._folder.rm(self._filename, recursive=recursive)
 
-    def exists_in_fs(self):
+    def exists_in_system(self):
         """Check whether the blob exists in the file system"""
         return self._folder.fsspec_fs.exists(self.fsspec_url)
 
-    # TODO [DG] get rid of this in favor of just "sync_down(path, fs)" ?
+    # TODO [DG] get rid of this in favor of just "sync_down(path, system)" ?
     def sync_from_cluster(self, cluster, path: Optional[str] = None):
         """Efficiently rsync down a blob from a cluster, into the path of the current Blob object."""
         if not cluster.address:
             raise ValueError("Cluster must be started before copying data to it.")
-        # TODO support fsspec urls (e.g. nonlocal fs's)?
+        # TODO support fsspec urls (e.g. nonlocal system's)?
 
         cluster.rsync(source=self.path, dest=path, up=False)
 
@@ -174,7 +178,7 @@ class Blob(Resource):
         if not cluster.address:
             raise ValueError("Cluster must be started before copying data from it.")
         new_blob = copy.deepcopy(self)
-        new_blob._folder.fs = cluster
+        new_blob._folder.system = cluster
         return new_blob
 
 
@@ -182,7 +186,7 @@ def blob(
     data=None,
     name: Optional[str] = None,
     path: Optional[str] = None,
-    fs: Optional[str] = None,
+    system: Optional[str] = None,
     data_config: Optional[Dict] = None,
     mkdir: bool = False,
     snapshot: bool = False,
@@ -194,7 +198,7 @@ def blob(
         data: Blob data. This should be provided as a serialized object.
         name (Optional[str]): Name to give the blob object, to be reused later on.
         path (Optional[str]): Path (or path) of the blob object.
-        fs (Optional[str]): File system. Currently this must be one of
+        system (Optional[str]): File system. Currently this must be one of
             ["file", "github", "sftp", "ssh", "s3", "gcs", "azure"].
             We are working to add additional file system support.
         data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
@@ -212,7 +216,7 @@ def blob(
         >>> rh.blob(name="@/my-blob", data=data, data_source='s3', dryrun=False)
         >>>
         >>> # Remote blob with name and path
-        >>> rh.blob(name='@/my-blob', path='/runhouse-tests/my_blob.pickle', data=data, fs='s3', dryrun=False)
+        >>> rh.blob(name='@/my-blob', path='/runhouse-tests/my_blob.pickle', data=data, system='s3', dryrun=False)
         >>>
         >>> # Local blob with name and path, save to local filesystem
         >>> rh.blob(name=name, data=data, path=str(Path.cwd() / "my_blob.pickle"), dryrun=False)
@@ -227,13 +231,13 @@ def blob(
     config = rns_client.load_config(name)
     config["name"] = name or config.get("rns_address", None) or config.get("name")
 
-    fs = fs or config.get("fs") or Folder.DEFAULT_FS
-    config["fs"] = fs
+    system = system or config.get("system") or Folder.DEFAULT_FS
+    config["system"] = system
 
     data_path = path or config.get("path")
     if data_path is None:
         # TODO [JL] move some of the default params in this factory method to the defaults module for configurability
-        if fs == rns_client.DEFAULT_FS:
+        if system == rns_client.DEFAULT_FS:
             # create random path to store in .cache folder of local filesystem
             data_path = str(Path(f"~/.cache/blobs/{uuid.uuid4().hex}").expanduser())
         else:
@@ -249,7 +253,7 @@ def blob(
     if mkdir:
         # create the remote folder for the blob
         folder_path = str(Path(data_path).parent)
-        rh.folder(name=folder_path, fs=fs, dryrun=True).mkdir()
+        rh.folder(name=folder_path, system=system, dryrun=True).mkdir()
 
     new_blob = Blob.from_config(config, dryrun=dryrun)
     new_blob.data = data

@@ -25,8 +25,9 @@ def summer(a, b):
 
 
 def test_create_function_from_name_local():
+    rh.cluster(name="^rh-cpu", dryrun=True).restart_grpc_server(resync_rh=True)
     local_sum = rh.function(
-        fn=summer, name="local_function", hardware="^rh-cpu", reqs=["local:./"]
+        fn=summer, name="local_function", system="^rh-cpu", reqs=["local:./"]
     ).save()
     del local_sum
 
@@ -40,7 +41,7 @@ def test_create_function_from_name_local():
 
 def test_create_function_from_rns():
     remote_sum = rh.function(
-        fn=summer, name="@/remote_function", hardware="^rh-cpu", reqs=[], dryrun=True
+        fn=summer, name="@/remote_function", system="^rh-cpu", reqs=[], dryrun=True
     ).save()
     del remote_sum
 
@@ -55,7 +56,7 @@ def test_create_function_from_rns():
 @unittest.skip("Not yet implemented.")
 def test_running_function_as_proxy():
     remote_sum = rh.function(
-        fn=summer, name="@/remote_function", hardware="^rh-cpu", reqs=[], dryrun=False
+        fn=summer, name="@/remote_function", system="^rh-cpu", reqs=[], dryrun=False
     ).save()
     del remote_sum
 
@@ -70,13 +71,17 @@ def test_running_function_as_proxy():
 
 def test_get_function_history():
     remote_sum = rh.function(
-        fn=summer, name="@/remote_function", hardware="^rh-cpu", reqs=[], dryrun=True
+        fn=summer, name="@/remote_function", system="^rh-cpu", reqs=[], dryrun=True
     ).save()
     remote_sum = rh.function(
-        fn=summer, name="@/remote_function", hardware="^rh-cpu", reqs=["torch"], dryrun=True
+        fn=summer,
+        name="@/remote_function",
+        system="^rh-cpu",
+        reqs=["torch"],
+        dryrun=True,
     ).save()
     remote_sum = rh.function(
-        fn=summer, name="@/remote_function", hardware="^rh-cpu", reqs=[], dryrun=True
+        fn=summer, name="@/remote_function", system="^rh-cpu", reqs=[], dryrun=True
     ).save()
     name = "@/remote_function"
     remote_sum = rh.function(name=name)
@@ -99,7 +104,7 @@ def test_remote_function_with_multiprocessing():
     re_fn = rh.function(
         multiproc_torch_sum,
         name="test_function",
-        hardware="^rh-cpu",
+        system="^rh-cpu",
         reqs=["./", "torch==1.12.1"],
     )
     summands = list(zip(range(5), range(4, 9)))
@@ -112,7 +117,7 @@ def getpid(a=0):
 
 
 def test_maps():
-    pid_fn = rh.function(getpid, hardware="^rh-cpu")
+    pid_fn = rh.function(getpid, system="^rh-cpu")
     num_pids = [1] * 50
     pids = pid_fn.map(num_pids)
     assert len(set(pids)) > 1
@@ -132,7 +137,7 @@ def test_maps():
     pid_res_from_ref = pid_fn(pid_ref)
     assert pid_res_from_ref > pid_res
 
-    re_fn = rh.function(summer, hardware="^rh-cpu")
+    re_fn = rh.function(summer, system="^rh-cpu")
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn.starmap(summands)
     assert res == [4, 6, 8, 10, 12]
@@ -142,7 +147,7 @@ def test_function_git_fn():
     remote_parse = rh.function(
         fn="https://github.com/huggingface/diffusers/blob/"
         "main/examples/dreambooth/train_dreambooth.py:parse_args",
-        hardware="^rh-cpu",
+        system="^rh-cpu",
         reqs=[
             "torch==1.12.1 --verbose",
             "torchvision==0.13.1",
@@ -171,7 +176,7 @@ def test_function_external_fn():
     """Test functioning a module from reqs, not from working_dir"""
     import torch
 
-    re_fn = rh.function(torch.sum, hardware="^rh-cpu", reqs=["torch"])
+    re_fn = rh.function(torch.sum, system="^rh-cpu", reqs=["torch"])
     res = re_fn(torch.arange(5))
     assert int(res) == 10
 
@@ -180,7 +185,7 @@ def test_function_external_fn():
 def test_notebook():
     nb_sum = lambda x: multiproc_torch_sum(x)
     re_fn = rh.function(
-        nb_sum, hardware="^rh-cpu", reqs=["./", "torch==1.12.1"], dryrun=True
+        nb_sum, system="^rh-cpu", reqs=["./", "torch==1.12.1"], dryrun=True
     )
     re_fn.notebook()
     summands = list(zip(range(5), range(4, 9)))
@@ -199,7 +204,7 @@ def test_ssh():
 
 def test_providing_access_to_function():
     my_function = rh.function(
-        fn=summer, name="@/remote_function", hardware="^rh-cpu", dryrun=True
+        fn=summer, name="@/remote_function", system="^rh-cpu", dryrun=True
     ).save()
     added_users, new_users = my_function.share(
         users=["dongreenberg", "jlewit1"], access_type=ResourceAccess.read
@@ -230,7 +235,7 @@ def delete_function_from_rns(s):
 @unittest.skip("Not yet implemented.")
 def test_http_url():
     # TODO [DG] shouldn't have to specify fn here as a callable / at all?
-    s = rh.function(fn=summer, name="test_function", hardware="^rh-cpu")
+    s = rh.function(fn=summer, name="test_function", system="^rh-cpu")
 
     # Generate and call the URL
     http_url = s.http_url()
@@ -271,7 +276,7 @@ def test_byo_cluster_function():
     del c
     byo_cluster = rh.cluster(name="different-cluster", ips=[ip], ssh_creds=creds).save()
     re_fn = rh.function(
-        multiproc_torch_sum, hardware=byo_cluster, reqs=["./", "torch==1.12.1"]
+        multiproc_torch_sum, system=byo_cluster, reqs=["./", "torch==1.12.1"]
     )
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn(summands)
@@ -279,7 +284,7 @@ def test_byo_cluster_function():
 
 
 def test_byo_cluster_maps():
-    pid_fn = rh.function(getpid, hardware="different-cluster")
+    pid_fn = rh.function(getpid, system="different-cluster")
     num_pids = [1] * 50
     pids = pid_fn.map(num_pids)
     assert len(set(pids)) > 1
@@ -299,7 +304,7 @@ def test_byo_cluster_maps():
     pid_res_from_ref = pid_fn(pid_ref)
     assert pid_res_from_ref > pid_res
 
-    re_fn = rh.function(summer, hardware="different-cluster")
+    re_fn = rh.function(summer, system="different-cluster")
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn.starmap(summands)
     assert res == [4, 6, 8, 10, 12]

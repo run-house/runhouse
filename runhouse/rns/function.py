@@ -25,13 +25,15 @@ logger = logging.getLogger(__name__)
 
 
 class Function(Resource):
-    RESOURCE_TYPE = "function"  # TODO [DG] rename when rns store supports saving this type
+    RESOURCE_TYPE = (
+        "function"  # TODO [DG] rename when rns store supports saving this type
+    )
     DEFAULT_ACCESS = "write"
 
     def __init__(
         self,
         fn_pointers: Tuple[str, str, str],
-        hardware: Optional[Cluster] = None,
+        system: Optional[Cluster] = None,
         name: [Optional[str]] = None,
         reqs: Optional[List[str]] = None,
         setup_cmds: Optional[List[str]] = None,
@@ -40,22 +42,22 @@ class Function(Resource):
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
-        Runhouse Function ("Serverless ENDpoint") object. It comprises of the entrypoint, hardware/cluster,
+        Runhouse Function ("Serverless ENDpoint") object. It comprises of the entrypoint, system/cluster,
         and dependencies necessary to run the service.
 
         .. note::
                 To create a Function, please use the factory function :func:`function`.
         """
         self.fn_pointers = fn_pointers
-        self.hardware = hardware
+        self.system = system
         self.reqs = reqs
         self.setup_cmds = setup_cmds or []
         self.access = access or self.DEFAULT_ACCESS
         self.dryrun = dryrun
         super().__init__(name=name, dryrun=dryrun)
 
-        if not self.dryrun and self.hardware and self.access in ["write", "read"]:
-            self.to(self.hardware, reqs=self.reqs, setup_cmds=setup_cmds)
+        if not self.dryrun and self.system and self.access in ["write", "read"]:
+            self.to(self.system, reqs=self.reqs, setup_cmds=setup_cmds)
 
     # ----------------- Constructor helper methods -----------------
 
@@ -70,8 +72,8 @@ class Function(Resource):
         ]
         # TODO validate which fields need to be present in the config
 
-        if isinstance(config["hardware"], dict):
-            config["hardware"] = Cluster.from_config(config["hardware"], dryrun=dryrun)
+        if isinstance(config["system"], dict):
+            config["system"] = Cluster.from_config(config["system"], dryrun=dryrun)
 
         if "fn_pointers" not in config:
             raise ValueError(
@@ -83,23 +85,23 @@ class Function(Resource):
 
     def to(
         self,
-        hardware: Union[str, Cluster],
+        system: Union[str, Cluster],
         reqs: Optional[List[str]] = None,
         setup_cmds: Optional[List[str]] = None,
     ):
         """
-        Set up a Function on the given hardware, install the reqs, and run setup_cmds.
+        Set up a Function on the given system, install the reqs, and run setup_cmds.
 
         See the args of the factory function :func:`function` for more information.
         """
-        # We need to backup the hardware here so the __getstate__ method of the cluster
+        # We need to backup the system here so the __getstate__ method of the cluster
         # doesn't wipe the client and _grpc_client of this function's cluster when
         # deepcopy copies it.
-        hw_backup = self.hardware
-        self.hardware = None
+        hw_backup = self.system
+        self.system = None
         new_function = copy.deepcopy(self)
-        self.hardware = hw_backup
-        new_function.hardware = hardware
+        self.system = hw_backup
+        new_function.system = system
         new_function.reqs = reqs if reqs else self.reqs
         new_function.setup_cmds = (
             setup_cmds if setup_cmds else self.setup_cmds
@@ -107,51 +109,51 @@ class Function(Resource):
         # TODO [DG] figure out how to run setup_cmds on BYO Cluster
 
         logging.info("Setting up Function on cluster.")
-        if not new_function.hardware.address:
+        if not new_function.system.address:
             # For OnDemandCluster, this initial check doesn't trigger a sky.status, which is slow.
             # If cluster simply doesn't have an address we likely need to up it.
-            if not hasattr(new_function.hardware, "up"):
+            if not hasattr(new_function.system, "up"):
                 raise ValueError(
                     "Cluster must have an address (i.e. be up) or have a reup_cluster method "
                     "(e.g. OnDemandCluster)."
                 )
-            if not new_function.hardware.is_up():
+            if not new_function.system.is_up():
                 # If this is a OnDemandCluster, before we up the cluster, run a sky.check to see if the cluster
                 # is already up but doesn't have an address assigned yet.
                 new_function.reup_cluster()
         try:
-            new_function.hardware.install_packages(new_function.reqs)
+            new_function.system.install_packages(new_function.reqs)
         except (
             grpc.RpcError,
             sshtunnel.BaseSSHTunnelForwarderError,
             asyncio.exceptions.TimeoutError,
         ):
             # It's possible that the cluster went down while we were trying to install packages.
-            if not new_function.hardware.is_up():
+            if not new_function.system.is_up():
                 new_function.reup_cluster()
             else:
-                new_function.hardware.restart_grpc_server(resync_rh=False)
-            new_function.hardware.install_packages(new_function.reqs)
+                new_function.system.restart_grpc_server(resync_rh=False)
+            new_function.system.install_packages(new_function.reqs)
         logging.info("Function setup complete.")
 
         return new_function
 
     def reup_cluster(self):
         """Re-up the cluster the Function is on."""
-        logger.info(f"Upping the cluster {self.hardware.name}")
-        self.hardware.up()
+        logger.info(f"Upping the cluster {self.system.name}")
+        self.system.up()
         # TODO [DG] this only happens when the cluster comes up, not when a new function is added to the cluster
-        self.hardware.run(self.setup_cmds)
+        self.system.run(self.setup_cmds)
 
     def run_setup(self, cmds: List[str], force: bool = False):
-        """Run the given setup commands on the hardware."""
+        """Run the given setup commands on the system."""
         to_run = []
         for cmd in cmds:
             if force or cmd not in self.setup_cmds:
                 to_run.append(cmd)
         if to_run:
             self.setup_cmds.extend(to_run)
-            self.hardware.run(to_run)
+            self.system.run(to_run)
 
     @staticmethod
     def extract_fn_paths(raw_fn: Callable, reqs: List[str]):
@@ -250,10 +252,7 @@ class Function(Resource):
     def __call__(self, *args, stream_logs=False, **kwargs):
         fn_type = "call"
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
-            if (
-                not self.hardware
-                or self.hardware.name == rh_config.obj_store.cluster_name
-            ):
+            if not self.system or self.system.name == rh_config.obj_store.cluster_name:
                 [relative_path, module_name, fn_name] = self.fn_pointers
                 fn = get_fn_by_name(module_name=module_name, fn_name=fn_name)
                 return call_fn_by_type(
@@ -261,7 +260,7 @@ class Function(Resource):
                 )
             elif stream_logs:
                 run_key = self.remote(*args, **kwargs)
-                return self.hardware.get(run_key, stream_logs=True)
+                return self.system.get(run_key, stream_logs=True)
             else:
                 return self._call_fn_with_ssh_access(
                     fn_type=fn_type, args=args, kwargs=kwargs
@@ -353,8 +352,8 @@ class Function(Resource):
                 fn_type="remote", args=args, kwargs=kwargs
             )
             cluster_name = (
-                f'rh.cluster(name="{self.hardware.rns_address}")'
-                if self.hardware.name
+                f'rh.cluster(name="{self.system.rns_address}")'
+                if self.system.name
                 else "<my_cluster>"
             )
             logger.info(
@@ -378,7 +377,7 @@ class Function(Resource):
             obj_ref: A single or list of Ray.ObjectRef objects returned by a Function.remote() call. The ObjectRefs
                 must be from the cluster that this Function is running on.
         """
-        # TODO [DG] replace with self.hardware.get()?
+        # TODO [DG] replace with self.system.get()?
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
             arg_list = obj_ref if isinstance(obj_ref, list) else [obj_ref]
             return self._call_fn_with_ssh_access(
@@ -402,7 +401,7 @@ class Function(Resource):
         [relative_path, module_name, fn_name] = self.fn_pointers
         name = self.name or fn_name or "anonymous function"
         logger.info(f"Running {name} via gRPC")
-        res = self.hardware.run_module(
+        res = self.system.run_module(
             relative_path, module_name, fn_name, fn_type, args, kwargs
         )
         return res
@@ -421,9 +420,9 @@ class Function(Resource):
     #     from rpyc.utils.classic import redirected_stdio
     #     from rpyc.utils.zerodeploy import DeployedServer
     #
-    #     creds = self.hardware.ssh_creds()
+    #     creds = self.system.ssh_creds()
     #     ssh_client = ParamikoMachine(
-    #         self.hardware.address,
+    #         self.system.address,
     #         user=creds["ssh_user"],
     #         keyfile=str(Path(creds["ssh_private_key"]).expanduser()),
     #         missing_host_policy=AutoAddPolicy(),
@@ -458,7 +457,7 @@ class Function(Resource):
 
         config.update(
             {
-                "hardware": self._resource_string_for_subconfig(self.hardware.save()),
+                "system": self._resource_string_for_subconfig(self.system.save()),
                 "reqs": [
                     self._resource_string_for_subconfig(package)
                     for package in self.reqs
@@ -477,14 +476,14 @@ class Function(Resource):
     #                    f"{ssh_user}@{address} docker exec -it ray_container /bin/bash -c {cmd}".split(' '))
 
     def ssh(self):
-        """SSH into the hardware."""
-        if self.hardware is None:
-            raise RuntimeError("Hardware must be specified and up to ssh into a Function")
-        self.hardware.ssh()
+        """SSH into the system."""
+        if self.system is None:
+            raise RuntimeError("System must be specified and up to ssh into a Function")
+        self.system.ssh()
 
     def send_secrets(self, reload=False):
-        """Function secrets to the hardware."""
-        self.hardware.send_secrets(reload=reload)
+        """Function secrets to the system."""
+        self.system.send_secrets(reload=reload)
 
     def http_url(self, curl_command=False, *args, **kwargs) -> str:
         """
@@ -517,35 +516,33 @@ class Function(Resource):
         return http_url
 
     def notebook(self, persist=False, sync_package_on_close=None, port_forward=8888):
-        """Tunnel into and launch notebook from the hardware."""
+        """Tunnel into and launch notebook from the system."""
         # Roughly trying to follow:
         # https://towardsdatascience.com/using-jupyter-notebook-running-on-a-remote-docker-container-via-ssh-ea2c3ebb9055
         # https://docs.ray.io/en/latest/ray-core/using-ray-with-jupyter.html
-        if self.hardware is None:
+        if self.system is None:
             raise RuntimeError("Cannot SSH, running locally")
 
-        tunnel, port_fwd = self.hardware.ssh_tunnel(
+        tunnel, port_fwd = self.system.ssh_tunnel(
             local_port=port_forward, num_ports_to_try=10
         )
         try:
             install_cmd = "pip install jupyterlab"
             jupyter_cmd = f"jupyter lab --port {port_fwd} --no-browser"
             # port_fwd = '-L localhost:8888:localhost:8888 '  # TOOD may need when we add docker support
-            with self.hardware.pause_autostop():
-                self.hardware.run(commands=[install_cmd, jupyter_cmd], stream_logs=True)
+            with self.system.pause_autostop():
+                self.system.run(commands=[install_cmd, jupyter_cmd], stream_logs=True)
 
         finally:
             if sync_package_on_close:
                 if sync_package_on_close == "./":
                     sync_package_on_close = rh_config.rns_client.locate_working_dir()
                 pkg = Package.from_string("local:" + sync_package_on_close)
-                self.hardware.rsync(
-                    source=f"~/{pkg.name}", dest=pkg.local_path, up=False
-                )
+                self.system.rsync(source=f"~/{pkg.name}", dest=pkg.local_path, up=False)
             if not persist:
                 tunnel.stop(force=True)
                 kill_jupyter_cmd = f"jupyter notebook stop {port_fwd}"
-                self.hardware.run(commands=[kill_jupyter_cmd])
+                self.system.run(commands=[kill_jupyter_cmd])
 
     def keep_warm(
         self,
@@ -554,12 +551,12 @@ class Function(Resource):
         # TODO min_replicas: List[int] = None,
         # TODO max_replicas: List[int] = None
     ):
-        """Keep the hardware warm for autostop_mins. If autostop_mins is ``None`` or -1, keep warm indefinitely."""
+        """Keep the system warm for autostop_mins. If autostop_mins is ``None`` or -1, keep warm indefinitely."""
         if autostop_mins is None:
             logger.info(f"Keeping {self.name} indefinitely warm")
             # keep indefinitely warm if user doesn't specify
             autostop_mins = -1
-        self.hardware.keep_warm(autostop_mins=autostop_mins)
+        self.system.keep_warm(autostop_mins=autostop_mins)
 
     @staticmethod
     def _handle_nb_fn(fn, fn_pointers, serialize_notebook_fn, name):
@@ -600,7 +597,7 @@ class Function(Resource):
 def function(
     fn: Optional[Union[str, Callable]] = None,
     name: [Optional[str]] = None,
-    hardware: Optional[Union[str, Cluster]] = None,
+    system: Optional[Union[str, Cluster]] = None,
     reqs: Optional[List[str]] = None,
     setup_cmds: Optional[List[str]] = None,
     # TODO image: Optional[str] = None,
@@ -611,10 +608,10 @@ def function(
     """Factory function for constructing a Runhouse Function object.
 
     Args:
-        fn (Optional[str or Callable]): The function to execute on the remote hardware when the function is called.
+        fn (Optional[str or Callable]): The function to execute on the remote system when the function is called.
         name (Optional[str]): Name of the Function to create or retrieve.
             This can be either from a local config or from the RNS.
-        hardware (Optional[str or Cluster]): Hardware (cluster) to use for the Function.
+        system (Optional[str or Cluster]): Hardware (cluster) on which to execute the Function.
             This can be either the string name of a Cluster object, or a Cluster object.
         reqs (Optional[List[str]]): List of requirements to install on the remote cluster, or path to the
             requirements.txt file. If a list of pypi packages is provided, including 'requirements.txt' in
@@ -636,7 +633,7 @@ def function(
         >>>    return a + b
         >>>
         >>> # creating the function
-        >>> summer = rh.function(fn=sum, hardware=cluster, reqs=['requirements.txt'])
+        >>> summer = rh.function(fn=sum, system=cluster, reqs=['requirements.txt'])
         >>> # or, equivalently
         >>> summer = rh.function(fn=sum).to(cluster, reqs=['requirements.txt'])
         >>>
@@ -701,21 +698,21 @@ def function(
         )
         config["reqs"].insert(0, repo_package)
         # repo_package = Package(path=f'/',
-        #                        fs='github',
+        #                        system='github',
         #                        data_config={'org': username, 'repo': repo_name, 'sha': branch_name,
         #                                     'filecache': {'cache_storage': repo_name}},
         #                        install_method='local')
         # config['reqs'] = [repo_package] + config['reqs']
 
-    config["hardware"] = hardware or config.get("hardware")
-    if isinstance(config["hardware"], str):
-        hw_dict = rh_config.rns_client.load_config(config["hardware"])
+    config["system"] = system or config.get("system")
+    if isinstance(config["system"], str):
+        hw_dict = rh_config.rns_client.load_config(config["system"])
         if not hw_dict:
             raise RuntimeError(
-                f'Hardware {rh_config.rns_client.resolve_rns_path(config["hardware"])} '
+                f'Cluster {rh_config.rns_client.resolve_rns_path(config["system"])} '
                 f"not found locally or in RNS."
             )
-        config["hardware"] = hw_dict
+        config["system"] = hw_dict
 
     config["setup_cmds"] = (
         setup_cmds if setup_cmds is not None else config.get("setup_cmds")
@@ -729,6 +726,7 @@ def function(
         new_function.send_secrets()
 
     return new_function
+
 
 # Briefly keep for BC.
 send = function

@@ -35,7 +35,7 @@ class Cluster(Resource):
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
-        The Runhouse cluster, or hardware. This is where you can run Functions or access/transfer data
+        The Runhouse cluster, or system. This is where you can run Functions or access/transfer data
         between. You can BYO (bring-your-own) cluster by providing cluster IP and ssh_creds, or
         this can be an on-demand cluster that is spun up/down through
         `SkyPilot <https://github.com/skypilot-org/skypilot>`_, using your cloud credentials.

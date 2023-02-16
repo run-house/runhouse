@@ -74,7 +74,7 @@ On the data side, we can do things like:
 
 ```python
 # Function a folder up to a cluster (rsync)
-rh.folder(path=input_images_dir).to(fs=gpu, path='dreambooth/instance_images')
+rh.folder(path=input_images_dir).to(system=gpu, path='dreambooth/instance_images')
 
 # Stream a table in from anywhere (S3, GCS, local, etc)
 preprocessed_yelp = rh.table(name="preprocessed-tokenized-dataset")

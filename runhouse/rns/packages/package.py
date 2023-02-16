@@ -260,7 +260,7 @@ def package(
     install_method: str = None,
     install_str: str = None,
     url: str = None,
-    fs: str = Folder.DEFAULT_FS,
+    system: str = Folder.DEFAULT_FS,
     dryrun: bool = False,
     local_mount: bool = False,
     data_config: Optional[Dict] = None,
@@ -273,7 +273,7 @@ def package(
         install_method (str): Method for installing the package. Options: ["pip", "conda", "reqs"]
         install_str (str): Additional arguments to install.  # TODO: not too sure about this
         url (str): URL of the package to install.
-        fs (str): File system. Currently this must be one of
+        system (str): File system. Currently this must be one of
             ["file", "github", "sftp", "ssh", "s3", "gcs", "azure"].
             We are working to add additional file system support.
         dryrun (bool): Whether to install the package locally. (Default: ``False``)
@@ -292,7 +292,7 @@ def package(
     config["install_method"] = install_method or config.get("install_method")
     if url is not None:
         config["install_target"] = Folder(
-            path=url, fs=fs, local_mount=local_mount, data_config=data_config
+            path=url, system=system, local_mount=local_mount, data_config=data_config
         )
         config["install_args"] = install_str
     elif install_str is not None:

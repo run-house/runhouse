@@ -236,7 +236,7 @@ class RNSClient:
 
     def _load_config_from_local(self, rns_address=None, path=None) -> Optional[dict]:
         """Load config from local file"""
-        # TODO should we handle remote filessytems, or throw an error if fs != 'file'?
+        # TODO should we handle remote filessytems, or throw an error if system != 'file'?
         if not path:
             path = self.locate(rns_address, resolve_path=False)
             if not path:

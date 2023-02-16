@@ -33,7 +33,7 @@ class Resource:
         Runhouse currently supports the following builtin Resource types:
 
         - Compute Abstractions
-            - Cluster :py:class:`.hardware.cluster.Cluster`
+            - Cluster :py:class:`.system.cluster.Cluster`
             - Function :py:class:`.function.Function`
             - Package :py:class:`.packages.package.Package`
 
