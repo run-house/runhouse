@@ -14,13 +14,13 @@ def is_interactive():
 
 
 def login(
-        token: str = None,
-        download_config: bool = None,
-        upload_config: bool = None,
-        download_secrets: bool = None,
-        upload_secrets: bool = None,
-        ret_token: bool = False,
-        interactive: bool = False,
+    token: str = None,
+    download_config: bool = None,
+    upload_config: bool = None,
+    download_secrets: bool = None,
+    upload_secrets: bool = None,
+    ret_token: bool = False,
+    interactive: bool = False,
 ):
     """Login to Runhouse. Validates token provided, with options to upload or download stored secrets or config between
     local environment and Runhouse / Vault.
@@ -109,9 +109,9 @@ def login(
 
 
 def logout(
-        delete_loaded_secrets: bool = None,
-        delete_rh_config_file: bool = None,
-        interactive: bool = None,
+    delete_loaded_secrets: bool = None,
+    delete_rh_config_file: bool = None,
+    interactive: bool = None,
 ):
     """Logout from Runhouse. Provides option to delete credentials from the Runhouse config and the underlying
      credentials file. Token is also deleted from the config.

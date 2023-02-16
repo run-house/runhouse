@@ -4,9 +4,10 @@ import runhouse as rh
 
 
 def test_get_all_secrets():
-    secrets = rh.Secrets.download_into_env(save_locally=True)
+    secrets = rh.Secrets.download_into_env(save_locally=False)
     providers = rh.Secrets.builtin_providers(as_str=True)
-    assert set(providers) == {"aws", "gcp", "sky", "hf"}
+    # TODO this check is dependent on local secrets config, not a catch all
+    assert set(providers) == {"aws", "gcp", "lambda", "ssh", "huggingface"}
     assert secrets
 
 
@@ -66,6 +67,9 @@ def test_sending_secrets_to_cluster():
     assert True
 
 
+@unittest.skip("This test overrides local rh token if done incorrectly")
+# Running this unit test will override local rh config token to "..."
+# Was meant to be run by manually inputting token, but need a better way to test
 def test_login():
     # TODO [DG] create a mock account and test this properly in CI
     token = "..."
@@ -125,7 +129,7 @@ def test_logout():
     Secrets.download_into_env(providers=configured_providers)
 
 
-# TODO [JL] test custom secret file paths
+# TODO [JL] Add tests for custom secret file paths
 
 
 if __name__ == "__main__":

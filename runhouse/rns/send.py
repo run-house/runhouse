@@ -34,26 +34,16 @@ class Send(Resource):
         name: [Optional[str]] = None,
         reqs: Optional[List[str]] = None,
         setup_cmds: Optional[List[str]] = None,
-        dryrun: bool = True,
+        dryrun: bool = False,
         access: Optional[str] = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
-        Create, load, or update a Send ("Serverless endpoint"). A Send is comprised of the
-        entrypoint, hardware, and dependencies to run the service.
+        Runhouse Send ("Serverless ENDpoint") object. It comprises of the entrypoint, hardware/cluster,
+        and dependencies necessary to run the service.
 
-        Args:
-            fn (): A python callable or entrypoint string (module:function) within the package which the user
-                can call to run remotely as a microservice. The Send object is callable, taking the same inputs
-                 and producing the same outputs as fn. For example, if we create
-                 `my_send = Send(fn=lambda x: x+1, hardware=my_hw)`, we can call it with `my_send(4)`, and
-                 the fn will run remotely on `my_hw`.
-            name (): A URI to persist this Send's metadata to Runhouse's Resource Naming System (RNS), which allows
-                it to be reloaded and used later or in other environments. If name is left empty, the Send is
-                "anonymous" and will only exist within this Python context. # TODO more about user namespaces.
-            hardware ():
-            reqs ():
-            cluster ():
+        .. note::
+                To create a Send, please use the factory function :func:`send`.
         """
         self.fn_pointers = fn_pointers
         self.hardware = hardware
@@ -69,15 +59,8 @@ class Send(Resource):
     # ----------------- Constructor helper methods -----------------
 
     @staticmethod
-    def from_config(config, dryrun=True):
-        """Create a Send object from a config dictionary.
-
-        Args:
-            config (dict): Dictionary of config values.
-
-        Returns:
-            Send: Send object created from config values.
-        """
+    def from_config(config: dict, dryrun: bool = True):
+        """Create a Send object from a config dictionary."""
         config["reqs"] = [
             Package.from_config(package, dryrun=True)
             if isinstance(package, dict)
@@ -97,9 +80,22 @@ class Send(Resource):
 
         return Send(**config, dryrun=dryrun)
 
-    def to(self, hardware, reqs=None, setup_cmds=None):
+    def to(
+        self,
+        hardware: Optional[Union[str, Cluster]],
+        reqs: Optional[List[str]] = None,
+        setup_cmds: Optional[List[str]] = None,
+    ):
+        """
+        Set up a Send on the given hardware, install the reqs, and run setup_cmds.
+
+        See the args of the factory function :func:`send` for more information.
+        """
+        hw_backup = self.hardware
+        self.hardware = None
         new_send = copy.deepcopy(self)
-        new_send.hardware = hardware if hardware else self.hardware
+        self.hardware = hw_backup
+        new_send.hardware = hardware
         new_send.reqs = reqs if reqs else self.reqs
         new_send.setup_cmds = (
             setup_cmds if setup_cmds else self.setup_cmds
@@ -133,12 +129,14 @@ class Send(Resource):
         return new_send
 
     def reup_cluster(self):
+        """Re-up the cluster the Send is on."""
         logger.info(f"Upping the cluster {self.hardware.name}")
         self.hardware.up()
         # TODO [DG] this only happens when the cluster comes up, not when a new send is added to the cluster
         self.hardware.run(self.setup_cmds)
 
-    def run_setup(self, cmds, force=False):
+    def run_setup(self, cmds: List[str], force: bool = False):
+        """Run the given setup commands on the hardware."""
         to_run = []
         for cmd in cmds:
             if force or cmd not in self.setup_cmds:
@@ -148,7 +146,7 @@ class Send(Resource):
             self.hardware.run(to_run)
 
     @staticmethod
-    def extract_fn_paths(raw_fn, reqs):
+    def extract_fn_paths(raw_fn: Callable, reqs: List[str]):
         """Get the path to the module, module name, and function name to be able to import it on the server"""
         if not isinstance(raw_fn, Callable):
             raise TypeError(
@@ -164,7 +162,12 @@ class Send(Resource):
             else None
         )
 
-        if not module_path or raw_fn.__name__ == "<lambda>":
+        # TODO better way of detecting if in a notebook or interactive Python env
+        if (
+            not module_path
+            or module_path.endswith("ipynb")
+            or raw_fn.__name__ == "<lambda>"
+        ):
             # The only time __file__ wouldn't be present is if the function is defined in an interactive
             # interpreter or a notebook. We can't import on the server in that case, so we need to cloudpickle
             # the fn to send it over. The __call__ function will serialize the function if we return it this way.
@@ -175,18 +178,29 @@ class Send(Resource):
             fn_name = raw_fn.__name__
         else:
             root_path = os.path.dirname(module_path)
-            # module_name = getattr(module.__spec__, 'name', inspect.getmodulename(module_path))
-            module_name = (
-                module.__spec__.name
-                if getattr(module, "__package__", False)
-                else inspect.getmodulename(module_path)
-            )
+            module_name = inspect.getmodulename(module_path)
             # TODO __qualname__ doesn't work when fn is aliased funnily, like torch.sum
             fn_name = getattr(raw_fn, "__qualname__", raw_fn.__name__)
 
-        # if module is not in a package, we need to add its parent directory to the path to import it
-        # if not getattr(module, '__package__', None):
-        #     module_path = os.path.dirname(module.__file__)
+            # Adapted from https://github.com/modal-labs/modal-client/blob/main/modal/_function_utils.py#L94
+            if getattr(module, "__package__", None):
+                module_path = os.path.abspath(module.__file__)
+                package_paths = [
+                    os.path.abspath(p) for p in __import__(module.__package__).__path__
+                ]
+                base_dirs = [
+                    base_dir
+                    for base_dir in package_paths
+                    if os.path.commonpath((base_dir, module_path)) == base_dir
+                ]
+
+                if len(base_dirs) != 1:
+                    logger.info(f"Module files: {module_path}")
+                    logger.info(f"Package paths: {package_paths}")
+                    logger.info(f"Base dirs: {base_dirs}")
+                    raise Exception("Wasn't able to find the package directory!")
+                root_path = os.path.dirname(base_dirs[0])
+                module_name = module.__spec__.name
 
         remote_import_path = None
         for req in reqs:
@@ -194,7 +208,7 @@ class Send(Resource):
             if not isinstance(req, str) and req.is_local():
                 local_path = Path(req.local_path)
             elif isinstance(req, str):
-                if req.split(":")[0] in ["local", "reqs"]:
+                if req.split(":")[0] in ["local", "reqs", "pip"]:
                     req = req.split(":")[1]
 
                 if Path(req).expanduser().resolve().exists():
@@ -208,10 +222,8 @@ class Send(Resource):
             if local_path:
                 try:
                     # Module path relative to package
-                    remote_import_path = (
-                        local_path.name
-                        + "/"
-                        + str(Path(root_path).relative_to(local_path))
+                    remote_import_path = str(
+                        local_path.name / Path(root_path).relative_to(local_path)
                     )
                 except ValueError:  # Not a subdirectory
                     pass
@@ -228,14 +240,14 @@ class Send(Resource):
     # ----------------- Send call methods -----------------
 
     def __call__(self, *args, stream_logs=False, **kwargs):
+        fn_type = "call"
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
             if (
                 not self.hardware
                 or self.hardware.name == rh_config.obj_store.cluster_name
             ):
-                fn = get_fn_by_name(
-                    module_name=self.fn_pointers[1], fn_name=self.fn_pointers[2]
-                )
+                [relative_path, module_name, fn_name] = self.fn_pointers
+                fn = get_fn_by_name(module_name=module_name, fn_name=fn_name)
                 return call_fn_by_type(
                     fn, fn_type, fn_name, relative_path, args, kwargs
                 )
@@ -244,7 +256,7 @@ class Send(Resource):
                 return self.hardware.get(run_key, stream_logs=True)
             else:
                 return self._call_fn_with_ssh_access(
-                    fn_type="call", args=args, kwargs=kwargs
+                    fn_type=fn_type, args=args, kwargs=kwargs
                 )
         else:
             # run the function via http url - user only needs Proxy access
@@ -269,7 +281,7 @@ class Send(Resource):
             res = read_response_data(resp)
             return res
 
-    def repeat(self, num_repeats, *args, **kwargs):
+    def repeat(self, num_repeats: int, *args, **kwargs):
         """Repeat the Send call multiple times.
 
         Args:
@@ -298,7 +310,7 @@ class Send(Resource):
             )
 
     def starmap(self, args_lists, **kwargs):
-        """Like Send.map() except that the elements of the iterable are expected to be iterables
+        """Like :func:`map` except that the elements of the iterable are expected to be iterables
         that are unpacked as arguments. An iterable of [(1,2), (3, 4)] results in [func(1,2), func(3,4)]."""
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
             return self._call_fn_with_ssh_access(
@@ -310,12 +322,7 @@ class Send(Resource):
             )
 
     def enqueue(self, *args, **kwargs):
-        """Enqueue a Send call to be run later.
-
-        Args:
-            *args: Positional arguments to pass to the Send
-            **kwargs: Keyword arguments to pass to the Send
-        """
+        """Enqueue a Send call to be run later."""
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
             return self._call_fn_with_ssh_access(
                 fn_type="queue", args=args, kwargs=kwargs
@@ -326,7 +333,7 @@ class Send(Resource):
             )
 
     def remote(self, *args, **kwargs):
-        """Map a function over a list of arguments."""
+        """Run async remote call on cluster."""
         # TODO [DG] pin the obj_ref and return a string (printed to log) so result can be retrieved later and we
         # don't need to init ray here. Also, allow user to pass the string as a param to remote().
         # TODO [DG] add rpc for listing gettaable strings, plus metadata (e.g. when it was created)
@@ -462,12 +469,19 @@ class Send(Resource):
     #                    f"{ssh_user}@{address} docker exec -it ray_container /bin/bash -c {cmd}".split(' '))
 
     def ssh(self):
+        """SSH into the hardware."""
         if self.hardware is None:
             raise RuntimeError("Hardware must be specified and up to ssh into a Send")
         self.hardware.ssh()
 
+    def send_secrets(self):
+        """Send secrets to the hardware."""
+        self.hardware.send_secrets()
+
     def http_url(self, curl_command=False, *args, **kwargs) -> str:
-        """Return the endpoint needed to run the Send on the remote cluster, or provide the curl command if requested"""
+        """
+        Return the endpoint needed to run the Send on the remote cluster, or provide the curl command if requested.
+        """
         resource_uri = rh_config.rns_client.resource_uri(name=self.name)
         uri = f"proxy/{resource_uri}"
         if curl_command:
@@ -495,6 +509,7 @@ class Send(Resource):
         return http_url
 
     def notebook(self, persist=False, sync_package_on_close=None, port_forward=8888):
+        """Tunnel into and launch notebook from the hardware."""
         # Roughly trying to follow:
         # https://towardsdatascience.com/using-jupyter-notebook-running-on-a-remote-docker-container-via-ssh-ea2c3ebb9055
         # https://docs.ray.io/en/latest/ray-core/using-ray-with-jupyter.html
@@ -531,6 +546,7 @@ class Send(Resource):
         # TODO min_replicas: List[int] = None,
         # TODO max_replicas: List[int] = None
     ):
+        """Keep the hardware warm for autostop_mins. If autostop_mins is ``None`` or -1, keep warm indefinitely."""
         if autostop_mins is None:
             logger.info(f"Keeping {self.name} indefinitely warm")
             # keep indefinitely warm if user doesn't specify
@@ -584,19 +600,40 @@ def send(
     load_secrets: bool = False,
     serialize_notebook_fn: bool = False,
 ):
-    """Factory constructor to construct the Send for various provider types.
+    """Factory function for constructing a Runhouse Send object.
 
-    fn: The function which will execute on the remote cluster when this send is called.
-    name: Name of the Send to create or retrieve, either from a local config or from the RNS.
-    hardware: Hardware to use for the Send, either a string name of a Cluster object, or a Cluster object.
-    package: Package to send to the remote cluster, either a string name of a Package, package url,
-        or a Package object.
-    reqs: List of requirements to install on the remote cluster, or path to a requirements.txt file. If a list
-        of pypi packages is provided, including 'requirements.txt' in the list will install the requirements
-        in `package`. By default, if reqs is left as None, we'll set it to ['requirements.txt'], which installs
-        just the requirements of package. If an empty list is provided, no requirements will be installed.
-    image (TODO): Docker image id to use on the remote cluster, or path to Dockerfile.
-    dryrun: Whether to create the Send if it doesn't exist, or load the Send object as a dryrun.
+    Args:
+        fn (Optional[str or Callable]): The function to execute on the remote hardware when the send is called.
+        name (Optional[str]): Name of the Send to create or retrieve.
+            This can be either from a local config or from the RNS.
+        hardware (Optional[str or Cluster]): Hardware (cluster) to use for the Send.
+            This can be either the string name of a Cluster object, or a Cluster object.
+        reqs (Optional[List[str]]): List of requirements to install on the remote cluster, or path to the
+            requirements.txt file. If a list of pypi packages is provided, including 'requirements.txt' in
+            the list will install the requirements in `package`. By default, we'll set it to ['requirements.txt'],
+            which installs just the requirements of package. If set to an empty list, no requirements will be installed.
+            # TODO: reword this a bit
+        dryrun (bool): Whether to create the Send if it doesn't exist, or load the Send object as a dryrun.
+            (Default: ``False``)
+        load_secrets (bool): Whether or not to send secrets; only applicable if `dryrun` is set to ``False``.
+            (Default: ``False``)
+        serialize_notebook_fn (bool): If function is of a notebook setting, whether or not to serialized the function.
+            (Default: ``False``)
+
+    Returns:
+        Send: The resulting Send object.
+
+    Example:
+        >>> def sum(a, b):
+        >>>    return a + b
+        >>>
+        >>> # creating the send
+        >>> summer = rh.send(fn=sum, hardware=cluster, reqs=['requirements.txt'])
+        >>> # or, equivalently
+        >>> summer = rh.send(fn=sum).to(cluster, reqs=['requirements.txt'])
+        >>>
+        >>> # using the send
+        >>> summer(5, 8)  # returns 13
     """
 
     config = rh_config.rns_client.load_config(name)
