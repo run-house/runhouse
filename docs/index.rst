@@ -22,15 +22,13 @@ or :code:`my_table.to('parquet_in_s3')`?
 Runhouse allows just that: function code and data to any of your compute or data infra (with your own cloud creds),
 all in Python, and continue to use them eagerly exactly as they were.
 
-Runhouse is for ML Researchers, Engineers, and Data Scientists who are tired of:
+Runhouse has four top-level objectives:
 
-- 🚜 Manually shuttling code and data around between their local machine, remote instances, and cloud storage
-- 📤📥 Constantly spinning up and down boxes
-- 🐜 Debugging over ssh and notebook tunnels
-- 🧑‍🔧 Translating their code into a pipeline DSL just to use multiple hardware types
-- 🪦 Debugging in an orchestrator
-- 👩‍✈️ Missing out on fancy LLM IDE features
-- 🕵️ Struggling to find their teammates' code and data artifacts.
+
+* Allowing users to natively program across compute resources
+* Allowing users to command data between storage and compute
+* Making resources accessible across environments and users
+* Allowing resources to be shared among teams as living assets
 
 
 There's no magic yaml, DSL, code serialization, or "submitting for execution." We're just spinning up the cluster for you (or using an existing cluster), syncing over your code, starting a gRPC connection, and running your code on the cluster.
@@ -49,9 +47,6 @@ Getting Started 🐣
 
     $ pip install runhouse
     # Or "runhouse[aws]", "runhouse[gcp]", "runhouse[azure]", "runhouse[all]"
-    $ sky check
-    # Optionally, for portability (e.g. Colab):
-    $ runhouse login
 
 .. tip::
    See the :ref:`Installation` section for more detailed instructions.
