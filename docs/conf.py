@@ -58,7 +58,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 html_theme = "sphinx_book_theme"
 
 html_title = "Runhouse"
-html_logo = "_static/rh_1.jpeg"
+html_logo = "_static/rh_1.png"
 html_favicon = "_static/favicon.ico"
 
 html_theme_options = {
