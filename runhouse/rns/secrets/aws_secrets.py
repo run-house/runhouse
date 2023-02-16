@@ -49,6 +49,10 @@ class AWSSecrets(Secrets):
         cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
     ):
         dest_path = file_path or cls.default_credentials_path()
+        cls.check_secrets_for_mismatches(
+            secrets_to_save=secrets, secrets_path=dest_path, overwrite=overwrite
+        )
+
         parser = configparser.ConfigParser()
         section_name = "default"
         parser.add_section(section_name)
@@ -62,12 +66,6 @@ class AWSSecrets(Secrets):
             option="aws_secret_access_key",
             value=secrets["secret_key"],
         )
-
-        if cls.has_secrets_file() and not overwrite:
-            cls.check_secrets_for_mismatches(
-                secrets_to_save=secrets, file_path=dest_path
-            )
-            return
 
         cls.save_to_config_file(parser, dest_path)
         cls.save_secret_to_config()

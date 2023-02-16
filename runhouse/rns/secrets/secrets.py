@@ -126,7 +126,7 @@ class Secrets:
         If file_path is provided, will read the secrets directly from the file
         If group is provided, will attribute the secrets to the specified group"""
         provider_name = provider.lower()
-        if provider_name in cls.builtin_providers(as_str=True):
+        if provider_name in cls.enabled_providers(as_str=True):
             # if a supported cloud provider is given, use the provider's built-in class
             p = cls.builtin_provider_class_from_name(provider_name)
             if p is not None:
@@ -174,7 +174,7 @@ class Secrets:
     def delete_from_vault(cls, providers: Optional[List[str]] = None):
         """Delete secrets from Vault for specified providers (builtin or custom).
         If none are provided, will delete secrets for all providers which have been enabled in the local environment."""
-        providers = providers or cls.builtin_providers(as_str=True)
+        providers = providers or cls.enabled_providers(as_str=True)
         for provider in providers:
             url = f"{rns_client.api_server_url}/{cls.USER_ENDPOINT}/{provider}"
             resp = requests.delete(url, headers=rns_client.request_headers)
@@ -204,25 +204,35 @@ class Secrets:
             # If no secrets found in local config files or secrets are missing for some configured providers,
             # check if they exist in Vault
             vault_secrets: dict = cls.download_into_env(save_locally=False)
-            # TODO [JL] change this API so we don't have to convert the list to a dict?
+            providers_in_vault = list(vault_secrets)
+            # TODO [JL] change this API so we don't have to convert the dict to a list?
             provider_secrets: list = [
                 {"provider": k, **v} for k, v in vault_secrets.items()
             ]
-            missing_providers = list(set(configured_providers) - set(provider_secrets))
+            missing_providers = list(
+                set(configured_providers) - set(providers_in_vault)
+            )
             if missing_providers:
                 raise Exception(
-                    f"Failed to find secrets for providers: {missing_providers}"
+                    f"Failed to find secrets stored in Vault for providers: {missing_providers}. "
+                    f"Please configure secrets locally or upload directly to Vault with `rh.Secrets.put(...)` "
                 )
 
         # Send provider secrets over RPC to the cluster, then save each provider's secrets into their default
         # file paths on the cluster
-        failed_secrets: dict = json.loads(hardware.add_secrets(provider_secrets))
-        if failed_secrets:
+        failed_secrets = hardware.add_secrets(provider_secrets)
+        if len(failed_secrets) == len(provider_secrets):
+            raise RuntimeError(
+                f"Failed to copy all secrets onto the {hardware_name} cluster: {failed_secrets}"
+            )
+        elif failed_secrets:
             logger.warning(
-                f"Failed to copy some secrets to cluster {hardware_name}: {failed_secrets}"
+                f"Failed to copy some secrets onto the {hardware_name} cluster: {failed_secrets}"
             )
         else:
-            logger.info(f"Finished copying secrets onto cluster {hardware_name}")
+            logger.info(
+                f"Finished copying all secrets onto the {hardware_name} cluster"
+            )
 
     @classmethod
     def load_provider_secrets(
@@ -242,24 +252,24 @@ class Secrets:
                 # no secrets file configured for this provider
                 continue
 
-            configs.set(provider.PROVIDER_NAME, provider.default_credentials_path())
             provider_secrets = provider.read_secrets(from_env=from_env)
             if provider_secrets:
                 secrets.append(provider_secrets)
+                configs.set(provider.PROVIDER_NAME, provider.default_credentials_path())
 
         return secrets
 
     @classmethod
     def save_provider_secrets(cls, secrets: dict):
         """Save secrets for each provider to their respective local configs"""
-        # configured_providers = cls.configured_providers(as_str=True) # TODO
-        configured_providers = ["aws"]
+        configured_providers = cls.configured_providers(as_str=True)
         for provider_name, provider_data in secrets.items():
             if provider_name not in configured_providers:
                 logger.warning(
-                    f"Received secrets for {provider_name} which are not configured locally. Run `sky check`"
-                    f" for instructions on how to configure. If the secret is for a custom provider, you "
-                    f"can set the relevant environment variables or save them to their respective local files manually."
+                    f"Received secrets for {provider_name} which Runhouse did not detect as configured. "
+                    f"Run `sky check` for instructions on how to enable them. If the secret is not supported by "
+                    f"sky, you can set the secrets' environment variables or save them to their respective "
+                    f"local files manually."
                 )
                 continue
 
@@ -269,7 +279,7 @@ class Secrets:
                     provider_cls.save_secrets(provider_data, overwrite=True)
                 except Exception as e:
                     logger.error(
-                        f"Failed to save {provider_name} secrets to local config: {e}"
+                        f"Failed to save {provider_name} secrets to config: {e}"
                     )
                     continue
 
@@ -277,9 +287,9 @@ class Secrets:
             configs.set(provider_name, provider_cls.default_credentials_path())
 
     @classmethod
-    def builtin_providers(cls, as_str: bool = False) -> List:
-        """Returns a list of cloud provider class objects which Runhouse supports out of the box.
-        If as_str is True, return the names of the providers as strings"""
+    def enabled_providers(cls, as_str: bool = False) -> List:
+        """Returns a list of cloud providers which Runhouse supports out of the box that have also been confirmed as
+        enabled via sky. If as_str is True, return the names of the providers as strings"""
         sky.check.check(quiet=True)
         clouds = sky.global_user_state.get_enabled_clouds()
         cloud_names = [str(c).lower() for c in clouds]
@@ -299,40 +309,58 @@ class Secrets:
         if as_str:
             return [
                 c.PROVIDER_NAME
-                for c in cls.__subclasses__()
+                for c in cls.all_supported_providers()
                 if c.PROVIDER_NAME in cloud_names
             ]
 
-        return [c for c in cls.__subclasses__() if c.PROVIDER_NAME in cloud_names]
+        return [c for c in cls.all_supported_providers() if c.PROVIDER_NAME in cloud_names]
+
+    @classmethod
+    def all_supported_providers(cls) -> list:
+        """Return list of all Runhouse providers (as class objects) supported out of the box."""
+        from runhouse.rns.secrets.providers import Providers
+
+        return [e.value for e in Providers]
 
     @classmethod
     def configured_providers(cls, as_str: bool = False) -> List:
-        """Return list of builtin providers which have been configured in the local filesystem."""
+        """Return list of enabled providers which have been configured in the local filesystem."""
         configured_providers = [
-            p for p in cls.builtin_providers() if p.has_secrets_file()
+            p for p in cls.enabled_providers() if p.has_secrets_file()
         ]
         if as_str:
             return [c.PROVIDER_NAME for c in configured_providers]
         return configured_providers
 
     @classmethod
-    def check_secrets_for_mismatches(cls, secrets_to_save: dict, file_path: str):
-        """When overwrite is set to `False` check if new secrets clash with what may have already been saved in
-        the Vault or existing file."""
-        existing_secrets: dict = cls.read_secrets(file_path=file_path)
-        existing_secrets.pop("provider", None)
+    def check_secrets_for_mismatches(
+        cls, secrets_to_save: dict, secrets_path: str, overwrite: bool
+    ):
+        """When overwrite is set to `False` and a secrets file already exists, check if new secrets clash with
+        what may have already been saved."""
+        if overwrite or not cls.has_secrets_file():
+            # If explicitly overwriting or the secrets file does not exist we can ignore
+            return
+
+        existing_secrets: dict = cls.read_secrets(file_path=secrets_path)
+        provider = existing_secrets.pop("provider", None)
+
         for existing_key, existing_val in existing_secrets.items():
             new_val = secrets_to_save.get(existing_key)
             if existing_key != new_val:
                 raise ValueError(
-                    f"Mismatch in secrets for key `{existing_key}`! Secrets in config file {file_path} "
+                    f"Mismatch in {provider} secrets for key `{existing_key}`! Secrets in config file {secrets_path} "
                     f"do not match those provided. If you intend to overwrite a particular secret key, "
-                    f"please manually rename or remove it from the secrets file"
+                    f"please do so manually."
                 )
 
     @staticmethod
-    def delete_secrets_file(file_path: str):
-        Path(file_path).unlink(missing_ok=True)
+    def delete_secrets_file(file_path: Union[str, tuple]):
+        if isinstance(file_path, str):
+            Path(file_path).unlink(missing_ok=True)
+        if isinstance(file_path, tuple):
+            for f in file_path:
+                Secrets.delete_secrets_file(f)
 
     @classmethod
     def save_secret_to_config(cls):

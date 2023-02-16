@@ -211,9 +211,10 @@ class UnaryService(pb2_grpc.UnaryServicer):
 
             logger.info(f"Added secrets for {provider_name} to: {credentials_path}")
 
-        logger.info("Finished adding all provider secrets to cluster")
         return pb2.MessageResponse(
-            message=pickle.dumps(failed_providers), received=True
+            message=pickle.dumps(failed_providers),
+            received=True,
+            output_type=OutputType.RESULT,
         )
 
 

@@ -56,11 +56,9 @@ class SkySecrets(Secrets):
         else:
             public_key_path = private_key_path + ".pub"
 
-        if cls.has_secrets_file() and not overwrite:
-            cls.check_secrets_for_mismatches(
-                secrets_to_save=secrets, file_path=dest_path
-            )
-            return
+        cls.check_secrets_for_mismatches(
+            secrets_to_save=secrets, secrets_path=public_key_path, overwrite=overwrite
+        )
 
         sky.authentication._save_key_pair(
             private_key_path,

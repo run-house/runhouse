@@ -34,11 +34,9 @@ class HuggingFaceSecrets(Secrets):
             import huggingface_hub
 
         dest_path = file_path or cls.default_credentials_path()
-        if cls.has_secrets_file() and not overwrite:
-            cls.check_secrets_for_mismatches(
-                secrets_to_save=secrets, file_path=dest_path
-            )
-            return
+        cls.check_secrets_for_mismatches(
+            secrets_to_save=secrets, secrets_path=dest_path, overwrite=overwrite
+        )
 
         huggingface_hub.login(token=secrets["token"])
         cls.save_secret_to_config()

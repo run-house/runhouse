@@ -20,29 +20,21 @@ class LambdaSecrets(Secrets):
 
             client = lambda_utils.LambdaCloudClient()
             api_key = client.api_key
-            ssh_key_name = client.ssh_key_name
 
-        return {
-            "provider": cls.PROVIDER_NAME,
-            "api_key": api_key,
-            "ssh_key_name": ssh_key_name,
-        }
+        return {"provider": cls.PROVIDER_NAME, "api_key": api_key}
 
     @classmethod
     def save_secrets(
         cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
     ):
         dest_path = file_path or cls.default_credentials_path()
-        Path(dest_path).parent.mkdir(parents=True, exist_ok=True)
+        cls.check_secrets_for_mismatches(
+            secrets_to_save=secrets, secrets_path=dest_path, overwrite=overwrite
+        )
 
-        if cls.has_secrets_file() and not overwrite:
-            cls.check_secrets_for_mismatches(
-                secrets_to_save=secrets, file_path=dest_path
-            )
-            return
+        Path(dest_path).parent.mkdir(parents=True, exist_ok=True)
 
         with open(dest_path, "w") as f:
             f.write(f'api_key = {secrets["api_key"]}\n')
-            f.write(f'ssh_key_name = {secrets["ssh_key_name"]}\n')
 
         cls.save_secret_to_config()

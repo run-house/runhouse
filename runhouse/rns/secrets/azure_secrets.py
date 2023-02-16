@@ -29,6 +29,10 @@ class AzureSecrets(Secrets):
         cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
     ):
         dest_path = file_path or cls.default_credentials_path()
+        cls.check_secrets_for_mismatches(
+            secrets_to_save=secrets, secrets_path=dest_path, overwrite=overwrite
+        )
+
         parser = configparser.ConfigParser()
         section_name = "AzureCloud"
         parser.add_section(section_name)
@@ -37,12 +41,6 @@ class AzureSecrets(Secrets):
             option="subscription",
             value=secrets["subscription_id"],
         )
-
-        if cls.has_secrets_file() and not overwrite:
-            cls.check_secrets_for_mismatches(
-                secrets_to_save=secrets, file_path=dest_path
-            )
-            return
 
         cls.save_to_config_file(parser, dest_path)
         cls.save_secret_to_config()

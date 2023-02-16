@@ -1,4 +1,5 @@
 import os
+import sys
 from typing import Optional
 
 from runhouse import Secrets
@@ -36,6 +37,10 @@ class GCPSecrets(Secrets):
         cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
     ):
         dest_path = file_path or cls.default_credentials_path()
+        cls.check_secrets_for_mismatches(
+            secrets_to_save=secrets, secrets_path=dest_path, overwrite=overwrite
+        )
+
         config = cls.read_json_file(dest_path) if cls.file_exists(dest_path) else {}
         config["client_id"] = secrets["client_id"]
         config["client_secret"] = secrets["client_secret"]
@@ -54,12 +59,6 @@ class GCPSecrets(Secrets):
             console.print(
                 "!cp -r /content/.config/* ~/.config/gcloud", style="bold yellow"
             )
-
-        if cls.has_secrets_file() and not overwrite:
-            cls.check_secrets_for_mismatches(
-                secrets_to_save=secrets, file_path=dest_path
-            )
-            return
 
         cls.save_to_json_file(config, dest_path)
         cls.save_secret_to_config()

@@ -1,4 +1,5 @@
 import logging
+from typing import Union
 
 import typer
 
@@ -132,7 +133,7 @@ def logout(
     configured_providers = Secrets.configured_providers()
     for provider in configured_providers:
         provider_name: str = provider.PROVIDER_NAME
-        provider_creds_path: str = provider.default_credentials_path()
+        provider_creds_path: Union[str, tuple] = provider.default_credentials_path()
 
         if interactive_session:
             delete_loaded_secrets = typer.confirm(

@@ -41,13 +41,11 @@ class SSHSecrets(Secrets):
         cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
     ):
         dest_path = Path(file_path or cls.default_credentials_path()).expanduser()
-        dest_path.mkdir(parents=True, exist_ok=True)
+        cls.check_secrets_for_mismatches(
+            secrets_to_save=secrets, secrets_path=str(dest_path), overwrite=overwrite
+        )
 
-        if cls.has_secrets_file() and not overwrite:
-            cls.check_secrets_for_mismatches(
-                secrets_to_save=secrets, file_path=str(dest_path)
-            )
-            return
+        dest_path.mkdir(parents=True, exist_ok=True)
 
         for key_name, key in secrets.items():
             if key_name == "provider":
