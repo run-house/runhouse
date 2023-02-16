@@ -27,6 +27,22 @@ class Resource:
         name: Optional[str] = None,
         dryrun: bool = None,
     ):
+        """
+        Runhouse abstraction for objects that can be saved, shared, and reused.
+
+        Runhouse currently supports the following builtin Resource types:
+
+        - Compute Abstractions
+            - Cluster :py:class:`.hardware.cluster.Cluster`
+            - Send :py:class:`.send.Send`
+            - Package :py:class:`.packages.package.Package`
+
+
+        - Data Abstractions
+            - Blob :py:class:`.blob.Blob`
+            - Folder :py:class:`.folders.folder.Folder`
+            - Table :py:class:`.tables.table.Table`
+        """
         self._name, self._rns_folder = None, None
         if name is not None:
             # TODO validate that name complies with a simple regex
@@ -128,13 +144,14 @@ class Resource:
         return cls.from_config(config=config, dryrun=dryrun)
 
     def unname(self):
-        """Change the naming of the resource to anonymous and delete any local or RNS configs for the resource."""
+        """Remove the name of the resource. This changes the resource name to anonymous and deletes any local
+        or RNS configs for the resource."""
         self.delete_configs()
         self._name = None
 
     @staticmethod
     def history(name: str, entries: int = 10) -> List[Dict]:
-        """Return the history of this resource, including specific config fields (e.g. blob URL) and which runs
+        """Return the history of the resource, including specific config fields (e.g. blob URL) and which runs
         have overwritten it."""
         resource_uri = rns_client.resource_uri(name)
         resp = requests.get(
@@ -154,7 +171,8 @@ class Resource:
         """Delete the resource's config from local working_dir and RNS config store."""
         rns_client.delete_configs(resource=self)
 
-    def save_attrs_to_config(self, config, attrs):
+    def save_attrs_to_config(self, config: Dict, attrs: List[str]):
+        """Save the given attributes to the config"""
         for attr in attrs:
             val = self.__getattribute__(attr)
             if val:
@@ -164,19 +182,16 @@ class Resource:
     def share(
         self, users: list, access_type: Union[ResourceAccess, str] = ResourceAccess.read
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
-        """Grant access to the resource for list of users. If a user has a Runhouse account they
+        """Grant access to the resource for the list of users. If a user has a Runhouse account they
         will receive an email notifying them of their new access. If the user does not have a Runhouse account they will
         also receive instructions on creating one, after which they will be able to have access to the Resource.
-        Note: You can only grant resource access to other users if you have Write / Read privileges for the Resource.
+
+        .. note::
+            You can only grant resource access to other users if you have Write / Read privileges for the Resource.
 
         Args:
             users (list): list of user emails and / or runhouse account usernames.
             access_type (:obj:`ResourceAccess`, optional): access type to provide for the resource.
-
-        Example:
-            .. code-block:: python
-
-               added_users, new_users = my_send.share(users=["username1", "user@gmail.com"], access_type='read')
 
         Returns:
             Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]: Tuple of two dictionaries.
@@ -185,6 +200,8 @@ class Resource:
 
             `new_users`: users who do not have Runhouse accounts.
 
+        Example:
+            >>> added_users, new_users = my_send.share(users=["username1", "user@gmail.com"], access_type='read')
         """
         if isinstance(access_type, str):
             access_type = ResourceAccess(access_type)

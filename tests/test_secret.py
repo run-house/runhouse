@@ -5,8 +5,7 @@ import runhouse as rh
 
 def test_get_all_secrets():
     secrets = rh.Secrets.download_into_env(save_locally=False)
-    providers = rh.Secrets.builtin_providers(as_str=True)
-    # TODO this check is dependent on local secrets config, not a catch all
+    providers = rh.Secrets.enabled_providers(as_str=True)
     assert set(providers) == {"aws", "gcp", "lambda", "ssh", "huggingface"}
     assert secrets
 

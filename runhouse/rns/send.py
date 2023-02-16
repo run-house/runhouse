@@ -718,6 +718,6 @@ def send(
     new_send = Send.from_config(config, dryrun=dryrun)
 
     if load_secrets and not dryrun:
-        hardware.send_secrets()
+        new_send.send_secrets()
 
     return new_send

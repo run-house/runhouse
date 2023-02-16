@@ -23,17 +23,14 @@ class Blob(Resource):
         name: Optional[str] = None,
         fs: Optional[str] = Folder.DEFAULT_FS,
         data_config: Optional[Dict] = None,
-        dryrun: bool = True,
+        dryrun: bool = False,
         **kwargs,
     ):
         """
+        Runhouse Blob object
 
-        Args:
-            name ():
-            fs (): FSSpec protocol, e.g. 's3', 'gs'. See/run `fsspec.available_protocols()`.
-                Default is "file", the local filesystem to wherever the blob is created.
-            data_config ():
-            serializer ():
+        .. note::
+                To build a Blob, please use the factory function :func:`blob`.
         """
         super().__init__(name=name, dryrun=dryrun)
         self._filename = str(Path(url).name) if url else self.name
@@ -65,7 +62,7 @@ class Blob(Resource):
 
     @property
     def data(self):
-        """Get the blob data"""
+        """Get the blob data."""
         # TODO this caching is dumb, either get rid of it or replace with caching from fsspec
         if self._cached_data is not None:
             return self._cached_data
@@ -74,7 +71,7 @@ class Blob(Resource):
 
     @data.setter
     def data(self, new_data):
-        """Update the data blob to new data"""
+        """Update the data blob to new data."""
         self._cached_data = new_data
         # TODO should we save here?
         # self.save(overwrite=True)
@@ -108,18 +105,19 @@ class Blob(Resource):
     def fsspec_url(self):
         return self._folder.fsspec_url + "/" + self._filename
 
-    def open(self, mode="rb"):
+    def open(self, mode: str = "rb"):
         """Get a file-like (OpenFile container object) of the blob data. User must close the file, or use this
         method inside of a with statement (e.g. `with my_blob.open() as f:`)."""
         return self._folder.open(self._filename, mode=mode)
 
-    def to(self, fs, url=None, data_config=None):
+    def to(self, fs, url: Optional[str] = None, data_config: Optional[dict] = None):
+        """Return a copy of the table on the destination fs and url."""
         new_table = copy.copy(self)
         new_table._folder = self._folder.to(fs=fs, url=url, data_config=data_config)
         return new_table
 
     def fetch(self):
-        """Return the data for the user to deserialize"""
+        """Return the data for the user to deserialize/"""
         self._cached_data = self._folder.get(self._filename)
         return self._cached_data
 
@@ -130,7 +128,7 @@ class Blob(Resource):
         overwrite: bool = True,
         **snapshot_kwargs,
     ):
-
+        """Save the blob to RNS."""
         # TODO figure out default behavior for not overwriting but still saving
         # if not overwrite:
         #     TODO check if data_url is already in use
@@ -152,9 +150,11 @@ class Blob(Resource):
         )
 
     def delete_in_fs(self, recursive: bool = True):
+        """Delete the blob in the file system."""
         self._folder.rm(self._filename, recursive=recursive)
 
     def exists_in_fs(self):
+        """Check whether the blob exists in the file system"""
         return self._folder.fsspec_fs.exists(self.fsspec_url)
 
     # TODO [DG] get rid of this in favor of just "sync_down(url, fs)" ?
@@ -168,9 +168,11 @@ class Blob(Resource):
 
     def from_cluster(self, cluster):
         """Create a remote blob from a url on a cluster. This will create a virtual link into the
-        cluster's filesystem. If you want to create a local copy or mount of the blob, use
-        `Blob(url=<local_url>).sync_from_cluster(<cluster>, <url>)` or
-        `Blob('url').from_cluster(<cluster>).mount(<local_url>)`."""
+        cluster's filesystem.
+
+        If you want to create a local copy or mount of the blob, use
+        ``Blob(url=<local_url>).sync_from_cluster(<cluster>, <url>)`` or
+        ``Blob('url').from_cluster(<cluster>).mount(<local_url>)``."""
         if not cluster.address:
             raise ValueError("Cluster must be started before copying data from it.")
         new_blob = copy.deepcopy(self)
@@ -186,35 +188,43 @@ def blob(
     data_config: Optional[Dict] = None,
     mkdir: bool = False,
     snapshot: bool = False,
-    dryrun: bool = True,
+    dryrun: bool = False,
 ):
     """Returns a Blob object, which can be used to interact with the resource at the given url
 
-    Examples:
-    # Creating the blob data - note the data should be provided as a serialized object, runhouse does not provide the
-    # serialization functionality
-    data = json.dumps(list(range(50))
+    Args:
+        data: Blob data. This should be provided as a serialized object.
+        name (Optional[str]): Name to give the blob object, to be reused later on.
+        url (Optional[str]): Url (or path) of the blob object.
+        fs (Optional[str]): File system. Currently this must be one of
+            ["file", "github", "sftp", "ssh", "s3", "gcs", "azure"].
+            We are working to add additional file system support.
+        data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
+        mkdir (bool): Whether to create a remote folder for the blob. (Default: ``False``)
+        snapshot (bool): Whether to save a snapshot instead of the full blob. (Default: ``False``)
+        dryrun (bool): Whether or not to save the blob. (Default: ``False``)
 
-    # 1. Create a remote blob with a name and no URL
-    # provide a folder path for which to save in the remote file system
-    # Since no URL is explicitly provided, we will save to a bucket called runhouse/blobs/my-blob
-    rh.blob(name="@/my-blob", data=data, data_source='s3', dryrun=False)
+    Returns:
+        Blob: The resulting blob.
 
-    # 2. Create a remote blob with a name and URL
-    rh.blob(name='@/my-blob', url='/runhouse-tests/my_blob.pickle', data=data, fs='s3', dryrun=False)
+    Example:
+        >>> data = json.dumps(list(range(50))
+        >>>
+        >>> # Remote blob with name and no URL (saved to bucket called runhouse/blobs/my-blob)
+        >>> rh.blob(name="@/my-blob", data=data, data_source='s3', dryrun=False)
+        >>>
+        >>> # Remote blob with name and URL
+        >>> rh.blob(name='@/my-blob', url='/runhouse-tests/my_blob.pickle', data=data, fs='s3', dryrun=False)
+        >>>
+        >>> # Local blob with name and URL, save to local filesystem
+        >>> rh.blob(name=name, data=data, url=str(Path.cwd() / "my_blob.pickle"), dryrun=False)
+        >>>
+        >>> # Local blob with name and no URL (saved to ~/.cache/blobs/my-blob)
+        >>> rh.blob(name="~/my-blob", data=data, dryrun=False)
 
-    # 3. Create a local blob with a name and a URL
-    # save the blob to the local filesystem
-    rh.blob(name=name, data=data, url=str(Path.cwd() / "my_blob.pickle"), dryrun=False)
-
-    # 4. Create a local blob with a name and no URL
-    # Since no URL is explicitly provided, we will save to ~/.cache/blobs/my-blob
-    rh.blob(name="~/my-blob", data=data, dryrun=False)
-
-    # Loading a blob
-    my_local_blob = rh.blob(name="~/my_blob")
-    my_s3_blob = rh.blob(name="@/my_blob")
-
+        >>> # Loading a blob
+        >>> my_local_blob = rh.blob(name="~/my_blob")
+        >>> my_s3_blob = rh.blob(name="@/my_blob")
     """
     config = rns_client.load_config(name)
     config["name"] = name or config.get("rns_address", None) or config.get("name")

@@ -32,14 +32,10 @@ class SkyCluster(Cluster):
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
-        Args:
-            name:
-            instance_type: Type of cloud instance to use for the cluster
-            num_instances: Number of instances to use for the cluster
-            provider: Cloud provider to use for the cluster
-            dryrun:
-            autostop_mins: Number of minutes to keep the cluster up for following inactivity, or
-                -1 to keep up indefinitely.
+        On-demand `SkyPilot <https://github.com/skypilot-org/skypilot/>`_ Cluster.
+
+        .. note::
+            To build a cluster, please use the factory function :func:`cluster`.
         """
 
         super().__init__(name=name, dryrun=dryrun)
@@ -63,13 +59,13 @@ class SkyCluster(Cluster):
         self.sky_data = sky_data
         if self.sky_data is not None:
             self._save_sky_data()
+        else:
+            # Checks local SkyDB if cluster is up, and loads connection info if so.
+            self.populate_vars_from_status(dryrun=True)
 
-        # Checks local SkyDB if cluster is up, and loads connection info if so.
-        self.populate_vars_from_status(dryrun=True)
-
-        # Cluster status is set to INIT in the Sky DB right after starting, so we need to refresh once
-        if not self.address:
-            self.populate_vars_from_status(dryrun=False)
+            # Cluster status is set to INIT in the Sky DB right after starting, so we need to refresh once
+            if not self.address:
+                self.populate_vars_from_status(dryrun=False)
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
@@ -172,9 +168,13 @@ class SkyCluster(Cluster):
             is_launch=True,
             ready=False,
         )
-        backend_utils.SSHConfigHelper.add_cluster(
-            self.name, [handle_info["head_ip"]], ray_config["auth"]
-        )
+        # Refresh the cluster status before saving the ssh info so SkyPilot has a chance to wipe the .ssh/config if
+        # the cluster went down
+        self.populate_vars_from_status(dryrun=False)
+        if self.address:
+            backend_utils.SSHConfigHelper.add_cluster(
+                self.name, [handle_info["head_ip"]], ray_config["auth"]
+            )
 
     def __getstate__(self):
         """Make sure sky_data is loaded in before pickling."""
@@ -192,30 +192,42 @@ class SkyCluster(Cluster):
 
     # TODO [DG] this sometimes returns True when cluster is not up
     def is_up(self) -> bool:
+        """Whether the cluster is up."""
         self.populate_vars_from_status(dryrun=False)
         return self.address is not None
 
-    def status(self, refresh=True):
+    def status(self, refresh: bool = True):
         """
+        Get status of Sky cluster.
+
         Return dict looks like:
-         {'name': 'sky-cpunode-donny',
-          'launched_at': 1662317201,
-          'handle': ResourceHandle(
-            cluster_name=sky-cpunode-donny,
-            head_ip=54.211.97.164,
-            cluster_yaml=/Users/donny/.sky/generated/sky-cpunode-donny.yml,
-            launched_resources=1x AWS(m6i.2xlarge),
-            tpu_create_script=None,
-            tpu_delete_script=None),
-          'last_use': 'sky cpunode',
-          'status': <ClusterStatus.UP: 'UP'>,
-          'autostop': -1,
-          'metadata': {}}
-        More: https://github.com/skypilot-org/skypilot/blob/0c2b291b03abe486b521b40a3069195e56b62324/sky/backends/cloud_vm_ray_backend.py#L1457
+
+        .. code-block::
+
+            {'name': 'sky-cpunode-donny',
+             'launched_at': 1662317201,
+             'handle': ResourceHandle(
+                          cluster_name=sky-cpunode-donny,
+                          head_ip=54.211.97.164,
+                          cluster_yaml=/Users/donny/.sky/generated/sky-cpunode-donny.yml,
+                          launched_resources=1x AWS(m6i.2xlarge),
+                          tpu_create_script=None,
+                          tpu_delete_script=None),
+             'last_use': 'sky cpunode',
+             'status': <ClusterStatus.UP: 'UP'>,
+             'autostop': -1,
+             'metadata': {}}
+
+        .. note::
+            For more information:
+            https://github.com/skypilot-org/skypilot/blob/0c2b291b03abe486b521b40a3069195e56b62324/sky/backends/cloud_vm_ray_backend.py#L1457
         """  # noqa
+        # return backend_utils._refresh_cluster_record(
+        #     self.name, force_refresh=refresh, acquire_per_cluster_status_lock=False
+        # )
         return self.get_sky_statuses(cluster_name=self.name, refresh=refresh)
 
-    def populate_vars_from_status(self, dryrun=False):
+    def populate_vars_from_status(self, dryrun: bool = False):
         # Try to get the cluster status from SkyDB
         cluster_dict = self.status(refresh=not dryrun)
         if not cluster_dict:
@@ -228,12 +240,8 @@ class SkyCluster(Cluster):
     @staticmethod
     def get_sky_statuses(cluster_name: str = None, refresh: bool = True):
         """
-        Get status dicts for all Sky clusters.
-        Args:
-            cluster_name (str): Return status dict for only specific cluster.
-
-        Returns:
-
+        Get status dict for given cluster. If `cluster_name` is `None`, status dicts for
+        all Sky clusters is returned.
         """
         # TODO [DG] just get status for this cluster
         all_clusters_status = sky.status(refresh=refresh)
@@ -243,9 +251,8 @@ class SkyCluster(Cluster):
             if cluster_dict["name"] == cluster_name:
                 return cluster_dict
 
-    def up(
-        self,
-    ):
+    def up(self):
+        """Up the cluster."""
         if self.provider in ["aws", "gcp", "azure", "lambda", "cheapest"]:
             task = sky.Task(
                 num_nodes=self.num_instances if ":" not in self.instance_type else None,
@@ -299,16 +306,20 @@ class SkyCluster(Cluster):
         self.populate_vars_from_status()
         self.restart_grpc_server()
 
-    def keep_warm(self, autostop_mins=-1):
+    def keep_warm(self, autostop_mins: int = -1):
+        """Keep the cluster warm for given number of minutes after inactivity. If `autostop_mins` is set
+        to -1, keep cluster warm indefinitely."""
         sky.autostop(self.name, autostop_mins, down=True)
         self.autostop_mins = autostop_mins
 
     def teardown(self):
+        """Teardown cluster."""
         # Stream logs
         sky.down(self.name)
         self.address = None
 
     def teardown_and_delete(self):
+        """Teardown cluster and delete it from configs."""
         self.teardown()
         rns_client.delete_configs()
 
@@ -322,6 +333,7 @@ class SkyCluster(Cluster):
 
     @staticmethod
     def cluster_ssh_key(path_to_file):
+        """Retrieve SSH key for the cluster."""
         try:
             f = open(path_to_file, "r")
             private_key = f.read()
@@ -330,14 +342,17 @@ class SkyCluster(Cluster):
             raise Exception(f"File with ssh key not found in: {path_to_file}")
 
     def ssh_creds(self):
-        if not Path(self._yaml_path).exists():
+        if not self._yaml_path or not Path(self._yaml_path).exists():
             if self.sky_data:
                 # If this cluster was serialized and sent over the wire, it will have sky_data (we make sure of that
                 # in __getstate__) but no yaml, and we need to save down the sky data to the sky db and local yaml
                 self._save_sky_data()
-            self.populate_vars_from_status(dryrun=self.dryrun)
+            else:
+                # To avoid calling this twice (once in save_sky_data)
+                self.populate_vars_from_status(dryrun=self.dryrun)
 
         return backend_utils.ssh_credential_from_yaml(self._yaml_path)
 
     def ssh(self):
+        """SSH into the cluster."""
         subprocess.run(["ssh", f"{self.name}"])

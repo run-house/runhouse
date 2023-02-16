@@ -1,9 +1,12 @@
+import logging
 from typing import Optional
 
 from .. import SkyCluster
 from ..top_level_rns_fns import save
 
 from .table import Table
+
+logger = logging.getLogger(__name__)
 
 
 class RayTable(Table):
@@ -24,17 +27,20 @@ class RayTable(Table):
         name: Optional[str] = None,
         snapshot: bool = False,
         overwrite: bool = True,
-        **snapshot_kwargs
+        **snapshot_kwargs,
     ):
         if self._cached_data is not None:
-            self.data.write_parquet(self._folder.fsspec_url)
+            self.write_ray_dataset(self.data)
+            logger.info(f"Saved {str(self)} to: {self.fsspec_url}")
 
         save(self, name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
+
+        return self
 
     def fetch(self, **kwargs):
         import ray
 
         self._cached_data = ray.data.read_parquet(
-            self._folder.fsspec_url, **self.data_config
+            self.fsspec_url, filesystem=self._folder.fsspec_fs
         )
         return self._cached_data

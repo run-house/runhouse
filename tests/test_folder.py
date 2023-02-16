@@ -5,11 +5,10 @@ from pathlib import Path
 import runhouse as rh
 from ray import cloudpickle as pickle
 
-TEMP_FILE = str(Path.cwd() / "test_folder.py")
 TEST_FOLDER_PATH = Path.cwd() / "tests_tmp"
 
 DATA_STORE_BUCKET = "/runhouse-folder-tests"
-DATA_STORE_PATH = f"{DATA_STORE_BUCKET}/folder"
+DATA_STORE_PATH = f"{DATA_STORE_BUCKET}/test-folder"
 
 
 def setup():
@@ -22,12 +21,10 @@ def setup():
     # Create local dir with files to upload to cluster, buckets, etc.
     from pathlib import Path
 
-    TEST_FOLDER_PATH.mkdir(exist_ok=True)
+    TEST_FOLDER_PATH.mkdir(parents=True, exist_ok=True)
     for i in range(3):
         output_file = Path(f"{TEST_FOLDER_PATH}/sample_file_{i}.txt")
         output_file.write_text(f"file{i}")
-
-    return str(TEST_FOLDER_PATH)
 
 
 def delete_local_folder(path):
@@ -58,7 +55,7 @@ def test_create_and_save_data_to_s3_folder():
     data = list(range(50))
     s3_folder = rh.folder(url=DATA_STORE_PATH, fs="s3")
     s3_folder.mkdir()
-    s3_folder.put({TEMP_FILE: pickle.dumps(data)}, overwrite=True)
+    s3_folder.put({"test_data.py": pickle.dumps(data)}, overwrite=True)
 
     assert s3_folder.exists_in_fs()
 
@@ -66,7 +63,7 @@ def test_create_and_save_data_to_s3_folder():
 def test_read_data_from_existing_s3_folder():
     # Note: Uses folder created above
     s3_folder = rh.folder(url=DATA_STORE_PATH, fs="s3")
-    fss_file: "fsspec.core.OpenFile" = s3_folder.open(name=TEMP_FILE)
+    fss_file: "fsspec.core.OpenFile" = s3_folder.open(name="test_data.py")
     with fss_file as f:
         data = pickle.load(f)
 
@@ -119,6 +116,8 @@ def test_cluster_tos():
 def test_local_and_cluster():
     # Local to cluster
     local_folder = rh.folder(url=TEST_FOLDER_PATH)
+    local_folder.mkdir()
+    local_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
     c = rh.cluster("^rh-cpu").up_if_not()
     cluster_folder = local_folder.to(fs=c).from_cluster(c)
     assert "sample_file_0.txt" in cluster_folder.ls(full_paths=False)
@@ -189,7 +188,7 @@ def test_cluster_and_gcs():
     c = rh.cluster("^rh-cpu").up_if_not()
 
     # Make sure we have gsutil and gcloud on the cluster - needed for copying the package + authenticating
-    c.pip_install_packages(packages=["gsutil"])
+    c.install_packages(["gsutil"])
 
     # TODO [JL] might be necessary to install gcloud on the cluster
     # c.run(['sudo snap install google-cloud-cli --classic'])
@@ -215,25 +214,6 @@ def test_cluster_and_gcs():
             f"on the cluster {c.name}. For now please manually enable them directly on the cluster. "
             f"See https://cloud.google.com/sdk/gcloud/reference/auth/login"
         )
-
-
-def test_cluster_and_cluster():
-    # Local to cluster 1
-    local_folder = rh.folder(url=TEST_FOLDER_PATH)
-    c1 = rh.cluster("^rh-cpu").up_if_not()
-
-    # Upload sky secrets to cluster - required when syncing over the folder from c1 to c2
-    c1.send_secrets(providers=["sky"])
-
-    cluster_folder_1 = local_folder.to(fs=c1).from_cluster(c1)
-    assert "sample_file_0.txt" in cluster_folder_1.ls(full_paths=False)
-
-    # Cluster 1 to cluster 2
-    c2 = rh.cluster("^rh-8-cpu").up_if_not()
-    cluster_folder_2 = cluster_folder_1.to(
-        fs=c2, url=cluster_folder_1.url
-    ).from_cluster(c2)
-    assert "sample_file_0.txt" in cluster_folder_2.ls(full_paths=False)
 
 
 def test_s3_and_s3():
@@ -310,6 +290,25 @@ def test_s3_folder_uploads_and_downloads():
 
     test_folder.delete_in_fs()
     assert not test_folder.exists_in_fs()
+
+
+def test_cluster_and_cluster():
+    # Local to cluster 1
+    local_folder = rh.folder(url=TEST_FOLDER_PATH)
+    c1 = rh.cluster("^rh-cpu").up_if_not()
+
+    # Upload sky secrets to cluster - required when syncing over the folder from c1 to c2
+    c1.send_secrets(providers=["sky"])
+
+    cluster_folder_1 = local_folder.to(fs=c1).from_cluster(c1)
+    assert "sample_file_0.txt" in cluster_folder_1.ls(full_paths=False)
+
+    # Cluster 1 to cluster 2
+    c2 = rh.cluster("^rh-8-cpu").up_if_not()
+    cluster_folder_2 = cluster_folder_1.to(
+        fs=c2, url=cluster_folder_1.url
+    ).from_cluster(c2)
+    assert "sample_file_0.txt" in cluster_folder_2.ls(full_paths=False)
 
 
 if __name__ == "__main__":

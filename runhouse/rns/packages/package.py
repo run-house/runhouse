@@ -25,6 +25,9 @@ class Package(Resource):
         dryrun: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
+        """
+        Runhouse Package resource.
+        """
         super().__init__(
             name=name,
             dryrun=dryrun,
@@ -57,6 +60,7 @@ class Package(Resource):
         return f"Package: {self.install_target}"
 
     def install(self):
+        """Install package."""
         logging.info(
             f"Installing package {str(self)} with method {self.install_method}."
         )
@@ -120,6 +124,7 @@ class Package(Resource):
 
     @staticmethod
     def pip_install(install_cmd: str):
+        """Run pip install."""
         logging.info(f"Running: pip install {install_cmd}")
         subprocess.check_call(
             [sys.executable, "-m", "pip", "install"] + install_cmd.split(" ")
@@ -127,6 +132,7 @@ class Package(Resource):
 
     @staticmethod
     def conda_install(install_cmd: str):
+        """Run conda install."""
         logging.info(f"Running: conda install {install_cmd}")
         # check if conda is installed, and if not, install it
         try:
@@ -150,6 +156,7 @@ class Package(Resource):
                 )
 
     def to_cluster(self, dest_cluster, url=None, mount=False, return_dest_folder=False):
+        """Returns a copy of the package on the destination cluster."""
         if isinstance(self.install_target, Folder):
             new_folder = self.install_target.to_cluster(
                 dest_cluster,
@@ -172,10 +179,12 @@ class Package(Resource):
     @staticmethod
     def from_string(specifier: str, dryrun=False):
         # Use regex to check if specifier matches '<method>:https://github.com/<path>' or 'https://github.com/<path>'
-        match = re.search(r"(?:<(.*)>:)?https://github.com/(.*)", specifier)
+        match = re.search(
+            r"^(?:(?P<method>[^:]+):)?(?P<path>https://github.com/.+)", specifier
+        )
         if match:
-            install_method = match.group(1)
-            url = match.group(2)
+            install_method = match.group("method")
+            url = "https://github.com/" + match.group("path")
             from runhouse.rns.packages.git_package import git_package
 
             return git_package(
@@ -208,13 +217,6 @@ class Package(Resource):
                 install_target=target,
                 install_args=args,
                 install_method="reqs",
-                dryrun=dryrun,
-            )
-        elif specifier.startswith("git+"):
-            return Package(
-                install_target=specifier[4:],
-                install_args=args,
-                install_method="pip",
                 dryrun=dryrun,
             )
         elif specifier.startswith("pip:"):
@@ -252,15 +254,36 @@ class Package(Resource):
 
 
 def package(
-    name=None,
-    install_method=None,
-    install_str=None,
-    url=None,
-    fs: Optional[str] = Folder.DEFAULT_FS,
-    dryrun=False,
+    name: str = None,
+    install_method: str = None,
+    install_str: str = None,
+    url: str = None,
+    fs: str = Folder.DEFAULT_FS,
+    dryrun: bool = False,
     local_mount: bool = False,
     data_config: Optional[Dict] = None,
-):
+) -> Package:
+    """
+    Builds an instance of :class:`Package`.
+
+    Args:
+        name (str): Name to assign the pacakge.
+        install_method (str): Method for installing the package. Options: ["pip", "conda", "reqs"]
+        install_str (str): Additional arguments to install.  # TODO: not too sure about this
+        url (str): URL of the package to install.
+        fs (str): File system. Currently this must be one of
+            ["file", "github", "sftp", "ssh", "s3", "gcs", "azure"].
+            We are working to add additional file system support.
+        dryrun (bool): Whether to install the package locally. (Default: ``False``)
+        local_mount (bool): Whether to locally mount the installed package. (Default: ``False``)
+        data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
+
+    Returns:
+        Package: The resulting package.
+
+    Example:
+        >>> # TODO
+    """
     config = rh_config.rns_client.load_config(name)
     config["name"] = name or config.get("rns_address", None) or config.get("name")
 

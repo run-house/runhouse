@@ -38,29 +38,24 @@ class Folder(Resource):
     RESOURCE_TYPE = "folder"
     DEFAULT_FS = "file"
     CLUSTER_FS = "ssh"
-    DEFAULT_FOLDER_PATH = "/runhouse/"
-    DEFAULT_CACHE_FOLDER = "~/.cache/runhouse/"
+    DEFAULT_FOLDER_PATH = "/runhouse"
+    DEFAULT_CACHE_FOLDER = "~/.cache/runhouse"
 
     def __init__(
         self,
         name: Optional[str] = None,
         url: Optional[str] = None,
         fs: Optional[str] = DEFAULT_FS,
-        dryrun: bool = True,
+        dryrun: bool = False,
         local_mount: bool = False,
         data_config: Optional[Dict] = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
-        TODO [DG] Update
-        Include loud warning that relative paths are relative to the git root / working directory!
-        Args:
-            name ():
-            parent (): string path to parent folder, or
-            data_source (): FSSpec protocol, e.g. 's3', 'gs'. See/run `fsspec.available_protocols()`.
-                Default is "file", the local filesystem to wherever the blob is created.
-            data_config ():
-            local_path ():
+        Runhouse Folder object.
+
+        .. note::
+            To build a folder, please use the factory function :func:`folder`.
         """
         super().__init__(name=name, dryrun=dryrun)
 
@@ -68,8 +63,10 @@ class Folder(Resource):
 
         # TODO [DG] Should we ever be allowing this to be None?
         self._url = (
-            self.default_url(self.name, fs)
+            self.default_url(self.rns_address, fs)
             if url is None
+            else url
+            if isinstance(fs, Resource)
             else url
             if Path(url).expanduser().is_absolute()
             else str(Path(rns_client.locate_working_dir()) / url)
@@ -80,8 +77,8 @@ class Folder(Resource):
         self._local_mount_path = None
         if local_mount:
             self.mount(tmp=True)
-        if not self.dryrun and self.is_local():
-            Path(self.url).mkdir(parents=True, exist_ok=True)
+        if not self.dryrun:
+            self.mkdir()
 
     @classmethod
     def default_url(cls, rns_address, fs):
@@ -90,15 +87,15 @@ class Folder(Resource):
         if fs == Folder.DEFAULT_FS or isinstance(fs, Cluster):
             if rns_address:
                 return str(
-                    Path.cwd() / rns_client.split_rns_name_and_path(rns_address)[1]
+                    Path.cwd() / rns_client.split_rns_name_and_path(rns_address)[0]
                 )  # saves to cwd / name
-            return Folder.DEFAULT_CACHE_FOLDER + uuid.uuid4().hex
+            return f"{Folder.DEFAULT_CACHE_FOLDER}/{uuid.uuid4().hex}"
         else:
             # If no URL provided for a remote file system default to its name if provided
             if rns_address:
                 name = rns_address[1:].replace("/", "_") + f".{cls.RESOURCE_TYPE}"
-                return Folder.DEFAULT_FOLDER_PATH + name
-            return Folder.DEFAULT_FOLDER_PATH + uuid.uuid4().hex
+                return f"{Folder.DEFAULT_FOLDER_PATH}/{name}"
+            return f"{Folder.DEFAULT_FOLDER_PATH}/{uuid.uuid4().hex}"
 
     # ----------------------------------
     @staticmethod
@@ -169,6 +166,13 @@ class Folder(Resource):
         self._fs = data_source
         self._fsspec_fs = None
 
+    # TODO figure out how to free sshfs properly (https://github.com/ronf/asyncssh/issues/112)
+    # def __del__(self):
+    #     if self.local_mount:
+    #         self.unmount()
+    #     if self._fsspec_fs and hasattr(self._fsspec_fs, "close"):
+    #         self._fsspec_fs.close()
+
     @property
     def data_config(self):
         if isinstance(self.fs, Resource):  # if fs is a cluster
@@ -179,13 +183,12 @@ class Folder(Resource):
                         "Cluster must be started before copying data from it."
                     )
             creds = self.fs.ssh_creds()
-            # TODO [JL] on cluster need to resolve key filename to be relative path
             config_creds = {
                 "host": self.fs.address,
                 "username": creds["ssh_user"],
+                # 'key_filename': str(Path(creds['ssh_private_key']).expanduser())}  # For SFTP
                 "client_keys": [str(Path(creds["ssh_private_key"]).expanduser())],
-            }
-            # 'key_filename': str(Path(creds['ssh_private_key']).expanduser())}
+            }  # For SSHFS
             ret_config = self._data_config.copy()
             ret_config.update(config_creds)
             return ret_config
@@ -224,14 +227,10 @@ class Folder(Resource):
         # location and add it as a child to the parent folder.
         return self.fsspec_fs.__class__.mkdirs == fsspec.AbstractFileSystem.mkdirs
 
-    def mv(self, fs, url=None, data_config=None) -> None:
-        """Move the folder to a new filesystem.
-
-        Args:
-            fs (str): file system.
-            url (:obj:`str`, optional): fsspec URL.
-            data_config(:obj:`dict`, optional): Config to move.
-        """
+    def mv(
+        self, fs, url: Optional[str] = None, data_config: Optional[dict] = None
+    ) -> None:
+        """Move the folder to a new filesystem."""
         # TODO [DG] create get_default_url for fs method to be shared
         if url is None:
             url = "rh/" + self.rns_address
@@ -286,6 +285,7 @@ class Folder(Resource):
             return new_folder
 
     def fsspec_copy(self, fs: str, url: str, data_config: dict):
+        """Copy the fsspec filesystem to the given new filesystem and url."""
         # Fallback for other fsspec filesystems, but very slow:
         if self.is_local():
             self.fsspec_fs.put(self.url, f"{fs}://{url}", recursive=True)
@@ -312,7 +312,7 @@ class Folder(Resource):
         dest_fs: Optional[str] = "file",
         data_config: Optional[dict] = None,
     ):
-        """Return a new Folder object pointing to the destination folder."""
+        """Returns a new Folder object pointing to the destination folder."""
         new_folder = copy.deepcopy(self)
         new_folder.url = dest_url
         new_folder.fs = dest_fs
@@ -322,6 +322,7 @@ class Folder(Resource):
     def to_local(
         self, dest_url: str, data_config: dict, return_dest_folder: bool = False
     ):
+        """Copies folder to local."""
         from runhouse.rns.hardware import Cluster
 
         if self.fs == "file":
@@ -358,9 +359,9 @@ class Folder(Resource):
         fs: str,
         data_store_url: Optional[str] = None,
         data_config: Optional[dict] = None,
-        return_dest_folder: bool = True,
+        return_dest_folder: bool = True,  # note: unused
     ):
-        """Local or cluster to blob storage"""
+        """Local or cluster to blob storage."""
         from runhouse.rns.hardware import Cluster
 
         local_folder_url = self.url
@@ -384,6 +385,7 @@ class Folder(Resource):
 
     @staticmethod
     def rsync(local, remote, data_config, up=True):
+        """Rsync local folder to remote."""
         # TODO convert this to generate rsync command between two clusters
         dest_str = f'{data_config["username"]}@{data_config["host"]}:{remote}'
         src_str = local
@@ -395,7 +397,7 @@ class Folder(Resource):
         )
 
     def mkdir(self):
-        """create the folder in specified file system if it doesn't already exist"""
+        """Create the folder in specified file system if it doesn't already exist."""
         folder_url = self.url
         if Path(os.path.basename(folder_url)).suffix != "":
             folder_url = str(Path(folder_url).parent)
@@ -415,7 +417,7 @@ class Folder(Resource):
         return self._local_mount_path
 
     def to_cluster(self, dest_cluster, url=None, mount=False, return_dest_folder=True):
-        """Copy the folder from a file or cluster source onto a cluster."""
+        """Copy the folder from a file or cluster source onto a destination cluster."""
         if not dest_cluster.address:
             raise ValueError("Cluster must be started before copying data to it.")
 
@@ -432,17 +434,16 @@ class Folder(Resource):
         dest_folder.mkdir()
 
         if self.fs == "file":
-            src_url = self.local_path + "/"
-            dest_cluster.rsync(source=src_url, dest=dest_url, up=True, contents=True)
+            dest_cluster.rsync(source=self.url, dest=dest_url, up=True, contents=True)
 
         elif isinstance(self.fs, Resource):
-            src_url = dest_url
+            src_url = self.url
 
             cluster_creds = self.fs.ssh_creds()
             creds_file = cluster_creds["ssh_private_key"]
 
             command = (
-                f"rsync -Pavz --filter='dir-merge,- .gitignore' -e \"ssh -i '{creds_file} '"
+                f"rsync -Pavz --filter='dir-merge,- .gitignore' -e \"ssh -i '{creds_file}' "
                 f"-o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes "
                 f"-o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=30s -o ForwardAgent=yes "
                 f'-o ControlMaster=auto -o ControlPersist=300s" {src_url}/ {dest_cluster.address}:{dest_url}'
@@ -472,7 +473,6 @@ class Folder(Resource):
         If `dest_url=None`, this will not perform any copy, and simply convert the resource to have a remote
         sftp filesystem into the cluster. If `dest_url` is set, it will rsync down the data and return a folder
         with fs=='file'.
-
         """
         if dest_url:
             if not cluster.address:
@@ -497,6 +497,7 @@ class Folder(Resource):
             return new_folder
 
     def is_local(self):
+        """Whether the folder is on the local filesystem."""
         return (
             self.fs == "file" and self.url is not None and Path(self.url).exists()
         ) or self._local_mount_path
@@ -513,7 +514,10 @@ class Folder(Resource):
         """Granting access to the resource for list of users (via their emails). If a user has a Runhouse account they
         will receive an email notifying them of their new access. If the user does not have a Runhouse account they will
         also receive instructions on creating one, after which they will be able to have access to the Resource.
-        Note: You can only grant resource access to other users if you have Write / Read privileges for the Resource"""
+
+        .. note::
+            You can only grant resource access to other users if you have Write / Read privileges for the Resource
+        """
         if self.is_local() and snapshot:
             # raise ValueError('Cannot share a local resource.')
             fs = snapshot_fs or PROVIDER_FS_LOOKUP[configs.get("default_provider")]
@@ -551,7 +555,8 @@ class Folder(Resource):
 
     def empty_folder(self):
         """Remove folder contents, but not the folder itself."""
-        raise NotImplementedError
+        for p in self.fsspec_fs.ls(self.url):
+            self.fsspec_fs.rm(p)
 
     def upload(self, src: str, region: Optional[str] = None):
         """Upload a folder to a remote bucket."""
@@ -615,10 +620,12 @@ class Folder(Resource):
         """Generate the FSSpec URL using the file system and url of the folder"""
         if self.url.startswith("/") and self._fs_str not in [
             rns_client.DEFAULT_FS,
-            "sftp",
+            self.CLUSTER_FS,
         ]:
             return f"{self._fs_str}:/{self.url}"
         else:
+            # For local, ssh / sftp filesystems we need both slashes
+            # e.g.: 'ssh:///home/ubuntu/.cache/runhouse/tables/dede71ef83ce45ffa8cb27d746f97ee8'
             return f"{self._fs_str}://{self.url}"
 
     def ls(self, full_paths: bool = True):
@@ -630,13 +637,7 @@ class Folder(Resource):
             return [Path(path).name for path in paths]
 
     def resources(self, full_paths: bool = False, resource_type: str = None):
-        """List the resources in the *RNS* folder.
-
-        Args:
-            full_paths (bool): If True, return the full RNS path for each resource. If False, return the
-                resource name only.
-            resource_type (str): If provided, only return resources of the specified type.
-        """
+        """List the resources in the *RNS* folder."""
         # TODO filter by type
         # TODO allow '*' wildcard for listing all resources (and maybe other wildcard things)
         try:
@@ -655,8 +656,8 @@ class Folder(Resource):
     def rns_address(self):
         """Traverse up the filesystem until reaching one of the directories in rns_base_folders,
         then compute the relative path to that.
-
-        Maybe later, account for folders along the path with a different RNS name."""
+        """
+        # TODO Maybe later, account for folders along the path with a different RNS name.
 
         if self.name is None:  # Anonymous folders have no rns address
             return None
@@ -690,15 +691,16 @@ class Folder(Resource):
             return base_folder_path + "/" + relative_path
 
     def contains(self, name_or_path) -> bool:
+        """Whether url of a Folder exists locally."""
         url, fs = self.locate(name_or_path)
         return url is not None
 
     def locate(self, name_or_path) -> (str, str):
         """Locate the local url of a Folder given an rns path.
 
-        Keep in mind we're using both _rns_ path and physical path logic below. Be careful!
+        .. note::
+            Keep in mind we're using both _rns_ path and physical path logic below. Be careful!
         """
-
         # If the path is already given relative to the current folder:
         if (Path(self.url) / name_or_path).exists():
             return str(Path(self.url) / name_or_path), self.fs
@@ -744,16 +746,16 @@ class Folder(Resource):
         return None, None
 
     def open(self, name, mode="rb", encoding=None):
-        """Returns an fsspec file, which must be used as a content manager to be opened!
-        e.g. with my_folder.open('obj_name') as my_file:
+        """Returns an fsspec file, which must be used as a content manager to be opened.
+
+        For example,
+
+        .. code-block:: python
+
+            with my_folder.open('obj_name') as my_file:
                 pickle.load(my_file)
         """
-        return fsspec.open(
-            urlpath=self.fsspec_url + "/" + name,
-            mode=mode,
-            encoding=encoding,
-            **self.data_config,
-        )
+        return self.fsspec_fs.open(self.url + "/" + name, mode=mode, encoding=encoding)
 
     def get(self, name, mode="rb", encoding=None):
         """Returns the contents of a file as a string or bytes."""
@@ -762,15 +764,18 @@ class Folder(Resource):
 
     # TODO [DG] fix this to follow the correct convention above
     def get_all(self):
+        # TODO add docs for this
         # TODO we're not closing these, do we need to extract file-like objects so we can close them?
         return fsspec.open_files(self.fsspec_url, mode="rb", **self.data_config)
 
     def exists_in_fs(self):
+        """Whether the folder exists in the filesystem."""
         return self.fsspec_fs.exists(
             self.fsspec_url
         ) or rh.rns.top_level_rns_fns.exists(self.url)
 
     def delete_in_fs(self, recursive: bool = True):
+        """Delete from file system."""
         try:
             self.fsspec_fs.rmdir(self.url)
         except Exception as e:
@@ -784,9 +789,13 @@ class Folder(Resource):
             pass
 
     def put(self, contents, overwrite=False):
-        """
-        files: Either 1) A dict with keys being the file names and values being the
-            file-like objects to write, 2) a Resource, or 3) a list of Resources.
+        """Put given contents in folder. Contents must be one of the following:
+
+        - Dict with keys being the file names and values being the file-like objects to write
+
+        - Resource
+
+        - List of Resources.
         """
         # TODO create the bucket if it doesn't already exist
         # Handle lists of resources just for convenience
@@ -876,13 +885,30 @@ def folder(
     name: Optional[str] = None,
     url: Optional[Union[str, Path]] = None,
     fs: Optional[str] = None,
-    dryrun: bool = True,
+    dryrun: bool = False,
     local_mount: bool = False,
     data_config: Optional[Dict] = None,
-):
-    """Returns a folder object, which can be used to interact with the folder at the given url.
-    The folder will be saved if `dryrun` is False.
+) -> Folder:
+    """Creates a Runhouse folder object, which can be used to interact with the folder at the given url (path).
+
+    Args:
+        name (Optional[str]): Name to give the folder, to be re-used later on.
+        url (Optional[str or Path]): Url (or path) that the folder is located at.
+        fs (Optional[str]): File system. Currently this must be one of
+            ["file", "github", "sftp", "ssh", "s3", "gcs", "azure"].
+            We are working to add additional file system support.
+        dryrun (bool): Whether or not to save the folder. (Default: ``False``)
+        local_mount (bool): Whether or not to mount the folder locally. (Default: ``False``)
+        data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
+
+    Returns:
+        Folder: The resulting folder.
+
+    Example:
+        >>> rh.folder(name='training_imgs', url='remote_directory/images', fs='s3')
     """
+    # TODO [DG] Include loud warning that relative paths are relative to the git root / working directory!
+
     config = rns_client.load_config(name)
     config["name"] = name or config.get("rns_address", None) or config.get("name")
     config["url"] = url or config.get("url")
@@ -916,7 +942,8 @@ def folder(
         else:
             raise ValueError(
                 f"File system {file_system} not found. Have you installed the "
-                f"necessary packages for this fsspec protocol? (e.g. s3fs for s3)"
+                f"necessary packages for this fsspec protocol? (e.g. s3fs for s3). If the file system "
+                f"is a cluster (ex: /my-user/rh-cpu), make sure the cluster config has been saved."
             )
 
     # If cluster is passed as the fs.
