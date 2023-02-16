@@ -10,44 +10,39 @@ def test_get_all_secrets():
     assert secrets
 
 
-def test_get_custom_provider_secrets():
-    provider = "snowflake"
-    provider_secrets = rh.Secrets.get(provider=provider)
-    assert provider_secrets
-
-
-def test_get_provider_secrets():
-    provider = "aws"
-    provider_secrets = rh.Secrets.get(provider=provider)
-    assert provider_secrets
-
-
-def test_upload_group_provider_secrets():
-    provider = "aws"
-    provider_secrets = rh.Secrets.put(provider=provider, group="ds_preproc2")
-    assert provider_secrets
-
-
-def test_upload_user_provider_custom_secrets():
-    provider = "snowflake"
-    rh.Secrets.put(provider=provider, secret={"secret_key": "abcdefg"})
-    assert True
-
-
-def test_upload_user_provider_enabled_secrets():
+def test_upload_user_provider_secrets():
     provider = "aws"
     rh.Secrets.put(provider=provider)
-    assert True
+
+    # Retrieve the secret from Vault
+    provider_secrets = rh.Secrets.get(provider=provider)
+    assert provider_secrets
+
+
+def test_upload_custom_provider_secrets():
+    provider = "snowflake"
+    rh.Secrets.put(provider=provider, secret={"secret_key": "abcdefg"})
+
+    # Retrieve the secret from Vault
+    provider_secrets = rh.Secrets.get(provider=provider)
+    assert provider_secrets
 
 
 def test_upload_all_provider_secrets():
     rh.Secrets.extract_and_upload()
-    assert True
+    # Download back from Vault
+    secrets = rh.Secrets.download_into_env(save_locally=False)
+    assert secrets
 
 
 def test_delete_provider_secrets():
-    rh.Secrets.delete_from_vault(providers=["huggingface"])
-    assert True
+    provider = "huggingface"
+    rh.Secrets.put(provider=provider, secret={"secret_key": "abcdefg"})
+
+    rh.Secrets.delete_from_vault(providers=[provider])
+    secrets = rh.Secrets.get(provider=provider)
+
+    assert not secrets
 
 
 def test_sending_secrets_to_cluster():
@@ -55,7 +50,7 @@ def test_sending_secrets_to_cluster():
 
     configured_providers = rh.Secrets.configured_providers()
 
-    rh.Secrets.to(cluster, providers=configured_providers)
+    cluster.send_secrets(providers=configured_providers)
     # Confirm the secrets now exist on the cluster
     for provider_cls in configured_providers:
         provider_name = provider_cls.PROVIDER_NAME
@@ -114,13 +109,23 @@ def test_logout():
     from runhouse import configs, Secrets
 
     configured_providers = Secrets.configured_providers(as_str=True)
+    current_config: dict = configs.load_defaults_from_file()
 
-    rh.logout(remove_from_rh_config=True)
+    rh.logout(delete_loaded_secrets=True, delete_rh_config_file=True)
 
-    for provider in configured_providers:
-        assert not configs.get(provider)
+    for provider_name in configured_providers:
+        p = Secrets.builtin_provider_class_from_name(provider_name)
+        assert not p.has_secrets_file()
+        assert not configs.get(provider_name)
 
-    assert not configs.get("token")
+    assert not configs.load_defaults_from_file()
+
+    # Add back what we deleted as part of the logout
+    configs.save_defaults(defaults=current_config)
+    Secrets.download_into_env(providers=configured_providers)
+
+
+# TODO [JL] test custom secret file paths
 
 
 if __name__ == "__main__":

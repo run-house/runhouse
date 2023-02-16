@@ -1,0 +1,48 @@
+import configparser
+import os
+from typing import Optional
+
+from runhouse import Secrets
+
+
+class AzureSecrets(Secrets):
+    PROVIDER_NAME = "azure"
+    CREDENTIALS_FILE = os.path.expanduser("~/.azure/clouds.config")
+
+    @classmethod
+    def read_secrets(cls, from_env: bool = False, file_path: Optional[str] = None):
+        if from_env:
+            subscription_id = os.getenv("AZURE_SUBSCRIPTION_ID")
+            if not subscription_id:
+                raise Exception(
+                    f"AZURE_SUBSCRIPTION_ID must is not set for {cls.PROVIDER_NAME}"
+                )
+        else:
+            creds_file = file_path or cls.default_credentials_path()
+            config = cls.read_config_file(creds_file)
+            subscription_id = config["AzureCloud"]["subscription"]
+
+        return {"provider": cls.PROVIDER_NAME, "subscription_id": subscription_id}
+
+    @classmethod
+    def save_secrets(
+        cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
+    ):
+        dest_path = file_path or cls.default_credentials_path()
+        parser = configparser.ConfigParser()
+        section_name = "AzureCloud"
+        parser.add_section(section_name)
+        parser.set(
+            section=section_name,
+            option="subscription",
+            value=secrets["subscription_id"],
+        )
+
+        if cls.has_secrets_file() and not overwrite:
+            cls.check_secrets_for_mismatches(
+                secrets_to_save=secrets, file_path=dest_path
+            )
+            return
+
+        cls.save_to_config_file(parser, dest_path)
+        cls.save_secret_to_config()

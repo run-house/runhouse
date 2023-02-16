@@ -21,7 +21,7 @@ from .rns.hardware import cluster, Cluster, SkyCluster
 from .rns.kvstores.kvstore import KVStore
 from .rns.login import login, logout
 from .rns.packages import git_package, GitPackage, package, Package
-from .rns.secrets import Secrets
+from .rns.secrets.secrets import Secrets
 from .rns.send import send, Send
 from .rns.tables.table import table, Table
 

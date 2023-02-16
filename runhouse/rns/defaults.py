@@ -160,5 +160,15 @@ class Defaults:
         return res
 
     def delete(self, key: str):
+        """Remove a specific key from the config"""
         self.defaults_cache.pop(key, None)
         self.save_defaults()
+
+    def delete_defaults(self, config_path: Optional[str] = None):
+        """Delete the defaults file entirely"""
+        config_path = Path(config_path or self.CONFIG_PATH)
+        try:
+            Path(config_path).unlink(missing_ok=True)
+            logger.info(f"Deleted confi file from path: {config_path}")
+        except OSError:
+            raise Exception(f"Failed to delete config file from path {config_path}")

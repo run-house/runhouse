@@ -6,6 +6,6 @@ from .blob import Blob
 from .hardware import Cluster, cluster, SkyCluster
 from .packages.package import Package
 from .resource import Resource
-from .secrets import Secrets
+from .secrets.secrets import Secrets
 from .send import Send
 from .tables.table import Table

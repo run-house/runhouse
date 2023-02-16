@@ -218,14 +218,12 @@ def test_cluster_and_gcs():
 
 
 def test_cluster_and_cluster():
-    from runhouse import Secrets
-
     # Local to cluster 1
     local_folder = rh.folder(url=TEST_FOLDER_PATH)
     c1 = rh.cluster("^rh-cpu").up_if_not()
 
     # Upload sky secrets to cluster - required when syncing over the folder from c1 to c2
-    Secrets.to(c1, providers=["sky"])
+    c1.send_secrets(providers=["sky"])
 
     cluster_folder_1 = local_folder.to(fs=c1).from_cluster(c1)
     assert "sample_file_0.txt" in cluster_folder_1.ls(full_paths=False)

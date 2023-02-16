@@ -190,30 +190,31 @@ class UnaryService(pb2_grpc.UnaryServicer):
 
         self.register_activity()
         secrets_to_add = pickle.loads(request.message)
+        failed_providers = (
+            {}
+        )  # Track which providers fail and send them back to the user
         for provider_secrets in secrets_to_add:
             provider_name = provider_secrets.pop("provider")
             p = Secrets.builtin_provider_class_from_name(provider_name)
             if p is None:
-                logger.error(
-                    f"Received provider {provider_name} which is not a builtin. "
-                    f"Runhouse currently only supports adding secrets for builtin providers only."
-                )
+                error_msg = f"{provider_name} is not a Runhouse builtin provider"
+                failed_providers[provider_name] = error_msg
                 continue
+
             credentials_path = p.default_credentials_path()
             # Save secrets into the class's default location on the cluster
             try:
                 p.save_secrets(provider_secrets, overwrite=True)
             except Exception as e:
-                logger.error(
-                    f"Failed to save {provider_name} secrets to local config: {e}"
-                )
+                failed_providers[provider_name] = str(e)
                 continue
 
             logger.info(f"Added secrets for {provider_name} to: {credentials_path}")
 
         logger.info("Finished adding all provider secrets to cluster")
-        self.register_activity()
-        return pb2.MessageResponse(message=pickle.dumps("Added Secrets"), received=True)
+        return pb2.MessageResponse(
+            message=pickle.dumps(failed_providers), received=True
+        )
 
 
 def serve():

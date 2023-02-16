@@ -681,8 +681,6 @@ def send(
     new_send = Send.from_config(config, dryrun=dryrun)
 
     if load_secrets and not dryrun:
-        from runhouse import Secrets
-
-        Secrets.to(hardware=new_send.hardware)
+        hardware.send_secrets()
 
     return new_send

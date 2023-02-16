@@ -4,7 +4,7 @@ import pkgutil
 import subprocess
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import ray.cloudpickle as pickle
 
@@ -35,9 +35,13 @@ class Cluster(Resource):
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
-        Args:
-            name: Name of the cluster
-            dryrun:
+        The Runhouse cluster, or hardware. This is where you can run Sends or access/transfer data
+        between. You can BYO (bring-your-own) cluster by providing cluster IP and ssh_creds, or
+        this can be an on-demand cluster that is spun up/down through
+        `SkyPilot <https://github.com/skypilot-org/skypilot>`_, using your cloud credentials.
+
+        .. note::
+            To build a cluster, please use the factory function :func:`cluster`.
         """
 
         super().__init__(name=name, dryrun=dryrun)
@@ -46,7 +50,6 @@ class Cluster(Resource):
         self._ssh_creds = ssh_creds
         self.ips = ips
         self._grpc_tunnel = None
-        self._secrets_sent = False
         self.client = None
 
         if not dryrun and self.address:
@@ -72,9 +75,11 @@ class Cluster(Resource):
         return config
 
     def is_up(self) -> bool:
+        """Check if the cluster is up."""
         return self.address is not None
 
     def up_if_not(self):
+        """Bring up the cluster if it is not up. No-op if cluster is already up."""
         if not self.is_up():
             if not hasattr(self, "up"):
                 raise NotImplementedError(
@@ -150,6 +155,7 @@ class Cluster(Resource):
             raise ValueError(f"Error installing runhouse on cluster <{self.name}>")
 
     def install_packages(self, reqs: List[Union[Package, str]]):
+        """Install the given packages on the cluster."""
         self.check_grpc()
         to_install = []
         # TODO [DG] validate package strings
@@ -195,10 +201,13 @@ class Cluster(Resource):
     # TODO [DG] add a method to list all the keys in the cluster
 
     def cancel(self, key, force=False):
+        """Cancel the given run on cluster."""
         self.check_grpc()
         return self.client.cancel_runs(key, force=force)
 
     def clear_pins(self, pins: Optional[List[str]] = None):
+        """Remove the given pinned items from the cluster. If `pins` is set to ``None``, then
+        all pinned objects will be cleared."""
         self.check_grpc()
         self.client.clear_pins(pins)
         logger.info(f'Clearing pins on cluster {pins or ""}')
@@ -293,7 +302,7 @@ class Cluster(Resource):
 
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
-    ) -> (SSHTunnelForwarder, int):
+    ) -> Tuple[SSHTunnelForwarder, int]:
         # Debugging cmds (mac):
         # netstat -vanp tcp | grep 5005
         # lsof -i :5005_
@@ -358,8 +367,12 @@ class Cluster(Resource):
     #     print(f"SSH tunnel is open to {self.address}:{local_port}")
 
     def restart_grpc_server(
-        self, _rh_install_url=None, resync_rh=True, restart_ray=False
+        self,
+        _rh_install_url: str = None,
+        resync_rh: bool = True,
+        restart_ray: bool = False,
     ):
+        """Restart the GRPC server."""
         # TODO how do we capture errors if this fails?
         if resync_rh:
             self.sync_runhouse_to_cluster(_install_url=_rh_install_url)
@@ -415,9 +428,13 @@ class Cluster(Resource):
     def ssh_creds(self):
         return self._ssh_creds
 
-    def rsync(self, source, dest, up, contents=False):
-        """Note that ending `source` with a slash will copy the contents of the directory into dest,
-        while omitting it will copy the directory itself (adding a directory layer)."""
+    def rsync(self, source: str, dest: str, up: bool, contents: bool = False):
+        """
+        Sync the contents of the source directory into the destination.
+
+        .. note:
+            Ending `source` with a slash will copy the contents of the directory into dest,
+            while omitting it will copy the directory itself (adding a directory layer)."""
         # FYI, could be useful: https://github.com/gchamon/sysrsync
         if contents:
             source = source + "/" if not source.endswith("/") else source
@@ -435,7 +452,11 @@ class Cluster(Resource):
         )
 
     def run(
-        self, commands: list, stream_logs=True, port_forward=None, require_outputs=True
+        self,
+        commands: List[str],
+        stream_logs: bool = True,
+        port_forward: Optional[int] = None,
+        require_outputs: bool = True,
     ):
         """Run a list of shell commands on the cluster."""
         # TODO add name parameter to create Run object, and use sky.exec (after updating to sky 2.0):
@@ -453,7 +474,12 @@ class Cluster(Resource):
             return_codes.append(ret_code)
         return return_codes
 
-    def run_python(self, commands: list, stream_logs=True, port_forward=None):
+    def run_python(
+        self,
+        commands: List[str],
+        stream_logs: bool = True,
+        port_forward: Optional[int] = None,
+    ):
         """Run a list of python commands on the cluster."""
         command_str = "; ".join(commands)
         status_codes = self.run(
@@ -463,11 +489,24 @@ class Cluster(Resource):
         )
         return status_codes
 
+    def send_secrets(self, providers: Optional[List[str]] = None):
+        """Send secrets for the given providers. If none provided will send secrets for providers that have been
+        configured in the environment."""
+        from runhouse import Secrets
+
+        Secrets.to(hardware=self, providers=providers)
+
     def ipython(self):
         # TODO tunnel into python interpreter in cluster
         pass
 
-    def notebook(self, persist=False, sync_package_on_close=None, port_forward=8888):
+    def notebook(
+        self,
+        persist: bool = False,
+        sync_package_on_close: Optional[str] = None,
+        port_forward: int = 8888,
+    ):
+        """Tunnel into and launch notebook from the cluster."""
         tunnel, port_fwd = self.ssh_tunnel(local_port=port_forward, num_ports_to_try=10)
         try:
             install_cmd = "pip install jupyterlab"
