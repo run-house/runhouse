@@ -65,12 +65,6 @@ class UnaryService(pb2_grpc.UnaryServicer):
         self.register_activity()
         key, stream_logs = pickle.loads(request.message)
         logger.info(f"Message received from client to get object: {key}")
-        if not stream_logs:
-            return pb2.MessageResponse(
-                message=pickle.dumps(obj_store.get(key)),
-                received=True,
-                output_type=OutputType.RESULT,
-            )
 
         logfiles = None
         open_files = None
@@ -90,33 +84,47 @@ class UnaryService(pb2_grpc.UnaryServicer):
                 returned = True
                 ret_obj = [None, e, traceback.format_exc()]
 
-            if not logfiles:
-                logfiles = obj_store.get_logfiles(key)
-                open_files = [open(i, "r") for i in logfiles]
-                logger.info(f"Streaming logs for {key} from {logfiles}")
+            if stream_logs:
+                if not logfiles:
+                    logfiles = obj_store.get_logfiles(key)
+                    open_files = [open(i, "r") for i in logfiles]
+                    logger.info(f"Streaming logs for {key} from {logfiles}")
 
-            # Grab all the lines written to all the log files since the last time we checked
-            ret_lines = []
-            for i, f in enumerate(open_files):
-                file_lines = f.readlines()
-                if file_lines:
-                    # TODO [DG] handle .out vs .err, and multiple workers
-                    # if len(logfiles) > 1:
-                    #     ret_lines.append(f"Process {i}:")
-                    ret_lines += file_lines
-            if ret_lines:
-                yield pb2.MessageResponse(
-                    message=pickle.dumps(ret_lines),
-                    received=True,
-                    output_type=OutputType.STDOUT,
-                )
+                # Grab all the lines written to all the log files since the last time we checked
+                ret_lines = []
+                for i, f in enumerate(open_files):
+                    file_lines = f.readlines()
+                    if file_lines:
+                        # TODO [DG] handle .out vs .err, and multiple workers
+                        # if len(logfiles) > 1:
+                        #     ret_lines.append(f"Process {i}:")
+                        ret_lines += file_lines
+                if ret_lines:
+                    yield pb2.MessageResponse(
+                        message=pickle.dumps(ret_lines),
+                        received=True,
+                        output_type=OutputType.STDOUT,
+                    )
 
-        # We got the object back from the object store, so we're done (but we went through the loop once
-        # more to get any remaining log lines)
-        [f.close() for f in open_files]
+        if stream_logs:
+            # We got the object back from the object store, so we're done (but we went through the loop once
+            # more to get any remaining log lines)
+            [f.close() for f in open_files]
         yield pb2.MessageResponse(
             message=pickle.dumps(ret_obj), received=True, output_type=OutputType.RESULT
         )
+
+    def PutObject(self, request, context):
+        self.register_activity()
+        key, obj = pickle.loads(request.message)
+        logger.info(f"Message received from client to put object: {key}")
+        try:
+            obj_store.put(key, obj)
+            ret_obj = [key, None, None]
+        except Exception as e:
+            logger.error(f"Error putting object {key} in object store: {e}")
+            ret_obj = [None, e, traceback.format_exc()]
+        return pb2.MessageResponse(message=pickle.dumps(ret_obj), received=True)
 
     def ClearPins(self, request, context):
         self.register_activity()

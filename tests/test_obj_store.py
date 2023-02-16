@@ -34,6 +34,14 @@ def test_get_from_cluster():
     assert res == list(range(50))
 
 
+def test_put_and_get_on_cluster():
+    test_list = list(range(5, 50, 2)) + ["a string"]
+    cluster = get_test_cluster()
+    cluster.put("my_list", test_list)
+    ret = cluster.get("my_list")
+    assert all(a == b for (a, b) in zip(ret, test_list))
+
+
 def test_stream_logs():
     cluster = get_test_cluster()
     print_fn = rh.function(fn=do_printing_and_logging, system=cluster)

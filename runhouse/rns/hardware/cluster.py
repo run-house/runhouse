@@ -4,7 +4,7 @@ import pkgutil
 import subprocess
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import ray.cloudpickle as pickle
 
@@ -191,9 +191,15 @@ class Cluster(Resource):
         self.check_grpc()
         self.client.install_packages(pickle.dumps(to_install))
 
-    def get(self, key, default=None, stream_logs=False):
+    def get(self, key: str, default: Any = None, stream_logs: bool = False):
+        """Get the object at the given key from the cluster's object store."""
         self.check_grpc()
         return self.client.get_object(key, stream_logs=stream_logs) or default
+
+    def put(self, key: str, obj: Any):
+        """Put the given object on the cluster's object store at the given key."""
+        self.check_grpc()
+        return self.client.put_object(key, obj)
 
     # TODO [DG] add a method to list all the keys in the cluster
 

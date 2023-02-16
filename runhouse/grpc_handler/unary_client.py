@@ -88,6 +88,19 @@ class UnaryClient(object):
                     raise fn_exception
                 return res
 
+    def put_object(self, key, value):
+        message = pb2.Message(message=pickle.dumps((key, value)))
+        resp = self.stub.PutObject(message)
+        server_res = pickle.loads(resp.message)
+        [res, fn_exception, fn_traceback] = server_res
+        if fn_exception is not None:
+            logger.error(
+                f"Error putting object with key {key} on cluster: {fn_exception}."
+            )
+            logger.error(f"Traceback: {fn_traceback}")
+            raise fn_exception
+        return res
+
     def clear_pins(self, pins=None):
         message = pb2.Message(message=pickle.dumps(pins or []))
         self.stub.ClearPins(message)

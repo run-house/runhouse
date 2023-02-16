@@ -178,10 +178,10 @@ support for BYO secrets management shortly. Let us know if you need it and which
 
 ## 👨‍🏫 Tutorials / API Walkthrough / Docs
 
-Tutorials can be found [here](https://github.com/run-house/tutorials). They have been structured to provide a 
+Tutorials can be found [here](https://github.com/run-house/tutorials). They have been structured to provide a
 comprehensive walkthrough of the APIs.
 
-If you want both a high level and a more detailed overview, please check 
+If you want both a high level and a more detailed overview, please check
 out our [docs site](https://runhouse-docs.readthedocs-hosted.com/en/latest/index.html).
 
 ## 🙋‍♂️ Getting Help
