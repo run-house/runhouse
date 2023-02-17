@@ -664,7 +664,7 @@ def function(
                 fn,
                 fn_pointers=fn_pointers,
                 serialize_notebook_fn=serialize_notebook_fn,
-                name=config["name"],
+                name=fn_pointers[2] or config["name"],
             )
         config["fn_pointers"] = fn_pointers
     elif isinstance(fn, str):

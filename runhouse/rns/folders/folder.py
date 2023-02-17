@@ -435,7 +435,7 @@ class Folder(Resource):
         if not self.is_local() and mount:
             self.mount(tmp=True)
 
-        dest_path = path or f"~/{Path(self.path).stem}"
+        dest_path = path or f"~/{Path(self.path).name}"
 
         # Need to add slash for rsync to copy the contents of the folder
         dest_folder = copy.deepcopy(self)
