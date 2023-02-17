@@ -37,8 +37,7 @@ There's no magic yaml, DSL, code serialization, or "submitting for execution." W
 
 .. warning::
     🚨 **This is an Alpha** 🚨
-
-    Runhouse is heavily under development. We are sharing it with a few select people to collect feedback, and expect to iterate on the APIs considerably before reaching beta (version 0.1.0).
+    Runhouse is heavily under development and we expect to iterate on the APIs before reaching beta (version 0.1.0).
 
 
 Getting Started 🐣
@@ -48,8 +47,7 @@ Getting Started 🐣
     $ pip install runhouse
     # Or "runhouse[aws]", "runhouse[gcp]", "runhouse[azure]", "runhouse[all]"
 
-.. tip::
-   See the :ref:`Installation` section for more detailed instructions.
+Please check out the :ref:`Installation` section for more detailed instructions.
 
 
 Table of Contents
