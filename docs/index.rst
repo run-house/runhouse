@@ -30,10 +30,8 @@ Runhouse has four top-level objectives:
 * Making resources accessible across environments and users
 * Allowing resources to be shared among teams as living assets
 
-
-There's no magic yaml, DSL, code serialization, or "submitting for execution." We're just spinning up the cluster for you (or using an existing cluster), syncing over your code, starting a gRPC connection, and running your code on the cluster.
-
-*Runhouse does things for you that you'd spend time doing yourself, in as obvious a way as possible.*
+Keep reading on to see how Runhouse achieves this, or explore our
+:ref:`High Level Overview`, :ref:`Python API`, and `Tutorials <https://github.com/run-house/tutorials>`_
 
 .. warning::
     🚨 **This is an Alpha** 🚨
