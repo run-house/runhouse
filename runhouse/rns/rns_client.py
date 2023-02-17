@@ -157,7 +157,7 @@ class RNSClient:
         return rns_address.replace("/", ":")
 
     @staticmethod
-    def local_to_remote_address(self, rns_address):
+    def local_to_remote_address(rns_address):
         return rns_address.replace("~", "@")
 
     def remote_to_local_address(self, rns_address):

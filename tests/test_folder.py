@@ -279,7 +279,7 @@ def test_s3_folder_uploads_and_downloads():
     # test_folder = rh.folder(path='/runhouse/my-folder', system='gs')
 
     test_folder = rh.folder(system="s3")
-    test_folder.upload(src=TEST_FOLDER_PATH)
+    test_folder.upload(src=str(TEST_FOLDER_PATH))
 
     assert test_folder.exists_in_system()
 
@@ -309,6 +309,25 @@ def test_cluster_and_cluster():
         system=c2, path=cluster_folder_1.path
     ).from_cluster(c2)
     assert "sample_file_0.txt" in cluster_folder_2.ls(full_paths=False)
+
+
+def test_s3_folder_sharing():
+    s3_folder = rh.folder(
+        name="my-s3-shared-folder", path=DATA_STORE_PATH, system="s3"
+    ).save()
+    assert "sample_file_0.txt" in s3_folder.ls(full_paths=False)
+
+    users = ["donnyg", "josh.lewittes@gmail.com"]
+    added_users, new_users = s3_folder.share(
+        users=users, access_type="read", snapshot=False
+    )
+
+    assert True
+
+
+# TODO [JL]
+def test_cluster_folder_sharing():
+    pass
 
 
 if __name__ == "__main__":

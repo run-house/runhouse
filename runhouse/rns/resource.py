@@ -181,7 +181,7 @@ class Resource:
     # TODO [DG] Implement proper sharing of subresources (with an overload of some kind)
     def share(
         self, users: list, access_type: Union[ResourceAccess, str] = ResourceAccess.read
-    ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
+    ) -> Tuple[Dict, Dict]:
         """Grant access to the resource for the list of users. If a user has a Runhouse account they
         will receive an email notifying them of their new access. If the user does not have a Runhouse account they will
         also receive instructions on creating one, after which they will be able to have access to the Resource.
@@ -194,20 +194,18 @@ class Resource:
             access_type (:obj:`ResourceAccess`, optional): access type to provide for the resource.
 
         Returns:
-            Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]: Tuple of two dictionaries.
-
             `added_users`: users who already have an account and have been granted access to the resource.
-
             `new_users`: users who do not have Runhouse accounts.
 
         Example:
-            >>> added_users, new_users = my_function.share(users=["username1", "user@gmail.com"], access_type='read')
+            >>> added_users, new_users = my_resource.share(users=["username1", "user@gmail.com"], access_type='write')
         """
         if isinstance(access_type, str):
             access_type = ResourceAccess(access_type)
 
         if not rns_client.exists(self.rns_address):
             self.save()
+
         added_users, new_users = rns_client.grant_resource_access(
             resource_name=self.name, user_emails=users, access_type=access_type
         )

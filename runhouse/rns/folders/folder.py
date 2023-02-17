@@ -150,8 +150,8 @@ class Folder(Resource):
                 return str(Path(self._path).expanduser())
             elif self._fs_str == self.CLUSTER_FS and self._path.startswith("~/"):
                 # sftp takes relative paths to the home directory but doesn't understand '~'
-                return self._path[2:]
-            return self._path
+                return str(self._path[2:])
+            return str(self._path)
         else:
             return None
 
@@ -528,6 +528,9 @@ class Folder(Resource):
         .. note::
             You can only grant resource access to other users if you have Write / Read privileges for the Resource
         """
+        if self.name is None:
+            raise ValueError("Shareable resources must have a name!")
+
         if self.is_local() and snapshot:
             # raise ValueError('Cannot share a local resource.')
             system = (
