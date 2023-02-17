@@ -30,7 +30,7 @@ class Blob(Resource):
         Runhouse Blob object
 
         .. note::
-                To build a Blob, please use the factory function :func:`blob`.
+                To build a Blob, please use the factory method :func:`blob`.
         """
         super().__init__(name=name, dryrun=dryrun)
         self._filename = str(Path(path).name) if path else self.name

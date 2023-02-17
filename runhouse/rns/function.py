@@ -46,7 +46,7 @@ class Function(Resource):
         and dependencies necessary to run the service.
 
         .. note::
-                To create a Function, please use the factory function :func:`function`.
+                To create a Function, please use the factory method :func:`function`.
         """
         self.fn_pointers = fn_pointers
         self.system = system
@@ -92,7 +92,7 @@ class Function(Resource):
         """
         Set up a Function on the given system, install the reqs, and run setup_cmds.
 
-        See the args of the factory function :func:`function` for more information.
+        See the args of the factory method :func:`function` for more information.
         """
         # We need to backup the system here so the __getstate__ method of the cluster
         # doesn't wipe the client and _grpc_client of this function's cluster when
@@ -605,7 +605,7 @@ def function(
     load_secrets: bool = False,
     serialize_notebook_fn: bool = False,
 ):
-    """Factory function for constructing a Runhouse Function object.
+    """Factory method for constructing a Runhouse Function object.
 
     Args:
         fn (Optional[str or Callable]): The function to execute on the remote system when the function is called.

@@ -10,7 +10,7 @@ When you do this, the following steps occur:
 3. We collect the dependencies from the :code:`reqs` parameter and install them on the cluster via :code:`cluster.install_packages()`. By default, we'll sync over the working git repo and install its :code:`requirements.txt` if it has one.
 
 
-When you run your function module, we function a gRPC request to the cluster with the module name and function entrypoint to run.
+When you run your function module, we send a gRPC request to the cluster with the module name and function entrypoint to run.
 The gRPC server adds the module to its python path, imports the module, grabs the function entrypoint, runs it,
 and returns your results.
 

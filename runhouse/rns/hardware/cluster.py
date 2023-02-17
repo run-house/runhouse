@@ -41,7 +41,7 @@ class Cluster(Resource):
         `SkyPilot <https://github.com/skypilot-org/skypilot>`_, using your cloud credentials.
 
         .. note::
-            To build a cluster, please use the factory function :func:`cluster`.
+            To build a cluster, please use the factory method :func:`cluster`.
         """
 
         super().__init__(name=name, dryrun=dryrun)

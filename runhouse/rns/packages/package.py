@@ -236,7 +236,7 @@ class Package(Resource):
                 dryrun=dryrun,
             )
         elif specifier.startswith("rh:"):
-            # Calling the factory function below
+            # Calling the factory method below
             return package(name=specifier[3:], dryrun=dryrun)
         else:
             if Path(specifier).resolve().exists():

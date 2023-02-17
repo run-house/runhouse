@@ -55,7 +55,7 @@ class Folder(Resource):
         Runhouse Folder object.
 
         .. note::
-            To build a folder, please use the factory function :func:`folder`.
+            To build a folder, please use the factory method :func:`folder`.
         """
         super().__init__(name=name, dryrun=dryrun)
 

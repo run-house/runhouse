@@ -44,7 +44,7 @@ class Table(Resource):
         The Runhouse Table object.
 
         .. note::
-            To build a Table, please use the factory function :func:`table`.
+            To build a Table, please use the factory method :func:`table`.
         """
         super().__init__(name=name, dryrun=dryrun)
         self._filename = str(Path(path).name) if path else self.name
