@@ -6,7 +6,9 @@ import runhouse as rh
 def test_get_all_secrets():
     vault_secrets = rh.Secrets.download_into_env(save_locally=False)
     providers = rh.Secrets.enabled_providers(as_str=True)
-    assert set(list(vault_secrets)).issubset(providers), "Secrets saved in Vault which are not enabled locally!"
+    assert set(list(vault_secrets)).issubset(
+        providers
+    ), "Secrets saved in Vault which are not enabled locally!"
 
 
 def test_upload_user_provider_secrets():
