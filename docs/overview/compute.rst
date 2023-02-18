@@ -9,7 +9,7 @@ They also provide convenient dependency isolation and management, provider-agnos
 and rich debugging and accessibility interfaces built-in.
 
 Functions
-====================================
+---------
 
 Runhouse allows you to send function code to a cluster, but still interact with it as a native runnable :ref:`Function` object
 (see `tutorial 01 <https://github.com/run-house/tutorials/tree/main/t01_Stable_Diffusion/>`_).
@@ -75,7 +75,7 @@ single value, since it's the same for all three prompts.
 
 
 Clusters
-====================================
+--------
 A :ref:`Cluster` represents a set of machines which can be sent code or data, or a machine spec that could be spun up in the
 event that we have some code or data to function to the machine.
 Generally they are `Ray clusters <https://docs.ray.io/en/latest/cluster/getting-started.html>`_ under the hood.
@@ -222,8 +222,8 @@ e.g. `Tensorboard <https://www.tensorflow.org/tensorboard/>`_, `Gradio <https://
 
 
 Packages
-====================================
-A Package represents the way we share code between various systems (ex: s3, cluster, local),
+--------
+A :ref:`Package` represents the way we share code between various systems (ex: s3, cluster, local),
 and back up the working directory to create a function that can be easily accessible and portable.
 This allows Runhouse to load your code onto the cluster on the fly, as well as do basic registration and dispatch of
 the Function.

@@ -16,8 +16,8 @@ checkpoints generated on that cluster directly to S3, without having to bounce t
 We'd like to extend this to other data concepts in the future, like kv-stores, time-series, vector and graph databases, etc.
 
 Folders
-=======================================
-Folders are useful for managing the various Runhouse resources within organizations and teams.
+-------
+A :ref:`Folder` is useful for managing the various Runhouse resources within organizations and teams.
 It provides a reasonable option for teams to have shared resources without having to do any explicit coordination
 through a separate source of truth. A Folder's contents are both what it physically contains and what it
 symbolically contains in the object.
@@ -26,19 +26,19 @@ For example, you may create a Table within the Folder managed by the Data Scienc
 This will save the underlying data in your specified folder system (ex: :code:`s3`) to the :code:`bert_preproc` directory
 in the :code:`ds` bucket.
 
-We currently support a variety of systems where a :ref:`Folder` can live:
+We currently support a variety of systems where a Folder can live:
 
 - :code:`file`: Local file system.
-- :code:`github`: Interact with a git URL.
-- :code:`sftp` / :code:`ssh`: Interact with a folder on a cluster.
-- :code:`s3`: Interact with a bucket on S3.
-- :code:`gs`. Interact with a bucket on GCS.
+- :code:`github`: GitHub URL.
+- :code:`sftp` / :code:`ssh`: Cluster based system.
+- :code:`s3`: Bucket on S3.
+- :code:`gs`. Bucket on GCS.
 
 
 Advanced Folder Usage
 ~~~~~~~~~~~~~~~~~~~~~
 Let's show how you can easily copy a folder from one system to another. In this case we'll
-demonstrate copying a local folder of .txt files to a cluster.
+demonstrate copying a local folder of text files to a cluster.
 
 .. code-block:: python
 
@@ -64,16 +64,16 @@ Now that we have our local folder with some files, let's copy them to the :code:
 
 
 Tables
-=======================================
-We currently support a variety of different table types based on your desired underlying infra. By default we store
+------
+We currently support a variety of different :ref:`Table` types based on your desired underlying infra. By default we store
 tables as parquet in blob storage, but Runhouse provides a number of Table subclass implementations with
-:ref:`convenient APIs <Table>` for writing, partitioning, fetching, and streaming the underlying data:
+convenient APIs for writing, partitioning, fetching, and streaming the underlying data:
 
-- :code:`Table`: Base table implementation. Supports any data type that can be written to parquet (ex: pyArrow).
-- :code:`RayTable`: Ray Datasets.
-- :code:`HuggingFaceTable`: HuggingFace Datasets.
-- :code:`PandasTable`: Pandas Dataframes.
-- :code:`DaskTable`: Dask Dataframes.
+- :code:`Table`: Base table implementation. Supports any data type that can be written to parquet (ex: `pyArrow <https://arrow.apache.org/docs/python/generated/pyarrow.Table.html>`_).
+- :code:`RayTable`: `Ray Datasets <https://docs.ray.io/en/latest/data/api/dataset.html#ray.data.Dataset>`_
+- :code:`HuggingFaceTable`: `HuggingFace Datasets <https://huggingface.co/docs/datasets/index>`_
+- :code:`PandasTable`: Pandas DataFrames.
+- :code:`DaskTable`: `Dask DataFrames <https://docs.dask.org/en/stable/dataframe.html>`_
 
 .. note::
     In the near term, we plan on supporting Spark, Rapids, and BigQuery. Please let us know if there is a
@@ -82,9 +82,8 @@ tables as parquet in blob storage, but Runhouse provides a number of Table subcl
 
 Advanced Table Usage
 ~~~~~~~~~~~~~~~~~~~~
-
-Let's demonstrate how we can easily create a Pandas dataframe table that lives in s3, and access
-that data from any other system:
+Let's demonstrate how we can easily create a Table with a Pandas DataFrame data type that lives in s3,
+and access that data from any other system:
 
 .. code-block:: python
 
@@ -114,10 +113,10 @@ This :code:`reloaded_table` holds a reference to the table's path.
 
 Our `BERT Pipeline Preprocessing Tutorial <https://github.com/run-house/tutorials/blob/main/t05_BERT_pipeline/p01_preprocess.py>`_
 showcases the accessibility and portability that a Table can provide. We create a tokenized dataset Table object on a
-cluster, then stream that data in directly from the cluster later on.
+cluster, then stream that data in directly from the cluster.
 
 Blobs
-=======================================
+-----
 A :ref:`Blob` represents a single serialized file stored in a particular system.
 Blobs are useful for dropping data into storage without worrying about exactly where it sits, with Runhouse
 handling saving down and retrieving the Blob for you.

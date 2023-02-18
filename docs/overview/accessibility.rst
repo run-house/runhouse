@@ -64,7 +64,7 @@ only the name, e.g.
     rh.cluster(name='~/my_name')
     rh.table(name='@/my_datasets/my_table')
 
-You may need to pass the full rns_address if the resource is not in rh.current_folder(). To check if a resource exists, you can call:
+You may need to pass the full rns_address if the resource is not in :code:`rh.current_folder()`. To check if a resource exists, you can call:
 
 .. code-block:: python
 
@@ -181,7 +181,7 @@ reallocating the hardware itself (minutes). You can do this by running:
 
 
 Notebooks
-====================================
+~~~~~~~~~
 
 If you prefer to work or debug in notebooks, you can call the following to tunnel a JupyterLab server into your local
 browser from your Runhouse cluster or function:
@@ -201,15 +201,13 @@ Runhouse account to store your secrets and loading them into Colab with :code:`r
 This is not required, and you can still drop them into the Colab VM manually.
 
 
-Notes on notebooks
-~~~~~~~~~~~~~~~~~~~
+Notes on Notebooks
+------------------
 Notebooks are funny beasts. The code and variable inside them are not designed to be reused to shuttled around. As such:
 
 1. If you want to :code:`rh.function` a function defined inside the notebook, it cannot contain variables or imports from outside the function, and you should assign a :code:`name` to the function. We will write the function out to a separate :code:`.py` file and import it from there, and the filename will be set to the :code:`function.name`.
 2. If you really want to use local variables or avoid writing out the function, you can set :code:`serialize_notebook_fn=True` in :code:`rh.function()`. This will cloudpickle the function before sending it, but we do not support saving and reloading these kinds of functions (cloudpickle does not support this kind of reuse and it will create issues).
-3. It is nearly always better to try to write your code in a .py file somewhere and import it into the notebook, rather than define important functions in the notebook itself. You can also use the :code:`%%writefile` magic to write your code into a file, and then import it back into the notebook.
-
-
+3. It is nearly always better to try to write your code in a :code:`.py` file somewhere and import it into the notebook, rather than define important functions in the notebook itself. You can also use the :code:`%%writefile` magic to write your code into a file, and then import it back into the notebook.
 
 If you want to sync down your code or data to local from the cluster afterwards:
 
