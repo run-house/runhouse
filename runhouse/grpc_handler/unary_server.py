@@ -14,7 +14,7 @@ import runhouse.grpc_handler.unary_pb2 as pb2
 
 import runhouse.grpc_handler.unary_pb2_grpc as pb2_grpc
 from runhouse.grpc_handler.unary_client import OutputType
-from runhouse.rh_config import obj_store
+from runhouse.rh_config import configs, obj_store
 from runhouse.rns.packages.package import Package
 from runhouse.rns.run_module_utils import call_fn_by_type, get_fn_by_name
 from runhouse.rns.top_level_rns_fns import (
@@ -210,13 +210,17 @@ class UnaryService(pb2_grpc.UnaryServicer):
                 continue
 
             # NOTE: For now we are always saving in the provider's default location on the cluster
-            credentials_path = p.CREDENTIALS_FILE
+            credentials_path = p.default_credentials_path()
             try:
-                p.save_secrets(provider_secrets, overwrite=True)
+                p.save_secrets(
+                    provider_secrets, file_path=credentials_path, overwrite=True
+                )
             except Exception as e:
                 failed_providers[provider_name] = str(e)
                 continue
 
+            # update config on the cluster with the default creds path for each provider
+            configs.set(provider_name, credentials_path)
             logger.info(f"Added secrets for {provider_name} to: {credentials_path}")
 
         return pb2.MessageResponse(

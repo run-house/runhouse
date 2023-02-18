@@ -47,7 +47,7 @@ def test_delete_provider_secrets():
 
 
 def test_sending_secrets_to_cluster():
-    cluster = rh.cluster(name="^rh-cpu", provider="lambda").up_if_not()
+    cluster = rh.cluster(name="^rh-cpu").up_if_not()
     enabled_providers = rh.Secrets.enabled_providers()
 
     cluster.send_secrets(providers=enabled_providers)

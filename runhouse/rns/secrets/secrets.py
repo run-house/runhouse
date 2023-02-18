@@ -127,10 +127,11 @@ class Secrets:
         If group is provided, will attribute the secrets to the specified group"""
         provider_name = provider.lower()
         if provider_name in cls.enabled_providers(as_str=True):
-            # if a supported cloud provider is given, use the provider's built-in class
-            p = cls.builtin_provider_class_from_name(provider_name)
-            if p is not None:
-                secret = p.read_secrets(from_env=from_env, file_path=file_path)
+            if not secret:
+                # if a supported cloud provider is given and no secret is provided, extract it from its default location
+                p = cls.builtin_provider_class_from_name(provider_name)
+                if p is not None:
+                    secret = p.read_secrets(from_env=from_env, file_path=file_path)
 
         if not secret and not isinstance(secret, dict):
             raise Exception(f"No secrets dict found or provided for {provider}")
@@ -199,33 +200,38 @@ class Secrets:
             )
 
         enabled_providers: list = cls.enabled_providers(as_str=True)
-        provider_secrets: list = cls.load_provider_secrets(providers=providers)
-        if not provider_secrets or len(provider_secrets) < len(enabled_providers):
+
+        # Extract secrets from enabled providers' config files
+        configured_secrets: list = cls.load_provider_secrets(providers=providers)
+        configured_providers: list = [p["provider"] for p in configured_secrets]
+
+        if not configured_secrets or len(configured_secrets) < len(enabled_providers):
             # If no secrets found in the enabled providers' config files check if they exist in Vault
             vault_secrets: dict = cls.download_into_env(save_locally=False)
-            providers_in_vault = list(vault_secrets)
-            # TODO [JL] change this API so we don't have to convert the dict to a list?
-            provider_secrets: list = [
-                {"provider": k, **v} for k, v in vault_secrets.items()
-            ]
-            missing_providers = list(set(enabled_providers) - set(providers_in_vault))
+            for provider, secrets in vault_secrets.items():
+                if provider not in configured_providers:
+                    configured_secrets.append({"provider": provider, **secrets})
+                    configured_providers.append(provider)
+
+            # Enabled providers which are not configured locally and are not stored in Vault
+            missing_providers = list(set(enabled_providers) - set(configured_providers))
             if missing_providers:
                 raise Exception(
                     f"Failed to find secrets locally or in Vault for providers: {missing_providers}. "
                     f"For enabling locally save the secrets to the provider's default credentials file, "
-                    f"or upload the secrets directly to Vault (e.g: `rh.Secrets.put({missing_providers[0]}))`"
+                    f"or upload the secrets directly to Vault (e.g: `rh.Secrets.put({missing_providers[0]})`)"
                 )
 
         # Send provider secrets over RPC to the cluster, then save each provider's secrets into their default
         # file paths on the cluster
-        failed_secrets = hardware.add_secrets(provider_secrets)
-        if len(failed_secrets) == len(provider_secrets):
+        failed_to_add_secrets: dict = hardware.add_secrets(configured_secrets)
+        if len(failed_to_add_secrets) == len(configured_secrets):
             raise RuntimeError(
-                f"Failed to copy all secrets onto the {hardware_name} cluster: {failed_secrets}"
+                f"Failed to copy all secrets onto the {hardware_name} cluster: {failed_to_add_secrets}"
             )
-        elif failed_secrets:
+        elif failed_to_add_secrets:
             logger.warning(
-                f"Failed to copy some secrets onto the {hardware_name} cluster: {failed_secrets}"
+                f"Failed to copy some secrets onto the {hardware_name} cluster: {failed_to_add_secrets}"
             )
         else:
             logger.info(
