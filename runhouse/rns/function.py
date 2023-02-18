@@ -42,7 +42,7 @@ class Function(Resource):
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
-        Runhouse Function ("Serverless ENDpoint") object. It comprises of the entrypoint, system/cluster,
+        Runhouse Function object. It comprises of the entrypoint, system/cluster,
         and dependencies necessary to run the service.
 
         .. note::
