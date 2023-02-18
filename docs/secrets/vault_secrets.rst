@@ -1,4 +1,4 @@
-Vault Secrets
+Secrets in Vault
 =====================================
 
 Saving Secrets
@@ -54,3 +54,16 @@ To get secrets for a specific provider:
 .. code-block:: python
 
     my_creds = rh.Secrets.get(provider="aws")
+
+
+Deleting Secrets
+~~~~~~~~~~~~~~~~
+To delete secrets from Vault for a list of providers:
+
+.. code-block:: python
+
+    rh.Secrets.delete(providers=["huggingface"])
+
+
+You can also delete your secrets stored in Vault directly from the
+Management UI `Account & Secrets page <https://api.run.house/dashboard/?option=account/>`_.

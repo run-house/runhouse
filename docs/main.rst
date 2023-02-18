@@ -26,14 +26,12 @@ and rich debugging and accessibility interfaces built-in.
 .. toctree::
    :maxdepth: 1
 
-   rh_primitives/cluster
-
+   rh_primitives/function
 
 .. toctree::
    :maxdepth: 1
 
-   rh_primitives/function
-
+   rh_primitives/cluster
 
 .. toctree::
    :maxdepth: 1
@@ -52,12 +50,6 @@ to other data concepts in the future, like kv-stores, time-series, vector and gr
 .. toctree::
    :maxdepth: 1
 
-   rh_primitives/blob
-
-
-.. toctree::
-   :maxdepth: 1
-
    rh_primitives/folder
 
 
@@ -65,3 +57,8 @@ to other data concepts in the future, like kv-stores, time-series, vector and gr
    :maxdepth: 1
 
    rh_primitives/table
+
+.. toctree::
+   :maxdepth: 1
+
+   rh_primitives/blob
