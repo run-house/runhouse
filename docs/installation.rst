@@ -64,7 +64,7 @@ accessible from anywhere like Google Docs. You can see examples of this portabil
 in the `Runhouse Tutorials <https://github.com/run-house/tutorials/>`_.
 
 To create an account, visit our `dashboard <https://api.run.house/>`_, or simply call
-runhouse login from the command line (or :code:`rh.login()` from Python).
+:code:`runhouse login` from the command line (or :code:`rh.login()` from Python).
 
 .. note::
     These portability features only ever store light metadata about your resources

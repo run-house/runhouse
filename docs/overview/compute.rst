@@ -1,6 +1,81 @@
-Clusters
+Compute
 ====================================
 
+The :ref:`Function`, :ref:`Cluster`, and :ref:`Package` APIs allow a seamless flow of code and execution across local and remote compute.
+They blur the line between program execution and deployment, providing both a path of least resistence for running a
+sub-routine on specific hardware, while unceremoniously turning that sub-routine into a reusable service.
+
+They also provide convenient dependency isolation and management, provider-agnostic provisioning and termination,
+and rich debugging and accessibility interfaces built-in.
+
+Functions
+====================================
+
+Runhouse allows you to send function code to a cluster, but still interact with it as a native runnable :ref:`Function` object
+(see `tutorial 01 <https://github.com/run-house/tutorials/tree/main/t01_Stable_Diffusion/>`_).
+When you do this, the following steps occur:
+
+1. We check if the cluster is up, and bring up the cluster if not (only possible for :ref:`OnDemandClusters <OnDemandCluster>`)
+2. We check that the cluster's gRPC server has started to handle requests to do things like install packages, run modules, get previously executed results, etc. If it hasn't, we install Runhouse on the cluster and start the gRPC server. The gRPC server initializes Ray.
+3. We collect the dependencies from the :code:`reqs` parameter and install them on the cluster via :code:`cluster.install_packages()`. By default, we'll sync over the working git repo and install its :code:`requirements.txt` if it has one.
+
+
+When you run your function module, we function a gRPC request to the cluster with the module name and function entrypoint to run.
+The gRPC server adds the module to its python path, imports the module, grabs the function entrypoint, runs it,
+and returns your results.
+
+You can stream in logs from the cluster as your module runs by passing :code:`stream_logs=True` into your call line:
+
+
+.. code-block:: python
+
+    images = generate_gpu('A dog.', num_images=1, steps=50, stream_logs=True)
+
+
+We plan to support additional form factors for modules beyond "remote Python function" shortly, including HTTP endpoints, custom ASGIs, and more.
+
+
+Advanced Function Usage
+~~~~~~~~~~~~~~~~~~~~~~~
+There are a number of ways to call a Function beyond just :code:`__call__`.
+
+:code:`.remote` will call the function async (using Ray) and return a reference (`Ray ObjectRef <https://docs.ray.io/en/latest/ray-core/objects.html>`_)
+to the object on the cluster. You can pass the ref into another function and it will be automatically
+dereferenced once on the cluster. This is a convenient way to avoid passing large objects back and forth to your
+laptop, or to run longer execution in notebooks without locking up the kernel.
+
+.. code-block:: python
+
+    images_ref = generate_gpu.remote('A dog.', num_images=1, steps=50)
+    images = rh.get(images_ref)
+    # or
+    my_other_function(images_ref)
+
+
+:code:`.enqueue` will queue up your function call on the cluster to make sure it doesn't run simultaneously with other
+calls, but will wait until the execution completes.
+
+:code:`.map` and :code:`.starmap` are easy way to parallelize your function (again using Ray on the cluster).
+
+.. code-block:: python
+
+    generate_gpu.map(['A dog.', 'A cat.', 'A biscuit.'], num_images=[1]*3, steps=[50]*3)
+
+
+will run the function on each of the three prompts, and return a list of the results.
+Note that the :code:`num_images` and :code:`steps` arguments are broadcasted to each prompt, so the first prompt will get 1 image.
+
+
+.. code-block:: python
+
+    generate_gpu.starmap([('A dog.', 1), ('A cat.', 2), ('A biscuit.', 3)], steps=50)
+
+is the same as :code:`map` as above, but we can pass the arguments as a list of tuples, and the steps argument as a
+single value, since it's the same for all three prompts.
+
+
+Clusters
+====================================
 A :ref:`Cluster` represents a set of machines which can be sent code or data, or a machine spec that could be spun up in the
 event that we have some code or data to function to the machine.
 Generally they are `Ray clusters <https://docs.ray.io/en/latest/cluster/getting-started.html>`_ under the hood.
@@ -54,7 +129,7 @@ This will not pull the status for all the machines you've launched from various 
 We plan to add this feature soon.
 
 :code:`sky down --all`: This will take down (terminate, without persisting the disk image) all clusters in the local
-SkyPilot context (the ones that show when you run sky status --refresh). However, the best way to confirm that you
+SkyPilot context (the ones that show when you run :code:`sky status --refresh`). However, the best way to confirm that you
 don't have any machines left running is always to check the cloud provider's UI.
 
 :code:`sky down <cluster_name>`: This will take down a specific cluster.
@@ -144,3 +219,41 @@ e.g. `Tensorboard <https://www.tensorflow.org/tensorboard/>`_, `Gradio <https://
 .. code-block:: python
 
     gpu.ssh_tunnel(local_port=7860, remote_port=7860)
+
+
+Packages
+====================================
+A Package represents the way we share code between various systems (ex: s3, cluster, local),
+and back up the working directory to create a function that can be easily accessible and portable.
+This allows Runhouse to load your code onto the cluster on the fly, as well as do basic registration and dispatch of
+the Function.
+
+At a high level, we dump the list of packages into gRPC, and the packages are installed on the gRPC server
+on the cluster.
+
+We currently provide four package install methods:
+
+- :code:`local`: Install packages to a Folder or a path to a directory
+- :code:`reqs`: Try installing a :code:`requirements.txt` file from the working directory.
+- :code:`pip`: Runs :code:`pip install` for provided packages.
+- :code:`conda`: Runs :code:`conda install` for provided packages.
+
+
+GitPackage
+~~~~~~~~~~
+
+Runhouse offers support for using a GitHub URL as GitPackage object, a subclass of :ref:`Package`.
+Instead of cloning down code from GitHub and copying it directly into your existing code base, you can provide a link
+to a specific :code:`git_url` (with support for a :code:`revision` version), and Runhouse handles all the installations
+for you!
+
+For example:
+
+.. code-block:: python
+
+    rh.GitPackage(git_url='https://github.com/huggingface/diffusers.git',
+                  install_method='pip',
+                  revision='v0.11.1')
+
+
+See a more detailed example of working with a GitPackage in our `Dreambooth Tutorial <https://github.com/run-house/tutorials/blob/main/t02_Dreambooth/p01_dreambooth_train.py/>`_

@@ -1,5 +1,6 @@
 Package
 ====================================
+A Package is a Runhouse primitive for sharing code between various systems (ex: s3, cluster, local).
 
 
 Package Factory Method
