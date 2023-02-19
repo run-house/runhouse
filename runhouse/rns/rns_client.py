@@ -179,11 +179,19 @@ class RNSClient:
         return payload
 
     def grant_resource_access(
-        self, resource_name: str, user_emails: list, access_type: ResourceAccess
+        self,
+        resource_name: str,
+        user_emails: list,
+        access_type: ResourceAccess,
+        notify_users: bool,
     ):
         resource_uri = self.resource_uri(resource_name)
         headers = self.request_headers
-        access_payload = {"users": user_emails, "access_type": access_type}
+        access_payload = {
+            "users": user_emails,
+            "access_type": access_type,
+            "notify_users": notify_users,
+        }
         uri = "resource/" + resource_uri
         resp = requests.put(
             f"{self.api_server_url}/{uri}/users/access",
@@ -191,9 +199,7 @@ class RNSClient:
             headers=headers,
         )
         if resp.status_code != 200:
-            raise Exception(
-                f"Failed to grant access and notify users: {json.loads(resp.content)}"
-            )
+            raise Exception(f"Failed to grant access: {json.loads(resp.content)}")
 
         resp_data: dict = read_response_data(resp)
         added_users: dict = resp_data.get("added_users", {})

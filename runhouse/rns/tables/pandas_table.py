@@ -49,7 +49,7 @@ class PandasTable(Table):
                 partition_cols=self.partition_cols,
             )
 
-        save(self, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
+        save(self, name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
 
         return self
 

@@ -27,6 +27,7 @@ class Defaults:
     BASE_DEFAULTS = {
         "default_folder": "~",
         "default_provider": "cheapest",
+        "default_storage": "s3",
         "default_autostop": -1,
         "use_spot": False,
         "use_local_configs": True,

@@ -15,8 +15,13 @@ def test_from_string():
 
 def test_share():
     p = rh.Package.from_string("reqs:~/runhouse/runhouse")
-    # Can share via email or username
-    p.share(users=["jlewitt1", "donnyg"], snapshot=True, access_type="write")
+    p.name = "package_to_share"
+    added_users, new_users = p.share(
+        users=["josh@run.house", "donny@run.house"], snapshot=False, access_type="write"
+    )
+    assert added_users or new_users
+
+    p.delete_configs()
 
 
 def test_reload():

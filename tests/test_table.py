@@ -809,6 +809,63 @@ def test_create_and_fetch_dask_data_from_s3():
     assert not reloaded_table.exists_in_system()
 
 
+# -------------------------------------------------
+# ----------------- Sharing tests -----------------
+# -------------------------------------------------
+def test_sharing_s3_table():
+    orig_data = load_sample_data(data_type="pandas")
+    my_table = rh.table(
+        data=orig_data,
+        name="@/my_shareable_pandas_table",
+        path=f"/{BUCKET_NAME}/pandas",
+        system="s3",
+        mkdir=True,
+    ).save()
+
+    added_users, new_users = my_table.share(
+        users=["donny@run.house", "josh@run.house"], access_type="write", snapshot=False
+    )
+    assert added_users or new_users
+
+    my_table.delete_configs()
+    my_table.delete_in_system()
+
+    assert not my_table.exists_in_system()
+
+
+def test_sharing_local_table():
+    local_path = Path.cwd() / "table_tests/local_test_table"
+    local_path.mkdir(parents=True, exist_ok=True)
+
+    Path(local_path).mkdir(parents=True, exist_ok=True)
+
+    orig_data = pd.DataFrame({"my_col": list(range(50))})
+    my_table = rh.table(
+        data=orig_data,
+        name="~/my_local_test_table",
+        path=str(local_path),
+        system="file",
+    ).save()
+
+    added_users, new_users = my_table.share(
+        users=["josh@run.house", "donny@run.house"],
+        access_type="write",
+        snapshot_system="s3",
+    )
+    assert added_users or new_users
+
+    my_table.delete_configs()
+    my_table.delete_in_system()
+    assert not my_table.exists_in_system()
+
+    s3_table = rh.table(name="my_local_test_table")
+    assert s3_table.exists_in_system()
+
+    s3_table.delete_configs()
+    s3_table.delete_in_system()
+    assert not s3_table.exists_in_system()
+
+
 if __name__ == "__main__":
     setup()
     unittest.main()

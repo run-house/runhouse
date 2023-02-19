@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Union
 
 import fsspec
 
@@ -14,8 +14,7 @@ import fsspec
 import sshfs
 
 import runhouse as rh
-from runhouse.rh_config import configs, rns_client
-from runhouse.rns.api_utils.resource_access import ResourceAccess
+from runhouse.rh_config import rns_client
 from runhouse.rns.resource import Resource
 
 fsspec.register_implementation("ssh", sshfs.SSHFileSystem)
@@ -257,7 +256,7 @@ class Folder(Resource):
             path = str(Path.cwd() / self.path.split("/")[-1]) if path is None else path
 
         path = str(
-            path or self.default_path(self.name, system)
+            path or self.default_path(self.rns_address, system)
         )  # Make sure it's a string and not a Path
 
         system_str = getattr(
@@ -511,64 +510,6 @@ class Folder(Resource):
         return (
             self.system == "file" and self.path is not None and Path(self.path).exists()
         ) or self._local_mount_path
-
-    def share(
-        self,
-        users: list,
-        access_type: Union[ResourceAccess, str] = ResourceAccess.read,
-        snapshot: bool = True,
-        snapshot_system: str = None,
-        snapshot_compression: str = None,
-        snapshot_path: str = None,
-    ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
-        """Granting access to the resource for list of users (via their emails). If a user has a Runhouse account they
-        will receive an email notifying them of their new access. If the user does not have a Runhouse account they will
-        also receive instructions on creating one, after which they will be able to have access to the Resource.
-
-        .. note::
-            You can only grant resource access to other users if you have Write / Read privileges for the Resource
-        """
-        if self.name is None:
-            raise ValueError("Shareable resources must have a name!")
-
-        if self.is_local() and snapshot:
-            # raise ValueError('Cannot share a local resource.')
-            system = (
-                snapshot_system or PROVIDER_FS_LOOKUP[configs.get("default_provider")]
-            )
-            if system not in fsspec.available_protocols():
-                raise ValueError(
-                    f"Invalid mount_fs: {snapshot_system}. Must be one of {fsspec.available_protocols()}"
-                )
-            if snapshot_compression not in fsspec.available_compressions():
-                raise ValueError(
-                    f"Invalid mount_compression: {snapshot_compression}. Must be one of "
-                    f"{fsspec.available_compressions()}"
-                )
-            data_config = (
-                {"compression": snapshot_compression} if snapshot_compression else {}
-            )
-            snapshot_folder = self.to(
-                system=system, path=snapshot_path, data_config=data_config
-            )
-
-            # Is this a bad idea? Better to store the snapshot config as the source of truth than the local path
-            rns_address = rns_client.local_to_remote_address(self.rns_address)
-            snapshot_folder.save(name=rns_address)
-
-            return snapshot_folder.share(
-                users=users, access_type=access_type, snapshot=False
-            )
-
-        # TODO just call super().share
-        if isinstance(access_type, str):
-            access_type = ResourceAccess(access_type)
-        if not rns_client.exists(self.rns_address):
-            self.save(name=rns_client.local_to_remote_address(self.rns_address))
-        added_users, new_users = rns_client.grant_resource_access(
-            resource_name=self.name, user_emails=users, access_type=access_type
-        )
-        return added_users, new_users
 
     def empty_folder(self):
         """Remove folder contents, but not the folder itself."""

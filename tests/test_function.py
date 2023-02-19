@@ -202,15 +202,43 @@ def test_ssh():
     assert True
 
 
-def test_providing_access_to_function():
+def test_share_function():
     my_function = rh.function(
         fn=summer, name="@/remote_function", system="^rh-cpu", dryrun=True
     ).save()
+
     added_users, new_users = my_function.share(
-        users=["dongreenberg", "jlewit1"], access_type=ResourceAccess.read
+        users=["donny@run.house", "josh@run.house"],
+        snapshot=False,
+        access_type=ResourceAccess.read,
     )
     assert added_users or new_users
     my_function.delete_configs()
+
+
+def test_share_local_function():
+    my_function = rh.function(fn=summer, name="~/local_function", dryrun=True).save()
+
+    added_users, new_users = my_function.share(
+        users=["donny@run.house", "josh@run.house"],
+        snapshot_system="s3",
+        access_type=ResourceAccess.read,
+    )
+    assert added_users or new_users
+
+    my_function.delete_configs()
+    my_function.delete_in_system()
+
+    assert not my_function.exists_in_system()
+
+    # Load our snapshotted blob that's now saved in s3
+    s3_function = rh.blob(name="local_function")
+    assert s3_function.exists_in_system()
+
+    s3_function.delete_configs()
+    s3_function.delete_in_system()
+
+    assert not s3_function.exists_in_system()
 
 
 def delete_function_from_rns(s):

@@ -5,9 +5,10 @@ import pprint
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
+import fsspec
 import requests
 
-from runhouse.rh_config import rns_client
+from runhouse.rh_config import configs, rns_client
 from runhouse.rns.api_utils.resource_access import ResourceAccess
 from runhouse.rns.api_utils.utils import read_response_data
 from runhouse.rns.top_level_rns_fns import (
@@ -178,10 +179,62 @@ class Resource:
             if val:
                 config[attr] = val
 
+    def is_local(self):
+        return (
+            hasattr(self, "install_target")
+            and self.install_target.startswith("~")
+            or hasattr(self, "system")
+            and self.system == "file"
+        )
+
+    def create_snapshot_resource(
+        self,
+        snapshot_system: str = None,
+        snapshot_compression: str = None,
+        snapshot_path: str = None,
+    ):
+        from runhouse.rns.folders.folder import PROVIDER_FS_LOOKUP
+
+        system = snapshot_system or PROVIDER_FS_LOOKUP[configs.get("default_storage")]
+        if system not in fsspec.available_protocols():
+            raise ValueError(
+                f"Invalid mount_fs: {snapshot_system}. Must be one of {fsspec.available_protocols()}"
+            )
+        if snapshot_compression not in fsspec.available_compressions():
+            raise ValueError(
+                f"Invalid mount_compression: {snapshot_compression}. Must be one of "
+                f"{fsspec.available_compressions()}"
+            )
+        data_config = (
+            {"compression": snapshot_compression} if snapshot_compression else {}
+        )
+
+        if not hasattr(self, "to"):
+            raise AttributeError(
+                f"Unable to snapshot and copy a local {self.RESOURCE_TYPE} to {system}. Resource "
+                f"must have a `.to()` method in order to snapshot."
+            )
+
+        snapshot_resource = self.to(
+            system=system, path=snapshot_path, data_config=data_config
+        )
+
+        rns_address = rns_client.local_to_remote_address(self.rns_address)
+        snapshot_resource.save(name=rns_address)
+
+        return snapshot_resource
+
     # TODO [DG] Implement proper sharing of subresources (with an overload of some kind)
     def share(
-        self, users: list, access_type: Union[ResourceAccess, str] = ResourceAccess.read
-    ) -> Tuple[Dict, Dict]:
+        self,
+        users: list,
+        access_type: Union[ResourceAccess, str] = ResourceAccess.read,
+        snapshot: bool = True,
+        snapshot_system: str = None,
+        snapshot_compression: str = None,
+        snapshot_path: str = None,
+        notify_users: bool = False,
+    ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
         """Grant access to the resource for the list of users. If a user has a Runhouse account they
         will receive an email notifying them of their new access. If the user does not have a Runhouse account they will
         also receive instructions on creating one, after which they will be able to have access to the Resource.
@@ -192,6 +245,14 @@ class Resource:
         Args:
             users (list): list of user emails and / or runhouse account usernames.
             access_type (:obj:`ResourceAccess`, optional): access type to provide for the resource.
+            snapshot (bool): Whether to create a snapshot of the resource. Defaults to `True`.
+            snapshot_system (:obj: str, optional): Which system to use for the snapshot.
+                See `fsspec.available_protocols()` for options. Defaults to `None`.
+            snapshot_compression (:obj: str, optional): Compression to use for the snapshot.
+                See `fsspec.available_compressions()` for options. Defaults to `None`.
+            snapshot_path (:obj: str, optional): Specific path to use for the snapshot. Defaults to `None`.
+            notify_users (bool): Send email notification to users who have been given access. Defaults to `False`.
+
 
         Returns:
             `added_users`: users who already have an account and have been granted access to the resource.
@@ -200,13 +261,25 @@ class Resource:
         Example:
             >>> added_users, new_users = my_resource.share(users=["username1", "user@gmail.com"], access_type='write')
         """
+        if self.name is None:
+            raise ValueError("Resource must have a name in order to share")
+
+        if self.is_local() and snapshot:
+            snapshot_resource = self.create_snapshot_resource()
+            return snapshot_resource.share(
+                users=users, access_type=access_type, snapshot=False
+            )
+
         if isinstance(access_type, str):
             access_type = ResourceAccess(access_type)
 
         if not rns_client.exists(self.rns_address):
-            self.save()
+            self.save(name=rns_client.local_to_remote_address(self.rns_address))
 
         added_users, new_users = rns_client.grant_resource_access(
-            resource_name=self.name, user_emails=users, access_type=access_type
+            resource_name=self.name,
+            user_emails=users,
+            access_type=access_type,
+            notify_users=notify_users,
         )
         return added_users, new_users

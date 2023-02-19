@@ -311,7 +311,7 @@ def test_cluster_and_cluster():
     assert "sample_file_0.txt" in cluster_folder_2.ls(full_paths=False)
 
 
-def test_s3_folder_sharing():
+def test_s3_sharing():
     s3_folder = rh.folder(
         name="my-s3-shared-folder", path=DATA_STORE_PATH, system="s3"
     ).save()
@@ -322,12 +322,40 @@ def test_s3_folder_sharing():
         users=users, access_type="read", snapshot=False
     )
 
-    assert True
+    assert added_users or new_users
+
+    s3_folder.delete_configs()
+    s3_folder.delete_in_system()
+    assert not s3_folder.ls(full_paths=False)
 
 
-# TODO [JL]
-def test_cluster_folder_sharing():
-    pass
+def test_local_sharing():
+    local_folder = rh.folder(name="~/my_local_shared_folder", path=TEST_FOLDER_PATH)
+    local_folder.mkdir()
+    local_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
+
+    assert "sample_file_0.txt" in local_folder.ls(full_paths=False)
+
+    added_users, new_users = local_folder.share(
+        users=["josh@run.house", "donny@run.house"],
+        access_type="read",
+        snapshot_system="s3",
+    )
+
+    assert added_users or new_users
+
+    local_folder.delete_configs()
+    local_folder.empty_folder()
+    assert not local_folder.ls(full_paths=False)
+
+    # Load up our snapshotted folder that's now saved in s3
+    s3_folder = rh.folder(name="my_local_shared_folder")
+    assert s3_folder.exists_in_system()
+
+    s3_folder.delete_configs()
+    s3_folder.empty_folder()
+
+    assert not s3_folder.exists_in_system()
 
 
 if __name__ == "__main__":
