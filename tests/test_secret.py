@@ -3,7 +3,7 @@ import unittest
 import runhouse as rh
 
 
-def test_get_all_secrets():
+def test_get_all_secrets_from_vault():
     vault_secrets = rh.Secrets.download_into_env(save_locally=False)
     providers = rh.Secrets.enabled_providers(as_str=True)
     assert set(list(vault_secrets)).issubset(
@@ -44,6 +44,31 @@ def test_delete_provider_secrets():
     secrets = rh.Secrets.get(provider=provider)
 
     assert not secrets
+
+
+def test_add_ssh_secrets():
+    from runhouse.rns.secrets.ssh_secrets import SSHSecrets
+
+    provider = "ssh"
+    # Save to local .ssh directory
+    mock_ssh_keys = {"key-one": "12345", "key-one.pub": "ABCDE"}
+    SSHSecrets.save_secrets(secrets=mock_ssh_keys, overwrite=True)
+    local_secrets: list = rh.Secrets.load_provider_secrets(providers=["ssh"])
+    assert local_secrets
+
+    # Upload to Vault
+    rh.Secrets.put(provider=provider, secret=mock_ssh_keys)
+    vault_secrets = rh.Secrets.get(provider=provider)
+    assert vault_secrets
+
+    # Delete from Vault & locally
+    rh.configs.delete(provider)
+    rh.Secrets.delete_from_vault(providers=[provider])
+    for f_name, _ in mock_ssh_keys.items():
+        ssh_key_path = f"{SSHSecrets.default_credentials_path()}/{f_name}"
+        SSHSecrets.delete_secrets_file(file_path=ssh_key_path)
+
+    assert True
 
 
 def test_sending_secrets_to_cluster():

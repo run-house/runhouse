@@ -158,7 +158,7 @@ class Secrets:
 
         secrets = cls.load_resp_data(resp).get(provider_name, {})
         if not secrets:
-            logger.error(f"Failed to load secrets for {provider_name}")
+            logger.error(f"Failed to load secrets from Vault for {provider_name}")
             return {}
 
         p = cls.builtin_provider_class_from_name(provider_name)
@@ -257,7 +257,6 @@ class Secrets:
             provider_secrets = provider.read_secrets(from_env=from_env)
             if provider_secrets:
                 secrets.append(provider_secrets)
-                configs.set(provider.PROVIDER_NAME, provider.default_credentials_path())
 
         return secrets
 
@@ -306,6 +305,10 @@ class Secrets:
             cloud_names.append("huggingface")
         except ModuleNotFoundError:
             pass
+
+        # Add any SSH keys that were explicitly added
+        if configs.get("ssh"):
+            cloud_names.append("ssh")
 
         if as_str:
             return cloud_names
