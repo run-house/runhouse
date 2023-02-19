@@ -1,7 +1,7 @@
 Functions
 ====================================
 
-Runhouse allows you to function code a cluster, but still interact with it as a native runnable :ref:`Function` object
+Runhouse allows you to send code a cluster, but still interact with it as a native runnable :ref:`Function` object
 (see `tutorial 01 <https://github.com/run-house/tutorials/tree/main/t01_Stable_Diffusion/>`_).
 When you do this, the following steps occur:
 

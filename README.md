@@ -13,7 +13,7 @@
 ## 👵 Welcome Home!
 PyTorch lets you send a model or tensor `.to(device)`, so
 why can't you do `my_fn.to('a_gcp_a100')` or `my_table.to('parquet_in_s3')`?
-Runhouse allows just that: function code and data to any of your compute or
+Runhouse allows just that: send code and data to any of your compute or
 data infra (with your own cloud creds), all in Python, and continue to use them
 eagerly exactly as they were.
 
