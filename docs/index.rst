@@ -19,7 +19,7 @@ Runhouse 🏃‍♀️🏠
 
 PyTorch lets you send a model or tensor :code:`.to(device)`, so why can't you do :code:`my_fn.to('a_gcp_a100')`,
 or :code:`my_table.to('parquet_in_s3')`?
-Runhouse allows just that: function code and data to any of your compute or data infra (with your own cloud creds),
+Runhouse allows just that: send code and data to any of your compute or data infra (with your own cloud creds),
 all in Python, and continue to use them eagerly exactly as they were.
 
 Runhouse has four top-level objectives:
