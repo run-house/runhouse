@@ -23,9 +23,7 @@ class HuggingFaceSecrets(Secrets):
         return {"provider": cls.PROVIDER_NAME, "token": token}
 
     @classmethod
-    def save_secrets(
-        cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
-    ):
+    def save_secrets(cls, secrets: dict, overwrite: bool = False):
         # TODO check properly if hf needs to be installed
         try:
             import huggingface_hub
@@ -33,7 +31,7 @@ class HuggingFaceSecrets(Secrets):
             subprocess.run(["pip", "install", "--upgrade", "huggingface-hub"])
             import huggingface_hub
 
-        dest_path = file_path or cls.default_credentials_path()
+        dest_path = cls.default_credentials_path()
         cls.check_secrets_for_mismatches(
             secrets_to_save=secrets, secrets_path=dest_path, overwrite=overwrite
         )

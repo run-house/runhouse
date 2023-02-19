@@ -47,9 +47,7 @@ class SkySecrets(Secrets):
         }
 
     @classmethod
-    def save_secrets(
-        cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
-    ):
+    def save_secrets(cls, secrets: dict, overwrite: bool = False):
         private_key_path = cls.PRIVATE_KEY_FILE
         if private_key_path.endswith(".pem"):
             public_key_path = private_key_path.rsplit(".", 1)[0] + ".pub"

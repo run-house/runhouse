@@ -212,9 +212,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
             # NOTE: For now we are always saving in the provider's default location on the cluster
             credentials_path = p.default_credentials_path()
             try:
-                p.save_secrets(
-                    provider_secrets, file_path=credentials_path, overwrite=True
-                )
+                p.save_secrets(provider_secrets, overwrite=True)
             except Exception as e:
                 failed_providers[provider_name] = str(e)
                 continue

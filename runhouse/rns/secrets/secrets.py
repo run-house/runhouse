@@ -36,9 +36,7 @@ class Secrets:
         raise NotImplementedError
 
     @classmethod
-    def save_secrets(
-        cls, secrets: Dict, file_path: Optional[str] = None, overwrite: bool = False
-    ) -> Dict:
+    def save_secrets(cls, secrets: Dict, overwrite: bool = False) -> Dict:
         """Save secrets for providers to their respective configs. If overwrite is set to `False` will check for
         potential clashes with existing secrets that may already be saved, otherwise will overwrite whatever exists."""
         raise NotImplementedError

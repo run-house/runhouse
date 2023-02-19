@@ -37,10 +37,8 @@ class SSHSecrets(Secrets):
         return config_data
 
     @classmethod
-    def save_secrets(
-        cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
-    ):
-        dest_path = Path(file_path or cls.default_credentials_path()).expanduser()
+    def save_secrets(cls, secrets: dict, overwrite: bool = False):
+        dest_path = Path(cls.default_credentials_path()).expanduser()
         cls.check_secrets_for_mismatches(
             secrets_to_save=secrets, secrets_path=str(dest_path), overwrite=overwrite
         )

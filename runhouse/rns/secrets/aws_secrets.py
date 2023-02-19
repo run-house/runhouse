@@ -45,10 +45,8 @@ class AWSSecrets(Secrets):
         }
 
     @classmethod
-    def save_secrets(
-        cls, secrets: dict, file_path: Optional[str] = None, overwrite: bool = False
-    ):
-        dest_path = file_path or cls.default_credentials_path()
+    def save_secrets(cls, secrets: dict, overwrite: bool = False):
+        dest_path = cls.default_credentials_path()
         cls.check_secrets_for_mismatches(
             secrets_to_save=secrets, secrets_path=dest_path, overwrite=overwrite
         )
