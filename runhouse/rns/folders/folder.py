@@ -901,7 +901,7 @@ def folder(
     local_mount: bool = False,
     data_config: Optional[Dict] = None,
 ) -> Folder:
-    """Creates a Runhouse folder object, which can be used to interact with the folder at the given path (path).
+    """Creates a Runhouse folder object, which can be used to interact with the folder at the given path.
 
     Args:
         name (Optional[str]): Name to give the folder, to be re-used later on.

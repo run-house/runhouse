@@ -1,7 +1,7 @@
 .. runhouse documentation master file, created by
 
 Runhouse 🏃‍♀️🏠
-============
+===================
 
 .. raw:: html
 
@@ -31,7 +31,7 @@ Runhouse has four top-level objectives:
 * Allowing resources to be shared among teams as living assets
 
 Keep reading on to see how Runhouse achieves this, or explore our
-:ref:`High Level Overview`, :ref:`Python API`, and `Tutorials <https://github.com/run-house/tutorials>`_
+:ref:`Architecture Section <Compute>`, :ref:`Python API`, and `Tutorials <https://github.com/run-house/tutorials>`_.
 
 .. warning::
     🚨 **This is an Alpha** 🚨
@@ -66,17 +66,16 @@ Table of Contents
    :caption: Security
 
    secrets/secrets
+   secrets/vault_secrets
 
 .. toctree::
    :maxdepth: 1
    :caption: Runhouse Architecture
 
-   overview/overview
-   overview/clusters
-   overview/functions
-   overview/notebooks
+   overview/compute
+   overview/data
    overview/accessibility
-   overview/secrets
+   overview/management
 
 .. toctree::
    :maxdepth: 1
