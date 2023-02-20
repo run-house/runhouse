@@ -180,7 +180,7 @@ class Function(Resource):
         ):
             # The only time __file__ wouldn't be present is if the function is defined in an interactive
             # interpreter or a notebook. We can't import on the server in that case, so we need to cloudpickle
-            # the fn to function it over. The __call__ function will serialize the function if we return it this way.
+            # the fn to send it over. The __call__ function will serialize the function if we return it this way.
             # This is a short-term hack.
             # return None, "notebook", raw_fn.__name__
             root_path = os.getcwd()

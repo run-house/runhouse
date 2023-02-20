@@ -109,7 +109,7 @@ class UnaryClient(object):
         """
         Client function to call the rpc for RunModule
         """
-        # Measure the time it takes to function the message
+        # Measure the time it takes to send the message
         serialized_module = pickle.dumps(
             [relative_path, module_name, fn_name, fn_type, args, kwargs]
         )

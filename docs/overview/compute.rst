@@ -77,7 +77,7 @@ single value, since it's the same for all three prompts.
 Clusters
 --------
 A :ref:`Cluster` represents a set of machines which can be sent code or data, or a machine spec that could be spun up in the
-event that we have some code or data to function to the machine.
+event that we have some code or data to send to the machine.
 Generally they are `Ray clusters <https://docs.ray.io/en/latest/cluster/getting-started.html>`_ under the hood.
 
 There are a few kinds of clusters today:
@@ -145,7 +145,7 @@ Existing Clusters
 ~~~~~~~~~~~~~~~~~~
 "Existing cluster" can mean either a saved :ref:`OnDemandCluster` config, which will be brought back up if needed,
 or a BYO or OnDemandCluster that's already up. If you save the Cluster to the :ref:`Resource Name System (RNS)`,
-you'll be able to dispatch to it from any environment. Multiple users or environments can function requests to a cluster
+you'll be able to dispatch to it from any environment. Multiple users or environments can send requests to a cluster
 without issue, and either the OS or Ray (depending on the call to the cluster) will handle the resource contention.
 
 You can load an existing cluster by name from local or Runhouse RNS simply by:
@@ -210,7 +210,7 @@ To run any Python on the cluster:
 
     gpu.run_python(['import torch', 'print(torch.__version__)'])
 
-This is useful for debugging, or for running a script that you don't want to function to the cluster
+This is useful for debugging, or for running a script that you don't want to send to the cluster
 (e.g. because it has too many dependencies).
 
 If you want to run an application on the cluster that requires a port to be open,
