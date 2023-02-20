@@ -55,7 +55,6 @@ class OnDemandCluster(Cluster):
         self.address = None
         self._yaml_path = None
         self._grpc_tunnel = None
-        self._secrets_sent = False
         self.client = None
         self.sky_data = sky_data
         if self.sky_data is not None:

@@ -11,6 +11,7 @@ service Unary{
   rpc ClearPins(Message) returns (MessageResponse) {}
   rpc CancelRun(Message) returns (MessageResponse) {}
   rpc PutObject(Message) returns (MessageResponse) {}
+  rpc AddSecrets(Message) returns (MessageResponse) {}
 
   // streaming RPC
   rpc GetObject(Message) returns (stream MessageResponse) {}

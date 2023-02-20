@@ -58,6 +58,11 @@ class UnaryClient(object):
         server_res = self.stub.InstallPackages(message)
         return server_res
 
+    def add_secrets(self, secrets):
+        message = pb2.Message(message=secrets)
+        server_res = self.stub.AddSecrets(message)
+        return pickle.loads(server_res.message)
+
     def cancel_runs(self, keys, force=False):
         message = pb2.Message(message=pickle.dumps((keys, force)))
         res = self.stub.CancelRun(message)

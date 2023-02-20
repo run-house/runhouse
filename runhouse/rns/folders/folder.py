@@ -464,7 +464,7 @@ class Folder(Resource):
                     f"Error syncing folder to destination cluster ({dest_cluster.name}). "
                     f"Make sure the source cluster ({self.system.name}) has the sky keys "
                     f"loaded in path: {creds_file}. "
-                    f"For example: `my_cluster.send_secrets(providers=['sky'])`"
+                    f"For example: `Secrets.to({dest_cluster.name}, providers=['aws'])`"
                 )
 
         else:
