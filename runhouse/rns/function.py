@@ -14,7 +14,7 @@ import sshtunnel
 
 from runhouse import rh_config
 from runhouse.rns.api_utils.resource_access import ResourceAccess
-from runhouse.rns.api_utils.utils import is_jsonable, read_response_data
+from runhouse.rns.api_utils.utils import is_jsonable, load_resp_content, read_resp_data
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.packages import git_package, Package
 
@@ -282,10 +282,10 @@ class Function(Resource):
             )
             if resp.status_code != 200:
                 raise Exception(
-                    f"Failed to run Function endpoint: {json.loads(resp.content)}"
+                    f"Failed to run Function endpoint: {load_resp_content(resp)}"
                 )
 
-            res = read_response_data(resp)
+            res = read_resp_data(resp)
             return res
 
     def repeat(self, num_repeats: int, *args, **kwargs):
@@ -482,8 +482,8 @@ class Function(Resource):
         self.system.ssh()
 
     def send_secrets(self):
-        """Send secrets to the hardware."""
-        self.hardware.send_secrets()
+        """Send secrets to the system."""
+        self.system.send_secrets()
 
     def http_url(self, curl_command=False, *args, **kwargs) -> str:
         """

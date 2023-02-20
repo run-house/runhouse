@@ -20,7 +20,7 @@ class HuggingFaceSecrets(Secrets):
             creds_path = file_path or cls.default_credentials_path()
             token = Path(creds_path).read_text()
 
-        return {"provider": cls.PROVIDER_NAME, "token": token}
+        return {"token": token}
 
     @classmethod
     def save_secrets(cls, secrets: dict, overwrite: bool = False):

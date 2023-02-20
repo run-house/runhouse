@@ -27,7 +27,6 @@ class GCPSecrets(Secrets):
             client_secret = config_data["client_secret"]
 
         return {
-            "provider": cls.PROVIDER_NAME,
             "client_id": client_id,
             "client_secret": client_secret,
         }

@@ -37,7 +37,7 @@ class SSHSecrets(Secrets):
                 config_data[f.name] = Path(creds_path / f).read_text()
                 # Grab corresponding private key
                 config_data[f.stem] = Path(creds_path / f.stem).read_text()
-        config_data["provider"] = cls.PROVIDER_NAME
+
         return config_data
 
     @classmethod

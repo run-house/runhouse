@@ -3,9 +3,6 @@ import json
 
 from requests import Response
 
-ERROR_FLAG = "[ERROR]"
-WARNING_FLAG = "[WARNING]"
-
 
 def timing(func):
     def wrapper(*args, **kwargs):
@@ -24,8 +21,12 @@ def remove_null_values_from_dict(source_dic: dict) -> dict:
     return {k: v for k, v in source_dic.items() if v is not None}
 
 
-def read_response_data(resp: Response):
-    return json.loads(resp.content).get("data", {})
+def load_resp_content(resp: Response) -> dict:
+    return json.loads(resp.content)
+
+
+def read_resp_data(resp: Response):
+    return load_resp_content(resp).get("data", {})
 
 
 def to_bool(value):

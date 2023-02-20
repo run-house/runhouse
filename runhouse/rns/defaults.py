@@ -9,7 +9,7 @@ import yaml
 
 from runhouse.logger import LOGGING_CONFIG
 
-from runhouse.rns.api_utils.utils import read_response_data, to_bool
+from runhouse.rns.api_utils.utils import read_resp_data, to_bool
 
 # Configure the logger once
 logging.config.dictConfig(LOGGING_CONFIG)
@@ -108,7 +108,7 @@ class Defaults:
             raise Exception(
                 f"Failed to download defaults for {entity}, received status code {resp.status_code}"
             )
-        resp_data: dict = read_response_data(resp)
+        resp_data: dict = read_resp_data(resp)
         raw_defaults = resp_data.get("config", {})
         raw_defaults["username"] = resp_data.get("username")
         raw_defaults["token"] = headers.get("Authorization")[7:]

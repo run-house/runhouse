@@ -10,7 +10,8 @@ import requests
 
 from runhouse.rns.api_utils.resource_access import ResourceAccess
 from runhouse.rns.api_utils.utils import (
-    read_response_data,
+    load_resp_content,
+    read_resp_data,
     remove_null_values_from_dict,
 )
 
@@ -192,10 +193,10 @@ class RNSClient:
         )
         if resp.status_code != 200:
             raise Exception(
-                f"Failed to grant access and notify users: {json.loads(resp.content)}"
+                f"Failed to grant access and notify users: {load_resp_content(resp)}"
             )
 
-        resp_data: dict = read_response_data(resp)
+        resp_data: dict = read_resp_data(resp)
         added_users: dict = resp_data.get("added_users", {})
         new_users: dict = resp_data.get("new_users", {})
 
@@ -223,11 +224,11 @@ class RNSClient:
                 f"{self.api_server_url}/{uri}", headers=self.request_headers
             )
             if resp.status_code != 200:
-                logger.info(f"No config found in RNS: {json.loads(resp.content)}")
+                logger.info(f"No config found in RNS: {load_resp_content(resp)}")
                 # No config found, so return empty config
                 return {}
 
-            config: dict = read_response_data(resp)
+            config: dict = read_resp_data(resp)
             if config.get("data", None):
                 config.update(config["data"])
                 del config["data"]
@@ -322,11 +323,11 @@ class RNSClient:
             )
             if resp.status_code != 200:
                 raise Exception(
-                    f"Failed to create new resource in RNS: {json.loads(resp.content)}"
+                    f"Failed to create new resource in RNS: {load_resp_content(resp)}"
                 )
         else:
             raise Exception(
-                f"Failed to save resource <{uri}> in RNS: {json.loads(resp.content)}"
+                f"Failed to save resource <{uri}> in RNS: {load_resp_content(resp)}"
             )
 
     def delete_configs(

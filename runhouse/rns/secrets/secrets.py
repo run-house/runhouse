@@ -11,6 +11,7 @@ import typer
 import yaml
 
 from runhouse.rh_config import configs, rns_client
+from runhouse.rns.api_utils.utils import load_resp_content, read_resp_data
 
 logger = logging.getLogger(__name__)
 
@@ -56,18 +57,17 @@ class Secrets:
     def extract_and_upload(
         cls,
         headers: Optional[Dict] = None,
-        interactive=True,
+        interactive=False,
         providers: Optional[List[str]] = None,
     ):
         """Upload all locally configured secrets into Vault. Secrets are loaded from their local config files.
         (ex: ~/.aws/credentials). To upload custom secrets for custom providers, see Secrets.put()"""
-        secrets: list = cls.load_provider_secrets(providers=providers)
-        for idx, provider_secrets in enumerate(secrets):
-            provider = provider_secrets["provider"]
+        secrets: dict = cls.load_provider_secrets(providers=providers)
+        for provider_name, provider_secrets in secrets.items():
             if interactive:
-                upload_secrets = typer.confirm(f"Upload secrets for {provider}?")
+                upload_secrets = typer.confirm(f"Upload secrets for {provider_name}?")
                 if not upload_secrets:
-                    secrets.pop(idx)
+                    secrets.pop(provider_name, None)
 
         resp = requests.put(
             f"{rns_client.api_server_url}/{cls.USER_ENDPOINT}",
@@ -76,10 +76,10 @@ class Secrets:
         )
         if resp.status_code != 200:
             raise Exception(
-                f"Failed to update secrets in Vault: {json.loads(resp.content)}"
+                f"Failed to update secrets in Vault: {load_resp_content(resp)}"
             )
-        found_providers = [secret.get("provider") for secret in secrets]
-        logging.info(f"Uploaded secrets for providers {found_providers} to Vault")
+
+        logging.info(f"Uploaded secrets for to Vault for: {list(secrets)}")
 
     @classmethod
     def download_into_env(
@@ -97,7 +97,7 @@ class Secrets:
         if resp.status_code != 200:
             raise Exception("Failed to download secrets from Vault")
 
-        secrets = cls.load_resp_data(resp)
+        secrets = read_resp_data(resp)
         if providers is not None:
             secrets = {p: secrets[p] for p in providers}
         if save_locally and secrets:
@@ -124,15 +124,17 @@ class Secrets:
         If file_path is provided, will read the secrets directly from the file
         If group is provided, will attribute the secrets to the specified group"""
         provider_name = provider.lower()
-        if provider_name in cls.enabled_providers(as_str=True):
-            if not secret:
-                # if a supported cloud provider is given and no secret is provided, extract it from its default location
-                p = cls.builtin_provider_class_from_name(provider_name)
-                if p is not None:
-                    secret = p.read_secrets(from_env=from_env, file_path=file_path)
+        if not secret and provider_name in cls.enabled_providers(as_str=True):
+            # if a supported cloud provider is given and no secret is provided, extract it from its default location
+            p = cls.builtin_provider_class_from_name(provider_name)
+            if p is not None:
+                secret = p.read_secrets(from_env=from_env, file_path=file_path)
 
         if not secret and not isinstance(secret, dict):
-            raise Exception(f"No secrets dict found or provided for {provider}")
+            raise Exception(
+                f"No secrets dict found or provided for {provider}. Please make sure the credentials "
+                f"file exists in its default location, or provide credentials with the `secret` param"
+            )
 
         endpoint = cls.set_endpoint(group)
         resp = requests.put(
@@ -154,11 +156,13 @@ class Secrets:
         url = f"{rns_client.api_server_url}/{endpoint}/{provider_name}"
         resp = requests.get(url, headers=rns_client.request_headers)
         if resp.status_code != 200:
-            raise Exception(f"Failed to get secrets from Vault for {provider_name}")
+            raise Exception(
+                f"Failed to get secrets from Vault for {provider_name}: {load_resp_content(resp)}"
+            )
 
-        secrets = cls.load_resp_data(resp).get(provider_name, {})
+        secrets = read_resp_data(resp).get(provider_name, {})
         if not secrets:
-            logger.error(f"Failed to load secrets from Vault for {provider_name}")
+            logger.info(f"No secrets found in Vault for {provider_name}")
             return {}
 
         p = cls.builtin_provider_class_from_name(provider_name)
@@ -168,19 +172,6 @@ class Secrets:
             p.save_secrets(secrets)
 
         return secrets
-
-    @classmethod
-    def delete_from_vault(cls, providers: Optional[List[str]] = None):
-        """Delete secrets from Vault for specified providers (builtin or custom).
-        If none are provided, will delete secrets for all providers which have been enabled in the local environment."""
-        providers = providers or cls.enabled_providers(as_str=True)
-        for provider in providers:
-            url = f"{rns_client.api_server_url}/{cls.USER_ENDPOINT}/{provider}"
-            resp = requests.delete(url, headers=rns_client.request_headers)
-            if resp.status_code != 200:
-                logger.error(
-                    f"Failed to delete secrets from Vault: {json.loads(resp.content)}"
-                )
 
     @classmethod
     def to(cls, hardware: Union[str, "Cluster"], providers: Optional[List] = None):
@@ -199,21 +190,23 @@ class Secrets:
 
         enabled_providers: list = cls.enabled_providers(as_str=True)
 
-        # Extract secrets from enabled providers' config files
-        configured_secrets: list = cls.load_provider_secrets(providers=providers)
-        configured_providers: list = [p["provider"] for p in configured_secrets]
+        # Extract secrets from default paths
+        configured_secrets: dict = cls.load_provider_secrets(providers=providers)
 
         if not configured_secrets or len(configured_secrets) < len(enabled_providers):
-            # If no secrets found in the enabled providers' config files check if they exist in Vault
-            vault_secrets: dict = cls.download_into_env(save_locally=False)
-            for provider, secrets in vault_secrets.items():
-                if provider not in configured_providers:
-                    configured_secrets.append({"provider": provider, **secrets})
-                    configured_providers.append(provider)
+            # If no secrets found in the enabled providers' credentials files check if they exist in Vault
+            missing_providers = list(
+                set(enabled_providers) - set(list(configured_secrets))
+            )
+            secrets_for_missing_providers: dict = cls.download_into_env(
+                save_locally=False, providers=missing_providers
+            )
 
-            # Enabled providers which are not configured locally and are not stored in Vault
-            missing_providers = list(set(enabled_providers) - set(configured_providers))
-            if missing_providers:
+            # Add the missing provider secrets from Vault to the configured secrets
+            configured_secrets.update(secrets_for_missing_providers)
+
+            # Confirm all enabled providers are either configured locally or have secrets stored in Vault
+            if len(configured_secrets) != len(enabled_providers):
                 raise Exception(
                     f"Failed to find secrets locally or in Vault for providers: {missing_providers}. "
                     f"For enabling locally save the secrets to the provider's default credentials file, "
@@ -237,12 +230,50 @@ class Secrets:
             )
 
     @classmethod
+    def delete_from_local_env(cls, providers: Optional[List[str]] = None):
+        """Delete secrets credential files and use in Runhouse configs for list of specified providers.
+        If none are provided, will delete secrets for all providers which have been enabled in the local environment."""
+        providers = providers or cls.enabled_providers(as_str=True)
+        for provider in providers:
+            p = cls.builtin_provider_class_from_name(provider)
+            if p is not None:
+                # Use the default credentials path defined in the builting provider's class
+                creds_file_path = p.default_credentials_path()
+            else:
+                # See if we have the custom provider's path saved in the rh config
+                creds_file_path = configs.get(provider)
+                if creds_file_path is None:
+                    logger.warning(
+                        f"Unable to delete credentials file for {provider}. Please delete the file manually."
+                    )
+                    continue
+
+            configs.delete(provider)
+
+            # Delete the local creds file
+            cls.delete_secrets_file(creds_file_path)
+
+    @classmethod
+    def delete_from_vault(cls, providers: Optional[List[str]] = None):
+        """Delete secrets from Vault for specified providers.
+        If none are provided, will delete secrets for all providers which have been enabled in the local environment."""
+        providers = providers or cls.enabled_providers(as_str=True)
+        for provider in providers:
+            url = f"{rns_client.api_server_url}/{cls.USER_ENDPOINT}/{provider}"
+            resp = requests.delete(url, headers=rns_client.request_headers)
+            if resp.status_code != 200:
+                logger.error(
+                    f"Failed to delete secrets from Vault: {load_resp_content(resp)}"
+                )
+
+    @classmethod
     def load_provider_secrets(
         cls, from_env: bool = False, providers: Optional[List] = None
-    ) -> List[Dict[str, str]]:
+    ) -> Dict[str, Dict]:
         """Load secret credentials for all the providers which have been configured locally, or optionally
-        provide a list of specific providers to load."""
-        secrets = []
+        provide a list of specific providers to load. Returns a dictionary with provider name as the key and
+        secrets dictionary as value."""
+        secrets = {}
         providers = providers or cls.enabled_providers()
         for provider in providers:
             if isinstance(provider, str):
@@ -256,7 +287,7 @@ class Secrets:
 
             provider_secrets = provider.read_secrets(from_env=from_env)
             if provider_secrets:
-                secrets.append(provider_secrets)
+                secrets[provider.PROVIDER_NAME] = provider_secrets
 
         return secrets
 
@@ -264,7 +295,7 @@ class Secrets:
     def save_provider_secrets(cls, secrets: dict):
         """Save secrets for each provider to their respective local configs"""
         enabled_providers = cls.enabled_providers(as_str=True)
-        for provider_name, provider_data in secrets.items():
+        for provider_name, provider_secrets in secrets.items():
             if provider_name not in enabled_providers:
                 logger.warning(
                     f"Received secrets for {provider_name} which Runhouse did not detect as configured. "
@@ -277,7 +308,7 @@ class Secrets:
             provider_cls = cls.builtin_provider_class_from_name(provider_name)
             if provider_cls is not None:
                 try:
-                    provider_cls.save_secrets(provider_data, overwrite=True)
+                    provider_cls.save_secrets(provider_secrets, overwrite=True)
                 except Exception as e:
                     logger.error(
                         f"Failed to save {provider_name} secrets to config: {e}"
@@ -289,8 +320,8 @@ class Secrets:
 
     @classmethod
     def enabled_providers(cls, as_str: bool = False) -> List:
-        """Returns a list of cloud providers which Runhouse supports out of the box that have also been confirmed as
-        enabled via sky. If as_str is True, return the names of the enabled providers as strings"""
+        """Returns a list of cloud provider classes which Runhouse supports out of the box.
+        If as_str is True, return the names of the providers as strings"""
         sky.check.check(quiet=True)
         clouds = sky.global_user_state.get_enabled_clouds()
         cloud_names = [str(c).lower() for c in clouds]
@@ -306,9 +337,12 @@ class Secrets:
         except ModuleNotFoundError:
             pass
 
-        # Add any SSH keys that were explicitly added
+        # Add any SSH keys + GitHub token that were explicitly added
         if configs.get("ssh"):
             cloud_names.append("ssh")
+
+        if configs.get("github"):
+            cloud_names.append("github")
 
         if as_str:
             return cloud_names
@@ -344,13 +378,15 @@ class Secrets:
                     f"please do so manually."
                 )
 
-    @staticmethod
-    def delete_secrets_file(file_path: Union[str, tuple]):
+    @classmethod
+    def delete_secrets_file(cls, file_path: Union[str, tuple] = None):
+        """Delete local credentials file. If no path is provided will use the default path set for the provider."""
+        file_path = file_path or cls.default_credentials_path()
         if isinstance(file_path, str):
             Path(file_path).unlink(missing_ok=True)
         if isinstance(file_path, tuple):
             for f in file_path:
-                Secrets.delete_secrets_file(f)
+                Secrets.delete_secrets_file(file_path=f)
 
     @classmethod
     def add_provider_to_rh_config(cls):
@@ -407,10 +443,6 @@ class Secrets:
         except:
             # could be a custom provider, in which case there is no built-in class
             return None
-
-    @staticmethod
-    def load_resp_data(resp) -> Dict:
-        return json.loads(resp.content).get("data", {})
 
     @staticmethod
     def file_exists(file_path: str) -> bool:

@@ -197,12 +197,11 @@ class UnaryService(pb2_grpc.UnaryServicer):
         from runhouse import Secrets
 
         self.register_activity()
-        secrets_to_add = pickle.loads(request.message)
+        secrets_to_add: dict = pickle.loads(request.message)
         failed_providers = (
             {}
         )  # Track which providers fail and send them back to the user
-        for provider_secrets in secrets_to_add:
-            provider_name = provider_secrets.pop("provider")
+        for provider_name, provider_secrets in secrets_to_add.items():
             p = Secrets.builtin_provider_class_from_name(provider_name)
             if p is None:
                 error_msg = f"{provider_name} is not a Runhouse builtin provider"

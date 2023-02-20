@@ -21,7 +21,7 @@ class LambdaSecrets(Secrets):
             client = lambda_utils.LambdaCloudClient()
             api_key = client.api_key
 
-        return {"provider": cls.PROVIDER_NAME, "api_key": api_key}
+        return {"api_key": api_key}
 
     @classmethod
     def save_secrets(cls, secrets: dict, overwrite: bool = False):

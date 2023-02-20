@@ -195,7 +195,7 @@ class Cluster(Resource):
         self.check_grpc()
         return self.client.get_object(key, stream_logs=stream_logs) or default
 
-    def add_secrets(self, provider_secrets: list):
+    def add_secrets(self, provider_secrets: dict):
         """Copy secrets from current environment onto the cluster"""
         self.check_grpc()
         return self.client.add_secrets(pickle.dumps(provider_secrets))

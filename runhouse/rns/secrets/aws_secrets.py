@@ -39,7 +39,6 @@ class AWSSecrets(Secrets):
                 secret_key = credentials.secret_key
 
         return {
-            "provider": cls.PROVIDER_NAME,
             "access_key": access_key,
             "secret_key": secret_key,
         }

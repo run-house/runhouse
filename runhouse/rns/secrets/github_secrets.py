@@ -1,12 +1,12 @@
 import os
+from pathlib import Path
 from typing import Optional
 
 from runhouse import Secrets
 
 
-# TODO [DG] untested, test this
-class GHSecrets(Secrets):
-    PROVIDER_NAME = "gh"
+class GitHubSecrets(Secrets):
+    PROVIDER_NAME = "github"
     CREDENTIALS_FILE = os.path.expanduser("~/.config/gh/hosts.yml")
 
     @classmethod
@@ -20,7 +20,7 @@ class GHSecrets(Secrets):
             config_data = cls.read_yaml_file(creds_file)
             token = config_data["github.com"]["oauth_token"]
 
-        return {"provider": cls.PROVIDER_NAME, "token": token}
+        return {"token": token}
 
     @classmethod
     def save_secrets(cls, secrets: dict, overwrite: bool = False):
@@ -32,6 +32,8 @@ class GHSecrets(Secrets):
 
         config = cls.read_yaml_file(dest_path) if cls.file_exists(dest_path) else {}
         config["github.com"] = {"oauth_token": secrets["token"]}
+
+        Path(dest_path).parent.mkdir(parents=True, exist_ok=True)
 
         cls.save_to_yaml_file(config, dest_path)
         cls.add_provider_to_rh_config()

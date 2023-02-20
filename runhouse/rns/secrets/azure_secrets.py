@@ -22,7 +22,7 @@ class AzureSecrets(Secrets):
             config = cls.read_config_file(creds_file)
             subscription_id = config["AzureCloud"]["subscription"]
 
-        return {"provider": cls.PROVIDER_NAME, "subscription_id": subscription_id}
+        return {"subscription_id": subscription_id}
 
     @classmethod
     def save_secrets(cls, secrets: dict, overwrite: bool = False):

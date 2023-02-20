@@ -41,7 +41,6 @@ class SkySecrets(Secrets):
             public_key = Path(public_key_file).read_text()
 
         return {
-            "provider": cls.PROVIDER_NAME,
             "ssh_private_key": private_key,
             "ssh_public_key": public_key,
         }
