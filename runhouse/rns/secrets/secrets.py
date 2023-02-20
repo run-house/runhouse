@@ -237,10 +237,10 @@ class Secrets:
         for provider in providers:
             p = cls.builtin_provider_class_from_name(provider)
             if p is not None:
-                # Use the default credentials path defined in the builting provider's class
+                # Use the default credentials path defined in the builtin provider's class
                 creds_file_path = p.default_credentials_path()
             else:
-                # See if we have the custom provider's path saved in the rh config
+                # See if we have the provider's path saved in the rh config
                 creds_file_path = configs.get(provider)
                 if creds_file_path is None:
                     logger.warning(

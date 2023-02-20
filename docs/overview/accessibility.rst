@@ -34,11 +34,11 @@ service we call the Runhouse RNS API. Both have their advantages:
 
 
 Every named resource has a name and "full name" at :code:`resource.rns_address`, which is organized into
-hierarchical folders. When you create a resource, you can name= it with just a name (we will resolve it as being in
-the :code:`rh.current_folder()`) or the full address. Resources in the local RNS begin with the ~ folder.
-Resources built-into the Runhouse Python package begin with ^ (like a house). All other addresses are in the
+hierarchical folders. When you create a resource, you can name it with just a name (we will resolve it as being in
+the :code:`rh.current_folder()`) or the full address. Resources in the local RNS begin with the :code:`~` folder.
+Resources built-into the Runhouse Python package begin with :code:`^` (like a house). All other addresses are in the
 Runhouse RNS. By default, the only top-level folders in the Runhouse RNS you have permission to write to are your
-username and any organizations you are in. The @ alises to your username - for example:
+username and any organizations you are in. The :code:`@` alises to your username - for example:
 
 .. code-block:: python
 
@@ -84,7 +84,7 @@ to use Runhouse's APIs in a single environment, and don't plan to share resource
 
 .. note::
     Logging in simply saves your token to :code:`~/.rh/config.yaml`, and offers to download or upload your secrets or
-    defaults (e.g. default provider, autostop, etc.).
+    defaults (e.g. :code:`default_provider`, :code:`autostop`, etc.).
 
 
 **Logging In:**
@@ -112,7 +112,7 @@ or in Python (e.g. in a notebook)
 
 Run this wherever your cloud credentials are already saved.
 
-or in Python (e.g. in a notebook)
+or in Python
 
 .. code-block:: python
 

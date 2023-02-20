@@ -403,7 +403,7 @@ def table(
         name (Optional[str]): Name for the table, to reuse it later on.
         path (Optional[str]): Full path to the data file.
         system (Optional[str]): File system. Currently this must be one of
-            ["file", "github", "sftp", "ssh", "s3", "gcs", "azure"].
+            ["file", "github", "sftp", "ssh", "s3", "gs", "azure"].
         data_config (Optional[dict]): The data config to pass to the underlying fsspec handler.
         partition_cols (Optional[list]): List of columns to partition the table by.
         mkdir (bool): Whether to (Default: ``False``)

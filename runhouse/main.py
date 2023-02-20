@@ -36,6 +36,7 @@ def login(token: Optional[str] = typer.Argument(None, help="Your Runhouse API to
 
 @app.command()
 def logout():
+    """Logout of Runhouse. Provides options to delete locally configured secrets and local Runhouse configs"""
     login_module.logout(interactive=True)
     raise typer.Exit()
 

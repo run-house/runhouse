@@ -270,11 +270,11 @@ def package(
 
     Args:
         name (str): Name to assign the pacakge.
-        install_method (str): Method for installing the package. Options: ["pip", "conda", "reqs"]
+        install_method (str): Method for installing the package. Options: ["pip", "conda", "reqs", "local"]
         install_str (str): Additional arguments to install.  # TODO: not too sure about this
         url (str): URL of the package to install.
         system (str): File system. Currently this must be one of
-            ["file", "github", "sftp", "ssh", "s3", "gcs", "azure"].
+            ["file", "github", "sftp", "ssh", "s3", "gs", "azure"].
             We are working to add additional file system support.
         dryrun (bool): Whether to install the package locally. (Default: ``False``)
         local_mount (bool): Whether to locally mount the installed package. (Default: ``False``)

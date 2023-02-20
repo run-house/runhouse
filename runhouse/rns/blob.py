@@ -199,7 +199,7 @@ def blob(
         name (Optional[str]): Name to give the blob object, to be reused later on.
         path (Optional[str]): Path (or path) of the blob object.
         system (Optional[str]): File system. Currently this must be one of
-            ["file", "github", "sftp", "ssh", "s3", "gcs", "azure"].
+            ["file", "github", "sftp", "ssh", "s3", "gs", "azure"].
             We are working to add additional file system support.
         data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
         mkdir (bool): Whether to create a remote folder for the blob. (Default: ``False``)

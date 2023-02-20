@@ -190,9 +190,11 @@ class Folder(Resource):
                 "host": self.system.address,
                 "username": creds["ssh_user"],
                 # 'key_filename': str(Path(creds['ssh_private_key']).expanduser())}  # For SFTP
-                "client_keys": [str(Path(creds["ssh_private_key"]).expanduser())],
+                "client_keys": [
+                    str(Path(creds["ssh_private_key"]).expanduser())
+                ],  # For SSHFS
                 "connect_timeout": "3s",
-            }  # For SSHFS
+            }
             ret_config = self._data_config.copy()
             ret_config.update(config_creds)
             return ret_config
@@ -907,7 +909,7 @@ def folder(
         name (Optional[str]): Name to give the folder, to be re-used later on.
         path (Optional[str or Path]): Path (or path) that the folder is located at.
         system (Optional[str]): File system. Currently this must be one of
-            ["file", "github", "sftp", "ssh", "s3", "gcs", "azure"].
+            ["file", "github", "sftp", "ssh", "s3", "gs", "azure"].
             We are working to add additional file system support.
         dryrun (bool): Whether or not to save the folder. (Default: ``False``)
         local_mount (bool): Whether or not to mount the folder locally. (Default: ``False``)
