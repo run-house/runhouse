@@ -66,13 +66,13 @@ def test_create_and_reload_rns_blob():
 
 def test_from_cluster():
     cluster = rh.cluster(name="^rh-cpu").up_if_not()
-    config_blob = rh.blob(path="~/.rh/config.yaml", system=cluster)
+    config_blob = rh.blob(path=rh.configs.CONFIG_PATH, system=cluster)
     config_data = yaml.safe_load(config_blob.data)
     assert len(config_data.keys()) > 4
 
 
 def test_share():
-    name = "@/my_s3_blob"
+    name = "@/s3_blob"
     data = pickle.dumps(list(range(50)))
     my_blob = rh.blob(
         data=data,
@@ -82,48 +82,21 @@ def test_share():
         dryrun=False,
     ).save()
 
-    added_users, new_users = my_blob.share(
+    my_blob.share(
         users=["josh@run.house", "donny@run.house"], snapshot=False, access_type="write"
     )
-    assert added_users or new_users
-
-    my_blob.delete_configs()
-    my_blob.delete_in_system()
 
     assert not my_blob.exists_in_system()
 
 
-def test_local_share():
-    name = "~/my_shared_blob"
-    data = pickle.dumps(list(range(50)))
-    my_blob = rh.blob(
-        data=data,
-        name=name,
-        path=str(TEMP_LOCAL_FOLDER / "my_blob.pickle"),
-        system="file",
-        dryrun=False,
-    ).save()
+@unittest.skip("Needs to be run manually using a shared resource URI.")
+def test_read_shared_blob():
+    from runhouse import Blob
 
-    added_users, new_users = my_blob.share(
-        users=["josh@run.house", "donny@run.house"],
-        snapshot_system="s3",
-        access_type="write",
-    )
-    assert added_users or new_users
-
-    my_blob.delete_configs()
-    my_blob.delete_in_system()
-
-    assert not my_blob.exists_in_system()
-
-    # Load our snapshotted blob that's now saved in s3
-    s3_blob = rh.blob(name="my_shared_blob")
-    assert s3_blob.exists_in_system()
-
-    s3_blob.delete_configs()
-    s3_blob.delete_in_system()
-
-    assert not s3_blob.exists_in_system()
+    my_blob = Blob.from_name("/<resource-sharer>/s3_blob")
+    raw_data = my_blob.fetch()
+    # NOTE: we need to do the deserialization ourselves
+    assert pickle.loads(raw_data)
 
 
 if __name__ == "__main__":

@@ -180,12 +180,12 @@ class RNSClient:
 
     def grant_resource_access(
         self,
-        resource_name: str,
+        rns_address: str,
         user_emails: list,
         access_type: ResourceAccess,
         notify_users: bool,
     ):
-        resource_uri = self.resource_uri(resource_name)
+        resource_uri = self.resource_uri(rns_address)
         headers = self.request_headers
         access_payload = {
             "users": user_emails,

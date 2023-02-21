@@ -816,54 +816,25 @@ def test_sharing_s3_table():
     orig_data = load_sample_data(data_type="pandas")
     my_table = rh.table(
         data=orig_data,
-        name="@/my_shareable_pandas_table",
+        name="@/my_pandas_table",
         path=f"/{BUCKET_NAME}/pandas",
         system="s3",
         mkdir=True,
     ).save()
 
-    added_users, new_users = my_table.share(
-        users=["donny@run.house", "josh@run.house"], access_type="write", snapshot=False
-    )
-    assert added_users or new_users
+    my_table.share(users=["donny@run.house", "josh@run.house"], access_type="write")
 
-    my_table.delete_configs()
-    my_table.delete_in_system()
-
-    assert not my_table.exists_in_system()
+    assert my_table.exists_in_system()
 
 
-def test_sharing_local_table():
-    local_path = Path.cwd() / "table_tests/local_test_table"
-    local_path.mkdir(parents=True, exist_ok=True)
+@unittest.skip("Needs to be run manually using a shared resource URI.")
+def test_read_shared_table():
+    from runhouse.rns.tables.pandas_table import PandasTable
 
-    Path(local_path).mkdir(parents=True, exist_ok=True)
-
-    orig_data = pd.DataFrame({"my_col": list(range(50))})
-    my_table = rh.table(
-        data=orig_data,
-        name="~/my_local_test_table",
-        path=str(local_path),
-        system="file",
-    ).save()
-
-    added_users, new_users = my_table.share(
-        users=["josh@run.house", "donny@run.house"],
-        access_type="write",
-        snapshot_system="s3",
-    )
-    assert added_users or new_users
-
-    my_table.delete_configs()
-    my_table.delete_in_system()
-    assert not my_table.exists_in_system()
-
-    s3_table = rh.table(name="my_local_test_table")
-    assert s3_table.exists_in_system()
-
-    s3_table.delete_configs()
-    s3_table.delete_in_system()
-    assert not s3_table.exists_in_system()
+    my_table = PandasTable.from_name(name="/<resource-sharer>/my_pandas_table")
+    # Alternatively can do: my_table = rh.table(name="/<resource-sharer>/my_pandas_table")
+    df: pd.DataFrame = my_table.fetch()
+    assert not df.empty
 
 
 if __name__ == "__main__":

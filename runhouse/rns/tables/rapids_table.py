@@ -21,7 +21,7 @@ class RapidsTable(Table):
             config["system"] = OnDemandCluster.from_config(
                 config["system"], dryrun=dryrun
             )
-        return RapidsTable(**config)
+        return RapidsTable(**config, dryrun=dryrun)
 
     def save(
         self,

@@ -22,7 +22,7 @@ class RayTable(Table):
             config["system"] = OnDemandCluster.from_config(
                 config["system"], dryrun=dryrun
             )
-        return RayTable(**config)
+        return RayTable(**config, dryrun=dryrun)
 
     def save(
         self,

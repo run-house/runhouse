@@ -47,14 +47,19 @@ class Table(Resource):
             To build a Table, please use the factory function :func:`table`.
         """
         super().__init__(name=name, dryrun=dryrun)
-        self._filename = str(Path(path).name) if path else self.name
+        self.file_name = file_name or (str(Path(path).name) if path else self.name)
+
         # Use factory method so correct subclass for system is returned
+        # strip filename from path if provided
         self._folder = folder(
-            path=path, system=system, data_config=data_config, dryrun=dryrun
+            path=str(Path(path).parents[0]) if Path(path).suffix else path,
+            system=system,
+            data_config=data_config,
+            dryrun=dryrun,
         )
+
         self._cached_data = None
         self.partition_cols = partition_cols
-        self.file_name = file_name
         self.stream_format = stream_format or self.DEFAULT_STREAM_FORMAT
         self.metadata = metadata or {}
 
@@ -74,7 +79,9 @@ class Table(Resource):
             config["data_config"] = self._folder._data_config
         else:
             config["system"] = self.system
-        self.save_attrs_to_config(config, ["path", "partition_cols", "metadata"])
+        self.save_attrs_to_config(
+            config, ["path", "partition_cols", "metadata", "file_name"]
+        )
         config.update(config)
 
         return config
@@ -172,23 +179,29 @@ class Table(Resource):
         return self
 
     def fetch(self, columns: Optional[list] = None) -> pa.Table:
+        """Returns the complete table contents."""
         # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
+        self._cached_data = self.read_table_from_file(columns)
+        if self._cached_data is not None:
+            return self._cached_data
+
+        # When trying to read a file like object could lead to IsADirectoryError if the folder path is actually a
+        # directory and the file has been automatically generated for us inside the folder
+        # (ex: with pyarrow table or with partitioned data that saves multiple files within the directory)
+
         try:
-            with fsspec.open(self.fsspec_url, mode="rb", **self.data_config) as t:
-                self._cached_data = pq.read_table(t.full_name, columns=columns)
-        except:
-            # When trying to read as file like object could fail for a couple of reasons:
-            # IsADirectoryError: The folder path is actually a directory and the file has been automatically
-            # generated for us inside the folder (ex: pyarrow table)
-
-            # The file system is SFTP: since the SFTPFileSystem takes the host as a separate param, we cannot
-            # pass in the data config as a single data_config kwarg
-
-            # When specifying the filesystem don't pass in the fsspec path (which includes the file system prepended)
-            self._cached_data = pq.read_table(
+            table_data = pq.read_table(
                 self.path, columns=columns, filesystem=self._folder.fsspec_fs
             )
-        return self._cached_data
+
+            if not table_data:
+                raise ValueError(f"No table data found in path: {self.path}")
+
+            self._cached_data = table_data
+            return self._cached_data
+
+        except:
+            raise Exception(f"Failed to read table in path: {self.path}")
 
     def __getstate__(self):
         """Override the pickle method to clear _cached_data before pickling."""
@@ -282,6 +295,14 @@ class Table(Resource):
     def ray_dataset_from_arrow(data):
         """Convert an Arrow Table to a ray Dataset"""
         return ray.data.from_arrow(data)
+
+    def read_table_from_file(self, columns: Optional[list] = None):
+        try:
+            with fsspec.open(self.fsspec_url, mode="rb", **self.data_config) as t:
+                table_data = pq.read_table(t.full_name, columns=columns)
+            return table_data
+        except:
+            return None
 
     def delete_in_system(self, recursive: bool = True):
         """Remove contents of all subdirectories (ex: partitioned data folders)"""

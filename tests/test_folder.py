@@ -317,45 +317,18 @@ def test_s3_sharing():
     ).save()
     assert "sample_file_0.txt" in s3_folder.ls(full_paths=False)
 
-    users = ["donnyg", "josh.lewittes@gmail.com"]
-    added_users, new_users = s3_folder.share(
-        users=users, access_type="read", snapshot=False
-    )
+    s3_folder.share(users=["donnyg", "josh.lewittes@gmail.com"], access_type="read")
 
-    assert added_users or new_users
-
-    s3_folder.delete_configs()
-    s3_folder.delete_in_system()
-    assert not s3_folder.ls(full_paths=False)
+    assert s3_folder.ls(full_paths=False)
 
 
-def test_local_sharing():
-    local_folder = rh.folder(name="~/my_local_shared_folder", path=TEST_FOLDER_PATH)
-    local_folder.mkdir()
-    local_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
+@unittest.skip("Needs to be run manually using a shared resource URI.")
+def test_read_shared_folder():
+    from runhouse import Folder
 
-    assert "sample_file_0.txt" in local_folder.ls(full_paths=False)
-
-    added_users, new_users = local_folder.share(
-        users=["josh@run.house", "donny@run.house"],
-        access_type="read",
-        snapshot_system="s3",
-    )
-
-    assert added_users or new_users
-
-    local_folder.delete_configs()
-    local_folder.empty_folder()
-    assert not local_folder.ls(full_paths=False)
-
-    # Load up our snapshotted folder that's now saved in s3
-    s3_folder = rh.folder(name="my_local_shared_folder")
-    assert s3_folder.exists_in_system()
-
-    s3_folder.delete_configs()
-    s3_folder.empty_folder()
-
-    assert not s3_folder.exists_in_system()
+    my_folder = Folder.from_name("/<resource-sharer>/my-s3-shared-folder")
+    folder_contents = my_folder.ls()
+    assert folder_contents
 
 
 if __name__ == "__main__":

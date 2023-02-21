@@ -15,10 +15,9 @@ class PandasTable(Table):
     DEFAULT_STREAM_FORMAT = "pandas"
 
     def __init__(self, **kwargs):
+        if not kwargs.get("file_name"):
+            kwargs["file_name"] = f"{uuid.uuid4().hex}.parquet"
         super().__init__(**kwargs)
-        # PyArrow will create this file and suffix for us, but with Pandas we need to do it ourselves.
-        if self.file_name is None:
-            self.file_name = f"{uuid.uuid4().hex}.parquet"
 
     def __iter__(self):
         for block in self.stream(batch_size=self.DEFAULT_BATCH_SIZE):
@@ -32,7 +31,7 @@ class PandasTable(Table):
             config["system"] = OnDemandCluster.from_config(
                 config["system"], dryrun=dryrun
             )
-        return PandasTable(**config)
+        return PandasTable(**config, dryrun=dryrun)
 
     def save(
         self,
