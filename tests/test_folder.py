@@ -317,7 +317,9 @@ def test_s3_sharing():
     ).save()
     assert "sample_file_0.txt" in s3_folder.ls(full_paths=False)
 
-    s3_folder.share(users=["donny@run.house", "josh.lewittes@gmail.com"], access_type="read")
+    s3_folder.share(
+        users=["donny@run.house", "josh.lewittes@gmail.com"], access_type="read"
+    )
 
     assert s3_folder.ls(full_paths=False)
 
