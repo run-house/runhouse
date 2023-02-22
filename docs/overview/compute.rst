@@ -226,17 +226,17 @@ Packages
 A :ref:`Package` represents the way we share code between various systems (ex: s3, cluster, local),
 and back up the working directory to create a function that can be easily accessible and portable.
 This allows Runhouse to load your code onto the cluster on the fly, as well as do basic registration and dispatch of
-the Function.
+the :ref:`Function`.
 
 At a high level, we dump the list of packages into gRPC, and the packages are installed on the gRPC server
 on the cluster.
 
 We currently provide four package install methods:
 
-- :code:`local`: Install packages to a Folder or a path to a directory
-- :code:`reqs`: Try installing a :code:`requirements.txt` file from the working directory.
-- :code:`pip`: Runs :code:`pip install` for provided packages.
-- :code:`conda`: Runs :code:`conda install` for provided packages.
+- :code:`local`: Install packages to a Folder or a given path to a directory
+- :code:`reqs`: Install a :code:`requirements.txt` file from the working directory.
+- :code:`pip`: Runs :code:`pip install` for the provided packages.
+- :code:`conda`: Runs :code:`conda install` for the provided packages.
 
 
 GitPackage

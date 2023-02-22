@@ -11,23 +11,35 @@ where it lives. While the data itself is saved to a particular system (ex: local
 you can still access the data from any other system.
 
 Some common use cases include streaming data from your cluster to your laptop, mindlessly copying your model
-checkpoints generated on that cluster directly to S3 without having to bounce that data back to your laptop, or copying
+checkpoints generated on that cluster directly to s3 without having to bounce that data back to your laptop, or copying
 an existing folder from your laptop to a cluster or s3 bucket.
 
 We'd like to extend this to other data concepts in the future, like kv-stores, time-series, vector and graph databases, etc.
 
 Folders
 -------
-A :ref:`Folder` is useful for managing the various Runhouse resources within organizations and teams.
+A :ref:`Folder` is useful for managing the various Runhouse resources created within organizations and teams.
 It provides a reasonable option for teams to have shared resources without having to do any explicit coordination
 through a separate source of truth. A Folder's contents are both what it physically contains and what it
 symbolically contains in the object.
 
-For example, you may create a Table within the Folder managed by the Data Science team with a path set to :code:`/ds/bert_preproc`.
-This will save the underlying data in your specified folder system (ex: s3) to the :code:`bert_preproc` directory
-in the team's shared :code:`ds` bucket.
+For example, let's say you generated a :ref:`Table` containing a tokenized dataset and saved it to your team's
+folder of shared resources (in path: :code:`/ds/bert_preproc`.):
 
-We currently support a variety of systems where a Folder can live:
+.. code-block:: python
+
+    my_table = rh.table(
+        data=tokenized_dataset,
+        name="@/bert_tokenized",
+        path="/ds/bert_preproc",
+        system="s3",
+        mkdir=True,
+    ).save()
+
+Runhouse will then save the underlying dataset to that particular bucket in your specified system (ex: s3)
+within the :code:`bert_preproc` directory, which can be then be accessed by the rest of your team.
+
+We currently support a variety of systems where a folder can live:
 
 - :code:`file`: In a Local file system.
 - :code:`github`: On GitHub (based on provided URL).
@@ -38,21 +50,12 @@ We currently support a variety of systems where a Folder can live:
 
 Advanced Folder Usage
 ~~~~~~~~~~~~~~~~~~~~~
-Let's show how you can easily copy a folder from one system to another. In this case we'll
-demonstrate copying a local folder to a cluster.
+Let's demonstrate how you can easily copy a folder from one system to another. In this example we'll
+copy a local folder to a cluster.
 
 .. code-block:: python
 
-    local_folder = rh.folder(name="my-folder",
-                             path=Path.cwd() / "folder_tmp").save() # Saving for future re-use
-
-    # Add some files to the local folder
-    local_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
-
-
-Now that we have our local folder with some files, let's copy them to the :code:`rh-cpu` cluster:
-
-.. code-block:: python
+    local_folder = rh.folder(Path.cwd(), name='my_local_folder')
 
     # Use a Runhouse builtin cluster, make sure the cluster is up if it isn't already
     c = rh.cluster("^rh-cpu").up_if_not()
@@ -60,24 +63,22 @@ Now that we have our local folder with some files, let's copy them to the :code:
     # `from_cluster` will create a remote folder from our path on the cluster
     cluster_folder = local_folder.to(system=c).from_cluster(c)
 
-    # Show that these files are now saved on the `rh-cpu` cluster
+    # Confirm that the folder contents are now saved on the `rh-cpu` cluster
     print(cluster_folder.ls(full_paths=False))
 
 
-
-
-Runhouse makes it easy to copy folders between various systems. Let's look at how we can copy the Folder we
-created above to our :code:`rh-cpu` cluster:
+We can just as easily send this local folder to a cloud storage system, such as s3:
 
 .. code-block:: python
 
-    s3_folder = rh.folder(name="my-folder").to(system="s3")
+    s3_folder = rh.folder(name='my_local_folder').to(system="s3")
+
 
 Tables
 ------
-We currently support a variety of different :ref:`Table` types based on your desired underlying infra. By default we store
-tables as parquet in blob storage, but Runhouse provides a number of Table subclass implementations with
-convenient APIs for writing, partitioning, fetching and streaming the underlying data:
+Runhouse supports a variety of different :ref:`Table` types based on the table's underlying data type.
+By default we store tables as parquet, but Runhouse provides a number of Table subclass implementations with
+convenient APIs for writing, partitioning, fetching and streaming the data:
 
 - :code:`Table`: Base table implementation. Supports any data type that can be written to parquet (ex: `pyArrow <https://arrow.apache.org/docs/python/generated/pyarrow.Table.html>`_).
 - :code:`RayTable`: `Ray Datasets <https://docs.ray.io/en/latest/data/api/dataset.html#ray.data.Dataset>`_
@@ -92,7 +93,7 @@ convenient APIs for writing, partitioning, fetching and streaming the underlying
 
 Advanced Table Usage
 ~~~~~~~~~~~~~~~~~~~~
-Let's demonstrate how we can easily create a Table with a Pandas DataFrame data type that lives in s3,
+Let's demonstrate how we can easily create a Table backed by a Pandas DataFrame that lives in s3,
 and access that data from any other system:
 
 .. code-block:: python
@@ -111,7 +112,7 @@ Now we can easily stream this table from our laptop, an existing cluster, a note
 
 .. code-block:: python
 
-    reloaded_table = rh.table(name="@/my_test_fetch_dask_table", dryrun=True)
+    reloaded_table = rh.table(name="my_pandas_table")
 
 This :code:`reloaded_table` holds a reference to the table's path.
 
@@ -132,8 +133,18 @@ Blobs are useful for dropping data into storage without worrying about exactly w
 handling saving down and retrieving the Blob for you.
 
 For example, if you want to save a model checkpoint for future reuse, use the Blob interface
-to easily save it in your desired system.
+to easily save it in your desired cloud storage system.
 
 Our `BERT Pipeline Fine-Tuning Tutorial <https://github.com/run-house/tutorials/blob/main/t05_BERT_pipeline/p02_fine_tune.py/>`_
 shows how we can use a Blob to save a trained BERT fine tuning model locally on a cluster.
 When finished, we can send the Blob from the cluster directly to an s3 bucket for persistence.
+
+Please note Runhouse does not make any assumptions about deserializing the underlying blob data.
+In this example we load an existing blob and deserialize ourselves with :code:`pickle`:
+
+.. code-block:: python
+
+    my_blob = Blob.from_name("my_blob")
+    raw_data = my_blob.fetch()
+    # need to do the deserialization ourselves
+    res = pickle.loads(raw_data)
