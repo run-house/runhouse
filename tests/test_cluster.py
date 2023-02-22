@@ -13,8 +13,15 @@ def test_cluster_config():
 
 
 def test_cluster_sharing():
-    # TODO [DG] finish
-    pass
+    c = cluster(name="^rh-cpu").up_if_not().save()
+    c.share(users=["donny@run.house", "josh@run.house"], access_type="write")
+    assert True
+
+
+def test_read_shared_cluster():
+    c = cluster(name="/jlewitt1/rh-cpu")
+    res = c.run_python(["import numpy", "print(numpy.__version__)"])
+    assert res[0][1]
 
 
 def test_install():

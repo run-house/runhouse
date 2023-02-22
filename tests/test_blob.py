@@ -20,6 +20,7 @@ def test_create_and_reload_local_blob():
         system="file",
         dryrun=False,
     ).save()
+
     del data
     del my_blob
 
@@ -66,7 +67,7 @@ def test_create_and_reload_rns_blob():
 
 def test_from_cluster():
     cluster = rh.cluster(name="^rh-cpu").up_if_not()
-    config_blob = rh.blob(path=rh.configs.CONFIG_PATH, system=cluster)
+    config_blob = rh.blob(path="/home/ubuntu/.rh/config.yaml", system=cluster)
     config_data = yaml.safe_load(config_blob.data)
     assert len(config_data.keys()) > 4
 
@@ -82,18 +83,17 @@ def test_share():
         dryrun=False,
     ).save()
 
-    my_blob.share(
-        users=["josh@run.house", "donny@run.house"], snapshot=False, access_type="write"
-    )
+    my_blob.share(users=["josh@run.house", "donny@run.house"], access_type="write")
 
-    assert not my_blob.exists_in_system()
+    assert my_blob.exists_in_system()
 
 
-@unittest.skip("Needs to be run manually using a shared resource URI.")
-def test_read_shared_blob():
+def test_load_shared_blob():
     from runhouse import Blob
 
-    my_blob = Blob.from_name("/<resource-sharer>/s3_blob")
+    my_blob = Blob.from_name("/jlewitt1/s3_blob")
+    assert my_blob.exists_in_system()
+
     raw_data = my_blob.fetch()
     # NOTE: we need to do the deserialization ourselves
     assert pickle.loads(raw_data)

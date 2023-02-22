@@ -26,16 +26,14 @@ class RapidsTable(Table):
     def save(
         self,
         name: Optional[str] = None,
-        snapshot: bool = False,
         overwrite: bool = True,
-        **snapshot_kwargs,
     ):
         # https://docs.rapids.ai/api/cudf/nightly/api_docs/api/cudf.dataframe.to_parquet
         if self._cached_data is not None:
             self.data.to_parquet(self.fsspec_url)
             logger.info(f"Saved {str(self)} to: {self.fsspec_url}")
 
-        save(self, name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
+        save(self, name=name, overwrite=overwrite)
 
         return self
 

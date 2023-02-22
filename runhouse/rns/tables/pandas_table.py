@@ -36,9 +36,7 @@ class PandasTable(Table):
     def save(
         self,
         name: Optional[str] = None,
-        snapshot: bool = False,
         overwrite: bool = True,
-        **snapshot_kwargs,
     ):
         if self._cached_data is not None:
             # https://pandas.pydata.org/pandas-docs/version/1.1/reference/api/pandas.DataFrame.to_parquet.html
@@ -48,7 +46,7 @@ class PandasTable(Table):
                 partition_cols=self.partition_cols,
             )
 
-        save(self, name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
+        save(self, name=name, overwrite=overwrite)
 
         return self
 

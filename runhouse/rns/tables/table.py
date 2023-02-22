@@ -158,9 +158,7 @@ class Table(Resource):
     def save(
         self,
         name: Optional[str] = None,
-        snapshot: bool = False,
         overwrite: bool = True,
-        **snapshot_kwargs,
     ):
         """Save the table to RNS."""
         if self._cached_data is not None:
@@ -174,7 +172,7 @@ class Table(Resource):
             self.write_ray_dataset(data_to_write)
             logger.info(f"Saved {str(self)} to: {self.fsspec_url}")
 
-        save(self, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
+        save(self, overwrite=overwrite)
 
         return self
 

@@ -810,9 +810,9 @@ def test_create_and_fetch_dask_data_from_s3():
 
 
 # -------------------------------------------------
-# ----------------- Sharing tests -----------------
+# ----------------- Table Sharing tests -----------------
 # -------------------------------------------------
-def test_sharing_s3_table():
+def test_sharing_table():
     orig_data = load_sample_data(data_type="pandas")
     my_table = rh.table(
         data=orig_data,
@@ -827,12 +827,11 @@ def test_sharing_s3_table():
     assert my_table.exists_in_system()
 
 
-@unittest.skip("Needs to be run manually using a shared resource URI.")
 def test_read_shared_table():
     from runhouse.rns.tables.pandas_table import PandasTable
 
-    my_table = PandasTable.from_name(name="/<resource-sharer>/my_pandas_table")
-    # Alternatively can do: my_table = rh.table(name="/<resource-sharer>/my_pandas_table")
+    my_table = PandasTable.from_name(name="/jlewitt1/my_pandas_table")
+    # Alternatively can do: my_table = rh.table(name="/jlewitt1/my_pandas_table")
     df: pd.DataFrame = my_table.fetch()
     assert not df.empty
 

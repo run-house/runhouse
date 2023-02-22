@@ -204,7 +204,7 @@ def test_ssh():
 
 def test_share_function():
     my_function = rh.function(
-        fn=summer, name="@/remote_function", system="^rh-8-cpu", dryrun=False
+        fn=summer, name="@/remote_function", system="^rh-cpu", dryrun=False
     ).save()
 
     my_function.share(
@@ -214,9 +214,8 @@ def test_share_function():
     assert True
 
 
-@unittest.skip("Needs to be run manually using a shared resource URI.")
-def test_read_shared_function():
-    my_function = rh.function(name="/<resource-sharer>/remote_function")
+def test_load_shared_function():
+    my_function = rh.function(name="/jlewitt1/remote_function")
     res = my_function(1, 2)
     assert res == 3
 

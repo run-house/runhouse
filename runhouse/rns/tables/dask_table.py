@@ -27,10 +27,8 @@ class DaskTable(Table):
     def save(
         self,
         name: Optional[str] = None,
-        snapshot: bool = False,
         overwrite: bool = True,
         write_index: bool = False,
-        **snapshot_kwargs,
     ):
         # https://docs.dask.org/en/stable/how-to/connect-to-remote-data.html
         if self._cached_data is not None:
@@ -42,7 +40,7 @@ class DaskTable(Table):
             )
             logger.info(f"Saved {str(self)} to: {self.fsspec_url}")
 
-        save(self, name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
+        save(self, name=name, overwrite=overwrite)
 
         return self
 

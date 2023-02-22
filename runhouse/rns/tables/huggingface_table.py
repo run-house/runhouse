@@ -27,9 +27,7 @@ class HuggingFaceTable(Table):
     def save(
         self,
         name: Optional[str] = None,
-        snapshot: bool = False,
         overwrite: bool = True,
-        **snapshot_kwargs,
     ):
 
         hf_dataset = None
@@ -54,7 +52,7 @@ class HuggingFaceTable(Table):
 
             logger.info(f"Saved {str(self)} to: {self.fsspec_url}")
 
-        save(self, name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
+        save(self, name=name, overwrite=overwrite)
 
         # Restore the original dataset
         if hf_dataset is not None:

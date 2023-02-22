@@ -127,9 +127,7 @@ class Blob(Resource):
     def save(
         self,
         name: str = None,
-        snapshot: bool = False,
         overwrite: bool = True,
-        **snapshot_kwargs,
     ):
         """Save the blob to RNS."""
         # TODO figure out default behavior for not overwriting but still saving
@@ -148,9 +146,7 @@ class Blob(Resource):
 
             f.write(self.data)
 
-        return super().save(
-            name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs
-        )
+        return super().save(name=name, overwrite=overwrite)
 
     def delete_in_system(self, recursive: bool = True):
         """Delete the blob in the file system."""

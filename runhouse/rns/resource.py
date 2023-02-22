@@ -109,9 +109,7 @@ class Resource:
     def save(
         self,
         name: str = None,
-        snapshot: bool = False,
         overwrite: bool = True,
-        **snapshot_kwargs,
     ):
         """Register the resource, saving it to local working_dir config and RNS config store. Uses the resource's
         `self.config_for_rns` to generate the dict to save."""
@@ -127,7 +125,7 @@ class Resource:
                 self._name = name
 
         # TODO handle self.access == 'read' instead of this weird overwrite argument
-        save(self, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
+        save(self, overwrite=overwrite)
 
         return self
 
@@ -181,6 +179,7 @@ class Resource:
     def is_local(self):
         return (
             hasattr(self, "install_target")
+            and isinstance(self.install_target, str)
             and self.install_target.startswith("~")
             or hasattr(self, "system")
             and self.system == "file"
@@ -210,24 +209,32 @@ class Resource:
             `new_users`: users who do not have Runhouse accounts.
 
         Example:
-            >>> added_users, new_users = my_resource.share(users=["username1", "user@gmail.com"], access_type='write')
+            >>> added_users, new_users = my_resource.share(users=["username1", "user2@gmail.com"], access_type='write')
         """
         if self.name is None:
             raise ValueError("Resource must have a name in order to share")
 
-        if self.system in ["ssh", "sftp"]:
+        if hasattr(self, "system") and self.system in ["ssh", "sftp"]:
             logger.warning(
                 "Sharing a resource located on a cluster is not recommended. For persistence, we suggest"
-                "saving to a cloud storage system (ex: s3 or gs). You can copy your cluster based resource"
-                "to a storage provider using the `.to()` method."
+                "saving to a cloud storage system (ex: `s3` or `gs`). You can copy your cluster based "
+                f"{self.RESOURCE_TYPE} to your desired storage provider using the `.to()` method. "
+                f"For example: `{self.RESOURCE_TYPE}.to(system='rh-cpu')`"
             )
 
         if self.is_local():
-            raise TypeError(
-                "Unable to share a local resource. Please make sure resource is located "
-                "on a cluster or remote system. You can use the `.to()` method to easily copy "
-                f'a local resource. For example: {self.name}.to("s3")'
-            )
+            if self.RESOURCE_TYPE == "package":
+                raise TypeError(
+                    f"Unable to share a local {self.RESOURCE_TYPE}. Please make sure the {self.RESOURCE_TYPE} is "
+                    f"located on a cluster. You can use the `.to_cluster()` method to do so. "
+                    f"For example: `{self.name}.to_cluster(system='rh-cpu')`"
+                )
+            else:
+                raise TypeError(
+                    f"Unable to share a local {self.RESOURCE_TYPE}. Please make sure the {self.RESOURCE_TYPE} is "
+                    f"located on a cluster or a remote system. You can use the `.to()` method to do so. "
+                    f"For example: `{self.name}.to(system='s3')`"
+                )
 
         if isinstance(access_type, str):
             access_type = ResourceAccess(access_type)

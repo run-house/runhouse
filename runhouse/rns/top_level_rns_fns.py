@@ -51,25 +51,21 @@ def set_load_from(load_from: List[str]):
 def save(
     resource,
     name: str = None,
-    snapshot: bool = False,
     overwrite: bool = True,
-    **snapshot_kwargs,
-):  # TODO [DG] was this supposed to be kwargs for the snapshot?
+):
     """Register the resource, saving it to local working_dir config and/or RNS config store. Uses the resource's
     `self.config_for_rns` to generate the dict to save."""
 
     # TODO handle self.access == 'read' instead of this weird overwrite argument
-    snapshot_kwargs = snapshot_kwargs or {}
-    resource_to_save = resource.snapshot(**snapshot_kwargs) if snapshot else resource
     if name:
-        if "/" in name[1:] or resource_to_save._rns_folder is None:
+        if "/" in name[1:] or resource._rns_folder is None:
             (
-                resource_to_save._name,
-                resource_to_save._rns_folder,
+                resource._name,
+                resource._rns_folder,
             ) = split_rns_name_and_path(resolve_rns_path(name))
         else:
-            resource_to_save._name = name
-    rns_client.save_config(resource=resource_to_save, overwrite=overwrite)
+            resource._name = name
+    rns_client.save_config(resource=resource, overwrite=overwrite)
 
 
 def set_folder(path: str, create=False):

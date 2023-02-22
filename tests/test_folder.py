@@ -317,16 +317,15 @@ def test_s3_sharing():
     ).save()
     assert "sample_file_0.txt" in s3_folder.ls(full_paths=False)
 
-    s3_folder.share(users=["donnyg", "josh.lewittes@gmail.com"], access_type="read")
+    s3_folder.share(users=["donny@run.house", "josh.lewittes@gmail.com"], access_type="read")
 
     assert s3_folder.ls(full_paths=False)
 
 
-@unittest.skip("Needs to be run manually using a shared resource URI.")
-def test_read_shared_folder():
+def test_load_shared_folder():
     from runhouse import Folder
 
-    my_folder = Folder.from_name("/<resource-sharer>/my-s3-shared-folder")
+    my_folder = Folder.from_name("/jlewitt1/my-s3-shared-folder")
     folder_contents = my_folder.ls()
     assert folder_contents
 
