@@ -14,7 +14,7 @@ import sshtunnel
 
 from runhouse import rh_config
 from runhouse.rns.api_utils.resource_access import ResourceAccess
-from runhouse.rns.api_utils.utils import is_jsonable, read_response_data
+from runhouse.rns.api_utils.utils import is_jsonable, load_resp_content, read_resp_data
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.packages import git_package, Package
 
@@ -42,11 +42,11 @@ class Function(Resource):
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
-        Runhouse Function ("Serverless ENDpoint") object. It comprises of the entrypoint, system/cluster,
+        Runhouse Function object. It comprises of the entrypoint, system/cluster,
         and dependencies necessary to run the service.
 
         .. note::
-                To create a Function, please use the factory function :func:`function`.
+                To create a Function, please use the factory method :func:`function`.
         """
         self.fn_pointers = fn_pointers
         self.system = system
@@ -92,7 +92,7 @@ class Function(Resource):
         """
         Set up a Function on the given system, install the reqs, and run setup_cmds.
 
-        See the args of the factory function :func:`function` for more information.
+        See the args of the factory method :func:`function` for more information.
         """
         # We need to backup the system here so the __getstate__ method of the cluster
         # doesn't wipe the client and _grpc_client of this function's cluster when
@@ -180,7 +180,7 @@ class Function(Resource):
         ):
             # The only time __file__ wouldn't be present is if the function is defined in an interactive
             # interpreter or a notebook. We can't import on the server in that case, so we need to cloudpickle
-            # the fn to function it over. The __call__ function will serialize the function if we return it this way.
+            # the fn to send it over. The __call__ function will serialize the function if we return it this way.
             # This is a short-term hack.
             # return None, "notebook", raw_fn.__name__
             root_path = os.getcwd()
@@ -282,10 +282,10 @@ class Function(Resource):
             )
             if resp.status_code != 200:
                 raise Exception(
-                    f"Failed to run Function endpoint: {json.loads(resp.content)}"
+                    f"Failed to run Function endpoint: {load_resp_content(resp)}"
                 )
 
-            res = read_response_data(resp)
+            res = read_resp_data(resp)
             return res
 
     def repeat(self, num_repeats: int, *args, **kwargs):
@@ -481,9 +481,9 @@ class Function(Resource):
             raise RuntimeError("System must be specified and up to ssh into a Function")
         self.system.ssh()
 
-    def send_secrets(self, reload=False):
-        """Function secrets to the system."""
-        self.system.send_secrets(reload=reload)
+    def send_secrets(self):
+        """Send secrets to the system."""
+        self.system.send_secrets()
 
     def http_url(self, curl_command=False, *args, **kwargs) -> str:
         """
@@ -605,7 +605,7 @@ def function(
     load_secrets: bool = False,
     serialize_notebook_fn: bool = False,
 ):
-    """Factory function for constructing a Runhouse Function object.
+    """Factory method for constructing a Runhouse Function object.
 
     Args:
         fn (Optional[str or Callable]): The function to execute on the remote system when the function is called.

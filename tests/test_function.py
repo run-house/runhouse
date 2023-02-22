@@ -1,4 +1,3 @@
-import json
 import os
 import unittest
 from multiprocessing import Pool
@@ -229,7 +228,7 @@ def delete_function_from_rns(s):
     )
     if resp.status_code != 200:
         raise Exception(
-            f"Failed to delete_configs function data from path: {json.loads(resp.content)}"
+            f"Failed to delete_configs function data from path: {load_resp_content(resp)}"
         )
 
     try:

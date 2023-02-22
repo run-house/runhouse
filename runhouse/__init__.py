@@ -20,9 +20,9 @@ from .rns.folders.folder import folder, Folder
 from .rns.function import function, Function, send
 from .rns.hardware import cluster, Cluster, OnDemandCluster
 from .rns.kvstores.kvstore import KVStore
-from .rns.login import login
+from .rns.login import login, logout
 from .rns.packages import git_package, GitPackage, package, Package
-from .rns.secrets import Secrets
+from .rns.secrets.secrets import Secrets
 from .rns.tables.table import table, Table
 
 __version__ = "0.0.3"

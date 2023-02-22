@@ -35,6 +35,13 @@ def login(token: Optional[str] = typer.Argument(None, help="Your Runhouse API to
 
 
 @app.command()
+def logout():
+    """Logout of Runhouse. Provides options to delete locally configured secrets and local Runhouse configs"""
+    login_module.logout(interactive=True)
+    raise typer.Exit()
+
+
+@app.command()
 def notebook(
     cluster_name: str, up: bool = typer.Option(False, help="Start the cluster")
 ):
@@ -98,7 +105,7 @@ def load_cluster(cluster_name: str):
 @app.callback()
 def main(verbose: bool = False):
     """
-    Runhouse CLI app. Currently we support login, but more on the way :)
+    Runhouse CLI
     """
     if verbose:
         name = "runhouse"

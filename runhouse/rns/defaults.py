@@ -9,7 +9,7 @@ import yaml
 
 from runhouse.logger import LOGGING_CONFIG
 
-from runhouse.rns.api_utils.utils import read_response_data, to_bool
+from runhouse.rns.api_utils.utils import read_resp_data, to_bool
 
 # Configure the logger once
 logging.config.dictConfig(LOGGING_CONFIG)
@@ -108,7 +108,7 @@ class Defaults:
             raise Exception(
                 f"Failed to download defaults for {entity}, received status code {resp.status_code}"
             )
-        resp_data: dict = read_response_data(resp)
+        resp_data: dict = read_resp_data(resp)
         raw_defaults = resp_data.get("config", {})
         raw_defaults["username"] = resp_data.get("username")
         raw_defaults["token"] = headers.get("Authorization")[7:]
@@ -131,7 +131,7 @@ class Defaults:
             config_path.parent.mkdir(parents=True, exist_ok=True)
 
         with config_path.open("w") as stream:
-            yaml.dump(defaults, stream)
+            yaml.safe_dump(defaults, stream)
 
     def download_and_save_defaults(
         self,
@@ -158,3 +158,17 @@ class Defaults:
         if not res and key in self.BASE_DEFAULTS:
             res = self.BASE_DEFAULTS[key]
         return res
+
+    def delete(self, key: str):
+        """Remove a specific key from the config"""
+        self.defaults_cache.pop(key, None)
+        self.save_defaults()
+
+    def delete_defaults(self, config_path: Optional[str] = None):
+        """Delete the defaults file entirely"""
+        config_path = Path(config_path or self.CONFIG_PATH)
+        try:
+            Path(config_path).unlink(missing_ok=True)
+            logger.info(f"Deleted confi file from path: {config_path}")
+        except OSError:
+            raise Exception(f"Failed to delete config file from path {config_path}")

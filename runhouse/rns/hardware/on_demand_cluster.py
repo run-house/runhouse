@@ -35,7 +35,7 @@ class OnDemandCluster(Cluster):
         On-demand `SkyPilot <https://github.com/skypilot-org/skypilot/>`_ Cluster.
 
         .. note::
-            To build a cluster, please use the factory function :func:`cluster`.
+            To build a cluster, please use the factory method :func:`cluster`.
         """
 
         super().__init__(name=name, dryrun=dryrun)
@@ -55,7 +55,6 @@ class OnDemandCluster(Cluster):
         self.address = None
         self._yaml_path = None
         self._grpc_tunnel = None
-        self._secrets_sent = False
         self.client = None
         self.sky_data = sky_data
         if self.sky_data is not None:

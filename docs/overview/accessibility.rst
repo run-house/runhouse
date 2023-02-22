@@ -1,4 +1,4 @@
-Accessibility, Portability, and Sharing
+Accessibility
 =======================================
 
 Resource Name System (RNS)
@@ -34,11 +34,11 @@ service we call the Runhouse RNS API. Both have their advantages:
 
 
 Every named resource has a name and "full name" at :code:`resource.rns_address`, which is organized into
-hierarchical folders. When you create a resource, you can name= it with just a name (we will resolve it as being in
-the :code:`rh.current_folder()`) or the full address. Resources in the local RNS begin with the ~ folder.
-Resources built-into the Runhouse Python package begin with ^ (like a house). All other addresses are in the
+hierarchical folders. When you create a resource, you can name it with just a name (we will resolve it as being in
+the :code:`rh.current_folder()`) or the full address. Resources in the local RNS begin with the :code:`~` folder.
+Resources built-into the Runhouse Python package begin with :code:`^` (like a house). All other addresses are in the
 Runhouse RNS. By default, the only top-level folders in the Runhouse RNS you have permission to write to are your
-username and any organizations you are in. The @ alises to your username - for example:
+username and any organizations you are in. The :code:`@` alises to your username - for example:
 
 .. code-block:: python
 
@@ -64,7 +64,7 @@ only the name, e.g.
     rh.cluster(name='~/my_name')
     rh.table(name='@/my_datasets/my_table')
 
-You may need to pass the full rns_address if the resource is not in rh.current_folder(). To check if a resource exists, you can call:
+You may need to pass the full rns_address if the resource is not in :code:`rh.current_folder()`. To check if a resource exists, you can call:
 
 .. code-block:: python
 
@@ -75,16 +75,16 @@ You may need to pass the full rns_address if the resource is not in rh.current_f
 We're still early in uncovering the patterns and antipatterns for a global shared environment for compute and data resources (shocker), but for now we generally encourage OSS projects to publish resources in the local RNS of their package, and individuals and teams to largely rely on Runhouse RNS.
 
 
-Secrets and Logging In & Out
+Secrets and Login / Logout
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Using Runhouse across environments, such as reusing a service from inside a Colab or loading secrets or configs
 into a remote environment, is much easier if you create a Runhouse account. You don't need to do this if you only plan
 to use Runhouse's APIs in a single environment, and don't plan to share resources with others.
 
-.. tip::
+.. note::
     Logging in simply saves your token to :code:`~/.rh/config.yaml`, and offers to download or upload your secrets or
-    defaults (e.g. default provider, autostop, etc.).
+    defaults (e.g. :code:`default_provider`, :code:`autostop`, etc.).
 
 
 **Logging In:**
@@ -112,12 +112,16 @@ or in Python (e.g. in a notebook)
 
 Run this wherever your cloud credentials are already saved.
 
-or in Python (e.g. in a notebook)
+or in Python
 
 .. code-block:: python
 
     rh.logout(interactive=True)
 
+
+.. tip::
+    See our :ref:`Secrets API <Secrets Management>` and :ref:`usage examples <Secrets in Vault>` to see how Runhouse
+    allows you to make your secrets available across different environments.
 
 Setting Config Options
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -174,3 +178,39 @@ reallocating the hardware itself (minutes). You can do this by running:
 .. code-block:: python
 
     my_cluster.restart_grpc_server()
+
+
+Notebooks
+~~~~~~~~~
+
+If you prefer to work or debug in notebooks, you can call the following to tunnel a JupyterLab server into your local
+browser from your Runhouse cluster or function:
+
+.. code-block:: console
+
+    $ runhouse notebook my_cluster
+
+or in Python:
+
+.. code-block:: python
+
+    my_cluster.notebook()
+
+If you'd like to use a hosted notebook service like Colab, you'll benefit a lot from creating a
+Runhouse account to store your secrets and loading them into Colab with :code:`rh.login()`.
+This is not required, and you can still drop them into the Colab VM manually.
+
+
+Notes on Notebooks
+------------------
+Notebooks are funny beasts. The code and variable inside them are not designed to be reused to shuttled around. As such:
+
+1. If you want to :code:`rh.function` a function defined inside the notebook, it cannot contain variables or imports from outside the function, and you should assign a :code:`name` to the function. We will write the function out to a separate :code:`.py` file and import it from there, and the filename will be set to the :code:`function.name`.
+2. If you really want to use local variables or avoid writing out the function, you can set :code:`serialize_notebook_fn=True` in :code:`rh.function()`. This will cloudpickle the function before sending it, but we do not support saving and reloading these kinds of functions (cloudpickle does not support this kind of reuse and it will create issues).
+3. It is nearly always better to try to write your code in a :code:`.py` file somewhere and import it into the notebook, rather than define important functions in the notebook itself. You can also use the :code:`%%writefile` magic to write your code into a file, and then import it back into the notebook.
+
+If you want to sync down your code or data to local from the cluster afterwards:
+
+.. code-block:: python
+
+    rh.folder(path='remote_directory', system=rh.cluster('my_cluster').to('here', path='local_directory')

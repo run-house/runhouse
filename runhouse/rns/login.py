@@ -1,9 +1,9 @@
 import logging
+from typing import Union
 
 import typer
 
 from runhouse.rh_config import configs, rns_client
-from .secrets import Secrets
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,8 @@ def login(
     """Login to Runhouse. Validates token provided, with options to upload or download stored secrets or config between
     local environment and Runhouse / Vault.
     """
+    from runhouse import Secrets
+
     if is_interactive() or interactive:
         from getpass import getpass
 
@@ -105,3 +107,56 @@ def login(
     logger.info("Successfully logged into Runhouse.")
     if ret_token:
         return token
+
+
+def logout(
+    delete_loaded_secrets: bool = None,
+    delete_rh_config_file: bool = None,
+    interactive: bool = None,
+):
+    """Logout from Runhouse. Provides option to delete credentials from the Runhouse config and the underlying
+     credentials file. Token is also deleted from the config.
+
+    Args:
+        delete_loaded_secrets (bool, optional): If True, deletes the provider credentials file. Defaults to None.
+        delete_rh_config_file (bool, optional): If True, deletes the rh config file. Defaults to None.
+        interactive (bool, optional): If True, runs the logout process in interactive mode. Defaults to None.
+
+    Returns:
+        None
+    """
+    from runhouse import Secrets
+
+    interactive_session: bool = (
+        interactive if interactive is not None else is_interactive()
+    )
+    for provider in Secrets.enabled_providers():
+        provider_name: str = provider.PROVIDER_NAME
+        provider_creds_path: Union[str, tuple] = provider.default_credentials_path()
+
+        if interactive_session:
+            delete_loaded_secrets = typer.confirm(
+                f"Delete credentials file for {provider_name}?"
+            )
+
+        configs.delete(provider_name)
+
+        if delete_loaded_secrets:
+            provider.delete_secrets_file(provider_creds_path)
+            logger.info(
+                f"Deleted {provider_name} credentials file from path: {provider_creds_path}"
+            )
+
+    # Delete token from rh config file
+    configs.delete(key="token")
+
+    rh_config_path = configs.CONFIG_PATH
+    if not delete_rh_config_file and interactive_session:
+        delete_rh_config_file = typer.confirm("Delete your local Runhouse config file?")
+
+    if delete_rh_config_file:
+        # Delete the credentials file on the file system
+        configs.delete_defaults(rh_config_path)
+        logger.info(f"Deleted Runhouse config file from path: {rh_config_path}")
+
+    logger.info("Successfully logged out of Runhouse.")

@@ -10,17 +10,10 @@
 
 [//]: # (</p>)
 
-## 🚨 Caution: This is an Alpha 🚨
-
-Runhouse is heavily under development. We are sharing
-it with a few select people to collect feedback, and
-expect to iterate on the APIs considerably before reaching beta
-(version 0.1.0).
-
 ## 👵 Welcome Home!
-PyTorch lets you function a model or tensor `.to(device)`, so
+PyTorch lets you send a model or tensor `.to(device)`, so
 why can't you do `my_fn.to('a_gcp_a100')` or `my_table.to('parquet_in_s3')`?
-Runhouse allows just that: function code and data to any of your compute or
+Runhouse allows just that: send code and data to any of your compute or
 data infra (with your own cloud creds), all in Python, and continue to use them
 eagerly exactly as they were.
 
@@ -73,7 +66,7 @@ inference before any compilation.
 On the data side, we can do things like:
 
 ```python
-# Function a folder up to a cluster (rsync)
+# Send a folder up to a cluster (rsync)
 rh.folder(path=input_images_dir).to(system=gpu, path='dreambooth/instance_images')
 
 # Stream a table in from anywhere (S3, GCS, local, etc)
@@ -81,7 +74,7 @@ preprocessed_yelp = rh.table(name="preprocessed-tokenized-dataset")
 for batch in preprocessed_table.stream(batch_size=batch_size):
     ...
 
-# Function a model checkpoint up to blob storage
+# Send a model checkpoint up to blob storage
 trained_model = rh.blob(data=pickle.dumps(model))
 trained_model.to('s3', path='runhouse/my_bucket').save(name='yelp_fine_tuned_bert')
 ```
@@ -90,6 +83,11 @@ These APIs work from anywhere with a Python interpreter and an internet connecti
 so notebooks, scripts, pipeline DSLs, etc. are all fair game. We currently support AWS,
 GCP, Azure, and Lambda Labs credentials through SkyPilot, as well as BYO cluster (just drop
 in an ip address and ssh key).
+
+## 🚨 This is an Alpha 🚨
+
+Runhouse is heavily under development and we expect to iterate
+on the APIs before reaching beta (version 0.1.0).
 
 ## 🐣 Getting Started
 
@@ -178,11 +176,11 @@ support for BYO secrets management shortly. Let us know if you need it and which
 
 ## 👨‍🏫 Tutorials / API Walkthrough / Docs
 
-Tutorials can be found [here](https://github.com/run-house/tutorials). They have been structured to provide a
+[Tutorials can be found here](https://github.com/run-house/tutorials). They have been structured to provide a
 comprehensive walkthrough of the APIs.
 
-If you want both a high level and a more detailed overview, please check
-out our [docs site](https://runhouse-docs.readthedocs-hosted.com/en/latest/index.html).
+[Docs can be found here](https://runhouse-docs.readthedocs-hosted.com/en/latest/index.html).
+They include both high-level overviews of the architecture and detailed API references.
 
 ## 🙋‍♂️ Getting Help
 

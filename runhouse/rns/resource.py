@@ -1,4 +1,3 @@
-import json
 import logging
 
 import pprint
@@ -9,7 +8,7 @@ import requests
 
 from runhouse.rh_config import rns_client
 from runhouse.rns.api_utils.resource_access import ResourceAccess
-from runhouse.rns.api_utils.utils import read_response_data
+from runhouse.rns.api_utils.utils import load_resp_content, read_resp_data
 from runhouse.rns.top_level_rns_fns import (
     resolve_rns_path,
     save,
@@ -33,7 +32,7 @@ class Resource:
         Runhouse currently supports the following builtin Resource types:
 
         - Compute Abstractions
-            - Cluster :py:class:`.system.cluster.Cluster`
+            - Cluster :py:class:`.hardware.cluster.Cluster`
             - Function :py:class:`.function.Function`
             - Package :py:class:`.packages.package.Package`
 
@@ -158,10 +157,10 @@ class Resource:
         )
         if resp.status_code != 200:
             raise Exception(
-                f"Failed to load resource history: {json.loads(resp.content)}"
+                f"Failed to load resource history: {load_resp_content(resp)}"
             )
 
-        resource_history = read_response_data(resp)
+        resource_history = read_resp_data(resp)
         return resource_history
 
     # TODO delete sub-resources

@@ -41,7 +41,7 @@ class Cluster(Resource):
         `SkyPilot <https://github.com/skypilot-org/skypilot>`_, using your cloud credentials.
 
         .. note::
-            To build a cluster, please use the factory function :func:`cluster`.
+            To build a cluster, please use the factory method :func:`cluster`.
         """
 
         super().__init__(name=name, dryrun=dryrun)
@@ -50,7 +50,6 @@ class Cluster(Resource):
         self._ssh_creds = ssh_creds
         self.ips = ips
         self._grpc_tunnel = None
-        self._secrets_sent = False
         self.client = None
 
         if not dryrun and self.address:
@@ -195,6 +194,11 @@ class Cluster(Resource):
         """Get the object at the given key from the cluster's object store."""
         self.check_grpc()
         return self.client.get_object(key, stream_logs=stream_logs) or default
+
+    def add_secrets(self, provider_secrets: dict):
+        """Copy secrets from current environment onto the cluster"""
+        self.check_grpc()
+        return self.client.add_secrets(pickle.dumps(provider_secrets))
 
     def put(self, key: str, obj: Any):
         """Put the given object on the cluster's object store at the given key."""
@@ -498,34 +502,12 @@ class Cluster(Resource):
         )
         return return_codes
 
-    def send_secrets(self, reload: bool = False, providers: Optional[List[str]] = None):
-        """Function secrets for the given providers."""
-        if providers is not None:
-            # Function secrets for specific providers from local configs rather than trying to load from Vault
-            from runhouse import Secrets
+    def send_secrets(self, providers: Optional[List[str]] = None):
+        """Send secrets for the given providers. If none provided will send secrets for providers that have been
+        configured in the environment."""
+        from runhouse import Secrets
 
-            secrets: list = Secrets.load_provider_secrets(providers=providers)
-            # TODO [JL] change this API so we don't have to convert the list to a dict
-            secrets: dict = {
-                s["provider"]: {k: v for k, v in s.items() if k != "provider"}
-                for s in secrets
-            }
-            load_secrets_cmd = [
-                "import runhouse as rh",
-                f"rh.Secrets.save_provider_secrets(secrets={secrets})",
-            ]
-        elif not self._secrets_sent or reload:
-            load_secrets_cmd = [
-                "import runhouse as rh",
-                "rh.Secrets.download_into_env()",
-            ]
-        else:
-            # Secrets already sent and not reloading
-            return
-
-        self.run_python(load_secrets_cmd, stream_logs=True)
-        # TODO [JL] change this to a list to make sure new secrets get sent when the user wants to
-        self._secrets_sent = True
+        Secrets.to(hardware=self, providers=providers)
 
     def ipython(self):
         # TODO tunnel into python interpreter in cluster

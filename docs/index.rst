@@ -1,7 +1,7 @@
 .. runhouse documentation master file, created by
 
 Runhouse 🏃‍♀️🏠
-============
+===================
 
 .. raw:: html
 
@@ -17,9 +17,9 @@ Runhouse 🏃‍♀️🏠
    <a class="github-button" href="https://github.com/run-house/runhouse/fork" data-icon="octicon-repo-forked" data-size="large" aria-label="Fork run-house/runhouse on GitHub">Fork</a>
    </p>
 
-PyTorch lets you function a model or tensor :code:`.to(device)`, so why can't you do :code:`my_fn.to('a_gcp_a100')`,
+PyTorch lets you send a model or tensor :code:`.to(device)`, so why can't you do :code:`my_fn.to('a_gcp_a100')`,
 or :code:`my_table.to('parquet_in_s3')`?
-Runhouse allows just that: function code and data to any of your compute or data infra (with your own cloud creds),
+Runhouse allows just that: send code and data to any of your compute or data infra (with your own cloud creds),
 all in Python, and continue to use them eagerly exactly as they were.
 
 Runhouse has four top-level objectives:
@@ -30,15 +30,12 @@ Runhouse has four top-level objectives:
 * Making resources accessible across environments and users
 * Allowing resources to be shared among teams as living assets
 
-
-There's no magic yaml, DSL, code serialization, or "submitting for execution." We're just spinning up the cluster for you (or using an existing cluster), syncing over your code, starting a gRPC connection, and running your code on the cluster.
-
-*Runhouse does things for you that you'd spend time doing yourself, in as obvious a way as possible.*
+Keep reading on to see how Runhouse achieves this, or explore our
+:ref:`Architecture Section <Compute>`, :ref:`Python API`, and `Tutorials <https://github.com/run-house/tutorials>`_.
 
 .. warning::
     🚨 **This is an Alpha** 🚨
-
-    Runhouse is heavily under development. We are sharing it with a few select people to collect feedback, and expect to iterate on the APIs considerably before reaching beta (version 0.1.0).
+    Runhouse is heavily under development and we expect to iterate on the APIs before reaching beta (version 0.1.0).
 
 
 Getting Started 🐣
@@ -48,8 +45,7 @@ Getting Started 🐣
     $ pip install runhouse
     # Or "runhouse[aws]", "runhouse[gcp]", "runhouse[azure]", "runhouse[all]"
 
-.. tip::
-   See the :ref:`Installation` section for more detailed instructions.
+Please check out the :ref:`Installation` section for more detailed instructions.
 
 
 Table of Contents
@@ -70,17 +66,16 @@ Table of Contents
    :caption: Security
 
    secrets/secrets
+   secrets/vault_secrets
 
 .. toctree::
    :maxdepth: 1
    :caption: Runhouse Architecture
 
-   overview/overview
-   overview/clusters
-   overview/functions
-   overview/notebooks
+   overview/compute
+   overview/data
    overview/accessibility
-   overview/secrets
+   overview/management
 
 .. toctree::
    :maxdepth: 1
