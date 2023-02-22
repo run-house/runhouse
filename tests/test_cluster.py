@@ -4,7 +4,7 @@ from runhouse.rns.hardware import cluster, OnDemandCluster
 
 
 def test_cluster_config():
-    rh_cpu = cluster(name="^rh-cpu", dryrun=False)
+    rh_cpu = cluster(name="^rh-cpu")
     if not rh_cpu.is_up():
         rh_cpu.up()
     config = rh_cpu.config_for_rns

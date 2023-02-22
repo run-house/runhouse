@@ -71,7 +71,7 @@ def test_read_data_from_existing_s3_folder():
 
 
 def test_create_and_delete_folder_from_s3():
-    s3_folder = rh.folder(name=DATA_STORE_PATH, system="s3", dryrun=False)
+    s3_folder = rh.folder(name=DATA_STORE_PATH, system="s3")
     s3_folder.mkdir()
 
     s3_folder.delete_configs()

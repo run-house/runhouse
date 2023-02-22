@@ -123,6 +123,7 @@ class Folder(Resource):
 
     @classmethod
     def from_name(cls, name, dryrun=False):
+        # TODO [JL / DG]: Define a clear usage path for using `from_name` vs rh.folder(name=...)
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Resource {name} not found.")

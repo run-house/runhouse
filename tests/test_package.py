@@ -13,8 +13,7 @@ def test_from_string():
     assert p.local_path == str(Path.home() / "runhouse")
 
 
-@unittest.skip("Not yet implemented.")
-def test_share():
+def test_share_package():
     import shutil
 
     # Create a local temp folder to install for the package
@@ -25,24 +24,28 @@ def test_share():
         output_file.write_text(f"file{i}")
 
     p = rh.Package.from_string("local:./tmp_package")
-    p.name = "package_to_share"
+    p.name = "package_to_share"  # shareable resource requires a name
 
-    c = rh.cluster(name="/aabrahami/rh-cpu")
+    c = rh.cluster(name="/jlewitt1/rh-cpu")
     p.to_cluster(dest_cluster=c)
 
     p.share(users=["josh@run.house", "donny@run.house"], access_type="write")
 
     shutil.rmtree(tmp_path)
 
-    assert True
+    # Confirm the package's folder is now on the cluster
+    status_codes = c.run(commands=["ls tmp_package"])
+    assert "sample_file_0.txt" in status_codes[0][1]
 
 
 @unittest.skip("Not yet implemented.")
-def test_reload():
-    rh.exists("@/runhouse")
-    package = rh.package(name="/jlewitt1/runhouse")
-    print(package.config_for_rns)
-    assert "s3://" in package.fsspec_url
+def test_share_git_package():
+    pass
+    # TODO [JL]
+    # repo_package = rh.git_package(
+    #     git_url=f"https://github.com/{username}/{repo_name}.git",
+    #     revision=branch_name,
+    # )
 
 
 if __name__ == "__main__":

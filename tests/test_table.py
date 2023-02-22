@@ -816,8 +816,7 @@ def test_sharing_table():
     orig_data = load_sample_data(data_type="pandas")
     my_table = rh.table(
         data=orig_data,
-        name="@/my_pandas_table",
-        path=f"/{BUCKET_NAME}/pandas",
+        name="shared_pandas_table",
         system="s3",
         mkdir=True,
     ).save()
@@ -828,10 +827,7 @@ def test_sharing_table():
 
 
 def test_read_shared_table():
-    from runhouse.rns.tables.pandas_table import PandasTable
-
-    my_table = PandasTable.from_name(name="/jlewitt1/my_pandas_table")
-    # Alternatively can do: my_table = rh.table(name="/jlewitt1/my_pandas_table")
+    my_table = rh.table(name="/jlewitt1/shared_pandas_table")
     df: pd.DataFrame = my_table.fetch()
     assert not df.empty
 

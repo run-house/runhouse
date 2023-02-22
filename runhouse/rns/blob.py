@@ -1,6 +1,5 @@
 import copy
 import logging
-import uuid
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -232,21 +231,19 @@ def blob(
         config["system"] = rns_client.load_config(config["system"])
 
     name = name or config.get("rns_address") or config.get("name")
-    name = name.lstrip("/") if name is not None else name
 
     data_path = path or config.get("path")
     if data_path is None:
-        # TODO [JL] move some of the default params in this factory method to the defaults module for configurability
+        # If no path is provided we need to create one based on the name of the blob
+        blob_name_in_path = rns_client.resolve_rns_data_name(name)
         if config["system"] == rns_client.DEFAULT_FS:
             # create random path to store in .cache directory of local filesystem
             data_path = str(
-                Path(
-                    f"~/{Blob.DEFAULT_CACHE_FOLDER}/{name or uuid.uuid4().hex}"
-                ).expanduser()
+                Path(f"~/{Blob.DEFAULT_CACHE_FOLDER}/{blob_name_in_path}").expanduser()
             )
         else:
             # save to the default bucket
-            data_path = f"{Blob.DEFAULT_FOLDER_PATH}/{name}"
+            data_path = f"{Blob.DEFAULT_FOLDER_PATH}/{blob_name_in_path}"
 
     config["name"] = name
     config["path"] = data_path
