@@ -62,10 +62,11 @@ class GitPackage(Package):
                 f"git -C {self.install_target} fetch {self.git_url}".split(" ")
             )
         # Checkout the revision
-        logging.info(f"Checking out revision: git checkout {self.revision}")
-        subprocess.check_call(
-            ["git", "-C", self.install_target, "checkout", self.revision]
-        )
+        if self.revision:
+            logging.info(f"Checking out revision: git checkout {self.revision}")
+            subprocess.check_call(
+                ["git", "-C", self.install_target, "checkout", self.revision]
+            )
         # Use super to install the package
         super().install()
 

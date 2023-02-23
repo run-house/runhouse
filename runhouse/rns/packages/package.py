@@ -186,7 +186,7 @@ class Package(Resource):
         )
         if match:
             install_method = match.group("method")
-            url = "https://github.com/" + match.group("path")
+            url = match.group("path")
             from runhouse.rns.packages.git_package import git_package
 
             return git_package(
