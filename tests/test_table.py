@@ -11,15 +11,14 @@ import runhouse as rh
 from runhouse import Folder
 
 TEMP_LOCAL_FOLDER = Path("~/.rh/temp").expanduser()
-BUCKET_NAME = "runhouse-tests"
+BUCKET_NAME = "runhouse-table"
 NUM_PARTITIONS = 10
 
 
 def setup():
-    # Create bucket in S3
-    from sky.data.storage import S3Store
+    from runhouse.rns.api_utils.utils import create_s3_bucket
 
-    S3Store(name=BUCKET_NAME, source="")
+    create_s3_bucket(BUCKET_NAME)
 
 
 def delete_local_folder(path):
@@ -37,7 +36,7 @@ def load_sample_data(data_type):
     if data_type == "huggingface":
         from datasets import load_dataset
 
-        dataset = load_dataset("yelp_review_full", split="train[:10%]")
+        dataset = load_dataset("yelp_review_full", split="train[:1%]")
         return dataset
 
     elif data_type == "pyarrow":

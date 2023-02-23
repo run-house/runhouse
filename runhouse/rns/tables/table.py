@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class Table(Resource):
     RESOURCE_TYPE = "table"
-    DEFAULT_FOLDER_PATH = "/runhouse/tables"
+    DEFAULT_FOLDER_PATH = "/runhouse-table"
     DEFAULT_CACHE_FOLDER = ".cache/runhouse/tables"
     DEFAULT_STREAM_FORMAT = "pyarrow"
     DEFAULT_BATCH_SIZE = 256

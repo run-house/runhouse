@@ -37,7 +37,7 @@ class Folder(Resource):
     RESOURCE_TYPE = "folder"
     DEFAULT_FS = "file"
     CLUSTER_FS = "ssh"
-    DEFAULT_FOLDER_PATH = "/runhouse"
+    DEFAULT_FOLDER_PATH = "/runhouse-folder"
     DEFAULT_CACHE_FOLDER = "~/.cache/runhouse"
 
     def __init__(
@@ -412,7 +412,9 @@ class Folder(Resource):
         if Path(os.path.basename(folder_path)).suffix != "":
             folder_path = str(Path(folder_path).parent)
 
-        logging.info(f"Creating new {self._fs_str} folder: {folder_path}")
+        logging.info(
+            f"Creating new {self._fs_str} folder if it does not already exist in path: {folder_path}"
+        )
         self.fsspec_fs.mkdirs(folder_path, exist_ok=True)
 
     def mount(self, path: Optional[str] = None, tmp: bool = False) -> str:

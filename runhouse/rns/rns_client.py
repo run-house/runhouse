@@ -346,6 +346,9 @@ class RNSClient:
             if hasattr(resource, "rns_address")
             else self.resolve_rns_path(resource)
         )
+        if rns_address is None:
+            logger.warning("No rns address exists for resource")
+            return
 
         if rns_address[0] in ["~", "^"]:
             path = self.locate(rns_address, resolve_path=False)

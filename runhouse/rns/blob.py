@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class Blob(Resource):
     # TODO rename to "File" and take out serialization?
     RESOURCE_TYPE = "blob"
-    DEFAULT_FOLDER_PATH = "/runhouse/blobs"
+    DEFAULT_FOLDER_PATH = "/runhouse-blob"
     DEFAULT_CACHE_FOLDER = ".cache/runhouse/blobs"
 
     def __init__(
@@ -148,13 +148,10 @@ class Blob(Resource):
 
         return super().save(name=name, overwrite=overwrite)
 
-    def delete_in_system(self, delete_folder: bool = False):
-        """Delete the blob itself from the file system. If `delete_folder` is `True` will also delete the folder
-        containing the blob. Defaults to `False`"""
+    def delete_in_system(self):
+        """Delete the blob itself from the file system."""
+        # TODO [JL] add option for deleting the underlying folder too?
         self._folder.rm(self._filename)
-        if delete_folder:
-            # Delete the folder itself where the blob is stored
-            self._folder.delete_in_system()
 
     def exists_in_system(self):
         """Check whether the blob exists in the file system"""

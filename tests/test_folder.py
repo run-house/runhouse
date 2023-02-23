@@ -7,20 +7,20 @@ from ray import cloudpickle as pickle
 
 TEST_FOLDER_PATH = Path.cwd() / "tests_tmp"
 
-DATA_STORE_BUCKET = "/runhouse-folder-tests"
-DATA_STORE_PATH = f"{DATA_STORE_BUCKET}/test-folder"
+DATA_STORE_BUCKET = "runhouse-folder"
+DATA_STORE_PATH = f"/{DATA_STORE_BUCKET}/folder-tests"
 
 
 def setup():
-    # Create buckets in S3 and GCS
-    from sky.data.storage import GcsStore, S3Store
-
-    S3Store(name="runhouse", source="")
-    GcsStore(name="runhouse", source="")
-
-    # Create local dir with files to upload to cluster, buckets, etc.
     from pathlib import Path
 
+    # Create buckets in S3 and GCS
+    from runhouse.rns.api_utils.utils import create_gcs_bucket, create_s3_bucket
+
+    create_s3_bucket(DATA_STORE_BUCKET)
+    create_gcs_bucket(DATA_STORE_BUCKET)
+
+    # Create local dir with files to upload to cluster, buckets, etc.
     TEST_FOLDER_PATH.mkdir(parents=True, exist_ok=True)
     for i in range(3):
         output_file = Path(f"{TEST_FOLDER_PATH}/sample_file_{i}.txt")
