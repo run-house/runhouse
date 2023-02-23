@@ -5,6 +5,7 @@ from typing import Dict, Optional
 
 import runhouse as rh
 from runhouse.rh_config import rns_client
+from runhouse.rns.api_utils.utils import generate_uuid
 from runhouse.rns.folders.folder import Folder, folder
 from runhouse.rns.resource import Resource
 
@@ -147,9 +148,13 @@ class Blob(Resource):
 
         return super().save(name=name, overwrite=overwrite)
 
-    def delete_in_system(self, recursive: bool = True):
-        """Delete the blob in the file system."""
-        self._folder.rm(self._filename, recursive=recursive)
+    def delete_in_system(self, delete_folder: bool = False):
+        """Delete the blob itself from the file system. If `delete_folder` is `True` will also delete the folder
+        containing the blob. Defaults to `False`"""
+        self._folder.rm(self._filename)
+        if delete_folder:
+            # Delete the folder itself where the blob is stored
+            self._folder.delete_in_system()
 
     def exists_in_system(self):
         """Check whether the blob exists in the file system"""
@@ -235,7 +240,10 @@ def blob(
     data_path = path or config.get("path")
     if data_path is None:
         # If no path is provided we need to create one based on the name of the blob
-        blob_name_in_path = rns_client.resolve_rns_data_name(name)
+        # By default we save the blob in its own folder
+        blob_name_in_path = (
+            f"{generate_uuid()}/{rns_client.resolve_rns_data_resource_name(name)}"
+        )
         if config["system"] == rns_client.DEFAULT_FS:
             # create random path to store in .cache directory of local filesystem
             data_path = str(

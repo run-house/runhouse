@@ -3,7 +3,6 @@ import logging
 import os
 import pkgutil
 import shutil
-import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -11,6 +10,7 @@ import requests
 
 from runhouse.rns.api_utils.resource_access import ResourceAccess
 from runhouse.rns.api_utils.utils import (
+    generate_uuid,
     load_resp_content,
     read_resp_data,
     remove_null_values_from_dict,
@@ -367,13 +367,13 @@ class RNSClient:
             else:
                 logger.info(f"Successfully deleted <{uri}>")
 
-    def resolve_rns_data_name(self, name: str):
+    def resolve_rns_data_resource_name(self, name: str):
         """If no name is explicitly provided for the data resource, we need to create one based on the relevant
-        rns path. If name is None, return a uuid.
+        rns path. If name is None, return a hex uuid.
         For example: my_blob -> jlewitt1/my_blob"
         """
         if name is None:
-            return uuid.uuid4().hex
+            return generate_uuid()
         rns_path = self.resolve_rns_path(name)
         if rns_path.startswith("~"):
             return rns_path[2:]

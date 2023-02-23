@@ -468,7 +468,7 @@ def table(
 
     if data_path is None:
         # If no path is provided we need to create one based on the name of the table
-        table_name_in_path = rns_client.resolve_rns_data_name(name)
+        table_name_in_path = rns_client.resolve_rns_data_resource_name(name)
         if config["system"] == rns_client.DEFAULT_FS:
             # create random path to store in .cache folder of local filesystem
             data_path = str(

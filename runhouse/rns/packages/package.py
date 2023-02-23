@@ -177,7 +177,8 @@ class Package(Resource):
     @staticmethod
     def from_config(config: dict, dryrun=False):
         if config.get("resource_subtype") == "GitPackage":
-            from git_package import GitPackage
+
+            from runhouse import GitPackage
 
             return GitPackage.from_config(config, dryrun=dryrun)
         return Package(**config, dryrun=dryrun)

@@ -26,14 +26,12 @@ def test_create_and_reload_local_blob():
     reloaded_data = pickle.loads(reloaded_blob.data)
     assert reloaded_data == list(range(50))
 
-    # Delete the blob itself
-    reloaded_blob.delete_in_system()
-    assert not reloaded_blob.exists_in_system()
-
     # Delete metadata saved locally and / or the database for the blob
     reloaded_blob.delete_configs()
 
-    assert True
+    # Delete the blob & the folder where it lives
+    reloaded_blob.delete_in_system(delete_folder=True)
+    assert not reloaded_blob.exists_in_system()
 
 
 def test_create_and_reload_local_blob_with_path():
@@ -53,14 +51,13 @@ def test_create_and_reload_local_blob_with_path():
     reloaded_data = pickle.loads(reloaded_blob.data)
     assert reloaded_data == list(range(50))
 
-    # Delete the blob itself
-    reloaded_blob.delete_in_system()
-    assert not reloaded_blob.exists_in_system()
-
     # Delete metadata saved locally and / or the database for the blob
     reloaded_blob.delete_configs()
 
-    assert True
+    # Delete just the blob itself - since we define a custom path to store the blob, we want to keep the other
+    # files stored in that directory
+    reloaded_blob.delete_in_system()
+    assert not reloaded_blob.exists_in_system()
 
 
 def test_create_and_reload_rns_blob():
@@ -80,12 +77,12 @@ def test_create_and_reload_rns_blob():
     reloaded_data = pickle.loads(reloaded_blob.data)
     assert reloaded_data == list(range(50))
 
-    # Delete the blob itself from the filesystem
-    reloaded_blob.delete_in_system()
-    assert not reloaded_blob.exists_in_system()
-
     # Delete metadata saved locally and / or the database for the blob and its associated folder
     reloaded_blob.delete_configs()
+
+    # Delete the blob itself from the filesystem
+    reloaded_blob.delete_in_system(delete_folder=True)
+    assert not reloaded_blob.exists_in_system()
 
 
 def test_create_and_reload_rns_blob_with_path():
@@ -106,20 +103,20 @@ def test_create_and_reload_rns_blob_with_path():
     reloaded_data = pickle.loads(reloaded_blob.data)
     assert reloaded_data == list(range(50))
 
-    # Delete the blob itself from the filesystem
-    reloaded_blob.delete_in_system()
-    assert not reloaded_blob.exists_in_system()
-
     # Delete metadata saved locally and / or the database for the blob and its associated folder
     reloaded_blob.delete_configs()
+
+    # Delete the blob itself from the filesystem
+    reloaded_blob.delete_in_system(delete_folder=True)
+    assert not reloaded_blob.exists_in_system()
 
 
 def test_save_blob_to_cluster():
     cluster = rh.cluster(name="^rh-cpu").up_if_not()
-    # Save the blob on the cluster
-    rh.blob(
-        pickle.dumps(pickle.dumps(list(range(50)))), path="models/pipeline.pkl"
-    ).save().to(cluster, path="models")
+    # Save blob to local directory, then upload to a new "models" directory on the root path of the cluster
+    rh.blob(pickle.dumps(list(range(50))), path="models/pipeline.pkl").save().to(
+        cluster, path="models"
+    )
 
     # Confirm the model is saved on the cluster in the `models` folder
     status_codes = cluster.run(commands=["ls models"])

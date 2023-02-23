@@ -4,7 +4,6 @@ import os
 import shutil
 import subprocess
 import tempfile
-import uuid
 from pathlib import Path
 from typing import Dict, Optional, Union
 
@@ -15,6 +14,7 @@ import sshfs
 
 import runhouse as rh
 from runhouse.rh_config import rns_client
+from runhouse.rns.api_utils.utils import generate_uuid
 from runhouse.rns.resource import Resource
 
 fsspec.register_implementation("ssh", sshfs.SSHFileSystem)
@@ -91,13 +91,13 @@ class Folder(Resource):
                 return str(
                     Path.cwd() / rns_client.split_rns_name_and_path(rns_address)[0]
                 )  # saves to cwd / name
-            return f"{Folder.DEFAULT_CACHE_FOLDER}/{uuid.uuid4().hex}"
+            return f"{Folder.DEFAULT_CACHE_FOLDER}/{generate_uuid()}"
         else:
             # If no path provided for a remote file system default to its name if provided
             if rns_address:
                 name = rns_address[1:].replace("/", "_") + f".{cls.RESOURCE_TYPE}"
                 return f"{Folder.DEFAULT_FOLDER_PATH}/{name}"
-            return f"{Folder.DEFAULT_FOLDER_PATH}/{uuid.uuid4().hex}"
+            return f"{Folder.DEFAULT_FOLDER_PATH}/{generate_uuid()}"
 
     # ----------------------------------
     @staticmethod

@@ -213,7 +213,6 @@ def test_create_and_reload_huggingface_locally():
     my_table = rh.table(
         data=orig_data,
         name="~/my_test_local_huggingface_table",
-        path="table_tests/huggingface_test_table",
         system="file",
         mkdir=True,
     ).save()

@@ -1,5 +1,6 @@
 import ast
 import json
+import uuid
 
 from requests import Response
 
@@ -42,3 +43,7 @@ def is_jsonable(myjson):
     except ValueError:
         return False
     return True
+
+
+def generate_uuid():
+    return uuid.uuid4().hex

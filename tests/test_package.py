@@ -10,7 +10,8 @@ def setup():
 
 def test_from_string():
     p = rh.Package.from_string("reqs:~/runhouse")
-    assert p.local_path == str(Path.home() / "runhouse")
+    assert isinstance(p.install_target, rh.Folder)
+    assert p.install_target.path == str(Path.home() / "runhouse")
 
 
 def test_share_package():
@@ -38,14 +39,21 @@ def test_share_package():
     assert "sample_file_0.txt" in status_codes[0][1]
 
 
-@unittest.skip("Not yet implemented.")
 def test_share_git_package():
-    pass
-    # TODO [JL]
-    # repo_package = rh.git_package(
-    #     git_url=f"https://github.com/{username}/{repo_name}.git",
-    #     revision=branch_name,
-    # )
+    git_package = rh.GitPackage(
+        name="shared_git_package",
+        git_url="https://github.com/runhouse/runhouse.git",
+        install_method="pip",
+        revision="v0.0.1",
+    ).save()
+
+    git_package.share(users=["donny@run.house", "josh@run.house"], access_type="read")
+    assert rh.rns_client.exists(name_or_path="shared_git_package")
+
+
+def test_load_shared_git_package():
+    git_package = rh.package(name="/jlewitt1/shared_git_package")
+    assert git_package.config_for_rns
 
 
 if __name__ == "__main__":

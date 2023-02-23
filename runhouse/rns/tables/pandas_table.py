@@ -1,8 +1,8 @@
 import logging
-import uuid
 from typing import Optional
 
 from .. import OnDemandCluster
+from ..api_utils.utils import generate_uuid
 from ..top_level_rns_fns import save
 
 from .table import Table
@@ -16,7 +16,7 @@ class PandasTable(Table):
 
     def __init__(self, **kwargs):
         if not kwargs.get("file_name"):
-            kwargs["file_name"] = f"{uuid.uuid4().hex}.parquet"
+            kwargs["file_name"] = f"{generate_uuid()}.parquet"
         super().__init__(**kwargs)
 
     def __iter__(self):
