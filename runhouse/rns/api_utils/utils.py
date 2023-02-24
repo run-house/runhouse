@@ -61,6 +61,5 @@ def create_gcs_bucket(bucket_name: str):
     """Create bucket in GS if it does not already exist."""
     from sky.data.storage import GcsStore
 
-    # If the bucket does not exist, sky will handle creating it for us
     gcs_store = GcsStore(name=bucket_name, source="")
     return gcs_store

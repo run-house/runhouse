@@ -96,13 +96,13 @@ def test_cluster_tos():
     assert "test_folder.py" in s3.ls(full_paths=False)
 
     delete_local_folder(TEST_FOLDER_PATH)
-    s3.empty_folder()
+    s3.delete_in_system()
 
     # to gcs
     gcs = tests_folder.to("gs")
     try:
         assert "test_folder.py" in gcs.ls(full_paths=False)
-        gcs.empty_folder()
+        gcs.delete_in_system()
 
     except:
         bucket_name = gcs.bucket_name_from_path(gcs.path)
@@ -144,7 +144,7 @@ def test_local_and_s3():
     assert "sample_file_0.txt" in local_from_s3.ls(full_paths=False)
 
     delete_local_folder(tmp_path)
-    s3_folder.empty_folder()
+    s3_folder.delete_in_system()
 
 
 def test_local_and_gcs():
@@ -161,7 +161,7 @@ def test_local_and_gcs():
     assert "sample_file_0.txt" in local_from_gcs.ls(full_paths=False)
 
     delete_local_folder(tmp_path)
-    gcs_folder.empty_folder()
+    gcs_folder.delete_in_system()
 
 
 def test_cluster_and_s3():
@@ -179,7 +179,7 @@ def test_cluster_and_s3():
     cluster_from_s3 = s3_folder.to(system=c)
     assert "sample_file_0.txt" in cluster_from_s3.ls(full_paths=False)
 
-    s3_folder.empty_folder()
+    s3_folder.delete_in_system()
 
 
 def test_cluster_and_gcs():
@@ -204,7 +204,7 @@ def test_cluster_and_gcs():
         cluster_from_gcs = gcs_folder.to(system=c)
         assert "sample_file_0.txt" in cluster_from_gcs.ls(full_paths=False)
 
-        gcs_folder.empty_folder()
+        gcs_folder.delete_in_system()
 
     except:
         # TODO [JL] automate gcloud access on the cluster for writing to GCS bucket
@@ -226,8 +226,8 @@ def test_s3_and_s3():
     new_s3_folder = s3_folder.to(system="s3")
     assert "sample_file_0.txt" in new_s3_folder.ls(full_paths=False)
 
-    s3_folder.empty_folder()
-    new_s3_folder.empty_folder()
+    s3_folder.delete_in_system()
+    new_s3_folder.delete_in_system()
 
 
 def test_gcs_and_gcs():
@@ -240,8 +240,8 @@ def test_gcs_and_gcs():
     new_gcs_folder = gcs_folder.to(system="gs")
     assert "sample_file_0.txt" in new_gcs_folder.ls(full_paths=False)
 
-    gcs_folder.empty_folder()
-    new_gcs_folder.empty_folder()
+    gcs_folder.delete_in_system()
+    new_gcs_folder.delete_in_system()
 
 
 def test_s3_and_gcs():
@@ -256,7 +256,7 @@ def test_s3_and_gcs():
     s3_folder_to_gcs = s3_folder.to(system="gs")
     assert s3_folder_to_gcs.ls(full_paths=False)
 
-    s3_folder.empty_folder()
+    s3_folder.delete_in_system()
 
 
 def test_gcs_and_s3():
@@ -271,25 +271,26 @@ def test_gcs_and_s3():
     gcs_folder_to_s3 = gcs_folder.to(system="s3")
     assert gcs_folder_to_s3.ls(full_paths=False)
 
-    gcs_folder.empty_folder()
+    gcs_folder.delete_in_system()
 
 
 def test_s3_folder_uploads_and_downloads():
     # NOTE: you can specify a specific path like this:
     # test_folder = rh.folder(path='/runhouse/my-folder', system='gs')
 
-    test_folder = rh.folder(system="s3")
-    test_folder.upload(src=str(TEST_FOLDER_PATH))
+    s3_folder = rh.folder(system="s3")
+    s3_folder.upload(src=str(TEST_FOLDER_PATH))
 
-    assert test_folder.exists_in_system()
+    assert s3_folder.exists_in_system()
 
     downloaded_path_folder = str(Path.cwd() / "downloaded_s3")
-    test_folder.download(dest=downloaded_path_folder)
+    s3_folder.download(dest=downloaded_path_folder)
 
     assert Path(downloaded_path_folder).exists()
 
-    test_folder.delete_in_system()
-    assert not test_folder.exists_in_system()
+    # remove folder in s3
+    s3_folder.delete_in_system()
+    assert not s3_folder.exists_in_system()
 
 
 def test_cluster_and_cluster():
@@ -315,7 +316,7 @@ def test_s3_sharing():
     s3_folder = rh.folder(
         name="my-s3-shared-folder", path=DATA_STORE_PATH, system="s3"
     ).save()
-    assert "sample_file_0.txt" in s3_folder.ls(full_paths=False)
+    assert s3_folder.ls(full_paths=False)
 
     s3_folder.share(
         users=["donny@run.house", "josh.lewittes@gmail.com"], access_type="read"

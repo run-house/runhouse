@@ -19,8 +19,13 @@ class GCSFolder(Folder):
         """Load config values into the object."""
         return GCSFolder(**config, dryrun=dryrun)
 
-    def delete_in_system(self, recurse=True, *kwargs):
-        """Delete the gcs folder itself along with its contents."""
+    def delete_in_system(self):
+        """Delete gcs folder along with its contents."""
+        for p in self.fsspec_fs.ls(self.path):
+            self.fsspec_fs.rm(p)
+
+    def delete_bucket(self):
+        """Delete the gcs bucket."""
         try:
             from sky.data.storage import GcsStore
 

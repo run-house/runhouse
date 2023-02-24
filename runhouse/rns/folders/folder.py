@@ -516,11 +516,6 @@ class Folder(Resource):
             self.system == "file" and self.path is not None and Path(self.path).exists()
         ) or self._local_mount_path
 
-    def empty_folder(self):
-        """Remove folder contents, but not the folder itself."""
-        for p in self.fsspec_fs.ls(self.path):
-            self.fsspec_fs.rm(p)
-
     def upload(self, src: str, region: Optional[str] = None):
         """Upload a folder to a remote bucket."""
         raise NotImplementedError
@@ -735,7 +730,7 @@ class Folder(Resource):
             self.fsspec_url
         ) or rh.rns.top_level_rns_fns.exists(self.path)
 
-    def delete_in_system(self, recursive: bool = True):
+    def delete_in_system(self):
         """Delete from file system."""
         try:
             self.fsspec_fs.rmdir(self.path)

@@ -125,7 +125,6 @@ def test_create_and_reload_pandas_locally():
     my_table = rh.table(
         data=orig_data,
         name="~/my_test_local_pandas_table",
-        path="table_tests/pandas_test_table",
         system="file",
         mkdir=True,
     ).save()
@@ -154,7 +153,6 @@ def test_create_and_reload_pyarrow_locally():
     my_table = rh.table(
         data=orig_data,
         name="~/my_test_local_pyarrow_table",
-        path="table_tests/pyarrow_test_table",
         system="file",
         mkdir=True,
     ).save()
@@ -183,7 +181,6 @@ def test_create_and_reload_ray_locally():
     my_table = rh.table(
         data=orig_data,
         name="~/my_test_local_ray_table",
-        path="table_tests/ray_test_table",
         system="file",
         mkdir=True,
     ).save()

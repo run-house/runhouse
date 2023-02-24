@@ -7,7 +7,7 @@ import yaml
 from ray import cloudpickle as pickle
 
 S3_BUCKET = "runhouse-blob"
-TEMP_LOCAL_FOLDER = Path(__file__).parents[1] / "rh"
+TEMP_LOCAL_FOLDER = Path(__file__).parents[1] / "rh-blobs"
 
 
 def setup():
@@ -154,16 +154,16 @@ def test_from_cluster():
 
 def test_sharing_blob():
     data = pickle.dumps(list(range(50)))
-    my_table = rh.blob(
+    my_blob = rh.blob(
         data=data,
         name="shared_blob",
         system="s3",
         mkdir=True,
     ).save()
 
-    my_table.share(users=["donny@run.house", "josh@run.house"], access_type="write")
+    my_blob.share(users=["donny@run.house", "josh@run.house"], access_type="write")
 
-    assert my_table.exists_in_system()
+    assert my_blob.exists_in_system()
 
 
 def test_load_shared_blob():

@@ -306,6 +306,8 @@ class Table(Resource):
         # If file(s) are directories, recursively delete contents and then also remove the directory
         # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.spec.AbstractFileSystem.rm
         self._folder.fsspec_fs.rm(self.path, recursive=recursive)
+        if self.system == "file" and recursive:
+            self._folder.delete_in_system()
 
     def exists_in_system(self):
         """Whether table exists in file system"""
@@ -337,7 +339,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
         if isinstance(data, datasets.Dataset) or resource_subtype == "HuggingFaceTable":
             from .huggingface_table import HuggingFaceTable
 
-            return HuggingFaceTable.from_config(config)
+            return HuggingFaceTable.from_config(config, dryrun)
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -347,7 +349,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
         if isinstance(data, pd.DataFrame) or resource_subtype == "PandasTable":
             from .pandas_table import PandasTable
 
-            return PandasTable.from_config(config)
+            return PandasTable.from_config(config, dryrun)
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -359,7 +361,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
         if isinstance(data, dd.DataFrame) or resource_subtype == "DaskTable":
             from .dask_table import DaskTable
 
-            return DaskTable.from_config(config)
+            return DaskTable.from_config(config, dryrun)
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -371,7 +373,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
         if isinstance(data, ray.data.Dataset) or resource_subtype == "RayTable":
             from .ray_table import RayTable
 
-            return RayTable.from_config(config)
+            return RayTable.from_config(config, dryrun)
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -381,10 +383,6 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
         import cudf
 
         if isinstance(data, cudf.DataFrame) or resource_subtype == "CudfTable":
-            # TODO [JL]
-            # from .rapids_table import RapidsTable
-
-            # return RapidsTable.from_config(config)
             raise NotImplementedError("Cudf not currently supported")
     except ModuleNotFoundError:
         pass
@@ -392,7 +390,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
         raise e
 
     if isinstance(data, pa.Table) or resource_subtype == "Table":
-        new_table = Table.from_config(config, dryrun=dryrun)
+        new_table = Table.from_config(config, dryrun)
         return new_table
     else:
         raise TypeError(
