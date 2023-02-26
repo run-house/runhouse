@@ -6,9 +6,9 @@ import grpc
 
 import ray.cloudpickle as pickle
 
-import runhouse.grpc_handler.unary_pb2 as pb2
+import runhouse.servers.grpc.unary_pb2 as pb2
 
-import runhouse.grpc_handler.unary_pb2_grpc as pb2_grpc
+import runhouse.servers.grpc.unary_pb2_grpc as pb2_grpc
 
 logger = logging.getLogger(__name__)
 

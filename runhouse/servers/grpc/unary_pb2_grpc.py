@@ -2,7 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-import runhouse.grpc_handler.unary_pb2 as unary__pb2
+import runhouse.servers.grpc.unary_pb2 as unary__pb2
 
 
 class UnaryStub(object):

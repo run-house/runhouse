@@ -12,12 +12,13 @@ import ray.cloudpickle as pickle
 from sky.utils import command_runner
 from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
-from runhouse.grpc_handler.unary_client import UnaryClient
-from runhouse.grpc_handler.unary_server import UnaryService
 from runhouse.rh_config import open_grpc_tunnels, rns_client
 from runhouse.rns.packages.package import Package
 
 from runhouse.rns.resource import Resource
+
+from runhouse.servers.grpc.unary_client import UnaryClient
+from runhouse.servers.grpc.unary_server import UnaryService
 
 logger = logging.getLogger(__name__)
 
@@ -383,8 +384,8 @@ class Cluster(Resource):
         # TODO how do we capture errors if this fails?
         if resync_rh:
             self.sync_runhouse_to_cluster(_install_url=_rh_install_url)
-        kill_proc_cmd = 'pkill -f "python3 -m runhouse.grpc_handler.unary_server"'
-        grpc_server_cmd = "screen -dm python3 -m runhouse.grpc_handler.unary_server"
+        kill_proc_cmd = 'pkill -f "python3 -m runhouse.grpc.unary_server"'
+        grpc_server_cmd = "screen -dm python3 -m runhouse.grpc.unary_server"
         cmds = [kill_proc_cmd]
         if restart_ray:
             cmds.append("ray stop")
