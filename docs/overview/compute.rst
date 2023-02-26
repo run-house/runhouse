@@ -20,7 +20,7 @@ When you do this, the following steps occur:
 3. We collect the dependencies from the :code:`reqs` parameter and install them on the cluster via :code:`cluster.install_packages()`. By default, we'll sync over the working git repo and install its :code:`requirements.txt` if it has one.
 
 
-When you run your function module, we function a gRPC request to the cluster with the module name and function entrypoint to run.
+When you run your function module, we send a gRPC request to the cluster with the module name and function entrypoint to run.
 The gRPC server adds the module to its python path, imports the module, grabs the function entrypoint, runs it,
 and returns your results.
 
@@ -233,7 +233,7 @@ on the cluster.
 
 We currently provide four package install methods:
 
-- :code:`local`: Install packages to a Folder or a given path to a directory
+- :code:`local`: Install packages to a Folder or a given path to a directory.
 - :code:`reqs`: Install a :code:`requirements.txt` file from the working directory.
 - :code:`pip`: Runs :code:`pip install` for the provided packages.
 - :code:`conda`: Runs :code:`conda install` for the provided packages.

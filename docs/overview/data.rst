@@ -83,7 +83,7 @@ convenient APIs for writing, partitioning, fetching and streaming the data:
 - :code:`Table`: Base table implementation. Supports any data type that can be written to parquet (ex: `pyArrow <https://arrow.apache.org/docs/python/generated/pyarrow.Table.html>`_).
 - :code:`RayTable`: `Ray Datasets <https://docs.ray.io/en/latest/data/api/dataset.html#ray.data.Dataset>`_
 - :code:`HuggingFaceTable`: `HuggingFace Datasets <https://huggingface.co/docs/datasets/index>`_
-- :code:`PandasTable`: Pandas DataFrames
+- :code:`PandasTable`: `Pandas DataFrames <https://pandas.pydata.org/docs/reference/frame.html>`_
 - :code:`DaskTable`: `Dask DataFrames <https://docs.dask.org/en/stable/dataframe.html>`_
 
 .. note::

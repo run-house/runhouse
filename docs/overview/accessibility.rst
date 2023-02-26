@@ -25,8 +25,8 @@ There you go, you've built the Runhouse RNS. 🔥
 We support saving resource metadata to the :code:`/rh` directory of the working git package or a remote metadata
 service we call the Runhouse RNS API. Both have their advantages:
 
-1. **Local RNS** - The git-based approach allows you to publish the exact resource metadata in the same version tree as your code, so you can be sure that the code and resources are always 1-for-1 compatible. It also is a highly visible way to distribute the resources to interested OSS users, who can see it right in the repo, rather than having to be aware that it exists behind an API. Imagine you publish some research, and the exact cloud configurations and data artifacts you used were published with it so consumers of the work don't need to reverse engineer your compute and data rig.
-2. **Runhouse RNS** - The RNS API allows your resources to be accessible anywhere with an internet connection and Python interpreter, so it's obviously way more portable. It also allows you to quickly share resources with collaborators without needing to check them into git and ask them to fetch and change their branch. The web-based approach also allows you to keep a global source of truth for a resource (e.g. a single BERT preprocessing service shared by a team, or a most up-to-date model checkpoint), which will be updated with zero downtime by all consumers when you push a new version. Lastly, the RNS API is backed by a management API to view and manage all resources.
+1. **Local RNS** - The git-based approach allows you to publish the exact resource metadata in the same version tree as your code, so you can be sure that the code and resources are always 1-for-1 compatible. It also is a highly visible way to distribute the resources to OSS users, who can see it right in the repo, rather than having to be aware that it exists behind an API. Imagine you publish some research, and the exact cloud configurations and data artifacts you used were published with it so consumers of the work don't need to reverse engineer your compute and data rig.
+2. **Runhouse RNS** - The RNS API allows your resources to be accessible anywhere with an internet connection and Python interpreter, so it's way more portable. It also allows you to quickly share resources with collaborators without needing to check them into git and ask them to fetch and change their branch. The web-based approach also allows for a global source of truth for a resource (e.g. a single BERT preprocessing service shared by a team, or a most up-to-date model checkpoint), which will be updated with zero downtime by all consumers when you push a new version. Lastly, the RNS API is backed by a management API to view and manage all resources.
 
 .. note::
     Not every resource in Runhouse is named. You can use the Runhouse APIs if you like the ergonomics without ever
@@ -55,7 +55,7 @@ To persist a resource, call:
 
 
 
-To load a resource, call :code:`rh.load('my_name')`, or just call the resource factory constructor with
+To load a resource, you can call :code:`rh.load('my_name')`, or use the resource factory constructor with
 only the name, e.g.
 
 .. code-block:: python
@@ -72,7 +72,8 @@ You may need to pass the full rns_address if the resource is not in :code:`rh.cu
     rh.exists(name='~/local_resource')
     rh.exists(name='@/my/rns_path/to/my_table')
 
-We're still early in uncovering the patterns and antipatterns for a global shared environment for compute and data resources (shocker), but for now we generally encourage OSS projects to publish resources in the local RNS of their package, and individuals and teams to largely rely on Runhouse RNS.
+We're still early in uncovering the patterns and antipatterns for a global shared environment for compute and data resources (shocker),
+but for now we generally encourage OSS projects to publish resources in the local RNS of their package, and individuals and teams to largely rely on Runhouse RNS.
 
 
 Secrets and Login / Logout
@@ -129,34 +130,35 @@ Setting Config Options
 Runhouse stores user configs both locally in :code:`~/.rh/config.yaml` and remotely in the Runhouse database.
 This allows you to preserve your same config across environments. Some important configs to consider setting:
 
-Whether to use spot instances (cheaper but can be reclaimed at any time) by default.
-Note that this is :code:`False` by default because you'll need to request spot quota from the cloud providers to use spot
-instances. You can override this setting in the cluster factory constructor:
+Whether to use spot instances, which are cheaper but can be reclaimed at any time.
+This is :code:`False` by default because you'll need to request spot quota from the cloud providers to use spot
+instances.
 
 .. code-block:: python
 
-    rh.configs.set('use_spot', False)
+    rh.configs.set('use_spot', True)
 
 
-Clusters can start and stop dynamically to save money. If you set :code:`autostop = 10`, the cluster will terminate after
-10 minutes of inactivity. If you set :code:`autostop = -1`, the cluster will stay up indefinitely.
-After the cluster terminates, if you call a Function which is on that cluster, the Function will automatically start the
-cluster again. You can also call :code:`cluster.keep_warm(autostop=-1)` to control this for an existing cluster:
+Default autostop time for the Cluster, to dynamically stop the cluster after inactivity to save money.
+The cluster will stay up for the specified amount of time (in minutes) after inactivity,
+or indefinitely if `-1` is provided. Calling a Function on the cluster after the cluster terminates will
+automatically restart the cluster. You can also call :code:`cluster.keep_warm(autostop=-1)` to control
+this for an existing cluster:
 
 .. code-block:: python
 
     rh.configs.set('default_autostop', 30)
 
-You can set your default Cloud provider if you have multiple Cloud accounts set up locally.
-If you set it to :code:`cheapest`, SkyPilot will select the cheapest provider for your desired hardware
-(including spot pricing, if enabled). You can set this to :code:`aws`, :code:`gcp`, or :code:`azure` too:
+Default Cloud provider, if you have multiple Cloud accounts set up locally.
+Setting it to :code:`cheapest` will use the cheapest provider (through SkyPilot) for your desired hardware,
+(including spot pricing, if enabled). Other options are :code:`aws`, :code:`gcp`, :code:`azure`, or :code:`lambda`
 
 .. code-block:: python
 
     rh.configs.set('default_provider', 'cheapest')
 
 
-Now that you've changed some configs, you probably want to save them to Runhouse to access them elsewhere:
+To save updated configs to Runhouse to access them elsewhere:
 
 .. code-block:: python
 
