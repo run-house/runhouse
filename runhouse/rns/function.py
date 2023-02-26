@@ -254,7 +254,11 @@ class Function(Resource):
         if self.access in [ResourceAccess.write, ResourceAccess.read]:
             if not self.system or self.system.name == rh_config.obj_store.cluster_name:
                 [relative_path, module_name, fn_name] = self.fn_pointers
-                fn = get_fn_by_name(module_name=module_name, fn_name=fn_name)
+                fn = get_fn_by_name(
+                    module_name=module_name,
+                    fn_name=fn_name,
+                    relative_path=relative_path,
+                )
                 return call_fn_by_type(
                     fn, fn_type, fn_name, relative_path, args, kwargs
                 )

@@ -170,16 +170,16 @@ class UnaryService(pb2_grpc.UnaryServicer):
             )
 
             module_path = None
-            # If relative_path is None, the module is not in the working dir, and should be in the reqs
-            if relative_path:
-                module_path = str((Path.home() / relative_path).resolve())
-                sys.path.append(module_path)
-                logger.info(f"Appending {module_path} to sys.path")
 
             if module_name == "notebook":
+                # If relative_path is None, the module is not in the working dir, and should be in the reqs
+                if relative_path:
+                    module_path = str((Path.home() / relative_path).resolve())
+                    sys.path.append(module_path)
+                    logger.info(f"Appending {module_path} to sys.path")
                 fn = fn_name  # Already unpickled above
             else:
-                fn = get_fn_by_name(module_name, fn_name)
+                fn = get_fn_by_name(module_name, fn_name, relative_path)
 
             res = call_fn_by_type(fn, fn_type, fn_name, module_path, args, kwargs)
             # [res, None, None] is a silly hack for packaging result alongside exception and traceback
