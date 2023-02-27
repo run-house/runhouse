@@ -15,6 +15,7 @@ import sshfs
 import runhouse as rh
 from runhouse.rh_config import rns_client
 from runhouse.rns.api_utils.utils import generate_uuid
+from runhouse.rns.obj_store import _current_cluster
 from runhouse.rns.resource import Resource
 
 fsspec.register_implementation("ssh", sshfs.SSHFileSystem)
@@ -44,7 +45,7 @@ class Folder(Resource):
         self,
         name: Optional[str] = None,
         path: Optional[str] = None,
-        system: Optional[str] = DEFAULT_FS,
+        system: Optional[str] = None,
         dryrun: bool = False,
         local_mount: bool = False,
         data_config: Optional[Dict] = None,
@@ -61,7 +62,17 @@ class Folder(Resource):
         self._system = None
         self._fsspec_fs = None
 
-        self.system = system
+        current_cluster_config = _current_cluster(key="config")
+        if current_cluster_config and system is None:
+            from runhouse.rns.hardware.cluster import Cluster
+
+            self.system = Cluster.from_config(current_cluster_config)
+        elif isinstance(system, dict):
+            from runhouse.rns.hardware.cluster import Cluster
+
+            self.system = Cluster.from_config(system)
+        else:
+            self.system = system or self.DEFAULT_FS
 
         # TODO [DG] Should we ever be allowing this to be None?
         self._path = (
@@ -179,6 +190,12 @@ class Folder(Resource):
     @property
     def data_config(self):
         if isinstance(self.system, Resource):  # if system is a cluster
+            # handle case cluster is itself
+            # TODO [CC] something more robust than this, maybe {username}/cluster-name instead of just cluster-name
+            name = _current_cluster()
+            if name is not None and name == self.system.name:
+                return self._data_config
+
             if not self.system.address:
                 self.system.populate_vars_from_status(dryrun=False)
                 if not self.system.address:
@@ -208,15 +225,17 @@ class Folder(Resource):
     @property
     def _fs_str(self):
         if isinstance(self.system, Resource):  # if system is a cluster
-            # TODO [DG] Return 'file' if we're on this cluster
+            if self.system.name == _current_cluster():
+                return self.DEFAULT_FS
             return self.CLUSTER_FS
         else:
             return self.system
 
     @property
     def fsspec_fs(self):
-        if self._fsspec_fs is None:
-            self._fsspec_fs = fsspec.filesystem(self._fs_str, **self.data_config)
+        # recompute this each time, since it is different depending if it is being called
+        # from the same cluster (local filesystem) or somewhere else (ssh filesystem)
+        self._fsspec_fs = fsspec.filesystem(self._fs_str, **self.data_config)
         return self._fsspec_fs
 
     @property

@@ -56,6 +56,24 @@ class Cluster(Resource):
         if not dryrun and self.address:
             # OnDemandCluster will start ray itself, but will also set address later, so won't reach here.
             self.start_ray()
+            self.save_config_to_cluster()
+
+    def save_config_to_cluster(self):
+        import json
+
+        config = self.config_for_rns
+        if "sky_data" in config.keys():
+            # a bunch of setup commands that mess up json dump
+            del config["sky_data"]
+        json_config = f"{json.dumps(config)}"
+
+        self.run(
+            [
+                "mkdir -p ~/.rh",
+                "touch ~/.rh/cluster_config.yaml",
+                f"echo '{json_config}' > ~/.rh/cluster_config.yaml",
+            ]
+        )
 
     @staticmethod
     def from_config(config: dict, dryrun=False):

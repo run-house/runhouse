@@ -7,6 +7,7 @@ import runhouse as rh
 from runhouse.rh_config import rns_client
 from runhouse.rns.api_utils.utils import generate_uuid
 from runhouse.rns.folders.folder import Folder, folder
+from runhouse.rns.obj_store import _current_cluster
 from runhouse.rns.resource import Resource
 
 logger = logging.getLogger(__name__)
@@ -228,23 +229,31 @@ def blob(
     """
     config = rns_client.load_config(name)
 
-    config["system"] = system or config.get("system") or rns_client.DEFAULT_FS
-    if isinstance(config["system"], str) and rns_client.exists(
-        config["system"], resource_type="cluster"
-    ):
-        config["system"] = rns_client.load_config(config["system"])
+    system = (
+        system
+        or config.get("system")
+        or _current_cluster(key="config")
+        or Folder.DEFAULT_FS
+    )
+    config["system"] = system
 
     name = name or config.get("rns_address") or config.get("name")
 
     data_path = path or config.get("path")
     if data_path is None:
-        # If no path is provided we need to create one based on the name of the blob
-        # By default we save the blob in its own folder
         blob_name_in_path = (
             f"{generate_uuid()}/{rns_client.resolve_rns_data_resource_name(name)}"
         )
-        if config["system"] == rns_client.DEFAULT_FS:
-            # create random path to store in .cache directory of local filesystem
+
+        if (
+            system == rns_client.DEFAULT_FS
+            or config["system"] == _current_cluster(key="name")
+            or (
+                isinstance(config["system"], dict)
+                and config["system"]["name"] == _current_cluster(key="name")
+            )
+        ):
+            # create random path to store in .cache folder of local filesystem
             data_path = str(
                 Path(f"~/{Blob.DEFAULT_CACHE_FOLDER}/{blob_name_in_path}").expanduser()
             )
@@ -255,6 +264,15 @@ def blob(
     config["name"] = name
     config["path"] = data_path
     config["data_config"] = data_config or config.get("data_config")
+
+    if isinstance(config["system"], str) and rns_client.exists(
+        config["system"], resource_type="cluster"
+    ):
+        config["system"] = rns_client.load_config(config["system"])
+    elif isinstance(config["system"], dict):
+        from runhouse.rns.hardware.cluster import Cluster
+
+        config["system"] = Cluster.from_config(config["system"])
 
     if mkdir:
         # create the remote folder for the blob
