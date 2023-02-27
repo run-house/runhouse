@@ -194,4 +194,4 @@ to message us, or email us (first name at run.house), or create an issue.
 
 ## 👷‍♀️ Contributing
 
-We welcome contributions! Please check out out [contributing](CONTRIBUTING.md) if you're interested.
+We welcome contributions! Please check out [contributing](CONTRIBUTING.md) if you're interested.

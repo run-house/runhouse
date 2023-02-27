@@ -32,45 +32,9 @@ service we call the Runhouse RNS API. Both have their advantages:
     Not every resource in Runhouse is named. You can use the Runhouse APIs if you like the ergonomics without ever
     naming anything. Anonymous resources are simply never written to a metadata store.
 
-
-Every named resource has a name and "full name" at :code:`resource.rns_address`, which is organized into
-hierarchical folders. When you create a resource, you can name it with just a name (we will resolve it as being in
-the :code:`rh.current_folder()`) or the full address. Resources in the local RNS begin with the :code:`~` folder.
-Resources built-into the Runhouse Python package begin with :code:`^` (like a house). All other addresses are in the
-Runhouse RNS. By default, the only top-level folders in the Runhouse RNS you have permission to write to are your
-username and any organizations you are in. The :code:`@` alises to your username - for example:
-
-.. code-block:: python
-
-   my_resource.save(name='@/myresource')
-
-To persist a resource, call:
-
-.. code-block:: python
-
-    resource.save()
-    resource.save(name='new_name')  # Saves to rh.current_folder()
-    resource.save(name='@/my_full/new_name')  # Saves to Runhouse RNS
-    resource.save(name='~/my_full/new_name')  # Saves to Local RNS
-
-
-
-To load a resource, you can call :code:`rh.load('my_name')`, or use the resource factory constructor with
-only the name, e.g.
-
-.. code-block:: python
-
-    rh.function(name='my_function')
-    rh.cluster(name='~/my_name')
-    rh.table(name='@/my_datasets/my_table')
-
-You may need to pass the full rns_address if the resource is not in :code:`rh.current_folder()`. To check if a resource exists, you can call:
-
-.. code-block:: python
-
-    rh.exists(name='my_function')
-    rh.exists(name='~/local_resource')
-    rh.exists(name='@/my/rns_path/to/my_table')
+.. note::
+    By default, the only top-level folders in the Runhouse RNS you have permission to write to are your
+    username and any organizations you are in.
 
 We're still early in uncovering the patterns and antipatterns for a global shared environment for compute and data resources (shocker),
 but for now we generally encourage OSS projects to publish resources in the local RNS of their package, and individuals and teams to largely rely on Runhouse RNS.
@@ -90,13 +54,13 @@ to use Runhouse's APIs in a single environment, and don't plan to share resource
 
 **Logging In:**
 
-.. code-block:: console
-
-    $ runhouse login
-
 Run this wherever your cloud credentials are already saved, such as your laptop.
 Follow the prompts to log in. If this is your first time logging in, you should probably upload
 your secrets, and none of the other prompts will have any real effect (you probably haven't set any defaults yet):
+
+.. code-block:: console
+
+    $ runhouse login
 
 or in Python (e.g. in a notebook)
 
@@ -107,11 +71,11 @@ or in Python (e.g. in a notebook)
 
 **Logging Out:**
 
+Run this wherever your cloud credentials are already saved.
+
 .. code-block:: console
 
     $ runhouse logout
-
-Run this wherever your cloud credentials are already saved.
 
 or in Python
 
@@ -215,4 +179,4 @@ If you want to sync down your code or data to local from the cluster afterwards:
 
 .. code-block:: python
 
-    rh.folder(path='remote_directory', system=rh.cluster('my_cluster').to('here', path='local_directory')
+    rh.folder(path='remote_directory', system=rh.cluster('my_cluster').to('here', path='local_directory'))
