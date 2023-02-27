@@ -4,6 +4,10 @@ Please file an [issue](https://github.com/run-house/runhouse/issues) if you enco
 If you would like to submit a bug-fix or improve an existing feature, please submit a pull request following the
 process outlined below.
 
+If you would like to contribute, but don't know what to add, you can look for open issues labeled
+`good first issue`, or take a look at the [funhouse repo](https://github.com/run-house/funhouse) to
+create and add your own ML application using Runhouse!
+
 ## Development Process
 If you want to modify code, please follow the instructions for creating a Pull Request.
 

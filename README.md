@@ -182,6 +182,11 @@ comprehensive walkthrough of the APIs.
 [Docs can be found here](https://runhouse-docs.readthedocs-hosted.com/en/latest/index.html).
 They include both high-level overviews of the architecture and detailed API references.
 
+## 🎪 Funhouse
+
+Check out [Funhouse](https://github.com/run-house/funhouse) for running fun applications using Runhouse --
+think the latest Stable Diffusion models, text generation models, launching Gradio spaces, and even more!
+
 ## 🙋‍♂️ Getting Help
 
 Please join our [discord server here](https://discord.gg/RnhB6589Hs)
