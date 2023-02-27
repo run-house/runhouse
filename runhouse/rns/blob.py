@@ -1,11 +1,11 @@
 import copy
 import logging
-import uuid
 from pathlib import Path
 from typing import Dict, Optional
 
 import runhouse as rh
 from runhouse.rh_config import rns_client
+from runhouse.rns.api_utils.utils import generate_uuid
 from runhouse.rns.folders.folder import Folder, folder
 from runhouse.rns.resource import Resource
 
@@ -15,7 +15,8 @@ logger = logging.getLogger(__name__)
 class Blob(Resource):
     # TODO rename to "File" and take out serialization?
     RESOURCE_TYPE = "blob"
-    DEFAULT_FOLDER_PATH = "/runhouse/blobs"
+    DEFAULT_FOLDER_PATH = "/runhouse-blob"
+    DEFAULT_CACHE_FOLDER = ".cache/runhouse/blobs"
 
     def __init__(
         self,
@@ -111,12 +112,12 @@ class Blob(Resource):
     def to(
         self, system, path: Optional[str] = None, data_config: Optional[dict] = None
     ):
-        """Return a copy of the table on the destination system and path."""
-        new_table = copy.copy(self)
-        new_table._folder = self._folder.to(
+        """Return a copy of the blob on the destination system and path."""
+        new_blob = copy.copy(self)
+        new_blob._folder = self._folder.to(
             system=system, path=path, data_config=data_config
         )
-        return new_table
+        return new_blob
 
     def fetch(self):
         """Return the data for the user to deserialize"""
@@ -126,9 +127,7 @@ class Blob(Resource):
     def save(
         self,
         name: str = None,
-        snapshot: bool = False,
         overwrite: bool = True,
-        **snapshot_kwargs,
     ):
         """Save the blob to RNS."""
         # TODO figure out default behavior for not overwriting but still saving
@@ -147,13 +146,14 @@ class Blob(Resource):
 
             f.write(self.data)
 
-        return super().save(
-            name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs
-        )
+        return super().save(name=name, overwrite=overwrite)
 
-    def delete_in_system(self, recursive: bool = True):
-        """Delete the blob in the file system."""
-        self._folder.rm(self._filename, recursive=recursive)
+    def delete_in_system(self):
+        """Delete the blob and the folder it lives in from the file system."""
+        self._folder.rm(self._filename)
+        if self.system == "file":
+            # Deleting the blob itself in a local file system will not remove the parent folder by default
+            self._folder.delete_in_system()
 
     def exists_in_system(self):
         """Check whether the blob exists in the file system"""
@@ -189,7 +189,6 @@ def blob(
     system: Optional[str] = None,
     data_config: Optional[Dict] = None,
     mkdir: bool = False,
-    snapshot: bool = False,
     dryrun: bool = False,
 ):
     """Returns a Blob object, which can be used to interact with the resource at the given path
@@ -203,7 +202,6 @@ def blob(
             We are working to add additional file system support.
         data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
         mkdir (bool): Whether to create a remote folder for the blob. (Default: ``False``)
-        snapshot (bool): Whether to save a snapshot instead of the full blob. (Default: ``False``)
         dryrun (bool): Whether or not to save the blob. (Default: ``False``)
 
     Returns:
@@ -229,24 +227,32 @@ def blob(
         >>> my_s3_blob = rh.blob(name="@/my_blob")
     """
     config = rns_client.load_config(name)
-    config["name"] = name or config.get("rns_address", None) or config.get("name")
 
-    system = system or config.get("system") or Folder.DEFAULT_FS
-    config["system"] = system
+    config["system"] = system or config.get("system") or rns_client.DEFAULT_FS
+    if isinstance(config["system"], str) and rns_client.exists(
+        config["system"], resource_type="cluster"
+    ):
+        config["system"] = rns_client.load_config(config["system"])
+
+    name = name or config.get("rns_address") or config.get("name")
 
     data_path = path or config.get("path")
     if data_path is None:
-        # TODO [JL] move some of the default params in this factory method to the defaults module for configurability
-        if system == rns_client.DEFAULT_FS:
-            # create random path to store in .cache folder of local filesystem
-            data_path = str(Path(f"~/.cache/blobs/{uuid.uuid4().hex}").expanduser())
+        # If no path is provided we need to create one based on the name of the blob
+        # By default we save the blob in its own folder
+        blob_name_in_path = (
+            f"{generate_uuid()}/{rns_client.resolve_rns_data_resource_name(name)}"
+        )
+        if config["system"] == rns_client.DEFAULT_FS:
+            # create random path to store in .cache directory of local filesystem
+            data_path = str(
+                Path(f"~/{Blob.DEFAULT_CACHE_FOLDER}/{blob_name_in_path}").expanduser()
+            )
         else:
             # save to the default bucket
-            name = name.lstrip(
-                "/"
-            )  # TODO [@JL] should we be setting config['name']=name again now?
-            data_path = f"{Blob.DEFAULT_FOLDER_PATH}/{name}"
+            data_path = f"{Blob.DEFAULT_FOLDER_PATH}/{blob_name_in_path}"
 
+    config["name"] = name
     config["path"] = data_path
     config["data_config"] = data_config or config.get("data_config")
 

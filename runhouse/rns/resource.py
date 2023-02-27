@@ -108,9 +108,7 @@ class Resource:
     def save(
         self,
         name: str = None,
-        snapshot: bool = False,
         overwrite: bool = True,
-        **snapshot_kwargs,
     ):
         """Register the resource, saving it to local working_dir config and RNS config store. Uses the resource's
         `self.config_for_rns` to generate the dict to save."""
@@ -126,7 +124,7 @@ class Resource:
                 self._name = name
 
         # TODO handle self.access == 'read' instead of this weird overwrite argument
-        save(self, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
+        save(self, overwrite=overwrite)
 
         return self
 
@@ -135,6 +133,7 @@ class Resource:
 
     @classmethod
     def from_name(cls, name, dryrun=False):
+        # TODO [JL / DG]: Define a clear usage path for using `from_name` vs rh.resource(name=...)
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Resource {name} not found.")
@@ -177,9 +176,21 @@ class Resource:
             if val:
                 config[attr] = val
 
+    def is_local(self):
+        return (
+            hasattr(self, "install_target")
+            and isinstance(self.install_target, str)
+            and self.install_target.startswith("~")
+            or hasattr(self, "system")
+            and self.system == "file"
+        )
+
     # TODO [DG] Implement proper sharing of subresources (with an overload of some kind)
     def share(
-        self, users: list, access_type: Union[ResourceAccess, str] = ResourceAccess.read
+        self,
+        users: list,
+        access_type: Union[ResourceAccess, str] = ResourceAccess.read,
+        notify_users: bool = False,
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
         """Grant access to the resource for the list of users. If a user has a Runhouse account they
         will receive an email notifying them of their new access. If the user does not have a Runhouse account they will
@@ -191,23 +202,50 @@ class Resource:
         Args:
             users (list): list of user emails and / or runhouse account usernames.
             access_type (:obj:`ResourceAccess`, optional): access type to provide for the resource.
+            notify_users (bool): Send email notification to users who have been given access. Defaults to `False`.
 
         Returns:
-            Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]: Tuple of two dictionaries.
-
             `added_users`: users who already have an account and have been granted access to the resource.
-
             `new_users`: users who do not have Runhouse accounts.
 
         Example:
-            >>> added_users, new_users = my_function.share(users=["username1", "user@gmail.com"], access_type='read')
+            >>> added_users, new_users = my_resource.share(users=["username1", "user2@gmail.com"], access_type='write')
         """
+        if self.name is None:
+            raise ValueError("Resource must have a name in order to share")
+
+        if hasattr(self, "system") and self.system in ["ssh", "sftp"]:
+            logger.warning(
+                "Sharing a resource located on a cluster is not recommended. For persistence, we suggest"
+                "saving to a cloud storage system (ex: `s3` or `gs`). You can copy your cluster based "
+                f"{self.RESOURCE_TYPE} to your desired storage provider using the `.to()` method. "
+                f"For example: `{self.RESOURCE_TYPE}.to(system='rh-cpu')`"
+            )
+
+        if self.is_local():
+            if self.RESOURCE_TYPE == "package":
+                raise TypeError(
+                    f"Unable to share a local {self.RESOURCE_TYPE}. Please make sure the {self.RESOURCE_TYPE} is "
+                    f"located on a cluster. You can use the `.to_cluster()` method to do so. "
+                    f"For example: `{self.name}.to_cluster(system='rh-cpu')`"
+                )
+            else:
+                raise TypeError(
+                    f"Unable to share a local {self.RESOURCE_TYPE}. Please make sure the {self.RESOURCE_TYPE} is "
+                    f"located on a cluster or a remote system. You can use the `.to()` method to do so. "
+                    f"For example: `{self.name}.to(system='s3')`"
+                )
+
         if isinstance(access_type, str):
             access_type = ResourceAccess(access_type)
 
         if not rns_client.exists(self.rns_address):
-            self.save()
+            self.save(name=rns_client.local_to_remote_address(self.rns_address))
+
         added_users, new_users = rns_client.grant_resource_access(
-            resource_name=self.name, user_emails=users, access_type=access_type
+            rns_address=self.rns_address,
+            user_emails=users,
+            access_type=access_type,
+            notify_users=notify_users,
         )
         return added_users, new_users

@@ -13,14 +13,14 @@ class AzureFolder(Folder):
     @staticmethod
     def from_config(config: dict, dryrun=True):
         """Load config values into the object."""
+        return AzureFolder(**config, dryrun=dryrun)
+
+    def delete_in_system(self):
+        """Delete Azure folder along with its contents."""
         raise NotImplementedError
 
-    def empty_folder(self):
-        """Remove Azure folder contents, but not the folder itself."""
-        raise NotImplementedError
-
-    def delete_in_system(self, recurse=True, *kwargs):
-        """Delete the Azure folder itself."""
+    def delete_bucket(self):
+        """Delete the Azure bucket."""
         raise NotImplementedError
 
     def upload(self, src: str, region: Optional[str] = None):
@@ -31,7 +31,7 @@ class AzureFolder(Folder):
         raise NotImplementedError
 
     def download(self, dest):
-        """Download a folder from an Azure bucket to local dir."""
+        """Download a folder from a Azure bucket to local dir."""
         raise NotImplementedError
 
     def download_command(self, src, dest):

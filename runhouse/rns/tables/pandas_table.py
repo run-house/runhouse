@@ -1,8 +1,8 @@
 import logging
-import uuid
 from typing import Optional
 
 from .. import OnDemandCluster
+from ..api_utils.utils import generate_uuid
 from ..top_level_rns_fns import save
 
 from .table import Table
@@ -15,10 +15,9 @@ class PandasTable(Table):
     DEFAULT_STREAM_FORMAT = "pandas"
 
     def __init__(self, **kwargs):
+        if not kwargs.get("file_name"):
+            kwargs["file_name"] = f"{generate_uuid()}.parquet"
         super().__init__(**kwargs)
-        # PyArrow will create this file and suffix for us, but with Pandas we need to do it ourselves.
-        if self.file_name is None:
-            self.file_name = f"{uuid.uuid4().hex}.parquet"
 
     def __iter__(self):
         for block in self.stream(batch_size=self.DEFAULT_BATCH_SIZE):
@@ -32,14 +31,12 @@ class PandasTable(Table):
             config["system"] = OnDemandCluster.from_config(
                 config["system"], dryrun=dryrun
             )
-        return PandasTable(**config)
+        return PandasTable(**config, dryrun=dryrun)
 
     def save(
         self,
         name: Optional[str] = None,
-        snapshot: bool = False,
         overwrite: bool = True,
-        **snapshot_kwargs,
     ):
         if self._cached_data is not None:
             # https://pandas.pydata.org/pandas-docs/version/1.1/reference/api/pandas.DataFrame.to_parquet.html
@@ -49,7 +46,7 @@ class PandasTable(Table):
                 partition_cols=self.partition_cols,
             )
 
-        save(self, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
+        save(self, name=name, overwrite=overwrite)
 
         return self
 

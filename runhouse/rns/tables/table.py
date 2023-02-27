@@ -1,6 +1,5 @@
 import copy
 import logging
-import uuid
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -21,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class Table(Resource):
     RESOURCE_TYPE = "table"
-    DEFAULT_FOLDER_PATH = "/runhouse/tables"
+    DEFAULT_FOLDER_PATH = "/runhouse-table"
     DEFAULT_CACHE_FOLDER = ".cache/runhouse/tables"
     DEFAULT_STREAM_FORMAT = "pyarrow"
     DEFAULT_BATCH_SIZE = 256
@@ -47,14 +46,19 @@ class Table(Resource):
             To build a Table, please use the factory method :func:`table`.
         """
         super().__init__(name=name, dryrun=dryrun)
-        self._filename = str(Path(path).name) if path else self.name
+        self.file_name = file_name
+
         # Use factory method so correct subclass for system is returned
+        # strip filename from path if provided
         self._folder = folder(
-            path=path, system=system, data_config=data_config, dryrun=dryrun
+            path=str(Path(path).parents[0]) if Path(path).suffix else path,
+            system=system,
+            data_config=data_config,
+            dryrun=dryrun,
         )
+
         self._cached_data = None
         self.partition_cols = partition_cols
-        self.file_name = file_name
         self.stream_format = stream_format or self.DEFAULT_STREAM_FORMAT
         self.metadata = metadata or {}
 
@@ -74,7 +78,9 @@ class Table(Resource):
             config["data_config"] = self._folder._data_config
         else:
             config["system"] = self.system
-        self.save_attrs_to_config(config, ["path", "partition_cols", "metadata"])
+        self.save_attrs_to_config(
+            config, ["path", "partition_cols", "metadata", "file_name"]
+        )
         config.update(config)
 
         return config
@@ -151,9 +157,7 @@ class Table(Resource):
     def save(
         self,
         name: Optional[str] = None,
-        snapshot: bool = False,
         overwrite: bool = True,
-        **snapshot_kwargs,
     ):
         """Save the table to RNS."""
         if self._cached_data is not None:
@@ -167,28 +171,34 @@ class Table(Resource):
             self.write_ray_dataset(data_to_write)
             logger.info(f"Saved {str(self)} to: {self.fsspec_url}")
 
-        save(self, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
+        save(self, overwrite=overwrite)
 
         return self
 
     def fetch(self, columns: Optional[list] = None) -> pa.Table:
+        """Returns the complete table contents."""
         # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
+        self._cached_data = self.read_table_from_file(columns)
+        if self._cached_data is not None:
+            return self._cached_data
+
+        # When trying to read a file like object could lead to IsADirectoryError if the folder path is actually a
+        # directory and the file has been automatically generated for us inside the folder
+        # (ex: with pyarrow table or with partitioned data that saves multiple files within the directory)
+
         try:
-            with fsspec.open(self.fsspec_url, mode="rb", **self.data_config) as t:
-                self._cached_data = pq.read_table(t.full_name, columns=columns)
-        except:
-            # When trying to read as file like object could fail for a couple of reasons:
-            # IsADirectoryError: The folder path is actually a directory and the file has been automatically
-            # generated for us inside the folder (ex: pyarrow table)
-
-            # The file system is SFTP: since the SFTPFileSystem takes the host as a separate param, we cannot
-            # pass in the data config as a single data_config kwarg
-
-            # When specifying the filesystem don't pass in the fsspec path (which includes the file system prepended)
-            self._cached_data = pq.read_table(
+            table_data = pq.read_table(
                 self.path, columns=columns, filesystem=self._folder.fsspec_fs
             )
-        return self._cached_data
+
+            if not table_data:
+                raise ValueError(f"No table data found in path: {self.path}")
+
+            self._cached_data = table_data
+            return self._cached_data
+
+        except:
+            raise Exception(f"Failed to read table in path: {self.path}")
 
     def __getstate__(self):
         """Override the pickle method to clear _cached_data before pickling."""
@@ -283,17 +293,27 @@ class Table(Resource):
         """Convert an Arrow Table to a ray Dataset"""
         return ray.data.from_arrow(data)
 
+    def read_table_from_file(self, columns: Optional[list] = None):
+        try:
+            with fsspec.open(self.fsspec_url, mode="rb", **self.data_config) as t:
+                table_data = pq.read_table(t.full_name, columns=columns)
+            return table_data
+        except:
+            return None
+
     def delete_in_system(self, recursive: bool = True):
         """Remove contents of all subdirectories (ex: partitioned data folders)"""
         # If file(s) are directories, recursively delete contents and then also remove the directory
         # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.spec.AbstractFileSystem.rm
         self._folder.fsspec_fs.rm(self.path, recursive=recursive)
+        if self.system == "file" and recursive:
+            self._folder.delete_in_system()
 
     def exists_in_system(self):
         """Whether table exists in file system"""
         return (
             self._folder.exists_in_system()
-            and len(self._folder.ls(self.fsspec_url)) > 1
+            and len(self._folder.ls(self.fsspec_url)) >= 1
         )
 
     def from_cluster(self, cluster):
@@ -319,7 +339,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
         if isinstance(data, datasets.Dataset) or resource_subtype == "HuggingFaceTable":
             from .huggingface_table import HuggingFaceTable
 
-            return HuggingFaceTable.from_config(config)
+            return HuggingFaceTable.from_config(config, dryrun)
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -329,7 +349,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
         if isinstance(data, pd.DataFrame) or resource_subtype == "PandasTable":
             from .pandas_table import PandasTable
 
-            return PandasTable.from_config(config)
+            return PandasTable.from_config(config, dryrun)
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -341,7 +361,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
         if isinstance(data, dd.DataFrame) or resource_subtype == "DaskTable":
             from .dask_table import DaskTable
 
-            return DaskTable.from_config(config)
+            return DaskTable.from_config(config, dryrun)
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -353,7 +373,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
         if isinstance(data, ray.data.Dataset) or resource_subtype == "RayTable":
             from .ray_table import RayTable
 
-            return RayTable.from_config(config)
+            return RayTable.from_config(config, dryrun)
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -363,10 +383,6 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
         import cudf
 
         if isinstance(data, cudf.DataFrame) or resource_subtype == "CudfTable":
-            # TODO [JL]
-            # from .rapids_table import RapidsTable
-
-            # return RapidsTable.from_config(config)
             raise NotImplementedError("Cudf not currently supported")
     except ModuleNotFoundError:
         pass
@@ -374,7 +390,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
         raise e
 
     if isinstance(data, pa.Table) or resource_subtype == "Table":
-        new_table = Table.from_config(config, dryrun=dryrun)
+        new_table = Table.from_config(config, dryrun)
         return new_table
     else:
         raise TypeError(
@@ -426,7 +442,7 @@ def table(
         >>> )
         >>>
         >>> # Load table from above
-        >>> reloaded_table = rh.table(name="~/my_test_pandas_table", dryrun=True)
+        >>> reloaded_table = rh.table(name="~/my_test_pandas_table")
     """
     config = rns_client.load_config(name)
 
@@ -437,7 +453,6 @@ def table(
         config["system"] = rns_client.load_config(config["system"])
 
     name = name or config.get("rns_address") or config.get("name")
-    name = name.lstrip("/") if name is not None else name
 
     data_path = path or config.get("path")
     file_name = None
@@ -450,17 +465,18 @@ def table(
             file_name = full_path.name
 
     if data_path is None:
-        # TODO [JL] move some of the default params in this factory method to the defaults module for configurability
+        # If no path is provided we need to create one based on the name of the table
+        table_name_in_path = rns_client.resolve_rns_data_resource_name(name)
         if config["system"] == rns_client.DEFAULT_FS:
             # create random path to store in .cache folder of local filesystem
             data_path = str(
                 Path(
-                    f"~/{Table.DEFAULT_CACHE_FOLDER}/{name or uuid.uuid4().hex}"
+                    f"~/{Table.DEFAULT_CACHE_FOLDER}/{table_name_in_path}"
                 ).expanduser()
             )
         else:
             # save to the default bucket
-            data_path = f"{Table.DEFAULT_FOLDER_PATH}/{name}"
+            data_path = f"{Table.DEFAULT_FOLDER_PATH}/{table_name_in_path}"
 
     config["name"] = name
     config["path"] = data_path

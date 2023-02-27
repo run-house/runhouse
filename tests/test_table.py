@@ -11,15 +11,14 @@ import runhouse as rh
 from runhouse import Folder
 
 TEMP_LOCAL_FOLDER = Path("~/.rh/temp").expanduser()
-BUCKET_NAME = "runhouse-tests"
+BUCKET_NAME = "runhouse-table"
 NUM_PARTITIONS = 10
 
 
 def setup():
-    # Create bucket in S3
-    from sky.data.storage import S3Store
+    from runhouse.rns.api_utils.utils import create_s3_bucket
 
-    S3Store(name=BUCKET_NAME, source="")
+    create_s3_bucket(BUCKET_NAME)
 
 
 def delete_local_folder(path):
@@ -37,7 +36,7 @@ def load_sample_data(data_type):
     if data_type == "huggingface":
         from datasets import load_dataset
 
-        dataset = load_dataset("yelp_review_full", split="train[:10%]")
+        dataset = load_dataset("yelp_review_full", split="train[:1%]")
         return dataset
 
     elif data_type == "pyarrow":
@@ -126,7 +125,6 @@ def test_create_and_reload_pandas_locally():
     my_table = rh.table(
         data=orig_data,
         name="~/my_test_local_pandas_table",
-        path="table_tests/pandas_test_table",
         system="file",
         mkdir=True,
     ).save()
@@ -155,7 +153,6 @@ def test_create_and_reload_pyarrow_locally():
     my_table = rh.table(
         data=orig_data,
         name="~/my_test_local_pyarrow_table",
-        path="table_tests/pyarrow_test_table",
         system="file",
         mkdir=True,
     ).save()
@@ -184,7 +181,6 @@ def test_create_and_reload_ray_locally():
     my_table = rh.table(
         data=orig_data,
         name="~/my_test_local_ray_table",
-        path="table_tests/ray_test_table",
         system="file",
         mkdir=True,
     ).save()
@@ -213,7 +209,6 @@ def test_create_and_reload_huggingface_locally():
     my_table = rh.table(
         data=orig_data,
         name="~/my_test_local_huggingface_table",
-        path="table_tests/huggingface_test_table",
         system="file",
         mkdir=True,
     ).save()
@@ -807,6 +802,29 @@ def test_create_and_fetch_dask_data_from_s3():
 
     reloaded_table.delete_in_system()
     assert not reloaded_table.exists_in_system()
+
+
+# -------------------------------------------------
+# ----------------- Table Sharing tests -----------------
+# -------------------------------------------------
+def test_sharing_table():
+    orig_data = load_sample_data(data_type="pandas")
+    my_table = rh.table(
+        data=orig_data,
+        name="shared_pandas_table",
+        system="s3",
+        mkdir=True,
+    ).save()
+
+    my_table.share(users=["donny@run.house", "josh@run.house"], access_type="write")
+
+    assert my_table.exists_in_system()
+
+
+def test_read_shared_table():
+    my_table = rh.table(name="/jlewitt1/shared_pandas_table")
+    df: pd.DataFrame = my_table.fetch()
+    assert not df.empty
 
 
 if __name__ == "__main__":

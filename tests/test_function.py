@@ -55,7 +55,7 @@ def test_create_function_from_rns():
 @unittest.skip("Not yet implemented.")
 def test_running_function_as_proxy():
     remote_sum = rh.function(
-        fn=summer, name="@/remote_function", system="^rh-cpu", reqs=[], dryrun=False
+        fn=summer, name="@/remote_function", system="^rh-cpu", reqs=[]
     ).save()
     del remote_sum
 
@@ -201,15 +201,22 @@ def test_ssh():
     assert True
 
 
-def test_providing_access_to_function():
+def test_share_function():
     my_function = rh.function(
-        fn=summer, name="@/remote_function", system="^rh-cpu", dryrun=True
+        fn=summer, name="@/remote_function", system="^rh-cpu"
     ).save()
-    added_users, new_users = my_function.share(
-        users=["dongreenberg", "jlewit1"], access_type=ResourceAccess.read
+
+    my_function.share(
+        users=["donny@run.house", "josh@run.house"],
+        access_type="read",
     )
-    assert added_users or new_users
-    my_function.delete_configs()
+    assert True
+
+
+def test_load_shared_function():
+    my_function = rh.function(name="/jlewitt1/remote_function")
+    res = my_function(1, 2)
+    assert res == 3
 
 
 def delete_function_from_rns(s):

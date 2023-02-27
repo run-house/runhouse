@@ -4,9 +4,8 @@ import os
 import shutil
 import subprocess
 import tempfile
-import uuid
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Union
 
 import fsspec
 
@@ -14,8 +13,8 @@ import fsspec
 import sshfs
 
 import runhouse as rh
-from runhouse.rh_config import configs, rns_client
-from runhouse.rns.api_utils.resource_access import ResourceAccess
+from runhouse.rh_config import rns_client
+from runhouse.rns.api_utils.utils import generate_uuid
 from runhouse.rns.resource import Resource
 
 fsspec.register_implementation("ssh", sshfs.SSHFileSystem)
@@ -38,7 +37,7 @@ class Folder(Resource):
     RESOURCE_TYPE = "folder"
     DEFAULT_FS = "file"
     CLUSTER_FS = "ssh"
-    DEFAULT_FOLDER_PATH = "/runhouse"
+    DEFAULT_FOLDER_PATH = "/runhouse-folder"
     DEFAULT_CACHE_FOLDER = "~/.cache/runhouse"
 
     def __init__(
@@ -92,13 +91,13 @@ class Folder(Resource):
                 return str(
                     Path.cwd() / rns_client.split_rns_name_and_path(rns_address)[0]
                 )  # saves to cwd / name
-            return f"{Folder.DEFAULT_CACHE_FOLDER}/{uuid.uuid4().hex}"
+            return f"{Folder.DEFAULT_CACHE_FOLDER}/{generate_uuid()}"
         else:
             # If no path provided for a remote file system default to its name if provided
             if rns_address:
                 name = rns_address[1:].replace("/", "_") + f".{cls.RESOURCE_TYPE}"
                 return f"{Folder.DEFAULT_FOLDER_PATH}/{name}"
-            return f"{Folder.DEFAULT_FOLDER_PATH}/{uuid.uuid4().hex}"
+            return f"{Folder.DEFAULT_FOLDER_PATH}/{generate_uuid()}"
 
     # ----------------------------------
     @staticmethod
@@ -124,6 +123,7 @@ class Folder(Resource):
 
     @classmethod
     def from_name(cls, name, dryrun=False):
+        # TODO [JL / DG]: Define a clear usage path for using `from_name` vs rh.folder(name=...)
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Resource {name} not found.")
@@ -150,8 +150,8 @@ class Folder(Resource):
                 return str(Path(self._path).expanduser())
             elif self._fs_str == self.CLUSTER_FS and self._path.startswith("~/"):
                 # sftp takes relative paths to the home directory but doesn't understand '~'
-                return self._path[2:]
-            return self._path
+                return str(self._path[2:])
+            return str(self._path)
         else:
             return None
 
@@ -259,7 +259,7 @@ class Folder(Resource):
             path = str(Path.cwd() / self.path.split("/")[-1]) if path is None else path
 
         path = str(
-            path or self.default_path(self.name, system)
+            path or self.default_path(self.rns_address, system)
         )  # Make sure it's a string and not a Path
 
         system_str = getattr(
@@ -412,7 +412,9 @@ class Folder(Resource):
         if Path(os.path.basename(folder_path)).suffix != "":
             folder_path = str(Path(folder_path).parent)
 
-        logging.info(f"Creating new {self._fs_str} folder: {folder_path}")
+        logging.info(
+            f"Creating new {self._fs_str} folder if it does not already exist in path: {folder_path}"
+        )
         self.fsspec_fs.mkdirs(folder_path, exist_ok=True)
 
     def mount(self, path: Optional[str] = None, tmp: bool = False) -> str:
@@ -513,66 +515,6 @@ class Folder(Resource):
         return (
             self.system == "file" and self.path is not None and Path(self.path).exists()
         ) or self._local_mount_path
-
-    def share(
-        self,
-        users: list,
-        access_type: Union[ResourceAccess, str] = ResourceAccess.read,
-        snapshot: bool = True,
-        snapshot_system: str = None,
-        snapshot_compression: str = None,
-        snapshot_path: str = None,
-    ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
-        """Granting access to the resource for list of users (via their emails). If a user has a Runhouse account they
-        will receive an email notifying them of their new access. If the user does not have a Runhouse account they will
-        also receive instructions on creating one, after which they will be able to have access to the Resource.
-
-        .. note::
-            You can only grant resource access to other users if you have Write / Read privileges for the Resource
-        """
-        if self.is_local() and snapshot:
-            # raise ValueError('Cannot share a local resource.')
-            system = (
-                snapshot_system or PROVIDER_FS_LOOKUP[configs.get("default_provider")]
-            )
-            if system not in fsspec.available_protocols():
-                raise ValueError(
-                    f"Invalid mount_fs: {snapshot_system}. Must be one of {fsspec.available_protocols()}"
-                )
-            if snapshot_compression not in fsspec.available_compressions():
-                raise ValueError(
-                    f"Invalid mount_compression: {snapshot_compression}. Must be one of "
-                    f"{fsspec.available_compressions()}"
-                )
-            data_config = (
-                {"compression": snapshot_compression} if snapshot_compression else {}
-            )
-            snapshot_folder = self.to(
-                system=system, path=snapshot_path, data_config=data_config
-            )
-
-            # Is this a bad idea? Better to store the snapshot config as the source of truth than the local path
-            rns_address = rns_client.local_to_remote_address(self.rns_address)
-            snapshot_folder.save(name=rns_address)
-
-            return snapshot_folder.share(
-                users=users, access_type=access_type, snapshot=False
-            )
-
-        # TODO just call super().share
-        if isinstance(access_type, str):
-            access_type = ResourceAccess(access_type)
-        if not rns_client.exists(self.rns_address):
-            self.save(name=rns_client.local_to_remote_address(self.rns_address))
-        added_users, new_users = rns_client.grant_resource_access(
-            resource_name=self.name, user_emails=users, access_type=access_type
-        )
-        return added_users, new_users
-
-    def empty_folder(self):
-        """Remove folder contents, but not the folder itself."""
-        for p in self.fsspec_fs.ls(self.path):
-            self.fsspec_fs.rm(p)
 
     def upload(self, src: str, region: Optional[str] = None):
         """Upload a folder to a remote bucket."""
@@ -788,7 +730,7 @@ class Folder(Resource):
             self.fsspec_url
         ) or rh.rns.top_level_rns_fns.exists(self.path)
 
-    def delete_in_system(self, recursive: bool = True):
+    def delete_in_system(self):
         """Delete from file system."""
         try:
             self.fsspec_fs.rmdir(self.path)

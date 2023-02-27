@@ -10,6 +10,7 @@ import requests
 
 from runhouse.rns.api_utils.resource_access import ResourceAccess
 from runhouse.rns.api_utils.utils import (
+    generate_uuid,
     load_resp_content,
     read_resp_data,
     remove_null_values_from_dict,
@@ -158,7 +159,7 @@ class RNSClient:
         return rns_address.replace("/", ":")
 
     @staticmethod
-    def local_to_remote_address(self, rns_address):
+    def local_to_remote_address(rns_address):
         return rns_address.replace("~", "@")
 
     def remote_to_local_address(self, rns_address):
@@ -180,11 +181,19 @@ class RNSClient:
         return payload
 
     def grant_resource_access(
-        self, resource_name: str, user_emails: list, access_type: ResourceAccess
+        self,
+        rns_address: str,
+        user_emails: list,
+        access_type: ResourceAccess,
+        notify_users: bool,
     ):
-        resource_uri = self.resource_uri(resource_name)
+        resource_uri = self.resource_uri(rns_address)
         headers = self.request_headers
-        access_payload = {"users": user_emails, "access_type": access_type}
+        access_payload = {
+            "users": user_emails,
+            "access_type": access_type,
+            "notify_users": notify_users,
+        }
         uri = "resource/" + resource_uri
         resp = requests.put(
             f"{self.api_server_url}/{uri}/users/access",
@@ -192,9 +201,7 @@ class RNSClient:
             headers=headers,
         )
         if resp.status_code != 200:
-            raise Exception(
-                f"Failed to grant access and notify users: {load_resp_content(resp)}"
-            )
+            raise Exception(f"Failed to grant access: {load_resp_content(resp)}")
 
         resp_data: dict = read_resp_data(resp)
         added_users: dict = resp_data.get("added_users", {})
@@ -339,6 +346,9 @@ class RNSClient:
             if hasattr(resource, "rns_address")
             else self.resolve_rns_path(resource)
         )
+        if rns_address is None:
+            logger.warning("No rns address exists for resource")
+            return
 
         if rns_address[0] in ["~", "^"]:
             path = self.locate(rns_address, resolve_path=False)
@@ -359,6 +369,19 @@ class RNSClient:
                 logger.error(f"Failed to delete_configs <{uri}>")
             else:
                 logger.info(f"Successfully deleted <{uri}>")
+
+    def resolve_rns_data_resource_name(self, name: str):
+        """If no name is explicitly provided for the data resource, we need to create one based on the relevant
+        rns path. If name is None, return a hex uuid.
+        For example: my_blob -> jlewitt1/my_blob"
+        """
+        if name is None:
+            return generate_uuid()
+        rns_path = self.resolve_rns_path(name)
+        if rns_path.startswith("~"):
+            return rns_path[2:]
+        # For the purposes of building the path to the underlying data resource we don't need the slash
+        return rns_path.lstrip("/")
 
     #########################
     # Folder Operations

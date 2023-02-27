@@ -156,24 +156,29 @@ class Package(Resource):
                 )
 
     def to_cluster(
-        self, dest_cluster, path=None, mount=False, return_dest_folder=False
+        self, dest_cluster: "Cluster", path=None, mount=False, return_dest_folder=False
     ):
         """Returns a copy of the package on the destination cluster."""
-        if isinstance(self.install_target, Folder):
-            new_folder = self.install_target.to_cluster(
-                dest_cluster,
-                path=path,
-                mount=mount,
-                return_dest_folder=return_dest_folder,
+        if not isinstance(self.install_target, Folder):
+            raise TypeError(
+                "`install_target` must be a Folder in order to copy the package to a cluster"
             )
-            new_package = copy.copy(self)
-            new_package.install_target = new_folder
-            return new_package
+
+        new_folder = self.install_target.to_cluster(
+            dest_cluster,
+            path=path,
+            mount=mount,
+            return_dest_folder=return_dest_folder,
+        )
+        new_package = copy.copy(self)
+        new_package.install_target = new_folder
+        return new_package
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
-        if config.resource_subtype == "GitPackage":
-            from git_package import GitPackage
+        if config.get("resource_subtype") == "GitPackage":
+
+            from runhouse import GitPackage
 
             return GitPackage.from_config(config, dryrun=dryrun)
         return Package(**config, dryrun=dryrun)

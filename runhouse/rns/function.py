@@ -596,7 +596,7 @@ class Function(Resource):
 
 def function(
     fn: Optional[Union[str, Callable]] = None,
-    name: [Optional[str]] = None,
+    name: Optional[str] = None,
     system: Optional[Union[str, Cluster]] = None,
     reqs: Optional[List[str]] = None,
     setup_cmds: Optional[List[str]] = None,

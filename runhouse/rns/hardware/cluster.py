@@ -496,12 +496,12 @@ class Cluster(Resource):
     ):
         """Run a list of python commands on the cluster."""
         command_str = "; ".join(commands)
-        status_codes = self.run(
+        return_codes = self.run(
             [f'python3 -c "{command_str}"'],
             stream_logs=stream_logs,
             port_forward=port_forward,
         )
-        return status_codes
+        return return_codes
 
     def send_secrets(self, providers: Optional[List[str]] = None):
         """Send secrets for the given providers. If none provided will send secrets for providers that have been

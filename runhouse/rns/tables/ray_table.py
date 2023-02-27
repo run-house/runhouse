@@ -22,20 +22,18 @@ class RayTable(Table):
             config["system"] = OnDemandCluster.from_config(
                 config["system"], dryrun=dryrun
             )
-        return RayTable(**config)
+        return RayTable(**config, dryrun=dryrun)
 
     def save(
         self,
         name: Optional[str] = None,
-        snapshot: bool = False,
         overwrite: bool = True,
-        **snapshot_kwargs,
     ):
         if self._cached_data is not None:
             self.write_ray_dataset(self.data)
             logger.info(f"Saved {str(self)} to: {self.fsspec_url}")
 
-        save(self, name=name, snapshot=snapshot, overwrite=overwrite, **snapshot_kwargs)
+        save(self, name=name, overwrite=overwrite)
 
         return self
 

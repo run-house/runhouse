@@ -28,13 +28,13 @@ class S3Folder(Folder):
         """Load config values into the object."""
         return S3Folder(**config, dryrun=dryrun)
 
-    def empty_folder(self):
-        """Remove s3 folder contents, but not the folder itself."""
+    def delete_in_system(self):
+        """Delete s3 folder along with its contents."""
         for p in self.s3.ls(self.path):
             self.s3.rm(p)
 
-    def delete_in_system(self, recurse=True, *kwargs):
-        """Delete the s3 folder itself along with its contents."""
+    def delete_bucket(self):
+        """Delete the s3 bucket."""
         try:
             from sky.data.storage import S3Store
 
@@ -47,9 +47,6 @@ class S3Folder(Folder):
     def upload(self, src: str, region: Optional[str] = None):
         """Upload a folder to an S3 bucket."""
         from sky.data.storage import S3Store
-
-        # NOTE: The sky S3Store.upload() API does not let us specify directories within the bucket to upload to.
-        # This means we have to use the CLI command for performing the actual upload using sky's `run_upload_cli`
 
         # Initialize the S3Store object which creates the bucket if it does not exist
         s3_store = S3Store(
