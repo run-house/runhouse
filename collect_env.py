@@ -1,3 +1,4 @@
+import os
 import platform
 import sys
 
@@ -49,3 +50,6 @@ print(f"Python Platform: {py_platform}")
 print(f"Python Version: {py_version}")
 print()
 print(f"Relevant packages: \n{pip_pkgs}")
+print()
+os.system("sky check")
+os.system("sky status --refresh")
