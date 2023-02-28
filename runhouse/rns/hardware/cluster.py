@@ -195,9 +195,7 @@ class Cluster(Resource):
                 logging.info(
                     f"Copying local package {pkg_str} to cluster <{self.name}>"
                 )
-                remote_package = pkg_obj.to_cluster(
-                    self, mount=False, return_dest_folder=True
-                )
+                remote_package = pkg_obj.to_cluster(self, mount=False)
                 to_install.append(remote_package)
             else:
                 to_install.append(package)  # Just appending the string!

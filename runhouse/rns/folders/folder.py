@@ -293,13 +293,9 @@ class Folder(Resource):
         from runhouse.rns.hardware import Cluster
 
         if system == "file":
-            return self.to_local(
-                dest_path=path, data_config=data_config, return_dest_folder=True
-            )
+            return self.to_local(dest_path=path, data_config=data_config)
         elif isinstance(system, Cluster):  # If system is a cluster
-            return self.to_cluster(
-                dest_cluster=system, path=path, return_dest_folder=False
-            )
+            return self.to_cluster(dest_cluster=system, path=path)
         elif system in ["s3", "gs", "azure"]:
             return self.to_data_store(
                 system=system, data_store_path=path, data_config=data_config
@@ -347,9 +343,7 @@ class Folder(Resource):
         new_folder.data_config = data_config or {}
         return new_folder
 
-    def to_local(
-        self, dest_path: str, data_config: dict, return_dest_folder: bool = False
-    ):
+    def to_local(self, dest_path: str, data_config: dict):
         """Copies folder to local."""
         from runhouse.rns.hardware import Cluster
 
@@ -361,10 +355,9 @@ class Folder(Resource):
         else:
             self.fsspec_copy("file", dest_path, data_config)
 
-        if return_dest_folder:
-            return self.destination_folder(
-                dest_path=dest_path, dest_system="file", data_config=data_config
-            )
+        return self.destination_folder(
+            dest_path=dest_path, dest_system="file", data_config=data_config
+        )
 
     # TODO [DG] Any reason to keep this?
     # def to_sftp(self, path, data_config):
@@ -387,7 +380,6 @@ class Folder(Resource):
         system: str,
         data_store_path: Optional[str] = None,
         data_config: Optional[dict] = None,
-        return_dest_folder: bool = True,  # note: unused
     ):
         """Local or cluster to blob storage."""
         from runhouse.rns.hardware import Cluster
@@ -448,7 +440,7 @@ class Folder(Resource):
         )
         return self._local_mount_path
 
-    def to_cluster(self, dest_cluster, path=None, mount=False, return_dest_folder=True):
+    def to_cluster(self, dest_cluster, path=None, mount=False):
         """Copy the folder from a file or cluster source onto a destination cluster."""
         if not dest_cluster.address:
             raise ValueError("Cluster must be started before copying data to it.")
@@ -492,9 +484,6 @@ class Folder(Resource):
             raise TypeError(
                 f"`to_cluster` not supported for filesystem type {type(self.system)}"
             )
-
-        if return_dest_folder:
-            dest_folder.system = "file"
 
         return dest_folder
 

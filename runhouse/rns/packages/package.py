@@ -155,9 +155,7 @@ class Package(Resource):
                     "available for your platform."
                 )
 
-    def to_cluster(
-        self, dest_cluster: "Cluster", path=None, mount=False, return_dest_folder=False
-    ):
+    def to_cluster(self, dest_cluster: "Cluster", path=None, mount=False):
         """Returns a copy of the package on the destination cluster."""
         if not isinstance(self.install_target, Folder):
             raise TypeError(
@@ -168,8 +166,8 @@ class Package(Resource):
             dest_cluster,
             path=path,
             mount=mount,
-            return_dest_folder=return_dest_folder,
         )
+        new_folder.system = "file"
         new_package = copy.copy(self)
         new_package.install_target = new_folder
         return new_package
