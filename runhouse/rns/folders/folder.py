@@ -297,9 +297,8 @@ class Folder(Resource):
                 dest_path=path, data_config=data_config, return_dest_folder=True
             )
         elif isinstance(system, Cluster):  # If system is a cluster
-            # TODO [DG] change default behavior to return_dest_folder=False
             return self.to_cluster(
-                dest_cluster=system, path=path, return_dest_folder=True
+                dest_cluster=system, path=path, return_dest_folder=False
             )
         elif system in ["s3", "gs", "azure"]:
             return self.to_data_store(
@@ -358,7 +357,7 @@ class Folder(Resource):
             # Simply move the files within local system
             shutil.copytree(src=self.path, dst=dest_path)
         elif isinstance(self.system, Cluster):
-            return self.from_cluster(cluster=self.system, dest_path=dest_path)
+            return self._cluster_to_local(cluster=self.system, dest_path=dest_path)
         else:
             self.fsspec_copy("file", dest_path, data_config)
 
@@ -489,7 +488,6 @@ class Folder(Resource):
                     f"loaded in path: {creds_file}. "
                     f"For example: `Secrets.to({dest_cluster.name}, providers=['aws'])`"
                 )
-
         else:
             raise TypeError(
                 f"`to_cluster` not supported for filesystem type {type(self.system)}"
@@ -500,34 +498,27 @@ class Folder(Resource):
 
         return dest_folder
 
-    def from_cluster(self, cluster, dest_path=None):
-        """Create a remote folder from a path on a cluster.
+    def _cluster_to_local(self, cluster, dest_path):
+        """Create a local folder with dest_path from the cluster.
 
-        If `dest_path=None`, this will not perform any copy, and simply convert the resource to have a remote
-        sftp filesystem into the cluster. If `dest_path` is set, it will rsync down the data and return a folder
-        with system=='file'.
+        This function rsyncs down the data and return a folder with system=='file'.
         """
-        if dest_path:
-            if not cluster.address:
-                raise ValueError("Cluster must be started before copying data from it.")
-            # TODO support fsspec urls (e.g. nonlocal system's)?
-            Path(dest_path).expanduser().mkdir(parents=True, exist_ok=True)
-            cluster.rsync(
-                source=self.path,
-                dest=str(Path(dest_path).expanduser()),
-                up=False,
-                contents=True,
-            )
-            new_folder = copy.deepcopy(self)
-            new_folder.path = dest_path
-            new_folder.system = "file"
-            # Don't need to do anything with _data_config because cluster creds are injected virtually through the
-            # data_config property
-            return new_folder
-        else:
-            new_folder = copy.deepcopy(self)
-            new_folder.system = cluster
-            return new_folder
+        if not cluster.address:
+            raise ValueError("Cluster must be started before copying data from it.")
+        # TODO support fsspec urls (e.g. nonlocal system's)?
+        Path(dest_path).expanduser().mkdir(parents=True, exist_ok=True)
+        cluster.rsync(
+            source=self.path,
+            dest=str(Path(dest_path).expanduser()),
+            up=False,
+            contents=True,
+        )
+        new_folder = copy.deepcopy(self)
+        new_folder.path = dest_path
+        new_folder.system = "file"
+        # Don't need to do anything with _data_config because cluster creds are injected virtually through the
+        # data_config property
+        return new_folder
 
     def is_local(self):
         """Whether the folder is on the local filesystem."""

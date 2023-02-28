@@ -169,19 +169,6 @@ class Blob(Resource):
 
         cluster.rsync(source=self.path, dest=path, up=False)
 
-    def from_cluster(self, cluster):
-        """Create a remote blob from a path on a cluster. This will create a virtual link into the
-        cluster's filesystem.
-
-        If you want to create a local copy or mount of the blob, use
-        ``Blob(path=<local_path>).sync_from_cluster(<cluster>, <path>)`` or
-        ``Blob('path').from_cluster(<cluster>).mount(<local_path>)``."""
-        if not cluster.address:
-            raise ValueError("Cluster must be started before copying data from it.")
-        new_blob = copy.deepcopy(self)
-        new_blob._folder.system = cluster
-        return new_blob
-
 
 def blob(
     data=None,

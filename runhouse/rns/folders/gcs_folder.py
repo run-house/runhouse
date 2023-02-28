@@ -81,8 +81,7 @@ class GCSFolder(Folder):
     ):
         upload_command = self.upload_command(src=self.path, dest=path)
         dest_cluster.run([upload_command])
-        if return_dest_folder:
-            return GCSFolder(path=path, dryrun=True).from_cluster(dest_cluster)
+        return GCSFolder(path=path, system=dest_cluster, dryrun=True)
 
     def to_local(
         self, dest_path: str, data_config: dict, return_dest_folder: bool = False

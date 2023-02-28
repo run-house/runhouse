@@ -94,8 +94,7 @@ class S3Folder(Folder):
         """Copy the folder from a s3 bucket onto a cluster."""
         download_command = self.download_command(src=self.fsspec_url, dest=path)
         dest_cluster.run([download_command])
-        if return_dest_folder:
-            return S3Folder(path=path, dryrun=True).from_cluster(dest_cluster)
+        return S3Folder(path=path, system=dest_cluster, dryrun=True)
 
     def to_local(
         self, dest_path: str, data_config: dict, return_dest_folder: bool = False

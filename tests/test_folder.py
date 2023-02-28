@@ -45,9 +45,7 @@ def test_github_folder():
 def test_from_cluster():
     cluster = rh.cluster(name="^rh-cpu").up_if_not()
     rh.folder(path=str(Path.cwd())).to(cluster, path="~/my_new_tests_folder")
-    tests_folder = rh.folder(system="file", path="~/my_new_tests_folder").from_cluster(
-        cluster
-    )
+    tests_folder = rh.folder(system=cluster, path="~/my_new_tests_folder")
     assert "my_new_tests_folder/test_folder.py" in tests_folder.ls()
 
 
@@ -83,8 +81,7 @@ def test_cluster_tos():
     tests_folder = rh.folder(path=str(Path.cwd()))
 
     c = rh.cluster("^rh-cpu").up_if_not()
-    # TODO [DG] change default behavior to return the from_cluster folder
-    tests_folder = tests_folder.to(system=c).from_cluster(c)
+    tests_folder = tests_folder.to(system=c)
     assert "test_folder.py" in tests_folder.ls(full_paths=False)
 
     # to local
@@ -119,7 +116,7 @@ def test_local_and_cluster():
     local_folder.mkdir()
     local_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
     c = rh.cluster("^rh-cpu").up_if_not()
-    cluster_folder = local_folder.to(system=c).from_cluster(c)
+    cluster_folder = local_folder.to(system=c)
     assert "sample_file_0.txt" in cluster_folder.ls(full_paths=False)
 
     # Cluster to local
@@ -168,7 +165,7 @@ def test_cluster_and_s3():
     # Local to cluster
     local_folder = rh.folder(path=TEST_FOLDER_PATH)
     c = rh.cluster("^rh-cpu").up_if_not()
-    cluster_folder = local_folder.to(system=c).from_cluster(c)
+    cluster_folder = local_folder.to(system=c)
     assert "sample_file_0.txt" in cluster_folder.ls(full_paths=False)
 
     # Cluster to S3
@@ -182,6 +179,7 @@ def test_cluster_and_s3():
     s3_folder.delete_in_system()
 
 
+@unittest.skip("requires GCS setup")
 def test_cluster_and_gcs():
     # Local to cluster
     local_folder = rh.folder(path=TEST_FOLDER_PATH)
@@ -193,7 +191,7 @@ def test_cluster_and_gcs():
     # TODO [JL] might be necessary to install gcloud on the cluster
     # c.run(['sudo snap install google-cloud-cli --classic'])
 
-    cluster_folder = local_folder.to(system=c).from_cluster(c)
+    cluster_folder = local_folder.to(system=c)
     assert "sample_file_0.txt" in cluster_folder.ls(full_paths=False)
 
     # Cluster to GCS
@@ -259,6 +257,7 @@ def test_s3_and_gcs():
     s3_folder.delete_in_system()
 
 
+@unittest.skip("requires GCS setup")
 def test_gcs_and_s3():
     # Local to GCS
     local_folder = rh.folder(path=TEST_FOLDER_PATH)
@@ -301,14 +300,12 @@ def test_cluster_and_cluster():
     # Upload sky secrets to cluster - required when syncing over the folder from c1 to c2
     c1.send_secrets(providers=["sky"])
 
-    cluster_folder_1 = local_folder.to(system=c1).from_cluster(c1)
+    cluster_folder_1 = local_folder.to(system=c1)
     assert "sample_file_0.txt" in cluster_folder_1.ls(full_paths=False)
 
     # Cluster 1 to cluster 2
     c2 = rh.cluster("^rh-8-cpu").up_if_not()
-    cluster_folder_2 = cluster_folder_1.to(
-        system=c2, path=cluster_folder_1.path
-    ).from_cluster(c2)
+    cluster_folder_2 = cluster_folder_1.to(system=c2, path=cluster_folder_1.path)
     assert "sample_file_0.txt" in cluster_folder_2.ls(full_paths=False)
 
 

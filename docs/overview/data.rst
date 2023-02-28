@@ -49,6 +49,31 @@ We currently support a variety of systems where a folder can live:
 - :code:`azure`: Bucket in Azure.
 
 
+Advanced Folder Usage
+~~~~~~~~~~~~~~~~~~~~~
+Let's demonstrate how you can easily copy a folder from one system to another. In this example we'll
+copy a local folder to a cluster.
+
+.. code-block:: python
+
+    local_folder = rh.folder(Path.cwd(), name='my_local_folder')
+
+    # Use a Runhouse builtin cluster, make sure the cluster is up if it isn't already
+    c = rh.cluster("^rh-cpu").up_if_not()
+
+    cluster_folder = local_folder.to(system=c)
+
+    # Confirm that the folder contents are now saved on the `rh-cpu` cluster
+    print(cluster_folder.ls(full_paths=False))
+
+
+We can just as easily send this local folder to a cloud storage system, such as s3:
+
+.. code-block:: python
+
+    s3_folder = rh.folder(name='my_local_folder').to(system="s3")
+
+
 Tables
 ------
 Runhouse supports a variety of different :ref:`Table` types based on the table's underlying data type.

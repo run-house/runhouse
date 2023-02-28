@@ -318,18 +318,6 @@ class Table(Resource):
             and len(self._folder.ls(self.fsspec_url)) >= 1
         )
 
-    def from_cluster(self, cluster):
-        """Create a remote folder from a path on a cluster. This will create a virtual link into the
-        cluster's filesystem.
-
-        If you want to create a local copy or mount of the folder, use
-        ``Folder('path').from_cluster(<cluster>).mount(<local_path>)``."""
-        if not cluster.address:
-            raise ValueError("Cluster must be started before copying data from it.")
-        new_table = copy.deepcopy(self)
-        new_table._folder.system = cluster
-        return new_table
-
 
 def _load_table_subclass(data, config: dict, dryrun: bool):
     """Load the relevant Table subclass based on the config or data type provided"""

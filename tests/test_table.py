@@ -682,6 +682,34 @@ def test_create_and_reload_dask_data_from_cluster():
     assert not reloaded_table.exists_in_system()
 
 
+def test_create_local_to_cluster():
+    local_path = Path.cwd() / "table_tests/local_test_table"
+    local_path.mkdir(parents=True, exist_ok=True)
+
+    Path(local_path).mkdir(parents=True, exist_ok=True)
+
+    orig_data = pd.DataFrame({"my_col": list(range(50))})
+    my_table = rh.table(
+        data=orig_data,
+        name="~/my_local_test_table",
+        path=str(local_path),
+        system="file",
+    ).save()
+
+    cluster = rh.cluster("^rh-cpu").up_if_not().save()
+    cluster_table = my_table.to(system=cluster)
+
+    data = cluster_table.data
+    assert data.to_pandas().equals(orig_data)
+
+    del orig_data
+    del my_table
+
+    cluster_table.delete_configs()
+    cluster_table.delete_in_system()
+    assert not cluster_table.exists_in_system()
+
+
 # -------------------------------------------------
 # ----------------- Fetching tests -----------------
 # -------------------------------------------------
