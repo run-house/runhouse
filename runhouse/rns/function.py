@@ -618,10 +618,7 @@ def function(
         system (Optional[str or Cluster]): Hardware (cluster) on which to execute the Function.
             This can be either the string name of a Cluster object, or a Cluster object.
         reqs (Optional[List[str]]): List of requirements to install on the remote cluster, or path to the
-            requirements.txt file. If a list of pypi packages is provided, including 'requirements.txt' in
-            the list will install the requirements in `package`. By default, we'll set it to ['requirements.txt'],
-            which installs just the requirements of package. If set to an empty list, no requirements will be installed.
-            # TODO: reword this a bit
+            requirements.txt file.
         dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
             (Default: ``False``)
         load_secrets (bool): Whether or not to send secrets; only applicable if `dryrun` is set to ``False``.

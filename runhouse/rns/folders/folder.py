@@ -704,12 +704,9 @@ class Folder(Resource):
     def open(self, name, mode="rb", encoding=None):
         """Returns an fsspec file, which must be used as a content manager to be opened.
 
-        For example,
-
-        .. code-block:: python
-
-            with my_folder.open('obj_name') as my_file:
-                pickle.load(my_file)
+        Example:
+            >>> with my_folder.open('obj_name') as my_file:
+            >>>        pickle.load(my_file)
         """
         return self.fsspec_fs.open(self.path + "/" + name, mode=mode, encoding=encoding)
 

@@ -46,32 +46,7 @@ We currently support a variety of systems where a folder can live:
 - :code:`sftp` / :code:`ssh`: On a :ref:`Cluster`.
 - :code:`s3`: Bucket in AWS.
 - :code:`gs`: Bucket in GCS.
-
-
-Advanced Folder Usage
-~~~~~~~~~~~~~~~~~~~~~
-Let's demonstrate how you can easily copy a folder from one system to another. In this example we'll
-copy a local folder to a cluster.
-
-.. code-block:: python
-
-    local_folder = rh.folder(Path.cwd(), name='my_local_folder')
-
-    # Use a Runhouse builtin cluster, make sure the cluster is up if it isn't already
-    c = rh.cluster("^rh-cpu").up_if_not()
-
-    # `from_cluster` will create a remote folder from our path on the cluster
-    cluster_folder = local_folder.to(system=c).from_cluster(c)
-
-    # Confirm that the folder contents are now saved on the `rh-cpu` cluster
-    print(cluster_folder.ls(full_paths=False))
-
-
-We can just as easily send this local folder to a cloud storage system, such as s3:
-
-.. code-block:: python
-
-    s3_folder = rh.folder(name='my_local_folder').to(system="s3")
+- :code:`azure`: Bucket in Azure.
 
 
 Tables
@@ -90,42 +65,6 @@ convenient APIs for writing, partitioning, fetching and streaming the data:
     In the near term, we plan on supporting Spark, Rapids, and BigQuery. Please let us know if there is a
     particular Table abstraction that would be useful to you.
 
-
-Advanced Table Usage
-~~~~~~~~~~~~~~~~~~~~
-Let's demonstrate how we can easily create a Table backed by a Pandas DataFrame that lives in s3,
-and access that data from any other system:
-
-.. code-block:: python
-
-    data = pd.DataFrame(...)
-    my_table = rh.table(
-        data=data,
-        name="@/my_pandas_table",
-        path=f"/preproc-data/pandas", # path to s3 folder where the table will live
-        system="s3",
-        mkdir=True,
-    ).save()
-
-
-Now we can easily stream this table from our laptop, an existing cluster, a notebook, etc:
-
-.. code-block:: python
-
-    reloaded_table = rh.table(name="my_pandas_table")
-
-This :code:`reloaded_table` holds a reference to the table's path.
-
-.. code-block:: python
-
-    batches = reloaded_table.stream(batch_size=100)
-        for batch in batches:
-            ....
-
-Our `BERT Pipeline Preprocessing Tutorial <https://github.com/run-house/tutorials/blob/main/t05_BERT_pipeline/p01_preprocess.py>`_
-showcases the accessibility and portability that a Table can provide. We create a tokenized dataset Table object on a
-cluster, then stream that data in directly from the cluster.
-
 Blobs
 -----
 A :ref:`Blob` represents a single serialized file stored in a particular system.
@@ -134,10 +73,6 @@ handling saving down and retrieving the Blob for you.
 
 For example, if you want to save a model checkpoint for future reuse, use the Blob interface
 to easily save it in your desired cloud storage system.
-
-Our `BERT Pipeline Fine-Tuning Tutorial <https://github.com/run-house/tutorials/blob/main/t05_BERT_pipeline/p02_fine_tune.py/>`_
-shows how we can use a Blob to save a trained BERT fine tuning model locally on a cluster.
-When finished, we can send the Blob from the cluster directly to an s3 bucket for persistence.
 
 Please note Runhouse does not make any assumptions about deserializing the underlying blob data.
 In this example we load an existing blob and deserialize ourselves with :code:`pickle`:
