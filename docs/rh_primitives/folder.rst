@@ -36,8 +36,7 @@ To copy a folder from one system to another (in this case, from local to a clust
    local_folder = rh.folder(Path.cwd(), name='my_local_folder')
 
    # Send the folder to my_cluster
-   # `from_cluster` will create a remote folder from our path on the cluster
-   cluster_folder = local_folder.to(system=local_cluster).from_cluster(local_cluster)
+   cluster_folder = local_folder.to(system=local_cluster)
 
    # Send the folder to s3
    s3_folder = rh.folder(name='my_local_folder').to(system="s3")
