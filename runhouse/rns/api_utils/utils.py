@@ -1,4 +1,5 @@
 import ast
+import datetime
 import json
 import uuid
 
@@ -47,6 +48,10 @@ def is_jsonable(myjson):
 
 def generate_uuid():
     return uuid.uuid4().hex
+
+
+def log_timestamp():
+    return int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1e9)
 
 
 def create_s3_bucket(bucket_name: str):
