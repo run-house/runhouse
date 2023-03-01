@@ -191,9 +191,8 @@ class Folder(Resource):
     def data_config(self):
         if isinstance(self.system, Resource):  # if system is a cluster
             # handle case cluster is itself
-            # TODO [CC] something more robust than this, maybe {username}/cluster-name instead of just cluster-name
-            name = _current_cluster()
-            if name is not None and name == self.system.name:
+            rns_address = _current_cluster("rns_address")
+            if rns_address and rns_address == self.system.rns_address:
                 return self._data_config
 
             if not self.system.address:
@@ -225,7 +224,7 @@ class Folder(Resource):
     @property
     def _fs_str(self):
         if isinstance(self.system, Resource):  # if system is a cluster
-            if self.system.name == _current_cluster():
+            if self.system.rns_address == _current_cluster("rns_address"):
                 return self.DEFAULT_FS
             return self.CLUSTER_FS
         else:
