@@ -8,8 +8,8 @@ Table Factory Method
 
 .. autofunction:: runhouse.table
 
-Table Docs
-~~~~~~~~~~
+Table Class
+~~~~~~~~~~~
 
 .. autoclass:: runhouse.Table
    :members:

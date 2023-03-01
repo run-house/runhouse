@@ -10,8 +10,8 @@ Folder Factory Method
 .. autofunction:: runhouse.folder
 
 
-Folder Docs
-~~~~~~~~~~~
+Folder Class
+~~~~~~~~~~~~
 
 .. autoclass:: runhouse.Folder
    :members:

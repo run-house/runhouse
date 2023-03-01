@@ -11,8 +11,8 @@ Cluster Factory Method
 
 .. autofunction:: runhouse.cluster
 
-Cluster Docs
-~~~~~~~~~~~~
+Cluster Class
+~~~~~~~~~~~~~
 
 .. autoclass:: runhouse.Cluster
   :members:
@@ -20,8 +20,8 @@ Cluster Docs
 
     .. automethod:: __init__
 
-OnDemandCluster Docs
-~~~~~~~~~~~~~~~~~~~~
+OnDemandCluster Class
+~~~~~~~~~~~~~~~~~~~~~
 A OnDemandCluster is a cluster that uses SkyPilot functionality underneath to handle
 various cluster properties.
 
@@ -57,7 +57,7 @@ method as follows:
                           name='rh-a10x')
 
 For existing clusters, which can mean either a saved OnDemandCluster config (which will be brought back
-up if needed), or a BYO or OnDemandCluster tha is already up, you can simply pass in the name to
+up if needed), or a BYO or OnDemandCluster that is already up, you can simply pass in the name to
 ``rh.cluster`` as follows:
 
 .. code-block:: python
@@ -70,7 +70,7 @@ up if needed), or a BYO or OnDemandCluster tha is already up, you can simply pas
 
 Advanced API Usage
 ~~~~~~~~~~~~~~~~~~
-Additional utilites for On Demand Clusters include
+Additional utilites for on-demand Clusters include
 :ref:`setting custom default configs <Setting Config Options>` and
 :ref:`SkyPilot CLI commands for instance management <On-Demand Clusters>`.
 
@@ -95,10 +95,9 @@ runs inside that screen instance, so logs are written to there.
 .. code-block:: console
 
    $ screen -r
-   $ # control A+D to exit screen
 
-To restart the RPC server, in the case that it crashes or you want to update a package that the server
-has already imported:
+You can restart the RPC server, in the case that it crashes or you want to update a package that the
+server has already imported. This runs much more quickly than shutting down and restarting a cluster.
 
 .. code-block:: python
 
@@ -129,7 +128,7 @@ To run a Python on the cluster:
   my_cluster.run_python(['import torch', 'print(torch.__version__)'])
 
 To open a port, if you want to run an application on the cluster that requires a port to be open,
-e.g. `Tensorboard <https://www.tensorflow.org/tensorboard/>`_, `Gradio <https://gradio.app/>`_.
+e.g. `Tensorboard <https://www.tensorflow.org/tensorboard/>`_, `Gradio <https://gradio.app/>`_:
 
 .. code-block:: python
 

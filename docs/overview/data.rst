@@ -46,6 +46,7 @@ We currently support a variety of systems where a folder can live:
 - :code:`sftp` / :code:`ssh`: On a :ref:`Cluster`.
 - :code:`s3`: Bucket in AWS.
 - :code:`gs`: Bucket in GCS.
+- :code:`azure`: Bucket in Azure.
 
 
 Tables

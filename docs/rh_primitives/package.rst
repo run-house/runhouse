@@ -9,8 +9,8 @@ Package Factory Method
 .. autofunction:: runhouse.package
 
 
-Package Docs
-~~~~~~~~~~~~
+Package Class
+~~~~~~~~~~~~~
 
 .. autoclass:: runhouse.Package
    :members:
@@ -45,7 +45,7 @@ Packages are often times installed onto clusters using ``my_cluster.install_pack
               reqs=['local:./',          # local
                     'requirements.txt',  # reqs
                     'pip:diffusers',     # pip
-                    'conda:pytorhch',    # conda
+                    'conda:pytorh',    # conda
               ])
 
 To install a Git package using just the GitHub URL (and optionally, the revision), without needing

@@ -287,9 +287,6 @@ def package(
 
     Returns:
         Package: The resulting package.
-
-    Example:
-        >>> # TODO
     """
     config = rh_config.rns_client.load_config(name)
     config["name"] = name or config.get("rns_address", None) or config.get("name")

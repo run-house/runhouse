@@ -8,8 +8,8 @@ Blob Factory Method
 
 .. autofunction:: runhouse.blob
 
-Blob Docs
-~~~~~~~~~
+Blob Class
+~~~~~~~~~~
 
 .. autoclass:: runhouse.Blob
    :members:

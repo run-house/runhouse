@@ -34,7 +34,7 @@ Keep reading on to see how Runhouse achieves this, or explore our
 :ref:`Architecture Section <Compute>`, :ref:`Python API`, and `Tutorials <https://github.com/run-house/tutorials>`_.
 
 .. warning::
-    **This is an Alpha**
+    **This is an Alpha:**
     Runhouse is heavily under development and we expect to iterate on the APIs before reaching beta (version 0.1.0).
 
 
@@ -60,6 +60,7 @@ Table of Contents
 
    REST API Guide <https://api.run.house/docs>
    Dashboard <https://api.run.house>
+   Funhouse <https://github.com/run-house/funhouse>
 
 .. toctree::
    :maxdepth: 1

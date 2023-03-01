@@ -10,8 +10,8 @@ Function Factory Method
 
 .. autofunction:: runhouse.function
 
-Function Docs
-~~~~~~~~~~~~~
+Function Class
+~~~~~~~~~~~~~~
 
 .. autoclass:: runhouse.Function
    :members:
@@ -57,7 +57,7 @@ To name the function, to be accessed by name later on, pass in the `name` argume
 
 Advanced API Usage
 ~~~~~~~~~~~~~~~~~~
-Logging: To stream logs, you can pass in ``stream_logs=True`` to the function call. or `. Note that
+To stream logs, pass in ``stream_logs=True`` to the function call.
 
 .. code-block:: python
 
@@ -81,7 +81,7 @@ laptop, or to run longer execution in notebooks without locking up the kernel.
 
    my_function.enqueue()
 
-``.map()`` and ``.starmap()`` are easy way to parallelize your function (again using Ray on the cluster).
+``.map()`` and ``.starmap()`` are easy way to parallelize a function (again using Ray on the cluster).
 ``.map`` maps a function over a list of arguments, while ``.starmap`` unpacks the elements of the iterable
 while mapping.
 
