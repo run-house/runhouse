@@ -49,6 +49,19 @@ def test_from_cluster():
     assert "my_new_tests_folder/test_folder.py" in tests_folder.ls()
 
 
+def test_to_cluster_attr():
+    cluster = rh.cluster(name="^rh-cpu").up_if_not()
+    local_folder = rh.folder(path=TEST_FOLDER_PATH)
+    cluster_folder = local_folder.to(system=cluster)
+    assert isinstance(cluster_folder.system, rh.Cluster)
+    assert cluster_folder.fs_str == "ssh"
+
+    s3_folder = rh.folder(path=TEST_FOLDER_PATH, system="s3")
+    cluster_folder_s3 = s3_folder.to(system=cluster)
+    assert isinstance(cluster_folder_s3.system, rh.Cluster)
+    assert cluster_folder_s3.fs_str == "ssh"
+
+
 def test_create_and_save_data_to_s3_folder():
     data = list(range(50))
     s3_folder = rh.folder(path=DATA_STORE_PATH, system="s3")

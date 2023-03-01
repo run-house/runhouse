@@ -682,7 +682,7 @@ def test_create_and_reload_dask_data_from_cluster():
     assert not reloaded_table.exists_in_system()
 
 
-def test_create_local_to_cluster():
+def test_to_cluster_attr():
     local_path = Path.cwd() / "table_tests/local_test_table"
     local_path.mkdir(parents=True, exist_ok=True)
 
@@ -698,6 +698,9 @@ def test_create_local_to_cluster():
 
     cluster = rh.cluster("^rh-cpu").up_if_not().save()
     cluster_table = my_table.to(system=cluster)
+
+    assert isinstance(cluster_table.system, rh.Cluster)
+    assert cluster_table._folder._fs_str == "ssh"
 
     data = cluster_table.data
     assert data.to_pandas().equals(orig_data)

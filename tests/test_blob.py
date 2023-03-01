@@ -133,6 +133,14 @@ def test_create_and_reload_rns_blob_with_path():
     assert not reloaded_blob.exists_in_system()
 
 
+def test_to_cluster_attr():
+    cluster = rh.cluster(name="^rh-cpu").up_if_not()
+    local_blob = rh.blob(pickle.dumps(list(range(50))), path="models/pipeline.pkl")
+    cluster_blob = local_blob.to(system=cluster)
+    assert isinstance(cluster_blob.system, rh.Cluster)
+    assert cluster_blob._folder._fs_str == "ssh"
+
+
 def test_local_to_cluster():
     name = "~/my_local_blob"
     data = pickle.dumps(list(range(50)))
