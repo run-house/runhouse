@@ -485,9 +485,9 @@ class Function(Resource):
             raise RuntimeError("System must be specified and up to ssh into a Function")
         self.system.ssh()
 
-    def send_secrets(self):
+    def send_secrets(self, providers: Optional[List[str]] = None):
         """Send secrets to the system."""
-        self.system.send_secrets()
+        self.system.send_secrets(providers=providers)
 
     def http_url(self, curl_command=False, *args, **kwargs) -> str:
         """

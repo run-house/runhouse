@@ -169,6 +169,6 @@ class Defaults:
         config_path = Path(config_path or self.CONFIG_PATH)
         try:
             Path(config_path).unlink(missing_ok=True)
-            logger.info(f"Deleted confi file from path: {config_path}")
+            logger.info(f"Deleted config file from path: {config_path}")
         except OSError:
             raise Exception(f"Failed to delete config file from path {config_path}")
