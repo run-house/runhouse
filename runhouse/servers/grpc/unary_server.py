@@ -227,14 +227,21 @@ class UnaryService(pb2_grpc.UnaryServicer):
 
     def _collect_cluster_stats(self):
         """Collect cluster metadata and send to Grafana Loki"""
-        self.register_activity()
+        from runhouse.rns.api_utils import env_options
 
-        cluster_metadata = self._cluster_status_report()
+        if env_options.EnvOptions.DISABLE_USAGE_COLLECTION.disable_usage_collection():
+            return
+
+        cluster_data = self._cluster_status_report()
         sky_data = self._cluster_sky_report()
 
+        environment = (
+            "dev" if env_options.EnvOptions.IS_DEVELOPER.developer_mode() else "prod"
+        )
+
         self._log_cluster_data(
-            {**cluster_metadata, **sky_data},
-            labels={"username": configs.get("username"), "environment": "prod"},
+            {**cluster_data, **sky_data},
+            labels={"username": configs.get("username"), "environment": environment},
         )
 
     def _cluster_status_report(self):
@@ -283,9 +290,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
         )
 
         if resp.status_code != 200:
-            logger.error(
-                f"({resp.status_code}) Failed to send logs to Grafana Loki"
-            )
+            logger.error(f"({resp.status_code}) Failed to send logs to Grafana Loki")
 
 
 def serve():

@@ -189,7 +189,7 @@ class Resource:
     def share(
         self,
         users: list,
-        access_type: Union[ResourceAccess, str] = ResourceAccess.read,
+        access_type: Union[ResourceAccess, str] = ResourceAccess.READ,
         notify_users: bool = False,
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
         """Grant access to the resource for the list of users. If a user has a Runhouse account they
