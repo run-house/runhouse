@@ -70,6 +70,11 @@ def call_fn_by_type(fn, fn_type, fn_name, module_path=None, args=None, kwargs=No
 
 
 def get_fn_by_name(module_name, fn_name, relative_path=None):
+    if relative_path:
+        module_path = str((Path.home() / relative_path).resolve())
+        sys.path.append(module_path)
+        logger.info(f"Appending {module_path} to sys.path")
+
     if module_name in rh_config.obj_store.imported_modules:
         importlib.invalidate_caches()
         rh_config.obj_store.imported_modules[module_name] = importlib.reload(
@@ -77,11 +82,6 @@ def get_fn_by_name(module_name, fn_name, relative_path=None):
         )
         logger.info(f"Reloaded module {module_name}")
     else:
-        if relative_path:
-            module_path = str((Path.home() / relative_path).resolve())
-            sys.path.append(module_path)
-            logger.info(f"Appending {module_path} to sys.path")
-
         logger.info(f"Importing module {module_name}")
         rh_config.obj_store.imported_modules[module_name] = importlib.import_module(
             module_name

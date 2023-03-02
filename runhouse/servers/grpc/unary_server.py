@@ -1,6 +1,7 @@
 import logging
 import traceback
 from concurrent import futures
+from pathlib import Path
 
 import grpc
 
@@ -174,6 +175,8 @@ class UnaryService(pb2_grpc.UnaryServicer):
             else:
                 fn = get_fn_by_name(module_name, fn_name, relative_path)
 
+            if relative_path:
+                module_path = str((Path.home() / relative_path).resolve())
             res = call_fn_by_type(fn, fn_type, fn_name, module_path, args, kwargs)
             # [res, None, None] is a silly hack for packaging result alongside exception and traceback
             result = {"message": pickle.dumps([res, None, None]), "received": True}
