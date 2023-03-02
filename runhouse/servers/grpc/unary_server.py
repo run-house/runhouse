@@ -1,12 +1,13 @@
+import json
 import logging
 import traceback
 from concurrent import futures
 from pathlib import Path
 
 import grpc
-
 import ray
 import ray.cloudpickle as pickle
+import requests
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 import runhouse.servers.grpc.unary_pb2 as pb2
@@ -29,9 +30,14 @@ class UnaryService(pb2_grpc.UnaryServicer):
     DEFAULT_PORT = 50052
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     LOGGING_WAIT_TIME = 1.0
+    SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
 
     def __init__(self, *args, **kwargs):
         ray.init(address="auto")
+
+        # Collect metadata for the cluster immediately on init
+        self._collect_cluster_stats()
+
         self._installed_packages = []
         self.register_activity()
 
@@ -40,7 +46,6 @@ class UnaryService(pb2_grpc.UnaryServicer):
 
     def InstallPackages(self, request, context):
         self.register_activity()
-        # logger.info(f"Message received from client: {request.message}")
         packages = pickle.loads(request.message)
         logger.info(f"Message received from client to install packages: {packages}")
         for package in packages:
@@ -221,6 +226,67 @@ class UnaryService(pb2_grpc.UnaryServicer):
             received=True,
             output_type=OutputType.RESULT,
         )
+
+    def _collect_cluster_stats(self):
+        """Collect cluster metadata and send to Grafana Loki"""
+        if configs.get("disable_data_collection") is True:
+            return
+
+        cluster_data = self._cluster_status_report()
+        sky_data = self._cluster_sky_report()
+
+        self._log_cluster_data(
+            {**cluster_data, **sky_data},
+            labels={"username": configs.get("username"), "environment": "prod"},
+        )
+
+    def _cluster_status_report(self):
+        import ray._private.usage.usage_lib as ray_usage_lib
+        from ray._private import gcs_utils
+
+        gcs_client = gcs_utils.GcsClient(
+            address="127.0.0.1:6379", nums_reconnect_retry=20
+        )
+
+        # fields : ['ray_version', 'python_version']
+        cluster_metadata = ray_usage_lib.get_cluster_metadata(gcs_client)
+
+        # fields: ['total_num_cpus', 'total_num_gpus', 'total_memory_gb', 'total_object_store_memory_gb']
+        cluster_status_report = ray_usage_lib.get_cluster_status_to_report(
+            gcs_client
+        ).__dict__
+
+        return {**cluster_metadata, **cluster_status_report}
+
+    def _cluster_sky_report(self):
+        from runhouse import Secrets
+
+        sky_ray_data = Secrets.read_yaml_file(self.SKY_YAML)
+        provider = sky_ray_data["provider"]
+        node_config = sky_ray_data["available_node_types"].get("ray.head.default", {})
+        return {
+            "cluster_name": sky_ray_data.get("cluster_name"),
+            "region": provider.get("region"),
+            "provider": provider.get("module"),
+            "instance_type": node_config.get("node_config", {}).get("InstanceType"),
+        }
+
+    def _log_cluster_data(self, data: dict, labels: dict):
+        from runhouse.rns.api_utils.utils import log_timestamp
+
+        payload = {
+            "streams": [
+                {"stream": labels, "values": [[str(log_timestamp()), json.dumps(data)]]}
+            ]
+        }
+
+        payload = json.dumps(payload)
+        resp = requests.post(
+            f"{configs.get('api_server_url')}/admin/logs", data=json.dumps(payload)
+        )
+
+        if resp.status_code != 200:
+            logger.error(f"({resp.status_code}) Failed to send logs to Grafana Loki")
 
 
 def serve():

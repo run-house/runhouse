@@ -1,1 +1,1 @@
-python -m grpc_tools.protoc --proto_path=../grpc_handler ../grpc_handler/unary.proto --python_out=../grpc_handler --grpc_python_out=../grpc_handler
+python -m grpc_tools.protoc --proto_path=../servers/grpc ../servers/grpc/unary.proto --python_out=../servers/grpc --grpc_python_out=../servers/grpc

@@ -135,7 +135,6 @@ def test_add_github_secrets():
 
 def test_sending_secrets_to_cluster():
     cluster = rh.cluster(name="^rh-cpu").up_if_not()
-    cluster.restart_grpc_server()
     enabled_providers: list = rh.Secrets.enabled_providers()
 
     cluster.send_secrets(providers=enabled_providers)

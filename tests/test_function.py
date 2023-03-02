@@ -60,7 +60,7 @@ def test_running_function_as_proxy():
     del remote_sum
 
     remote_sum = rh.function(name="@/remote_function")
-    remote_sum.access = ResourceAccess.proxy
+    remote_sum.access = ResourceAccess.PROXY
     res = remote_sum(1, 5)
     assert res == 6
 

@@ -251,7 +251,7 @@ class Function(Resource):
 
     def __call__(self, *args, stream_logs=False, **kwargs):
         fn_type = "call"
-        if self.access in [ResourceAccess.write, ResourceAccess.read]:
+        if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             if not self.system or self.system.name == rh_config.obj_store.cluster_name:
                 [relative_path, module_name, fn_name] = self.fn_pointers
                 fn = get_fn_by_name(
@@ -271,7 +271,7 @@ class Function(Resource):
                 )
         else:
             # run the function via http path - user only needs Proxy access
-            if self.access != ResourceAccess.proxy:
+            if self.access != ResourceAccess.PROXY:
                 raise RuntimeError("Running http path requires proxy access")
             if not rh_config.rns_client.token:
                 raise ValueError(
@@ -300,7 +300,7 @@ class Function(Resource):
             *args: Positional arguments to pass to the Function
             **kwargs: Keyword arguments to pass to the Function
         """
-        if self.access in [ResourceAccess.write, ResourceAccess.read]:
+        if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             return self._call_fn_with_ssh_access(
                 fn_type="repeat", args=[num_repeats, args], kwargs=kwargs
             )
@@ -311,7 +311,7 @@ class Function(Resource):
 
     def map(self, arg_list, **kwargs):
         """Map a function over a list of arguments."""
-        if self.access in [ResourceAccess.write, ResourceAccess.read]:
+        if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             return self._call_fn_with_ssh_access(
                 fn_type="map", args=arg_list, kwargs=kwargs
             )
@@ -323,7 +323,7 @@ class Function(Resource):
     def starmap(self, args_lists, **kwargs):
         """Like :func:`map` except that the elements of the iterable are expected to be iterables
         that are unpacked as arguments. An iterable of [(1,2), (3, 4)] results in [func(1,2), func(3,4)]."""
-        if self.access in [ResourceAccess.write, ResourceAccess.read]:
+        if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             return self._call_fn_with_ssh_access(
                 fn_type="starmap", args=args_lists, kwargs=kwargs
             )
@@ -334,7 +334,7 @@ class Function(Resource):
 
     def enqueue(self, *args, **kwargs):
         """Enqueue a Function call to be run later."""
-        if self.access in [ResourceAccess.write, ResourceAccess.read]:
+        if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             return self._call_fn_with_ssh_access(
                 fn_type="queue", args=args, kwargs=kwargs
             )
@@ -351,7 +351,7 @@ class Function(Resource):
         # We need to ray init here so the returned Ray object ref doesn't throw an error it's deserialized
         # import ray
         # ray.init(ignore_reinit_error=True)
-        if self.access in [ResourceAccess.write, ResourceAccess.read]:
+        if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             run_key = self._call_fn_with_ssh_access(
                 fn_type="remote", args=args, kwargs=kwargs
             )
@@ -382,7 +382,7 @@ class Function(Resource):
                 must be from the cluster that this Function is running on.
         """
         # TODO [DG] replace with self.system.get()?
-        if self.access in [ResourceAccess.write, ResourceAccess.read]:
+        if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             arg_list = obj_ref if isinstance(obj_ref, list) else [obj_ref]
             return self._call_fn_with_ssh_access(
                 fn_type="get", args=arg_list, kwargs={}

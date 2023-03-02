@@ -30,6 +30,7 @@ class Defaults:
         "default_autostop": -1,
         "use_spot": False,
         "use_local_configs": True,
+        "disable_data_collection": False,
         "use_rns": False,
         "api_server_url": "https://api.run.house",
     }
@@ -172,3 +173,6 @@ class Defaults:
             logger.info(f"Deleted config file from path: {config_path}")
         except OSError:
             raise Exception(f"Failed to delete config file from path {config_path}")
+
+    def disable_data_collection(self):
+        self.set("disable_data_collection", True)
