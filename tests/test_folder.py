@@ -31,6 +31,10 @@ def delete_local_folder(path):
     shutil.rmtree(path)
 
 
+def fs_str_rh_fn(folder):
+    return folder._fs_str
+
+
 def test_github_folder():
     # TODO gh_folder = rh.folder(path='https://github.com/pytorch/pytorch', system='github')
     gh_folder = rh.folder(
@@ -51,15 +55,16 @@ def test_from_cluster():
 
 def test_to_cluster_attr():
     cluster = rh.cluster(name="^rh-cpu").up_if_not()
+    cluster.restart_grpc_server()
     local_folder = rh.folder(path=TEST_FOLDER_PATH)
     cluster_folder = local_folder.to(system=cluster)
     assert isinstance(cluster_folder.system, rh.Cluster)
-    assert cluster_folder.fs_str == "ssh"
+    assert cluster_folder._fs_str == "ssh"
 
     s3_folder = rh.folder(path=TEST_FOLDER_PATH, system="s3")
     cluster_folder_s3 = s3_folder.to(system=cluster)
     assert isinstance(cluster_folder_s3.system, rh.Cluster)
-    assert cluster_folder_s3.fs_str == "ssh"
+    assert cluster_folder_s3._fs_str == "ssh"
 
 
 def test_create_and_save_data_to_s3_folder():
@@ -88,6 +93,14 @@ def test_create_and_delete_folder_from_s3():
     s3_folder.delete_configs()
 
     assert not s3_folder.exists_in_system()
+
+
+def test_folder_attr_on_cluster():
+    c = rh.cluster("^rh-cpu").up_if_not()
+    cluster_folder = rh.folder(path=TEST_FOLDER_PATH).to(system=c)
+    fs_str_cluster = rh.function(fn=fs_str_rh_fn).to(system=c)
+    fs_str = fs_str_cluster(cluster_folder)
+    assert fs_str == "file"
 
 
 def test_cluster_tos():

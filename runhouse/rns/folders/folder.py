@@ -61,6 +61,7 @@ class Folder(Resource):
 
         self._system = None
         self._fsspec_fs = None
+        self._fsspec_fs_str = None
 
         current_cluster_config = _current_cluster(key="config")
         if current_cluster_config and system is None:
@@ -92,6 +93,12 @@ class Folder(Resource):
             self.mount(tmp=True)
         if not self.dryrun:
             self.mkdir()
+
+    def __getstate__(self):
+        """Override the pickle method to clear _fsspec_fs before pickling."""
+        state = self.__dict__.copy()
+        state["_fsspec_fs"] = None
+        return state
 
     @classmethod
     def default_path(cls, rns_address, system):
@@ -232,9 +239,9 @@ class Folder(Resource):
 
     @property
     def fsspec_fs(self):
-        # recompute this each time, since it is different depending if it is being called
-        # from the same cluster (local filesystem) or somewhere else (ssh filesystem)
-        self._fsspec_fs = fsspec.filesystem(self._fs_str, **self.data_config)
+        if self._fsspec_fs_str != self._fs_str or self._fsspec_fs_str is None:
+            self._fsspec_fs_str = self._fs_str
+            self._fsspec_fs = fsspec.filesystem(self._fsspec_fs_str, **self.data_config)
         return self._fsspec_fs
 
     @property
