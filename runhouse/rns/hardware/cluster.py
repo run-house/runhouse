@@ -538,12 +538,3 @@ class Cluster(Resource):
                 tunnel.stop(force=True)
                 kill_jupyter_cmd = f"jupyter notebook stop {port_fwd}"
                 self.run(commands=[kill_jupyter_cmd])
-
-    def disable_usage_collection(self):
-        """Disable collection for all future clusters."""
-        from runhouse import Secrets
-
-        Secrets.save_to_json_file(
-            data={"usage_stats": False},
-            file_path=str(Path("~/.ray/config.json").expanduser()),
-        )

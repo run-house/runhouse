@@ -227,21 +227,15 @@ class UnaryService(pb2_grpc.UnaryServicer):
 
     def _collect_cluster_stats(self):
         """Collect cluster metadata and send to Grafana Loki"""
-        from runhouse.rns.api_utils import env_options
-
-        if env_options.EnvOptions.DISABLE_USAGE_COLLECTION.disable_usage_collection():
+        if configs.get("disable_usage_collection") is True:
             return
 
         cluster_data = self._cluster_status_report()
         sky_data = self._cluster_sky_report()
 
-        environment = (
-            "dev" if env_options.EnvOptions.IS_DEVELOPER.developer_mode() else "prod"
-        )
-
         self._log_cluster_data(
             {**cluster_data, **sky_data},
-            labels={"username": configs.get("username"), "environment": environment},
+            labels={"username": configs.get("username"), "environment": "prod"},
         )
 
     def _cluster_status_report(self):

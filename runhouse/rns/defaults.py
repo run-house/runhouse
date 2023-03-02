@@ -30,6 +30,7 @@ class Defaults:
         "default_autostop": -1,
         "use_spot": False,
         "use_local_configs": True,
+        "disable_usage_collection": False,
         "use_rns": False,
         "api_server_url": "https://api.run.house",
     }
