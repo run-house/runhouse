@@ -68,6 +68,8 @@ Table of Contents
 
    secrets/secrets
    secrets/vault_secrets
+   data_collection
+
 
 .. toctree::
    :maxdepth: 1

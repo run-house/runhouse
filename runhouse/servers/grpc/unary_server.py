@@ -227,7 +227,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
 
     def _collect_cluster_stats(self):
         """Collect cluster metadata and send to Grafana Loki"""
-        if configs.get("disable_usage_collection") is True:
+        if configs.get("disable_data_collection") is True:
             return
 
         cluster_data = self._cluster_status_report()
