@@ -10,6 +10,7 @@ from sky.backends import backend_utils, CloudVmRayBackend
 from runhouse.rh_config import configs, rns_client
 
 from runhouse.rns.hardware.cluster import Cluster
+from runhouse.rns.obj_store import _current_cluster
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +125,11 @@ class OnDemandCluster(Cluster):
     def _save_sky_data(self):
         # If we already have an entry for this cluster in the local sky files, ignore the new config
         # TODO [DG] when this is more stable maybe we shouldn't.
+
+        # if it is on its own cluster, no need to save sky data
+        if self.sky_data.get("handle", {}).get("cluster_name") == _current_cluster():
+            return
+
         yaml_path = self._yaml_path or self.sky_data.get("handle", {}).get(
             "cluster_yaml"
         )
@@ -237,6 +243,9 @@ class OnDemandCluster(Cluster):
         self._yaml_path = cluster_dict["handle"].cluster_yaml
         if not cluster_dict["status"].name == "UP":
             self.address = None
+
+        if self.address:
+            self.save_config_to_cluster()
 
     @staticmethod
     def get_sky_statuses(cluster_name: str = None, refresh: bool = True):

@@ -37,14 +37,10 @@ class AzureFolder(Folder):
     def download_command(self, src, dest):
         raise NotImplementedError
 
-    def to_cluster(
-        self, dest_cluster, path=None, mount=False, return_dest_folder=False
-    ):
+    def to_cluster(self, dest_cluster, path=None, mount=False):
         raise NotImplementedError
 
-    def to_local(
-        self, dest_path: str, data_config: dict, return_dest_folder: bool = False
-    ):
+    def to_local(self, dest_path: str, data_config: dict):
         """Copy a folder from an Azure bucket to local dir."""
         raise NotImplementedError
 
@@ -53,7 +49,6 @@ class AzureFolder(Folder):
         system: str,
         data_store_path: Optional[str] = None,
         data_config: Optional[dict] = None,
-        return_dest_folder: bool = True,
     ):
         """Copy folder from Azure to another remote data store (ex: GCS, S3, Azure)"""
         raise NotImplementedError

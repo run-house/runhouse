@@ -133,6 +133,29 @@ def test_create_and_reload_rns_blob_with_path():
     assert not reloaded_blob.exists_in_system()
 
 
+def test_to_cluster_attr():
+    cluster = rh.cluster(name="^rh-cpu").up_if_not()
+    local_blob = rh.blob(pickle.dumps(list(range(50))), path="models/pipeline.pkl")
+    cluster_blob = local_blob.to(system=cluster)
+    assert isinstance(cluster_blob.system, rh.Cluster)
+    assert cluster_blob._folder._fs_str == "ssh"
+
+
+def test_local_to_cluster():
+    name = "~/my_local_blob"
+    data = pickle.dumps(list(range(50)))
+    my_blob = rh.blob(
+        data=data,
+        name=name,
+        system="file",
+    )
+
+    cluster = rh.cluster(name="^rh-cpu").up_if_not()
+    my_blob = my_blob.to(system=cluster)
+    blob_data = pickle.loads(my_blob.data)
+    assert blob_data == list(range(50))
+
+
 def test_save_blob_to_cluster():
     cluster = rh.cluster(name="^rh-cpu").up_if_not()
     # Save blob to local directory, then upload to a new "models" directory on the root path of the cluster

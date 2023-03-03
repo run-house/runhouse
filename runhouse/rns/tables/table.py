@@ -12,6 +12,8 @@ import ray.data
 import runhouse as rh
 from runhouse.rh_config import rns_client
 from runhouse.rns.folders.folder import folder
+from runhouse.rns.obj_store import _current_cluster
+
 from .. import OnDemandCluster, Resource
 from ..top_level_rns_fns import save
 
@@ -316,18 +318,6 @@ class Table(Resource):
             and len(self._folder.ls(self.fsspec_url)) >= 1
         )
 
-    def from_cluster(self, cluster):
-        """Create a remote folder from a path on a cluster. This will create a virtual link into the
-        cluster's filesystem.
-
-        If you want to create a local copy or mount of the folder, use
-        ``Folder('path').from_cluster(<cluster>).mount(<local_path>)``."""
-        if not cluster.address:
-            raise ValueError("Cluster must be started before copying data from it.")
-        new_table = copy.deepcopy(self)
-        new_table._folder.system = cluster
-        return new_table
-
 
 def _load_table_subclass(data, config: dict, dryrun: bool):
     """Load the relevant Table subclass based on the config or data type provided"""
@@ -339,7 +329,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
         if isinstance(data, datasets.Dataset) or resource_subtype == "HuggingFaceTable":
             from .huggingface_table import HuggingFaceTable
 
-            return HuggingFaceTable.from_config(config, dryrun)
+            return HuggingFaceTable.from_config(config, dryrun=dryrun)
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -349,7 +339,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
         if isinstance(data, pd.DataFrame) or resource_subtype == "PandasTable":
             from .pandas_table import PandasTable
 
-            return PandasTable.from_config(config, dryrun)
+            return PandasTable.from_config(config, dryrun=dryrun)
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -361,7 +351,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
         if isinstance(data, dd.DataFrame) or resource_subtype == "DaskTable":
             from .dask_table import DaskTable
 
-            return DaskTable.from_config(config, dryrun)
+            return DaskTable.from_config(config, dryrun=dryrun)
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -373,7 +363,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
         if isinstance(data, ray.data.Dataset) or resource_subtype == "RayTable":
             from .ray_table import RayTable
 
-            return RayTable.from_config(config, dryrun)
+            return RayTable.from_config(config, dryrun=dryrun)
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -446,11 +436,12 @@ def table(
     """
     config = rns_client.load_config(name)
 
-    config["system"] = system or config.get("system") or rns_client.DEFAULT_FS
-    if isinstance(config["system"], str) and rns_client.exists(
-        config["system"], resource_type="cluster"
-    ):
-        config["system"] = rns_client.load_config(config["system"])
+    config["system"] = (
+        system
+        or config.get("system")
+        or _current_cluster(key="config")
+        or rns_client.DEFAULT_FS
+    )
 
     name = name or config.get("rns_address") or config.get("name")
 
@@ -467,7 +458,14 @@ def table(
     if data_path is None:
         # If no path is provided we need to create one based on the name of the table
         table_name_in_path = rns_client.resolve_rns_data_resource_name(name)
-        if config["system"] == rns_client.DEFAULT_FS:
+        if (
+            config["system"] == rns_client.DEFAULT_FS
+            or config["system"] == _current_cluster(key="name")
+            or (
+                isinstance(config["system"], dict)
+                and config["system"]["name"] == _current_cluster(key="name")
+            )
+        ):
             # create random path to store in .cache folder of local filesystem
             data_path = str(
                 Path(
@@ -477,6 +475,24 @@ def table(
         else:
             # save to the default bucket
             data_path = f"{Table.DEFAULT_FOLDER_PATH}/{table_name_in_path}"
+
+    if isinstance(config["system"], str) and rns_client.exists(
+        config["system"], resource_type="cluster"
+    ):
+        config["system"] = rns_client.load_config(config["system"])
+    elif isinstance(config["system"], dict):
+        from runhouse.rns.hardware.cluster import Cluster
+
+        config["system"] = Cluster.from_config(config["system"])
+
+    if isinstance(config["system"], str) and rns_client.exists(
+        config["system"], resource_type="cluster"
+    ):
+        config["system"] = rns_client.load_config(config["system"])
+    elif isinstance(config["system"], dict):
+        from runhouse.rns.hardware.cluster import Cluster
+
+        config["system"] = Cluster.from_config(config["system"])
 
     config["name"] = name
     config["path"] = data_path
@@ -488,7 +504,7 @@ def table(
 
     if mkdir:
         # create the remote folder for the table
-        rh.folder(path=data_path, system=system, dryrun=True).mkdir()
+        rh.folder(path=data_path, system=config["system"], dryrun=True).mkdir()
 
     new_table = _load_table_subclass(data, config, dryrun)
     if data is not None:

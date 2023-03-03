@@ -88,31 +88,24 @@ class S3Folder(Folder):
         download_command = S3CloudStorage().make_sync_dir_command(src, dest)
         return download_command
 
-    def to_cluster(
-        self, dest_cluster, path=None, mount=False, return_dest_folder=False
-    ):
+    def to_cluster(self, dest_cluster, path=None, mount=False):
         """Copy the folder from a s3 bucket onto a cluster."""
         download_command = self.download_command(src=self.fsspec_url, dest=path)
         dest_cluster.run([download_command])
-        if return_dest_folder:
-            return S3Folder(path=path, dryrun=True).from_cluster(dest_cluster)
+        return S3Folder(path=path, system=dest_cluster, dryrun=True)
 
-    def to_local(
-        self, dest_path: str, data_config: dict, return_dest_folder: bool = False
-    ):
+    def to_local(self, dest_path: str, data_config: dict):
         """Copy a folder from an S3 bucket to local dir."""
         self.download(dest=dest_path)
-        if return_dest_folder:
-            return self.destination_folder(
-                dest_path=dest_path, dest_system="file", data_config=data_config
-            )
+        return self.destination_folder(
+            dest_path=dest_path, dest_system="file", data_config=data_config
+        )
 
     def to_data_store(
         self,
         system: str,
         data_store_path: Optional[str] = None,
         data_config: Optional[dict] = None,
-        return_dest_folder: bool = True,
     ):
         """Copy folder from S3 to another remote data store (ex: S3, GCP, Azure)"""
         if system == "s3":
@@ -142,7 +135,6 @@ class S3Folder(Folder):
         else:
             raise ValueError(f"Invalid system: {system}")
 
-        if return_dest_folder:
-            return self.destination_folder(
-                dest_path=data_store_path, dest_system=system, data_config=data_config
-            )
+        return self.destination_folder(
+            dest_path=data_store_path, dest_system=system, data_config=data_config
+        )

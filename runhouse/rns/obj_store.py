@@ -6,17 +6,20 @@ import ray
 import yaml
 
 
-def current_cluster_name():
-    if Path("~/.sky/sky_ray.yml").expanduser().exists():
-        with open(Path("~/.sky/sky_ray.yml").expanduser()) as f:
-            ray_config_data = yaml.safe_load(f)
-        return ray_config_data["cluster_name"]
+def _current_cluster(key="name"):
+    """Retrive key value from the current cluster config.
+    If key is "config", returns entire config."""
+    if Path("~/.rh/cluster_config.yaml").expanduser().exists():
+        with open(Path("~/.rh/cluster_config.yaml").expanduser()) as f:
+            cluster_config = yaml.safe_load(f)
+        if key == "config":
+            return cluster_config
+        return cluster_config[key]
     else:
-        # TODO [DG] write this into the cluster system somewhere (e.g. ~/.rh/this_cluster.yaml)
         return None
 
 
-THIS_CLUSTER = current_cluster_name()
+THIS_CLUSTER = _current_cluster()
 
 
 class ObjStore:

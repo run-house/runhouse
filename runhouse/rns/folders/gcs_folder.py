@@ -76,30 +76,23 @@ class GCSFolder(Folder):
         download_command = GcsCloudStorage().make_sync_dir_command(src, dest)
         return download_command
 
-    def to_cluster(
-        self, dest_cluster, path=None, mount=False, return_dest_folder=False
-    ):
+    def to_cluster(self, dest_cluster, path=None, mount=False):
         upload_command = self.upload_command(src=self.path, dest=path)
         dest_cluster.run([upload_command])
-        if return_dest_folder:
-            return GCSFolder(path=path, dryrun=True).from_cluster(dest_cluster)
+        return GCSFolder(path=path, system=dest_cluster, dryrun=True)
 
-    def to_local(
-        self, dest_path: str, data_config: dict, return_dest_folder: bool = False
-    ):
+    def to_local(self, dest_path: str, data_config: dict):
         """Copy a folder from an GCS bucket to local dir."""
         self.download(dest=dest_path)
-        if return_dest_folder:
-            return self.destination_folder(
-                dest_path=dest_path, dest_system="file", data_config=data_config
-            )
+        return self.destination_folder(
+            dest_path=dest_path, dest_system="file", data_config=data_config
+        )
 
     def to_data_store(
         self,
         system: str,
         data_store_path: Optional[str] = None,
         data_config: Optional[dict] = None,
-        return_dest_folder: bool = True,
     ):
         """Copy folder from GCS to another remote data store (ex: GCS, S3, Azure)"""
         if system == "gs":
@@ -128,7 +121,6 @@ class GCSFolder(Folder):
         else:
             raise ValueError(f"Invalid system: {system}")
 
-        if return_dest_folder:
-            return self.destination_folder(
-                dest_path=data_store_path, dest_system=system, data_config=data_config
-            )
+        return self.destination_folder(
+            dest_path=data_store_path, dest_system=system, data_config=data_config
+        )
