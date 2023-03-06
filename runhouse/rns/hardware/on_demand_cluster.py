@@ -134,6 +134,9 @@ class OnDemandCluster(Cluster):
             "cluster_yaml"
         )
 
+        # convert to relative path
+        yaml_path = self.relative_yaml_path(yaml_path)
+
         if (
             sky.global_user_state.get_cluster_from_name(self.name)
             and Path(yaml_path).expanduser().exists()
@@ -159,6 +162,8 @@ class OnDemandCluster(Cluster):
             handle_info["launched_resources"]["cloud"]
         )
         backend_utils._add_auth_to_cluster_config(cloud_provider, cluster_abs_path)
+
+        # TODO we may need to call `ray.shutdown()` as sky does a ray init here
 
         resources = sky.Resources.from_yaml_config(handle_info["launched_resources"])
         handle = CloudVmRayBackend.ResourceHandle(
@@ -265,7 +270,7 @@ class OnDemandCluster(Cluster):
         """Up the cluster."""
         if self.provider in ["aws", "gcp", "azure", "lambda", "cheapest"]:
             task = sky.Task(
-                num_nodes=self.num_instances if ":" not in self.instance_type else None,
+                num_nodes=self.num_instances if self.instance_type and ":" not in self.instance_type else None,
                 # docker_image=image,  # Zongheng: this is experimental, don't use it
                 # envs=None,
             )
@@ -278,13 +283,13 @@ class OnDemandCluster(Cluster):
                 sky.Resources(
                     cloud=cloud_provider,
                     instance_type=self.instance_type
-                    if ":" not in self.instance_type and "CPU" not in self.instance_type
+                    if self.instance_type and ":" not in self.instance_type and "CPU" not in self.instance_type
                     else None,
                     accelerators=self.instance_type
-                    if ":" in self.instance_type and "CPU" not in self.instance_type
+                    if self.instance_type and ":" in self.instance_type and "CPU" not in self.instance_type
                     else None,
                     cpus=self.instance_type.rsplit(":", 1)[1]
-                    if ":" in self.instance_type and "CPU" in self.instance_type
+                    if self.instance_type and ":" in self.instance_type and "CPU" in self.instance_type
                     else None,
                     region=self.region,
                     image_id=self.image_id,

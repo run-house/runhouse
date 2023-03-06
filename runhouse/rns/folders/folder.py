@@ -482,9 +482,9 @@ class Folder(Resource):
             if status_codes[0][0] != 0:
                 raise Exception(
                     f"Error syncing folder to destination cluster ({dest_cluster.name}). "
-                    f"Make sure the source cluster ({self.system.name}) has the sky keys "
+                    f"Make sure the source cluster ({self.system.name}) has the necessary provider keys "
                     f"loaded in path: {creds_file}. "
-                    f"For example: `Secrets.to({dest_cluster.name}, providers=['aws'])`"
+                    f"For example: `rh.Secrets.to({self.system.name}, providers=['aws'])`"
                 )
         else:
             raise TypeError(
