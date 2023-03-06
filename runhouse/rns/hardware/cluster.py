@@ -68,9 +68,7 @@ class Cluster(Resource):
 
         self.run(
             [
-                "mkdir -p ~/.rh",
-                "touch ~/.rh/cluster_config.yaml",
-                f"echo '{json_config}' > ~/.rh/cluster_config.yaml",
+                f"mkdir -p ~/.rh; touch ~/.rh/cluster_config.yaml; echo '{json_config}' > ~/.rh/cluster_config.yaml"
             ]
         )
 

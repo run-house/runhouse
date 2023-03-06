@@ -244,13 +244,14 @@ class OnDemandCluster(Cluster):
         cluster_dict = self.status(refresh=not dryrun)
         if not cluster_dict:
             return
-        self.address = cluster_dict["handle"].head_ip
         self._yaml_path = cluster_dict["handle"].cluster_yaml
         if not cluster_dict["status"].name == "UP":
             self.address = None
-
-        if self.address:
-            self.save_config_to_cluster()
+        else:
+            ip = cluster_dict["handle"].head_ip
+            if self.address is None or self.address != ip:
+                self.address = ip
+                self.save_config_to_cluster()
 
     @staticmethod
     def get_sky_statuses(cluster_name: str = None, refresh: bool = True):
@@ -270,7 +271,9 @@ class OnDemandCluster(Cluster):
         """Up the cluster."""
         if self.provider in ["aws", "gcp", "azure", "lambda", "cheapest"]:
             task = sky.Task(
-                num_nodes=self.num_instances if self.instance_type and ":" not in self.instance_type else None,
+                num_nodes=self.num_instances
+                if self.instance_type and ":" not in self.instance_type
+                else None,
                 # docker_image=image,  # Zongheng: this is experimental, don't use it
                 # envs=None,
             )
@@ -283,13 +286,19 @@ class OnDemandCluster(Cluster):
                 sky.Resources(
                     cloud=cloud_provider,
                     instance_type=self.instance_type
-                    if self.instance_type and ":" not in self.instance_type and "CPU" not in self.instance_type
+                    if self.instance_type
+                    and ":" not in self.instance_type
+                    and "CPU" not in self.instance_type
                     else None,
                     accelerators=self.instance_type
-                    if self.instance_type and ":" in self.instance_type and "CPU" not in self.instance_type
+                    if self.instance_type
+                    and ":" in self.instance_type
+                    and "CPU" not in self.instance_type
                     else None,
                     cpus=self.instance_type.rsplit(":", 1)[1]
-                    if self.instance_type and ":" in self.instance_type and "CPU" in self.instance_type
+                    if self.instance_type
+                    and ":" in self.instance_type
+                    and "CPU" in self.instance_type
                     else None,
                     region=self.region,
                     image_id=self.image_id,
