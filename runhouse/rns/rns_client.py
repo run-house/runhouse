@@ -462,7 +462,7 @@ class RNSClient:
             if abs_path in ["~", "~/"]:
                 create = False
             if create:
-                folder(name=path, dryrun=False)
+                folder(path=path, dryrun=False)
 
         self._prev_folders += [self.current_folder]
         self.current_folder = abs_path

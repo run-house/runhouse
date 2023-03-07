@@ -132,8 +132,7 @@ class Resource:
         return pprint.pformat(self.config_for_rns)
 
     @classmethod
-    def from_name(cls, name, dryrun=False):
-        # TODO [JL / DG]: Define a clear usage path for using `from_name` vs rh.resource(name=...)
+    def from_name(cls, name, dryrun=True):
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Resource {name} not found.")

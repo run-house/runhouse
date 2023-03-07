@@ -3,6 +3,8 @@ import logging
 import subprocess
 from pathlib import Path
 
+import ray
+
 import sky
 import yaml
 from sky.backends import backend_utils, CloudVmRayBackend
@@ -163,7 +165,8 @@ class OnDemandCluster(Cluster):
         )
         backend_utils._add_auth_to_cluster_config(cloud_provider, cluster_abs_path)
 
-        # TODO we may need to call `ray.shutdown()` as sky does a ray init here
+        # TODO [JL] we need to call `ray.shutdown()` as sky does a ray init here on the cluster
+        ray.shutdown()
 
         resources = sky.Resources.from_yaml_config(handle_info["launched_resources"])
         handle = CloudVmRayBackend.ResourceHandle(

@@ -6,6 +6,7 @@ import requests
 
 import runhouse as rh
 from runhouse.rns.api_utils.resource_access import ResourceAccess
+from runhouse.rns.api_utils.utils import load_resp_content
 
 
 def setup():
@@ -202,12 +203,12 @@ def test_ssh():
 
 
 def test_share_function():
-    my_function = rh.function(
-        fn=summer, name="@/remote_function", system="^rh-cpu"
-    ).save()
+    rh.set_folder("~/josh/randy", create=True)
+    rh_cpu = rh.cluster("^rh-cpu").up_if_not()
+    my_function = rh.function(fn=summer, name="@/remote_function", system=rh_cpu).save()
 
     my_function.share(
-        users=["donny@run.house", "josh@run.house"],
+        users=["donny@run.house", "josh@run.house", "alissaabrahami@hotmail.com"],
         access_type="read",
     )
     assert True

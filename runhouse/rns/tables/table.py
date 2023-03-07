@@ -148,6 +148,15 @@ class Table(Resource):
     def data_config(self, new_data_config):
         self._folder.data_config = new_data_config
 
+    @classmethod
+    def from_name(cls, name, dryrun=True):
+        config = rns_client.load_config(name=name)
+        if not config:
+            raise ValueError(f"Table {name} not found.")
+        # Uses the table subclass associated with the `resource_subtype`
+        table_cls = _load_table_subclass(config, dryrun)
+        return table_cls.from_config(config=config, dryrun=dryrun)
+
     def to(self, system, path=None, data_config=None):
         """Copy and return the table on the given filesystem and path."""
         new_table = copy.copy(self)
@@ -319,14 +328,14 @@ class Table(Resource):
         )
 
 
-def _load_table_subclass(data, config: dict, dryrun: bool):
+def _load_table_subclass(config: dict, dryrun: bool, data=None):
     """Load the relevant Table subclass based on the config or data type provided"""
     resource_subtype = config.get("resource_subtype", Table.__name__)
 
     try:
         import datasets
 
-        if isinstance(data, datasets.Dataset) or resource_subtype == "HuggingFaceTable":
+        if resource_subtype == "HuggingFaceTable" or isinstance(data, datasets.Dataset):
             from .huggingface_table import HuggingFaceTable
 
             return HuggingFaceTable.from_config(config, dryrun=dryrun)
@@ -336,7 +345,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
         raise e
 
     try:
-        if isinstance(data, pd.DataFrame) or resource_subtype == "PandasTable":
+        if resource_subtype == "PandasTable" or isinstance(data, pd.DataFrame):
             from .pandas_table import PandasTable
 
             return PandasTable.from_config(config, dryrun=dryrun)
@@ -348,7 +357,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
     try:
         import dask.dataframe as dd
 
-        if isinstance(data, dd.DataFrame) or resource_subtype == "DaskTable":
+        if resource_subtype == "DaskTable" or isinstance(data, dd.DataFrame):
             from .dask_table import DaskTable
 
             return DaskTable.from_config(config, dryrun=dryrun)
@@ -360,7 +369,7 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
     try:
         import ray
 
-        if isinstance(data, ray.data.Dataset) or resource_subtype == "RayTable":
+        if resource_subtype == "RayTable" or isinstance(data, ray.data.Dataset):
             from .ray_table import RayTable
 
             return RayTable.from_config(config, dryrun=dryrun)
@@ -372,14 +381,14 @@ def _load_table_subclass(data, config: dict, dryrun: bool):
     try:
         import cudf
 
-        if isinstance(data, cudf.DataFrame) or resource_subtype == "CudfTable":
+        if resource_subtype == "CudfTable" or isinstance(data, cudf.DataFrame):
             raise NotImplementedError("Cudf not currently supported")
     except ModuleNotFoundError:
         pass
     except Exception as e:
         raise e
 
-    if isinstance(data, pa.Table) or resource_subtype == "Table":
+    if resource_subtype == "Table" or isinstance(data, pa.Table):
         new_table = Table.from_config(config, dryrun)
         return new_table
     else:
