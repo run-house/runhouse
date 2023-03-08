@@ -129,7 +129,8 @@ class OnDemandCluster(Cluster):
         # TODO [DG] when this is more stable maybe we shouldn't.
 
         # if it is on its own cluster, no need to save sky data
-        if self.sky_data.get("handle", {}).get("cluster_name") == _current_cluster():
+        current_cluster_name = _current_cluster().rsplit('/', 1)[-1] if _current_cluster() else None
+        if self.sky_data.get("handle", {}).get("cluster_name") == current_cluster_name:
             return
 
         yaml_path = self._yaml_path or self.sky_data.get("handle", {}).get(

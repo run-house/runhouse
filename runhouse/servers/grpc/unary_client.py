@@ -53,10 +53,15 @@ class UnaryClient(object):
         # os.environ['GRPC_TRACE'] = 'all'
         # os.environ['GRPC_VERBOSITY'] = 'DEBUG'
 
-    def install_packages(self, message):
-        message = pb2.Message(message=message)
+    def install_packages(self, to_install):
+        message = pb2.Message(message=pickle.dumps(to_install))
         server_res = self.stub.InstallPackages(message)
-        return server_res
+        [res, fn_exception, fn_traceback] = pickle.loads(server_res.message)
+        if fn_exception is not None:
+            logger.error(f"Error installing packages {to_install}: {fn_exception}")
+            logger.error(f"Traceback: {fn_traceback}")
+            raise fn_exception
+        return res
 
     def add_secrets(self, secrets):
         message = pb2.Message(message=secrets)

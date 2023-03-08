@@ -544,7 +544,7 @@ class Function(Resource):
                 pkg = Package.from_string("local:" + sync_package_on_close)
                 self.system.rsync(source=f"~/{pkg.name}", dest=pkg.local_path, up=False)
             if not persist:
-                tunnel.stop(force=True)
+                tunnel.stop()
                 kill_jupyter_cmd = f"jupyter notebook stop {port_fwd}"
                 self.system.run(commands=[kill_jupyter_cmd])
 

@@ -55,7 +55,6 @@ def test_from_cluster():
 
 def test_to_cluster_attr():
     cluster = rh.cluster(name="^rh-cpu").up_if_not()
-    cluster.restart_grpc_server()
     local_folder = rh.folder(path=TEST_FOLDER_PATH)
     cluster_folder = local_folder.to(system=cluster)
     assert isinstance(cluster_folder.system, rh.Cluster)
@@ -330,7 +329,7 @@ def test_cluster_and_cluster():
     assert "sample_file_0.txt" in cluster_folder_1.ls(full_paths=False)
 
     # Cluster 1 to cluster 2
-    c2 = rh.cluster("^rh-8-cpu").up_if_not()
+    c2 = rh.cluster(name="test-byo-cluster").up_if_not()
     cluster_folder_2 = cluster_folder_1.to(system=c2, path=cluster_folder_1.path)
     assert "sample_file_0.txt" in cluster_folder_2.ls(full_paths=False)
 
@@ -351,7 +350,7 @@ def test_s3_sharing():
 def test_load_shared_folder():
     from runhouse import Folder
 
-    my_folder = Folder.from_name("/jlewitt1/my-s3-shared-folder")
+    my_folder = Folder.from_name("@/my-s3-shared-folder")
     folder_contents = my_folder.ls()
     assert folder_contents
 

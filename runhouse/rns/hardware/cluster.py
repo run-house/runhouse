@@ -202,7 +202,7 @@ class Cluster(Resource):
             f"{[req if isinstance(req, str) else str(req) for req in reqs]}"
         )
         self.check_grpc()
-        self.client.install_packages(pickle.dumps(to_install))
+        self.client.install_packages(to_install)
 
     def get(self, key: str, default: Any = None, stream_logs: bool = False):
         """Get the object at the given key from the cluster's object store."""
@@ -549,6 +549,6 @@ class Cluster(Resource):
                 pkg = Package.from_string("local:" + sync_package_on_close)
                 self.rsync(source=f"~/{pkg.name}", dest=pkg.local_path, up=False)
             if not persist:
-                tunnel.stop(force=True)
+                tunnel.stop()
                 kill_jupyter_cmd = f"jupyter notebook stop {port_fwd}"
                 self.run(commands=[kill_jupyter_cmd])

@@ -102,6 +102,16 @@ def load_cluster(cluster_name: str):
         c.populate_vars_from_status(dryrun=True)
 
 
+@app.command()
+def restart_grpc(cluster_name: str,
+                 restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
+                 resync_rh: bool = typer.Option(False, help="Resync the Runhouse package")
+):
+    """Restart the gRPC server on a cluster."""
+    c = cluster(name=cluster_name)
+    c.restart_grpc_server(resync_rh=resync_rh, restart_ray=restart_ray)
+
+
 @app.callback()
 def main(verbose: bool = False):
     """

@@ -25,7 +25,6 @@ def summer(a, b):
 
 
 def test_create_function_from_name_local():
-    rh.cluster(name="^rh-cpu", dryrun=True).restart_grpc_server(resync_rh=True)
     local_sum = rh.function(
         fn=summer, name="local_function", system="^rh-cpu", reqs=["local:./"]
     ).save()
@@ -208,14 +207,14 @@ def test_share_function():
     my_function = rh.function(fn=summer, name="@/remote_function", system=rh_cpu).save()
 
     my_function.share(
-        users=["donny@run.house", "josh@run.house", "alissaabrahami@hotmail.com"],
+        users=["donny@run.house", "josh@run.house"],
         access_type="read",
     )
     assert True
 
 
 def test_load_shared_function():
-    my_function = rh.function(name="/jlewitt1/remote_function")
+    my_function = rh.function(name="@/remote_function")
     res = my_function(1, 2)
     assert res == 3
 

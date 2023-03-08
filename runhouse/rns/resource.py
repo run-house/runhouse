@@ -60,11 +60,10 @@ class Resource:
     @property
     def config_for_rns(self):
         config = {
+            "name": self.rns_address,
             "resource_type": self.RESOURCE_TYPE,
             "resource_subtype": self.__class__.__name__,
         }
-        config_attrs = ["name", "rns_address"]
-        self.save_attrs_to_config(config, config_attrs)
         return config
 
     def _resource_string_for_subconfig(self, resource):

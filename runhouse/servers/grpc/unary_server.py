@@ -46,24 +46,31 @@ class UnaryService(pb2_grpc.UnaryServicer):
 
     def InstallPackages(self, request, context):
         self.register_activity()
-        packages = pickle.loads(request.message)
-        logger.info(f"Message received from client to install packages: {packages}")
-        for package in packages:
-            if isinstance(package, str):
-                pkg = Package.from_string(package)
-            elif hasattr(package, "install"):
-                pkg = package
-            else:
-                raise ValueError(f"package {package} not recognized")
+        try:
+            packages = pickle.loads(request.message)
+            logger.info(f"Message received from client to install packages: {packages}")
+            for package in packages:
+                if isinstance(package, str):
+                    pkg = Package.from_string(package)
+                elif hasattr(package, "install"):
+                    pkg = package
+                else:
+                    raise ValueError(f"package {package} not recognized")
 
-            if (str(pkg)) in self._installed_packages:
-                continue
-            logger.info(f"Installing package: {str(pkg)}")
-            pkg.install()
-            self._installed_packages.append(str(pkg))
+                if (str(pkg)) in self._installed_packages:
+                    continue
+                logger.info(f"Installing package: {str(pkg)}")
+                pkg.install()
+                self._installed_packages.append(str(pkg))
 
-        self.register_activity()
-        return pb2.MessageResponse(message=pickle.dumps(True), received=True)
+            self.register_activity()
+            message = [None, None, None]
+        except Exception as e:
+            logger.exception(e)
+            message = [None, e, traceback.format_exc()]
+            self.register_activity()
+
+        return pb2.MessageResponse(message=pickle.dumps(message), received=False)
 
     def GetObject(self, request, context):
         self.register_activity()
@@ -173,15 +180,13 @@ class UnaryService(pb2_grpc.UnaryServicer):
                 request.message
             )
 
-            module_path = None
+            module_path = str((Path.home() / relative_path).resolve()) if relative_path else None
 
             if module_name == "notebook":
                 fn = fn_name  # Already unpickled above
             else:
-                fn = get_fn_by_name(module_name, fn_name, relative_path)
+                fn = get_fn_by_name(module_name, fn_name, module_path)
 
-            if relative_path:
-                module_path = str((Path.home() / relative_path).resolve())
             res = call_fn_by_type(fn, fn_type, fn_name, module_path, args, kwargs)
             # [res, None, None] is a silly hack for packaging result alongside exception and traceback
             result = {"message": pickle.dumps([res, None, None]), "received": True}

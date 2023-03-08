@@ -197,7 +197,7 @@ class Folder(Resource):
     def data_config(self):
         if isinstance(self.system, Resource):  # if system is a cluster
             # handle case cluster is itself
-            rns_address = _current_cluster("rns_address")
+            rns_address = _current_cluster("name")
             if rns_address and rns_address == self.system.rns_address:
                 return self._data_config
 
@@ -230,7 +230,7 @@ class Folder(Resource):
     @property
     def _fs_str(self):
         if isinstance(self.system, Resource):  # if system is a cluster
-            if self.system.rns_address == _current_cluster("rns_address"):
+            if self.system.rns_address == _current_cluster("name"):
                 return self.DEFAULT_FS
             return self.CLUSTER_FS
         else:
@@ -517,7 +517,7 @@ class Folder(Resource):
     def is_local(self):
         """Whether the folder is on the local filesystem."""
         return (
-            self.system == "file" and self.path is not None and Path(self.path).exists()
+            self._fs_str == "file" and self.path is not None and Path(self.path).exists()
         ) or self._local_mount_path
 
     def upload(self, src: str, region: Optional[str] = None):
