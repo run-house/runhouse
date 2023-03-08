@@ -154,7 +154,7 @@ class Table(Resource):
         if not config:
             raise ValueError(f"Table {name} not found.")
         # Uses the table subclass associated with the `resource_subtype`
-        table_cls = _load_table_subclass(config, dryrun)
+        table_cls = _load_table_subclass(config=config, dryrun=dryrun)
         return table_cls.from_config(config=config, dryrun=dryrun)
 
     def to(self, system, path=None, data_config=None):
@@ -515,7 +515,7 @@ def table(
         # create the remote folder for the table
         rh.folder(path=data_path, system=config["system"], dryrun=True).mkdir()
 
-    new_table = _load_table_subclass(data, config, dryrun)
+    new_table = _load_table_subclass(config=config, dryrun=dryrun, data=data)
     if data is not None:
         new_table.data = data
 
