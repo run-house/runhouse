@@ -63,7 +63,7 @@ html_favicon = "_static/favicon.ico"
 
 html_theme_options = {
     "repository_url": "https://github.com/run-house/runhouse",
-    "repository_branch": "main",
+    "repository_branch": "stable",
     "path_to_docs": "docs/",  # Path to the documentation, relative to the repository root (e.g. docs/)
     "use_repository_button": True,
     "logo_only": True,
