@@ -202,7 +202,6 @@ def test_ssh():
 
 
 def test_share_function():
-    rh.set_folder("~/josh/randy", create=True)
     rh_cpu = rh.cluster("^rh-cpu").up_if_not()
     my_function = rh.function(fn=summer, name="@/remote_function", system=rh_cpu).save()
 

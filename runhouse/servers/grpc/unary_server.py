@@ -180,7 +180,9 @@ class UnaryService(pb2_grpc.UnaryServicer):
                 request.message
             )
 
-            module_path = str((Path.home() / relative_path).resolve()) if relative_path else None
+            module_path = (
+                str((Path.home() / relative_path).resolve()) if relative_path else None
+            )
 
             if module_name == "notebook":
                 fn = fn_name  # Already unpickled above
@@ -264,11 +266,17 @@ class UnaryService(pb2_grpc.UnaryServicer):
         return {**cluster_metadata, **cluster_status_report}
 
     def _cluster_sky_report(self):
-        from runhouse import Secrets
+        try:
+            from runhouse import Secrets
 
-        sky_ray_data = Secrets.read_yaml_file(self.SKY_YAML)
+            sky_ray_data = Secrets.read_yaml_file(self.SKY_YAML)
+        except FileNotFoundError:
+            # For on prem clusters we won't have sky data
+            return {}
+
         provider = sky_ray_data["provider"]
         node_config = sky_ray_data["available_node_types"].get("ray.head.default", {})
+
         return {
             "cluster_name": sky_ray_data.get("cluster_name"),
             "region": provider.get("region"),

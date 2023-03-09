@@ -517,7 +517,9 @@ class Folder(Resource):
     def is_local(self):
         """Whether the folder is on the local filesystem."""
         return (
-            self._fs_str == "file" and self.path is not None and Path(self.path).exists()
+            self._fs_str == "file"
+            and self.path is not None
+            and Path(self.path).exists()
         ) or self._local_mount_path
 
     def upload(self, src: str, region: Optional[str] = None):
