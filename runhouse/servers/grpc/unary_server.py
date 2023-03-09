@@ -298,8 +298,14 @@ class UnaryService(pb2_grpc.UnaryServicer):
             f"{configs.get('api_server_url')}/admin/logs", data=json.dumps(payload)
         )
 
+        if resp.status_code == 405:
+            # api server not configured to receive grafana logs
+            return
+
         if resp.status_code != 200:
-            logger.error(f"({resp.status_code}) Failed to send logs to Grafana Loki")
+            logger.error(
+                f"({resp.status_code}) Failed to send logs to Grafana Loki: {resp.text}"
+            )
 
 
 def serve():
