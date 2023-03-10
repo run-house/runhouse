@@ -9,7 +9,6 @@ from typing import Dict, Optional, Union
 
 import fsspec
 
-# TODO [DG] flip this when we switch to sshfs
 import sshfs
 
 import runhouse as rh
@@ -186,7 +185,7 @@ class Folder(Resource):
         self._system = data_source
         self._fsspec_fs = None
 
-    # TODO figure out how to free sshfs properly (https://github.com/ronf/asyncssh/issues/112)
+    # Maybe figure out how to free sshfs properly (https://github.com/ronf/asyncssh/issues/112)
     # def __del__(self):
     #     if self.local_mount:
     #         self.unmount()
@@ -319,12 +318,12 @@ class Folder(Resource):
         if self.is_local():
             self.fsspec_fs.put(self.path, f"{system}://{path}", recursive=True)
         else:
-            # TODO this is really really slow, maybe use skyplane, as follows:
+            # This is really really slow, maybe use skyplane, as follows:
             # src_url = f'local://{self.path}' if self.is_local() else self.fsspec_url
             # subprocess.run(['skyplane', 'sync', src_url, f'{system}://{path}'])
 
             # FYI: from https://github.com/fsspec/filesystem_spec/issues/909
-            # TODO [DG]: Copy chunks https://github.com/fsspec/filesystem_spec/issues/909#issuecomment-1204212507
+            # Maybe copy chunks https://github.com/fsspec/filesystem_spec/issues/909#issuecomment-1204212507
             src = fsspec.get_mapper(self.fsspec_url, create=False, **self.data_config)
             dest = fsspec.get_mapper(f"{system}://{path}", create=True, **data_config)
             # dest.system.mkdir(dest.root, create_parents=True)
@@ -352,7 +351,7 @@ class Folder(Resource):
         """Copies folder to local."""
         from runhouse.rns.hardware import Cluster
 
-        if self.system == "file":
+        if self._fs_str == "file":
             # Simply move the files within local system
             shutil.copytree(src=self.path, dst=dest_path)
         elif isinstance(self.system, Cluster):
@@ -363,22 +362,6 @@ class Folder(Resource):
         return self.destination_folder(
             dest_path=dest_path, dest_system="file", data_config=data_config
         )
-
-    # TODO [DG] Any reason to keep this?
-    # def to_sftp(self, path, data_config):
-    #     from runhouse.rns.system import Cluster
-    #     if self.system == 'file':
-    #         # Rsync up the files to the remote system
-    #         self.rsync(local=self.path, remote=path, data_config=data_config, up=True)
-    #     elif self.system == 'sftp':
-    #         # Simply move the files within stfp system
-    #         # TODO [DG] speculation
-    #         self.fsspec_fs.mv(self.path, path)
-    #     elif isinstance(self.system, Cluster):
-    #         self.system.run([f'rsync {self.path} {data_config["username"]}@{data_config["host"]}:{path} '
-    #                      f'--password_file {data_config["key_filename"]}'])
-    #     else:
-    #         self.fsspec_copy('file', path, data_config)
 
     def to_data_store(
         self,
@@ -397,7 +380,7 @@ class Folder(Resource):
         folder_config["data_config"] = data_config
         new_folder = Folder.from_config(folder_config)
 
-        if self.system == "file":
+        if self._fs_str == "file":
             new_folder.upload(src=local_folder_path)
         elif isinstance(self.system, Cluster):
             self.system.run(
@@ -411,7 +394,6 @@ class Folder(Resource):
     @staticmethod
     def rsync(local, remote, data_config, up=True):
         """Rsync local folder to remote."""
-        # TODO convert this to generate rsync command between two clusters
         dest_str = f'{data_config["username"]}@{data_config["host"]}:{remote}'
         src_str = local
         if not up:
@@ -462,7 +444,7 @@ class Folder(Resource):
         dest_folder.system = dest_cluster
         dest_folder.mkdir()
 
-        if self.system == "file":
+        if self._fs_str == "file":
             dest_cluster.rsync(source=self.path, dest=dest_path, up=True, contents=True)
 
         elif isinstance(self.system, Resource):
@@ -499,7 +481,6 @@ class Folder(Resource):
         """
         if not cluster.address:
             raise ValueError("Cluster must be started before copying data from it.")
-        # TODO support fsspec urls (e.g. nonlocal system's)?
         Path(dest_path).expanduser().mkdir(parents=True, exist_ok=True)
         cluster.rsync(
             source=self.path,
@@ -602,7 +583,6 @@ class Folder(Resource):
 
     def resources(self, full_paths: bool = False, resource_type: str = None):
         """List the resources in the *RNS* folder."""
-        # TODO filter by type
         # TODO allow '*' wildcard for listing all resources (and maybe other wildcard things)
         try:
             resources = [

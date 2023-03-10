@@ -36,7 +36,6 @@ def fs_str_rh_fn(folder):
 
 
 def test_github_folder():
-    # TODO gh_folder = rh.folder(path='https://github.com/pytorch/pytorch', system='github')
     gh_folder = rh.folder(
         path="/", system="github", data_config={"org": "pytorch", "repo": "pytorch"}
     )

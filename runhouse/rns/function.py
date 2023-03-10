@@ -25,9 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class Function(Resource):
-    RESOURCE_TYPE = (
-        "function"  # TODO [DG] rename when rns store supports saving this type
-    )
+    RESOURCE_TYPE = "function"
     DEFAULT_ACCESS = "write"
 
     def __init__(
@@ -70,7 +68,6 @@ class Function(Resource):
             else package
             for package in config["reqs"]
         ]
-        # TODO validate which fields need to be present in the config
 
         if isinstance(config["system"], dict):
             config["system"] = Cluster.from_config(config["system"], dryrun=dryrun)
@@ -106,7 +103,6 @@ class Function(Resource):
         new_function.setup_cmds = (
             setup_cmds if setup_cmds else self.setup_cmds
         )  # Run inside reup_cluster
-        # TODO [DG] figure out how to run setup_cmds on BYO Cluster
 
         logging.info("Setting up Function on cluster.")
         if not new_function.system.address:
@@ -142,7 +138,6 @@ class Function(Resource):
         """Re-up the cluster the Function is on."""
         logger.info(f"Upping the cluster {self.system.name}")
         self.system.up()
-        # TODO [DG] this only happens when the cluster comes up, not when a new function is added to the cluster
         self.system.run(self.setup_cmds)
 
     def run_setup(self, cmds: List[str], force: bool = False):

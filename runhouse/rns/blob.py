@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 
 class Blob(Resource):
-    # TODO rename to "File" and take out serialization?
     RESOURCE_TYPE = "blob"
     DEFAULT_FOLDER_PATH = "/runhouse-blob"
     DEFAULT_CACHE_FOLDER = ".cache/runhouse/blobs"
@@ -45,8 +44,6 @@ class Blob(Resource):
         )
         self._cached_data = None
 
-    # TODO do we need a del?
-
     @property
     def config_for_rns(self):
         config = super().config_for_rns
@@ -65,7 +62,6 @@ class Blob(Resource):
     @property
     def data(self):
         """Get the blob data."""
-        # TODO this caching is dumb, either get rid of it or replace with caching from fsspec
         if self._cached_data is not None:
             return self._cached_data
         data = self.fetch()
@@ -165,7 +161,6 @@ class Blob(Resource):
         """Efficiently rsync down a blob from a cluster, into the path of the current Blob object."""
         if not cluster.address:
             raise ValueError("Cluster must be started before copying data to it.")
-        # TODO support fsspec urls (e.g. nonlocal system's)?
 
         cluster.rsync(source=self.path, dest=path, up=False)
 

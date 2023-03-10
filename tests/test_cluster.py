@@ -30,8 +30,8 @@ def test_install():
         [
             "./",
             "torch==1.12.1",
-            # 'conda:jupyterlab',  # TODO [DG] make this actually work
-            # 'gh:pytorch/vision'  # TODO [DG] make this actually work
+            # 'conda:jupyterlab',
+            # 'gh:pytorch/vision'
         ]
     )
 
