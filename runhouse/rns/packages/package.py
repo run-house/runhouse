@@ -211,7 +211,7 @@ class Package(Resource):
             else Path(rh_config.rns_client.locate_working_dir()) / rel_target
         )
         if abs_target.exists():
-            target = Folder(path=rel_target)
+            target = Folder(path=rel_target, dryrun=True)  # No need to create the folder here
         else:
             target = rel_target
 

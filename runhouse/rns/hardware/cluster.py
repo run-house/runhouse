@@ -6,7 +6,9 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import grpc
 import ray.cloudpickle as pickle
+import sshtunnel
 
 from sky.utils import command_runner
 from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
@@ -61,9 +63,9 @@ class Cluster(Resource):
         import json
 
         config = self.config_for_rns
-        if "sky_data" in config.keys():
+        if "sky_state" in config.keys():
             # a bunch of setup commands that mess up json dump
-            del config["sky_data"]
+            del config["sky_state"]
         json_config = f"{json.dumps(config)}"
 
         self.run(
@@ -88,7 +90,6 @@ class Cluster(Resource):
         self.save_attrs_to_config(config, ["ips"])
         if self.ips is not None:
             config["ssh_creds"] = self.ssh_creds()
-        # TODO [DG] creds should be shared through secrets management only
         return config
 
     def is_up(self) -> bool:
@@ -173,8 +174,8 @@ class Cluster(Resource):
 
     def install_packages(self, reqs: List[Union[Package, str]]):
         """Install the given packages on the cluster."""
+        self.check_grpc()
         to_install = []
-        # TODO [DG] validate package strings
         for package in reqs:
             if isinstance(package, str):
                 # If the package is a local folder, we need to create the package to sync it over to the cluster
@@ -196,12 +197,10 @@ class Cluster(Resource):
                 to_install.append(remote_package)
             else:
                 to_install.append(package)  # Just appending the string!
-        # TODO replace this with figuring out how to stream the logs when we install
         logging.info(
             f"Installing packages on cluster {self.name}: "
             f"{[req if isinstance(req, str) else str(req) for req in reqs]}"
         )
-        self.check_grpc()
         self.client.install_packages(to_install)
 
     def get(self, key: str, default: Any = None, stream_logs: bool = False):
@@ -279,10 +278,30 @@ class Cluster(Resource):
 
     def check_grpc(self, restart_grpc_server=True):
         if not self.address:
-            raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
+            # For OnDemandCluster, this initial check doesn't trigger a sky.status, which is slow.
+            # If cluster simply doesn't have an address we likely need to up it.
+            if not hasattr(self, "up"):
+                raise ValueError(
+                    "Cluster must have an ip address (i.e. be up) or have a reup_cluster method "
+                    "(e.g. OnDemandCluster)."
+                )
+            if not self.is_up():
+                # If this is a OnDemandCluster, before we up the cluster, run a sky.status to see if the cluster
+                # is already up but doesn't have an address assigned yet.
+                self.up_if_not()
 
         if not self.client:
-            self.connect_grpc()
+            try:
+                self.connect_grpc()
+            except (
+                    grpc.RpcError,
+                    sshtunnel.BaseSSHTunnelForwarderError,
+            ):
+                # It's possible that the cluster went down while we were trying to install packages.
+                if not self.is_up():
+                    self.up_if_not()
+                else:
+                    self.restart_grpc_server(resync_rh=False)
 
         if self.is_connected():
             return
@@ -360,15 +379,15 @@ class Cluster(Resource):
 
     # TODO [DG] Remove this for now, for some reason it was causing execution to hang after programs completed
     # def __del__(self):
-    # if self.address in open_grpc_tunnels:
-    #     tunnel, port, refcount = open_grpc_tunnels[self.address]
-    #     if refcount == 1:
-    #         tunnel.stop(force=True)
-    #         open_grpc_tunnels.pop(self.address)
-    #     else:
-    #         open_grpc_tunnels[self.address] = (tunnel, port, refcount - 1)
-    # elif self._grpc_tunnel:  # Not sure why this would be reached but keeping it just in case
-    #     self._grpc_tunnel.stop(force=True)
+    #     if self.address in open_grpc_tunnels:
+    #         tunnel, port, refcount = open_grpc_tunnels[self.address]
+    #         if refcount == 1:
+    #             tunnel.close()
+    #             open_grpc_tunnels.pop(self.address)
+    #         else:
+    #             open_grpc_tunnels[self.address] = (tunnel, port, refcount - 1)
+    #     elif self._grpc_tunnel:  # Not sure why this would be reached but keeping it just in case
+    #         self._grpc_tunnel.close()
 
     # import paramiko
     # ssh = paramiko.SSHClient()
@@ -397,15 +416,19 @@ class Cluster(Resource):
         # TODO how do we capture errors if this fails?
         if resync_rh:
             self.sync_runhouse_to_cluster(_install_url=_rh_install_url)
+            self.save_config_to_cluster()
         kill_proc_cmd = 'pkill -f "python3 -m runhouse.servers.grpc.unary_server"'
-        grpc_server_cmd = "screen -dm python3 -m runhouse.servers.grpc.unary_server"
+        logfile = f"{self.name}_grpc_server.log"
+        grpc_server_cmd = "python3 -m runhouse.servers.grpc.unary_server"
+        # 2>&1 redirects stderr to stdout
+        screen_cmd = f"screen -dm bash -c '{grpc_server_cmd} >> ~/.rh/{logfile} 2>&1'"
         cmds = [kill_proc_cmd]
         if restart_ray:
             cmds.append("ray stop")
             cmds.append(
                 "ray start --head"
             )  # Need to set gpus or Ray will block on cpu-only clusters
-        cmds.append(grpc_server_cmd)
+        cmds.append(screen_cmd)
 
         # If we need different commands for debian or ubuntu, we can use this:
         # Need to get actual provider in case provider == 'cheapest'
@@ -427,6 +450,8 @@ class Cluster(Resource):
 
     @contextlib.contextmanager
     def pause_autostop(self):
+        """Context manager to temporarily pause autostop. Mainly for OnDemand clusters, for BYO cluster
+        there is no autostop."""
         pass
 
     def run_module(self, relative_path, module_name, fn_name, fn_type, args, kwargs):
@@ -469,6 +494,10 @@ class Cluster(Resource):
             dest = dest + "/" if not dest.endswith("/") else dest
         ssh_credentials = self.ssh_creds()
         runner = command_runner.SSHCommandRunner(self.address, **ssh_credentials)
+        if up:
+            runner.run(["mkdir", "-p", dest], stream_logs=False)
+        else:
+            Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
         runner.rsync(source, dest, up=up, stream_logs=False)
 
     def ssh(self):
@@ -538,7 +567,6 @@ class Cluster(Resource):
         try:
             install_cmd = "pip install jupyterlab"
             jupyter_cmd = f"jupyter lab --port {port_fwd} --no-browser"
-            # port_fwd = '-L localhost:8888:localhost:8888 '  # TOOD may need when we add docker support
             with self.pause_autostop():
                 self.run(commands=[install_cmd, jupyter_cmd], stream_logs=True)
 
