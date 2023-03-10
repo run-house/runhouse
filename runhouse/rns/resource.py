@@ -104,6 +104,10 @@ class Resource:
     def rns_address(self, new_address):
         self.name = new_address  # Note, this saves the resource to the new address!
 
+    def _save_sub_resources(self):
+        """ Overload by child resources to save any resources they hold internally. """
+        pass
+
     def save(
         self,
         name: str = None,
@@ -112,6 +116,7 @@ class Resource:
         """Register the resource, saving it to local working_dir config and RNS config store. Uses the resource's
         `self.config_for_rns` to generate the dict to save."""
 
+        self._save_sub_resources()
         # TODO deal with logic of saving anonymous folder for the first time after naming, i.e.
         # Path(tempfile.gettempdir()).relative_to(self.path) ...
         if name:

@@ -437,6 +437,9 @@ class Function(Resource):
         )
         return config
 
+    def _save_sub_resources(self):
+        self.system.save()
+
     # TODO maybe reuse these if we starting putting each function in its own container
     # @staticmethod
     # def run_ssh_cmd_in_cluster(ssh_key, ssh_user, address, cmd, port_fwd=None):

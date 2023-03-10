@@ -552,6 +552,10 @@ class Folder(Resource):
 
         return config
 
+    def _save_sub_resources(self):
+        if isinstance(self.system, Resource):
+            self.system.save()
+
     @staticmethod
     def _path_relative_to_rh_workdir(path):
         rh_workdir = Path(rns_client.locate_working_dir())
