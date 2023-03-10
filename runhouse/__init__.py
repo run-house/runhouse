@@ -25,4 +25,4 @@ from .rns.packages import git_package, GitPackage, package, Package
 from .rns.secrets.secrets import Secrets
 from .rns.tables.table import table, Table
 
-__version__ = "0.0.3"
+__version__ = "0.0.4"
