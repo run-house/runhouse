@@ -310,7 +310,8 @@ class Secrets:
 
         if check:
             enabled_providers = cls.enabled_providers(as_str=True)
-            not_enabled = [p for p in secrets.keys() if p not in enabled_providers and p in cls.builtin_providers()]
+            not_enabled = [p for p in secrets.keys()
+                           if p not in enabled_providers and p in cls.builtin_providers(as_str=True)]
             if not_enabled:
                 logger.warning(
                     f"Received secrets {not_enabled} which Runhouse did not auto-detect as configured. "
@@ -351,10 +352,12 @@ class Secrets:
         return [cls.builtin_provider_class_from_name(c) for c in cloud_names]
 
     @classmethod
-    def builtin_providers(cls) -> list:
+    def builtin_providers(cls, as_str=False) -> list:
         """Return list of all Runhouse providers (as class objects) supported out of the box."""
         from runhouse.rns.secrets.providers import Providers
 
+        if as_str:
+            return [e.name.lower() for e in Providers]
         return [e.value for e in Providers]
 
     @classmethod
