@@ -153,6 +153,12 @@ def test_sending_secrets_to_cluster():
     assert True
 
 
+@unittest.skip("for manually debugging full login flow")
+def test_login_manual():
+    rh.login(token="...",
+             download_config=False, download_secrets=True, upload_secrets=False, upload_config=False)
+
+
 @unittest.skip("This test overrides local rh token if done incorrectly")
 # Running this unit test will override local rh config token to "..."
 # Was meant to be run by manually inputting token, but need a better way to test

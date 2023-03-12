@@ -292,19 +292,9 @@ class Secrets:
         return secrets
 
     @classmethod
-    def save_provider_secrets(cls, secrets: dict):
+    def save_provider_secrets(cls, secrets: dict, check=True):
         """Save secrets for each provider to their respective local configs"""
-        enabled_providers = cls.enabled_providers(as_str=True)
         for provider_name, provider_secrets in secrets.items():
-            if provider_name not in enabled_providers:
-                logger.warning(
-                    f"Received secrets for {provider_name} which Runhouse did not detect as configured. "
-                    f"Run `sky check` for instructions on how to enable them. If the secret is not supported by "
-                    f"sky, you can set the secrets' environment variables or save them to their respective "
-                    f"local files manually."
-                )
-                continue
-
             provider_cls = cls.builtin_provider_class_from_name(provider_name)
             if provider_cls is not None:
                 try:
@@ -317,6 +307,16 @@ class Secrets:
 
             # Make sure local config reflects this provider has been enabled
             configs.set(provider_name, provider_cls.default_credentials_path())
+
+        if check:
+            enabled_providers = cls.enabled_providers(as_str=True)
+            not_enabled = [p for p in secrets.keys() if p not in enabled_providers and p in cls.builtin_providers()]
+            if not_enabled:
+                logger.warning(
+                    f"Received secrets {not_enabled} which Runhouse did not auto-detect as configured. "
+                    f"For cloud providers, you may want to run `sky check` to double check that they're "
+                    f"enabled and to see instructions on how to enable them."
+                )
 
     @classmethod
     def enabled_providers(cls, as_str: bool = False) -> List:
