@@ -1,5 +1,4 @@
 import contextlib
-import json
 import logging
 import subprocess
 from pathlib import Path
@@ -136,7 +135,9 @@ class OnDemandCluster(Cluster):
         if self.sky_state.get("handle", {}).get("cluster_name") == current_cluster_name:
             return
 
-        yaml_path = self._yaml_path or self.sky_state.get("handle", {}).get("cluster_yaml")
+        yaml_path = self._yaml_path or self.sky_state.get("handle", {}).get(
+            "cluster_yaml"
+        )
 
         # convert to relative path
         yaml_path = self.relative_yaml_path(yaml_path)
@@ -258,7 +259,9 @@ class OnDemandCluster(Cluster):
             ip = cluster_dict["handle"].head_ip
             if self.address is None or self.address != ip:
                 self.address = ip
-                self._ssh_creds = backend_utils.ssh_credential_from_yaml(self._yaml_path)
+                self._ssh_creds = backend_utils.ssh_credential_from_yaml(
+                    self._yaml_path
+                )
 
     def up(self):
         """Up the cluster."""

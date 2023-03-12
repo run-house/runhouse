@@ -321,11 +321,13 @@ def test_load_function_in_new_env():
     ).save()
 
     byo_cluster = rh.cluster(name="different-cluster")
-    byo_cluster.send_secrets(['ssh'])
-    remote_python = "import runhouse as rh; " \
-                    "remote_sum = rh.function(name='@/remote_function'); " \
-                    "res = remote_sum(1, 5); " \
-                    "assert res == 6"
+    byo_cluster.send_secrets(["ssh"])
+    remote_python = (
+        "import runhouse as rh; "
+        "remote_sum = rh.function(name='@/remote_function'); "
+        "res = remote_sum(1, 5); "
+        "assert res == 6"
+    )
     res = byo_cluster.run_python([remote_python], stream_logs=False)
     print(res)
     assert res[0][0] == 0

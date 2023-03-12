@@ -105,7 +105,7 @@ class Resource:
         self.name = new_address  # Note, this saves the resource to the new address!
 
     def _save_sub_resources(self):
-        """ Overload by child resources to save any resources they hold internally. """
+        """Overload by child resources to save any resources they hold internally."""
         pass
 
     def save(

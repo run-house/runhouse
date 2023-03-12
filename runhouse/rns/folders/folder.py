@@ -351,7 +351,9 @@ class Folder(Resource):
         """Copies folder to local."""
         from runhouse.rns.hardware import Cluster
 
-        if self._fs_str == "file":  # Also covers the case where we're on the cluster at system
+        if (
+            self._fs_str == "file"
+        ):  # Also covers the case where we're on the cluster at system
             # Simply move the files within local system
             shutil.copytree(src=self.path, dst=dest_path)
         elif isinstance(self.system, Cluster):
@@ -380,7 +382,9 @@ class Folder(Resource):
         folder_config["data_config"] = data_config
         new_folder = Folder.from_config(folder_config)
 
-        if self._fs_str == "file":  # Also covers the case where we're on the cluster at system
+        if (
+            self._fs_str == "file"
+        ):  # Also covers the case where we're on the cluster at system
             new_folder.upload(src=local_folder_path)
         elif isinstance(self.system, Cluster):
             self.system.run(

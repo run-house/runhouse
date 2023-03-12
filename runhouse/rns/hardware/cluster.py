@@ -294,8 +294,8 @@ class Cluster(Resource):
             try:
                 self.connect_grpc()
             except (
-                    grpc.RpcError,
-                    sshtunnel.BaseSSHTunnelForwarderError,
+                grpc.RpcError,
+                sshtunnel.BaseSSHTunnelForwarderError,
             ):
                 # It's possible that the cluster went down while we were trying to install packages.
                 if not self.is_up():
