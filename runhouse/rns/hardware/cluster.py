@@ -2,6 +2,7 @@ import contextlib
 import logging
 import pkgutil
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -507,6 +508,14 @@ class Cluster(Resource):
                 " "
             )
         )
+
+    def ping(self, timeout=5):
+        ssh_call = threading.Thread(target=lambda: self.run(['echo "hello"']))
+        ssh_call.start()
+        ssh_call.join(timeout=timeout)
+        if ssh_call.is_alive():
+            raise TimeoutError("SSH call timed out")
+        return True
 
     def run(
         self,
