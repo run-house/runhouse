@@ -209,11 +209,6 @@ class OnDemandCluster(Cluster):
         self.sky_state = self._get_sky_state()
         return super().__getstate__()
 
-    def __setstate__(self, state):
-        super().__setstate__(state)
-        if self.sky_state:
-            self._save_sky_state()
-
     @staticmethod
     def relative_yaml_path(yaml_path):
         if Path(yaml_path).is_absolute():

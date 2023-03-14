@@ -1,4 +1,5 @@
 import logging
+import re
 import sys
 import time
 
@@ -83,8 +84,15 @@ class UnaryClient(object):
             output_type = resp.output_type
             server_res = pickle.loads(resp.message)
             if output_type == OutputType.STDOUT:
+                # Regex to match tqdm progress bars
+                tqdm_regex = re.compile(r"(.+)%\|(.+)\|\s+(.+)/(.+)")
                 for line in server_res:
-                    print(line, end="", flush=True)
+                    if tqdm_regex.match(line):
+                        # tqdm lines are always preceded by a \n, so we can use \x1b[1A to move the cursor up one line
+                        # For some reason, doesn't work in PyCharm's console, but works in the terminal
+                        print("\x1b[1A\r" + line, end="", flush=True)
+                    else:
+                        print(line, end="", flush=True)
             elif output_type == OutputType.STDERR:
                 for line in server_res:
                     print(line, file=sys.stderr)

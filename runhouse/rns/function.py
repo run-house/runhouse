@@ -322,13 +322,15 @@ class Function(Resource):
                 if self.system.name
                 else "<my_cluster>"
             )
+            # TODO print this nicely
             logger.info(
                 f"Submitted remote call to cluster. Result or logs can be retrieved"
                 f'\n with run_key "{run_key}", e.g. '
                 f'\n`{cluster_name}.get("{run_key}", stream_logs=True)` in python '
+                f'\n`runhouse logs "{self.system.name}" {run_key}` from the command line.'
                 f"\n or cancelled with "
                 f'\n`{cluster_name}.cancel("{run_key}")` in python or '
-                f'\n`runhouse cancel "{cluster_name}" {run_key}` from the command line.'
+                f'\n`runhouse cancel "{self.system.name}" {run_key}` from the command line.'
             )
             return run_key
         else:

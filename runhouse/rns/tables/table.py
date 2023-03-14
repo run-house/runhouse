@@ -1,5 +1,6 @@
 import copy
 import logging
+import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -15,7 +16,6 @@ from runhouse.rns.folders.folder import folder
 from runhouse.rns.obj_store import _current_cluster
 
 from .. import OnDemandCluster, Resource
-from ..top_level_rns_fns import save
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +153,9 @@ class Table(Resource):
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Table {name} not found.")
+        # We don't need to load the cluster dict here (if system is a cluster) because the table init
+        # goes through the Folder factory method, which does that.
+
         # Uses the table subclass associated with the `resource_subtype`
         table_cls = _load_table_subclass(config=config, dryrun=dryrun)
         return table_cls.from_config(config=config, dryrun=dryrun)
@@ -164,6 +167,10 @@ class Table(Resource):
             system=system, path=path, data_config=data_config
         )
         return new_table
+
+    def _save_sub_resources(self):
+        if isinstance(self.system, Resource):
+            self.system.save()
 
     def save(
         self,
@@ -182,7 +189,7 @@ class Table(Resource):
             self.write_ray_dataset(data_to_write)
             logger.info(f"Saved {str(self)} to: {self.fsspec_url}")
 
-        save(self, overwrite=overwrite)
+        super().save(name=name, overwrite=overwrite)
 
         return self
 
@@ -286,7 +293,7 @@ class Table(Resource):
         # https://docs.ray.io/en/latest/data/api/input_output.html#parquet
         dataset = ray.data.read_parquet(
             self.fsspec_url, columns=columns, filesystem=self._folder.fsspec_fs
-        )
+        ).repartition(os.cpu_count() * 2)
         return dataset
 
     def write_ray_dataset(self, data_to_write: ray.data.Dataset):
@@ -297,7 +304,9 @@ class Table(Resource):
             pass
 
         # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.write_parquet.html
-        data_to_write.write_parquet(self.fsspec_url, filesystem=self._folder.fsspec_fs)
+        data_to_write.repartition(os.cpu_count() * 2).write_parquet(
+            self.fsspec_url, filesystem=self._folder.fsspec_fs
+        )
 
     @staticmethod
     def ray_dataset_from_arrow(data):
@@ -484,15 +493,6 @@ def table(
         else:
             # save to the default bucket
             data_path = f"{Table.DEFAULT_FOLDER_PATH}/{table_name_in_path}"
-
-    if isinstance(config["system"], str) and rns_client.exists(
-        config["system"], resource_type="cluster"
-    ):
-        config["system"] = rns_client.load_config(config["system"])
-    elif isinstance(config["system"], dict):
-        from runhouse.rns.hardware.cluster import Cluster
-
-        config["system"] = Cluster.from_config(config["system"])
 
     if isinstance(config["system"], str) and rns_client.exists(
         config["system"], resource_type="cluster"

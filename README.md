@@ -147,7 +147,7 @@ use, and will give detailed instructions if any setup is incomplete. SkyPilot al
 provides an excellent suite of CLI commands for basic instance management operations.
 There are a few that you'll be reaching for frequently when using Runhouse with autoscaling
 that you should familiarize yourself with,
-[here](https://runhouse-docs.readthedocs-hosted.com/en/latest/overview/clusters.html#on-demand-clusters).
+[here](https://runhouse-docs.readthedocs-hosted.com/en/latest/overview/compute.html#on-demand-clusters).
 
 ### 🔒 Creating a Runhouse Account for Secrets and Portability
 

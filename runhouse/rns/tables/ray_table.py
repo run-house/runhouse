@@ -2,7 +2,6 @@ import logging
 from typing import Optional
 
 from .. import OnDemandCluster
-from ..top_level_rns_fns import save
 
 from .table import Table
 
@@ -33,7 +32,7 @@ class RayTable(Table):
             self.write_ray_dataset(self.data)
             logger.info(f"Saved {str(self)} to: {self.fsspec_url}")
 
-        save(self, name=name, overwrite=overwrite)
+        super().save(name=name, overwrite=overwrite)
 
         return self
 

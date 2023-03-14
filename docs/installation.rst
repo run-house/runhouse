@@ -48,7 +48,7 @@ This will confirm which cloud providers are ready to use, and will give detailed
 SkyPilot also provides an excellent suite of CLI commands for basic instance management operations.
 There are a few that you'll be reaching for frequently when using Runhouse with autoscaling that you
 should familiarize yourself with,
-`here <https://runhouse-docs.readthedocs-hosted.com/en/latest/overview/clusters.html#on-demand-clusters/>`_.
+`here <https://runhouse-docs.readthedocs-hosted.com/en/latest/overview/compute.html#on-demand-clusters>`_.
 
 
 Secrets and Portability

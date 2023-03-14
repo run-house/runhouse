@@ -3,7 +3,6 @@ from typing import Optional
 
 from .. import OnDemandCluster
 from ..api_utils.utils import generate_uuid
-from ..top_level_rns_fns import save
 
 from .table import Table
 
@@ -46,7 +45,7 @@ class PandasTable(Table):
                 partition_cols=self.partition_cols,
             )
 
-        save(self, name=name, overwrite=overwrite)
+        super().save(name=name, overwrite=overwrite)
 
         return self
 

@@ -121,6 +121,10 @@ class Blob(Resource):
         self._cached_data = self._folder.get(self._filename)
         return self._cached_data
 
+    def _save_sub_resources(self):
+        if isinstance(self.system, Resource):
+            self.system.save()
+
     def save(
         self,
         name: str = None,
