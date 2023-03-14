@@ -1,8 +1,8 @@
-from typing import Dict, Any
 import contextlib
 import logging
 import subprocess
 from pathlib import Path
+from typing import Any, Dict
 
 import ray
 
@@ -160,13 +160,17 @@ class OnDemandCluster(Cluster):
             except TimeoutError:
                 self.address = None
                 self._ssh_creds = None
-                print(f"Timeout when trying to connect to cluster {self.name}, treating cluster as down.")
+                print(
+                    f"Timeout when trying to connect to cluster {self.name}, treating cluster as down."
+                )
                 return
 
             # TODO [JL] we need to call `ray.shutdown()` as sky does a ray init here on the cluster
             ray.shutdown()
 
-            resources = sky.Resources.from_yaml_config(handle_info["launched_resources"])
+            resources = sky.Resources.from_yaml_config(
+                handle_info["launched_resources"]
+            )
             # Need to convert to relative to find the yaml file in a new environment
             yaml_path = self.relative_yaml_path(handle_info.get("cluster_yaml"))
             handle = CloudVmRayBackend.ResourceHandle(
@@ -195,7 +199,7 @@ class OnDemandCluster(Cluster):
             else:
                 # We still should check if the cluster is up, since the status/yaml file could be stale
                 self.ping(timeout=self.RECONNECT_TIMEOUT)
-        except Exception as e:
+        except Exception:
             # Refresh the cluster status before saving the ssh info so SkyPilot has a chance to wipe the .ssh/config if
             # the cluster went down
             self.update_from_sky_status(dryrun=self.dryrun)
@@ -274,8 +278,7 @@ class OnDemandCluster(Cluster):
     def update_from_sky_status(self, dryrun: bool = False):
         # Try to get the cluster status from SkyDB
         cluster_dict = self.status(refresh=not dryrun)
-        self._populate_connection_from_status_dict(cluster_dict
-                )
+        self._populate_connection_from_status_dict(cluster_dict)
 
     def up(self):
         """Up the cluster."""
@@ -374,10 +377,7 @@ class OnDemandCluster(Cluster):
         if self._ssh_creds:
             return self._ssh_creds
 
-        if (
-            not self.status(refresh=False)
-            and self.sky_state
-        ):
+        if not self.status(refresh=False) and self.sky_state:
             # If this cluster was serialized and sent over the wire, it will have sky_state (we make sure of that
             # in __getstate__) but no yaml, and we need to save down the sky data to the sky db and local yaml
             self._save_sky_state()
