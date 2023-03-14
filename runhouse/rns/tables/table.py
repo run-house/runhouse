@@ -293,7 +293,7 @@ class Table(Resource):
         # https://docs.ray.io/en/latest/data/api/input_output.html#parquet
         dataset = ray.data.read_parquet(
             self.fsspec_url, columns=columns, filesystem=self._folder.fsspec_fs
-        ).repartition(os.cpu_count() * 2)
+        )
         return dataset
 
     def write_ray_dataset(self, data_to_write: ray.data.Dataset):
