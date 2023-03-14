@@ -225,7 +225,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
                 continue
 
             # update config on the cluster with the default creds path for each provider
-            configs.set(provider_name, credentials_path)
+            configs.set_nested("secrets", {provider_name: credentials_path})
             logger.info(f"Added secrets for {provider_name} to: {credentials_path}")
 
         return pb2.MessageResponse(

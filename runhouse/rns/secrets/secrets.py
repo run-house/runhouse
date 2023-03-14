@@ -206,7 +206,7 @@ class Secrets:
             configured_secrets.update(secrets_for_missing_providers)
 
             # Confirm all enabled providers are either configured locally or have secrets stored in Vault
-            if len(configured_secrets) != len(enabled_providers):
+            if len(configured_secrets) < len(enabled_providers):
                 raise Exception(
                     f"Failed to find secrets locally or in Vault for providers: {missing_providers}. "
                     f"For enabling locally save the secrets to the provider's default credentials file, "
@@ -241,7 +241,7 @@ class Secrets:
                 creds_file_path = p.default_credentials_path()
             else:
                 # See if we have the provider's path saved in the rh config
-                creds_file_path = configs.get(provider)
+                creds_file_path = configs.get("secrets", {}).get(provider)
                 if creds_file_path is None:
                     logger.warning(
                         f"Unable to delete credentials file for {provider}. Please delete the file manually."
@@ -305,13 +305,14 @@ class Secrets:
                     )
                     continue
 
-            # Make sure local config reflects this provider has been enabled
-            configs.set(provider_name, provider_cls.default_credentials_path())
-
         if check:
             enabled_providers = cls.enabled_providers(as_str=True)
-            not_enabled = [p for p in secrets.keys()
-                           if p not in enabled_providers and p in cls.builtin_providers(as_str=True)]
+            not_enabled = [
+                p
+                for p in secrets.keys()
+                if p not in enabled_providers
+                and p in cls.builtin_providers(as_str=True)
+            ]
             if not_enabled:
                 logger.warning(
                     f"Received secrets {not_enabled} which Runhouse did not auto-detect as configured. "
@@ -340,10 +341,11 @@ class Secrets:
             pass
 
         # Add any SSH keys + GitHub token that were explicitly added
-        if configs.get("ssh"):
+        config_secrets = configs.get("secrets", {})
+        if config_secrets.get("ssh"):
             cloud_names.append("ssh")
 
-        if configs.get("github"):
+        if config_secrets.get("github"):
             cloud_names.append("github")
 
         if as_str:
@@ -393,9 +395,12 @@ class Secrets:
                 Secrets.delete_secrets_file(file_path=f)
 
     @classmethod
-    def add_provider_to_rh_config(cls):
+    def add_provider_to_rh_config(cls, secrets_for_config: Optional[dict] = None):
         """Save the loaded provider config path to the runhouse config saved in the file system."""
-        configs.set(cls.PROVIDER_NAME, cls.default_credentials_path())
+        config_secrets = secrets_for_config or {
+            cls.PROVIDER_NAME: cls.default_credentials_path()
+        }
+        configs.set_nested(key="secrets", value=config_secrets)
 
     @classmethod
     def set_endpoint(cls, group: Optional[str] = None):

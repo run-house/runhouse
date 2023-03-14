@@ -1,4 +1,3 @@
-import asyncio
 import copy
 import inspect
 import json
@@ -98,9 +97,7 @@ class Function(Resource):
         self.system = hw_backup
         new_function.system = system
         new_function.reqs = reqs if reqs else self.reqs
-        new_function.setup_cmds = (
-            setup_cmds if setup_cmds else self.setup_cmds
-        )
+        new_function.setup_cmds = setup_cmds if setup_cmds else self.setup_cmds
 
         logging.info("Setting up Function on cluster.")
         new_function.system.install_packages(new_function.reqs)

@@ -42,8 +42,6 @@ class SSHSecrets(Secrets):
 
     @classmethod
     def save_secrets(cls, secrets: dict, overwrite: bool = False):
-        from runhouse import configs
-
         dest_path = Path(cls.default_credentials_path()).expanduser()
         cls.check_secrets_for_mismatches(
             secrets_to_save=secrets, secrets_path=str(dest_path), overwrite=overwrite
@@ -63,4 +61,7 @@ class SSHSecrets(Secrets):
             key_path.chmod(0o600)
             valid_secrets[key_name] = str(key_path)
 
-        configs.set_many({cls.PROVIDER_NAME: valid_secrets})
+        if valid_secrets:
+            cls.add_provider_to_rh_config(
+                secrets_for_config={cls.PROVIDER_NAME: secrets}
+            )

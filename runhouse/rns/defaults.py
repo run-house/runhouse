@@ -1,6 +1,7 @@
 import copy
 import json
 import logging
+from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -36,7 +37,7 @@ class Defaults:
     }
 
     def __init__(self):
-        self._defaults_cache = {}
+        self._defaults_cache = defaultdict(dict)
 
     @property
     def defaults_cache(self):
@@ -147,6 +148,11 @@ class Defaults:
 
     def set(self, key: str, value: Any, config_path: Optional[str] = None):
         self.defaults_cache[key] = value
+        self.save_defaults(config_path=config_path)
+
+    def set_nested(self, key: str, value: Any, config_path: Optional[str] = None):
+        """Set a config key that has multiple key/value pairs"""
+        self.defaults_cache.setdefault(key, {}).update(value)
         self.save_defaults(config_path=config_path)
 
     def set_many(self, key_value_pairs: Dict, config_path: Optional[str] = None):

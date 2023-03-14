@@ -274,7 +274,8 @@ class OnDemandCluster(Cluster):
     def update_from_sky_status(self, dryrun: bool = False):
         # Try to get the cluster status from SkyDB
         cluster_dict = self.status(refresh=not dryrun)
-        self._populate_connection_from_status_dict(cluster_dict)
+        self._populate_connection_from_status_dict(cluster_dict
+                )
 
     def up(self):
         """Up the cluster."""

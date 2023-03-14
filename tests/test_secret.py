@@ -55,7 +55,7 @@ def test_add_custom_provider():
     parser.set(section=provider, option="token", value="abcdefg")
 
     rh.Secrets.save_to_config_file(parser, creds_file_path)
-    rh.configs.set(provider, creds_file_path)
+    rh.configs.set_nested("secrets", {provider: creds_file_path})
 
     # Upload to vault
     rh.Secrets.put(provider, secret={"token": "abcdefg"})
@@ -84,7 +84,7 @@ def test_add_ssh_secrets():
     SSHSecrets.save_secrets(secrets=sample_ssh_keys, overwrite=True)
     local_secrets: dict = rh.Secrets.load_provider_secrets(providers=[provider])
     assert local_secrets
-    assert rh.configs.get(provider)
+    assert rh.configs.get("secrets", {}).get(provider)
 
     # Upload to Vault
     rh.Secrets.put(provider=provider, secret=sample_ssh_keys)
@@ -99,7 +99,7 @@ def test_add_ssh_secrets():
         rh.Secrets.delete_secrets_file(file_path=ssh_key_path)
 
     assert not rh.Secrets.get(provider)
-    assert not rh.configs.get(provider)
+    assert not rh.configs.get("secrets", {}).get(provider)
 
 
 def test_add_github_secrets():
@@ -116,7 +116,7 @@ def test_add_github_secrets():
 
         # save to local config file
         GitHubSecrets.save_secrets(secrets=sample_gh_token, overwrite=True)
-        assert rh.configs.get(provider)
+        assert rh.configs.rh.configs.get("secrets", {}).get(provider)
         assert rh.Secrets.get(provider)
 
         # Delete from Vault & local config
@@ -124,13 +124,13 @@ def test_add_github_secrets():
         rh.Secrets.delete_from_local_env(providers=[provider])
 
         assert not rh.Secrets.get(provider)
-        assert not rh.configs.get(provider)
+        assert not rh.configs.get("secrets", {}).get(provider)
 
     else:
         # Load from local config so as not to overwrite existing GitHub secrets
         local_secrets: dict = rh.Secrets.load_provider_secrets(providers=[provider])
         assert local_secrets
-        assert rh.configs.get(provider)
+        assert rh.configs.get("secrets", {}).get(provider)
 
 
 def test_sending_secrets_to_cluster():
@@ -155,8 +155,13 @@ def test_sending_secrets_to_cluster():
 
 @unittest.skip("for manually debugging full login flow")
 def test_login_manual():
-    rh.login(token="...",
-             download_config=False, download_secrets=True, upload_secrets=False, upload_config=False)
+    rh.login(
+        token="...",
+        download_config=False,
+        download_secrets=True,
+        upload_secrets=False,
+        upload_config=False,
+    )
 
 
 @unittest.skip("This test overrides local rh token if done incorrectly")
