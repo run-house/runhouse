@@ -87,6 +87,7 @@ class Secrets:
         save_locally: bool = True,
         providers: Optional[List[str]] = None,
         headers: Optional[Dict] = None,
+        check_enabled: bool = True
     ) -> Dict:
         """Get all user secrets from Vault. Optionally save them down to local config files (where relevant)."""
         logger.info("Getting secrets from Vault.")
@@ -98,13 +99,13 @@ class Secrets:
             raise Exception("Failed to download secrets from Vault")
 
         secrets = read_resp_data(resp)
+
         if providers is not None:
             secrets = {p: secrets[p] for p in providers}
+
         if save_locally and secrets:
-            cls.save_provider_secrets(secrets)
-            logger.info(
-                f"Saved secrets from Vault to local config files for providers: {list(secrets)}"
-            )
+            cls.save_provider_secrets(secrets, check_enabled=check_enabled)
+            logger.info("Saved secrets from Vault to local config files")
         else:
             return secrets
 
@@ -292,7 +293,7 @@ class Secrets:
         return secrets
 
     @classmethod
-    def save_provider_secrets(cls, secrets: dict, check=True):
+    def save_provider_secrets(cls, secrets: dict, check_enabled=True):
         """Save secrets for each provider to their respective local configs"""
         for provider_name, provider_secrets in secrets.items():
             provider_cls = cls.builtin_provider_class_from_name(provider_name)
@@ -305,7 +306,7 @@ class Secrets:
                     )
                     continue
 
-        if check:
+        if check_enabled:
             enabled_providers = cls.enabled_providers(as_str=True)
             not_enabled = [
                 p
