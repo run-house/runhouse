@@ -13,6 +13,10 @@ def setup():
     rh.set_folder("~/tests", create=True)
 
 
+def call_function(fn, **kwargs):
+    return fn(**kwargs)
+
+
 def torch_summer(a, b):
     # import inside so tests that don't use torch don't fail because torch isn't in their reqs
     import torch
@@ -334,6 +338,16 @@ def test_load_function_in_new_env():
     assert res[0][0] == 0
 
     remote_sum.delete_configs()
+
+
+def test_nested_function():
+    rh.cluster(name="^rh-cpu").up_if_not()
+    summer_cpu = rh.function(fn=summer, system="^rh-cpu")
+    call_function_cpu = rh.function(fn=call_function, system="^rh-cpu")
+
+    kwargs = {"a": 1, "b": 5}
+    res = call_function_cpu(summer_cpu, **kwargs)
+    assert res == 6
 
 
 if __name__ == "__main__":

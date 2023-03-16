@@ -233,10 +233,10 @@ def blob(
 
         if (
             system == rns_client.DEFAULT_FS
-            or config["system"] == _current_cluster(key="name")
+            or config["system"] == _current_cluster()
             or (
                 isinstance(config["system"], dict)
-                and config["system"]["name"] == _current_cluster(key="name")
+                and config["system"]["name"] == _current_cluster()
             )
         ):
             # create random path to store in .cache folder of local filesystem

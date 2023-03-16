@@ -14,12 +14,14 @@ def _current_cluster(key="name"):
             cluster_config = yaml.safe_load(f)
         if key == "config":
             return cluster_config
+        elif key == "cluster_name":
+            return cluster_config["name"].rsplit("/", 1)[-1]
         return cluster_config[key]
     else:
         return None
 
 
-THIS_CLUSTER = _current_cluster()
+THIS_CLUSTER = _current_cluster("cluster_name")
 
 
 class ObjStore:

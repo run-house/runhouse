@@ -478,10 +478,10 @@ def table(
         table_name_in_path = rns_client.resolve_rns_data_resource_name(name)
         if (
             config["system"] == rns_client.DEFAULT_FS
-            or config["system"] == _current_cluster(key="name")
+            or config["system"] == _current_cluster()
             or (
                 isinstance(config["system"], dict)
-                and config["system"]["name"] == _current_cluster(key="name")
+                and config["system"]["name"] == _current_cluster()
             )
         ):
             # create random path to store in .cache folder of local filesystem

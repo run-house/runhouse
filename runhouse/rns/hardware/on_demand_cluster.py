@@ -140,9 +140,7 @@ class OnDemandCluster(Cluster):
             raise ValueError("No sky state to save")
 
         # if we're on this cluster, no need to save sky state
-        current_cluster_name = (
-            _current_cluster().rsplit("/", 1)[-1] if _current_cluster() else None
-        )
+        current_cluster_name = _current_cluster("cluster_name")
         if self.sky_state.get("handle", {}).get("cluster_name") == current_cluster_name:
             return
 
