@@ -31,10 +31,27 @@ various cluster properties.
 
     .. automethod:: __init__
 
+Hardware Setup
+~~~~~~~~~~~~~~
+For BYO Clusters, no additional setup is required. You will just need to have the IP address for the cluster
+and the path to SSH credentials ready to be used for the cluster initialization.
+
+For On-Demand Clusters, which use SkyPilot to automatically spin up and down clusters on the cloud, you will
+need to first set up cloud access on your local machine:
+
+Run ``sky check`` to see which cloud providers are enabled, and how to set up cloud credentials for each of the
+providers.
+
+.. code-block:: cli
+
+    sky check
+
+For a more in depth tutorial on setting up individual cloud credentials, you can refer to
+`SkyPilot setup docs <https://skypilot.readthedocs.io/en/latest/getting-started/installation.html#cloud-account-setup>`_.
+
 Basic API Usage
 ~~~~~~~~~~~~~~~
-For On Demand Clusters, which use SkyPilot to spin up and down clusters, use the ``rh.cluster`` factory
-method as follows.
+For On-Demand Clusters, use the ``rh.cluster`` factory method as follows.
 
 .. code-block:: python
 
