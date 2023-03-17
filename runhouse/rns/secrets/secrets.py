@@ -87,7 +87,7 @@ class Secrets:
         save_locally: bool = True,
         providers: Optional[List[str]] = None,
         headers: Optional[Dict] = None,
-        check_enabled: bool = True
+        check_enabled: bool = True,
     ) -> Dict:
         """Get all user secrets from Vault. Optionally save them down to local config files (where relevant)."""
         logger.info("Getting secrets from Vault.")
@@ -117,6 +117,7 @@ class Secrets:
         file_path: Optional[str] = None,
         secret: Optional[dict] = None,
         group: Optional[str] = None,
+        headers: Optional[dict] = None,
     ):
         """Upload locally configured secrets for a specified provider into Vault.
         To upload secrets for a custom provider (i.e. not AWS, GCP or Azure), include the secret param and specify
@@ -141,7 +142,7 @@ class Secrets:
         resp = requests.put(
             f"{rns_client.api_server_url}/{endpoint}/{provider}",
             data=json.dumps(secret),
-            headers=rns_client.request_headers,
+            headers=headers or rns_client.request_headers,
         )
         if resp.status_code != 200:
             raise Exception(f"Failed to update {provider} secrets in Vault")

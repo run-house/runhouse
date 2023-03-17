@@ -22,9 +22,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install runhouse
-          pip install pytest 
+          pip install pytest
 
       - name: run login flow tests
         env:
           TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+          TEST_AWS_ACCESS_KEY: ${{ secrets.TEST_AWS_ACCESS_KEY }}
+          TEST_AWS_SECRET_KEY: ${{ secrets.TEST_AWS_SECRET_KEY }}
+          TEST_SKY_PRIVATE_KEY: ${{ secrets.TEST_SKY_PRIVATE_KEY }}
+          TEST_SKY_PUBLIC_KEY: ${{ secrets.TEST_SKY_PUBLIC_KEY }}
         run: pytest tests/test_login.py

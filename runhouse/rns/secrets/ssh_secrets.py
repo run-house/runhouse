@@ -61,7 +61,4 @@ class SSHSecrets(Secrets):
             key_path.chmod(0o600)
             valid_secrets[key_name] = str(key_path)
 
-        if valid_secrets:
-            cls.add_provider_to_rh_config(
-                secrets_for_config={cls.PROVIDER_NAME: secrets}
-            )
+        cls.add_provider_to_rh_config(secrets_for_config={cls.PROVIDER_NAME: secrets})
