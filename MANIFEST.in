@@ -1,0 +1,9 @@
+include runhouse/builtins/rh-4-gpu/*
+include runhouse/builtins/rh-4-v100/*
+include runhouse/builtins/rh-8-cpu/*
+include runhouse/builtins/rh-8-gpu/*
+include runhouse/builtins/rh-8-v100/*
+include runhouse/builtins/rh-32-cpu/*
+include runhouse/builtins/rh-cpu/*
+include runhouse/builtins/rh-gpu/*
+include runhouse/builtins/rh-v100/*
