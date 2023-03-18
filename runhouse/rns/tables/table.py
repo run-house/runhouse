@@ -149,7 +149,7 @@ class Table(Resource):
         self._folder.data_config = new_data_config
 
     @classmethod
-    def from_name(cls, name, dryrun=True):
+    def load_rh(cls, name, dryrun=True):
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Table {name} not found.")
@@ -170,14 +170,10 @@ class Table(Resource):
 
     def _save_sub_resources(self):
         if isinstance(self.system, Resource):
-            self.system.save()
+            self.system.save_rh()
 
-    def save(
-        self,
-        name: Optional[str] = None,
-        overwrite: bool = True,
-    ):
-        """Save the table to RNS."""
+    def write(self):
+        """Write table to fsspec url. Optionally save down the table's metadata to RNS (defaults to `True`)."""
         if self._cached_data is not None:
             data_to_write = self.data
             if isinstance(data_to_write, pa.Table):
@@ -188,8 +184,6 @@ class Table(Resource):
 
             self.write_ray_dataset(data_to_write)
             logger.info(f"Saved {str(self)} to: {self.fsspec_url}")
-
-        super().save(name=name, overwrite=overwrite)
 
         return self
 

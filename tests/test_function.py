@@ -31,7 +31,7 @@ def summer(a, b):
 def test_create_function_from_name_local():
     local_sum = rh.function(
         fn=summer, name="local_function", system="^rh-cpu", reqs=["local:./"]
-    ).save()
+    ).save_rh()
     del local_sum
 
     remote_sum = rh.function(name="local_function")
@@ -45,7 +45,7 @@ def test_create_function_from_name_local():
 def test_create_function_from_rns():
     remote_sum = rh.function(
         fn=summer, name="@/remote_function", system="^rh-cpu", reqs=[], dryrun=True
-    ).save()
+    ).save_rh()
     del remote_sum
 
     remote_sum = rh.function(name="@/remote_function")
@@ -60,7 +60,7 @@ def test_create_function_from_rns():
 def test_running_function_as_proxy():
     remote_sum = rh.function(
         fn=summer, name="@/remote_function", system="^rh-cpu", reqs=[]
-    ).save()
+    ).save_rh()
     del remote_sum
 
     remote_sum = rh.function(name="@/remote_function")
@@ -75,17 +75,17 @@ def test_running_function_as_proxy():
 def test_get_function_history():
     remote_sum = rh.function(
         fn=summer, name="@/remote_function", system="^rh-cpu", reqs=[], dryrun=True
-    ).save()
+    ).save_rh()
     remote_sum = rh.function(
         fn=summer,
         name="@/remote_function",
         system="^rh-cpu",
         reqs=["torch"],
         dryrun=True,
-    ).save()
+    ).save_rh()
     remote_sum = rh.function(
         fn=summer, name="@/remote_function", system="^rh-cpu", reqs=[], dryrun=True
-    ).save()
+    ).save_rh()
     name = "@/remote_function"
     remote_sum = rh.function(name=name)
     history = remote_sum.history(name=name)
@@ -207,7 +207,9 @@ def test_ssh():
 
 def test_share_function():
     rh_cpu = rh.cluster("^rh-cpu").up_if_not()
-    my_function = rh.function(fn=summer, name="@/remote_function", system=rh_cpu).save()
+    my_function = rh.function(
+        fn=summer, name="@/remote_function", system=rh_cpu
+    ).save_rh()
 
     my_function.share(
         users=["donny@run.house", "josh@run.house"],
@@ -283,7 +285,9 @@ def test_byo_cluster_function():
     ip = c.address
     creds = c.ssh_creds()
     del c
-    byo_cluster = rh.cluster(name="different-cluster", ips=[ip], ssh_creds=creds).save()
+    byo_cluster = rh.cluster(
+        name="different-cluster", ips=[ip], ssh_creds=creds
+    ).save_rh()
     re_fn = rh.function(
         multiproc_torch_sum, system=byo_cluster, reqs=["./", "torch==1.12.1"]
     )
@@ -323,7 +327,7 @@ def test_load_function_in_new_env():
     rh.cluster(name="rh-cpu").save(name="@/rh-cpu")
     remote_sum = rh.function(
         fn=summer, name="@/remote_function", system="@/rh-cpu", reqs=[], dryrun=True
-    ).save()
+    ).save_rh()
 
     byo_cluster = rh.cluster(name="different-cluster")
     byo_cluster.send_secrets(["ssh"])

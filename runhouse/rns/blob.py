@@ -123,13 +123,9 @@ class Blob(Resource):
 
     def _save_sub_resources(self):
         if isinstance(self.system, Resource):
-            self.system.save()
+            self.system.save_rh()
 
-    def save(
-        self,
-        name: str = None,
-        overwrite: bool = True,
-    ):
+    def write(self):
         """Save the blob to RNS."""
         # TODO figure out default behavior for not overwriting but still saving
         # if not overwrite:
@@ -147,7 +143,7 @@ class Blob(Resource):
 
             f.write(self.data)
 
-        return super().save(name=name, overwrite=overwrite)
+        return self
 
     def delete_in_system(self):
         """Delete the blob and the folder it lives in from the file system."""

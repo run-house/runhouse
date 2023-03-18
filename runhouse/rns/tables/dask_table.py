@@ -23,12 +23,7 @@ class DaskTable(Table):
             )
         return DaskTable(**config)
 
-    def save(
-        self,
-        name: Optional[str] = None,
-        overwrite: bool = True,
-        write_index: bool = False,
-    ):
+    def write(self, write_index: bool = False):
         # https://docs.dask.org/en/stable/how-to/connect-to-remote-data.html
         if self._cached_data is not None:
             # https://stackoverflow.com/questions/72891631/how-to-remove-null-dask-index-from-parquet-file
@@ -38,8 +33,6 @@ class DaskTable(Table):
                 storage_options=self.data_config,
             )
             logger.info(f"Saved {str(self)} to: {self.fsspec_url}")
-
-        super().save(name=name, overwrite=overwrite)
 
         return self
 

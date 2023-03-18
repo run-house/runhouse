@@ -11,7 +11,7 @@ from runhouse.rns.api_utils.resource_access import ResourceAccess
 from runhouse.rns.api_utils.utils import load_resp_content, read_resp_data
 from runhouse.rns.top_level_rns_fns import (
     resolve_rns_path,
-    save,
+    save_rh,
     split_rns_name_and_path,
 )
 
@@ -108,7 +108,7 @@ class Resource:
         """Overload by child resources to save any resources they hold internally."""
         pass
 
-    def save(
+    def save_rh(
         self,
         name: str = None,
         overwrite: bool = True,
@@ -128,7 +128,7 @@ class Resource:
                 self._name = name
 
         # TODO handle self.access == 'read' instead of this weird overwrite argument
-        save(self, overwrite=overwrite)
+        save_rh(self, overwrite=overwrite)
 
         return self
 
@@ -136,7 +136,7 @@ class Resource:
         return pprint.pformat(self.config_for_rns)
 
     @classmethod
-    def from_name(cls, name, dryrun=True):
+    def load_rh(cls, name, dryrun=True):
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Resource {name} not found.")
@@ -151,7 +151,7 @@ class Resource:
         self._name = None
 
     @staticmethod
-    def history(name: str, entries: int = 10) -> List[Dict]:
+    def history(name: str) -> List[Dict]:
         """Return the history of the resource, including specific config fields (e.g. blob path) and which runs
         have overwritten it."""
         resource_uri = rns_client.resource_uri(name)

@@ -29,7 +29,7 @@ def test_find_working_dir(tmp_path):
 
 def test_set_folder(tmp_path):
     rh.set_folder("~/tests")
-    rh.folder(name="bert_ft").save()
+    rh.folder(name="bert_ft").save_rh()
 
     # TODO [DG] does this assume that the user must have runhouse in their home directory?
     assert rh.current_folder() == "~/tests"
@@ -76,9 +76,9 @@ def test_ls():
 
 
 def test_from_name():
-    f = rh.Folder.from_name("~/tests/bert_ft", dryrun=True)
+    f = rh.Folder.load_rh("~/tests/bert_ft", dryrun=True)
     assert f.path
-    c = rh.OnDemandCluster.from_name("^rh-cpu", dryrun=True)
+    c = rh.OnDemandCluster.load_rh("^rh-cpu", dryrun=True)
     assert c.instance_type == "CPU:2+"
 
 

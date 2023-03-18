@@ -22,17 +22,11 @@ class RapidsTable(Table):
             )
         return RapidsTable(**config, dryrun=dryrun)
 
-    def save(
-        self,
-        name: Optional[str] = None,
-        overwrite: bool = True,
-    ):
+    def write(self):
         # https://docs.rapids.ai/api/cudf/nightly/api_docs/api/cudf.dataframe.to_parquet
         if self._cached_data is not None:
             self.data.to_parquet(self.fsspec_url)
             logger.info(f"Saved {str(self)} to: {self.fsspec_url}")
-
-        super().save(name=name, overwrite=overwrite)
 
         return self
 

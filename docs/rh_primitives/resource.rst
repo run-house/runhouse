@@ -27,10 +27,10 @@ To persist a resource, call:
 
 .. code-block:: python
 
-    resource.save()
-    resource.save(name='new_name')  # Saves to rh.current_folder()
-    resource.save(name='@/my_full/new_name')  # Saves to Runhouse RNS
-    resource.save(name='~/my_full/new_name')  # Saves to Local RNS
+    resource.save_rh()
+    resource.save_rh(name='new_name')  # Saves to rh.current_folder()
+    resource.save_rh(name='@/my_full/new_name')  # Saves to Runhouse RNS
+    resource.save_rh(name='~/my_full/new_name')  # Saves to Local RNS
 
 To load a resource, you can call :code:`rh.load('my_name')`, or use the resource factory constructor with
 just the name.

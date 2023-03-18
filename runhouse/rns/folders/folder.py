@@ -139,7 +139,7 @@ class Folder(Resource):
         return Folder(**config, dryrun=dryrun)
 
     @classmethod
-    def from_name(cls, name, dryrun=True):
+    def load_rh(cls, name, dryrun=True):
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Resource {name} not found.")
@@ -558,7 +558,7 @@ class Folder(Resource):
 
     def _save_sub_resources(self):
         if isinstance(self.system, Resource):
-            self.system.save()
+            self.system.save_rh()
 
     @staticmethod
     def _path_relative_to_rh_workdir(path):

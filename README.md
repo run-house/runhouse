@@ -76,7 +76,7 @@ for batch in preprocessed_table.stream(batch_size=batch_size):
 
 # Send a model checkpoint up to blob storage
 trained_model = rh.blob(data=pickle.dumps(model))
-trained_model.to('s3', path='runhouse/my_bucket').save(name='yelp_fine_tuned_bert')
+trained_model.to('s3', path='runhouse/my_bucket').save_rh(name='yelp_fine_tuned_bert')
 ```
 
 These APIs work from anywhere with a Python interpreter and an internet connection,

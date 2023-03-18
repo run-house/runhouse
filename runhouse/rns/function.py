@@ -437,7 +437,7 @@ class Function(Resource):
         return config
 
     def _save_sub_resources(self):
-        self.system.save()
+        self.system.save_rh()
 
     # TODO maybe reuse these if we starting putting each function in its own container
     # @staticmethod

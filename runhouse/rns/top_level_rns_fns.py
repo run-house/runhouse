@@ -48,7 +48,7 @@ def set_load_from(load_from: List[str]):
     rns_client.load_from = load_from
 
 
-def save(
+def save_rh(
     resource,
     name: str = None,
     overwrite: bool = True,
@@ -147,7 +147,7 @@ def get(key: str, cluster=None, default=None):
             # We're currently on cluster, so just get the object from local rh_config.obj_store
             return rh_config.obj_store.get(key, default=default)
         else:
-            cluster = OnDemandCluster.from_name(cluster)
+            cluster = OnDemandCluster.load_rh(cluster)
 
     if cluster.name == rh_config.obj_store.cluster_name:
         return rh_config.obj_store.get(key, default=default)

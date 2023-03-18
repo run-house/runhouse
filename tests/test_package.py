@@ -45,7 +45,7 @@ def test_share_git_package():
         git_url="https://github.com/runhouse/runhouse.git",
         install_method="pip",
         revision="v0.0.1",
-    ).save()
+    ).save_rh()
 
     git_package.share(users=["donny@run.house", "josh@run.house"], access_type="read")
     assert rh.rns_client.exists(name_or_path="shared_git_package")
