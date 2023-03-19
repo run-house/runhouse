@@ -126,7 +126,7 @@ class Blob(Resource):
             self.system.save()
 
     def write(self):
-        """Save the blob to RNS."""
+        """Save the underlying blob to its specified fsspec URL."""
         # TODO figure out default behavior for not overwriting but still saving
         # if not overwrite:
         #     TODO check if data_url is already in use
@@ -186,8 +186,9 @@ def blob(
             We are working to add additional file system support.
         data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
         mkdir (bool): Whether to create a remote folder for the blob. (Default: ``False``)
-        dryrun (bool): Whether or not to save the blob. (Default: ``False``)
-        load (bool): Whether or not to try loading an existing config for the blob. (Default: ``True``)
+        dryrun (bool): Whether to create the Blob if it doesn't exist, or load a Blob object as a dryrun.
+            (Default: ``False``)
+        load (bool): Whether to load an existing config for the Blob. (Default: ``True``)
 
     Returns:
         Blob: The resulting blob.

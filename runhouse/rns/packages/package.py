@@ -282,10 +282,11 @@ def package(
         system (str): File system. Currently this must be one of:
             [``file``, ``github``, ``sftp``, ``ssh``,``s3``, ``gs``, ``azure``].
             We are working to add additional file system support.
-        dryrun (bool): Whether to install the package locally. (Default: ``False``)
+        dryrun (bool): Whether to create the Package if it doesn't exist, or load the Package object as a dryrun.
+            (Default: ``False``)
         local_mount (bool): Whether to locally mount the installed package. (Default: ``False``)
         data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
-        load (bool): Whether or not to try loading an existing config for the package. (Default: ``True``)
+        load (bool): Whether to load an existing config for the Package. (Default: ``True``)
 
     Returns:
         Package: The resulting package.

@@ -49,7 +49,7 @@ def test_share_git_package():
         git_url="https://github.com/runhouse/runhouse.git",
         install_method="pip",
         revision="v0.0.1",
-    ).save_rh()
+    ).save()
 
     git_package.share(
         users=["donny@run.house", "josh@run.house"],

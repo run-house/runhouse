@@ -29,7 +29,7 @@ def test_find_working_dir(tmp_path):
 
 def test_set_folder(tmp_path):
     rh.set_folder("~/tests")
-    rh.folder(name="bert_ft").save_rh()
+    rh.folder(name="bert_ft").save()
 
     # TODO [DG] does this assume that the user must have runhouse in their home directory?
     assert rh.current_folder() == "~/tests"

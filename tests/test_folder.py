@@ -336,7 +336,7 @@ def test_cluster_and_cluster():
 def test_s3_sharing():
     s3_folder = rh.folder(
         name="my-s3-shared-folder", path=DATA_STORE_PATH, system="s3"
-    ).save_rh()
+    ).save()
     assert s3_folder.ls(full_paths=False)
 
     s3_folder.share(

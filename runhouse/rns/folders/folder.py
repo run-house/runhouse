@@ -140,6 +140,7 @@ class Folder(Resource):
 
     @classmethod
     def from_name(cls, name, dryrun=True):
+        """Load existing Folder via its name."""
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Resource {name} not found.")
@@ -845,10 +846,11 @@ def folder(
         system (Optional[str]): File system. Currently this must be one of:
             [``file``, ``github``, ``sftp``, ``ssh``,``s3``, ``gs``, ``azure``].
             We are working to add additional file system support.
-        dryrun (bool): Whether or not to save the folder. (Default: ``False``)
+        dryrun (bool): Whether to create the Folder if it doesn't exist, or load a Folder object as a dryrun.
+            (Default: ``False``)
         local_mount (bool): Whether or not to mount the folder locally. (Default: ``False``)
         data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
-        load (bool): Whether or not to try loading an existing config for the folder. (Default: ``True``)
+        load (bool): Whether to load an existing config for the Folder. (Default: ``True``)
 
     Returns:
         Folder: The resulting folder.

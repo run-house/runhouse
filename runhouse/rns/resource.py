@@ -137,6 +137,7 @@ class Resource:
 
     @classmethod
     def from_name(cls, name, dryrun=True):
+        """Load existing Resource via its name."""
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Resource {name} not found.")

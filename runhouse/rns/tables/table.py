@@ -150,6 +150,7 @@ class Table(Resource):
 
     @classmethod
     def from_name(cls, name, dryrun=True):
+        """Load existing Table via its name."""
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Table {name} not found.")
@@ -173,7 +174,7 @@ class Table(Resource):
             self.system.save()
 
     def write(self):
-        """Write table to fsspec url. Optionally save down the table's metadata to RNS (defaults to `True`)."""
+        """Write underlying table data to fsspec URL."""
         if self._cached_data is not None:
             data_to_write = self.data
             if isinstance(data_to_write, pa.Table):
@@ -426,11 +427,12 @@ def table(
         data_config (Optional[dict]): The data config to pass to the underlying fsspec handler.
         partition_cols (Optional[list]): List of columns to partition the table by.
         mkdir (bool): Whether to (Default: ``False``)
-        dryrun (bool): Whether to save the table if it does not exist. (Default: ``False``)
+        dryrun (bool): Whether to create the Table if it doesn't exist, or load a Table object as a dryrun.
+            (Default: ``False``)
         stream_format (Optional[str]): Format to stream the Table as.
             Currently this must be one of: [``pyarrow``, ``torch``, ``tf``, ``pandas``]
         metadata (Optional[dict]): Metadata to store for the table.
-        load (bool): Whether or not to try loading an existing config for the table. (Default: ``True``)
+        load (bool): Whether to load an existing config for the Table. (Default: ``True``)
 
     Returns:
         Table: The resulting Table object.

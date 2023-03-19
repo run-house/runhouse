@@ -38,8 +38,9 @@ def cluster(
         ips (List[str], optional): List of IP addresses for the BYO cluster.
         ssh_creds (dict, optional): Dictionary mapping SSH credentials.
             Example: ``ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'}``
-        dryrun (bool): Whether or not to save the cluster. (Default: ``False``)
-        load (bool): Whether or not to try loading an existing config for the cluster. (Default: ``True``)
+        dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
+            (Default: ``False``)
+        load (bool): Whether to load an existing config for the Cluster. (Default: ``True``)
 
     Returns:
         Cluster or OnDemandCluster: The resulting cluster.

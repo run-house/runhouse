@@ -593,7 +593,7 @@ def function(
             (Default: ``False``)
         serialize_notebook_fn (bool): If function is of a notebook setting, whether or not to serialized the function.
             (Default: ``False``)
-        load (bool): Whether or not to try loading an existing config for the function. (Default: ``True``)
+        load (bool): Whether to load an existing config for the Function. (Default: ``True``)
 
     Returns:
         Function: The resulting Function object.
