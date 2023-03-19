@@ -214,6 +214,7 @@ def test_share_function():
     my_function.share(
         users=["donny@run.house", "josh@run.house"],
         access_type="read",
+        notify_users=False,
     )
     assert True
 

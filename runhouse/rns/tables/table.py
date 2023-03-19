@@ -149,7 +149,7 @@ class Table(Resource):
         self._folder.data_config = new_data_config
 
     @classmethod
-    def load_rh(cls, name, dryrun=True):
+    def from_name(cls, name, dryrun=True):
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Table {name} not found.")
@@ -170,7 +170,7 @@ class Table(Resource):
 
     def _save_sub_resources(self):
         if isinstance(self.system, Resource):
-            self.system.save_rh()
+            self.system.save()
 
     def write(self):
         """Write table to fsspec url. Optionally save down the table's metadata to RNS (defaults to `True`)."""
@@ -413,6 +413,7 @@ def table(
     dryrun: bool = False,
     stream_format: Optional[str] = None,
     metadata: Optional[dict] = None,
+    load: bool = True,
 ) -> Table:
     """Constructs a Table object, which can be used to interact with the table at the given path.
 
@@ -420,15 +421,16 @@ def table(
         data: Data to be stored in the table.
         name (Optional[str]): Name for the table, to reuse it later on.
         path (Optional[str]): Full path to the data file.
-        system (Optional[str]): File system. Currently this must be one of
-            ["file", "github", "sftp", "ssh", "s3", "gs", "azure"].
+        system (Optional[str]): File system. Currently this must be one of:
+            [``file``, ``github``, ``sftp``, ``ssh``,``s3``, ``gs``, ``azure``].
         data_config (Optional[dict]): The data config to pass to the underlying fsspec handler.
         partition_cols (Optional[list]): List of columns to partition the table by.
         mkdir (bool): Whether to (Default: ``False``)
         dryrun (bool): Whether to save the table if it does not exist. (Default: ``False``)
         stream_format (Optional[str]): Format to stream the Table as.
-            Currently this must be one of ["pyarrow", "torch", "tf", "pandas"]
+            Currently this must be one of: [``pyarrow``, ``torch``, ``tf``, ``pandas``]
         metadata (Optional[dict]): Metadata to store for the table.
+        load (bool): Whether or not to try loading an existing config for the table. (Default: ``True``)
 
     Returns:
         Table: The resulting Table object.
@@ -446,7 +448,7 @@ def table(
         >>> # Load table from above
         >>> reloaded_table = rh.table(name="~/my_test_pandas_table")
     """
-    config = rns_client.load_config(name)
+    config = rns_client.load_config(name) if load else {}
 
     config["system"] = (
         system

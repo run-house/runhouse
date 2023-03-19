@@ -437,7 +437,7 @@ class Function(Resource):
         return config
 
     def _save_sub_resources(self):
-        self.system.save_rh()
+        self.system.save()
 
     # TODO maybe reuse these if we starting putting each function in its own container
     # @staticmethod
@@ -575,6 +575,7 @@ def function(
     dryrun: bool = False,
     load_secrets: bool = False,
     serialize_notebook_fn: bool = False,
+    load: bool = True,
 ):
     """Factory method for constructing a Runhouse Function object.
 
@@ -592,6 +593,7 @@ def function(
             (Default: ``False``)
         serialize_notebook_fn (bool): If function is of a notebook setting, whether or not to serialized the function.
             (Default: ``False``)
+        load (bool): Whether or not to try loading an existing config for the function. (Default: ``True``)
 
     Returns:
         Function: The resulting Function object.
@@ -609,7 +611,7 @@ def function(
         >>> summer(5, 8)  # returns 13
     """
 
-    config = rh_config.rns_client.load_config(name)
+    config = rh_config.rns_client.load_config(name) if load else {}
     config["name"] = name or config.get("rns_address", None) or config.get("name")
     config["reqs"] = reqs if reqs is not None else config.get("reqs", [])
 

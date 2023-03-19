@@ -139,7 +139,7 @@ class Folder(Resource):
         return Folder(**config, dryrun=dryrun)
 
     @classmethod
-    def load_rh(cls, name, dryrun=True):
+    def from_name(cls, name, dryrun=True):
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Resource {name} not found.")
@@ -558,7 +558,7 @@ class Folder(Resource):
 
     def _save_sub_resources(self):
         if isinstance(self.system, Resource):
-            self.system.save_rh()
+            self.system.save()
 
     @staticmethod
     def _path_relative_to_rh_workdir(path):
@@ -725,8 +725,8 @@ class Folder(Resource):
         """Delete from file system."""
         try:
             self.fsspec_fs.rmdir(self.path)
-        except Exception as e:
-            raise Exception(f"Failed to delete from file system: {e}")
+        except FileNotFoundError:
+            pass
 
     def rm(self, name, recursive: bool = True):
         """Remove a resource from the folder."""
@@ -835,18 +835,20 @@ def folder(
     dryrun: bool = False,
     local_mount: bool = False,
     data_config: Optional[Dict] = None,
+    load: bool = True,
 ) -> Folder:
     """Creates a Runhouse folder object, which can be used to interact with the folder at the given path.
 
     Args:
         name (Optional[str]): Name to give the folder, to be re-used later on.
         path (Optional[str or Path]): Path (or path) that the folder is located at.
-        system (Optional[str]): File system. Currently this must be one of
-            ["file", "github", "sftp", "ssh", "s3", "gs", "azure"].
+        system (Optional[str]): File system. Currently this must be one of:
+            [``file``, ``github``, ``sftp``, ``ssh``,``s3``, ``gs``, ``azure``].
             We are working to add additional file system support.
         dryrun (bool): Whether or not to save the folder. (Default: ``False``)
         local_mount (bool): Whether or not to mount the folder locally. (Default: ``False``)
         data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
+        load (bool): Whether or not to try loading an existing config for the folder. (Default: ``True``)
 
     Returns:
         Folder: The resulting folder.
@@ -856,7 +858,7 @@ def folder(
     """
     # TODO [DG] Include loud warning that relative paths are relative to the git root / working directory!
 
-    config = rns_client.load_config(name)
+    config = rns_client.load_config(name) if load else {}
     config["name"] = name or config.get("rns_address", None) or config.get("name")
     config["path"] = path or config.get("path")
     config["local_mount"] = local_mount or config.get("local_mount")

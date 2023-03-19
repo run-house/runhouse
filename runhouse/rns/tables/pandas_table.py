@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from .. import OnDemandCluster
 from ..api_utils.utils import generate_uuid

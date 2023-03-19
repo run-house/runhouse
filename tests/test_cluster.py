@@ -14,7 +14,11 @@ def test_cluster_config():
 
 def test_cluster_sharing():
     c = cluster(name="^rh-cpu").up_if_not().save_rh()
-    c.share(users=["donny@run.house", "josh@run.house"], access_type="write")
+    c.share(
+        users=["donny@run.house", "josh@run.house"],
+        access_type="write",
+        notify_users=False,
+    )
     assert True
 
 

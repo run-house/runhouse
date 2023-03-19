@@ -26,13 +26,13 @@ def test_create_and_reload_local_blob_with_name():
             system="file",
         )
         .write()
-        .save_rh()
+        .save()
     )
 
     del data
     del my_blob
 
-    reloaded_blob = rh.blob(name=name)
+    reloaded_blob = rh.Blob.from_name(name)
     reloaded_data = pickle.loads(reloaded_blob.data)
     assert reloaded_data == list(range(50))
 
@@ -55,13 +55,13 @@ def test_create_and_reload_local_blob_with_path():
             system="file",
         )
         .write()
-        .save_rh()
+        .save()
     )
 
     del data
     del my_blob
 
-    reloaded_blob = rh.blob(name=name)
+    reloaded_blob = rh.Blob.from_name(name)
     reloaded_data = pickle.loads(reloaded_blob.data)
     assert reloaded_data == list(range(50))
 
@@ -81,7 +81,7 @@ def test_create_and_reload_anom_local_blob():
         system="file",
     ).write()
 
-    reloaded_blob = rh.blob(path=my_blob.path)
+    reloaded_blob = rh.blob(path=my_blob.path, dryrun=True)
     reloaded_data = pickle.loads(reloaded_blob.data)
     assert reloaded_data == list(range(50))
 
@@ -101,13 +101,13 @@ def test_create_and_reload_rns_blob():
             mkdir=True,
         )
         .write()
-        .save_rh()
+        .save()
     )
 
     del data
     del my_blob
 
-    reloaded_blob = rh.blob(name=name)
+    reloaded_blob = rh.Blob.from_name(name)
     reloaded_data = pickle.loads(reloaded_blob.data)
     assert reloaded_data == list(range(50))
 
@@ -131,13 +131,13 @@ def test_create_and_reload_rns_blob_with_path():
             mkdir=True,
         )
         .write()
-        .save_rh()
+        .save()
     )
 
     del data
     del my_blob
 
-    reloaded_blob = rh.blob(name=name)
+    reloaded_blob = rh.Blob.from_name(name)
     reloaded_data = pickle.loads(reloaded_blob.data)
     assert reloaded_data == list(range(50))
 
@@ -167,7 +167,7 @@ def test_local_to_cluster():
             system="file",
         )
         .write()
-        .save_rh()
+        .save()
     )
 
     cluster = rh.cluster(name="^rh-cpu").up_if_not()
@@ -207,16 +207,20 @@ def test_sharing_blob():
             mkdir=True,
         )
         .write()
-        .save_rh()
+        .save()
     )
 
-    my_blob.share(users=["donny@run.house", "josh@run.house"], access_type="write")
+    my_blob.share(
+        users=["donny@run.house", "josh@run.house"],
+        access_type="write",
+        notify_users=False,
+    )
 
     assert my_blob.exists_in_system()
 
 
 def test_load_shared_blob():
-    my_blob = rh.blob(name="/jlewitt1/shared_blob")
+    my_blob = rh.Blob.from_name(name="@/shared_blob")
     assert my_blob.exists_in_system()
 
     raw_data = my_blob.fetch()

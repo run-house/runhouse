@@ -340,7 +340,9 @@ def test_s3_sharing():
     assert s3_folder.ls(full_paths=False)
 
     s3_folder.share(
-        users=["donny@run.house", "josh.lewittes@gmail.com"], access_type="read"
+        users=["donny@run.house", "josh.lewittes@gmail.com"],
+        access_type="read",
+        notify_users=False,
     )
 
     assert s3_folder.ls(full_paths=False)
@@ -349,7 +351,7 @@ def test_s3_sharing():
 def test_load_shared_folder():
     from runhouse import Folder
 
-    my_folder = Folder.load_rh("@/my-s3-shared-folder")
+    my_folder = Folder.from_name("@/my-s3-shared-folder")
     folder_contents = my_folder.ls()
     assert folder_contents
 
