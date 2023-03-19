@@ -29,7 +29,7 @@ class Function(Resource):
         self,
         fn_pointers: Tuple[str, str, str],
         system: Optional[Cluster] = None,
-        name: [Optional[str]] = None,
+        name: Optional[str] = None,
         reqs: Optional[List[str]] = None,
         setup_cmds: Optional[List[str]] = None,
         dryrun: bool = False,

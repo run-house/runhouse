@@ -180,6 +180,10 @@ class Table(Resource):
         """Save the table to RNS."""
         if self._cached_data is not None:
             data_to_write = self.data
+
+            if isinstance(data_to_write, pd.DataFrame):
+                data_to_write = self.ray_dataset_from_pandas(data_to_write)
+
             if isinstance(data_to_write, pa.Table):
                 data_to_write = self.ray_dataset_from_arrow(data_to_write)
 
@@ -309,9 +313,14 @@ class Table(Resource):
         )
 
     @staticmethod
-    def ray_dataset_from_arrow(data):
-        """Convert an Arrow Table to a ray Dataset"""
+    def ray_dataset_from_arrow(data: pa.Table):
+        """Convert an Arrow Table to a Ray Dataset"""
         return ray.data.from_arrow(data)
+
+    @staticmethod
+    def ray_dataset_from_pandas(data: pd.DataFrame):
+        """Convert an Pandas DataFrame to a Ray Dataset"""
+        return ray.data.from_pandas(data)
 
     def read_table_from_file(self, columns: Optional[list] = None):
         try:
