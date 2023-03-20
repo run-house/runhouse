@@ -137,6 +137,7 @@ class Resource:
 
     @classmethod
     def from_name(cls, name, dryrun=True):
+        """Load existing Resource via its name."""
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Resource {name} not found.")
@@ -151,7 +152,7 @@ class Resource:
         self._name = None
 
     @staticmethod
-    def history(name: str, entries: int = 10) -> List[Dict]:
+    def history(name: str) -> List[Dict]:
         """Return the history of the resource, including specific config fields (e.g. blob path) and which runs
         have overwritten it."""
         resource_uri = rns_client.resource_uri(name)

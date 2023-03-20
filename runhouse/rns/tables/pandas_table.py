@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from .. import OnDemandCluster
 from ..api_utils.utils import generate_uuid
@@ -32,11 +31,7 @@ class PandasTable(Table):
             )
         return PandasTable(**config, dryrun=dryrun)
 
-    def save(
-        self,
-        name: Optional[str] = None,
-        overwrite: bool = True,
-    ):
+    def write(self):
         if self._cached_data is not None:
             # https://pandas.pydata.org/pandas-docs/version/1.1/reference/api/pandas.DataFrame.to_parquet.html
             self.data.to_parquet(
@@ -44,8 +39,6 @@ class PandasTable(Table):
                 storage_options=self.data_config,
                 partition_cols=self.partition_cols,
             )
-
-        super().save(name=name, overwrite=overwrite)
 
         return self
 

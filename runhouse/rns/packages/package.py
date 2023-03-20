@@ -269,26 +269,29 @@ def package(
     dryrun: bool = False,
     local_mount: bool = False,
     data_config: Optional[Dict] = None,
+    load: bool = True,
 ) -> Package:
     """
     Builds an instance of :class:`Package`.
 
     Args:
         name (str): Name to assign the pacakge.
-        install_method (str): Method for installing the package. Options: ["pip", "conda", "reqs", "local"]
+        install_method (str): Method for installing the package. Options: [``pip``, ``conda``, ``reqs``, ``local``]
         install_str (str): Additional arguments to install.  # TODO: not too sure about this
         url (str): URL of the package to install.
-        system (str): File system. Currently this must be one of
-            ["file", "github", "sftp", "ssh", "s3", "gs", "azure"].
+        system (str): File system. Currently this must be one of:
+            [``file``, ``github``, ``sftp``, ``ssh``,``s3``, ``gs``, ``azure``].
             We are working to add additional file system support.
-        dryrun (bool): Whether to install the package locally. (Default: ``False``)
+        dryrun (bool): Whether to create the Package if it doesn't exist, or load the Package object as a dryrun.
+            (Default: ``False``)
         local_mount (bool): Whether to locally mount the installed package. (Default: ``False``)
         data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
+        load (bool): Whether to load an existing config for the Package. (Default: ``True``)
 
     Returns:
         Package: The resulting package.
     """
-    config = rh_config.rns_client.load_config(name)
+    config = rh_config.rns_client.load_config(name) if load else {}
     config["name"] = name or config.get("rns_address", None) or config.get("name")
 
     config["install_method"] = install_method or config.get("install_method")

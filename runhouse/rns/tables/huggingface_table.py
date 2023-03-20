@@ -23,12 +23,7 @@ class HuggingFaceTable(Table):
             )
         return HuggingFaceTable(**config, dryrun=dryrun)
 
-    def save(
-        self,
-        name: Optional[str] = None,
-        overwrite: bool = True,
-    ):
-
+    def write(self):
         hf_dataset = None
         if self._cached_data is not None:
             import datasets
@@ -50,8 +45,6 @@ class HuggingFaceTable(Table):
                 )
 
             logger.info(f"Saved {str(self)} to: {self.fsspec_url}")
-
-        super().save(name=name, overwrite=overwrite)
 
         # Restore the original dataset
         if hf_dataset is not None:

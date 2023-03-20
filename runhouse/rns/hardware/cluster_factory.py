@@ -13,12 +13,13 @@ def cluster(
     num_instances: Optional[int] = None,
     provider: Optional[str] = None,
     autostop_mins: Optional[int] = None,
-    use_spot: Optional[bool] = None,
+    use_spot: bool = False,
     image_id: Optional[str] = None,
     region: Optional[str] = None,
     ips: List[str] = None,
     ssh_creds: Optional[dict] = None,
-    dryrun: Optional[bool] = False,
+    dryrun: bool = False,
+    load: bool = True,
 ) -> Union[Cluster, OnDemandCluster]:
     """
     Builds an instance of :class:`Cluster`.
@@ -37,7 +38,9 @@ def cluster(
         ips (List[str], optional): List of IP addresses for the BYO cluster.
         ssh_creds (dict, optional): Dictionary mapping SSH credentials.
             Example: ``ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'}``
-        dryrun:
+        dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
+            (Default: ``False``)
+        load (bool): Whether to load an existing config for the Cluster. (Default: ``True``)
 
     Returns:
         Cluster or OnDemandCluster: The resulting cluster.
@@ -58,9 +61,8 @@ def cluster(
         >>>                  region='us-east-1',
         >>>                  )
     """
-    config = rns_client.load_config(name)
+    config = rns_client.load_config(name) if load else {}
     config["name"] = name or config.get("rns_address", None) or config.get("name")
-
     config["ips"] = ips or config.get("ips", None)
     # ssh creds should only be in Secrets management, not in config
     config["ssh_creds"] = ssh_creds or config.get("ssh_creds", None)

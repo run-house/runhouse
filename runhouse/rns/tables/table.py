@@ -150,6 +150,7 @@ class Table(Resource):
 
     @classmethod
     def from_name(cls, name, dryrun=True):
+        """Load existing Table via its name."""
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Table {name} not found.")
@@ -172,12 +173,8 @@ class Table(Resource):
         if isinstance(self.system, Resource):
             self.system.save()
 
-    def save(
-        self,
-        name: Optional[str] = None,
-        overwrite: bool = True,
-    ):
-        """Save the table to RNS."""
+    def write(self):
+        """Write underlying table data to fsspec URL."""
         if self._cached_data is not None:
             data_to_write = self.data
 
@@ -192,8 +189,6 @@ class Table(Resource):
 
             self.write_ray_dataset(data_to_write)
             logger.info(f"Saved {str(self)} to: {self.fsspec_url}")
-
-        super().save(name=name, overwrite=overwrite)
 
         return self
 
@@ -428,6 +423,7 @@ def table(
     dryrun: bool = False,
     stream_format: Optional[str] = None,
     metadata: Optional[dict] = None,
+    load: bool = True,
 ) -> Table:
     """Constructs a Table object, which can be used to interact with the table at the given path.
 
@@ -435,15 +431,17 @@ def table(
         data: Data to be stored in the table.
         name (Optional[str]): Name for the table, to reuse it later on.
         path (Optional[str]): Full path to the data file.
-        system (Optional[str]): File system. Currently this must be one of
-            ["file", "github", "sftp", "ssh", "s3", "gs", "azure"].
+        system (Optional[str]): File system. Currently this must be one of:
+            [``file``, ``github``, ``sftp``, ``ssh``,``s3``, ``gs``, ``azure``].
         data_config (Optional[dict]): The data config to pass to the underlying fsspec handler.
         partition_cols (Optional[list]): List of columns to partition the table by.
         mkdir (bool): Whether to (Default: ``False``)
-        dryrun (bool): Whether to save the table if it does not exist. (Default: ``False``)
+        dryrun (bool): Whether to create the Table if it doesn't exist, or load a Table object as a dryrun.
+            (Default: ``False``)
         stream_format (Optional[str]): Format to stream the Table as.
-            Currently this must be one of ["pyarrow", "torch", "tf", "pandas"]
+            Currently this must be one of: [``pyarrow``, ``torch``, ``tf``, ``pandas``]
         metadata (Optional[dict]): Metadata to store for the table.
+        load (bool): Whether to load an existing config for the Table. (Default: ``True``)
 
     Returns:
         Table: The resulting Table object.
@@ -461,7 +459,7 @@ def table(
         >>> # Load table from above
         >>> reloaded_table = rh.table(name="~/my_test_pandas_table")
     """
-    config = rns_client.load_config(name)
+    config = rns_client.load_config(name) if load else {}
 
     config["system"] = (
         system

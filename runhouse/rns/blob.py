@@ -125,12 +125,8 @@ class Blob(Resource):
         if isinstance(self.system, Resource):
             self.system.save()
 
-    def save(
-        self,
-        name: str = None,
-        overwrite: bool = True,
-    ):
-        """Save the blob to RNS."""
+    def write(self):
+        """Save the underlying blob to its specified fsspec URL."""
         # TODO figure out default behavior for not overwriting but still saving
         # if not overwrite:
         #     TODO check if data_url is already in use
@@ -147,7 +143,7 @@ class Blob(Resource):
 
             f.write(self.data)
 
-        return super().save(name=name, overwrite=overwrite)
+        return self
 
     def delete_in_system(self):
         """Delete the blob and the folder it lives in from the file system."""
@@ -177,6 +173,7 @@ def blob(
     data_config: Optional[Dict] = None,
     mkdir: bool = False,
     dryrun: bool = False,
+    load: bool = True,
 ):
     """Returns a Blob object, which can be used to interact with the resource at the given path
 
@@ -184,12 +181,14 @@ def blob(
         data: Blob data. This should be provided as a serialized object.
         name (Optional[str]): Name to give the blob object, to be reused later on.
         path (Optional[str]): Path (or path) of the blob object.
-        system (Optional[str]): File system. Currently this must be one of
-            ["file", "github", "sftp", "ssh", "s3", "gs", "azure"].
+        system (Optional[str]): File system. Currently this must be one of:
+           [``file``, ``github``, ``sftp``, ``ssh``,``s3``, ``gs``, ``azure``].
             We are working to add additional file system support.
         data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
         mkdir (bool): Whether to create a remote folder for the blob. (Default: ``False``)
-        dryrun (bool): Whether or not to save the blob. (Default: ``False``)
+        dryrun (bool): Whether to create the Blob if it doesn't exist, or load a Blob object as a dryrun.
+            (Default: ``False``)
+        load (bool): Whether to load an existing config for the Blob. (Default: ``True``)
 
     Returns:
         Blob: The resulting blob.
@@ -213,7 +212,7 @@ def blob(
         >>> my_local_blob = rh.blob(name="~/my_blob")
         >>> my_s3_blob = rh.blob(name="@/my_blob")
     """
-    config = rns_client.load_config(name)
+    config = rns_client.load_config(name) if load else {}
 
     system = (
         system

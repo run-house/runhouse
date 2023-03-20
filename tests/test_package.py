@@ -30,7 +30,11 @@ def test_share_package():
     c = rh.cluster(name="/jlewitt1/rh-cpu")
     p.to_cluster(dest_cluster=c)
 
-    p.share(users=["josh@run.house", "donny@run.house"], access_type="write")
+    p.share(
+        users=["josh@run.house", "donny@run.house"],
+        access_type="write",
+        notify_users=False,
+    )
 
     shutil.rmtree(tmp_path)
 
@@ -47,12 +51,16 @@ def test_share_git_package():
         revision="v0.0.1",
     ).save()
 
-    git_package.share(users=["donny@run.house", "josh@run.house"], access_type="read")
+    git_package.share(
+        users=["donny@run.house", "josh@run.house"],
+        access_type="read",
+        notify_users=False,
+    )
     assert rh.rns_client.exists(name_or_path="shared_git_package")
 
 
 def test_load_shared_git_package():
-    git_package = rh.package(name="/jlewitt1/shared_git_package")
+    git_package = rh.package(name="@/shared_git_package")
     assert git_package.config_for_rns
 
 
