@@ -179,7 +179,7 @@ def test_local_to_cluster():
 def test_save_blob_to_cluster():
     cluster = rh.cluster(name="^rh-cpu").up_if_not()
     # Save blob to local directory, then upload to a new "models" directory on the root path of the cluster
-    rh.blob(pickle.dumps(list(range(50))), path="models/pipeline.pkl").write().to(
+    rh.blob(pickle.dumps(list(range(50))), path="models/pipeline.pkl").to(
         cluster, path="models"
     )
 
