@@ -232,6 +232,14 @@ class Secrets:
             )
 
     @classmethod
+    def update(cls, provider: str, secrets: dict):
+        """Add new keys to existing secrets saved for a given provider in Vault."""
+        existing_secrets = cls.get(provider=provider)
+        if existing_secrets:
+            existing_secrets.update(secrets)
+            cls.put(provider, secret=existing_secrets)
+
+    @classmethod
     def delete_from_local_env(cls, providers: Optional[List[str]] = None):
         """Delete secrets credential files and use in Runhouse configs for list of specified providers.
         If none are provided, will delete secrets for all providers which have been enabled in the local environment."""
