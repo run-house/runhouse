@@ -52,7 +52,13 @@ if __name__ == "__main__":
 
     images = generate_gpu('A digital illustration of a woman running on the roof of a house.', num_images=2, steps=50)
     [image.show() for image in images]
-
+    
+    generate_gpu.save(name='sd_generate')
+```
+By saving, I or anyone I share with can load and call into this service with a single line of code, from anywhere 
+with a Python interpreter and internet connection (notebook, IDE, CI/CD, orchestrator node, etc.):
+```python
+generate_gpu = rh.function(name='sd_generate')
 ```
 There's no magic yaml, DSL, code serialization, or "submitting for execution." We're
 just spinning up the cluster for you (or using an existing cluster), syncing over your code,
@@ -67,16 +73,31 @@ On the data side, we can do things like:
 
 ```python
 # Send a folder up to a cluster (rsync)
-rh.folder(path=input_images_dir).to(system=gpu, path='dreambooth/instance_images')
+rh.folder(path=input_images_dir).to(system=gpu, path="dreambooth/instance_images")
 
-# Stream a table in from anywhere (S3, GCS, local, etc)
-preprocessed_yelp = rh.table(name="preprocessed-tokenized-dataset")
+# This goes directly cluster-> s3, doesn't bounce to local
+outputs_s3 = rh.folder(system=gpu, path="dreambooth/outputs").to("s3", path="runhouse/dreambooth/outputs")
+outputs_s3.save("dreambooth_outputs")
+
+# and later:
+rh.folder(name="dreambooth_outputs").to("here")
+
+
+# Load a table in from anywhere (S3, GCS, local, etc)
+my_table = rh.table(system="gcs", path="my_bucket/my_table.parquet").to("here")
+# preprocess...
+
+gcs_ds = rh.table(preprocessed_dataset).to("gcs", path="my_bucket/preprocessed_table.parquet")
+gcs_ds.save("preprocessed-tokenized-dataset")
+
+# later, on another machine:
+preprocessed_table = rh.table(name="preprocessed-tokenized-dataset")
 for batch in preprocessed_table.stream(batch_size=batch_size):
     ...
 
 # Send a model checkpoint up to blob storage
 trained_model = rh.blob(data=pickle.dumps(model))
-trained_model.to('s3', path='runhouse/my_bucket').save(name='yelp_fine_tuned_bert')
+trained_model.to("s3", path="runhouse/my_bucket").save(name="yelp_fine_tuned_bert")
 ```
 
 These APIs work from anywhere with a Python interpreter and an internet connection,
