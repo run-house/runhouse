@@ -233,6 +233,12 @@ class Cluster(Resource):
         self.client.clear_pins(pins)
         logger.info(f'Clearing pins on cluster {pins or ""}')
 
+    def on_same_cluster(self, resource: Resource):
+        """Whether the given resource is on the cluster."""
+        if hasattr(resource, "system") and isinstance(resource.system, Resource):
+            return resource.system.rns_address == self.rns_address
+        return False
+
     # ----------------- gRPC Methods ----------------- #
 
     def connect_grpc(self, force_reconnect=False):

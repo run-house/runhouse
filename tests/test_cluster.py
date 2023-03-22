@@ -1,5 +1,7 @@
 import unittest
 
+import runhouse as rh
+
 from runhouse.rns.hardware import cluster, OnDemandCluster
 
 
@@ -54,6 +56,33 @@ def test_restart_grpc():
     hw.up_if_not()
     codes = hw.restart_grpc_server(resync_rh=False)
     assert codes
+
+
+def test_same_cluster():
+    hw = cluster(name="^rh-cpu")
+    hw.up_if_not()
+
+    hw_copy = cluster(name="^rh-cpu")
+
+    def dummy_func(a):
+        return a
+
+    func_hw = rh.function(dummy_func).to(hw)
+    assert hw.on_same_cluster(func_hw)
+    assert hw_copy.on_same_cluster(func_hw)
+
+
+def test_diff_cluster():
+    hw = cluster(name="^rh-cpu")
+    hw.up_if_not()
+
+    def dummy_func(a):
+        return a
+
+    func_hw = rh.function(dummy_func).to(hw)
+
+    new_hw = cluster(name="diff-cpu")
+    assert not new_hw.on_same_cluster(func_hw)
 
 
 if __name__ == "__main__":
