@@ -176,9 +176,15 @@ class UnaryService(pb2_grpc.UnaryServicer):
         self.register_activity()
         # get the function result from the incoming request
         try:
-            [relative_path, module_name, fn_name, fn_type, args, kwargs] = pickle.loads(
-                request.message
-            )
+            [
+                relative_path,
+                module_name,
+                fn_name,
+                fn_type,
+                resources,
+                args,
+                kwargs,
+            ] = pickle.loads(request.message)
 
             module_path = (
                 str((Path.home() / relative_path).resolve()) if relative_path else None
@@ -189,7 +195,15 @@ class UnaryService(pb2_grpc.UnaryServicer):
             else:
                 fn = get_fn_by_name(module_name, fn_name, module_path)
 
-            res = call_fn_by_type(fn, fn_type, fn_name, module_path, args, kwargs)
+            res = call_fn_by_type(
+                fn,
+                fn_type=fn_type,
+                fn_name=fn_name,
+                resources=resources,
+                module_path=module_path,
+                args=args,
+                kwargs=kwargs,
+            )
             # [res, None, None] is a silly hack for packaging result alongside exception and traceback
             result = {"message": pickle.dumps([res, None, None]), "received": True}
 

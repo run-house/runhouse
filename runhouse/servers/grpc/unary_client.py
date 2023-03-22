@@ -123,13 +123,15 @@ class UnaryClient(object):
         message = pb2.Message(message=pickle.dumps(pins or []))
         self.stub.ClearPins(message)
 
-    def run_module(self, relative_path, module_name, fn_name, fn_type, args, kwargs):
+    def run_module(
+        self, relative_path, module_name, fn_name, fn_type, resources, args, kwargs
+    ):
         """
         Client function to call the rpc for RunModule
         """
         # Measure the time it takes to send the message
         serialized_module = pickle.dumps(
-            [relative_path, module_name, fn_name, fn_type, args, kwargs]
+            [relative_path, module_name, fn_name, fn_type, resources, args, kwargs]
         )
         start = time.time()
         message = pb2.Message(message=serialized_module)

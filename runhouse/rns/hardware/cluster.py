@@ -455,10 +455,12 @@ class Cluster(Resource):
         there is no autostop."""
         pass
 
-    def run_module(self, relative_path, module_name, fn_name, fn_type, args, kwargs):
+    def run_module(
+        self, relative_path, module_name, fn_name, fn_type, resources, args, kwargs
+    ):
         self.check_grpc()
         return self.client.run_module(
-            relative_path, module_name, fn_name, fn_type, args, kwargs
+            relative_path, module_name, fn_name, fn_type, resources, args, kwargs
         )
 
     def is_connected(self):
