@@ -297,7 +297,9 @@ class Folder(Resource):
         # to more performant cloud-specific APIs
         from runhouse.rns.hardware import Cluster
 
-        if isinstance(system, str) and rns_client.exists(system, resource_type="cluster"):
+        if isinstance(system, str) and rns_client.exists(
+            system, resource_type="cluster"
+        ):
             system = Cluster.from_name(system, dryrun=self.dryrun)
 
         if system == "file":
