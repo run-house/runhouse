@@ -136,12 +136,18 @@ class Resource:
         return pprint.pformat(self.config_for_rns)
 
     @classmethod
+    def _check_for_child_configs(cls, config):
+        """Overload by child resources to load any resources they hold internally."""
+        return config
+
+    @classmethod
     def from_name(cls, name, dryrun=True):
         """Load existing Resource via its name."""
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Resource {name} not found.")
         config["name"] = name
+        config = cls._check_for_child_configs(config)
         # Uses child class's from_config
         return cls.from_config(config=config, dryrun=dryrun)
 

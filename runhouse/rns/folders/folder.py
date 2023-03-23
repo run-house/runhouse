@@ -139,16 +139,10 @@ class Folder(Resource):
         return Folder(**config, dryrun=dryrun)
 
     @classmethod
-    def from_name(cls, name, dryrun=True):
-        """Load existing Folder via its name."""
-        config = rns_client.load_config(name=name)
-        if not config:
-            raise ValueError(f"Resource {name} not found.")
-
-        config["name"] = name
-
+    def _check_for_child_configs(cls, config):
+        """Overload by child resources to load any resources they hold internally."""
         system = config["system"]
-        if isinstance(system, str) and system.startswith("/"):
+        if isinstance(system, str) and rns_client.exists(system):
             # if the system is set to a cluster
             cluster_config: dict = rns_client.load_config(name=system)
             if not cluster_config:
@@ -156,9 +150,7 @@ class Folder(Resource):
 
             # set the cluster config as the system
             config["system"] = cluster_config
-
-        # Uses child class's from_config
-        return cls.from_config(config=config, dryrun=dryrun)
+        return config
 
     @property
     def path(self):
@@ -305,8 +297,8 @@ class Folder(Resource):
         # to more performant cloud-specific APIs
         from runhouse.rns.hardware import Cluster
 
-        if isinstance(system, str) and rh.exists(system, resource_type="cluster"):
-            system = Cluster.from_name(system)
+        if isinstance(system, str) and rns_client.exists(system, resource_type="cluster"):
+            system = Cluster.from_name(system, dryrun=self.dryrun)
 
         if system == "file":
             return self.to_local(dest_path=path, data_config=data_config)

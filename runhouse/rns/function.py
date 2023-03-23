@@ -77,6 +77,20 @@ class Function(Resource):
 
         return Function(**config, dryrun=dryrun)
 
+    @classmethod
+    def _check_for_child_configs(cls, config):
+        """Overload by child resources to load any resources they hold internally."""
+        system = config["system"]
+        if isinstance(system, str) and rh_config.rns_client.exists(system):
+            # if the system is set to a cluster
+            cluster_config: dict = rh_config.rns_client.load_config(name=system)
+            if not cluster_config:
+                raise Exception(f"No cluster config saved for {system}")
+
+            # set the cluster config as the system
+            config["system"] = cluster_config
+        return config
+
     def to(
         self,
         system: Union[str, Cluster],
