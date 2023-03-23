@@ -274,12 +274,20 @@ class Folder(Resource):
         self.data_config = data_config or {}
 
     def to(
-        self, system, path: Optional[str] = None, data_config: Optional[dict] = None
+        self,
+        system: Union[str, "Cluster"],
+        path: Optional[str] = None,
+        data_config: Optional[dict] = None,
     ):
         """Copy the folder to a new filesystem, and return a new Folder object pointing to the new location."""
-        # silly syntactic sugar to allow `my_remote_folder.to('here')`, clearer than `to('file')`
         if system == "here":
-            system = "file"
+            current_cluster_config = _current_cluster(key="config")
+            if current_cluster_config:
+                from runhouse.rns.hardware.cluster import Cluster
+
+                system = Cluster.from_config(current_cluster_config)
+            else:
+                system = "file"
             path = str(Path.cwd() / self.path.split("/")[-1]) if path is None else path
 
         path = str(
@@ -296,6 +304,9 @@ class Folder(Resource):
         # to_local, to_cluster and to_data_store are also overridden by subclasses to dispatch
         # to more performant cloud-specific APIs
         from runhouse.rns.hardware import Cluster
+
+        if isinstance(system, str) and rh.exists(system, resource_type="cluster"):
+            system = Cluster.from_name(system)
 
         if system == "file":
             return self.to_local(dest_path=path, data_config=data_config)

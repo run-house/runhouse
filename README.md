@@ -52,13 +52,14 @@ if __name__ == "__main__":
 
     images = generate_gpu('A digital illustration of a woman running on the roof of a house.', num_images=2, steps=50)
     [image.show() for image in images]
-    
+
     generate_gpu.save(name='sd_generate')
 ```
-By saving, I or anyone I share with can load and call into this service with a single line of code, from anywhere 
+By saving, I or anyone I share with can load and call into this service with a single line of code, from anywhere
 with a Python interpreter and internet connection (notebook, IDE, CI/CD, orchestrator node, etc.):
 ```python
 generate_gpu = rh.function(name='sd_generate')
+images = generate_gpu("A hot dog made of matcha.")
 ```
 There's no magic yaml, DSL, code serialization, or "submitting for execution." We're
 just spinning up the cluster for you (or using an existing cluster), syncing over your code,
@@ -81,7 +82,6 @@ outputs_s3.save("dreambooth_outputs")
 
 # and later:
 rh.folder(name="dreambooth_outputs").to("here")
-
 
 # Load a table in from anywhere (S3, GCS, local, etc)
 my_table = rh.table(system="gcs", path="my_bucket/my_table.parquet").to("here")

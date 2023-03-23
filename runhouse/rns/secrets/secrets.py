@@ -180,9 +180,9 @@ class Secrets:
         """Copy secrets to the desired hardware for a list of builtin providers. If no providers are specified
         will load all builtin providers that are already enabled."""
         if isinstance(hardware, str):
-            from runhouse import cluster
+            from runhouse import Cluster
 
-            hardware = cluster(name=hardware)
+            hardware = Cluster.from_name(name=hardware)
 
         hardware_name = hardware.name
         if not hardware.is_up():

@@ -95,6 +95,8 @@ class Function(Resource):
         self.system = None
         new_function = copy.deepcopy(self)
         self.system = hw_backup
+        if isinstance(system, str):
+            system = Cluster.from_name(system, dryrun=self.dryrun)
         new_function.system = system
         new_function.reqs = reqs if reqs else self.reqs
         new_function.setup_cmds = setup_cmds if setup_cmds else self.setup_cmds
