@@ -476,6 +476,7 @@ class Function(Resource):
         """
         Return the endpoint needed to run the Function on the remote cluster, or provide the curl command if requested.
         """
+        raise NotImplementedError("http_url not yet implemented for Function")
         resource_uri = rh_config.rns_client.resource_uri(name=self.name)
         uri = f"proxy/{resource_uri}"
         if curl_command:
@@ -683,12 +684,6 @@ def function(
             revision=branch_name,
         )
         config["reqs"].insert(0, repo_package)
-        # repo_package = Package(path=f'/',
-        #                        system='github',
-        #                        data_config={'org': username, 'repo': repo_name, 'sha': branch_name,
-        #                                     'filecache': {'cache_storage': repo_name}},
-        #                        install_method='local')
-        # config['reqs'] = [repo_package] + config['reqs']
 
     config["system"] = system or config.get("system")
     if isinstance(config["system"], str):
@@ -712,7 +707,3 @@ def function(
         new_function.send_secrets()
 
     return new_function
-
-
-# Briefly keep for BC.
-send = function
