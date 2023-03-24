@@ -9,8 +9,22 @@ import ray
 
 from runhouse import rh_config
 
-
 logger = logging.getLogger(__name__)
+
+
+def to_iterator(obj_ids):
+    while obj_ids:
+        done, obj_ids = ray.wait(obj_ids)
+        yield ray.get(done[0])
+
+
+def show_progress_bar(obj_ref):
+    # https://github.com/ray-project/ray/issues/5554 (current method)
+    # https://github.com/ray-project/ray/pull/33122 (experimental method)
+    from tqdm import tqdm
+
+    for x in tqdm(to_iterator(obj_ref), total=len(obj_ref)):
+        pass
 
 
 def call_fn_by_type(fn, fn_type, fn_name, module_path=None, args=None, kwargs=None):
@@ -51,8 +65,10 @@ def call_fn_by_type(fn, fn_type, fn_name, module_path=None, args=None, kwargs=No
         )(logging_wrapped_fn)
         if fn_type == "map":
             obj_ref = [ray_fn.remote(arg, **kwargs) for arg in args]
+            show_progress_bar(obj_ref)
         elif fn_type == "starmap":
             obj_ref = [ray_fn.remote(*arg, **kwargs) for arg in args]
+            show_progress_bar(obj_ref)
         elif fn_type == "queue" or fn_type == "remote":
             obj_ref = ray_fn.remote(*args, **kwargs)
         elif fn_type == "repeat":
