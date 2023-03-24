@@ -559,8 +559,7 @@ class Function(Resource):
             # TODO put this in the current folder instead?
             module_path = Path.cwd() / (f"{name}_fn.py" if name else "sent_fn.py")
             logging.info(
-                f"Writing out function function to {str(module_path)} as "
-                f"functions serialized in notebooks are brittle. Please make "
+                f"Writing out function function to {str(module_path)}. Please make "
                 f"sure the function does not rely on any local variables, "
                 f"including imports (which should be moved inside the function body)."
             )
