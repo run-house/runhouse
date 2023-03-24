@@ -63,7 +63,7 @@ def test_stream_logs():
 def test_multiprocessing_streaming():
     cluster = get_test_cluster()
     re_fn = rh.function(
-        multiproc_torch_sum, system=cluster, reqs=["./", "torch==1.12.1"]
+        multiproc_torch_sum, system=cluster, env=["./", "torch==1.12.1"]
     )
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn(summands, stream_logs=True)

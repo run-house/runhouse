@@ -42,10 +42,10 @@ Packages are often times installed onto clusters using ``my_cluster.install_pack
 .. code:: python
 
    my_cluster(name,
-              reqs=['local:./',          # local
+              env=['local:./',          # local
                     'requirements.txt',  # reqs
                     'pip:diffusers',     # pip
-                    'conda:pytorh',    # conda
+                    'conda:pytorch',    # conda
               ])
 
 To install a Git package using just the GitHub URL (and optionally, the revision), without needing

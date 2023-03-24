@@ -48,7 +48,7 @@ def sd_generate(prompt, num_images=1, steps=100, guidance_scale=7.5, model_id='s
 
 if __name__ == "__main__":
     gpu = rh.cluster(name='rh-v100', instance_type='V100:1', provider='gcp')
-    generate_gpu = rh.function(fn=sd_generate).to(gpu, reqs=['./', 'torch==1.12.0', 'diffusers'])
+    generate_gpu = rh.function(fn=sd_generate).to(gpu, env=['./', 'torch==1.12.0', 'diffusers'])
 
     images = generate_gpu('A digital illustration of a woman running on the roof of a house.', num_images=2, steps=50)
     [image.show() for image in images]
