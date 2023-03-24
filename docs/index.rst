@@ -31,7 +31,7 @@ Runhouse has four top-level objectives:
 * Allowing resources to be shared among teams as living assets
 
 Keep reading on to see how Runhouse achieves this, or explore our
-:ref:`Architecture Section <Compute>`, :ref:`Python API`, and `Tutorials <https://github.com/run-house/tutorials>`_.
+:ref:`Architecture Section <High-level Architecture>`, :ref:`Python API`, and `Tutorials <https://github.com/run-house/tutorials>`_.
 
 .. warning::
     **This is an Alpha:**
@@ -75,6 +75,7 @@ Table of Contents
    :maxdepth: 1
    :caption: Runhouse Architecture
 
+   overview/high_level
    overview/compute
    overview/data
    overview/accessibility
