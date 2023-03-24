@@ -13,7 +13,7 @@ Runhouse has four top-level objectives:
 It achieves the above by providing four pillar features:
 
 
-#. :ref:`Compute <Compute>` - The Send, Cluster, and Package APIs allow
+#. :ref:`Compute <Compute>` - The Function, Cluster, and Package APIs allow
    a seamless flow of code and execution across local and remote compute. They blur the line
    between program execution and deployment, providing both a path of least resistence
    for running a sub-routine on specific hardware, while unceremoniously turning that
