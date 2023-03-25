@@ -1,3 +1,4 @@
+import os
 import unittest
 
 import runhouse as rh
@@ -83,6 +84,34 @@ def test_diff_cluster():
 
     new_hw = cluster(name="diff-cpu")
     assert not new_hw.on_same_cluster(func_hw)
+
+
+def test_submit_job_on_slurm_cluster():
+    sc = rh.cluster(
+        name="my_slurm_cluster",
+        url=os.getenv("SLURM_URL"),
+        auth_user=os.getenv("SLURM_USER"),
+        jwt_token=os.getenv("SLURM_JWT"),
+    ).save()
+
+    job_payload = {
+        "job": {
+            "name": "test",
+            "ntasks": 1,
+            "nodes": 1,
+            "current_working_directory": "/home/ubuntu/test",
+            "standard_input": "/dev/null",
+            "standard_output": "/home/ubuntu/test/test.out",
+            "standard_error": "/home/ubuntu/test/test_error.out",
+            "environment": {
+                "PATH": "/bin:/usr/bin/:/usr/local/bin/",
+                "LD_LIBRARY_PATH": "/lib/:/lib64/:/usr/local/lib",
+            },
+        },
+        "script": "#!/bin/bash\necho 'Hello world, I am running on node' $HOSTNAME\nsleep 10\ndate",
+    }
+    node_ip = sc.submit_job(payload=job_payload)
+    assert node_ip
 
 
 if __name__ == "__main__":

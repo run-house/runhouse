@@ -4,6 +4,7 @@ from runhouse.rh_config import rns_client
 
 from .cluster import Cluster
 from .on_demand_cluster import OnDemandCluster
+from .slurm_cluster import SlurmCluster
 
 
 # Cluster factory method
@@ -20,6 +21,7 @@ def cluster(
     ssh_creds: Optional[dict] = None,
     dryrun: bool = False,
     load: bool = True,
+    **kwargs
 ) -> Union[Cluster, OnDemandCluster]:
     """
     Builds an instance of :class:`Cluster`.
@@ -41,15 +43,17 @@ def cluster(
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
         load (bool): Whether to load an existing config for the Cluster. (Default: ``True``)
+        kwargs (dict): Extra arguments to pass. Useful when initializing a SlurmCluster.
+            (Default: ``{}``)
 
     Returns:
-        Cluster or OnDemandCluster: The resulting cluster.
+        Cluster, OnDemandCluster, or SlurmCluster: The resulting cluster.
 
     Example:
         >>> # BYO Cluster
         >>> gpu = rh.cluster(ips=['<ip of the cluster>'],
-        >>>          ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'},
-        >>>          name='rh-a10x')
+        >>>                  ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'},
+        >>>                  name='rh-a10x')
 
         >>> # On-Demand SkyPilot Cluster (OnDemandCluster)
         >>> gpu = rh.cluster(name='rh-4-a100s',
@@ -60,12 +64,23 @@ def cluster(
         >>>                  image_id='my_ami_string',
         >>>                  region='us-east-1',
         >>>                  )
+
+        >>> # Slurm Cluster
+        >>> gpu = rh.cluster(name='my_slurm_cluster',
+        >>>                  url='http://*.**.**.***:6820',
+        >>>                  auth_user='ubuntu',
+        >>>                  jwt_token='eyJhbGc*******',
+        >>>                  )
     """
     config = rns_client.load_config(name) if load else {}
     config["name"] = name or config.get("rns_address", None) or config.get("name")
     config["ips"] = ips or config.get("ips", None)
     # ssh creds should only be in Secrets management, not in config
     config["ssh_creds"] = ssh_creds or config.get("ssh_creds", None)
+
+    if set(list(kwargs)).issubset(["url", "auth_user", "jwt_token"]):
+        return SlurmCluster.from_config(config, dryrun, **kwargs)
+
     if config["ips"]:
         return Cluster.from_config(config, dryrun=dryrun)
 
