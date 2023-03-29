@@ -50,7 +50,7 @@ class Blob(Resource):
         blob_config = {
             "path": self.path,  # pair with data source to create the physical URL
             "resource_type": self.RESOURCE_TYPE,
-            "system": self.system,
+            "system": self._resource_string_for_subconfig(self.system),
         }
         config.update(blob_config)
         return config
