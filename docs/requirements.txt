@@ -1,10 +1,11 @@
 sphinx==4.5.0
 sphinx-rtd-theme==1.1.1
-sphinx-book-theme==1.0.0
+sphinx-book-theme==0.2.0
 sphinx-thebe==0.1.2
 sphinx-click==4.3.0
 sphinx-copybutton==0.5.1
 sphinx_autodoc_typehints==1.17.0
+pydata-sphinx-theme==0.7.2
 myst-parser==0.18.1
 pyarrow==9.0.0
 Pint==0.20.1
