@@ -181,23 +181,22 @@ class Cluster(Resource):
         to_install = []
         for package in reqs:
             if isinstance(package, str):
-                # If the package is a local folder, we need to create the package to sync it over to the cluster
                 pkg_obj = Package.from_string(package, dryrun=False)
             else:
+                # if package is local, previously saved as package object already
                 pkg_obj = package
 
             from runhouse.rns.folders.folder import Folder
 
-            if (
-                isinstance(pkg_obj.install_target, Folder)
-                and pkg_obj.install_target.is_local()
-            ):
-                pkg_str = pkg_obj.name or Path(pkg_obj.install_target.path).name
-                logging.info(
-                    f"Copying local package {pkg_str} to cluster <{self.name}>"
-                )
-                remote_package = pkg_obj.to_cluster(self, mount=False)
-                to_install.append(remote_package)
+            if isinstance(pkg_obj.install_target, Folder):
+                if pkg_obj.install_target.is_local():
+                    pkg_str = pkg_obj.name or Path(pkg_obj.install_target.path).name
+                    logging.info(
+                        f"Copying local package {pkg_str} to cluster <{self.name}>"
+                    )
+                    remote_package = pkg_obj.to_cluster(self, mount=False)
+                    to_install.append(remote_package)
+                # TODO: if is on filesystem like s3; copy over to cluster from s3
             else:
                 to_install.append(package)  # Just appending the string!
         logging.info(
