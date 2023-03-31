@@ -5,6 +5,10 @@ import runhouse as rh
 from runhouse.rns.hardware import cluster, OnDemandCluster
 
 
+def is_on_cluster(cluster):
+    return cluster.on_this_cluster()
+
+
 def test_cluster_config():
     rh_cpu = cluster(name="^rh-cpu")
     if not rh_cpu.is_up():
@@ -58,31 +62,24 @@ def test_restart_grpc():
     assert codes
 
 
-def test_same_cluster():
-    hw = cluster(name="^rh-cpu")
+def test_on_same_cluster():
+    hw = cluster(name="^rh-cpu").up_if_not()
+    hw.restart_grpc_server()
     hw.up_if_not()
 
     hw_copy = cluster(name="^rh-cpu")
 
-    def dummy_func(a):
-        return a
-
-    func_hw = rh.function(dummy_func).to(hw)
-    assert hw.on_same_cluster(func_hw)
-    assert hw_copy.on_same_cluster(func_hw)
+    func_hw = rh.function(is_on_cluster).to(hw)
+    assert func_hw(hw)
+    assert func_hw(hw_copy)
 
 
-def test_diff_cluster():
-    hw = cluster(name="^rh-cpu")
-    hw.up_if_not()
+def test_on_diff_cluster():
+    hw = cluster(name="^rh-cpu").up_if_not()
+    diff_hw = rh.cluster(name="test-byo-cluster").up_if_not()
 
-    def dummy_func(a):
-        return a
-
-    func_hw = rh.function(dummy_func).to(hw)
-
-    new_hw = cluster(name="diff-cpu")
-    assert not new_hw.on_same_cluster(func_hw)
+    func_hw = rh.function(is_on_cluster).to(hw)
+    assert not func_hw(diff_hw)
 
 
 if __name__ == "__main__":
