@@ -239,6 +239,8 @@ class Package(Resource):
             raise TypeError(
                 "`install_target` must be a Folder in order to copy the package to a cluster"
             )
+        if mount and not path:
+            path = self.install_target.path
 
         new_folder = self.install_target.to_cluster(
             dest_cluster,
@@ -246,6 +248,26 @@ class Package(Resource):
             mount=mount,
         )
         new_folder.system = "file"
+        new_package = copy.copy(self)
+        new_package.install_target = new_folder
+        return new_package
+
+    def to(
+        self,
+        system: Union[str, "Cluster"],
+        path: Optional[str] = None,
+    ):
+        """Copy the package onto filesystem or cluster, and return the new Package object."""
+        if not isinstance(self.install_target, Folder):
+            raise TypeError(
+                "`install_target` must be a Folder in order to copy the package to a system."
+            )
+
+        if isinstance(system, Resource) or isinstance(system, Dict):
+            return self.to_cluster(system, path=path)
+
+        new_folder = self.install_target.to(system, path=path)
+        new_folder.system = system if isinstance(system, str) else "file"
         new_package = copy.copy(self)
         new_package.install_target = new_folder
         return new_package

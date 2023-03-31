@@ -120,7 +120,7 @@ class Function(Resource):
         reqs = reqs if reqs else self.reqs
         new_reqs = []
         for req in reqs:
-            if "./" in req or req.startswith("local:"):
+            if "./" in req:
                 req = Package.from_string(req).to_cluster(system)
             new_reqs.append(req)
         new_function.reqs = new_reqs

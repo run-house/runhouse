@@ -196,7 +196,17 @@ class Cluster(Resource):
                     )
                     remote_package = pkg_obj.to_cluster(self, mount=False)
                     to_install.append(remote_package)
-                # TODO: if is on filesystem like s3; copy over to cluster from s3
+                elif (
+                    isinstance(pkg_obj.install_target.system, str)
+                    and not pkg_obj.install_target.system == "file"
+                ):
+                    # on a file system
+                    pkg_str = pkg_obj.name or Path(pkg_obj.install_target.path).name
+                    logging.info(
+                        f"Copying {pkg_obj.install_target.system} package {pkg_str} from to cluster <{self.name}>"
+                    )
+                    remote_package = pkg_obj.to_cluster(self, mount=False)
+                    to_install.append(remote_package)
             else:
                 to_install.append(package)  # Just appending the string!
         logging.info(
