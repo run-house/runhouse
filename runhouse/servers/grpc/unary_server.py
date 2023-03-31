@@ -34,7 +34,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
 
     # https://pytorch.org/get-started/locally/
     # Grab the relevant torch index url matching the cluster's cuda version
-    TORCH_VERSIONS_FOR_CUDA = {
+    TORCH_INDEX_URLS_FOR_CUDA = {
         "11.6": "https://download.pytorch.org/whl/cu116",
         "11.7": "https://download.pytorch.org/whl/cu117",
         "11.8": "https://download.pytorch.org/whl/cu118",
@@ -62,7 +62,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
                     if any(
                         [x in package for x in ["torch", "torchvision", "torchaudio"]]
                     ):
-                        package = self._validate_torch_version(package)
+                        package = self._torch_package_for_cluster(package)
                     pkg = Package.from_string(package)
 
                 elif hasattr(package, "install"):
@@ -320,7 +320,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
                 f"({resp.status_code}) Failed to send logs to Grafana Loki: {resp.text}"
             )
 
-    def _validate_torch_version(self, package: str):
+    def _torch_package_for_cluster(self, package: str):
         if "==" in package:
             # Use the specific torch version if provided
             _, torch_version = package.split("==")
@@ -331,10 +331,8 @@ class UnaryService(pb2_grpc.UnaryServicer):
             # torch version is already properly configured for cuda (ex: "2.0.0+cu117")
             return package
 
-        cuda_version = self.cuda_version
-
         # Grab the relevant index url for torch based on the cuda version
-        index_url = self._torch_index_url(cuda_version)
+        index_url = self.torch_index_url
         if index_url:
             return f"{package} --index-url {index_url}"
 
@@ -342,7 +340,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
 
     @property
     def cuda_version(self):
-        """If torch is already installed, use it to get the cuda version on the cluster. Otherwise run nvcc command."""
+        """If torch is already installed, use it to get the cuda version on the cluster."""
         try:
             import torch
 
@@ -360,11 +358,13 @@ class UnaryService(pb2_grpc.UnaryServicer):
         except ImportError:
             return None
 
-    def _torch_index_url(self, cuda_version: str):
-        torch_index_url = self.TORCH_VERSIONS_FOR_CUDA.get(cuda_version)
+    @property
+    def torch_index_url(self):
+        cuda_version = self.cuda_version
+        torch_index_url = self.TORCH_INDEX_URLS_FOR_CUDA.get(cuda_version)
         if torch_index_url is None:
             logger.warning(
-                f"Unsupported torch version for the cluster's CUDA version: {cuda_version}"
+                f"No supported torch index url for the cluster's CUDA version: {cuda_version}"
             )
             return None
 
