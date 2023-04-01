@@ -183,7 +183,6 @@ class Cluster(Resource):
             if isinstance(package, str):
                 pkg_obj = Package.from_string(package, dryrun=False)
             else:
-                # if package is local, previously saved as package object already
                 pkg_obj = package
 
             from runhouse.rns.folders.folder import Folder

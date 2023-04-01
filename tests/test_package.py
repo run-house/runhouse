@@ -76,6 +76,14 @@ def test_local_package_function():
     assert isinstance(function.reqs[0], rh.Package)
 
 
+def test_local_package_to_cluster():
+    system = rh.cluster("^rh-cpu").up_if_not()
+    package = rh.Package.from_string("./").to(system)
+
+    assert isinstance(package.install_target, rh.Folder)
+    assert package.install_target.system == "file"
+
+
 def test_package_file_system_to_cluster():
     import shutil
 

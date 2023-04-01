@@ -258,13 +258,13 @@ class Package(Resource):
         path: Optional[str] = None,
     ):
         """Copy the package onto filesystem or cluster, and return the new Package object."""
+        if isinstance(system, Resource) or isinstance(system, Dict):
+            return self.to_cluster(system, path=path)
+
         if not isinstance(self.install_target, Folder):
             raise TypeError(
                 "`install_target` must be a Folder in order to copy the package to a system."
             )
-
-        if isinstance(system, Resource) or isinstance(system, Dict):
-            return self.to_cluster(system, path=path)
 
         new_folder = self.install_target.to(system, path=path)
         new_folder.system = system if isinstance(system, str) else "file"
