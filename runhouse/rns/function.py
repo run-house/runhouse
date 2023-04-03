@@ -12,7 +12,6 @@ import requests
 from runhouse import rh_config
 from runhouse.rns.api_utils.resource_access import ResourceAccess
 from runhouse.rns.api_utils.utils import is_jsonable, load_resp_content, read_resp_data
-from runhouse.rns.folders.folder import Folder
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.packages import git_package, Package
 
@@ -122,12 +121,7 @@ class Function(Resource):
         new_reqs = []
         for req in reqs:
             if isinstance(req, str) and "./" in req:
-                new_req = Package.from_string(req)
-                req = (
-                    new_req.to_cluster(system)
-                    if isinstance(new_req.install_target, Folder)
-                    else req
-                )
+                req = Package.from_string(req)
             new_reqs.append(req)
         new_function.reqs = new_reqs
 

@@ -186,6 +186,12 @@ class Cluster(Resource):
                 pkg_obj = package
 
             from runhouse.rns.folders.folder import Folder
+            from runhouse.rns.packages.package import _get_pkg_folder
+
+            if isinstance(pkg_obj.install_target, str):
+                target = _get_pkg_folder(pkg_obj.install_target)
+                if target:
+                    pkg_obj.install_target = target
 
             if isinstance(pkg_obj.install_target, Folder):
                 if pkg_obj.install_target.is_local():
