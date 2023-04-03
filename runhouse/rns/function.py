@@ -24,8 +24,6 @@ logger = logging.getLogger(__name__)
 class Function(Resource):
     RESOURCE_TYPE = "function"
     DEFAULT_ACCESS = "write"
-    # By specifying fractional resources we remove queueing when calling ray remote on a function
-    DEFAULT_RESOURCES = {"num_cpus": 0.0001, "num_gpus": 0.0001}
 
     def __init__(
         self,
@@ -52,7 +50,7 @@ class Function(Resource):
         self.setup_cmds = setup_cmds or []
         self.access = access or self.DEFAULT_ACCESS
         self.dryrun = dryrun
-        self.resources = resources or self.DEFAULT_RESOURCES
+        self.resources = resources or {}
         super().__init__(name=name, dryrun=dryrun)
 
         if not self.dryrun and self.system and self.access in ["write", "read"]:
@@ -226,7 +224,7 @@ class Function(Resource):
                     relative_path=relative_path,
                 )
                 return call_fn_by_type(
-                    fn, fn_type, fn_name, self.resources, relative_path, args, kwargs
+                    fn, fn_type, fn_name, relative_path, self.resources, args, kwargs
                 )
             elif stream_logs:
                 run_key = self.remote(*args, **kwargs)
@@ -298,11 +296,15 @@ class Function(Resource):
                 "Function.starmap only works with Write or Read access, not Proxy access"
             )
 
-    def enqueue(self, *args, **kwargs):
+    def enqueue(self, resources: Optional[dict] = None, *args, **kwargs):
         """Enqueue a Function call to be run later."""
+        # Add resources one-off without setting as a Function param
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             return self._call_fn_with_ssh_access(
-                fn_type="queue", args=args, kwargs=kwargs
+                fn_type="queue",
+                resources=resources or self.resources,
+                args=args,
+                kwargs=kwargs,
             )
         else:
             raise NotImplementedError(
@@ -360,12 +362,15 @@ class Function(Resource):
                 "Function.get only works with Write or Read access, not Proxy access"
             )
 
-    def _call_fn_with_ssh_access(self, fn_type, args, kwargs):
+    def _call_fn_with_ssh_access(self, fn_type, resources=None, args=None, kwargs=None):
         # https://docs.ray.io/en/latest/ray-core/tasks/patterns/map-reduce.html
         # return ray.get([map.remote(i, map_func) for i in replicas])
         # TODO allow specifying resources per worker for map
         # TODO [DG] check whether we're on the cluster and if so, just call the function directly via the
         # helper function currently in UnaryServer
+        resources = (
+            resources or self.resources
+        )  # Allow for passing in one-off resources for this specific call
         name = self.name or "anonymous function"
         if self.fn_pointers is None:
             raise RuntimeError(f"No fn pointers saved for {name}")
@@ -374,7 +379,7 @@ class Function(Resource):
         name = self.name or fn_name or "anonymous function"
         logger.info(f"Running {name} via gRPC")
         res = self.system.run_module(
-            relative_path, module_name, fn_name, fn_type, self.resources, args, kwargs
+            relative_path, module_name, fn_name, fn_type, resources, args, kwargs
         )
         return res
 

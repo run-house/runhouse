@@ -52,10 +52,10 @@ if __name__ == "__main__":
 
     images = generate_gpu('A digital illustration of a woman running on the roof of a house.', num_images=2, steps=50)
     [image.show() for image in images]
-    
+
     generate_gpu.save(name='sd_generate')
 ```
-By saving, I or anyone I share with can load and call into this service with a single line of code, from anywhere 
+By saving, I or anyone I share with can load and call into this service with a single line of code, from anywhere
 with a Python interpreter and internet connection (notebook, IDE, CI/CD, orchestrator node, etc.):
 ```python
 generate_gpu = rh.function(name='sd_generate')

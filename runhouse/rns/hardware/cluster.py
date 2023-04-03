@@ -221,10 +221,10 @@ class Cluster(Resource):
 
     # TODO [DG] add a method to list all the keys in the cluster
 
-    def cancel(self, key, force=False):
-        """Cancel the given run on cluster."""
+    def cancel(self, key: Optional[str] = None, force=False, all=False):
+        """Cancel the given run on cluster. If``all`` is set to ``True``, will cancel all jobs on the cluster."""
         self.check_grpc()
-        return self.client.cancel_runs(key, force=force)
+        return self.client.cancel_runs(key, force=force, all=all)
 
     def clear_pins(self, pins: Optional[List[str]] = None):
         """Remove the given pinned items from the cluster. If `pins` is set to ``None``, then

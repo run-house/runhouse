@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def call_fn_by_type(
-    fn, fn_type, fn_name, resources, module_path=None, args=None, kwargs=None
+    fn, fn_type, fn_name, module_path, resources, args=None, kwargs=None
 ):
     run_key = f"{fn_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 

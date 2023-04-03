@@ -157,8 +157,11 @@ class UnaryService(pb2_grpc.UnaryServicer):
 
     def CancelRun(self, request, context):
         self.register_activity()
-        run_keys, force = pickle.loads(request.message)
-        if not hasattr(run_keys, "len"):
+        run_keys, force, all = pickle.loads(request.message)
+        if all:
+            # Cancel all runs
+            run_keys = obj_store.keys()
+        elif not hasattr(run_keys, "len"):
             run_keys = [run_keys]
         obj_refs = obj_store.get_obj_refs_list(run_keys)
         [
@@ -199,8 +202,8 @@ class UnaryService(pb2_grpc.UnaryServicer):
                 fn,
                 fn_type=fn_type,
                 fn_name=fn_name,
-                resources=resources,
                 module_path=module_path,
+                resources=resources,
                 args=args,
                 kwargs=kwargs,
             )
