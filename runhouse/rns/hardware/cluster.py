@@ -15,8 +15,8 @@ from sky.utils import command_runner
 from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
 from runhouse.rh_config import open_grpc_tunnels, rns_client
+from runhouse.rns.obj_store import _current_cluster
 from runhouse.rns.packages.package import Package
-
 from runhouse.rns.resource import Resource
 
 from runhouse.servers.grpc.unary_client import UnaryClient
@@ -233,11 +233,9 @@ class Cluster(Resource):
         self.client.clear_pins(pins)
         logger.info(f'Clearing pins on cluster {pins or ""}')
 
-    def on_same_cluster(self, resource: Resource):
-        """Whether the given resource is on the cluster."""
-        if hasattr(resource, "system") and isinstance(resource.system, Resource):
-            return resource.system.rns_address == self.rns_address
-        return False
+    def on_this_cluster(self):
+        """Whether this function is being called on the same cluster."""
+        return _current_cluster("name") == self.rns_address
 
     # ----------------- gRPC Methods ----------------- #
 
