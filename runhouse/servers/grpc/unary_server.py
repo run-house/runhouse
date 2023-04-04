@@ -175,6 +175,13 @@ class UnaryService(pb2_grpc.UnaryServicer):
             output_type=OutputType.RESULT,
         )
 
+    def ListKeys(self, request, context):
+        self.register_activity()
+        keys: list = obj_store.keys()
+        return pb2.MessageResponse(
+            message=pickle.dumps(keys), received=True, output_type=OutputType.RESULT
+        )
+
     def RunModule(self, request, context):
         self.register_activity()
         # get the function result from the incoming request

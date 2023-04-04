@@ -74,6 +74,10 @@ class UnaryClient(object):
         res = self.stub.CancelRun(message)
         return pickle.loads(res.message)
 
+    def list_keys(self):
+        res = self.stub.ListKeys(pb2.Message())
+        return pickle.loads(res.message)
+
     # TODO [DG]: maybe just merge cancel into this so we can get log streaming back as we cancel a job
     def get_object(self, key, stream_logs=False):
         """

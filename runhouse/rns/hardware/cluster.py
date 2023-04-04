@@ -219,10 +219,15 @@ class Cluster(Resource):
         self.check_grpc()
         return self.client.put_object(key, obj)
 
-    # TODO [DG] add a method to list all the keys in the cluster
+    def list_keys(self):
+        """List all keys in the cluster's object store."""
+        self.check_grpc()
+        res = self.client.list_keys()
+        return res
 
     def cancel(self, key: Optional[str] = None, force=False, all=False):
-        """Cancel the given run on cluster. If``all`` is set to ``True``, will cancel all jobs on the cluster."""
+        """Cancel a given run on cluster by its key. If `all` is set to ``True``, then all jobs on the
+        cluster will be cancelled."""
         self.check_grpc()
         return self.client.cancel_runs(key, force=force, all=all)
 
