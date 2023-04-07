@@ -27,7 +27,7 @@ def test_share_package():
     p = rh.Package.from_string("local:./tmp_package")
     p.name = "package_to_share"  # shareable resource requires a name
 
-    c = rh.cluster(name="/jlewitt1/rh-cpu")
+    c = rh.cluster(name="^rh-cpu")
     p.to_cluster(dest_cluster=c)
 
     p.share(
@@ -60,8 +60,14 @@ def test_share_git_package():
 
 
 def test_load_shared_git_package():
-    git_package = rh.package(name="@/shared_git_package")
+    git_package = rh.Package.from_name(name="@/shared_git_package")
     assert git_package.config_for_rns
+
+
+def test_cuda_version_install_for_torch():
+    pkg = rh.Package.from_string(specifier="pip:torch==1.13.1")
+    pkg.install()
+    assert pkg.install_target == "torch==1.13.1"
 
 
 if __name__ == "__main__":

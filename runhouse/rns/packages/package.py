@@ -16,6 +16,13 @@ INSTALL_METHODS = {"local", "reqs", "pip", "conda"}
 class Package(Resource):
     RESOURCE_TYPE = "package"
 
+    # https://pytorch.org/get-started/locally/
+    TORCH_INDEX_URLS_FOR_CUDA = {
+        "11.6": "https://download.pytorch.org/whl/cu116",
+        "11.7": "https://download.pytorch.org/whl/cu117",
+        "11.8": "https://download.pytorch.org/whl/cu118",
+    }
+
     def __init__(
         self,
         name: str = None,
@@ -61,9 +68,8 @@ class Package(Resource):
 
     def install(self):
         """Install package."""
-        logging.info(
-            f"Installing package {str(self)} with method {self.install_method}."
-        )
+        logging.info(f"Installing {str(self)} with method {self.install_method}.")
+
         install_cmd = ""
         install_args = f" {self.install_args}" if self.install_args else ""
         if isinstance(self.install_target, Folder):
@@ -98,6 +104,10 @@ class Package(Resource):
         else:
             install_cmd = self.install_target + install_args
 
+        # Ensure correct version of torch is installed based on CUDA version
+        if any([x in install_cmd for x in ["torch", "torchvision", "torchaudio"]]):
+            install_cmd = self.install_cmd_for_torch(install_cmd)
+
         if self.install_method == "pip":
             self.pip_install(install_cmd)
         elif self.install_method == "conda":
@@ -121,6 +131,50 @@ class Package(Resource):
                 f"Unknown install_method {self.install_method}. Try using cluster.run() or "
                 f"function.run_setup() to install instead."
             )
+
+    def install_cmd_for_torch(self, install_cmd: str):
+        if "==" in install_cmd:
+            # Use the specific torch version if provided
+            package, torch_version = install_cmd.split("==")
+            package = f"{package}=={torch_version}"
+        else:
+            package = install_cmd
+            torch_version = self.torch_version()
+
+        if "+cu" in torch_version:
+            # torch version is already properly configured for cuda (ex: "2.0.0+cu117")
+            return package
+
+        # Grab the relevant index url for torch based on the cuda version
+        index_url = self.torch_index_url()
+        if index_url:
+            return f"{package} --index-url {index_url}"
+
+        return package
+
+    def torch_index_url(self):
+        cuda_version = self.cuda_version()
+        return self.TORCH_INDEX_URLS_FOR_CUDA.get(cuda_version)
+
+    @staticmethod
+    def cuda_version():
+        """Use nvcc to get the cuda version."""
+        try:
+            cuda_version_info: str = subprocess.check_output(
+                "nvcc --version", shell=True
+            ).decode("utf-8")
+            return cuda_version_info.split("release ")[1].split(",")[0]
+        except subprocess.CalledProcessError:
+            return None
+
+    @staticmethod
+    def torch_version():
+        try:
+            import torch
+
+            return torch.__version__
+        except ImportError:
+            return None
 
     @staticmethod
     def pip_install(install_cmd: str):
@@ -175,7 +229,6 @@ class Package(Resource):
     @staticmethod
     def from_config(config: dict, dryrun=False):
         if config.get("resource_subtype") == "GitPackage":
-
             from runhouse import GitPackage
 
             return GitPackage.from_config(config, dryrun=dryrun)
@@ -277,7 +330,7 @@ def package(
     Args:
         name (str): Name to assign the pacakge.
         install_method (str): Method for installing the package. Options: [``pip``, ``conda``, ``reqs``, ``local``]
-        install_str (str): Additional arguments to install.  # TODO: not too sure about this
+        install_str (str): Additional arguments to install.
         url (str): URL of the package to install.
         system (str): File system. Currently this must be one of:
             [``file``, ``github``, ``sftp``, ``ssh``,``s3``, ``gs``, ``azure``].

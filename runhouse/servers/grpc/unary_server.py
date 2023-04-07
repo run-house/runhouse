@@ -32,14 +32,6 @@ class UnaryService(pb2_grpc.UnaryServicer):
     LOGGING_WAIT_TIME = 1.0
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
 
-    # https://pytorch.org/get-started/locally/
-    # Grab the relevant torch index url matching the cluster's cuda version
-    TORCH_INDEX_URLS_FOR_CUDA = {
-        "11.6": "https://download.pytorch.org/whl/cu116",
-        "11.7": "https://download.pytorch.org/whl/cu117",
-        "11.8": "https://download.pytorch.org/whl/cu118",
-    }
-
     def __init__(self, *args, **kwargs):
         ray.init(address="auto")
 
@@ -59,10 +51,6 @@ class UnaryService(pb2_grpc.UnaryServicer):
             logger.info(f"Message received from client to install packages: {packages}")
             for package in packages:
                 if isinstance(package, str):
-                    if any(
-                        [x in package for x in ["torch", "torchvision", "torchaudio"]]
-                    ):
-                        package = self._torch_package_for_cluster(package)
                     pkg = Package.from_string(package)
 
                 elif hasattr(package, "install"):
@@ -319,56 +307,6 @@ class UnaryService(pb2_grpc.UnaryServicer):
             logger.error(
                 f"({resp.status_code}) Failed to send logs to Grafana Loki: {resp.text}"
             )
-
-    def _torch_package_for_cluster(self, package: str):
-        if "==" in package:
-            # Use the specific torch version if provided
-            _, torch_version = package.split("==")
-        else:
-            torch_version = self.torch_version
-
-        if "+cu" in torch_version:
-            # torch version is already properly configured for cuda (ex: "2.0.0+cu117")
-            return package
-
-        # Grab the relevant index url for torch based on the cuda version
-        index_url = self.torch_index_url
-        if index_url:
-            return f"{package} --index-url {index_url}"
-
-        return package
-
-    @property
-    def cuda_version(self):
-        """If torch is already installed, use it to get the cuda version on the cluster."""
-        try:
-            import torch
-
-            cuda_version = torch.version.cuda
-            return cuda_version
-        except ImportError:
-            return None
-
-    @property
-    def torch_version(self):
-        try:
-            import torch
-
-            return torch.__version__
-        except ImportError:
-            return None
-
-    @property
-    def torch_index_url(self):
-        cuda_version = self.cuda_version
-        torch_index_url = self.TORCH_INDEX_URLS_FOR_CUDA.get(cuda_version)
-        if torch_index_url is None:
-            logger.warning(
-                f"No supported torch index url for the cluster's CUDA version: {cuda_version}"
-            )
-            return None
-
-        return torch_index_url
 
 
 def serve():
