@@ -146,6 +146,14 @@ def test_maps():
     assert res == [4, 6, 8, 10, 12]
 
 
+def test_progress_bar_for_map():
+    cpu = rh.cluster("^rh-cpu").up_if_not()
+    pid_fn = rh.function(getpid, system=cpu)
+    num_pids = [1] * 50
+    pids = pid_fn.map(num_pids)
+    assert len(set(pids)) > 1
+
+
 def test_function_git_fn():
     remote_parse = rh.function(
         fn="https://github.com/huggingface/diffusers/blob/"
