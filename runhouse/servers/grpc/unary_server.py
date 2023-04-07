@@ -163,12 +163,13 @@ class UnaryService(pb2_grpc.UnaryServicer):
             run_keys = obj_store.keys()
         elif not hasattr(run_keys, "len"):
             run_keys = [run_keys]
-        obj_refs = obj_store.get_obj_refs_list(run_keys)
-        [
-            ray.cancel(obj_ref, force=force, recursive=True)
-            for obj_ref in obj_refs
-            if isinstance(obj_ref, ray.ObjectRef)
-        ]
+
+        for obj_ref in obj_store.get_obj_refs_list(run_keys):
+            obj_store.cancel(obj_ref)
+
+        if all:
+            obj_store.clear()
+
         return pb2.MessageResponse(
             message=pickle.dumps("Cancelled"),
             received=True,

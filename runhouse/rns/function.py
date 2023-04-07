@@ -5,7 +5,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import requests
 
@@ -296,7 +296,7 @@ class Function(Resource):
                 "Function.starmap only works with Write or Read access, not Proxy access"
             )
 
-    def enqueue(self, resources: Optional[dict] = None, *args, **kwargs):
+    def enqueue(self, resources: Optional[Dict] = None, *args, **kwargs):
         """Enqueue a Function call to be run later."""
         # Add resources one-off without setting as a Function param
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:

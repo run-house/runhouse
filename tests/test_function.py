@@ -174,6 +174,40 @@ def test_function_git_fn():
     assert args.pretrained_model_name_or_path == "stabilityai/stable-diffusion-2-base"
 
 
+def test_list_keys():
+    cpu = rh.cluster("^rh-cpu").up_if_not()
+
+    pid_fn = rh.function(getpid, system=cpu)
+
+    pid_ref1 = pid_fn.remote()
+    pid_ref2 = pid_fn.remote()
+
+    current_jobs = cpu.list_keys()
+    assert set([pid_ref1, pid_ref2]).issubset(current_jobs)
+
+
+def test_cancel_jobs():
+    cpu = rh.cluster("^rh-cpu").up_if_not()
+
+    pid_fn = rh.function(getpid, system=cpu)
+
+    pid_ref1 = pid_fn.remote()
+    pid_ref2 = pid_fn.remote()
+
+    cpu.cancel(all=True)
+
+    current_jobs = cpu.list_keys()
+    assert not set([pid_ref1, pid_ref2]).issubset(current_jobs)
+
+
+def test_function_queueing():
+    cpu = rh.cluster("^rh-cpu").up_if_not()
+    pid_fn = rh.function(getpid, system=cpu)
+
+    pids = [pid_fn.enqueue(resources={"num_cpus": 2}) for _ in range(10)]
+    assert len(pids) == 10
+
+
 @unittest.skip("Not working properly.")
 def test_function_external_fn():
     """Test functioning a module from reqs, not from working_dir"""
