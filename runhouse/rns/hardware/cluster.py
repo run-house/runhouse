@@ -559,8 +559,15 @@ class Cluster(Resource):
         return return_codes
 
     def send_secrets(self, providers: Optional[List[str]] = None):
-        """Send secrets for the given providers. If none provided will send secrets for providers that have been
-        configured in the environment."""
+        """Send secrets for the given providers. If none are provided will send secrets for providers that have been
+        configured in the local environment."""
+        from runhouse import OnDemandCluster
+
+        if "sky" in providers and isinstance(self, OnDemandCluster):
+            # If we are using an on-demand cluster, add the configs for other on-demand clusters
+            # to the current cluster in order to enable cross cluster resource sharing.
+            self._add_all_sky_cluster_configs()
+
         from runhouse import Secrets
 
         Secrets.to(hardware=self, providers=providers)

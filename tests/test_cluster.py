@@ -29,7 +29,7 @@ def test_cluster_sharing():
 
 
 def test_read_shared_cluster():
-    c = cluster(name="/jlewitt1/rh-cpu")
+    c = cluster(name="@/rh-cpu")
     res = c.run_python(["import numpy", "print(numpy.__version__)"])
     assert res[0][1]
 
@@ -44,6 +44,18 @@ def test_install():
             # 'gh:pytorch/vision'
         ]
     )
+
+
+def test_enable_cross_cluster_resource_sharing():
+    c1 = rh.cluster(name="^rh-cpu").up_if_not()
+
+    c2 = rh.cluster(name="c2", instance_type="^CPU:2+").up_if_not()
+    c2.send_secrets(providers=["sky"])
+
+    return_codes = c2.run(commands=["sky status"])
+    c2.teardown()
+
+    assert c1.name in return_codes[0][1]
 
 
 def test_basic_run():

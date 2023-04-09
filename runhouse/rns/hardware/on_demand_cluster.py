@@ -1,5 +1,6 @@
 import contextlib
 import logging
+import os
 import subprocess
 from pathlib import Path
 from typing import Any, Dict
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 class OnDemandCluster(Cluster):
     RESOURCE_TYPE = "cluster"
     RECONNECT_TIMEOUT = 5
+    CLUSTER_YAML_CONFIGS = "~/.sky/generated"
 
     def __init__(
         self,
@@ -202,15 +204,27 @@ class OnDemandCluster(Cluster):
             # the cluster went down
             self.update_from_sky_status(dryrun=self.dryrun)
 
+    def _add_all_sky_cluster_configs(self):
+        """Add yaml files for other upped clusters to make them available on the current cluster. This is needed to
+        ensure cross cluster resource sharing."""
+        path_to_cluster_configs = os.path.expanduser(self.CLUSTER_YAML_CONFIGS)
+        if not Path(path_to_cluster_configs).exists():
+            raise FileNotFoundError(
+                f"Cluster yaml configs not found in path: {path_to_cluster_configs}"
+            )
+
+        from runhouse import blob
+
+        blob(path=path_to_cluster_configs).to(system=self, path="~/.sky")
+
     def __getstate__(self):
         """Make sure sky_state is loaded in before pickling."""
         self.sky_state = self._get_sky_state()
         return super().__getstate__()
 
-    @staticmethod
-    def relative_yaml_path(yaml_path):
+    def relative_yaml_path(self, yaml_path):
         if Path(yaml_path).is_absolute():
-            yaml_path = "~/.sky/generated/" + Path(yaml_path).name
+            yaml_path = f"{self.CLUSTER_YAML_CONFIGS}/{Path(yaml_path).name}"
         return yaml_path
 
     # ----------------- Launch/Lifecycle Methods -----------------
