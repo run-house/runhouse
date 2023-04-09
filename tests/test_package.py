@@ -64,10 +64,31 @@ def test_load_shared_git_package():
     assert git_package.config_for_rns
 
 
-def test_cuda_version_install_for_torch():
-    pkg = rh.Package.from_string(specifier="pip:torch==1.13.1")
-    pkg.install()
-    assert pkg.install_target == "torch==1.13.1"
+def test_torch_installs():
+    cuda_url = "--index-url https://download.pytorch.org/whl/cu116"
+    simple_index_url = "--extra-index-url https://pypi.python.org/simple/"
+
+    # Torch install commands and their expected results (None if the install command is invalid)
+    install_commands = {
+        "torch==1.13.1": "torch==1.13.1",
+        "torch>=1.13.0, <2.0.0": "torch>=1.13.0, <2.0.0",
+        f"torch torchaudio {cuda_url}": f"torch {simple_index_url} torchaudio {cuda_url}",
+        f"torchaudio {cuda_url} torch {cuda_url}": f"torchaudio {cuda_url} torch {cuda_url}",
+        "torch torchpudding": f"torch {simple_index_url}",
+        "torch>=1.13.0": "torch>=1.13.0",
+        "torch>1.13.0": "torch>1.13.0",
+        "torch~=1.13.0": "torch~=1.13.0",
+        "torch==1.13.1+cu118": "torch==1.13.1+cu118",
+        "torchpudding": None,
+        "torchpudding==1.13.1": None,
+        "torch==99.99.999": None,
+    }
+    for install_cmd, expected_res in install_commands.items():
+        dummy_pkg = rh.Package.from_string(specifier=f"pip:{install_cmd}")
+        formatted_cmd = dummy_pkg.install_cmd_for_torch(install_cmd)
+        assert (
+            formatted_cmd == expected_res
+        ), f"Unexpected response for command: {install_cmd}"
 
 
 if __name__ == "__main__":
