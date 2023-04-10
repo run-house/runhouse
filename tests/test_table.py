@@ -5,6 +5,7 @@ from pathlib import Path
 import datasets
 import pandas as pd
 import pyarrow as pa
+import pytest
 import ray.data
 
 import runhouse as rh
@@ -16,9 +17,14 @@ NUM_PARTITIONS = 10
 
 
 def setup():
-    from runhouse.rns.api_utils.utils import create_s3_bucket
+    try:
+        from runhouse.rns.api_utils.utils import create_s3_bucket
 
-    create_s3_bucket(BUCKET_NAME)
+        create_s3_bucket(BUCKET_NAME)
+    except:
+        print(
+            f"Could not create S3 Bucket {BUCKET_NAME}. Check that credentials are valid."
+        )
 
 
 def delete_local_folder(path):
@@ -86,6 +92,7 @@ def load_sample_data(data_type):
 # -----------------------------------------------
 
 
+@pytest.mark.no_creds
 def test_create_and_reload_file_locally():
     local_path = Path.cwd() / "table_tests/local_test_table"
     local_path.mkdir(parents=True, exist_ok=True)
@@ -125,6 +132,7 @@ def test_create_and_reload_file_locally():
     assert not reloaded_table.exists_in_system()
 
 
+@pytest.mark.no_creds
 def test_create_and_reload_pandas_locally():
     orig_data = load_sample_data("pandas")
     name = "~/my_test_local_pandas_table"
@@ -159,6 +167,7 @@ def test_create_and_reload_pandas_locally():
     assert not reloaded_table.exists_in_system()
 
 
+@pytest.mark.no_creds
 def test_create_and_reload_pyarrow_locally():
     orig_data = load_sample_data("pyarrow")
     name = "~/my_test_local_pyarrow_table"
@@ -193,6 +202,7 @@ def test_create_and_reload_pyarrow_locally():
     assert not reloaded_table.exists_in_system()
 
 
+@pytest.mark.no_creds
 def test_create_and_reload_ray_locally():
     orig_data = load_sample_data("ray")
     name = "~/my_test_local_ray_table"
@@ -227,6 +237,7 @@ def test_create_and_reload_ray_locally():
     assert not reloaded_table.exists_in_system()
 
 
+@pytest.mark.no_creds
 def test_create_and_reload_huggingface_locally():
     orig_data = load_sample_data("huggingface")
     name = "~/my_test_local_huggingface_table"
@@ -261,6 +272,7 @@ def test_create_and_reload_huggingface_locally():
     assert not reloaded_table.exists_in_system()
 
 
+@pytest.mark.no_creds
 def test_create_and_reload_dask_locally():
     orig_data = load_sample_data("dask")
     name = "~/my_test_local_dask_table"

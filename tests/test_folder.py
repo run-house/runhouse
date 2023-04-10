@@ -2,6 +2,8 @@ import shutil
 import unittest
 from pathlib import Path
 
+import pytest
+
 import runhouse as rh
 from ray import cloudpickle as pickle
 
@@ -17,8 +19,19 @@ def setup():
     # Create buckets in S3 and GCS
     from runhouse.rns.api_utils.utils import create_gcs_bucket, create_s3_bucket
 
-    create_s3_bucket(DATA_STORE_BUCKET)
-    create_gcs_bucket(DATA_STORE_BUCKET)
+    try:
+        create_s3_bucket(DATA_STORE_BUCKET)
+    except:
+        print(
+            f"Could not create S3 Bucket {DATA_STORE_BUCKET}. Check that credentials are valid."
+        )
+
+    try:
+        create_gcs_bucket(DATA_STORE_BUCKET)
+    except:
+        print(
+            f"Could not create GCS Bucket {DATA_STORE_BUCKET}. Check that credentials are valid."
+        )
 
     # Create local dir with files to upload to cluster, buckets, etc.
     TEST_FOLDER_PATH.mkdir(parents=True, exist_ok=True)
@@ -35,6 +48,7 @@ def fs_str_rh_fn(folder):
     return folder._fs_str
 
 
+@pytest.mark.no_creds
 def test_github_folder():
     gh_folder = rh.folder(
         path="/", system="github", data_config={"org": "pytorch", "repo": "pytorch"}

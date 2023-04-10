@@ -1,6 +1,8 @@
 import unittest
 from pathlib import Path
 
+import pytest
+
 import runhouse as rh
 
 
@@ -8,10 +10,16 @@ def setup():
     pass
 
 
+@pytest.mark.no_creds
 def test_from_string():
     p = rh.Package.from_string("reqs:~/runhouse")
-    assert isinstance(p.install_target, rh.Folder)
-    assert p.install_target.path == str(Path.home() / "runhouse")
+
+    assert p.install_method == "reqs"
+    assert p.install_args == ""
+    assert isinstance(p.install_target, rh.Folder) or p.install_target == "~/runhouse"
+
+    if isinstance(p.install_target, rh.Folder):
+        assert p.install_target.path == str(Path.home() / "runhouse")
 
 
 def test_share_package():

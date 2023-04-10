@@ -5,9 +5,6 @@ on:
     branches: [ main ]
   pull_request:
 
-env:
-  TOKEN: ${{ secrets.TOKEN }}
-
 jobs:
   tests:
     runs-on: ubuntu-latest
@@ -19,7 +16,5 @@ jobs:
       - name: Install test dependencies
         run: pip install pytest s3fs==2023.1.0 awscli==1.25.60 boto3==1.24.59 pycryptodome==3.12.0 \
              google-api-python-client google-cloud-storage gcsfs datasets dask
-      - name: Login and download secrets
-        run: python -c "import runhouse as rh; rh.login(token='$TOKEN', download_config=False, upload_config=False, download_secrets=True, upload_secrets=False)"
-      - name: Sky check
-        run: sky check
+      - name: Run local tests without credentials
+        run: pytest tests -m no_creds

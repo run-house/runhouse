@@ -1,6 +1,8 @@
 import unittest
 from pathlib import Path
 
+import pytest
+
 import runhouse as rh
 import yaml
 
@@ -11,11 +13,17 @@ TEMP_LOCAL_FOLDER = Path(__file__).parents[1] / "rh-blobs"
 
 
 def setup():
-    from runhouse.rns.api_utils.utils import create_s3_bucket
+    try:
+        from runhouse.rns.api_utils.utils import create_s3_bucket
 
-    create_s3_bucket(S3_BUCKET)
+        create_s3_bucket(S3_BUCKET)
+    except:
+        print(
+            f"Could not create S3 Bucket {S3_BUCKET}. Check that credentials are valid."
+        )
 
 
+@pytest.mark.no_creds
 def test_create_and_reload_local_blob_with_name():
     name = "~/my_local_blob"
     data = pickle.dumps(list(range(50)))
@@ -44,6 +52,7 @@ def test_create_and_reload_local_blob_with_name():
     assert not reloaded_blob.exists_in_system()
 
 
+@pytest.mark.no_creds
 def test_create_and_reload_local_blob_with_path():
     name = "~/my_local_blob"
     data = pickle.dumps(list(range(50)))
@@ -74,6 +83,7 @@ def test_create_and_reload_local_blob_with_path():
     assert not reloaded_blob.exists_in_system()
 
 
+@pytest.mark.no_creds
 def test_create_and_reload_anom_local_blob():
     data = pickle.dumps(list(range(50)))
     my_blob = rh.blob(
