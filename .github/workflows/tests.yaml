@@ -16,5 +16,15 @@ jobs:
       - name: Install test dependencies
         run: pip install pytest s3fs==2023.1.0 awscli==1.25.60 boto3==1.24.59 pycryptodome==3.12.0 \
              google-api-python-client google-cloud-storage gcsfs datasets dask
+      - name: Set up AWS creds
+        run: python tests/setup_aws.py
+        env:
+          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+          TEST_AWS_ACCESS_KEY: ${{ secrets.TEST_AWS_ACCESS_KEY }}
+          TEST_AWS_SECRET_KEY: ${{ secrets.TEST_AWS_SECRET_KEY }}
+          TEST_SKY_PRIVATE_KEY: ${{ secrets.TEST_SKY_PRIVATE_KEY }}
+          TEST_SKY_PUBLIC_KEY: ${{ secrets.TEST_SKY_PUBLIC_KEY }}
+      - name: Run sky check
+        run: sky check
       - name: Run local tests without credentials
         run: pytest tests -m no_creds
