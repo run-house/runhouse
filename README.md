@@ -21,8 +21,7 @@ them normally from your local environment.
 interpreter that lets it take detours to remote machines or hold and manipulate remote
 data. So your preprocessing can briefly detour to run on a 64 CPU GCP instance, then
 return to your local environment, then jump to a GPU cluster on Lambda Labs for training.
-The dataframe your preprocessing generates can stream directly to the GPU cluster, so it
-doesn't need to bounce off your laptop. Normally you'd need to translate your code into
+The preprocessed dataframe can stream directly to the GPU cluster, without bouncing off your laptop. Normally you'd need to translate your code into
 an orchestrator workflow to do all this, but now you can run, test, iterate, and share this program
 like any other Python, even in notebooks. You can drop it into an orchestrator node just
 like any other Python script to schedule or monitor it, or use it with any experiment
@@ -89,7 +88,7 @@ outputs_s3 = rh.folder(system=gpu, path="dreambooth/outputs").to("s3", path="run
 outputs_s3.save("dreambooth_outputs")
 ```
 
-And later, if I want to load down the folder in full:
+To load down the folder in full later:
 ```python
 rh.Folder.from_name("dreambooth_outputs").to("here")
 ```
