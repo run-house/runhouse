@@ -27,7 +27,7 @@ an orchestrator workflow to do all this, but now you can run, test, iterate, and
 like any other Python, even in notebooks. You can drop it into an orchestrator node just
 like any other Python script to schedule or monitor it, or use it with any experiment
 management and lineage tools you like. Runhouse heavily builds on top of Ray, gRPC, and
-SkyPilot, so lots of nice things like queuing, distributed, production-hardness, async,
+SkyPilot, so lots of nice features like queuing, distributed, production-hardness, async,
 auto-launching, auto-termination, and logging are built-in.
 
 Runhouse is for ML Researchers, Engineers, and Data Scientists who are tired of:
