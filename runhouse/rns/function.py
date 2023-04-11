@@ -5,7 +5,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import requests
 
@@ -34,6 +34,7 @@ class Function(Resource):
         setup_cmds: Optional[List[str]] = None,
         dryrun: bool = False,
         access: Optional[str] = None,
+        resources: Optional[dict] = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
@@ -49,6 +50,7 @@ class Function(Resource):
         self.setup_cmds = setup_cmds or []
         self.access = access or self.DEFAULT_ACCESS
         self.dryrun = dryrun
+        self.resources = resources or {}
         super().__init__(name=name, dryrun=dryrun)
 
         if not self.dryrun and self.system and self.access in ["write", "read"]:
@@ -238,7 +240,7 @@ class Function(Resource):
                     relative_path=relative_path,
                 )
                 return call_fn_by_type(
-                    fn, fn_type, fn_name, relative_path, args, kwargs
+                    fn, fn_type, fn_name, relative_path, self.resources, args, kwargs
                 )
             elif stream_logs:
                 run_key = self.remote(*args, **kwargs)
@@ -310,11 +312,15 @@ class Function(Resource):
                 "Function.starmap only works with Write or Read access, not Proxy access"
             )
 
-    def enqueue(self, *args, **kwargs):
+    def enqueue(self, resources: Optional[Dict] = None, *args, **kwargs):
         """Enqueue a Function call to be run later."""
+        # Add resources one-off without setting as a Function param
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             return self._call_fn_with_ssh_access(
-                fn_type="queue", args=args, kwargs=kwargs
+                fn_type="queue",
+                resources=resources or self.resources,
+                args=args,
+                kwargs=kwargs,
             )
         else:
             raise NotImplementedError(
@@ -372,12 +378,15 @@ class Function(Resource):
                 "Function.get only works with Write or Read access, not Proxy access"
             )
 
-    def _call_fn_with_ssh_access(self, fn_type, args, kwargs):
+    def _call_fn_with_ssh_access(self, fn_type, resources=None, args=None, kwargs=None):
         # https://docs.ray.io/en/latest/ray-core/tasks/patterns/map-reduce.html
         # return ray.get([map.remote(i, map_func) for i in replicas])
         # TODO allow specifying resources per worker for map
         # TODO [DG] check whether we're on the cluster and if so, just call the function directly via the
         # helper function currently in UnaryServer
+        resources = (
+            resources or self.resources
+        )  # Allow for passing in one-off resources for this specific call
         name = self.name or "anonymous function"
         if self.fn_pointers is None:
             raise RuntimeError(f"No fn pointers saved for {name}")
@@ -386,7 +395,7 @@ class Function(Resource):
         name = self.name or fn_name or "anonymous function"
         logger.info(f"Running {name} via gRPC")
         res = self.system.run_module(
-            relative_path, module_name, fn_name, fn_type, args, kwargs
+            relative_path, module_name, fn_name, fn_type, resources, args, kwargs
         )
         return res
 
@@ -448,6 +457,7 @@ class Function(Resource):
                 ],
                 "setup_cmds": self.setup_cmds,
                 "fn_pointers": self.fn_pointers,
+                "resources": self.resources,
             }
         )
         return config
@@ -587,6 +597,7 @@ def function(
     system: Optional[Union[str, Cluster]] = None,
     reqs: Optional[List[str]] = None,
     setup_cmds: Optional[List[str]] = None,
+    resources: Optional[dict] = None,
     # TODO image: Optional[str] = None,
     dryrun: bool = False,
     load_secrets: bool = False,
@@ -603,6 +614,9 @@ def function(
             This can be either the string name of a Cluster object, or a Cluster object.
         reqs (Optional[List[str]]): List of requirements to install on the remote cluster, or path to the
             requirements.txt file.
+        setup_cmds (Optional[List[str]]): List of setup commands to run on the Cluster.
+        resources (Optional[dict]): Optional number (int) of resources needed to run the Function on the Cluster.
+            Keys must be ``num_cpus`` and ``num_gpus``.
         dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
             (Default: ``False``)
         load_secrets (bool): Whether or not to send secrets; only applicable if `dryrun` is set to ``False``.
@@ -630,6 +644,9 @@ def function(
     config = rh_config.rns_client.load_config(name) if load else {}
     config["name"] = name or config.get("rns_address", None) or config.get("name")
     config["reqs"] = reqs if reqs is not None else config.get("reqs", [])
+    config["resources"] = (
+        resources if resources is not None else config.get("resources")
+    )
 
     processed_reqs = []
     for req in config["reqs"]:

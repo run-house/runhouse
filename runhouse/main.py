@@ -76,10 +76,11 @@ def cancel(
     cluster_name: str,
     run_key: str,
     force: Optional[bool] = typer.Option(False, help="Force cancel"),
+    all: Optional[bool] = typer.Option(False, help="Cancel all jobs"),
 ):
     """Cancel a run on a cluster."""
     c = cluster(name=cluster_name)
-    c.cancel(run_key, force=force)
+    c.cancel(run_key, force=force, all=all)
 
 
 @app.command()

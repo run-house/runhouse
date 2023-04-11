@@ -219,12 +219,17 @@ class Cluster(Resource):
         self.check_grpc()
         return self.client.put_object(key, obj)
 
-    # TODO [DG] add a method to list all the keys in the cluster
-
-    def cancel(self, key, force=False):
-        """Cancel the given run on cluster."""
+    def list_keys(self):
+        """List all keys in the cluster's object store."""
         self.check_grpc()
-        return self.client.cancel_runs(key, force=force)
+        res = self.client.list_keys()
+        return res
+
+    def cancel(self, key: Optional[str] = None, force=False, all=False):
+        """Cancel a given run on cluster by its key. If `all` is set to ``True``, then all jobs on the
+        cluster will be cancelled."""
+        self.check_grpc()
+        return self.client.cancel_runs(key, force=force, all=all)
 
     def clear_pins(self, pins: Optional[List[str]] = None):
         """Remove the given pinned items from the cluster. If `pins` is set to ``None``, then
@@ -459,10 +464,12 @@ class Cluster(Resource):
         there is no autostop."""
         pass
 
-    def run_module(self, relative_path, module_name, fn_name, fn_type, args, kwargs):
+    def run_module(
+        self, relative_path, module_name, fn_name, fn_type, resources, args, kwargs
+    ):
         self.check_grpc()
         return self.client.run_module(
-            relative_path, module_name, fn_name, fn_type, args, kwargs
+            relative_path, module_name, fn_name, fn_type, resources, args, kwargs
         )
 
     def is_connected(self):

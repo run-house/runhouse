@@ -13,7 +13,9 @@ from runhouse import rh_config
 logger = logging.getLogger(__name__)
 
 
-def call_fn_by_type(fn, fn_type, fn_name, module_path=None, args=None, kwargs=None):
+def call_fn_by_type(
+    fn, fn_type, fn_name, module_path, resources, args=None, kwargs=None
+):
     run_key = f"{fn_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
     # TODO other possible fn_types: 'batch', 'streaming'
@@ -41,11 +43,9 @@ def call_fn_by_type(fn, fn_type, fn_name, module_path=None, args=None, kwargs=No
         # We need to add the module_path to the PYTHONPATH because ray runs remotes in a new process
         # We need to set max_calls to make sure ray doesn't cache the remote function and ignore changes to the module
         # See: https://docs.ray.io/en/releases-2.2.0/ray-core/package-ref.html#ray-remote
-        # We need non-zero cpus and gpus for Ray to allow access to the compute.
-        # We should see if there's a more elegant way to specify this.
         ray_fn = ray.remote(
-            num_cpus=0.0001,
-            num_gpus=0.0001 if has_gpus else None,
+            num_cpus=resources.get("num_cpus") or 0.0001,
+            num_gpus=resources.get("num_gpus") or 0.0001 if has_gpus else None,
             max_calls=len(args) if fn_type in ["map", "starmap"] else 1,
             runtime_env={"env_vars": {"PYTHONPATH": module_path or ""}},
         )(logging_wrapped_fn)

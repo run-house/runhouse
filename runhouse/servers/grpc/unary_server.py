@@ -157,28 +157,45 @@ class UnaryService(pb2_grpc.UnaryServicer):
 
     def CancelRun(self, request, context):
         self.register_activity()
-        run_keys, force = pickle.loads(request.message)
-        if not hasattr(run_keys, "len"):
+        run_keys, force, all = pickle.loads(request.message)
+        if all:
+            # Cancel all runs
+            run_keys = obj_store.keys()
+        elif not hasattr(run_keys, "len"):
             run_keys = [run_keys]
-        obj_refs = obj_store.get_obj_refs_list(run_keys)
-        [
-            ray.cancel(obj_ref, force=force, recursive=True)
-            for obj_ref in obj_refs
-            if isinstance(obj_ref, ray.ObjectRef)
-        ]
+
+        for obj_ref in obj_store.get_obj_refs_list(run_keys):
+            obj_store.cancel(obj_ref)
+
+        if all:
+            obj_store.clear()
+
         return pb2.MessageResponse(
             message=pickle.dumps("Cancelled"),
             received=True,
             output_type=OutputType.RESULT,
         )
 
+    def ListKeys(self, request, context):
+        self.register_activity()
+        keys: list = obj_store.keys()
+        return pb2.MessageResponse(
+            message=pickle.dumps(keys), received=True, output_type=OutputType.RESULT
+        )
+
     def RunModule(self, request, context):
         self.register_activity()
         # get the function result from the incoming request
         try:
-            [relative_path, module_name, fn_name, fn_type, args, kwargs] = pickle.loads(
-                request.message
-            )
+            [
+                relative_path,
+                module_name,
+                fn_name,
+                fn_type,
+                resources,
+                args,
+                kwargs,
+            ] = pickle.loads(request.message)
 
             module_path = (
                 str((Path.home() / relative_path).resolve()) if relative_path else None
@@ -189,7 +206,15 @@ class UnaryService(pb2_grpc.UnaryServicer):
             else:
                 fn = get_fn_by_name(module_name, fn_name, module_path)
 
-            res = call_fn_by_type(fn, fn_type, fn_name, module_path, args, kwargs)
+            res = call_fn_by_type(
+                fn,
+                fn_type=fn_type,
+                fn_name=fn_name,
+                module_path=module_path,
+                resources=resources,
+                args=args,
+                kwargs=kwargs,
+            )
             # [res, None, None] is a silly hack for packaging result alongside exception and traceback
             result = {"message": pickle.dumps([res, None, None]), "received": True}
 

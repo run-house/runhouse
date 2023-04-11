@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
     syntax="proto3",
     serialized_options=None,
     create_key=_descriptor._internal_create_key,
-    serialized_pb=b'\n\x0bunary.proto\x12\x05unary"B\n\x07Message\x12\x0f\n\x07message\x18\x01 \x01(\x0c\x12\x13\n\x0bmodule_name\x18\x02 \x01(\t\x12\x11\n\tfunc_name\x18\x03 \x01(\t"I\n\x0fMessageResponse\x12\x0f\n\x07message\x18\x01 \x01(\x0c\x12\x10\n\x08received\x18\x02 \x01(\x08\x12\x13\n\x0boutput_type\x18\x03 \x01(\t2\x91\x03\n\x05Unary\x12\x35\n\tRunModule\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse"\x00\x12;\n\x0fInstallPackages\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse"\x00\x12\x35\n\tClearPins\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse"\x00\x12\x35\n\tCancelRun\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse"\x00\x12\x35\n\tPutObject\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse"\x00\x12\x36\n\nAddSecrets\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse"\x00\x12\x37\n\tGetObject\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse"\x00\x30\x01\x62\x06proto3',
+    serialized_pb=b'\n\x0bunary.proto\x12\x05unary"B\n\x07Message\x12\x0f\n\x07message\x18\x01 \x01(\x0c\x12\x13\n\x0bmodule_name\x18\x02 \x01(\t\x12\x11\n\tfunc_name\x18\x03 \x01(\t"I\n\x0fMessageResponse\x12\x0f\n\x07message\x18\x01 \x01(\x0c\x12\x10\n\x08received\x18\x02 \x01(\x08\x12\x13\n\x0boutput_type\x18\x03 \x01(\t2\xc7\x03\n\x05Unary\x12\x35\n\tRunModule\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse"\x00\x12;\n\x0fInstallPackages\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse"\x00\x12\x35\n\tClearPins\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse"\x00\x12\x35\n\tCancelRun\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse"\x00\x12\x34\n\x08ListKeys\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse"\x00\x12\x35\n\tPutObject\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse"\x00\x12\x36\n\nAddSecrets\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse"\x00\x12\x37\n\tGetObject\x12\x0e.unary.Message\x1a\x16.unary.MessageResponse"\x00\x30\x01\x62\x06proto3',
 )
 
 
@@ -216,7 +216,7 @@ _UNARY = _descriptor.ServiceDescriptor(
     serialized_options=None,
     create_key=_descriptor._internal_create_key,
     serialized_start=166,
-    serialized_end=567,
+    serialized_end=621,
     methods=[
         _descriptor.MethodDescriptor(
             name="RunModule",
@@ -259,9 +259,19 @@ _UNARY = _descriptor.ServiceDescriptor(
             create_key=_descriptor._internal_create_key,
         ),
         _descriptor.MethodDescriptor(
+            name="ListKeys",
+            full_name="unary.Unary.ListKeys",
+            index=4,
+            containing_service=None,
+            input_type=_MESSAGE,
+            output_type=_MESSAGERESPONSE,
+            serialized_options=None,
+            create_key=_descriptor._internal_create_key,
+        ),
+        _descriptor.MethodDescriptor(
             name="PutObject",
             full_name="unary.Unary.PutObject",
-            index=4,
+            index=5,
             containing_service=None,
             input_type=_MESSAGE,
             output_type=_MESSAGERESPONSE,
@@ -271,7 +281,7 @@ _UNARY = _descriptor.ServiceDescriptor(
         _descriptor.MethodDescriptor(
             name="AddSecrets",
             full_name="unary.Unary.AddSecrets",
-            index=5,
+            index=6,
             containing_service=None,
             input_type=_MESSAGE,
             output_type=_MESSAGERESPONSE,
@@ -281,7 +291,7 @@ _UNARY = _descriptor.ServiceDescriptor(
         _descriptor.MethodDescriptor(
             name="GetObject",
             full_name="unary.Unary.GetObject",
-            index=6,
+            index=7,
             containing_service=None,
             input_type=_MESSAGE,
             output_type=_MESSAGERESPONSE,
