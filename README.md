@@ -14,17 +14,28 @@
 PyTorch lets you send a model or tensor `.to(device)`, so
 why can't you do `my_fn.to('a_gcp_a100')` or `my_table.to('parquet_in_s3')`?
 Runhouse allows just that: send code and data to any of your compute or
-data infra (with your own cloud creds), all in Python, and continue to use them
-eagerly exactly as they were.
+data infra (with your own cloud creds), all in Python, and continue to interact with
+them normally from your local environment.
+
+**Runhouse is not an orchestrator.** Think of Runhouse as an expansion pack to your Python
+interpreter that lets it take detours to remote machines or hold and manipulate remote
+data. So your preprocessing can briefly detour to run on a 64 CPU GCP instance, then
+return to your local environment, then jump to a GPU cluster on Lambda Labs for training.
+The preprocessed dataframe can stream directly to the GPU cluster, without bouncing off your laptop. Normally you'd need to translate your code into
+an orchestrator workflow to do all this, but now you can run, test, iterate, and share this program
+like any other Python, even in notebooks. You can drop it into an orchestrator node just
+like any other Python script to schedule or monitor it, or use it with any experiment
+management and lineage tools you like. Runhouse heavily builds on top of Ray, gRPC, and
+SkyPilot, so lots of nice features like queuing, distributed, production-hardness, async,
+auto-launching, auto-termination, and logging are built-in.
 
 Runhouse is for ML Researchers, Engineers, and Data Scientists who are tired of:
  - 🚜 manually shuttling code and data around between their local machine, remote instances, and cloud storage,
- - 📤📥 constantly spinning up and down boxes,
  - 🐜 debugging over ssh and notebook tunnels,
  - 🧑‍🔧 translating their code into a pipeline DSL just to use multiple hardware types,
  - 🪦 debugging in an orchestrator,
  - 👩‍✈️ missing out on fancy LLM IDE features,
- - 🕵️ and struggling to find their teammates' code and data artifacts.
+ - 🕵️ and struggling to find or reproduce their teammates' code and data artifacts.
 
 By way of a visual,
 
@@ -38,70 +49,89 @@ Take a look at this code (adapted from our first [tutorial](https://github.com/r
 ```python
 import runhouse as rh
 from diffusers import StableDiffusionPipeline
-import torch
 
-
-def sd_generate(prompt, num_images=1, steps=100, guidance_scale=7.5, model_id='stabilityai/stable-diffusion-2-base'):
-    pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float16, revision='fp16').to('cuda')
-    return pipe([prompt] * num_images, num_inference_steps=steps, guidance_scale=guidance_scale).images
-
+def sd_generate(prompt):
+    model = StableDiffusionPipeline.from_pretrained("stabilityai/stable-diffusion-2-base").to("cuda")
+    return model(prompt).images[0]
 
 if __name__ == "__main__":
-    gpu = rh.cluster(name='rh-v100', instance_type='V100:1', provider='gcp')
-    generate_gpu = rh.function(fn=sd_generate).to(gpu, reqs=['./', 'torch==1.12.0', 'diffusers'])
+    gpu = rh.cluster(name='my-a100', instance_type='A100:1', provider='cheapest')
+    sd_generate = rh.function(sd_generate).to("my-a100", reqs=['./', 'torch', 'diffusers'])
+    sd_generate("An oil painting of Keanu Reeves eating a sandwich.").show()
 
-    images = generate_gpu('A digital illustration of a woman running on the roof of a house.', num_images=2, steps=50)
-    [image.show() for image in images]
-
-    generate_gpu.save(name='sd_generate')
+    sd_generate.save(name='sd_generate')
 ```
 By saving, I or anyone I share with can load and call into this service with a single line of code, from anywhere
 with a Python interpreter and internet connection (notebook, IDE, CI/CD, orchestrator node, etc.):
 ```python
-generate_gpu = rh.function(name='sd_generate')
-images = generate_gpu("A hot dog made of matcha.")
+import runhouse as rh
+
+sd_generate = rh.Function.from_name('sd_generate')
+image = sd_generate("A hot dog made of matcha.")
 ```
 There's no magic yaml, DSL, code serialization, or "submitting for execution." We're
 just spinning up the cluster for you (or using an existing cluster), syncing over your code,
-starting a gRPC connection, and running your code on the cluster.
-
+starting a gRPC connection, and running your code on the cluster. 
 **_Runhouse does things for you that you'd spend time doing yourself, in as obvious a way as possible._**
-
-And because it's not stateless, we can pin the model to GPU memory, and get ~1.5s/image
-inference before any compilation.
 
 On the data side, we can do things like:
 
 ```python
 # Send a folder up to a cluster (rsync)
-rh.folder(path=input_images_dir).to(system=gpu, path="dreambooth/instance_images")
+rh.folder(path="./instance_images").to(system=gpu, path="dreambooth/instance_images")
+gpu.run([f"accelerate launch diffusers/examples/dreambooth/train_dreambooth.py"
+         f"--instance_data_dir=dreambooth/instance_images "
+         f"--output_dir=dreambooth/output "])
 
 # This goes directly cluster-> s3, doesn't bounce to local
 outputs_s3 = rh.folder(system=gpu, path="dreambooth/outputs").to("s3", path="runhouse/dreambooth/outputs")
 outputs_s3.save("dreambooth_outputs")
+```
 
-# and later:
-rh.folder(name="dreambooth_outputs").to("here")
+To load down the folder in full later:
+```python
+rh.Folder.from_name("dreambooth_outputs").to("here")
+```
 
-# Load a table in from anywhere (S3, GCS, local, etc)
-my_table = rh.table(system="gcs", path="my_bucket/my_table.parquet").to("here")
-# preprocess...
+We support interactive blob and table primitives too:
+```python
+import runhouse as rh
+from transformers import AutoTokenizer
 
-gcs_ds = rh.table(preprocessed_dataset).to("gcs", path="my_bucket/preprocessed_table.parquet")
-gcs_ds.save("preprocessed-tokenized-dataset")
+def tokenize_dataset(dataset_table):
+    hf_dataset = dataset_table.to("here").convert_to("hf_dataset").fetch()
+    tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
+    tokenized_ds = hf_dataset.map(lambda x: tokenizer(x['text'], truncation=True, padding=True), batched=True)
+    return rh.table(tokenized_ds).write()
 
-# later, on another machine:
-preprocessed_table = rh.table(name="preprocessed-tokenized-dataset")
-for batch in preprocessed_table.stream(batch_size=batch_size):
+if __name__ == "__main__":
+    # Load a table in from anywhere (S3, GCS, Azure, cluster fs, local fs, etc)
+    raw_dataset = rh.table(system="gcs", path="my_bucket/my_data.parquet")
+    tokenize_dataset = rh.function(tokenize_dataset).to("^rh-32-cpu", reqs=["./", "transformers", "tokenizers"])
+    tokenized_table = tokenize_dataset(raw_dataset).to("gcs", path="my_bucket/preprocessed_data.parquet")
+    tokenized_table.save("preprocessed-dataset")
+```
+And later:
+```python
+import runhouse as rh
+
+def train_model(preprocessed_table):
     ...
+    preprocessed_table.stream_format = 'torch'
+    for batch in preprocessed_table.stream(batch_size=30):
+        ...
 
-# Send a model checkpoint up to blob storage
-trained_model = rh.blob(data=pickle.dumps(model))
-trained_model.to("s3", path="runhouse/my_bucket").save(name="yelp_fine_tuned_bert")
+    return rh.blob(pickle.dumps(model)).write()
+
+if __name__ == "__main__":
+    preprocessed_table = rh.Table.from_name("preprocessed-dataset")
+    train_model = rh.function(train_model).to("my-a100", reqs=["./", "torch", "transformers"])
+    trained_model = train_model(preprocessed_table)
+    trained_model.to("s3", path="runhouse/my_bucket").save(name="yelp_fine_tuned_bert")
 ```
 
 These APIs work from anywhere with a Python interpreter and an internet connection,
-so notebooks, scripts, pipeline DSLs, etc. are all fair game. We currently support AWS,
+so notebooks, scripts, pipeline nodes, etc. are all fair game. We currently support AWS,
 GCP, Azure, and Lambda Labs credentials through SkyPilot, as well as BYO cluster (just drop
 in an ip address and ssh key).
 
