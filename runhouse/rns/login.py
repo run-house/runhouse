@@ -21,14 +21,23 @@ def login(
     download_secrets: bool = None,
     upload_secrets: bool = None,
     ret_token: bool = False,
-    interactive: bool = False,
+    interactive: bool = None,
 ):
     """Login to Runhouse. Validates token provided, with options to upload or download stored secrets or config between
     local environment and Runhouse / Vault.
     """
     from runhouse import Secrets
 
-    if is_interactive() or interactive:
+    all_options_set = token and not any(
+        arg is None
+        for arg in (download_config, upload_config, download_secrets, upload_secrets)
+    )
+    if interactive is False and not all_options_set:
+        raise Exception(
+            "`interactive` and only be set to `False` if token and all download and upload options are provided."
+        )
+
+    if interactive or (is_interactive() and not (all_options_set)):
         from getpass import getpass
 
         from rich.console import Console
@@ -48,12 +57,12 @@ def login(
             if is_interactive()
             else f'{configs.get("api_server_url")}/dashboard/?option=token'
         )
-        console.print(
-            f"Retrieve your token :key: here to use :person_running: :house: Runhouse for "
-            f"secrets and artifact management: {link}",
-            style="bold yellow",
-        )
         if not token:
+            console.print(
+                f"Retrieve your token :key: here to use :person_running: :house: Runhouse for "
+                f"secrets and artifact management: {link}",
+                style="bold yellow",
+            )
             token = getpass("Token: ")
 
         download_config = (
@@ -127,8 +136,18 @@ def logout(
     """
     from runhouse import Secrets
 
+    all_options_set = not any(
+        arg is None for arg in (delete_loaded_secrets, delete_rh_config_file)
+    )
+    if interactive is False and not all_options_set:
+        raise Exception(
+            "`interactive` can only be set to `False` if all download and upload options are provided."
+        )
+
     interactive_session: bool = (
-        interactive if interactive is not None else is_interactive()
+        interactive
+        if interactive is not None
+        else (is_interactive() and not all_options_set)
     )
     for provider in Secrets.enabled_providers():
         provider_name: str = provider.PROVIDER_NAME
