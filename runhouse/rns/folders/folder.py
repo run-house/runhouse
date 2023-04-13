@@ -509,7 +509,7 @@ class Folder(Resource):
         return (
             self._fs_str == "file"
             and self.path is not None
-            and Path(self.path).exists()
+            and Path(self.path).expanduser().exists()
         ) or self._local_mount_path
 
     def upload(self, src: str, region: Optional[str] = None):

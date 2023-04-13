@@ -13,19 +13,6 @@ from runhouse.rns.resource import Resource
 INSTALL_METHODS = {"local", "reqs", "pip", "conda"}
 
 
-def _get_pkg_folder(rel_target, raise_error=False):
-    abs_target = (
-        Path(rel_target).expanduser()
-        if Path(rel_target).expanduser().is_absolute()
-        else Path(rh_config.rns_client.locate_working_dir()) / rel_target
-    )
-    if abs_target.exists():
-        return Folder(path=rel_target, dryrun=True)  # No need to create the folder here
-    if raise_error:
-        raise ValueError("`install_target` must be a Folder or path on the system.")
-    return None
-
-
 class Package(Resource):
     RESOURCE_TYPE = "package"
 
@@ -88,7 +75,7 @@ class Package(Resource):
         if isinstance(self.install_target, Folder):
             local_path = self.install_target.local_path
             if not local_path:
-                local_path = "~/" + self.name
+                local_path = "~/" + self.name if self.name else self.install_target.path
             elif not self.install_target.is_local():
                 # TODO [DG] replace this with empty mount() call to be put in tmp folder by Folder
                 local_path = self.install_target.mount(
@@ -248,20 +235,22 @@ class Package(Resource):
 
     def to_cluster(self, dest_cluster: "Cluster", path=None, mount=False):
         """Returns a copy of the package on the destination cluster."""
-        if isinstance(self.install_target, str):
-            new_folder = _get_pkg_folder(
-                self.install_target, raise_error=True
-            ).to_cluster(dest_cluster, path, mount)
-        else:
-            if mount and not path:
-                path = self.install_target.path
-
-            new_folder = self.install_target.to_cluster(
-                dest_cluster,
-                path=path,
-                mount=mount,
+        if not isinstance(self.install_target, Folder):
+            raise TypeError(
+                "`install_target` must be a Folder in order to copy the package to a cluster"
             )
-        new_folder.system = "file"
+        if self.install_target.system == dest_cluster:
+            return self
+
+        if mount and not path:
+            path = Path(self.install_target.path).name
+
+        new_folder = self.install_target.to_cluster(
+            dest_cluster,
+            path=path,
+            mount=mount,
+        )
+        new_folder.system = dest_cluster
         new_package = copy.copy(self)
         new_package.install_target = new_folder
         return new_package
@@ -275,14 +264,13 @@ class Package(Resource):
         if isinstance(system, Resource) or isinstance(system, Dict):
             return self.to_cluster(system, path=path)
 
-        if isinstance(self.install_target, str):
-            new_folder = _get_pkg_folder(self.install_target, raise_error=True).to(
-                system, path
+        if not isinstance(self.install_target, Folder):
+            raise TypeError(
+                "`install_target` must be a Folder in order to copy the package to a cluster"
             )
-        else:
-            new_folder = self.install_target.to(system, path=path)
 
-        new_folder.system = system if isinstance(system, str) else "file"
+        new_folder = self.install_target.to(system, path=path)
+        new_folder.system = system
         new_package = copy.copy(self)
         new_package.install_target = new_folder
         return new_package
@@ -318,7 +306,19 @@ class Package(Resource):
             if " " in target_and_args
             else (target_and_args, "")
         )
-        target = rel_target
+
+        # We need to do this because relative paths are relative to the current working directory!
+        abs_target = (
+            Path(rel_target).expanduser()
+            if Path(rel_target).expanduser().is_absolute()
+            else Path(rh_config.rns_client.locate_working_dir()) / rel_target
+        )
+        if abs_target.exists():
+            target = Folder(
+                path=abs_target, dryrun=True
+            )  # No need to create the folder here
+        else:
+            target = rel_target
 
         if specifier.startswith("local:"):
             return Package(install_target=target, install_method="local", dryrun=dryrun)

@@ -116,12 +116,13 @@ class Function(Resource):
         new_function.system = system
         new_function.setup_cmds = setup_cmds if setup_cmds else self.setup_cmds
 
-        # convert local reqs string into a Package on the cluster
         reqs = reqs if reqs else self.reqs
         new_reqs = []
         for req in reqs:
-            if isinstance(req, str) and "./" in req:
+            # convert local packages to a package on the cluster
+            if isinstance(req, str) and Path(req.split(":")[-1]).expanduser().exists():
                 req = Package.from_string(req)
+                req = req.to(system)
             new_reqs.append(req)
         new_function.reqs = new_reqs
 

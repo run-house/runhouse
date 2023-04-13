@@ -15,6 +15,7 @@ from sky.utils import command_runner
 from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
 from runhouse.rh_config import open_grpc_tunnels, rns_client
+from runhouse.rns.folders.folder import Folder
 from runhouse.rns.obj_store import _current_cluster
 from runhouse.rns.packages.package import Package
 from runhouse.rns.resource import Resource
@@ -183,35 +184,19 @@ class Cluster(Resource):
             if isinstance(package, str):
                 pkg_obj = Package.from_string(package, dryrun=False)
             else:
-                pkg_obj = package
-
-            from runhouse.rns.folders.folder import Folder
-            from runhouse.rns.packages.package import _get_pkg_folder
-
-            if isinstance(pkg_obj.install_target, str):
-                target = _get_pkg_folder(pkg_obj.install_target)
-                if target:
-                    pkg_obj.install_target = target
-
-            if isinstance(pkg_obj.install_target, Folder):
-                if pkg_obj.install_target.is_local():
-                    pkg_str = pkg_obj.name or Path(pkg_obj.install_target.path).name
+                if isinstance(package.install_target, Folder) and not (
+                    package.install_target.is_local()
+                    or package.install_target.system == self
+                ):
+                    pkg_str = package.name or Path(package.install_target.path).name
                     logging.info(
                         f"Copying local package {pkg_str} to cluster <{self.name}>"
                     )
-                    remote_package = pkg_obj.to_cluster(self, mount=False)
-                    to_install.append(remote_package)
-                elif (
-                    isinstance(pkg_obj.install_target.system, str)
-                    and not pkg_obj.install_target.system == "file"
-                ):
-                    # on a file system
-                    pkg_str = pkg_obj.name or Path(pkg_obj.install_target.path).name
-                    logging.info(
-                        f"Copying {pkg_obj.install_target.system} package {pkg_str} from to cluster <{self.name}>"
-                    )
-                    remote_package = pkg_obj.to_cluster(self, mount=False)
-                    to_install.append(remote_package)
+                    package = package.to_cluster(self)
+                pkg_obj = package
+
+            if isinstance(pkg_obj.install_target, Folder):
+                to_install.append(pkg_obj)
             else:
                 to_install.append(package)  # Just appending the string!
         logging.info(

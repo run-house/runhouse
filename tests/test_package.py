@@ -2,6 +2,7 @@ import unittest
 from pathlib import Path
 
 import runhouse as rh
+from runhouse import rh_config
 
 
 def setup():
@@ -81,7 +82,7 @@ def test_local_package_to_cluster():
     package = rh.Package.from_string("./").to(system)
 
     assert isinstance(package.install_target, rh.Folder)
-    assert package.install_target.system == "file"
+    assert package.install_target.system == system
 
 
 def test_package_file_system_to_cluster():
@@ -94,7 +95,7 @@ def test_package_file_system_to_cluster():
     folder_name = "tmp_s3_package"
 
     # Create a local temp folder to install for the package
-    tmp_path = Path.cwd().parent / folder_name
+    tmp_path = Path(rh_config.rns_client.locate_working_dir()) / folder_name
     tmp_path.mkdir(parents=True, exist_ok=True)
     for i in range(3):
         output_file = Path(f"{tmp_path}/sample_file_{i}.txt")
