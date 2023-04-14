@@ -15,7 +15,7 @@ from runhouse.rns.top_level_rns_fns import (
 from .rh_config import configs, obj_store, rns_client
 from .rns.blob import blob, Blob
 from .rns.defaults import Defaults
-
+from .rns.envs.env import env, Env
 from .rns.folders.folder import folder, Folder
 from .rns.function import function, Function
 from .rns.hardware import cluster, Cluster, OnDemandCluster
