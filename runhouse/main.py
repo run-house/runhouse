@@ -51,17 +51,9 @@ def login(
 
 
 @app.command()
-def logout(
-    yes: Optional[bool] = typer.Option(
-        False, "--yes", "-y", help="Sets any confirmations to 'yes' automatically."
-    )
-):
+def logout():
     """Logout of Runhouse. Provides options to delete locally configured secrets and local Runhouse configs"""
-    login_module.logout(
-        delete_loaded_secrets=True,
-        delete_rh_config_file=True,
-        interactive=False,
-    ) if yes else login_module.logout(interactive=True)
+    login_module.logout(interactive=True)
     raise typer.Exit()
 
 

@@ -32,12 +32,13 @@ def login(
         arg is None
         for arg in (download_config, upload_config, download_secrets, upload_secrets)
     )
-    if interactive is False and not all_options_set:
+
+    if interactive is False and not token:
         raise Exception(
-            "`interactive` and only be set to `False` if token and all download and upload options are provided."
+            "`interactive` can only be set to `False` if token is provided."
         )
 
-    if interactive or (is_interactive() and not (all_options_set)):
+    if interactive or (interactive is None and not all_options_set):
         from getpass import getpass
 
         from rich.console import Console
@@ -136,21 +137,13 @@ def logout(
     """
     from runhouse import Secrets
 
-    all_options_set = not any(
-        arg is None for arg in (delete_loaded_secrets, delete_rh_config_file)
-    )
-    if interactive is False and not all_options_set:
-        raise Exception(
-            "`interactive` can only be set to `False` if all download and upload options are provided."
-        )
-
     interactive_session: bool = (
-        interactive
-        if interactive is not None
-        else (is_interactive() and not all_options_set)
+        interactive if interactive is not None else is_interactive()
     )
     for provider in Secrets.enabled_providers():
         provider_name: str = provider.PROVIDER_NAME
+        if provider_name == "ssh":
+            continue
         provider_creds_path: Union[str, tuple] = provider.default_credentials_path()
 
         if interactive_session:
