@@ -66,8 +66,8 @@ To create an account, visit our `dashboard <https://api.run.house/>`_, or simply
 
 .. note::
     These portability features only ever store light metadata about your resources
-    (e.g. my_folder_name -> [provider, bucket, path]) on our API servers.
-    All the actual data and compute stays inside your own cloud account and never hits our servers.
+    (e.g. my_folder_name, cloud provider, storage bucket, path) on our API servers.
+    *All the actual data and compute stays inside your own cloud account and never hits our servers*.
 
     The Secrets service stores your secrets in `Hashicorp Vault <https://www.vaultproject.io/>`_ (an industry standard for secrets management),
     and our secrets APIs simply call Vault's APIs. We never store secrets on our API servers.

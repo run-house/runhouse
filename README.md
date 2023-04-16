@@ -71,7 +71,7 @@ image = sd_generate("A hot dog made of matcha.")
 ```
 There's no magic yaml, DSL, code serialization, or "submitting for execution." We're
 just spinning up the cluster for you (or using an existing cluster), syncing over your code,
-starting a gRPC connection, and running your code on the cluster. 
+starting a gRPC connection, and running your code on the cluster.
 **_Runhouse does things for you that you'd spend time doing yourself, in as obvious a way as possible._**
 
 On the data side, we can do things like:

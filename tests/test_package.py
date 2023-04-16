@@ -27,7 +27,7 @@ def test_share_package():
     p = rh.Package.from_string("local:./tmp_package")
     p.name = "package_to_share"  # shareable resource requires a name
 
-    c = rh.cluster(name="/jlewitt1/rh-cpu")
+    c = rh.cluster(name="@/rh-cpu")
     p.to_cluster(dest_cluster=c)
 
     p.share(

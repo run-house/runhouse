@@ -29,7 +29,7 @@ def test_cluster_sharing():
 
 
 def test_read_shared_cluster():
-    c = cluster(name="/jlewitt1/rh-cpu")
+    c = cluster(name="@/rh-cpu")
     res = c.run_python(["import numpy", "print(numpy.__version__)"])
     assert res[0][1]
 

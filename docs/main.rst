@@ -1,6 +1,6 @@
 Python API
 ====================================
-`Runhouse offers a programmatic API in Python to manage your account and resources.`
+Runhouse offers a programmatic API in Python to manage your account and resources.
 
 
 Resources

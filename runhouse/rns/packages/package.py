@@ -280,7 +280,7 @@ def package(
         install_str (str): Additional arguments to install.  # TODO: not too sure about this
         url (str): URL of the package to install.
         system (str): File system. Currently this must be one of:
-            [``file``, ``github``, ``sftp``, ``ssh``,``s3``, ``gs``, ``azure``].
+            [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
             We are working to add additional file system support.
         dryrun (bool): Whether to create the Package if it doesn't exist, or load the Package object as a dryrun.
             (Default: ``False``)

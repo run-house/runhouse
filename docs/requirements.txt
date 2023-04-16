@@ -1,5 +1,4 @@
 sphinx==4.5.0
-sphinx-rtd-theme==1.1.1
 sphinx-book-theme==0.2.0
 sphinx-thebe==0.1.2
 sphinx-click==4.3.0
@@ -12,6 +11,6 @@ Pint==0.20.1
 ray==2.0.1
 sshtunnel==0.4.0
 typer==0.4.2
-skypilot==0.2.4
+skypilot
 fsspec==2022.10.0
 runhouse

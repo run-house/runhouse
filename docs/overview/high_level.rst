@@ -21,12 +21,14 @@ It achieves the above by providing four pillar features:
    isolation and management, provider-agnostic provisioning and termination, and rich
    debugging and accessibility interfaces built-in.
 
+
 #. :ref:`Data <Data>` - The Folder, Table, and Blob APIs provide a simple interface for storing,
    recalling, and moving data between the user's laptop, remote compute, cloud storage,
    and specialized storage (e.g. data warehouses). They provide least-common-denominator
    APIs across providers, allowing users to easily specify the actions they want to take on the
    data without needed to dig into provider-specific APIs. We'd like to extend this to other
    data concepts in the future, like kv-stores, time-series, vector and graph databases, etc.
+
 
 #. :ref:`Accessibility <Accessibility>` - Runhouse strives to provide a Google-Docs-like experience for
    portability and sharing of resources across users and environments. This is achieved by:
@@ -45,11 +47,14 @@ It achieves the above by providing four pillar features:
      providers (e.g. AWS, Azure, GCP, Hugging Face, Github, etc.) as well as SSH Keys and
      custom secrets, and stores them in Hashicorp Vault.
 
+
 #. :ref:`Management <Management>` - Runhouse provides tools for visibility and management of resources
    as long-living assets shared by teams or projects. Both resources and users can be
    organized into arbitrarily-nested groups to apply access permissions, default behaviors (e.g.
    default storage locations, compute providers, instance autotermination, etc.), project delineation,
-   or staging (e.g. dev vs. prod). The `Management UI <https://api.run.house/>`_ provides an individual or
+   or staging (e.g. dev vs. prod).
+
+   The `Management UI <https://api.run.house/>`_ provides an individual or
    admin view of all resources, secrets, groups, and sharing (this is only an MVP, and will be
    overhauled soon). Resource metadata is automatically versioned in RNS, allowing teams to maintain
    single-sources of truth for assets with zero downtime to update or roll back, and trace exact
