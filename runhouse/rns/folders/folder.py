@@ -14,8 +14,8 @@ import sshfs
 import runhouse as rh
 from runhouse.rh_config import rns_client
 from runhouse.rns.api_utils.utils import generate_uuid
-from runhouse.rns.obj_store import _current_cluster
 from runhouse.rns.resource import Resource
+from runhouse.rns.utils import _current_cluster, _get_cluster_from
 
 fsspec.register_implementation("ssh", sshfs.SSHFileSystem)
 # SSHFileSystem is not yet builtin.
@@ -296,10 +296,7 @@ class Folder(Resource):
         # to more performant cloud-specific APIs
         from runhouse.rns.hardware import Cluster
 
-        if isinstance(system, str) and rns_client.exists(
-            system, resource_type="cluster"
-        ):
-            system = Cluster.from_name(system, dryrun=self.dryrun)
+        system = _get_cluster_from(system)
 
         if system == "file":
             return self.to_local(dest_path=path, data_config=data_config)
@@ -892,8 +889,8 @@ def folder(
                 f"fsspec file system {file_system} not officially supported. Use at your own risk."
             )
             new_folder = Folder.from_config(config, dryrun=dryrun)
-        elif rns_client.exists(file_system, resource_type="cluster"):
-            config["system"] = rns_client.load_config(file_system)
+        elif isinstance(_get_cluster_from(file_system), Resource):
+            config["system"] = _get_cluster_from(file_system)
         else:
             raise ValueError(
                 f"File system {file_system} not found. Have you installed the "

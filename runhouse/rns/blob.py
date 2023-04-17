@@ -7,8 +7,8 @@ import runhouse as rh
 from runhouse.rh_config import rns_client
 from runhouse.rns.api_utils.utils import generate_uuid
 from runhouse.rns.folders.folder import Folder, folder
-from runhouse.rns.obj_store import _current_cluster
 from runhouse.rns.resource import Resource
+from runhouse.rns.utils import _current_cluster, _get_cluster_from
 
 logger = logging.getLogger(__name__)
 
@@ -249,15 +249,7 @@ def blob(
     config["name"] = name
     config["path"] = data_path
     config["data_config"] = data_config or config.get("data_config")
-
-    if isinstance(config["system"], str) and rns_client.exists(
-        config["system"], resource_type="cluster"
-    ):
-        config["system"] = rns_client.load_config(config["system"])
-    elif isinstance(config["system"], dict):
-        from runhouse.rns.hardware.cluster import Cluster
-
-        config["system"] = Cluster.from_config(config["system"])
+    config["system"] = _get_cluster_from(config["system"])
 
     if mkdir:
         # create the remote folder for the blob

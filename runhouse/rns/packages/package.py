@@ -9,6 +9,7 @@ from typing import Dict, Optional, Union
 from runhouse import rh_config
 from runhouse.rns.folders.folder import Folder
 from runhouse.rns.resource import Resource
+from runhouse.rns.utils import _get_cluster_from
 
 INSTALL_METHODS = {"local", "reqs", "pip", "conda"}
 
@@ -233,12 +234,16 @@ class Package(Resource):
                     "available for your platform."
                 )
 
-    def to_cluster(self, dest_cluster: "Cluster", path=None, mount=False):
+    def to_cluster(
+        self, dest_cluster: Union[str, Dict, "Cluster"], path=None, mount=False
+    ):
         """Returns a copy of the package on the destination cluster."""
         if not isinstance(self.install_target, Folder):
             raise TypeError(
-                "`install_target` must be a Folder in order to copy the package to a cluster"
+                "`install_target` must be a Folder in order to copy the package to a cluster."
             )
+
+        dest_cluster = _get_cluster_from(dest_cluster)
         if self.install_target.system == dest_cluster:
             return self
 
@@ -257,16 +262,17 @@ class Package(Resource):
 
     def to(
         self,
-        system: Union[str, "Cluster"],
+        system: Union[str, Dict, "Cluster"],
         path: Optional[str] = None,
+        mount: bool = False,
     ):
         """Copy the package onto filesystem or cluster, and return the new Package object."""
-        if isinstance(system, Resource) or isinstance(system, Dict):
-            return self.to_cluster(system, path=path)
+        if isinstance(_get_cluster_from(system), Resource):
+            return self.to_cluster(system, path=path, mount=mount)
 
         if not isinstance(self.install_target, Folder):
             raise TypeError(
-                "`install_target` must be a Folder in order to copy the package to a cluster"
+                "`install_target` must be a Folder in order to copy the package to a system."
             )
 
         new_folder = self.install_target.to(system, path=path)

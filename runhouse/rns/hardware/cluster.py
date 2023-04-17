@@ -16,9 +16,9 @@ from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
 from runhouse.rh_config import open_grpc_tunnels, rns_client
 from runhouse.rns.folders.folder import Folder
-from runhouse.rns.obj_store import _current_cluster
 from runhouse.rns.packages.package import Package
 from runhouse.rns.resource import Resource
+from runhouse.rns.utils import _current_cluster
 
 from runhouse.servers.grpc.unary_client import UnaryClient
 from runhouse.servers.grpc.unary_server import UnaryService
