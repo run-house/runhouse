@@ -15,19 +15,11 @@ PyTorch lets you send a model or tensor `.to(device)`, so
 why can't you do `my_fn.to('a_gcp_a100')` or `my_table.to('parquet_in_s3')`?
 Runhouse allows just that: send code and data to any of your compute or
 data infra (with your own cloud creds), all in Python, and continue to interact with
-them normally from your local environment.
-
-**Runhouse is not an orchestrator.** Think of Runhouse as an expansion pack to your Python
-interpreter that lets it take detours to remote machines or hold and manipulate remote
-data. So your preprocessing can briefly detour to run on a 64 CPU GCP instance, then
-return to your local environment, then jump to a GPU cluster on Lambda Labs for training.
-The preprocessed dataframe can stream directly to the GPU cluster, without bouncing off your laptop. Normally you'd need to translate your code into
-an orchestrator workflow to do all this, but now you can run, test, iterate, and share this program
-like any other Python, even in notebooks. You can drop it into an orchestrator node just
-like any other Python script to schedule or monitor it, or use it with any experiment
-management and lineage tools you like. Runhouse heavily builds on top of Ray, gRPC, and
-SkyPilot, so lots of nice features like queuing, distributed, production-hardness, async,
-auto-launching, auto-termination, and logging are built-in.
+them normally from your existing code and environment. Think of it as an **expansion pack to your Python
+interpreter** that lets it take detours to remote machines or hold and manipulate remote
+data. It heavily leverages best-in-class systems like Ray, gRPC, and
+SkyPilot to give you production-quality features like queuing, distributed, async,
+low latency, auto-launching, auto-termination, and logging out of the box.
 
 Runhouse is for ML Researchers, Engineers, and Data Scientists who are tired of:
  - 🚜 manually shuttling code and data around between their local machine, remote instances, and cloud storage,
