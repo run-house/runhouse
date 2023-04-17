@@ -21,14 +21,24 @@ def login(
     download_secrets: bool = None,
     upload_secrets: bool = None,
     ret_token: bool = False,
-    interactive: bool = False,
+    interactive: bool = None,
 ):
     """Login to Runhouse. Validates token provided, with options to upload or download stored secrets or config between
     local environment and Runhouse / Vault.
     """
     from runhouse import Secrets
 
-    if is_interactive() or interactive:
+    all_options_set = token and not any(
+        arg is None
+        for arg in (download_config, upload_config, download_secrets, upload_secrets)
+    )
+
+    if interactive is False and not token:
+        raise Exception(
+            "`interactive` can only be set to `False` if token is provided."
+        )
+
+    if interactive or (interactive is None and not all_options_set):
         from getpass import getpass
 
         from rich.console import Console
@@ -48,12 +58,12 @@ def login(
             if is_interactive()
             else f'{configs.get("api_server_url")}/dashboard/?option=token'
         )
-        console.print(
-            f"Retrieve your token :key: here to use :person_running: :house: Runhouse for "
-            f"secrets and artifact management: {link}",
-            style="bold yellow",
-        )
         if not token:
+            console.print(
+                f"Retrieve your token :key: here to use :person_running: :house: Runhouse for "
+                f"secrets and artifact management: {link}",
+                style="bold yellow",
+            )
             token = getpass("Token: ")
 
         download_config = (
@@ -132,6 +142,8 @@ def logout(
     )
     for provider in Secrets.enabled_providers():
         provider_name: str = provider.PROVIDER_NAME
+        if provider_name == "ssh":
+            continue
         provider_creds_path: Union[str, tuple] = provider.default_credentials_path()
 
         if interactive_session:

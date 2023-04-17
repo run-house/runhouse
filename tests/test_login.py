@@ -46,7 +46,7 @@ def test_login_flow_in_new_env():
     providers_in_vault = list(secrets_in_vault)
 
     # Login and download secrets stored in Vault into the new env
-    rh.login(token=token, download_secrets=True)
+    rh.login(token=token, download_secrets=True, interactive=False)
 
     # Once secrets are saved down to their local config, confirm we have sky enabled
     sky.check.check(quiet=True)
