@@ -17,7 +17,7 @@ Runhouse allows just that: send code and data to any of your compute or
 data infra (with your own cloud creds), all in Python, and continue to interact with
 them normally from your existing code and environment. Think of it as an **expansion pack to your Python
 interpreter** that lets it take detours to remote machines or manipulate remote
-data. It wraps industry-standard tooling like Ray, gRPC, and the Cloud SDKs (boto, gsutil, etc. via SkyPilot) 
+data. It wraps industry-standard tooling like Ray, gRPC, and the Cloud SDKs (boto, gsutil, etc. via [SkyPilot](https://github.com/skypilot-org/skypilot/)) 
 to give you production-quality features like queuing, distributed, async, logging,
 low latency, auto-launching, and auto-termination out of the box.
 
