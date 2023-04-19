@@ -106,8 +106,8 @@ class Package(Resource):
 
         if self.install_method == "pip":
             install_cmd = self.install_cmd_for_torch(install_cmd)
-            if install_cmd is None:
-                raise ValueError(f"Could not find valid distribution for {install_cmd}")
+            if not install_cmd:
+                raise ValueError("Invalid install command")
 
             self.pip_install(install_cmd)
         elif self.install_method == "conda":
@@ -137,8 +137,8 @@ class Package(Resource):
     # ----------------------------------
     def install_cmd_for_torch(self, install_cmd: str):
         """Return the correct pip install command for the torch package(s) provided."""
-        source_packages = ["torch", "torchvision", "torchaudio"]
-        if not any([x in install_cmd for x in source_packages]):
+        torch_source_packages = ["torch", "torchvision", "torchaudio"]
+        if not any([x in install_cmd for x in torch_source_packages]):
             return install_cmd
 
         packages_to_install: list = self.packages_to_install_from_cmd(install_cmd)
@@ -154,48 +154,10 @@ class Package(Resource):
 
     def _install_url_for_torch_package(self, install_cmd: str):
         if any(
-            (match := specifier) in install_cmd
-            for specifier in ["==", "+cu", "+cpu", "+rocm", "--index-url", "-i"]
+            specifier in install_cmd
+            for specifier in ["--index-url", "-i", "--extra-index-url"]
         ):
-            version_distros = self._validate_version_from_specifier(install_cmd, match)
-            if not version_distros:
-                logging.error(f"No pip distributions found for {install_cmd}")
-                return None
-
-        # handle all the variants of package specifiers:
-        # https://pip.pypa.io/en/stable/reference/requirement-specifiers/#examples
-        elif "~=" in install_cmd:  # choose a compatible version
-            compatible_distros = self._check_for_compatible_version(
-                install_cmd, specifier="~="
-            )
-            if not compatible_distros:
-                logging.error(
-                    f"No compatible pip distributions found for {install_cmd}"
-                )
-                return None
-
-        elif ">=" in install_cmd:
-            possible_distros = self._check_for_version_range(
-                install_cmd, specifier=">="
-            )
-            if not possible_distros:
-                logging.error(f"No matching pip distributions found for {install_cmd}")
-                return None
-
-        elif ">" in install_cmd:
-            possible_distros = self._check_for_version_range(install_cmd, specifier=">")
-            if not possible_distros:
-                logging.error(f"No matching pip distributions found for {install_cmd}")
-                return None
-
-        # If no unique specifiers provided, check if the pip distribution exists
-        # ex: "torchabcd123", "torch", "torchvision"
-        elif not self.find_pip_distributions(install_cmd):
-            logging.error(f"No pip distributions found for {install_cmd}")
-            return None
-
-        if "-i" in install_cmd:
-            # If the user has already specified an index url, return the command as is
+            # Leave as is if index url or extra-index-url are provided
             return install_cmd
 
         # Grab the relevant index url for torch based on the CUDA version if available
@@ -203,32 +165,15 @@ class Package(Resource):
         if index_url:
             return f"{install_cmd} --index-url {index_url}"
 
-        if any([x in install_cmd for x in ["<", ">", "~", "="]]):
-            # If a unique specifier is included then return without the --extra-index-url
-            return install_cmd
-
         # Fall back to the main python package index if no match is found
-        return f"{install_cmd} --extra-index-url https://pypi.python.org/simple/"
+        if "--extra-index-url" not in install_cmd:
+            return f"{install_cmd} --extra-index-url https://pypi.python.org/simple/"
+
+        return install_cmd
 
     def torch_index_url_for_cuda(self):
         cuda_version = self.cuda_version()
         return self.TORCH_INDEX_URLS_FOR_CUDA.get(cuda_version)
-
-    @property
-    def torch_cuda_urls(self):
-        return list(self.TORCH_INDEX_URLS_FOR_CUDA.values())
-
-    @staticmethod
-    def find_pip_distributions(package_name: str):
-        """Returns list of all available pip distributions for a given package name."""
-        import requests
-
-        req = requests.get(f"https://pypi.org/pypi/{package_name.strip()}/json")
-        if req.status_code != 200:
-            return None
-
-        release_versions = list(req.json()["releases"].keys())
-        return release_versions
 
     @staticmethod
     def cuda_version():
@@ -243,9 +188,11 @@ class Package(Resource):
 
     @staticmethod
     def packages_to_install_from_cmd(install_cmd: str):
-        """Return a list of packages to install from a string of packages to install.
-        Ex: 'torch torchaudio --index-url https://download.pytorch.org/whl/cu116' ->
-        ['torch', 'torchaudio --index-url https://download.pytorch.org/whl/cu116']
+        """Return a list of packages to install from a string of packages to install based on the relevant cuda version.
+        Examples:
+            torch --> torch --extra-index-url https://pypi.python.org/simple/
+            torchaudio --index-url https://download.pytorch.org/whl/cu116' ->
+            torchaudio --index-url https://download.pytorch.org/whl/cu116'
         """
         install_cmd = install_cmd.strip()
 
@@ -253,83 +200,11 @@ class Package(Resource):
             # Ex: 'torch>=1.13.0, <2.0.0'
             return [install_cmd]
 
-        matches = re.findall(r"(\S+(?:\s+(-i|--index-url)\s+\S+)?)", install_cmd)
+        matches = re.findall(
+            r"(\S+(?:\s+(-i|--index-url|--extra-index-url)\s+\S+)?)", install_cmd
+        )
         packages_to_install = [match[0] for match in matches]
         return packages_to_install
-
-    def _package_versions_from_cmd(self, install_cmd: str, split_str: str):
-        package_name, version = install_cmd.split(split_str)
-        pkg_distros = self.find_pip_distributions(package_name)
-        return pkg_distros, version.strip()
-
-    def _validate_version_from_specifier(self, install_cmd: str, specifier: str):
-        """Check that the relevant torch version exists based on the type of specifier provided.
-
-        Examples: "torch==2.0.0+cu117", "torch==2.0.0",
-        "torchaudio --index-url https://download.pytorch.org/whl/cu116
-        """
-        pkg_distros, version = self._package_versions_from_cmd(install_cmd, specifier)
-        if pkg_distros is None:
-            return None
-
-        # Version could be either a package version, a specific CUDA URL, or a package version + CUDA URL
-        # Ex: 1.13.1, https://download.pytorch.org/whl/cu116", 2.0.0+cu117
-        if (
-            version not in pkg_distros
-            and version not in self.torch_cuda_urls
-            and not any(
-                substr in version
-                for substr in [s.split("/")[-1] for s in self.torch_cuda_urls]
-            )
-        ):
-            return None
-
-        return pkg_distros
-
-    def _check_for_compatible_version(self, install_cmd: str, specifier: str):
-        pkg_distros, version = self._package_versions_from_cmd(install_cmd, specifier)
-        if pkg_distros is None:
-            return None
-
-        pkg_distros = sorted(pkg_distros)
-        possible_distros = list(
-            filter(lambda x: ".".join(version.split(".")[:-1]) in x, pkg_distros)
-        )
-        if version not in possible_distros:
-            return None
-
-        return possible_distros
-
-    def _check_for_version_range(self, install_cmd: str, specifier: str):
-        pkg_distros, version = self._package_versions_from_cmd(install_cmd, specifier)
-        if pkg_distros is None:
-            return None
-
-        possible_distros = sorted(pkg_distros)
-        if "," in version:
-            # if given a range of versions (min and max)
-            try:
-                min_version, max_version_str = version.split(",")
-                max_version = max_version_str.split("<")[-1]
-                possible_distros = list(
-                    filter(lambda x: min_version <= x < max_version, possible_distros)
-                )
-            except:
-                logging.warning(
-                    f"Failed to parse version range: {version}. Expecting version to be in format "
-                    f"of: `1.13.0, <2.0.0`"
-                )
-                return None
-        elif ">=" in install_cmd:
-            min_version = version.split(">=")[-1]
-            possible_distros = list(
-                filter(lambda x: min_version <= x, possible_distros)
-            )
-        elif ">" in install_cmd:
-            min_version = version.split(">")[-1]
-            possible_distros = list(filter(lambda x: min_version < x, possible_distros))
-
-        return possible_distros
 
     # ----------------------------------
 
