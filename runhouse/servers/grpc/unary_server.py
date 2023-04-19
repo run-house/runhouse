@@ -52,6 +52,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
             for package in packages:
                 if isinstance(package, str):
                     pkg = Package.from_string(package)
+
                 elif hasattr(package, "install"):
                     pkg = package
                 else:

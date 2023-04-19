@@ -16,6 +16,13 @@ INSTALL_METHODS = {"local", "reqs", "pip", "conda"}
 class Package(Resource):
     RESOURCE_TYPE = "package"
 
+    # https://pytorch.org/get-started/locally/
+    TORCH_INDEX_URLS_FOR_CUDA = {
+        "11.6": "https://download.pytorch.org/whl/cu116",
+        "11.7": "https://download.pytorch.org/whl/cu117",
+        "11.8": "https://download.pytorch.org/whl/cu118",
+    }
+
     def __init__(
         self,
         name: str = None,
@@ -61,9 +68,8 @@ class Package(Resource):
 
     def install(self):
         """Install package."""
-        logging.info(
-            f"Installing package {str(self)} with method {self.install_method}."
-        )
+        logging.info(f"Installing {str(self)} with method {self.install_method}.")
+
         install_cmd = ""
         install_args = f" {self.install_args}" if self.install_args else ""
         if isinstance(self.install_target, Folder):
@@ -99,6 +105,10 @@ class Package(Resource):
             install_cmd = self.install_target + install_args
 
         if self.install_method == "pip":
+            install_cmd = self.install_cmd_for_torch(install_cmd)
+            if not install_cmd:
+                raise ValueError("Invalid install command")
+
             self.pip_install(install_cmd)
         elif self.install_method == "conda":
             self.conda_install(install_cmd)
@@ -121,6 +131,82 @@ class Package(Resource):
                 f"Unknown install_method {self.install_method}. Try using cluster.run() or "
                 f"function.run_setup() to install instead."
             )
+
+    # ----------------------------------
+    # Torch Install Helpers
+    # ----------------------------------
+    def install_cmd_for_torch(self, install_cmd: str):
+        """Return the correct pip install command for the torch package(s) provided."""
+        torch_source_packages = ["torch", "torchvision", "torchaudio"]
+        if not any([x in install_cmd for x in torch_source_packages]):
+            return install_cmd
+
+        packages_to_install: list = self.packages_to_install_from_cmd(install_cmd)
+
+        final_install_cmd = ""
+        for package_install_cmd in packages_to_install:
+            formatted_cmd = self._install_url_for_torch_package(package_install_cmd)
+            if formatted_cmd:
+                final_install_cmd += formatted_cmd + " "
+
+        final_install_cmd = final_install_cmd.rstrip()
+        return final_install_cmd if final_install_cmd != "" else None
+
+    def _install_url_for_torch_package(self, install_cmd: str):
+        if any(
+            specifier in install_cmd
+            for specifier in ["--index-url", "-i", "--extra-index-url"]
+        ):
+            # Leave as is if index url or extra-index-url are provided
+            return install_cmd
+
+        # Grab the relevant index url for torch based on the CUDA version if available
+        index_url = self.torch_index_url_for_cuda()
+        if index_url:
+            return f"{install_cmd} --index-url {index_url}"
+
+        # Fall back to the main python package index if no match is found
+        if "--extra-index-url" not in install_cmd:
+            return f"{install_cmd} --extra-index-url https://pypi.python.org/simple/"
+
+        return install_cmd
+
+    def torch_index_url_for_cuda(self):
+        cuda_version = self.cuda_version()
+        return self.TORCH_INDEX_URLS_FOR_CUDA.get(cuda_version)
+
+    @staticmethod
+    def cuda_version():
+        """Use nvcc to get the cuda version."""
+        try:
+            cuda_version_info: str = subprocess.check_output(
+                "nvcc --version", shell=True
+            ).decode("utf-8")
+            return cuda_version_info.split("release ")[1].split(",")[0]
+        except subprocess.CalledProcessError:
+            return None
+
+    @staticmethod
+    def packages_to_install_from_cmd(install_cmd: str):
+        """Return a list of packages to install from a string of packages to install based on the relevant cuda version.
+        Examples:
+            torch --> torch --extra-index-url https://pypi.python.org/simple/
+            torchaudio --index-url https://download.pytorch.org/whl/cu116' ->
+            torchaudio --index-url https://download.pytorch.org/whl/cu116'
+        """
+        install_cmd = install_cmd.strip()
+
+        if ", " in install_cmd:
+            # Ex: 'torch>=1.13.0, <2.0.0'
+            return [install_cmd]
+
+        matches = re.findall(
+            r"(\S+(?:\s+(-i|--index-url|--extra-index-url)\s+\S+)?)", install_cmd
+        )
+        packages_to_install = [match[0] for match in matches]
+        return packages_to_install
+
+    # ----------------------------------
 
     @staticmethod
     def pip_install(install_cmd: str):
@@ -175,7 +261,6 @@ class Package(Resource):
     @staticmethod
     def from_config(config: dict, dryrun=False):
         if config.get("resource_subtype") == "GitPackage":
-
             from runhouse import GitPackage
 
             return GitPackage.from_config(config, dryrun=dryrun)
@@ -277,7 +362,7 @@ def package(
     Args:
         name (str): Name to assign the pacakge.
         install_method (str): Method for installing the package. Options: [``pip``, ``conda``, ``reqs``, ``local``]
-        install_str (str): Additional arguments to install.  # TODO: not too sure about this
+        install_str (str): Additional arguments to install.
         url (str): URL of the package to install.
         system (str): File system. Currently this must be one of:
             [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
