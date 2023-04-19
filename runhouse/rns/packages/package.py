@@ -105,7 +105,8 @@ class Package(Resource):
             install_cmd = self.install_target + install_args
 
         if self.install_method == "pip":
-            install_cmd = self.install_cmd_for_torch(install_cmd)
+            cuda_version = self.detect_cuda_version()
+            install_cmd = self.install_cmd_for_torch(install_cmd, cuda_version)
             if not install_cmd:
                 raise ValueError("Invalid install command")
 
@@ -135,7 +136,7 @@ class Package(Resource):
     # ----------------------------------
     # Torch Install Helpers
     # ----------------------------------
-    def install_cmd_for_torch(self, install_cmd: str):
+    def install_cmd_for_torch(self, install_cmd, cuda_version):
         """Return the correct pip install command for the torch package(s) provided."""
         torch_source_packages = ["torch", "torchvision", "torchaudio"]
         if not any([x in install_cmd for x in torch_source_packages]):
@@ -145,38 +146,34 @@ class Package(Resource):
 
         final_install_cmd = ""
         for package_install_cmd in packages_to_install:
-            formatted_cmd = self._install_url_for_torch_package(package_install_cmd)
+            formatted_cmd = self._install_url_for_torch_package(
+                package_install_cmd, cuda_version
+            )
             if formatted_cmd:
                 final_install_cmd += formatted_cmd + " "
 
         final_install_cmd = final_install_cmd.rstrip()
         return final_install_cmd if final_install_cmd != "" else None
 
-    def _install_url_for_torch_package(self, install_cmd: str):
-        if any(
-            specifier in install_cmd
-            for specifier in ["--index-url", "-i", "--extra-index-url"]
+    def _install_url_for_torch_package(self, install_cmd, cuda_version):
+        """Build the full install command including the --index-url and --extra-index-url where applicable."""
+        # Grab the relevant index url for torch based on the CUDA version provided
+        index_url = self.torch_index_url_for_cuda(cuda_version)
+        if index_url and not any(
+            specifier in install_cmd for specifier in ["--index-url ", "-i "]
         ):
-            # Leave as is if index url or extra-index-url are provided
-            return install_cmd
+            install_cmd = f"{install_cmd} --index-url {index_url}"
 
-        # Grab the relevant index url for torch based on the CUDA version if available
-        index_url = self.torch_index_url_for_cuda()
-        if index_url:
-            return f"{install_cmd} --index-url {index_url}"
-
-        # Fall back to the main python package index if no match is found
         if "--extra-index-url" not in install_cmd:
             return f"{install_cmd} --extra-index-url https://pypi.python.org/simple/"
 
         return install_cmd
 
-    def torch_index_url_for_cuda(self):
-        cuda_version = self.cuda_version()
+    def torch_index_url_for_cuda(self, cuda_version: str):
         return self.TORCH_INDEX_URLS_FOR_CUDA.get(cuda_version)
 
     @staticmethod
-    def cuda_version():
+    def detect_cuda_version():
         """Use nvcc to get the cuda version."""
         try:
             cuda_version_info: str = subprocess.check_output(
@@ -188,12 +185,7 @@ class Package(Resource):
 
     @staticmethod
     def packages_to_install_from_cmd(install_cmd: str):
-        """Return a list of packages to install from a string of packages to install based on the relevant cuda version.
-        Examples:
-            torch --> torch --extra-index-url https://pypi.python.org/simple/
-            torchaudio --index-url https://download.pytorch.org/whl/cu116' ->
-            torchaudio --index-url https://download.pytorch.org/whl/cu116'
-        """
+        """Split a string of command(s) into a list of separate commands"""
         install_cmd = install_cmd.strip()
 
         if ", " in install_cmd:

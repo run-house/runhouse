@@ -65,49 +65,37 @@ def test_load_shared_git_package():
 
 
 def test_torch_installs():
-    cuda_url = "--index-url https://download.pytorch.org/whl/cu116"
+    cuda_v116_url = "--index-url https://download.pytorch.org/whl/cu116"
+    cuda_v117_url = "--index-url https://download.pytorch.org/whl/cu117"
+    cuda_v118_url = "--index-url https://download.pytorch.org/whl/cu118"
+
     extra_index_url = "--extra-index-url https://pypi.python.org/simple/"
 
-    # Torch install commands and their expected results to be pip installed
+    # Receive a torch install command and associated cuda version, confirm that `install_cmd_for_torch` appends
+    # the correct --index-url for the matching cuda version
     install_commands = {
-        "torch==1.13.1": "torch==1.13.1 --extra-index-url https://pypi.python.org/simple/",
-        f"torch==1.13.1 {extra_index_url}": f"torch==1.13.1 {extra_index_url}",
-        "matchatorch": "matchatorch --extra-index-url https://pypi.python.org/simple/",
-        "torch>=1.13.0, <2.0.0": f"torch>=1.13.0, <2.0.0 {extra_index_url}",
-        f"torch torchaudio {cuda_url}": f"torch {extra_index_url} torchaudio {cuda_url}",
-        f"torchaudio {cuda_url} torch {cuda_url}": f"torchaudio {cuda_url} torch {cuda_url}",
-        "torch torchpudding": f"torch {extra_index_url} torchpudding {extra_index_url}",
-        f"torch==1.13.1 {cuda_url}": f"torch==1.13.1 {cuda_url}",
-        "torch>=1.13.0": f"torch>=1.13.0 {extra_index_url}",
-        "torch>1.13.0": f"torch>1.13.0 {extra_index_url}",
-        "torch~=1.13.0": f"torch~=1.13.0 {extra_index_url}",
-        "torch==99.99.999": f"torch==99.99.999 {extra_index_url}",
+        (f"torch==1.13.1 {cuda_v116_url}", "11.6"): f"torch==1.13.1 {cuda_v116_url} {extra_index_url}",
+        (f"torch {extra_index_url}", "11.7"): f"torch {extra_index_url} {cuda_v117_url}",
+        ("matchatorch", "11.6"): f"matchatorch {cuda_v116_url} {extra_index_url}",
+        ("torch>=1.13.0, <2.0.0", "11.8"): f"torch>=1.13.0, <2.0.0 {cuda_v118_url} {extra_index_url}",
+        (f"torch {cuda_v116_url} torchaudio {extra_index_url}", "11.6"): f"torch {cuda_v116_url} {extra_index_url} "
+                                                                         f"torchaudio {extra_index_url} "
+                                                                         f"{cuda_v116_url}",
+        ("torch torchpudding", "11.7"): f"torch {cuda_v117_url} {extra_index_url} torchpudding {cuda_v117_url} "
+                                        f"{extra_index_url}",
+        ("torch>=1.13.0", "11.6"): f"torch>=1.13.0 {cuda_v116_url} {extra_index_url}",
+        ("torch>1.13.0", "11.6"): f"torch>1.13.0 {cuda_v116_url} {extra_index_url}",
+        ("torch==1.13.0", "11.6"): f"torch==1.13.0 {cuda_v116_url} {extra_index_url}",
+        ("torch~=1.13.0", "11.7"): f"torch~=1.13.0 {cuda_v117_url} {extra_index_url}",
+        (f"torch==99.99.999 {cuda_v117_url}", "11.7"): f"torch==99.99.999 {cuda_v117_url} {extra_index_url}",
     }
-    for mock_install_cmd, expected_install_cmd in install_commands.items():
-        dummy_pkg = rh.Package.from_string(specifier=f"pip:{mock_install_cmd}")
-        formatted_install_cmd = dummy_pkg.install_cmd_for_torch(mock_install_cmd)
+    for (torch_version, cuda_version), expected_install_cmd in install_commands.items():
+        dummy_pkg = rh.Package.from_string(specifier=f"pip:{torch_version}")
+        formatted_install_cmd = dummy_pkg.install_cmd_for_torch(torch_version, cuda_version)
 
         assert (
-            formatted_install_cmd == expected_install_cmd
-        ), f"Unexpected result for command {mock_install_cmd} "
-
-
-def test_cuda_versions_for_hardware():
-    cpu = rh.cluster("^rh-cpu").up_if_not()
-    a10g = rh.cluster(
-        name="rh-a10x", instance_type="g5.2xlarge", provider="aws"
-    ).up_if_not()
-
-    cuda_url_for_cluster = {
-        cpu: "https://download.pytorch.org/whl/cu117",
-        a10g: "https://download.pytorch.org/whl/cu117",
-    }
-
-    for cluster, expected_cuda_url in cuda_url_for_cluster.items():
-        return_codes = cluster.run(["nvcc --version"], stream_logs=True)
-        cuda_version = return_codes[0][1].split("release ")[1].split(",")[0]
-        cuda_url = rh.Package.TORCH_INDEX_URLS_FOR_CUDA.get(cuda_version)
-        assert cuda_url == expected_cuda_url
+                formatted_install_cmd == expected_install_cmd
+        ), f"Unexpected result for {(torch_version, cuda_version)} "
 
 
 if __name__ == "__main__":
