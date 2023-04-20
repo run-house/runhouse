@@ -48,7 +48,7 @@ def sd_generate(prompt):
 
 if __name__ == "__main__":
     gpu = rh.cluster(name='my-a100', instance_type='A100:1', provider='cheapest')
-    sd_generate = rh.function(sd_generate).to("my-a100", reqs=['./', 'torch', 'diffusers'])
+    sd_generate = rh.function(sd_generate).to(gpu, reqs=['./', 'torch', 'diffusers'])
     sd_generate("An oil painting of Keanu Reeves eating a sandwich.").show()
 
     sd_generate.save(name='sd_generate')
