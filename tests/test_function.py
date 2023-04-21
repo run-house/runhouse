@@ -3,7 +3,6 @@ import unittest
 from multiprocessing import Pool
 
 import requests
-
 import runhouse as rh
 from runhouse.rns.api_utils.resource_access import ResourceAccess
 from runhouse.rns.api_utils.utils import load_resp_content
@@ -174,9 +173,7 @@ def test_function_git_fn():
     assert args.pretrained_model_name_or_path == "stabilityai/stable-diffusion-2-base"
 
 
-def test_list_keys():
-    cpu = rh.cluster("^rh-cpu").up_if_not()
-
+def test_list_keys(cpu):
     pid_fn = rh.function(getpid, system=cpu)
 
     pid_ref1 = pid_fn.remote()
@@ -186,9 +183,7 @@ def test_list_keys():
     assert set([pid_ref1, pid_ref2]).issubset(current_jobs)
 
 
-def test_cancel_jobs():
-    cpu = rh.cluster("^rh-cpu").up_if_not()
-
+def test_cancel_jobs(cpu):
     pid_fn = rh.function(getpid, system=cpu)
 
     pid_ref1 = pid_fn.remote()
@@ -200,8 +195,7 @@ def test_cancel_jobs():
     assert not set([pid_ref1, pid_ref2]).issubset(current_jobs)
 
 
-def test_function_queueing():
-    cpu = rh.cluster("^rh-cpu").up_if_not()
+def test_function_queueing(cpu):
     pid_fn = rh.function(getpid, system=cpu)
 
     pids = [pid_fn.enqueue(resources={"num_cpus": 2}) for _ in range(10)]
@@ -239,9 +233,8 @@ def test_ssh():
     assert True
 
 
-def test_share_function():
-    rh_cpu = rh.cluster("^rh-cpu").up_if_not()
-    my_function = rh.function(fn=summer, name="@/remote_function", system=rh_cpu).save()
+def test_share_function(cpu):
+    my_function = rh.function(fn=summer, name="@/remote_function", system=cpu).save()
 
     my_function.share(
         users=["donny@run.house", "josh@run.house"],
@@ -354,10 +347,9 @@ def test_byo_cluster_maps():
     assert res == [4, 6, 8, 10, 12]
 
 
-def test_load_function_in_new_env():
-    rh.cluster(name="rh-cpu").save(name="@/rh-cpu")
+def test_load_function_in_new_env(cpu):
     remote_sum = rh.function(
-        fn=summer, name="@/remote_function", system="@/rh-cpu", reqs=[], dryrun=True
+        fn=summer, name="@/remote_function", system=cpu, reqs=[], dryrun=True
     ).save()
 
     byo_cluster = rh.cluster(name="different-cluster")
@@ -375,10 +367,9 @@ def test_load_function_in_new_env():
     remote_sum.delete_configs()
 
 
-def test_nested_function():
-    rh.cluster(name="^rh-cpu").up_if_not()
-    summer_cpu = rh.function(fn=summer, system="^rh-cpu")
-    call_function_cpu = rh.function(fn=call_function, system="^rh-cpu")
+def test_nested_function(cpu):
+    summer_cpu = rh.function(fn=summer, system=cpu)
+    call_function_cpu = rh.function(fn=call_function, system=cpu)
 
     kwargs = {"a": 1, "b": 5}
     res = call_function_cpu(summer_cpu, **kwargs)

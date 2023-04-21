@@ -16,12 +16,11 @@ def setup():
     create_s3_bucket(S3_BUCKET)
 
 
-def test_create_and_reload_local_blob_with_name():
+def test_create_and_reload_local_blob_with_name(blob_data):
     name = "~/my_local_blob"
-    data = pickle.dumps(list(range(50)))
     my_blob = (
         rh.blob(
-            data=data,
+            data=blob_data,
             name=name,
             system="file",
         )
@@ -29,7 +28,7 @@ def test_create_and_reload_local_blob_with_name():
         .save()
     )
 
-    del data
+    del blob_data
     del my_blob
 
     reloaded_blob = rh.Blob.from_name(name)
@@ -44,12 +43,11 @@ def test_create_and_reload_local_blob_with_name():
     assert not reloaded_blob.exists_in_system()
 
 
-def test_create_and_reload_local_blob_with_path():
+def test_create_and_reload_local_blob_with_path(blob_data):
     name = "~/my_local_blob"
-    data = pickle.dumps(list(range(50)))
     my_blob = (
         rh.blob(
-            data=data,
+            data=blob_data,
             name=name,
             path=str(TEMP_LOCAL_FOLDER / "my_blob.pickle"),
             system="file",
@@ -58,7 +56,7 @@ def test_create_and_reload_local_blob_with_path():
         .save()
     )
 
-    del data
+    del blob_data
     del my_blob
 
     reloaded_blob = rh.Blob.from_name(name)
@@ -74,10 +72,9 @@ def test_create_and_reload_local_blob_with_path():
     assert not reloaded_blob.exists_in_system()
 
 
-def test_create_and_reload_anom_local_blob():
-    data = pickle.dumps(list(range(50)))
+def test_create_and_reload_anom_local_blob(blob_data):
     my_blob = rh.blob(
-        data=data,
+        data=blob_data,
         system="file",
     ).write()
 
@@ -90,13 +87,12 @@ def test_create_and_reload_anom_local_blob():
     assert not reloaded_blob.exists_in_system()
 
 
-def test_create_and_reload_rns_blob():
+def test_create_and_reload_rns_blob(blob_data):
     name = "@/s3_blob"
-    data = pickle.dumps(list(range(50)))
     my_blob = (
         rh.blob(
             name=name,
-            data=data,
+            data=blob_data,
             system="s3",
             mkdir=True,
         )
@@ -104,7 +100,7 @@ def test_create_and_reload_rns_blob():
         .save()
     )
 
-    del data
+    del blob_data
     del my_blob
 
     reloaded_blob = rh.Blob.from_name(name)
@@ -119,13 +115,12 @@ def test_create_and_reload_rns_blob():
     assert not reloaded_blob.exists_in_system()
 
 
-def test_create_and_reload_rns_blob_with_path():
+def test_create_and_reload_rns_blob_with_path(blob_data):
     name = "@/s3_blob"
-    data = pickle.dumps(list(range(50)))
     my_blob = (
         rh.blob(
             name=name,
-            data=data,
+            data=blob_data,
             system="s3",
             path=f"/{S3_BUCKET}/test_blob.pickle",
             mkdir=True,
@@ -134,7 +129,7 @@ def test_create_and_reload_rns_blob_with_path():
         .save()
     )
 
-    del data
+    del blob_data
     del my_blob
 
     reloaded_blob = rh.Blob.from_name(name)
@@ -149,20 +144,18 @@ def test_create_and_reload_rns_blob_with_path():
     assert not reloaded_blob.exists_in_system()
 
 
-def test_to_cluster_attr():
-    cluster = rh.cluster(name="^rh-cpu").up_if_not()
+def test_to_cluster_attr(cpu):
     local_blob = rh.blob(pickle.dumps(list(range(50))), path="models/pipeline.pkl")
-    cluster_blob = local_blob.to(system=cluster)
+    cluster_blob = local_blob.to(system=cpu)
     assert isinstance(cluster_blob.system, rh.Cluster)
     assert cluster_blob._folder._fs_str == "ssh"
 
 
-def test_local_to_cluster():
+def test_local_to_cluster(cpu, blob_data):
     name = "~/my_local_blob"
-    data = pickle.dumps(list(range(50)))
     my_blob = (
         rh.blob(
-            data=data,
+            data=blob_data,
             name=name,
             system="file",
         )
@@ -170,21 +163,19 @@ def test_local_to_cluster():
         .save()
     )
 
-    cluster = rh.cluster(name="^rh-cpu").up_if_not()
-    my_blob = my_blob.to(system=cluster)
+    my_blob = my_blob.to(system=cpu)
     blob_data = pickle.loads(my_blob.data)
     assert blob_data == list(range(50))
 
 
-def test_save_blob_to_cluster():
-    cluster = rh.cluster(name="^rh-cpu").up_if_not()
+def test_save_blob_to_cluster(cpu):
     # Save blob to local directory, then upload to a new "models" directory on the root path of the cluster
     rh.blob(pickle.dumps(list(range(50))), path="models/pipeline.pkl").to(
-        cluster, path="models"
+        cpu, path="models"
     )
 
     # Confirm the model is saved on the cluster in the `models` folder
-    status_codes = cluster.run(commands=["ls models"])
+    status_codes = cpu.run(commands=["ls models"])
     assert "pipeline.pkl" in status_codes[0][1]
 
 
@@ -195,13 +186,12 @@ def test_from_cluster():
     assert len(config_data.keys()) > 4
 
 
-def test_sharing_blob():
-    data = pickle.dumps(list(range(50)))
+def test_sharing_blob(blob_data):
     name = "shared_blob"
 
     my_blob = (
         rh.blob(
-            data=data,
+            data=blob_data,
             name=name,
             system="s3",
             mkdir=True,
@@ -228,10 +218,9 @@ def test_load_shared_blob():
     assert pickle.loads(raw_data)
 
 
-def test_save_anom_blob_to_s3():
-    data = pickle.dumps(list(range(50)))
+def test_save_anom_blob_to_s3(blob_data):
     my_blob = rh.blob(
-        data=data,
+        data=blob_data,
         system="s3",
     ).write()
 

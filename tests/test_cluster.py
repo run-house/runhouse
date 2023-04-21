@@ -2,25 +2,23 @@ import unittest
 
 import runhouse as rh
 
-from runhouse.rns.hardware import cluster, OnDemandCluster
+from runhouse.rns.hardware import OnDemandCluster
 
 
 def is_on_cluster(cluster):
     return cluster.on_this_cluster()
 
 
-def test_cluster_config():
-    rh_cpu = cluster(name="^rh-cpu")
-    if not rh_cpu.is_up():
-        rh_cpu.up()
-    config = rh_cpu.config_for_rns
+def test_cluster_config(cpu):
+    if not cpu.is_up():
+        cpu.up()
+    config = cpu.config_for_rns
     cluster2 = OnDemandCluster.from_config(config)
-    assert cluster2.address == rh_cpu.address
+    assert cluster2.address == cpu.address
 
 
-def test_cluster_sharing():
-    c = cluster(name="^rh-cpu").up_if_not().save()
-    c.share(
+def test_cluster_sharing(cpu):
+    cpu.share(
         users=["donny@run.house", "josh@run.house"],
         access_type="write",
         notify_users=False,
@@ -28,15 +26,13 @@ def test_cluster_sharing():
     assert True
 
 
-def test_read_shared_cluster():
-    c = cluster(name="@/rh-cpu")
-    res = c.run_python(["import numpy", "print(numpy.__version__)"])
+def test_read_shared_cluster(cpu):
+    res = cpu.run_python(["import numpy", "print(numpy.__version__)"])
     assert res[0][1]
 
 
-def test_install():
-    c = cluster(name="^rh-cpu")
-    c.install_packages(
+def test_install(cpu):
+    cpu.install_packages(
         [
             "./",
             "torch==1.12.1",
@@ -46,39 +42,34 @@ def test_install():
     )
 
 
-def test_basic_run():
+def test_basic_run(cpu):
     # Create temp file where fn's will be stored
     test_cmd = "echo hi"
-    hw = cluster(name="^rh-cpu")
-    hw.up_if_not()
-    res = hw.run(commands=[test_cmd])
+    cpu.up_if_not()
+    res = cpu.run(commands=[test_cmd])
     assert "hi" in res[0][1]
 
 
-def test_restart_grpc():
-    hw = cluster(name="^rh-cpu")
-    hw.up_if_not()
-    codes = hw.restart_grpc_server(resync_rh=False)
+def test_restart_grpc(cpu):
+    cpu.up_if_not()
+    codes = cpu.restart_grpc_server(resync_rh=False)
     assert codes
 
 
-def test_on_same_cluster():
-    hw = cluster(name="^rh-cpu").up_if_not()
-    hw.restart_grpc_server()
-    hw.up_if_not()
+def test_on_same_cluster(cpu):
+    hw_copy = cpu.copy()
+    cpu.restart_grpc_server()
+    cpu.up_if_not()
 
-    hw_copy = cluster(name="^rh-cpu")
-
-    func_hw = rh.function(is_on_cluster).to(hw)
-    assert func_hw(hw)
+    func_hw = rh.function(is_on_cluster).to(cpu)
+    assert func_hw(cpu)
     assert func_hw(hw_copy)
 
 
-def test_on_diff_cluster():
-    hw = cluster(name="^rh-cpu").up_if_not()
+def test_on_diff_cluster(cpu):
     diff_hw = rh.cluster(name="test-byo-cluster").up_if_not()
 
-    func_hw = rh.function(is_on_cluster).to(hw)
+    func_hw = rh.function(is_on_cluster).to(cpu)
     assert not func_hw(diff_hw)
 
 

@@ -133,11 +133,10 @@ def test_add_github_secrets():
         assert rh.configs.get("secrets", {}).get(provider)
 
 
-def test_sending_secrets_to_cluster():
-    cluster = rh.cluster(name="^rh-cpu").up_if_not()
+def test_sending_secrets_to_cluster(cpu):
     enabled_providers: list = rh.Secrets.enabled_providers()
 
-    cluster.send_secrets(providers=enabled_providers)
+    cpu.send_secrets(providers=enabled_providers)
 
     # Confirm the secrets now exist on the cluster
     for provider_cls in enabled_providers:
@@ -146,7 +145,7 @@ def test_sending_secrets_to_cluster():
             f"from runhouse.rns.secrets.{provider_name}_secrets import {str(provider_cls)}",
             f"print({str(provider_cls)}.has_secrets_file())",
         ]
-        status_codes: list = cluster.run_python(commands)
+        status_codes: list = cpu.run_python(commands)
         if "False" in status_codes[0][1]:
             assert False, f"No credentials file found on cluster for {provider_name}"
 
