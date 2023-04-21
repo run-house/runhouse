@@ -247,9 +247,6 @@ class Package(Resource):
         if self.install_target.system == dest_cluster:
             return self
 
-        if mount and not path:
-            path = Path(self.install_target.path).name
-
         new_folder = self.install_target.to_cluster(
             dest_cluster,
             path=path,

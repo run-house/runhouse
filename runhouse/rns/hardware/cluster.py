@@ -184,9 +184,9 @@ class Cluster(Resource):
             if isinstance(package, str):
                 pkg_obj = Package.from_string(package, dryrun=False)
             else:
-                if isinstance(package.install_target, Folder) and not (
-                    package.install_target.is_local()
-                    or package.install_target.system == self
+                if (
+                    isinstance(package.install_target, Folder)
+                    and not package.install_target.system == self
                 ):
                     pkg_str = package.name or Path(package.install_target.path).name
                     logging.info(

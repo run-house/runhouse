@@ -15,8 +15,11 @@ def summer(a, b):
 
 def test_from_string():
     p = rh.Package.from_string("reqs:~/runhouse")
-    assert isinstance(p.install_target, rh.Folder)
-    assert p.install_target.path == str(Path.home() / "runhouse")
+    if (Path.home() / "runhouse").exists():
+        assert isinstance(p.install_target, rh.Folder)
+        assert p.install_target.path == str(Path.home() / "runhouse")
+    else:
+        assert p.install_target == "~/runhouse"
 
 
 def test_share_package():
@@ -70,11 +73,13 @@ def test_load_shared_git_package():
 
 
 def test_local_package_function():
-    from .test_function import summer
-
     cluster = rh.cluster("^rh-cpu").up_if_not()
     function = rh.function(fn=summer).to(cluster, reqs=["./"])
-    assert isinstance(function.reqs[0], rh.Package)
+
+    req = function.reqs[0]
+    assert isinstance(req, rh.Package)
+    assert isinstance(req.install_target, rh.Folder)
+    assert req.install_target.system == cluster
 
 
 def test_local_package_to_cluster():
@@ -83,6 +88,16 @@ def test_local_package_to_cluster():
 
     assert isinstance(package.install_target, rh.Folder)
     assert package.install_target.system == system
+
+
+def test_mount_local_package_to_cluster():
+    system = rh.cluster("^rh-cpu").up_if_not()
+    mount_path = "package_mount"
+    package = rh.Package.from_string("./").to(system, path=mount_path, mount=True)
+
+    assert isinstance(package.install_target, rh.Folder)
+    assert package.install_target.system == system
+    assert mount_path in system.run(["ls"])[0][1]
 
 
 def test_package_file_system_to_cluster():

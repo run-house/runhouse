@@ -3,9 +3,9 @@ import time
 import unittest
 
 import runhouse as rh
+from tqdm.auto import tqdm  # progress bar
 
 from tests.test_function import multiproc_torch_sum
-from tqdm.auto import tqdm  # progress bar
 
 TEMP_FILE = "my_file.txt"
 TEMP_FOLDER = "~/runhouse-tests"
