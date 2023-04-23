@@ -1,3 +1,4 @@
+import os
 import shutil
 import unittest
 from pathlib import Path
@@ -6,6 +7,7 @@ import pytest
 
 import runhouse as rh
 from ray import cloudpickle as pickle
+from runhouse.rh_config import configs
 
 TEST_FOLDER_PATH = Path.cwd() / "tests_tmp"
 
@@ -17,10 +19,10 @@ def setup():
     from pathlib import Path
 
     # Create buckets in S3 and GCS
-    from runhouse.rns.api_utils.utils import create_gcs_bucket, create_s3_bucket
+    from runhouse.rns.api_utils.utils import create_s3_bucket
 
     create_s3_bucket(DATA_STORE_BUCKET)
-    create_gcs_bucket(DATA_STORE_BUCKET)
+    # create_gcs_bucket(DATA_STORE_BUCKET) # TODO [JL] removing GCS tests for now
 
     # Create local dir with files to upload to cluster, buckets, etc.
     TEST_FOLDER_PATH.mkdir(parents=True, exist_ok=True)
@@ -54,6 +56,7 @@ def test_from_cluster(cpu):
     assert "my_new_tests_folder/test_folder.py" in tests_folder.ls()
 
 
+@pytest.mark.s3test
 @pytest.mark.clustertest
 def test_to_cluster_attr(cpu, local_folder):
     cluster_folder = local_folder.to(system=cpu)
@@ -66,6 +69,7 @@ def test_to_cluster_attr(cpu, local_folder):
     assert cluster_folder_s3._fs_str == "ssh"
 
 
+@pytest.mark.s3test
 def test_create_and_save_data_to_s3_folder():
     data = list(range(50))
     s3_folder = rh.folder(path=DATA_STORE_PATH, system="s3")
@@ -75,6 +79,7 @@ def test_create_and_save_data_to_s3_folder():
     assert s3_folder.exists_in_system()
 
 
+@pytest.mark.s3test
 def test_read_data_from_existing_s3_folder():
     # Note: Uses folder created above
     s3_folder = rh.folder(path=DATA_STORE_PATH, system="s3")
@@ -85,6 +90,7 @@ def test_read_data_from_existing_s3_folder():
     assert data == list(range(50))
 
 
+@pytest.mark.s3test
 def test_create_and_delete_folder_from_s3():
     s3_folder = rh.folder(name=DATA_STORE_PATH, system="s3")
     s3_folder.mkdir()
@@ -102,6 +108,8 @@ def test_folder_attr_on_cluster(cpu):
     assert fs_str == "file"
 
 
+@pytest.mark.gcstest
+@pytest.mark.s3test
 @pytest.mark.clustertest
 def test_cluster_tos(cpu):
     tests_folder = rh.folder(path=str(Path.cwd()))
@@ -151,6 +159,7 @@ def test_local_and_cluster(cpu, local_folder):
     delete_local_folder(tmp_path)
 
 
+@pytest.mark.s3test
 def test_local_and_s3(local_folder):
     # Local to S3
     s3_folder = local_folder.to(system="s3")
@@ -167,6 +176,7 @@ def test_local_and_s3(local_folder):
     s3_folder.delete_in_system()
 
 
+@pytest.mark.gcstest
 def test_local_and_gcs(local_folder):
     # Local to GCS
     gcs_folder = local_folder.to(system="gs")
@@ -183,6 +193,7 @@ def test_local_and_gcs(local_folder):
     gcs_folder.delete_in_system()
 
 
+@pytest.mark.s3test
 @pytest.mark.clustertest
 def test_cluster_and_s3(cpu, local_folder):
     # Local to cluster
@@ -232,6 +243,7 @@ def test_cluster_and_gcs(cpu, local_folder):
         )
 
 
+@pytest.mark.s3test
 def test_s3_and_s3(local_folder):
     # Local to S3
     s3_folder = local_folder.to(system="s3")
@@ -245,6 +257,7 @@ def test_s3_and_s3(local_folder):
     new_s3_folder.delete_in_system()
 
 
+@pytest.mark.gcstest
 def test_gcs_and_gcs(local_folder):
     # Local to GCS
     gcs_folder = local_folder.to(system="gs")
@@ -258,6 +271,9 @@ def test_gcs_and_gcs(local_folder):
     new_gcs_folder.delete_in_system()
 
 
+@pytest.mark.gcstest
+@pytest.mark.s3test
+@unittest.skip("requires GCS setup")
 def test_s3_and_gcs(local_folder):
     # Local to S3
     s3_folder = local_folder.to(system="s3")
@@ -272,6 +288,8 @@ def test_s3_and_gcs(local_folder):
     s3_folder.delete_in_system()
 
 
+@pytest.mark.gcstest
+@pytest.mark.s3test
 @unittest.skip("requires GCS setup")
 def test_gcs_and_s3(local_folder):
     # Local to GCS
@@ -287,6 +305,7 @@ def test_gcs_and_s3(local_folder):
     gcs_folder.delete_in_system()
 
 
+@pytest.mark.s3test
 def test_s3_folder_uploads_and_downloads():
     # NOTE: you can specify a specific path like this:
     # test_folder = rh.folder(path='/runhouse/my-folder', system='gs')
@@ -320,16 +339,28 @@ def test_cluster_and_cluster(cpu, local_folder):
     assert "sample_file_0.txt" in cluster_folder_2.ls(full_paths=False)
 
 
+@pytest.mark.s3test
 def test_s3_sharing():
+    token = os.getenv("TEST_TOKEN") or configs.get("token")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    assert (
+        token
+    ), "No token provided. Either set `TEST_TOKEN` or set `token` in the .rh config file"
+
+    import runhouse as rh
+    rh.login(token=token, download_config=True, interactive=False)
+
     s3_folder = rh.folder(
-        name="my-s3-shared-folder", path=DATA_STORE_PATH, system="s3"
+        name="@/my-s3-shared-folder", path=DATA_STORE_PATH, system="s3"
     ).save()
     assert s3_folder.ls(full_paths=False)
 
     s3_folder.share(
-        users=["donny@run.house", "josh.lewittes@gmail.com"],
+        users=["donny@run.house", "josh@run.house"],
         access_type="read",
         notify_users=False,
+        headers=headers,
     )
 
     assert s3_folder.ls(full_paths=False)

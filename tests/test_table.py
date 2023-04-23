@@ -243,6 +243,7 @@ def test_create_and_reload_dask_locally(dask_table):
 # --------------------------------------------
 # ----------------- S3 tests -----------------
 # --------------------------------------------
+@pytest.mark.s3test
 def test_create_and_reload_pyarrow_data_from_s3(arrow_table):
     name = "@/my_test_pyarrow_table"
 
@@ -275,6 +276,7 @@ def test_create_and_reload_pyarrow_data_from_s3(arrow_table):
     assert not reloaded_table.exists_in_system()
 
 
+@pytest.mark.s3test
 def test_create_and_reload_pandas_data_from_s3(pandas_table):
     name = "@/my_test_pandas_table"
 
@@ -308,6 +310,7 @@ def test_create_and_reload_pandas_data_from_s3(pandas_table):
     assert not reloaded_table.exists_in_system()
 
 
+@pytest.mark.s3test
 def test_create_and_reload_huggingface_data_from_s3(huggingface_table):
     name = "@/my_test_hf_table"
 
@@ -340,6 +343,7 @@ def test_create_and_reload_huggingface_data_from_s3(huggingface_table):
     assert not reloaded_table.exists_in_system()
 
 
+@pytest.mark.s3test
 def test_create_and_reload_dask_data_from_s3(dask_table):
     name = "@/my_test_dask_table"
 
@@ -373,6 +377,7 @@ def test_create_and_reload_dask_data_from_s3(dask_table):
     assert not reloaded_table.exists_in_system()
 
 
+@pytest.mark.s3test
 def test_create_and_reload_ray_data_from_s3(ray_table):
     name = "@/my_test_ray_table"
 
@@ -407,6 +412,7 @@ def test_create_and_reload_ray_data_from_s3(ray_table):
 
 
 # ----------------- Iter -----------------
+@pytest.mark.s3test
 def test_load_pandas_data_as_iter(pandas_table):
     name = "@/my_test_pandas_table"
 
@@ -437,6 +443,7 @@ def test_load_pandas_data_as_iter(pandas_table):
     assert not reloaded_table.exists_in_system()
 
 
+@pytest.mark.s3test
 def test_load_pyarrow_data_as_iter(arrow_table):
     name = "@/my_test_pyarrow_table"
 
@@ -467,6 +474,7 @@ def test_load_pyarrow_data_as_iter(arrow_table):
     assert not reloaded_table.exists_in_system()
 
 
+@pytest.mark.s3test
 def test_load_huggingface_data_as_iter(huggingface_table):
     name = "@/my_test_huggingface_table"
 
@@ -496,6 +504,7 @@ def test_load_huggingface_data_as_iter(huggingface_table):
 
 
 # ----------------- Shuffling -----------------
+@pytest.mark.s3test
 def test_shuffling_pyarrow_data_from_s3(arrow_table):
     name = "@/my_test_shuffled_pyarrow_table"
 
@@ -752,6 +761,7 @@ def test_to_cluster_attr(pandas_table, cpu):
 # -------------------------------------------------
 # ----------------- Fetching tests -----------------
 # -------------------------------------------------
+@pytest.mark.s3test
 def test_create_and_fetch_pyarrow_data_from_s3(arrow_table):
     name = "@/my_test_fetch_pyarrow_table"
 
@@ -780,6 +790,7 @@ def test_create_and_fetch_pyarrow_data_from_s3(arrow_table):
     assert not reloaded_table.exists_in_system()
 
 
+@pytest.mark.s3test
 def test_create_and_fetch_pandas_data_from_s3(pandas_table):
     name = "@/my_test_fetch_pandas_table"
 
@@ -808,6 +819,7 @@ def test_create_and_fetch_pandas_data_from_s3(pandas_table):
     assert not reloaded_table.exists_in_system()
 
 
+@pytest.mark.s3test
 def test_create_and_fetch_huggingface_data_from_s3(huggingface_table):
     name = "@/my_test_fetch_huggingface_table"
 
@@ -825,7 +837,7 @@ def test_create_and_fetch_huggingface_data_from_s3(huggingface_table):
 
     reloaded_table = rh.Table.from_name(name)
     reloaded_data: datasets.Dataset = reloaded_table.fetch()
-    assert huggingface_table.description == reloaded_data.description
+    assert huggingface_table.shape == reloaded_data.shape
 
     del huggingface_table
     del my_table
@@ -836,6 +848,7 @@ def test_create_and_fetch_huggingface_data_from_s3(huggingface_table):
     assert not reloaded_table.exists_in_system()
 
 
+@pytest.mark.s3test
 def test_create_and_fetch_ray_data_from_s3(ray_table):
     name = "@/my_test_fetch_ray_table"
 
@@ -864,6 +877,7 @@ def test_create_and_fetch_ray_data_from_s3(ray_table):
     assert not reloaded_table.exists_in_system()
 
 
+@pytest.mark.s3test
 def test_create_and_fetch_dask_data_from_s3(dask_table):
     name = "@/my_test_fetch_dask_table"
 

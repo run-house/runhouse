@@ -314,6 +314,7 @@ def test_http_url_with_curl():
     assert True
 
 
+@pytest.mark.clustertest
 def test_byo_cluster_function():
     # Spin up a new basic m5.xlarge EC2 instance
     c = rh.cluster(
@@ -335,6 +336,7 @@ def test_byo_cluster_function():
     assert res == [4, 6, 8, 10, 12]
 
 
+@pytest.mark.clustertest
 def test_byo_cluster_maps():
     pid_fn = rh.function(getpid, system="different-cluster")
     num_pids = [1] * 50

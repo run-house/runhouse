@@ -1,3 +1,4 @@
+import os
 import unittest
 from pathlib import Path
 
@@ -7,6 +8,8 @@ import runhouse as rh
 import yaml
 
 from ray import cloudpickle as pickle
+
+from runhouse.rh_config import configs
 
 S3_BUCKET = "runhouse-blob"
 TEMP_LOCAL_FOLDER = Path(__file__).parents[1] / "rh-blobs"
@@ -89,6 +92,7 @@ def test_create_and_reload_anom_local_blob(blob_data):
     assert not reloaded_blob.exists_in_system()
 
 
+@pytest.mark.s3test
 def test_create_and_reload_rns_blob(blob_data):
     name = "@/s3_blob"
     my_blob = (
@@ -117,6 +121,7 @@ def test_create_and_reload_rns_blob(blob_data):
     assert not reloaded_blob.exists_in_system()
 
 
+@pytest.mark.s3test
 def test_create_and_reload_rns_blob_with_path(blob_data):
     name = "@/s3_blob"
     my_blob = (
@@ -191,8 +196,19 @@ def test_from_cluster(cpu):
     assert len(config_data.keys()) > 4
 
 
+@pytest.mark.s3test
 def test_sharing_blob(blob_data):
-    name = "shared_blob"
+    token = os.getenv("TEST_TOKEN") or configs.get("token")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    assert (
+        token
+    ), "No token provided. Either set `TEST_TOKEN` or set `token` in the .rh config file"
+
+    import runhouse as rh
+    rh.login(token=token, download_config=True, interactive=False)
+
+    name = "@/shared_blob"
 
     my_blob = (
         rh.blob(
@@ -209,6 +225,7 @@ def test_sharing_blob(blob_data):
         users=["donny@run.house", "josh@run.house"],
         access_type="write",
         notify_users=False,
+        headers=headers,
     )
 
     assert my_blob.exists_in_system()
@@ -223,6 +240,7 @@ def test_load_shared_blob():
     assert pickle.loads(raw_data)
 
 
+@pytest.mark.s3test
 def test_save_anom_blob_to_s3(blob_data):
     my_blob = rh.blob(
         data=blob_data,
