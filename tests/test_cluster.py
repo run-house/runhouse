@@ -1,5 +1,7 @@
 import unittest
 
+import pytest
+
 import runhouse as rh
 
 from runhouse.rns.hardware import OnDemandCluster
@@ -9,6 +11,7 @@ def is_on_cluster(cluster):
     return cluster.on_this_cluster()
 
 
+@pytest.mark.clustertest
 def test_cluster_config(cpu):
     if not cpu.is_up():
         cpu.up()
@@ -17,6 +20,7 @@ def test_cluster_config(cpu):
     assert cluster2.address == cpu.address
 
 
+@pytest.mark.clustertest
 def test_cluster_sharing(cpu):
     cpu.share(
         users=["donny@run.house", "josh@run.house"],
@@ -26,11 +30,13 @@ def test_cluster_sharing(cpu):
     assert True
 
 
+@pytest.mark.clustertest
 def test_read_shared_cluster(cpu):
     res = cpu.run_python(["import numpy", "print(numpy.__version__)"])
     assert res[0][1]
 
 
+@pytest.mark.clustertest
 def test_install(cpu):
     cpu.install_packages(
         [
@@ -42,6 +48,7 @@ def test_install(cpu):
     )
 
 
+@pytest.mark.clustertest
 def test_basic_run(cpu):
     # Create temp file where fn's will be stored
     test_cmd = "echo hi"
@@ -50,12 +57,14 @@ def test_basic_run(cpu):
     assert "hi" in res[0][1]
 
 
+@pytest.mark.clustertest
 def test_restart_grpc(cpu):
     cpu.up_if_not()
     codes = cpu.restart_grpc_server(resync_rh=False)
     assert codes
 
 
+@pytest.mark.clustertest
 def test_on_same_cluster(cpu):
     hw_copy = cpu.copy()
     cpu.restart_grpc_server()
@@ -66,6 +75,7 @@ def test_on_same_cluster(cpu):
     assert func_hw(hw_copy)
 
 
+@pytest.mark.clustertest
 def test_on_diff_cluster(cpu):
     diff_hw = rh.cluster(name="test-byo-cluster").up_if_not()
 

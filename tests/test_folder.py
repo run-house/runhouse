@@ -2,6 +2,8 @@ import shutil
 import unittest
 from pathlib import Path
 
+import pytest
+
 import runhouse as rh
 from ray import cloudpickle as pickle
 
@@ -45,12 +47,14 @@ def test_github_folder():
 # ----------------- Run tests -----------------
 
 
+@pytest.mark.clustertest
 def test_from_cluster(cpu):
     rh.folder(path=str(Path.cwd())).to(cpu, path="~/my_new_tests_folder")
     tests_folder = rh.folder(system=cpu, path="~/my_new_tests_folder")
     assert "my_new_tests_folder/test_folder.py" in tests_folder.ls()
 
 
+@pytest.mark.clustertest
 def test_to_cluster_attr(cpu, local_folder):
     cluster_folder = local_folder.to(system=cpu)
     assert isinstance(cluster_folder.system, rh.Cluster)
@@ -90,6 +94,7 @@ def test_create_and_delete_folder_from_s3():
     assert not s3_folder.exists_in_system()
 
 
+@pytest.mark.clustertest
 def test_folder_attr_on_cluster(cpu):
     cluster_folder = rh.folder(path=TEST_FOLDER_PATH).to(system=cpu)
     fs_str_cluster = rh.function(fn=fs_str_rh_fn).to(system=cpu)
@@ -97,6 +102,7 @@ def test_folder_attr_on_cluster(cpu):
     assert fs_str == "file"
 
 
+@pytest.mark.clustertest
 def test_cluster_tos(cpu):
     tests_folder = rh.folder(path=str(Path.cwd()))
 
@@ -129,6 +135,7 @@ def test_cluster_tos(cpu):
         )
 
 
+@pytest.mark.clustertest
 def test_local_and_cluster(cpu, local_folder):
     # Local to cluster
     local_folder.mkdir()
@@ -176,6 +183,7 @@ def test_local_and_gcs(local_folder):
     gcs_folder.delete_in_system()
 
 
+@pytest.mark.clustertest
 def test_cluster_and_s3(cpu, local_folder):
     # Local to cluster
     cluster_folder = local_folder.to(system=cpu)
@@ -193,6 +201,7 @@ def test_cluster_and_s3(cpu, local_folder):
 
 
 @unittest.skip("requires GCS setup")
+@pytest.mark.clustertest
 def test_cluster_and_gcs(cpu, local_folder):
     # Make sure we have gsutil and gcloud on the cluster - needed for copying the package + authenticating
     cpu.install_packages(["gsutil"])
@@ -297,6 +306,7 @@ def test_s3_folder_uploads_and_downloads():
     assert not s3_folder.exists_in_system()
 
 
+@pytest.mark.clustertest
 def test_cluster_and_cluster(cpu, local_folder):
     # Upload sky secrets to cluster - required when syncing over the folder from c1 to c2
     cpu.send_secrets(providers=["sky"])

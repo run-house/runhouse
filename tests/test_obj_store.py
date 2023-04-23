@@ -2,6 +2,8 @@ import logging
 import time
 import unittest
 
+import pytest
+
 import runhouse as rh
 from tqdm.auto import tqdm  # progress bar
 
@@ -11,10 +13,6 @@ TEMP_FILE = "my_file.txt"
 TEMP_FOLDER = "~/runhouse-tests"
 
 logger = logging.getLogger(__name__)
-
-
-def get_test_cluster():
-    return rh.cluster(name="^rh-cpu").up_if_not()
 
 
 def do_printing_and_logging():
@@ -35,59 +33,57 @@ def do_tqdm_printing_and_logging(steps=6):
     return list(range(50))
 
 
-def test_get_from_cluster():
-    cluster = get_test_cluster()
-    print_fn = rh.function(fn=do_printing_and_logging, system=cluster)
+@pytest.mark.clustertest
+def test_get_from_cluster(cpu):
+    print_fn = rh.function(fn=do_printing_and_logging, system=cpu)
     key = print_fn.remote()
     assert isinstance(key, str)
-    res = cluster.get(key, stream_logs=True)
+    res = cpu.get(key, stream_logs=True)
     assert res == list(range(50))
 
 
-def test_put_and_get_on_cluster():
+@pytest.mark.clustertest
+def test_put_and_get_on_cluster(cpu):
     test_list = list(range(5, 50, 2)) + ["a string"]
-    cluster = get_test_cluster()
-    cluster.put("my_list", test_list)
-    ret = cluster.get("my_list")
+    cpu.put("my_list", test_list)
+    ret = cpu.get("my_list")
     assert all(a == b for (a, b) in zip(ret, test_list))
 
 
-def test_stream_logs():
-    cluster = get_test_cluster()
-    print_fn = rh.function(fn=do_printing_and_logging, system=cluster)
+@pytest.mark.clustertest
+def test_stream_logs(cpu):
+    print_fn = rh.function(fn=do_printing_and_logging, system=cpu)
     res = print_fn(stream_logs=True)
     # TODO [DG] assert that the logs are streamed
     assert res == list(range(50))
 
 
-def test_multiprocessing_streaming():
-    cluster = get_test_cluster()
-    re_fn = rh.function(
-        multiproc_torch_sum, system=cluster, reqs=["./", "torch==1.12.1"]
-    )
+@pytest.mark.clustertest
+def test_multiprocessing_streaming(cpu):
+    re_fn = rh.function(multiproc_torch_sum, system=cpu, reqs=["./", "torch==1.12.1"])
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn(summands, stream_logs=True)
     assert res == [4, 6, 8, 10, 12]
 
 
-def test_tqdm_streaming():
+@pytest.mark.clustertest
+def test_tqdm_streaming(cpu):
     # Note, this doesn't work properly in PyCharm due to incomplete
     # support for carriage returns in the PyCharm console.
-    cluster = get_test_cluster()
-    print_fn = rh.function(fn=do_tqdm_printing_and_logging, system=cluster)
+    print_fn = rh.function(fn=do_tqdm_printing_and_logging, system=cpu)
     res = print_fn(steps=40, stream_logs=True)
     assert res == list(range(50))
 
 
-def test_cancel_run():
-    cluster = get_test_cluster()
-    print_fn = rh.function(fn=do_printing_and_logging, system=cluster)
+@pytest.mark.clustertest
+def test_cancel_run(cpu):
+    print_fn = rh.function(fn=do_printing_and_logging, system=cpu)
     key = print_fn.remote()
     assert isinstance(key, str)
-    res = cluster.cancel(key)
+    res = cpu.cancel(key)
     assert res == "Cancelled"
     try:
-        cluster.get(key, stream_logs=True)
+        cpu.get(key, stream_logs=True)
     except Exception as e:
         assert "This task or its dependency was cancelled by" in str(e)
 

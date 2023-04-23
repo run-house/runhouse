@@ -7,6 +7,7 @@ import pytest
 
 import runhouse as rh
 
+
 # https://docs.pytest.org/en/6.2.x/fixture.html#conftest-py-sharing-fixtures-across-multiple-files
 
 
@@ -80,8 +81,6 @@ def ray_table():
 
 
 # ----------------- Clusters -----------------
-
-
 @pytest.fixture
 def cpu():
     return rh.cluster("^rh-cpu").up_if_not()
@@ -94,4 +93,6 @@ def v100():
 
 @pytest.fixture
 def k80():
+    # Note: This configuration may not be supported with AWS - if so may need to request 8 GPUS:
+    # return rh.cluster(name="rh-8-gpu", instance_type="K80:8", provider="aws").up_if_not()
     return rh.cluster("^rh-4-gpu").up_if_not()

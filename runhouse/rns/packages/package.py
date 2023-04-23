@@ -18,6 +18,8 @@ class Package(Resource):
 
     # https://pytorch.org/get-started/locally/
     TORCH_INDEX_URLS_FOR_CUDA = {
+        "11.3": "https://download.pytorch.org/whl/cu113",
+        "11.5": "https://download.pytorch.org/whl/cu115",
         "11.6": "https://download.pytorch.org/whl/cu116",
         "11.7": "https://download.pytorch.org/whl/cu117",
         "11.8": "https://download.pytorch.org/whl/cu118",
@@ -158,6 +160,10 @@ class Package(Resource):
     def _install_url_for_torch_package(self, install_cmd, cuda_version):
         """Build the full install command including the --index-url and --extra-index-url where applicable."""
         # Grab the relevant index url for torch based on the CUDA version provided
+        if "," in install_cmd:
+            # If installing a range of versions make this compatible with `pip_install` method
+            install_cmd = install_cmd.replace(" ", "")
+
         index_url = self.torch_index_url_for_cuda(cuda_version)
         if index_url and not any(
             specifier in install_cmd for specifier in ["--index-url ", "-i "]

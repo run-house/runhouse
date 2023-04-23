@@ -1,6 +1,8 @@
 import unittest
 from pathlib import Path
 
+import pytest
+
 import runhouse as rh
 import yaml
 
@@ -144,6 +146,7 @@ def test_create_and_reload_rns_blob_with_path(blob_data):
     assert not reloaded_blob.exists_in_system()
 
 
+@pytest.mark.clustertest
 def test_to_cluster_attr(cpu):
     local_blob = rh.blob(pickle.dumps(list(range(50))), path="models/pipeline.pkl")
     cluster_blob = local_blob.to(system=cpu)
@@ -151,6 +154,7 @@ def test_to_cluster_attr(cpu):
     assert cluster_blob._folder._fs_str == "ssh"
 
 
+@pytest.mark.clustertest
 def test_local_to_cluster(cpu, blob_data):
     name = "~/my_local_blob"
     my_blob = (
@@ -168,6 +172,7 @@ def test_local_to_cluster(cpu, blob_data):
     assert blob_data == list(range(50))
 
 
+@pytest.mark.clustertest
 def test_save_blob_to_cluster(cpu):
     # Save blob to local directory, then upload to a new "models" directory on the root path of the cluster
     rh.blob(pickle.dumps(list(range(50))), path="models/pipeline.pkl").to(
@@ -179,9 +184,9 @@ def test_save_blob_to_cluster(cpu):
     assert "pipeline.pkl" in status_codes[0][1]
 
 
-def test_from_cluster():
-    cluster = rh.cluster(name="^rh-cpu").up_if_not()
-    config_blob = rh.blob(path="/home/ubuntu/.rh/config.yaml", system=cluster)
+@pytest.mark.clustertest
+def test_from_cluster(cpu):
+    config_blob = rh.blob(path="/home/ubuntu/.rh/config.yaml", system=cpu)
     config_data = yaml.safe_load(config_blob.data)
     assert len(config_data.keys()) > 4
 

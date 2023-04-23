@@ -5,6 +5,7 @@ from pathlib import Path
 import datasets
 import pandas as pd
 import pyarrow as pa
+import pytest
 import ray.data
 import runhouse as rh
 
@@ -531,6 +532,7 @@ def test_shuffling_pyarrow_data_from_s3(arrow_table):
 # -------------------------------------------------
 # ----------------- Cluster tests -----------------
 # -------------------------------------------------
+@pytest.mark.clustertest
 def test_create_and_reload_pandas_data_from_cluster(pandas_table, cpu):
     # Make sure the destination folder for the data exists on the cluster
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/pandas-data"
@@ -567,6 +569,7 @@ def test_create_and_reload_pandas_data_from_cluster(pandas_table, cpu):
     assert not reloaded_table.exists_in_system()
 
 
+@pytest.mark.clustertest
 def test_create_and_reload_ray_data_from_cluster(ray_table, cpu):
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/ray-data"
     cpu.run([f"mkdir -p {data_path_on_cluster}"])
@@ -602,6 +605,7 @@ def test_create_and_reload_ray_data_from_cluster(ray_table, cpu):
     assert not reloaded_table.exists_in_system()
 
 
+@pytest.mark.clustertest
 def test_create_and_reload_pyarrow_data_from_cluster(arrow_table, cpu):
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/pyarrow-data"
     cpu.run([f"mkdir -p {data_path_on_cluster}"])
@@ -636,6 +640,7 @@ def test_create_and_reload_pyarrow_data_from_cluster(arrow_table, cpu):
     assert not reloaded_table.exists_in_system()
 
 
+@pytest.mark.clustertest
 def test_create_and_reload_huggingface_data_from_cluster(huggingface_table, cpu):
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/hf-data"
     cpu.run([f"mkdir -p {data_path_on_cluster}"])
@@ -672,6 +677,7 @@ def test_create_and_reload_huggingface_data_from_cluster(huggingface_table, cpu)
     assert not reloaded_table.exists_in_system()
 
 
+@pytest.mark.clustertest
 def test_create_and_reload_dask_data_from_cluster(dask_table, cpu):
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/dask-data"
     cpu.run([f"mkdir -p {data_path_on_cluster}"])
@@ -707,6 +713,7 @@ def test_create_and_reload_dask_data_from_cluster(dask_table, cpu):
     assert not reloaded_table.exists_in_system()
 
 
+@pytest.mark.clustertest
 def test_to_cluster_attr(pandas_table, cpu):
     local_path = Path.cwd() / "table_tests/local_test_table"
     local_path.mkdir(parents=True, exist_ok=True)

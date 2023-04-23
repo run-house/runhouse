@@ -1,5 +1,7 @@
 import unittest
 
+import pytest
+
 import runhouse as rh
 
 
@@ -133,6 +135,7 @@ def test_add_github_secrets():
         assert rh.configs.get("secrets", {}).get(provider)
 
 
+@pytest.mark.clustertest
 def test_sending_secrets_to_cluster(cpu):
     enabled_providers: list = rh.Secrets.enabled_providers()
 
