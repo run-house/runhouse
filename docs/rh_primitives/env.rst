@@ -24,10 +24,9 @@ API Usage
 To initalize an Env, use ``rh.env``:
 
 .. code:: python
-    # Python env
-    python_env = rh.env(name="pyenv_from_list", py_env="requirements.txt")
+    env = rh.env(name="env_from_reqs", reqs="requirements.txt")
     # or
-    python_env = rh.env(name="pyenv_from_list", py_env=['torch', 'numpy', 'diffusers'])
+    python_env = rh.env(name="env_from_list", py_env=['torch', 'numpy', 'diffusers'])
 To setup and use an environment on a cluster, or for running a Function:
 
 .. code:: python

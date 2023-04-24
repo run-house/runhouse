@@ -3,7 +3,7 @@ import runhouse as rh
 
 pip_reqs = ["torch", "numpy"]
 
-# Note: this is currently failing. need to add resource type to rns_server
+
 def test_create_env_from_name_local():
     env_name = "~/local_env"
     local_env = rh.env(name=env_name, reqs=pip_reqs).save()
@@ -19,7 +19,7 @@ def test_create_env_from_name_rns():
     del env
 
     remote_env = rh.env(name=env_name)
-    assert remote_env.req == pip_reqs
+    assert remote_env.reqs == pip_reqs
 
 
 def test_create_env():
@@ -51,3 +51,17 @@ def test_function_to_env():
     assert res[0][0] == 0
 
     system.run(["pip uninstall numpy"])
+
+
+def test_env_git_reqs():
+    system = rh.cluster("^rh-cpu").up_if_not()
+    git_package = rh.GitPackage(
+        git_url="https://github.com/huggingface/diffusers.git",
+        install_method="pip",
+        revision="v0.11.1",
+    )
+    env = rh.env(reqs=[git_package])
+    env.to(system)
+    res = system.run(["pip freeze | grep diffusers"])
+    assert "diffusers" in res[0][1]
+    system.run(["pip uninstall diffusers -y"])

@@ -74,9 +74,9 @@ def test_load_shared_git_package():
 
 def test_local_package_function():
     cluster = rh.cluster("^rh-cpu").up_if_not()
-    function = rh.function(fn=summer).to(cluster, reqs=["./"])
+    function = rh.function(fn=summer).to(cluster, env=["./"])
 
-    req = function.reqs[0]
+    req = function.env.reqs[0]
     assert isinstance(req, rh.Package)
     assert isinstance(req.install_target, rh.Folder)
     assert req.install_target.system == cluster

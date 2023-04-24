@@ -50,7 +50,7 @@ class Env(Resource):
             To create an Env, please use the factory method :func:`env`.
         """
         super().__init__(name=name, dryrun=dryrun)
-        self.reqs = reqs
+        self.reqs = _process_reqs(reqs)
         self.setup_cmds = setup_cmds
 
     @staticmethod
@@ -78,7 +78,7 @@ class Env(Resource):
         for req in self.reqs:
             if isinstance(req, str):
                 req = Package.from_string(req)
-            elif isinstance(req.install_target, Folder):
+            if isinstance(req.install_target, Folder):
                 req = req.to(system, path=path, mount=mount)
             new_reqs.append(req)
         new_env = copy.deepcopy(self)
@@ -118,7 +118,7 @@ def env(
     config["name"] = name or config.get("rns_address", None) or config.get("name")
 
     reqs = reqs if reqs is not None else config.get("reqs", [])
-    config["reqs"] = _process_reqs(reqs)
+    config["reqs"] = reqs
 
     config["setup_cmds"] = (
         setup_cmds if setup_cmds is not None else config.get("setup_cmds")
