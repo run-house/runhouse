@@ -203,9 +203,9 @@ def test_sharing_blob(blob_data):
 
     assert (
         token
-    ), "No token provided. Either set `TEST_TOKEN` or set `token` in the .rh config file"
+    ), "No token provided. Either set `TEST_TOKEN` env variable or set `token` in the .rh config file"
 
-    import runhouse as rh
+    # Login to ensure the default folder / username are saved down correctly
     rh.login(token=token, download_config=True, interactive=False)
 
     name = "@/shared_blob"

@@ -49,7 +49,9 @@ class Resource:
                 name = name[10:]
             if name[0] == "^" and name != "^":
                 name = name[1:]
-            self._name, self._rns_folder = rns_client.split_rns_name_and_path(rns_client.resolve_rns_path(name))
+            self._name, self._rns_folder = rns_client.split_rns_name_and_path(
+                rns_client.resolve_rns_path(name)
+            )
 
         self.dryrun = dryrun
 
@@ -254,7 +256,7 @@ class Resource:
             self.save(name=rns_client.local_to_remote_address(self.rns_address))
 
         added_users, new_users = rns_client.grant_resource_access(
-            name=self.name,
+            rns_address=self.rns_address,
             user_emails=users,
             access_type=access_type,
             notify_users=notify_users,

@@ -93,6 +93,15 @@ def v100():
 
 @pytest.fixture
 def k80():
+    # return rh.cluster("^rh-4-gpu").up_if_not()
     # Note: This configuration may not be supported with AWS - if so may need to request 8 GPUS:
-    # return rh.cluster(name="rh-8-gpu", instance_type="K80:8", provider="aws").up_if_not()
-    return rh.cluster("^rh-4-gpu").up_if_not()
+    return rh.cluster(
+        name="rh-8-gpu", instance_type="K80:8", provider="aws"
+    ).up_if_not()
+
+
+@pytest.fixture
+def a10g():
+    return rh.cluster(
+        name="rh-a10x", instance_type="g5.2xlarge", provider="aws"
+    ).up_if_not()

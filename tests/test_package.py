@@ -125,7 +125,7 @@ def test_install_command_for_torch_locally():
 
 
 @pytest.mark.clustertest
-@pytest.mark.parametrize("cluster", ["cpu", "v100", "k80"], indirect=True)
+@pytest.mark.parametrize("cluster", ["cpu", "v100", "k80", "a10g"], indirect=True)
 def test_getting_cuda_version_on_clusters(request, cluster):
     """Gets the cuda version on the cluster and asserts it is the expected version"""
     return_codes: list = cluster.run_python(
@@ -143,13 +143,12 @@ def test_getting_cuda_version_on_clusters(request, cluster):
         assert cuda_version_on_cluster == "11.7"
 
 
-# TODO [JL] WIP
 @pytest.mark.clustertest
-@pytest.mark.parametrize("cluster", ["v100", "k80"], indirect=True)
+@pytest.mark.parametrize("cluster", ["v100", "k80", "a10g"], indirect=True)
 def test_install_cmd_for_torch_on_cluster(request, cluster):
     """Checks that the install command for torch runs properly on the cluster.
     Confirms that we can properly install the package (and send a torch tensor to cuda to validate it"""
-    # Get the cuda version on the cluster that we got from the previous test
+    # Use the cuda version on the cluster that we got from the previous test
     cuda_version_on_cluster = request.config.cache.get(
         cluster.instance_type.lower(), None
     )
@@ -165,7 +164,7 @@ def test_install_cmd_for_torch_on_cluster(request, cluster):
         f"torch~=2.0.0 {cuda_index_url} {extra_index_url}",
     ]
     for install_cmd in install_commands_for_cluster:
-        # Install the complete command on the cluster
+        # Run the complete install command on the cluster
         pip_install_cmd = cluster.run_python(
             [
                 "import runhouse as rh",
@@ -176,7 +175,7 @@ def test_install_cmd_for_torch_on_cluster(request, cluster):
             "ERROR" not in pip_install_cmd[0][1]
         ), f"Failed to install command on {cluster.name}"
 
-        # Try sending a tensor to CUDA using the torch version installed on the cluster
+        # Send a tensor to CUDA using this torch version on the cluster
         torch_cmds = cluster.run_python(
             [
                 "import torch",
