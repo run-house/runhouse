@@ -1,10 +1,7 @@
 name: s3-tests
 
-#on: workflow_dispatch
+on: workflow_dispatch
 
-on:
-  push:
-    branches: [ main, add-test-fixtures ]
 
 jobs:
   s3-tests:

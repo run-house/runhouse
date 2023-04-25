@@ -13,8 +13,6 @@ def is_on_cluster(cluster):
 
 @pytest.mark.clustertest
 def test_cluster_config(cpu):
-    if not cpu.is_up():
-        cpu.up()
     config = cpu.config_for_rns
     cluster2 = OnDemandCluster.from_config(config)
     assert cluster2.address == cpu.address
@@ -76,8 +74,8 @@ def test_on_same_cluster(cpu):
 
 
 @pytest.mark.clustertest
-def test_on_diff_cluster(cpu):
-    diff_hw = rh.cluster(name="test-byo-cluster").up_if_not()
+def test_on_diff_cluster(cpu, a10g):
+    diff_hw = a10g
 
     func_hw = rh.function(is_on_cluster).to(cpu)
     assert not func_hw(diff_hw)

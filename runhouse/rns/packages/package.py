@@ -139,18 +139,18 @@ class Package(Resource):
     # Torch Install Helpers
     # ----------------------------------
     def install_cmd_for_torch(self, install_cmd, cuda_version):
-        """Return the correct pip install command for the torch package(s) provided."""
+        """Return the correct formatted pip install command for the torch package(s) provided."""
         torch_source_packages = ["torch", "torchvision", "torchaudio"]
         if not any([x in install_cmd for x in torch_source_packages]):
             return install_cmd
 
         packages_to_install: list = self.packages_to_install_from_cmd(install_cmd)
-
         final_install_cmd = ""
         for package_install_cmd in packages_to_install:
             formatted_cmd = self._install_url_for_torch_package(
                 package_install_cmd, cuda_version
             )
+
             if formatted_cmd:
                 final_install_cmd += formatted_cmd + " "
 
@@ -158,10 +158,10 @@ class Package(Resource):
         return final_install_cmd if final_install_cmd != "" else None
 
     def _install_url_for_torch_package(self, install_cmd, cuda_version):
-        """Build the full install command including the --index-url and --extra-index-url where applicable."""
+        """Build the full install command, adding a --index-url and --extra-index-url where applicable."""
         # Grab the relevant index url for torch based on the CUDA version provided
         if "," in install_cmd:
-            # If installing a range of versions make this compatible with `pip_install` method
+            # If installing a range of versions format the string to make it compatible with `pip_install` method
             install_cmd = install_cmd.replace(" ", "")
 
         index_url = self.torch_index_url_for_cuda(cuda_version)
@@ -195,7 +195,7 @@ class Package(Resource):
         install_cmd = install_cmd.strip()
 
         if ", " in install_cmd:
-            # Ex: 'torch>=1.13.0, <2.0.0'
+            # Ex: 'torch>=1.13.0,<2.0.0'
             return [install_cmd]
 
         matches = re.findall(
