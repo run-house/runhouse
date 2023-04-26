@@ -14,6 +14,7 @@ def summer(a, b):
 
 
 def test_from_string():
+    rh.cluster("test-cluster").restart_grpc_server()
     p = rh.Package.from_string("reqs:~/runhouse")
     if (Path.home() / "runhouse").exists():
         assert isinstance(p.install_target, rh.Folder)
@@ -73,7 +74,7 @@ def test_load_shared_git_package():
 
 
 def test_local_package_function():
-    cluster = rh.cluster("^rh-cpu").up_if_not()
+    cluster = rh.cluster("test-cluster").up_if_not()
     function = rh.function(fn=summer).to(cluster, env=["./"])
 
     req = function.env.reqs[0]
@@ -83,7 +84,7 @@ def test_local_package_function():
 
 
 def test_local_package_to_cluster():
-    system = rh.cluster("^rh-cpu").up_if_not()
+    system = rh.cluster("test-cluster").up_if_not()
     package = rh.Package.from_string("./").to(system)
 
     assert isinstance(package.install_target, rh.Folder)
@@ -91,7 +92,7 @@ def test_local_package_to_cluster():
 
 
 def test_mount_local_package_to_cluster():
-    system = rh.cluster("^rh-cpu").up_if_not()
+    system = rh.cluster("test-cluster").up_if_not()
     mount_path = "package_mount"
     package = rh.Package.from_string("./").to(system, path=mount_path, mount=True)
 
@@ -121,7 +122,7 @@ def test_package_file_system_to_cluster():
     assert s3_pkg.install_target.system == "s3"
     assert s3_pkg.install_target.exists_in_system()
 
-    cluster = rh.cluster(name="^rh-cpu").up_if_not()
+    cluster = rh.cluster(name="test-cluster").up_if_not()
     s3_pkg.to(system=cluster, mount=True, path=folder_name)
 
     shutil.rmtree(tmp_path)

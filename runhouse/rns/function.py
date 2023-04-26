@@ -14,6 +14,7 @@ from runhouse import rh_config
 from runhouse.rns.api_utils.resource_access import ResourceAccess
 from runhouse.rns.api_utils.utils import is_jsonable, load_resp_content, read_resp_data
 from runhouse.rns.envs import Env
+from runhouse.rns.envs.env import _get_env_from
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.packages import git_package, Package
 
@@ -221,6 +222,7 @@ class Function(Resource):
                     remote_import_path = str(
                         local_path.name / Path(root_path).relative_to(local_path)
                     )
+                    break
                 except ValueError:  # Not a subdirectory
                     pass
         return remote_import_path, module_name, fn_name
@@ -649,26 +651,29 @@ def function(
     config["resources"] = (
         resources if resources is not None else config.get("resources")
     )
-    if reqs is not None:
-        warnings.warn(
-            "``reqs`` argument has been deprecated. Please use ``env`` instead."
-        )
-    else:
-        reqs = []
-        if env is not None:
-            reqs = env if isinstance(env, List) else env.reqs
-        elif config.get("env"):
-            env = config.get("env")
-            reqs = env["reqs"]
 
     if setup_cmds:
         warnings.warn(
             "``setup_cmds`` argument has been deprecated. "
             "Please pass in setup commands to rh.Env corresponding to the function instead."
         )
+    if reqs is not None:
+        warnings.warn(
+            "``reqs`` argument has been deprecated. Please use ``env`` instead."
+        )
+        env = Env(reqs=reqs, setup_cmds=setup_cmds)
+    else:
+        env = env or config.get("env")
+        env = _get_env_from(env)
+    reqs = env.reqs if env else []
 
     if callable(fn):
-        if not [req for req in reqs if "./" in req]:
+        if not [
+            req
+            for req in reqs
+            if (isinstance(req, str) and "./" in req)
+            or (isinstance(req, Package) and req.is_local())
+        ]:
             reqs.append("./")
         fn_pointers = Function.extract_fn_paths(raw_fn=fn, reqs=reqs)
         if fn_pointers[1] == "notebook":
@@ -710,7 +715,11 @@ def function(
         )
         reqs.insert(0, repo_package)
 
-    config["env"] = Env(reqs=reqs, setup_cmds=setup_cmds or [])
+    if env:
+        env.reqs = reqs
+    elif reqs:
+        env = Env(reqs=reqs, setup_cmds=setup_cmds)
+    config["env"] = env
     config["system"] = system or config.get("system")
     if isinstance(config["system"], str):
         hw_dict = rh_config.rns_client.load_config(config["system"])

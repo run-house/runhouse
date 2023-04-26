@@ -29,28 +29,36 @@ def test_create_env():
 
 
 def test_to_system():
-    test_env = rh.env(name="test_env", reqs=["numpy"])
+    test_env = rh.env(name="test_env", reqs=["sphinx"])
     system = rh.cluster("^rh-cpu").up_if_not()
 
     test_env.to(system)
-    res = system.run_python(["import numpy"])
+    res = system.run_python(["import sphinx"])
     assert res[0][0] == 0  # import was successful
 
-    system.run(["pip uninstall numpy"])
+    system.run(["pip uninstall sphinx -y"])
 
 
 def test_function_to_env():
     system = rh.cluster("^rh-cpu").up_if_not()
-    test_env = rh.env(name="test_env", reqs=pip_reqs)
+    test_env = rh.env(name="test-env", reqs=["parameterized"]).save()
 
     def summer(a, b):
         return a + b
 
     rh.function(summer).to(system, test_env)
-    res = system.run_python(["import numpy"])
+    res = system.run_python(["import parameterized"])
     assert res[0][0] == 0
 
-    system.run(["pip uninstall numpy"])
+    system.run(["pip uninstall parameterized -y"])
+    res = system.run_python(["import parameterized"])
+    assert res[0][0] == 1
+
+    rh.function(summer, system=system, env="test-env")
+    res = system.run_python(["import parameterized"])
+    assert res[0][0] == 0
+
+    system.run(["pip uninstall parameterized -y"])
 
 
 def test_env_git_reqs():

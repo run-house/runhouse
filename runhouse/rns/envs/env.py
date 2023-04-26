@@ -1,6 +1,6 @@
 import copy
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from runhouse.rh_config import rns_client
 from runhouse.rns.folders.folder import Folder
@@ -10,6 +10,8 @@ from runhouse.rns.resource import Resource
 
 
 def _process_reqs(reqs):
+    # process list of reqs from the input representation (config, dict, str, etc) into
+    # its corresponding Package/string representation relative to the system it is on.
     preprocessed_reqs = []
     for package in reqs:
         # TODO [DG] the following is wrong. RNS address doesn't have to start with '/'. However if we check if each
@@ -31,6 +33,18 @@ def _process_reqs(reqs):
             package = Package.from_config(package, dryrun=True)
         preprocessed_reqs.append(package)
     return preprocessed_reqs
+
+
+def _get_env_from(env):
+    if isinstance(env, Resource):
+        return env
+    elif isinstance(env, List):
+        return Env(reqs=env)
+    elif isinstance(env, Dict):
+        return Env.from_config(env)
+    elif isinstance(env, str) and rns_client.exists(env, resource_type="env"):
+        return Env.from_name(env)
+    return env
 
 
 class Env(Resource):
@@ -72,14 +86,17 @@ class Env(Resource):
         )
         return config
 
-    def to(self, system: Union[str, Cluster], path=None, mount=False):
+    def to(self, system: Union[str, Cluster], mount=False):
         # env doesn't have a concept of system, so this just sets up the environment on the given cluster
         new_reqs = []
         for req in self.reqs:
             if isinstance(req, str):
                 req = Package.from_string(req)
-            if isinstance(req.install_target, Folder):
-                req = req.to(system, path=path, mount=mount)
+            if (
+                isinstance(req.install_target, Folder)
+                and not req.install_target.system == system
+            ):
+                req = req.to(system, mount=mount)
             new_reqs.append(req)
         new_env = copy.deepcopy(self)
         new_env.reqs = new_reqs
