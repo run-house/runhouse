@@ -5,6 +5,7 @@ import pytest
 import runhouse as rh
 
 
+@pytest.mark.rnstest
 def test_get_all_secrets_from_vault():
     vault_secrets = rh.Secrets.download_into_env(save_locally=False)
     providers = rh.Secrets.enabled_providers(as_str=True)
@@ -13,6 +14,7 @@ def test_get_all_secrets_from_vault():
     ), "Secrets saved in Vault which are not enabled locally!"
 
 
+@pytest.mark.rnstest
 def test_upload_custom_provider_to_vault():
     provider = "sample_provider"
     rh.Secrets.put(provider=provider, secret={"secret_key": "abcdefg"})
@@ -26,6 +28,7 @@ def test_upload_custom_provider_to_vault():
     assert not provider_secrets
 
 
+@pytest.mark.rnstest
 def test_upload_aws_to_vault():
     provider = "aws"
 
@@ -41,6 +44,7 @@ def test_upload_aws_to_vault():
     assert not provider_secrets
 
 
+@pytest.mark.rnstest
 def test_add_custom_provider():
     import configparser
     import shutil
@@ -70,6 +74,7 @@ def test_add_custom_provider():
     assert not rh.Secrets.get(provider)
 
 
+@pytest.mark.rnstest
 def test_upload_all_provider_secrets_to_vault():
     rh.Secrets.extract_and_upload()
     # Download back from Vault
@@ -77,6 +82,7 @@ def test_upload_all_provider_secrets_to_vault():
     assert secrets
 
 
+@pytest.mark.rnstest
 def test_add_ssh_secrets():
     from runhouse.rns.secrets.ssh_secrets import SSHSecrets
 
@@ -104,6 +110,7 @@ def test_add_ssh_secrets():
     assert not rh.configs.get("secrets", {}).get(provider)
 
 
+@pytest.mark.rnstest
 def test_add_github_secrets():
     from runhouse.rns.secrets.github_secrets import GitHubSecrets
 
@@ -136,6 +143,7 @@ def test_add_github_secrets():
 
 
 @pytest.mark.clustertest
+@pytest.mark.rnstest
 def test_sending_secrets_to_cluster(cpu):
     enabled_providers: list = rh.Secrets.enabled_providers()
 
@@ -208,6 +216,7 @@ def test_login():
     assert rh.rns_client.default_folder == "/..."
 
 
+@pytest.mark.rnstest
 def test_logout():
     enabled_providers = rh.Secrets.enabled_providers(as_str=True)
     current_config: dict = rh.configs.load_defaults_from_file()

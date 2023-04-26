@@ -21,6 +21,7 @@ def setup():
     create_s3_bucket(S3_BUCKET)
 
 
+@pytest.mark.localtest
 def test_create_and_reload_local_blob_with_name(blob_data):
     name = "~/my_local_blob"
     my_blob = (
@@ -48,6 +49,7 @@ def test_create_and_reload_local_blob_with_name(blob_data):
     assert not reloaded_blob.exists_in_system()
 
 
+@pytest.mark.localtest
 def test_create_and_reload_local_blob_with_path(blob_data):
     name = "~/my_local_blob"
     my_blob = (
@@ -77,6 +79,7 @@ def test_create_and_reload_local_blob_with_path(blob_data):
     assert not reloaded_blob.exists_in_system()
 
 
+@pytest.mark.localtest
 def test_create_and_reload_anom_local_blob(blob_data):
     my_blob = rh.blob(
         data=blob_data,
@@ -93,6 +96,7 @@ def test_create_and_reload_anom_local_blob(blob_data):
 
 
 @pytest.mark.s3test
+@pytest.mark.rnstest
 def test_create_and_reload_rns_blob(blob_data):
     name = "@/s3_blob"
     my_blob = (
@@ -122,6 +126,7 @@ def test_create_and_reload_rns_blob(blob_data):
 
 
 @pytest.mark.s3test
+@pytest.mark.rnstest
 def test_create_and_reload_rns_blob_with_path(blob_data):
     name = "@/s3_blob"
     my_blob = (
@@ -160,6 +165,7 @@ def test_to_cluster_attr(cpu):
 
 
 @pytest.mark.clustertest
+@pytest.mark.rnstest
 def test_local_to_cluster(cpu, blob_data):
     name = "~/my_local_blob"
     my_blob = (
@@ -197,6 +203,7 @@ def test_from_cluster(cpu):
 
 
 @pytest.mark.s3test
+@pytest.mark.rnstest
 def test_sharing_blob(blob_data):
     token = os.getenv("TEST_TOKEN") or configs.get("token")
     headers = {"Authorization": f"Bearer {token}"}
@@ -231,6 +238,7 @@ def test_sharing_blob(blob_data):
     assert my_blob.exists_in_system()
 
 
+@pytest.mark.rnstest
 def test_load_shared_blob():
     my_blob = rh.Blob.from_name(name="@/shared_blob")
     assert my_blob.exists_in_system()
@@ -241,6 +249,7 @@ def test_load_shared_blob():
 
 
 @pytest.mark.s3test
+@pytest.mark.rnstest
 def test_save_anom_blob_to_s3(blob_data):
     my_blob = rh.blob(
         data=blob_data,

@@ -1,0 +1,25 @@
+name: local-tests
+
+on: workflow_dispatch
+
+
+jobs:
+  local-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install python packages & dependencies
+        run: |
+          pip install runhouse pytest tqdm datasets dask s3fs
+
+      - name: Run all local tests
+        env:
+          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+        run: pytest -v -k localtest

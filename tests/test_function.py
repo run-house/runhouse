@@ -29,6 +29,7 @@ def summer(a, b):
 
 
 @pytest.mark.clustertest
+@pytest.mark.rnstest
 def test_create_function_from_name_local():
     local_sum = rh.function(
         fn=summer, name="local_function", system="^rh-cpu", reqs=["local:./"]
@@ -44,6 +45,7 @@ def test_create_function_from_name_local():
 
 
 @pytest.mark.clustertest
+@pytest.mark.rnstest
 def test_create_function_from_rns():
     remote_sum = rh.function(
         fn=summer, name="@/remote_function", system="^rh-cpu", reqs=[], dryrun=True
@@ -59,6 +61,7 @@ def test_create_function_from_rns():
 
 
 @unittest.skip("Not yet implemented.")
+@pytest.mark.rnstest
 @pytest.mark.clustertest
 def test_running_function_as_proxy():
     remote_sum = rh.function(
@@ -76,6 +79,7 @@ def test_running_function_as_proxy():
 
 
 @pytest.mark.clustertest
+@pytest.mark.rnstest
 def test_get_function_history(cpu):
     remote_sum = rh.function(
         fn=summer, name="@/remote_function", system=cpu, reqs=[], dryrun=True
@@ -108,6 +112,7 @@ def multiproc_torch_sum(inputs):
 
 
 @pytest.mark.clustertest
+@pytest.mark.rnstest
 def test_remote_function_with_multiprocessing():
     re_fn = rh.function(
         multiproc_torch_sum,
@@ -247,6 +252,7 @@ def test_ssh():
 
 
 @pytest.mark.clustertest
+@pytest.mark.rnstest
 def test_share_function(cpu):
     my_function = rh.function(fn=summer, name="@/remote_function", system=cpu).save()
 
@@ -258,12 +264,14 @@ def test_share_function(cpu):
     assert True
 
 
+@pytest.mark.rnstest
 def test_load_shared_function():
     my_function = rh.function(name="@/remote_function")
     res = my_function(1, 2)
     assert res == 3
 
 
+@pytest.mark.rnstest
 def delete_function_from_rns(s):
     server_url = s.rns_client.api_server_url
     resource_request_uri = s.rns_client.resource_uri(s.name)
@@ -315,6 +323,7 @@ def test_http_url_with_curl():
 
 
 @pytest.mark.clustertest
+@pytest.mark.rnstest
 def test_byo_cluster_function():
     # Spin up a new basic m5.xlarge EC2 instance
     c = rh.cluster(
@@ -365,6 +374,7 @@ def test_byo_cluster_maps():
 
 
 @pytest.mark.clustertest
+@pytest.mark.rnstest
 def test_load_function_in_new_env(cpu):
     remote_sum = rh.function(
         fn=summer, name="@/remote_function", system=cpu, reqs=[], dryrun=True

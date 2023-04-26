@@ -340,6 +340,7 @@ def test_cluster_and_cluster(cpu, local_folder):
 
 
 @pytest.mark.s3test
+@pytest.mark.rnstest
 def test_s3_sharing():
     token = os.getenv("TEST_TOKEN") or configs.get("token")
     headers = {"Authorization": f"Bearer {token}"}
@@ -366,6 +367,7 @@ def test_s3_sharing():
     assert s3_folder.ls(full_paths=False)
 
 
+@pytest.mark.localtest
 def test_load_shared_folder():
     from runhouse import Folder
 

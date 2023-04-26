@@ -19,6 +19,7 @@ def test_cluster_config(cpu):
 
 
 @pytest.mark.clustertest
+@pytest.mark.rnstest
 def test_cluster_sharing(cpu):
     cpu.share(
         users=["donny@run.house", "josh@run.house"],

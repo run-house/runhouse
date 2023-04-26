@@ -18,6 +18,7 @@ def cluster(request):
     return request.getfixturevalue(request.param)
 
 
+@pytest.mark.localtest
 def test_from_string():
     p = rh.Package.from_string("reqs:~/runhouse")
     assert isinstance(p.install_target, rh.Folder)
@@ -25,6 +26,7 @@ def test_from_string():
 
 
 @pytest.mark.clustertest
+@pytest.mark.rnstest
 def test_share_package(cpu):
     import shutil
 
@@ -53,6 +55,8 @@ def test_share_package(cpu):
     assert "sample_file_0.txt" in status_codes[0][1]
 
 
+@pytest.mark.rnstest
+@pytest.mark.rnstest
 def test_share_git_package():
     git_package = rh.GitPackage(
         name="shared_git_package",
@@ -69,11 +73,13 @@ def test_share_git_package():
     assert rh.rns_client.exists(name_or_path="shared_git_package")
 
 
+@pytest.mark.rnstest
 def test_load_shared_git_package():
     git_package = rh.Package.from_name(name="@/shared_git_package")
     assert git_package.config_for_rns
 
 
+@pytest.mark.localtest
 def test_install_command_for_torch_locally():
     """Checks that the command itself is correct (without actually running it on the cluster)"""
     cuda_116_url = "--index-url https://download.pytorch.org/whl/cu116"
