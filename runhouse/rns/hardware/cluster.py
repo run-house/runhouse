@@ -18,7 +18,7 @@ from runhouse.rh_config import open_grpc_tunnels, rns_client
 from runhouse.rns.folders.folder import Folder
 from runhouse.rns.packages.package import Package
 from runhouse.rns.resource import Resource
-from runhouse.rns.utils import _current_cluster
+from runhouse.rns.utils.hardware import _current_cluster
 
 from runhouse.servers.grpc.unary_client import UnaryClient
 from runhouse.servers.grpc.unary_server import UnaryService
@@ -160,7 +160,7 @@ class Cluster(Resource):
             rh_package = Package.from_string(
                 f"reqs:{local_rh_package_path}", dryrun=True
             )
-            rh_package.to_cluster(self, mount=False)
+            rh_package.to(self)
             status_codes = self.run(["pip install ./runhouse"], stream_logs=True)
         # elif local_rh_package_path.parent.name == 'site-packages':
         else:
@@ -184,18 +184,15 @@ class Cluster(Resource):
             if isinstance(package, str):
                 pkg_obj = Package.from_string(package, dryrun=False)
             else:
-                if (
-                    isinstance(package.install_target, Folder)
-                    and not package.install_target.system == self
-                ):
-                    pkg_str = package.name or Path(package.install_target.path).name
-                    logging.info(
-                        f"Copying local package {pkg_str} to cluster <{self.name}>"
-                    )
-                    package = package.to_cluster(self)
                 pkg_obj = package
 
             if isinstance(pkg_obj.install_target, Folder):
+                if not pkg_obj.install_target.system == self:
+                    pkg_str = pkg_obj.name or Path(pkg_obj.install_target.path).name
+                    logging.info(
+                        f"Copying local package {pkg_str} to cluster <{self.name}>"
+                    )
+                    pkg_obj = pkg_obj.to(self)
                 to_install.append(pkg_obj)
             else:
                 to_install.append(package)  # Just appending the string!

@@ -13,7 +13,7 @@ import ray.data
 import runhouse as rh
 from runhouse.rh_config import rns_client
 from runhouse.rns.folders.folder import folder
-from runhouse.rns.utils import _current_cluster, _get_cluster_from
+from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
 
 from .. import OnDemandCluster, Resource
 

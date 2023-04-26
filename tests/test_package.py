@@ -36,7 +36,7 @@ def test_share_package():
     p.name = "package_to_share"  # shareable resource requires a name
 
     c = rh.cluster(name="@/rh-cpu")
-    p.to_cluster(dest_cluster=c)
+    p.to(system=c)
 
     p.share(
         users=["josh@run.house", "donny@run.house"],
@@ -122,7 +122,7 @@ def test_package_file_system_to_cluster():
     assert s3_pkg.install_target.exists_in_system()
 
     cluster = rh.cluster(name="^rh-cpu").up_if_not()
-    s3_pkg.to_cluster(dest_cluster=cluster, mount=True, path=folder_name)
+    s3_pkg.to(system=cluster, mount=True, path=folder_name)
 
     shutil.rmtree(tmp_path)
 

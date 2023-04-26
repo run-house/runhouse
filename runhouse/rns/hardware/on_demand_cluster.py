@@ -13,7 +13,7 @@ from sky.backends import backend_utils, CloudVmRayBackend
 from runhouse.rh_config import configs, rns_client
 
 from runhouse.rns.hardware.cluster import Cluster
-from runhouse.rns.utils import _current_cluster
+from runhouse.rns.utils.hardware import _current_cluster
 
 logger = logging.getLogger(__name__)
 

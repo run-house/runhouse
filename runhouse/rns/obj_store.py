@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional
 
 import ray
 
-from runhouse.rns.utils import _current_cluster
+from runhouse.rns.utils.hardware import _current_cluster
 
 
 THIS_CLUSTER = _current_cluster("cluster_name")

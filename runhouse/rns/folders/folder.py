@@ -15,7 +15,7 @@ import runhouse as rh
 from runhouse.rh_config import rns_client
 from runhouse.rns.api_utils.utils import generate_uuid
 from runhouse.rns.resource import Resource
-from runhouse.rns.utils import _current_cluster, _get_cluster_from
+from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
 
 fsspec.register_implementation("ssh", sshfs.SSHFileSystem)
 # SSHFileSystem is not yet builtin.

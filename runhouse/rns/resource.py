@@ -236,8 +236,8 @@ class Resource:
             if self.RESOURCE_TYPE == "package":
                 raise TypeError(
                     f"Unable to share a local {self.RESOURCE_TYPE}. Please make sure the {self.RESOURCE_TYPE} is "
-                    f"located on a cluster. You can use the `.to_cluster()` method to do so. "
-                    f"For example: `{self.name}.to_cluster(system='rh-cpu')`"
+                    f"located on a cluster. You can use the `.to()` method to do so. "
+                    f"For example: `{self.name}.to(system='rh-cpu')`"
                 )
             else:
                 raise TypeError(
