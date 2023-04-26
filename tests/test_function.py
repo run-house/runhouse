@@ -369,7 +369,6 @@ def test_load_function_in_new_env():
         "assert res == 6"
     )
     res = byo_cluster.run_python([remote_python], stream_logs=True)
-    print(res)
     assert res[0][0] == 0
 
     remote_sum.delete_configs()

@@ -9,6 +9,7 @@ from typing import Dict, Optional, Union
 from runhouse import rh_config
 from runhouse.rns.folders.folder import Folder
 from runhouse.rns.resource import Resource
+from runhouse.rns.utils.hardware import _get_cluster_from
 
 INSTALL_METHODS = {"local", "reqs", "pip", "conda"}
 
@@ -74,13 +75,6 @@ class Package(Resource):
         install_args = f" {self.install_args}" if self.install_args else ""
         if isinstance(self.install_target, Folder):
             local_path = self.install_target.local_path
-            if not local_path:
-                local_path = "~/" + self.name
-            elif not self.install_target.is_local():
-                # TODO [DG] replace this with empty mount() call to be put in tmp folder by Folder
-                local_path = self.install_target.mount(
-                    path=f"~/{Path(self.install_target.path).stem}"
-                )
 
             if self.install_method == "pip":
                 # TODO [DG] Revisit: Would be nice if we could use -e by default, but importlib on the grpc server
@@ -233,19 +227,27 @@ class Package(Resource):
                     "available for your platform."
                 )
 
-    def to_cluster(self, dest_cluster: "Cluster", path=None, mount=False):
-        """Returns a copy of the package on the destination cluster."""
+    def to(
+        self,
+        system: Union[str, Dict, "Cluster"],
+        path: Optional[str] = None,
+        mount: bool = False,
+    ):
+        """Copy the package onto filesystem or cluster, and return the new Package object."""
         if not isinstance(self.install_target, Folder):
             raise TypeError(
-                "`install_target` must be a Folder in order to copy the package to a cluster"
+                "`install_target` must be a Folder in order to copy the package to a system."
             )
 
-        new_folder = self.install_target.to_cluster(
-            dest_cluster,
-            path=path,
-            mount=mount,
-        )
-        new_folder.system = "file"
+        system = _get_cluster_from(system)
+        if self.install_target.system == system:
+            return self
+
+        if isinstance(system, Resource):
+            new_folder = self.install_target.to_cluster(system, path=path, mount=mount)
+        else:  # to fs
+            new_folder = self.install_target.to(system, path=path)
+        new_folder.system = system
         new_package = copy.copy(self)
         new_package.install_target = new_folder
         return new_package
@@ -281,6 +283,7 @@ class Package(Resource):
             if " " in target_and_args
             else (target_and_args, "")
         )
+
         # We need to do this because relative paths are relative to the current working directory!
         abs_target = (
             Path(rel_target).expanduser()
@@ -289,7 +292,7 @@ class Package(Resource):
         )
         if abs_target.exists():
             target = Folder(
-                path=rel_target, dryrun=True
+                path=abs_target, dryrun=True
             )  # No need to create the folder here
         else:
             target = rel_target

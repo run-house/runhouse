@@ -114,8 +114,17 @@ class Function(Resource):
         if isinstance(system, str):
             system = Cluster.from_name(system, dryrun=self.dryrun)
         new_function.system = system
-        new_function.reqs = reqs if reqs else self.reqs
         new_function.setup_cmds = setup_cmds if setup_cmds else self.setup_cmds
+
+        reqs = reqs if reqs else self.reqs
+        new_reqs = []
+        for req in reqs:
+            # convert local packages to a package on the cluster
+            if isinstance(req, str) and Path(req.split(":")[-1]).expanduser().exists():
+                req = Package.from_string(req)
+                req = req.to(system)
+            new_reqs.append(req)
+        new_function.reqs = new_reqs
 
         logging.info("Setting up Function on cluster.")
         new_function.system.install_packages(new_function.reqs)
