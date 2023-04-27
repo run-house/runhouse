@@ -99,7 +99,7 @@ def tokenize_dataset(dataset_table):
 if __name__ == "__main__":
     # Load a table in from anywhere (S3, GCS, Azure, cluster fs, local fs, etc)
     raw_dataset = rh.table(system="gcs", path="my_bucket/my_data.parquet")
-    tokenize_dataset = rh.function(tokenize_dataset).to("^rh-32-cpu", reqs=["./", "transformers", "tokenizers"])
+    tokenize_dataset = rh.function(tokenize_dataset).to("^rh-32-cpu", env=["./", "transformers", "tokenizers"])
     tokenized_table = tokenize_dataset(raw_dataset).to("gcs", path="my_bucket/preprocessed_data.parquet")
     tokenized_table.save("preprocessed-dataset")
 ```
@@ -117,7 +117,7 @@ def train_model(preprocessed_table):
 
 if __name__ == "__main__":
     preprocessed_table = rh.Table.from_name("preprocessed-dataset")
-    train_model = rh.function(train_model).to("my-a100", reqs=["./", "torch", "transformers"])
+    train_model = rh.function(train_model).to("my-a100", env=["./", "torch", "transformers"])
     trained_model = train_model(preprocessed_table)
     trained_model.to("s3", path="runhouse/my_bucket").save(name="yelp_fine_tuned_bert")
 ```

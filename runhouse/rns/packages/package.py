@@ -254,6 +254,8 @@ class Package(Resource):
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
+        if isinstance(config.get("install_target"), dict):
+            config["install_target"] = Folder.from_config(config["install_target"])
         if config.get("resource_subtype") == "GitPackage":
             from runhouse import GitPackage
 
