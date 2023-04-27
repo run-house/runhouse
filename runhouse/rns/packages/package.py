@@ -74,6 +74,8 @@ class Package(Resource):
 
         install_cmd = ""
         install_args = f" {self.install_args}" if self.install_args else ""
+        cuda_version = self.detect_cuda_version()
+
         if isinstance(self.install_target, Folder):
             local_path = self.install_target.local_path
             if not local_path:
@@ -94,10 +96,19 @@ class Package(Resource):
             elif self.install_method == "conda":
                 install_cmd = f"{local_path}" + install_args
             elif self.install_method == "reqs":
-                if (Path(local_path) / "requirements.txt").exists():
+                reqs_path = f"{local_path}/requirements.txt"
+                if Path(reqs_path).exists():
                     logging.info(
-                        f"Attempting to install requirements from {local_path}/requirements.txt"
+                        f"Attempting to install requirements from {reqs_path} "
                     )
+                    # Format URLs for any torch packages listed in the requirements.txt file
+                    logging.info(f"Formatting torch URLs in path: {reqs_path}")
+
+                    # Ensure each requirement listed in the file contains the full install command for torch packages
+                    self.format_torch_cmd_in_reqs_file(
+                        path=reqs_path, cuda_version=cuda_version
+                    )
+
                     self.pip_install(
                         f"-r {Path(local_path)}/requirements.txt" + install_args
                     )
@@ -107,7 +118,6 @@ class Package(Resource):
             install_cmd = self.install_target + install_args
 
         if self.install_method == "pip":
-            cuda_version = self.detect_cuda_version()
             install_cmd = self.install_cmd_for_torch(install_cmd, cuda_version)
             if not install_cmd:
                 raise ValueError("Invalid install command")
@@ -138,6 +148,16 @@ class Package(Resource):
     # ----------------------------------
     # Torch Install Helpers
     # ----------------------------------
+    def format_torch_cmd_in_reqs_file(self, path, cuda_version):
+        with open(path) as f:
+            reqs = f.readlines()
+
+        with open(path, "w") as f:
+            for req in reqs:
+                install_cmd = self.install_cmd_for_torch(req.strip(), cuda_version)
+                logging.info(f"Formatted torch install command: {install_cmd}")
+                f.write(install_cmd + "\n")
+
     def install_cmd_for_torch(self, install_cmd, cuda_version):
         """Return the correct formatted pip install command for the torch package(s) provided."""
         torch_source_packages = ["torch", "torchvision", "torchaudio"]

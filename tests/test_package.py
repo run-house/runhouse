@@ -1,4 +1,3 @@
-import subprocess
 import unittest
 from pathlib import Path
 
@@ -79,8 +78,50 @@ def test_load_shared_git_package():
     assert git_package.config_for_rns
 
 
+def test_stuff():
+    cpu = rh.cluster("^rh-cpu")
+    cpu.install_packages("reqs")
+    # cpu.restart_grpc_server()
+    # rh.blob(path="/Users/josh.l/dev/runhouse/runhouse-0.0.21.tar.gz").to(
+    #     system=cpu, path="/home/ubuntu/randy/runhouse-0.0.21.tar.gz"
+    # )
+
+
 @pytest.mark.localtest
-def test_install_command_for_torch_locally():
+def test_torch_install_command_generator_from_reqs():
+    """For a given list of packages as listed in a requirements.txt file, modify them to include the full
+    install commands (i.e. include index url and extra index url)"""
+    cuda_116_url = "--index-url https://download.pytorch.org/whl/cu116"
+
+    test_reqs_file = Path(__file__).parent / "requirements.txt"
+
+    packages_install_cmds = {
+        "torch": f"torch {cuda_116_url} {extra_index_url}",
+        "torchaudio": f"torchaudio {cuda_116_url} {extra_index_url}",
+        "matchatorch": f"matchatorch {cuda_116_url} {extra_index_url}",
+        "torch==1.13.0": f"torch==1.13.0 {cuda_116_url} {extra_index_url}",
+        f"torch {cuda_116_url}": f"torch {cuda_116_url} {extra_index_url}",
+    }
+
+    package_names = list(packages_install_cmds)
+    with open(test_reqs_file, "w") as f:
+        f.writelines([line + "\n" for line in package_names])
+
+    dummy_pkg = rh.Package.from_string(specifier="pip:dummy_package")
+
+    with open(test_reqs_file) as f:
+        reqs = [p.strip() for p in f.readlines()]
+
+    for req in reqs:
+        install_cmd = dummy_pkg.install_cmd_for_torch(req, cuda_version="11.6")
+        assert install_cmd == packages_install_cmds[req]
+
+    test_reqs_file.unlink()
+    assert True
+
+
+@pytest.mark.localtest
+def test_torch_install_command_generator():
     """Checks that the command itself is correct (without actually running it on the cluster)"""
     cuda_116_url = "--index-url https://download.pytorch.org/whl/cu116"
     cuda_117_url = "--index-url https://download.pytorch.org/whl/cu117"
@@ -120,7 +161,7 @@ def test_install_command_for_torch_locally():
             "11.7",
         ): f"torch==99.99.999 {cuda_117_url} {extra_index_url}",
     }
-    print(list(install_commands))
+
     for (torch_version, cuda_version), expected_install_cmd in install_commands.items():
         dummy_pkg = rh.Package.from_string(specifier=f"pip:{torch_version}")
         formatted_install_cmd = dummy_pkg.install_cmd_for_torch(
@@ -143,6 +184,8 @@ def test_getting_cuda_version_on_clusters(request, cluster):
     print(f"{cluster.name}: {cuda_version_on_cluster}")
 
     instance_type = cluster.instance_type.lower()
+
+    # Save the cuda version for each cluster, to be used in the next test
     request.config.cache.set(instance_type, cuda_version_on_cluster)
 
     if instance_type.startswith("k80"):
@@ -202,41 +245,6 @@ def test_install_cmd_for_torch_on_cluster(request, cluster):
         assert (
             "RuntimeError" not in torch_cmds[0][1]
         ), f"Failed to send torch tensor to CUDA on cluster {cluster.name}"
-
-
-@pytest.mark.clustertest
-@pytest.mark.parametrize("cluster", ["v100", "k80", "a10g"], indirect=True)
-def test_cluster_install_method(cluster):
-    """Trigger grpc call to install various torch packages on the cluster. These commands mock those received
-    by the user when calling `cluster.install_packages([packages])`"""
-    # rh.blob(path="/Users/josh.l/dev/runhouse/runhouse-0.0.9.tar.gz").to(
-    #     system=cluster, path="/home/ubuntu/randy/runhouse-0.0.9.tar.gz"
-    # )
-    cluster.restart_grpc_server()
-
-    packages_to_install = [
-        "torch==1.13.1 --index-url https://download.pytorch.org/whl/cu116",
-        f"torch {extra_index_url}",
-        "matchatorch",  # invalid
-        "torch>=1.13.0, <2.0.0",
-        f"torch --index-url https://download.pytorch.org/whl/cu116 torchaudio {extra_index_url}",
-        "torch torchpudding",
-        f"torch>=1.13.0 {extra_index_url}",
-        "torch>1.13.0",
-        "torch==1.13.0",
-        "torch~=1.13.0",
-        "torch==99.99.999",  # invalid
-    ]
-    invalid_commands = []
-    for package in packages_to_install:
-        try:
-            cluster.install_packages([package])
-        except subprocess.CalledProcessError:
-            # invalid package
-            invalid_commands.append(package)
-            continue
-
-    assert len(invalid_commands) == 2
 
 
 if __name__ == "__main__":
