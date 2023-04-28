@@ -1,7 +1,7 @@
 import importlib
 import logging
+import os
 import sys
-import traceback
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
@@ -30,13 +30,16 @@ def call_fn_by_type(
     # TODO other possible fn_types: 'batch', 'streaming'
     if fn_type == "get":
         obj_ref = args[0]
-        res = rh_config.obj_store.get(obj_ref)
+        res = pickle.dumps(rh_config.obj_store.get(obj_ref))
+
     else:
         args = rh_config.obj_store.get_obj_refs_list(args)
         kwargs = rh_config.obj_store.get_obj_refs_dict(kwargs)
 
         ray.init(ignore_reinit_error=True)
-        has_gpus = ray.cluster_resources().get("GPU", 0) > 0
+        # have tried adding it to os.environ before ray.init
+        num_gpus = ray.cluster_resources().get("GPU", 0)
+        num_cuda_devices = resources.get("num_gpus") or num_gpus
 
         # We need to add the module_path to the PYTHONPATH because ray runs remotes in a new process
         # We need to set max_calls to make sure ray doesn't cache the remote function and ignore changes to the module
@@ -45,6 +48,7 @@ def call_fn_by_type(
             str((Path.home() / relative_path).resolve()) if relative_path else None
         )
         runtime_env = {"env_vars": {"PYTHONPATH": module_path or ""}}
+        # have tried adding it to runtime env, env_vars here
         if conda_env:
             runtime_env["conda"] = conda_env
 
@@ -53,21 +57,45 @@ def call_fn_by_type(
 
         ray_fn = ray.remote(
             num_cpus=resources.get("num_cpus") or 0.0001,
-            num_gpus=resources.get("num_gpus") or 0.0001 if has_gpus else None,
+            num_gpus=resources.get("num_gpus") or 0.0001 if num_gpus > 0 else None,
             max_calls=len(args) if fn_type in ["map", "starmap"] else 1,
             runtime_env=runtime_env,
         )(logging_wrapped_fn)
-        obj_ref = ray_fn.remote(fn_pointers, fn_type, *args, **kwargs)
+
+        if fn_type == "map":
+            obj_ref = [
+                ray_fn.remote(fn_pointers, fn_type, num_cuda_devices, arg, **kwargs)
+                for arg in args
+            ]
+        elif fn_type == "starmap":
+            obj_ref = [
+                ray_fn.remote(fn_pointers, fn_type, num_cuda_devices, *arg, **kwargs)
+                for arg in args
+            ]
+        elif fn_type in ("queue", "remote", "call", "nested"):
+            obj_ref = ray_fn.remote(
+                fn_pointers, fn_type, num_cuda_devices, *args, **kwargs
+            )
+        elif fn_type == "repeat":
+            [num_repeats, args] = args
+            obj_ref = [
+                ray_fn.remote(fn_pointers, fn_type, num_cuda_devices, *args, **kwargs)
+                for _ in range(num_repeats)
+            ]
+        else:
+            raise ValueError(f"fn_type {fn_type} not recognized")
 
         if fn_type == "remote":
             rh_config.obj_store.put_obj_ref(key=run_key, obj_ref=obj_ref)
-            res = pickle.dumps([run_key, None, None])
-        else:
+            res = pickle.dumps(run_key)
+        elif fn_type in ("call", "nested"):
             res = ray.get(obj_ref)
+        else:
+            res = pickle.dumps(ray.get(obj_ref))
     return res
 
 
-def get_fn_from_pointers(fn_pointers, fn_type, *args, **kwargs):
+def get_fn_from_pointers(fn_pointers, fn_type, num_gpus, *args, **kwargs):
     (module_path, module_name, fn_name) = fn_pointers
     if module_name == "notebook":
         fn = fn_name  # already unpickled
@@ -89,27 +117,13 @@ def get_fn_from_pointers(fn_pointers, fn_type, *args, **kwargs):
             )
         fn = getattr(rh_config.obj_store.imported_modules[module_name], fn_name)
 
-    try:
-        if fn_type == "map":
-            result = [fn(arg, **kwargs) for arg in args]
-        elif fn_type == "starmap":
-            result = [fn(*arg, **kwargs) for arg in args]
-        elif fn_type in ("queue", "remote", "call"):
-            result = fn(*args, **kwargs)
-        elif fn_type == "repeat":
-            [num_repeats, args] = args
-            result = [fn(*args, **kwargs) for _ in range(num_repeats)]
-        else:
-            raise ValueError(f"fn_type {fn_type} not recognized")
+    cuda_visible_devices = list(range(int(num_gpus)))
+    os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
 
-        if fn_type == "remote":
-            return result
-        else:
-            # [res, None, None] is a silly hack for packaging result alongside exception and traceback
-            return pickle.dumps([result, None, None])
-    except Exception as e:
-        logger.exception(e)
-        return pickle.dumps([None, e, traceback.format_exc()])
+    result = fn(*args, **kwargs)
+    if fn_type == "call":
+        return pickle.dumps(result)
+    return result
 
 
 RAY_LOGFILE_PATH = Path("/tmp/ray/session_latest/logs")

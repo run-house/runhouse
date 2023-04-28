@@ -137,18 +137,20 @@ def getpid(a=0):
 @pytest.mark.clustertest
 def test_maps():
     pid_fn = rh.function(getpid, system="^rh-cpu")
-    num_pids = [1] * 50
+    num_pids = [1] * 20
     pids = pid_fn.map(num_pids)
     assert len(set(pids)) > 1
+    assert all(pid > 0 for pid in pids)
 
-    pid_ref = pid_fn.remote()
-
-    pids = pid_fn.repeat(num_repeats=50)
+    pids = pid_fn.repeat(num_repeats=20)
     assert len(set(pids)) > 1
+    assert all(pid > 0 for pid in pids)
 
     pids = [pid_fn.enqueue() for _ in range(10)]
     assert len(pids) == 10
+    assert all(pid > 0 for pid in pids)
 
+    pid_ref = pid_fn.remote()
     pid_res = pid_fn.get(pid_ref)
     assert pid_res > 0
 
@@ -367,14 +369,16 @@ def test_byo_cluster_function():
 @pytest.mark.clustertest
 def test_byo_cluster_maps():
     pid_fn = rh.function(getpid, system="different-cluster")
-    num_pids = [1] * 50
+    num_pids = [1] * 20
     pids = pid_fn.map(num_pids)
     assert len(set(pids)) > 1
+    assert all(pid > 0 for pid in pids)
 
     pid_ref = pid_fn.remote()
 
-    pids = pid_fn.repeat(num_repeats=50)
+    pids = pid_fn.repeat(num_repeats=20)
     assert len(set(pids)) > 1
+    assert all(pid > 0 for pid in pids)
 
     pids = [pid_fn.enqueue() for _ in range(10)]
     assert len(pids) == 10
@@ -395,6 +399,7 @@ def test_byo_cluster_maps():
 @pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_load_function_in_new_env(cpu_cluster):
+    rh.cluster(name="rh-cpu").save(name="@/rh-cpu")
     remote_sum = rh.function(
         fn=summer, name="@/remote_function", system=cpu_cluster, env=[], dryrun=True
     ).save()
@@ -412,11 +417,18 @@ def test_load_function_in_new_env(cpu_cluster):
 
     remote_sum.delete_configs()
 
+def test_nested_diff_clusters():
+    summer_cpu = rh.function(fn=summer, system="^rh-cpu")
+    call_function_diff_cpu = rh.function(fn=call_function, system="different-cluster")
 
-@pytest.mark.clustertest
-def test_nested_function(cpu_cluster):
-    summer_cpu = rh.function(fn=summer, system=cpu_cluster)
-    call_function_cpu = rh.function(fn=call_function, system=cpu_cluster)
+    kwargs = {"a": 1, "b": 5}
+    res = call_function_diff_cpu(summer_cpu, **kwargs)
+    assert res == 6
+
+
+def test_nested_same_cluster():
+    summer_cpu = rh.function(fn=summer, system="^rh-cpu")
+    call_function_cpu = rh.function(fn=call_function, system="^rh-cpu")
 
     kwargs = {"a": 1, "b": 5}
     res = call_function_cpu(summer_cpu, **kwargs)

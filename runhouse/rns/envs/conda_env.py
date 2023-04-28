@@ -37,16 +37,15 @@ class CondaEnv(Env):
             elif f"\n{conda_env} " in subprocess.check_output(
                 "conda info --envs".split(" ")
             ).decode("utf-8"):
-                # local env name, note that this only works if exporting/loading from same OS
                 res = subprocess.check_output(
-                    f"conda env export -n {conda_env}".split(" ")
+                    f"conda env export -n {conda_env} --no-build".split(" ")
                 ).decode("utf-8")
                 conda_env = yaml.load(res)
             else:
                 raise Exception(
                     f"{conda_env} must be a Dict or point to an existing path or conda environment."
                 )
-        # ensure correct version to Ray -- impl is likely to change when SkyPilot adds support for other Ray versions
+        # ensure correct version to Ray -- this is subject to change if SkyPilot adds additional ray version support
         conda_env["dependencies"] = (
             conda_env["dependencies"] if "dependencies" in conda_env else []
         )

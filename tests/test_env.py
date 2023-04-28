@@ -1,3 +1,4 @@
+import os
 import shutil
 
 from pathlib import Path
@@ -166,14 +167,13 @@ def test_conda_env_path_to_system():
     assert python_version in _get_conda_python_version(conda_env, rh.cluster("^rh-cpu"))
 
 
-# creating env from local env does not work across functions, e.g. M1 -> ubuntu/windows bc of diff dependencies/versions
-# def test_conda_env_local_to_system():
-#     env_name = "local-env"
-#     python_version = "3.9.16"
-#     os.system(f"conda create -n {env_name} -y python=={python_version}")
-#     conda_env = rh.env(conda_env=env_name)
+def test_conda_env_local_to_system():
+    env_name = "local-env"
+    python_version = "3.9.16"
+    os.system(f"conda create -n {env_name} -y python=={python_version}")
 
-#     assert python_version in _get_conda_python_version(conda_env, rh.cluster("^rh-cpu"))
+    conda_env = rh.env(conda_env=env_name)
+    assert python_version in _get_conda_python_version(conda_env, rh.cluster("^rh-cpu"))
 
 
 def test_conda_env_dict_to_system():

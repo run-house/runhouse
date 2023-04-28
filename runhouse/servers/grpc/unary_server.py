@@ -38,7 +38,6 @@ class UnaryService(pb2_grpc.UnaryServicer):
         # Collect metadata for the cluster immediately on init
         self._collect_cluster_stats()
 
-        self._installed_packages = []
         self.register_activity()
 
     def register_activity(self):
@@ -58,11 +57,8 @@ class UnaryService(pb2_grpc.UnaryServicer):
                 else:
                     raise ValueError(f"package {package} not recognized")
 
-                if (str(pkg)) in self._installed_packages:
-                    continue
                 logger.info(f"Installing package: {str(pkg)}")
                 pkg.install(env_cmd)
-                self._installed_packages.append(str(pkg))
 
             self.register_activity()
             message = [None, None, None]
@@ -198,18 +194,25 @@ class UnaryService(pb2_grpc.UnaryServicer):
             kwargs,
         ] = pickle.loads(request.message)
 
-        pickled_result = call_fn_by_type(
-            fn_type=fn_type,
-            fn_name=fn_name,
-            relative_path=relative_path,
-            module_name=module_name,
-            resources=resources,
-            conda_env=conda_env,
-            args=args,
-            kwargs=kwargs,
-        )
-        result = {"message": pickled_result}
-        return pb2.MessageResponse(**result)
+        try:
+            result = call_fn_by_type(
+                fn_type=fn_type,
+                fn_name=fn_name,
+                relative_path=relative_path,
+                module_name=module_name,
+                resources=resources,
+                conda_env=conda_env,
+                args=args,
+                kwargs=kwargs,
+            )
+            self.register_activity()
+            return pb2.RunMessageResponse(result=result, exception=None, traceback=None)
+        except Exception as e:
+            logger.exception(e)
+            self.register_activity()
+            return pb2.RunMessageResponse(
+                result=None, exception=e, traceback=traceback.format_exc()
+            )
 
     def AddSecrets(self, request, context):
         from runhouse import Secrets

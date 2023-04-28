@@ -106,7 +106,8 @@ class Env(Resource):
 
     def _setup_env(self, system: Union[str, Cluster]):
         """Install packages and run setup commands on the cluster."""
-        system.install_packages(self.reqs)
+        if self.reqs:
+            system.install_packages(self.reqs)
         if self.setup_cmds:
             system.run(self.setup_cmds)
 
@@ -146,9 +147,9 @@ class Env(Resource):
 
 
 def env(
+    name: Optional[str] = None,
     reqs: List[Union[str, Package]] = None,
     conda_env: Union[str, Dict] = None,
-    name: Optional[str] = None,
     setup_cmds: List[str] = None,
     dryrun: bool = True,
     load: bool = True,
