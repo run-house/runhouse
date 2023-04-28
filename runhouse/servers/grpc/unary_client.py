@@ -54,8 +54,8 @@ class UnaryClient(object):
         # os.environ['GRPC_TRACE'] = 'all'
         # os.environ['GRPC_VERBOSITY'] = 'DEBUG'
 
-    def install_packages(self, to_install):
-        message = pb2.Message(message=pickle.dumps(to_install))
+    def install_packages(self, to_install, env_cmd=""):
+        message = pb2.Message(message=pickle.dumps((to_install, env_cmd)))
         server_res = self.stub.InstallPackages(message)
         [res, fn_exception, fn_traceback] = pickle.loads(server_res.message)
         if fn_exception is not None:
@@ -128,14 +128,31 @@ class UnaryClient(object):
         self.stub.ClearPins(message)
 
     def run_module(
-        self, relative_path, module_name, fn_name, fn_type, resources, args, kwargs
+        self,
+        relative_path,
+        module_name,
+        fn_name,
+        fn_type,
+        resources,
+        conda_env,
+        args,
+        kwargs,
     ):
         """
         Client function to call the rpc for RunModule
         """
         # Measure the time it takes to send the message
         serialized_module = pickle.dumps(
-            [relative_path, module_name, fn_name, fn_type, resources, args, kwargs]
+            [
+                relative_path,
+                module_name,
+                fn_name,
+                fn_type,
+                resources,
+                conda_env,
+                args,
+                kwargs,
+            ]
         )
         start = time.time()
         message = pb2.Message(message=serialized_module)

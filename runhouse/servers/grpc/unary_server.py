@@ -15,7 +15,7 @@ import runhouse.servers.grpc.unary_pb2 as pb2
 import runhouse.servers.grpc.unary_pb2_grpc as pb2_grpc
 from runhouse.rh_config import configs, obj_store
 from runhouse.rns.packages.package import Package
-from runhouse.rns.run_module_utils import call_fn_by_type, get_fn_by_name
+from runhouse.rns.run_module_utils import call_fn_by_type
 from runhouse.rns.top_level_rns_fns import (
     clear_pinned_memory,
     pinned_keys,
@@ -47,7 +47,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
     def InstallPackages(self, request, context):
         self.register_activity()
         try:
-            packages = pickle.loads(request.message)
+            packages, env_cmd = pickle.loads(request.message)
             logger.info(f"Message received from client to install packages: {packages}")
             for package in packages:
                 if isinstance(package, str):
@@ -61,7 +61,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
                 if (str(pkg)) in self._installed_packages:
                     continue
                 logger.info(f"Installing package: {str(pkg)}")
-                pkg.install()
+                pkg.install(env_cmd)
                 self._installed_packages.append(str(pkg))
 
             self.register_activity()
@@ -187,45 +187,29 @@ class UnaryService(pb2_grpc.UnaryServicer):
     def RunModule(self, request, context):
         self.register_activity()
         # get the function result from the incoming request
-        try:
-            [
-                relative_path,
-                module_name,
-                fn_name,
-                fn_type,
-                resources,
-                args,
-                kwargs,
-            ] = pickle.loads(request.message)
+        [
+            relative_path,
+            module_name,
+            fn_name,
+            fn_type,
+            resources,
+            conda_env,
+            args,
+            kwargs,
+        ] = pickle.loads(request.message)
 
-            module_path = (
-                str((Path.home() / relative_path).resolve()) if relative_path else None
-            )
-
-            if module_name == "notebook":
-                fn = fn_name  # Already unpickled above
-            else:
-                fn = get_fn_by_name(module_name, fn_name, module_path)
-
-            res = call_fn_by_type(
-                fn,
-                fn_type=fn_type,
-                fn_name=fn_name,
-                module_path=module_path,
-                resources=resources,
-                args=args,
-                kwargs=kwargs,
-            )
-            # [res, None, None] is a silly hack for packaging result alongside exception and traceback
-            result = {"message": pickle.dumps([res, None, None]), "received": True}
-
-            self.register_activity()
-            return pb2.MessageResponse(**result)
-        except Exception as e:
-            logger.exception(e)
-            message = [None, e, traceback.format_exc()]
-            self.register_activity()
-            return pb2.MessageResponse(message=pickle.dumps(message), received=False)
+        pickled_result = call_fn_by_type(
+            fn_type=fn_type,
+            fn_name=fn_name,
+            relative_path=relative_path,
+            module_name=module_name,
+            resources=resources,
+            conda_env=conda_env,
+            args=args,
+            kwargs=kwargs,
+        )
+        result = {"message": pickled_result}
+        return pb2.MessageResponse(**result)
 
     def AddSecrets(self, request, context):
         from runhouse import Secrets

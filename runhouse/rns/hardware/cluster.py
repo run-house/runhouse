@@ -144,7 +144,7 @@ class Cluster(Resource):
             packages = [p.split("==")[0] for p in packages]
         return packages
 
-    def sync_runhouse_to_cluster(self, _install_url=None):
+    def sync_runhouse_to_cluster(self, _install_url=None, env=None):
         if not self.address:
             raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
         local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
@@ -161,7 +161,7 @@ class Cluster(Resource):
                 f"reqs:{local_rh_package_path}", dryrun=True
             )
             rh_package.to(self)
-            status_codes = self.run(["pip install ./runhouse"], stream_logs=True)
+            rh_install_cmd = "pip install ./runhouse"
         # elif local_rh_package_path.parent.name == 'site-packages':
         else:
             # Package is installed in site-packages
@@ -173,13 +173,23 @@ class Cluster(Resource):
 
                 _install_url = f"runhouse=={runhouse.__version__}"
             rh_install_cmd = f"pip install {_install_url}"
-            status_codes = self.run([rh_install_cmd], stream_logs=True)
+
+        install_cmd = (
+            f"{env._activate_cmd} && {rh_install_cmd}" if env else rh_install_cmd
+        )
+        status_codes = self.run([install_cmd], stream_logs=True)
 
         if status_codes[0][0] != 0:
             raise ValueError(f"Error installing runhouse on cluster <{self.name}>")
 
-    def install_packages(self, reqs: List[Union[Package, str]]):
-        """Install the given packages on the cluster."""
+    def install_packages(self, reqs: List[Union[Package, str]], env_cmd: str = ""):
+        """Install the given packages on the cluster.
+
+        Args:
+            reqs (List[Package or str): List of packages to install on cluster and env
+            env_cmd (str): Command prefix for running it on an environment, corresponding to env._run_cmd.
+                (Default: ``""``)
+        """
         self.check_grpc()
         to_install = []
         for package in reqs:
@@ -202,7 +212,7 @@ class Cluster(Resource):
             f"Installing packages on cluster {self.name}: "
             f"{[req if isinstance(req, str) else str(req) for req in reqs]}"
         )
-        self.client.install_packages(to_install)
+        self.client.install_packages(to_install, env_cmd)
 
     def get(self, key: str, default: Any = None, stream_logs: bool = False):
         """Get the object at the given key from the cluster's object store."""
@@ -467,11 +477,26 @@ class Cluster(Resource):
         pass
 
     def run_module(
-        self, relative_path, module_name, fn_name, fn_type, resources, args, kwargs
+        self,
+        relative_path,
+        module_name,
+        fn_name,
+        fn_type,
+        resources,
+        conda_env,
+        args,
+        kwargs,
     ):
         self.check_grpc()
         return self.client.run_module(
-            relative_path, module_name, fn_name, fn_type, resources, args, kwargs
+            relative_path,
+            module_name,
+            fn_name,
+            fn_type,
+            resources,
+            conda_env,
+            args,
+            kwargs,
         )
 
     def is_connected(self):
@@ -602,3 +627,11 @@ class Cluster(Resource):
                 tunnel.stop()
                 kill_jupyter_cmd = f"jupyter notebook stop {port_fwd}"
                 self.run(commands=[kill_jupyter_cmd])
+
+    def remove_conda_env(
+        self,
+        env: Union[str, "CondaEnv"],
+    ):
+        """Remove conda env from the cluster."""
+        env_name = env if isinstance(env, str) else env.env_name
+        self.run([f"conda env remove -n {env_name}"])

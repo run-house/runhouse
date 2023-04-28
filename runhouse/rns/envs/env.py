@@ -6,12 +6,12 @@ from runhouse.rh_config import rns_client
 from runhouse.rns.folders.folder import Folder
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.packages import Package
+
+from runhouse.rns.packages.package import _get_cluster_from
 from runhouse.rns.resource import Resource
 
 
 def _process_reqs(reqs):
-    # process list of reqs from the input representation (config, dict, str, etc) into
-    # its corresponding Package/string representation relative to the system it is on.
     preprocessed_reqs = []
     for package in reqs:
         # TODO [DG] the following is wrong. RNS address doesn't have to start with '/'. However if we check if each
@@ -86,31 +86,68 @@ class Env(Resource):
         )
         return config
 
-    def to(self, system: Union[str, Cluster], mount=False):
-        # env doesn't have a concept of system, so this just sets up the environment on the given cluster
+    def _reqs_to(self, system: Union[str, Cluster], path=None, mount=False):
+        """Send self.reqs to the system (cluster or file system)"""
         new_reqs = []
         for req in self.reqs:
             if isinstance(req, str):
-                req = Package.from_string(req)
-            if (
-                isinstance(req.install_target, Folder)
-                and not req.install_target.system == system
-            ):
-                req = req.to(system, mount=mount)
+                new_req = Package.from_string(req)
+                if isinstance(new_req.install_target, Folder):
+                    req = new_req
+
+            if isinstance(req, Package) and isinstance(req.install_target, Folder):
+                req = (
+                    req.to(system, path=path, mount=mount)
+                    if isinstance(system, Cluster)
+                    else req.to(system, path=path)
+                )
             new_reqs.append(req)
+        return new_reqs
+
+    def _setup_env(self, system: Union[str, Cluster]):
+        """Install packages and run setup commands on the cluster."""
+        system.install_packages(self.reqs)
+        if self.setup_cmds:
+            system.run(self.setup_cmds)
+
+    def to(self, system: Union[str, Cluster], path=None, mount=False):
+        """
+        Send environment to the system (Cluster or file system).
+        This includes installing packages and running setup commands if system is a cluster
+        """
+        system = _get_cluster_from(system)
         new_env = copy.deepcopy(self)
-        new_env.reqs = new_reqs
+        new_env.reqs = self._reqs_to(system, path, mount)
 
-        system.install_packages(new_env.reqs)
-
-        if new_env.setup_cmds:
-            system.run(new_env.setup_cmds)
+        if isinstance(system, Cluster):
+            new_env._setup_env(system)
 
         return new_env
+
+    def install_packages(
+        self, pkgs: List[str or Package], system: Union[Cluster, Dict, str]
+    ):
+        """
+        Additionally install given packages on the environment on the system.
+        Note that this does not update the runhouse Env object or metadata, but simply installs
+        packages on the existing env on the system.
+        """
+        system = _get_cluster_from(system)
+        assert isinstance(system, Cluster)
+        system.install_packages(pkgs, self._run_cmd)
+
+    @property
+    def _activate_cmd(self):
+        return ""
+
+    @property
+    def _run_cmd(self):
+        return ""
 
 
 def env(
     reqs: List[Union[str, Package]] = None,
+    conda_env: Union[str, Dict] = None,
     name: Optional[str] = None,
     setup_cmds: List[str] = None,
     dryrun: bool = True,
@@ -140,5 +177,11 @@ def env(
     config["setup_cmds"] = (
         setup_cmds if setup_cmds is not None else config.get("setup_cmds")
     )
+    config["conda_env"] = conda_env or config.get("conda_env")
+
+    if config["conda_env"]:
+        from runhouse.rns.envs.conda_env import CondaEnv
+
+        return CondaEnv.from_config(config, dryrun=dryrun)
 
     return Env.from_config(config, dryrun=dryrun)

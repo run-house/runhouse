@@ -51,7 +51,7 @@ class GitPackage(Package):
             return f"GitPackage: {self.name}"
         return f"GitPackage: {self.git_url}@{self.revision}"
 
-    def install(self):
+    def install(self, env_cmd: str = ""):
         # Clone down the repo
         if not Path(self.install_target).exists():
             logging.info(f"Cloning: git clone {self.git_url}")
@@ -68,7 +68,7 @@ class GitPackage(Package):
                 ["git", "-C", self.install_target, "checkout", self.revision]
             )
         # Use super to install the package
-        super().install()
+        super().install(env_cmd)
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
