@@ -6,6 +6,7 @@ import pytest
 import runhouse as rh
 
 extra_index_url = "--extra-index-url https://pypi.python.org/simple/"
+cuda_116_url = "--index-url https://download.pytorch.org/whl/cu116"
 
 
 def setup():
@@ -78,88 +79,95 @@ def test_load_shared_git_package():
     assert git_package.config_for_rns
 
 
-def test_stuff():
-    cpu = rh.cluster("^rh-cpu")
-    cpu.install_packages("reqs")
-    # cpu.restart_grpc_server()
-    # rh.blob(path="/Users/josh.l/dev/runhouse/runhouse-0.0.21.tar.gz").to(
-    #     system=cpu, path="/home/ubuntu/randy/runhouse-0.0.21.tar.gz"
-    # )
-
-
 @pytest.mark.localtest
 def test_torch_install_command_generator_from_reqs():
     """For a given list of packages as listed in a requirements.txt file, modify them to include the full
-    install commands (i.e. include index url and extra index url)"""
-    cuda_116_url = "--index-url https://download.pytorch.org/whl/cu116"
-
+    install commands (i.e. include --index-url and --extra-index-url)"""
     test_reqs_file = Path(__file__).parent / "requirements.txt"
 
     packages_install_cmds = {
-        "torch": f"torch {cuda_116_url} {extra_index_url}",
+        f"torch {extra_index_url}": f"torch {extra_index_url} {cuda_116_url}",
         "torchaudio": f"torchaudio {cuda_116_url} {extra_index_url}",
         "matchatorch": f"matchatorch {cuda_116_url} {extra_index_url}",
         "torch==1.13.0": f"torch==1.13.0 {cuda_116_url} {extra_index_url}",
         f"torch {cuda_116_url}": f"torch {cuda_116_url} {extra_index_url}",
+        f"torch>=1.13.0 {cuda_116_url}": f"torch>=1.13.0 {cuda_116_url} {extra_index_url}",
     }
 
+    # Write these packages to a temp reqs file, then update each one with their full install URLs
     package_names = list(packages_install_cmds)
     with open(test_reqs_file, "w") as f:
         f.writelines([line + "\n" for line in package_names])
 
     dummy_pkg = rh.Package.from_string(specifier="pip:dummy_package")
 
+    # This mocks the logic from: `format_torch_cmd_in_reqs_file`
     with open(test_reqs_file) as f:
-        reqs = [p.strip() for p in f.readlines()]
+        reqs = f.readlines()
 
-    for req in reqs:
-        install_cmd = dummy_pkg.install_cmd_for_torch(req, cuda_version="11.6")
-        assert install_cmd == packages_install_cmds[req]
+        for req in reqs:
+            req = req.strip()
+            install_cmd = dummy_pkg.install_cmd_for_torch(req, cuda_version="11.6")
+            assert install_cmd == packages_install_cmds[req]
 
     test_reqs_file.unlink()
+
     assert True
 
 
 @pytest.mark.localtest
 def test_torch_install_command_generator():
     """Checks that the command itself is correct (without actually running it on the cluster)"""
-    cuda_116_url = "--index-url https://download.pytorch.org/whl/cu116"
-    cuda_117_url = "--index-url https://download.pytorch.org/whl/cu117"
-    cuda_118_url = "--index-url https://download.pytorch.org/whl/cu118"
-
+    cuda_version = "11.6"
     install_commands = {
         (
             f"torch==1.13.1 {cuda_116_url}",
-            "11.6",
+            "",
         ): f"torch==1.13.1 {cuda_116_url} {extra_index_url}",
         (
             f"torch {extra_index_url}",
-            "11.7",
-        ): f"torch {extra_index_url} {cuda_117_url}",
-        ("matchatorch", "11.6"): f"matchatorch {cuda_116_url} {extra_index_url}",
+            cuda_version,
+        ): f"torch {extra_index_url} {cuda_116_url}",
+        ("matchatorch", cuda_version): f"matchatorch {cuda_116_url} {extra_index_url}",
         (
             "torch>=1.13.0, <2.0.0",
-            "11.8",
-        ): f"torch>=1.13.0,<2.0.0 {cuda_118_url} {extra_index_url}",
+            cuda_version,
+        ): f"torch>=1.13.0,<2.0.0 {cuda_116_url} {extra_index_url}",
         (
             f"torch {cuda_116_url} torchaudio {extra_index_url}",
-            "11.6",
+            cuda_version,
         ): f"torch {cuda_116_url} {extra_index_url} "
         f"torchaudio {extra_index_url} "
         f"{cuda_116_url}",
         (
             "torch torchpudding",
-            "11.7",
-        ): f"torch {cuda_117_url} {extra_index_url} torchpudding {cuda_117_url} "
+            cuda_version,
+        ): f"torch {cuda_116_url} {extra_index_url} torchpudding {cuda_116_url} "
         f"{extra_index_url}",
-        ("torch>=1.13.0", "11.6"): f"torch>=1.13.0 {cuda_116_url} {extra_index_url}",
-        ("torch>1.13.0", "11.6"): f"torch>1.13.0 {cuda_116_url} {extra_index_url}",
-        ("torch==1.13.0", "11.6"): f"torch==1.13.0 {cuda_116_url} {extra_index_url}",
-        ("torch~=1.13.0", "11.7"): f"torch~=1.13.0 {cuda_117_url} {extra_index_url}",
         (
-            f"torch==99.99.999 {cuda_117_url}",
-            "11.7",
-        ): f"torch==99.99.999 {cuda_117_url} {extra_index_url}",
+            "torch>=1.13.0",
+            cuda_version,
+        ): f"torch>=1.13.0 {cuda_116_url} {extra_index_url}",
+        (
+            "torch>1.13.0",
+            cuda_version,
+        ): f"torch>1.13.0 {cuda_116_url} {extra_index_url}",
+        (
+            "torch==1.13.0",
+            cuda_version,
+        ): f"torch==1.13.0 {cuda_116_url} {extra_index_url}",
+        (
+            f"torch==1.13.0 {cuda_116_url}",
+            cuda_version,
+        ): f"torch==1.13.0 {cuda_116_url} {extra_index_url}",
+        (
+            "torch~=1.13.0",
+            cuda_version,
+        ): f"torch~=1.13.0 {cuda_116_url} {extra_index_url}",
+        (
+            f"torch==99.99.999 {cuda_116_url}",
+            cuda_version,
+        ): f"torch==99.99.999 {cuda_116_url} {extra_index_url}",
     }
 
     for (torch_version, cuda_version), expected_install_cmd in install_commands.items():
