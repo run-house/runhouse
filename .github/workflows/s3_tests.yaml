@@ -23,9 +23,9 @@ jobs:
 
       - name: Install python packages & dependencies
         run: |
-          pip install runhouse pytest tqdm datasets dask s3fs
+          pip install runhouse[aws] pytest tqdm datasets dask s3fs
 
       - name: Run all s3 tests
         env:
           TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
-        run: pytest -v -k s3test -m "not gcstest" -m "not clustertest"
+        run: pytest -v -k awstest -m "not gcptest" -m "not clustertest"

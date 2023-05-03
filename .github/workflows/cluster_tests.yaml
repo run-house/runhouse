@@ -29,12 +29,12 @@ jobs:
 
       - name: Install python packages & dependencies
         run: |
-          pip install runhouse pytest tqdm datasets
+          pip install runhouse[aws] pytest tqdm datasets
 
       - name: Run all cluster tests
         env:
           TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
-        run: pytest -v -k "clustertest" -m "not gcstest"
+        run: pytest -v -k "clustertest" -m "not gcptest"
 
       - name: Teardown all test clusters
         run: |

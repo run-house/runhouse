@@ -36,7 +36,7 @@ def tokenize_function(examples):
 # -----------------------------------------------
 # ----------------- Local tests -----------------
 # -----------------------------------------------
-@pytest.mark.localtest
+@pytest.mark.rnstest
 def test_create_and_reload_file_locally():
     local_path = Path.cwd() / "table_tests/local_test_table"
     local_path.mkdir(parents=True, exist_ok=True)
@@ -76,7 +76,7 @@ def test_create_and_reload_file_locally():
     assert not reloaded_table.exists_in_system()
 
 
-@pytest.mark.localtest
+@pytest.mark.rnstest
 def test_create_and_reload_pandas_locally(pandas_table):
     name = "~/my_test_local_pandas_table"
 
@@ -110,7 +110,7 @@ def test_create_and_reload_pandas_locally(pandas_table):
     assert not reloaded_table.exists_in_system()
 
 
-@pytest.mark.localtest
+@pytest.mark.rnstest
 def test_create_and_reload_pyarrow_locally(arrow_table):
     name = "~/my_test_local_pyarrow_table"
 
@@ -144,7 +144,7 @@ def test_create_and_reload_pyarrow_locally(arrow_table):
     assert not reloaded_table.exists_in_system()
 
 
-@pytest.mark.localtest
+@pytest.mark.rnstest
 def test_create_and_reload_ray_locally(ray_table):
     name = "~/my_test_local_ray_table"
 
@@ -178,7 +178,7 @@ def test_create_and_reload_ray_locally(ray_table):
     assert not reloaded_table.exists_in_system()
 
 
-@pytest.mark.localtest
+@pytest.mark.rnstest
 def test_create_and_reload_huggingface_locally(huggingface_table):
     name = "~/my_test_local_huggingface_table"
 
@@ -212,7 +212,7 @@ def test_create_and_reload_huggingface_locally(huggingface_table):
     assert not reloaded_table.exists_in_system()
 
 
-@pytest.mark.localtest
+@pytest.mark.rnstest
 def test_create_and_reload_dask_locally(dask_table):
     name = "~/my_test_local_dask_table"
 
@@ -249,7 +249,7 @@ def test_create_and_reload_dask_locally(dask_table):
 # --------------------------------------------
 # ----------------- S3 tests -----------------
 # --------------------------------------------
-@pytest.mark.s3test
+@pytest.mark.awstest
 @pytest.mark.rnstest
 def test_create_and_reload_pyarrow_data_from_s3(arrow_table):
     name = "@/my_test_pyarrow_table"
@@ -283,7 +283,7 @@ def test_create_and_reload_pyarrow_data_from_s3(arrow_table):
     assert not reloaded_table.exists_in_system()
 
 
-@pytest.mark.s3test
+@pytest.mark.awstest
 @pytest.mark.rnstest
 def test_create_and_reload_pandas_data_from_s3(pandas_table):
     name = "@/my_test_pandas_table"
@@ -318,7 +318,7 @@ def test_create_and_reload_pandas_data_from_s3(pandas_table):
     assert not reloaded_table.exists_in_system()
 
 
-@pytest.mark.s3test
+@pytest.mark.awstest
 @pytest.mark.rnstest
 def test_create_and_reload_huggingface_data_from_s3(huggingface_table):
     name = "@/my_test_hf_table"
@@ -352,7 +352,7 @@ def test_create_and_reload_huggingface_data_from_s3(huggingface_table):
     assert not reloaded_table.exists_in_system()
 
 
-@pytest.mark.s3test
+@pytest.mark.awstest
 @pytest.mark.rnstest
 def test_create_and_reload_dask_data_from_s3(dask_table):
     name = "@/my_test_dask_table"
@@ -387,7 +387,7 @@ def test_create_and_reload_dask_data_from_s3(dask_table):
     assert not reloaded_table.exists_in_system()
 
 
-@pytest.mark.s3test
+@pytest.mark.awstest
 @pytest.mark.rnstest
 def test_create_and_reload_ray_data_from_s3(ray_table):
     name = "@/my_test_ray_table"
@@ -423,7 +423,7 @@ def test_create_and_reload_ray_data_from_s3(ray_table):
 
 
 # ----------------- Iter -----------------
-@pytest.mark.s3test
+@pytest.mark.awstest
 @pytest.mark.rnstest
 def test_load_pandas_data_as_iter(pandas_table):
     name = "@/my_test_pandas_table"
@@ -455,7 +455,7 @@ def test_load_pandas_data_as_iter(pandas_table):
     assert not reloaded_table.exists_in_system()
 
 
-@pytest.mark.s3test
+@pytest.mark.awstest
 @pytest.mark.rnstest
 def test_load_pyarrow_data_as_iter(arrow_table):
     name = "@/my_test_pyarrow_table"
@@ -487,7 +487,7 @@ def test_load_pyarrow_data_as_iter(arrow_table):
     assert not reloaded_table.exists_in_system()
 
 
-@pytest.mark.s3test
+@pytest.mark.awstest
 @pytest.mark.rnstest
 def test_load_huggingface_data_as_iter(huggingface_table):
     name = "@/my_test_huggingface_table"
@@ -518,7 +518,7 @@ def test_load_huggingface_data_as_iter(huggingface_table):
 
 
 # ----------------- Shuffling -----------------
-@pytest.mark.s3test
+@pytest.mark.awstest
 @pytest.mark.rnstest
 def test_shuffling_pyarrow_data_from_s3(arrow_table):
     name = "@/my_test_shuffled_pyarrow_table"
@@ -558,10 +558,10 @@ def test_shuffling_pyarrow_data_from_s3(arrow_table):
 # -------------------------------------------------
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_create_and_reload_pandas_data_from_cluster(pandas_table, cpu):
+def test_create_and_reload_pandas_data_from_cluster(pandas_table, cpu_cluster):
     # Make sure the destination folder for the data exists on the cluster
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/pandas-data"
-    cpu.run([f"mkdir -p {data_path_on_cluster}"])
+    cpu_cluster.run([f"mkdir -p {data_path_on_cluster}"])
 
     name = "@/my_test_pandas_table"
     my_table = (
@@ -569,7 +569,7 @@ def test_create_and_reload_pandas_data_from_cluster(pandas_table, cpu):
             data=pandas_table,
             name=name,
             path=data_path_on_cluster,
-            system=cpu,
+            system=cpu_cluster,
         )
         .write()
         .save()
@@ -596,9 +596,9 @@ def test_create_and_reload_pandas_data_from_cluster(pandas_table, cpu):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_create_and_reload_ray_data_from_cluster(ray_table, cpu):
+def test_create_and_reload_ray_data_from_cluster(ray_table, cpu_cluster):
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/ray-data"
-    cpu.run([f"mkdir -p {data_path_on_cluster}"])
+    cpu_cluster.run([f"mkdir -p {data_path_on_cluster}"])
 
     name = "@/my_test_ray_cluster_table"
 
@@ -607,7 +607,7 @@ def test_create_and_reload_ray_data_from_cluster(ray_table, cpu):
             data=ray_table,
             name=name,
             path=data_path_on_cluster,
-            system=cpu,
+            system=cpu_cluster,
         )
         .write()
         .save()
@@ -633,9 +633,9 @@ def test_create_and_reload_ray_data_from_cluster(ray_table, cpu):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_create_and_reload_pyarrow_data_from_cluster(arrow_table, cpu):
+def test_create_and_reload_pyarrow_data_from_cluster(arrow_table, cpu_cluster):
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/pyarrow-data"
-    cpu.run([f"mkdir -p {data_path_on_cluster}"])
+    cpu_cluster.run([f"mkdir -p {data_path_on_cluster}"])
 
     name = "@/my_test_pyarrow_cluster_table"
 
@@ -644,7 +644,7 @@ def test_create_and_reload_pyarrow_data_from_cluster(arrow_table, cpu):
             data=arrow_table,
             name=name,
             path=data_path_on_cluster,
-            system=cpu,
+            system=cpu_cluster,
         )
         .write()
         .save()
@@ -669,9 +669,11 @@ def test_create_and_reload_pyarrow_data_from_cluster(arrow_table, cpu):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_create_and_reload_huggingface_data_from_cluster(huggingface_table, cpu):
+def test_create_and_reload_huggingface_data_from_cluster(
+    huggingface_table, cpu_cluster
+):
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/hf-data"
-    cpu.run([f"mkdir -p {data_path_on_cluster}"])
+    cpu_cluster.run([f"mkdir -p {data_path_on_cluster}"])
 
     name = "@/my_test_hf_cluster_table"
 
@@ -680,7 +682,7 @@ def test_create_and_reload_huggingface_data_from_cluster(huggingface_table, cpu)
             data=huggingface_table,
             name=name,
             path=data_path_on_cluster,
-            system=cpu,
+            system=cpu_cluster,
         )
         .write()
         .save()
@@ -707,9 +709,9 @@ def test_create_and_reload_huggingface_data_from_cluster(huggingface_table, cpu)
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_create_and_reload_dask_data_from_cluster(dask_table, cpu):
+def test_create_and_reload_dask_data_from_cluster(dask_table, cpu_cluster):
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/dask-data"
-    cpu.run([f"mkdir -p {data_path_on_cluster}"])
+    cpu_cluster.run([f"mkdir -p {data_path_on_cluster}"])
 
     name = "@/my_test_dask_cluster_table"
 
@@ -718,7 +720,7 @@ def test_create_and_reload_dask_data_from_cluster(dask_table, cpu):
             data=dask_table,
             name=name,
             path=data_path_on_cluster,
-            system=cpu,
+            system=cpu_cluster,
         )
         .write()
         .save()
@@ -744,7 +746,7 @@ def test_create_and_reload_dask_data_from_cluster(dask_table, cpu):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_to_cluster_attr(pandas_table, cpu):
+def test_to_cluster_attr(pandas_table, cpu_cluster):
     local_path = Path.cwd() / "table_tests/local_test_table"
     local_path.mkdir(parents=True, exist_ok=True)
 
@@ -763,7 +765,7 @@ def test_to_cluster_attr(pandas_table, cpu):
         .save()
     )
 
-    cluster_table = my_table.to(system=cpu)
+    cluster_table = my_table.to(system=cpu_cluster)
 
     assert isinstance(cluster_table.system, rh.Cluster)
     assert cluster_table._folder._fs_str == "ssh"
@@ -782,7 +784,7 @@ def test_to_cluster_attr(pandas_table, cpu):
 # -------------------------------------------------
 # ----------------- Fetching tests -----------------
 # -------------------------------------------------
-@pytest.mark.s3test
+@pytest.mark.awstest
 @pytest.mark.rnstest
 def test_create_and_fetch_pyarrow_data_from_s3(arrow_table):
     name = "@/my_test_fetch_pyarrow_table"
@@ -812,7 +814,7 @@ def test_create_and_fetch_pyarrow_data_from_s3(arrow_table):
     assert not reloaded_table.exists_in_system()
 
 
-@pytest.mark.s3test
+@pytest.mark.awstest
 @pytest.mark.rnstest
 def test_create_and_fetch_pandas_data_from_s3(pandas_table):
     name = "@/my_test_fetch_pandas_table"
@@ -842,7 +844,7 @@ def test_create_and_fetch_pandas_data_from_s3(pandas_table):
     assert not reloaded_table.exists_in_system()
 
 
-@pytest.mark.s3test
+@pytest.mark.awstest
 @pytest.mark.rnstest
 def test_create_and_fetch_huggingface_data_from_s3(huggingface_table):
     name = "@/my_test_fetch_huggingface_table"
@@ -872,7 +874,7 @@ def test_create_and_fetch_huggingface_data_from_s3(huggingface_table):
     assert not reloaded_table.exists_in_system()
 
 
-@pytest.mark.s3test
+@pytest.mark.awstest
 @pytest.mark.rnstest
 def test_create_and_fetch_ray_data_from_s3(ray_table):
     name = "@/my_test_fetch_ray_table"
@@ -902,7 +904,7 @@ def test_create_and_fetch_ray_data_from_s3(ray_table):
     assert not reloaded_table.exists_in_system()
 
 
-@pytest.mark.s3test
+@pytest.mark.awstest
 @pytest.mark.rnstest
 def test_create_and_fetch_dask_data_from_s3(dask_table):
     name = "@/my_test_fetch_dask_table"

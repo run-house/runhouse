@@ -17,6 +17,7 @@ class Package(Resource):
     RESOURCE_TYPE = "package"
 
     # https://pytorch.org/get-started/locally/
+    # Note: no binaries exist for 11.4 (https://github.com/pytorch/pytorch/issues/75992)
     TORCH_INDEX_URLS_FOR_CUDA = {
         "11.3": "https://download.pytorch.org/whl/cu113",
         "11.5": "https://download.pytorch.org/whl/cu115",
@@ -97,9 +98,9 @@ class Package(Resource):
                 install_cmd = f"{local_path}" + install_args
             elif self.install_method == "reqs":
                 reqs_path = f"{local_path}/requirements.txt"
-                if Path(reqs_path).exists():
+                if Path(reqs_path).expanduser().exists():
                     # Ensure each requirement listed in the file contains the full install command for torch packages
-                    self.format_torch_cmd_in_reqs_file(
+                    reqs_from_file: list = self.format_torch_cmd_in_reqs_file(
                         path=reqs_path, cuda_version=cuda_version
                     )
 
@@ -108,9 +109,8 @@ class Package(Resource):
                         f"Attempting to install formatted requirements from {reqs_path} "
                     )
 
-                    self.pip_install(
-                        f"-r {Path(local_path)}/requirements.txt" + install_args
-                    )
+                    self.pip_install(install_cmd=" ".join(reqs_from_file))
+
                 else:
                     logging.info(f"{local_path}/requirements.txt not found, skipping")
         else:
@@ -148,17 +148,18 @@ class Package(Resource):
     # Torch Install Helpers
     # ----------------------------------
     def format_torch_cmd_in_reqs_file(self, path, cuda_version):
-        try:
-            with open(path) as f:
-                reqs = f.readlines()
+        """Read requirements from file, append --index-url and --extra-index-url where relevant for torch packages,
+        and return list of formatted packages."""
+        with open(path) as f:
+            reqs = f.readlines()
 
-            with open(path, "w") as f:
-                for req in reqs:
-                    install_cmd = self.install_cmd_for_torch(req.strip(), cuda_version)
-                    f.write(install_cmd + "\n")
-        except:
-            # If this fails, log a message but continue and let pip manage the error handling
-            logging.error(f"Failed to format torch install commands in {path}")
+        # Leave the file alone, maintain a separate list with the updated commands which we will later pip install
+        reqs_from_file = []
+        for req in reqs:
+            install_cmd = self.install_cmd_for_torch(req.strip(), cuda_version)
+            reqs_from_file.append(install_cmd)
+
+        return reqs_from_file
 
     def install_cmd_for_torch(self, install_cmd, cuda_version):
         """Return the correct formatted pip install command for the torch package(s) provided."""
@@ -172,7 +173,6 @@ class Package(Resource):
             formatted_cmd = self._install_url_for_torch_package(
                 package_install_cmd, cuda_version
             )
-
             if formatted_cmd:
                 final_install_cmd += formatted_cmd + " "
 
@@ -220,9 +220,8 @@ class Package(Resource):
             # Ex: 'torch>=1.13.0,<2.0.0'
             return [install_cmd]
 
-        matches = re.findall(
-            r"(\S+(?:\s+(-i|--index-url|--extra-index-url)\s+\S+)?)", install_cmd
-        )
+        matches = re.findall(r"(\S+(?:\s+(-i|--index-url)\s+\S+)?)", install_cmd)
+
         packages_to_install = [match[0] for match in matches]
         return packages_to_install
 

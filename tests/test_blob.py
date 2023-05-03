@@ -21,7 +21,7 @@ def setup():
     create_s3_bucket(S3_BUCKET)
 
 
-@pytest.mark.localtest
+@pytest.mark.rnstest
 def test_create_and_reload_local_blob_with_name(blob_data):
     name = "~/my_local_blob"
     my_blob = (
@@ -49,7 +49,7 @@ def test_create_and_reload_local_blob_with_name(blob_data):
     assert not reloaded_blob.exists_in_system()
 
 
-@pytest.mark.localtest
+@pytest.mark.rnstest
 def test_create_and_reload_local_blob_with_path(blob_data):
     name = "~/my_local_blob"
     my_blob = (
@@ -95,7 +95,7 @@ def test_create_and_reload_anom_local_blob(blob_data):
     assert not reloaded_blob.exists_in_system()
 
 
-@pytest.mark.s3test
+@pytest.mark.awstest
 @pytest.mark.rnstest
 def test_create_and_reload_rns_blob(blob_data):
     name = "@/s3_blob"
@@ -125,7 +125,7 @@ def test_create_and_reload_rns_blob(blob_data):
     assert not reloaded_blob.exists_in_system()
 
 
-@pytest.mark.s3test
+@pytest.mark.awstest
 @pytest.mark.rnstest
 def test_create_and_reload_rns_blob_with_path(blob_data):
     name = "@/s3_blob"
@@ -157,16 +157,16 @@ def test_create_and_reload_rns_blob_with_path(blob_data):
 
 
 @pytest.mark.clustertest
-def test_to_cluster_attr(cpu):
+def test_to_cluster_attr(cpu_cluster):
     local_blob = rh.blob(pickle.dumps(list(range(50))), path="models/pipeline.pkl")
-    cluster_blob = local_blob.to(system=cpu)
+    cluster_blob = local_blob.to(system=cpu_cluster)
     assert isinstance(cluster_blob.system, rh.Cluster)
     assert cluster_blob._folder._fs_str == "ssh"
 
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_local_to_cluster(cpu, blob_data):
+def test_local_to_cluster(cpu_cluster, blob_data):
     name = "~/my_local_blob"
     my_blob = (
         rh.blob(
@@ -178,31 +178,31 @@ def test_local_to_cluster(cpu, blob_data):
         .save()
     )
 
-    my_blob = my_blob.to(system=cpu)
+    my_blob = my_blob.to(system=cpu_cluster)
     blob_data = pickle.loads(my_blob.data)
     assert blob_data == list(range(50))
 
 
 @pytest.mark.clustertest
-def test_save_blob_to_cluster(cpu):
+def test_save_blob_to_cluster(cpu_cluster):
     # Save blob to local directory, then upload to a new "models" directory on the root path of the cluster
     rh.blob(pickle.dumps(list(range(50))), path="models/pipeline.pkl").to(
-        cpu, path="models"
+        cpu_cluster, path="models"
     )
 
     # Confirm the model is saved on the cluster in the `models` folder
-    status_codes = cpu.run(commands=["ls models"])
+    status_codes = cpu_cluster.run(commands=["ls models"])
     assert "pipeline.pkl" in status_codes[0][1]
 
 
 @pytest.mark.clustertest
-def test_from_cluster(cpu):
-    config_blob = rh.blob(path="/home/ubuntu/.rh/config.yaml", system=cpu)
+def test_from_cluster(cpu_cluster):
+    config_blob = rh.blob(path="/home/ubuntu/.rh/config.yaml", system=cpu_cluster)
     config_data = yaml.safe_load(config_blob.data)
     assert len(config_data.keys()) > 4
 
 
-@pytest.mark.s3test
+@pytest.mark.awstest
 @pytest.mark.rnstest
 def test_sharing_blob(blob_data):
     token = os.getenv("TEST_TOKEN") or configs.get("token")
@@ -248,7 +248,7 @@ def test_load_shared_blob():
     assert pickle.loads(raw_data)
 
 
-@pytest.mark.s3test
+@pytest.mark.awstest
 @pytest.mark.rnstest
 def test_save_anom_blob_to_s3(blob_data):
     my_blob = rh.blob(

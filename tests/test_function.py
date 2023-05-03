@@ -80,9 +80,9 @@ def test_running_function_as_proxy():
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_get_function_history(cpu):
+def test_get_function_history(cpu_cluster):
     remote_sum = rh.function(
-        fn=summer, name="@/remote_function", system=cpu, reqs=[], dryrun=True
+        fn=summer, name="@/remote_function", system=cpu_cluster, reqs=[], dryrun=True
     ).save()
     remote_sum = rh.function(
         fn=summer,
@@ -92,7 +92,7 @@ def test_get_function_history(cpu):
         dryrun=True,
     ).save()
     remote_sum = rh.function(
-        fn=summer, name="@/remote_function", system=cpu, reqs=[], dryrun=True
+        fn=summer, name="@/remote_function", system=cpu_cluster, reqs=[], dryrun=True
     ).save()
     name = "@/remote_function"
     remote_sum = rh.function(name=name)
@@ -187,32 +187,32 @@ def test_function_git_fn():
 
 
 @pytest.mark.clustertest
-def test_list_keys(cpu):
-    pid_fn = rh.function(getpid, system=cpu)
+def test_list_keys(cpu_cluster):
+    pid_fn = rh.function(getpid, system=cpu_cluster)
 
     pid_ref1 = pid_fn.remote()
     pid_ref2 = pid_fn.remote()
 
-    current_jobs = cpu.list_keys()
+    current_jobs = cpu_cluster.list_keys()
     assert set([pid_ref1, pid_ref2]).issubset(current_jobs)
 
 
 @pytest.mark.clustertest
-def test_cancel_jobs(cpu):
-    pid_fn = rh.function(getpid, system=cpu)
+def test_cancel_jobs(cpu_cluster):
+    pid_fn = rh.function(getpid, system=cpu_cluster)
 
     pid_ref1 = pid_fn.remote()
     pid_ref2 = pid_fn.remote()
 
-    cpu.cancel(all=True)
+    cpu_cluster.cancel(all=True)
 
-    current_jobs = cpu.list_keys()
+    current_jobs = cpu_cluster.list_keys()
     assert not set([pid_ref1, pid_ref2]).issubset(current_jobs)
 
 
 @pytest.mark.clustertest
-def test_function_queueing(cpu):
-    pid_fn = rh.function(getpid, system=cpu)
+def test_function_queueing(cpu_cluster):
+    pid_fn = rh.function(getpid, system=cpu_cluster)
 
     pids = [pid_fn.enqueue(resources={"num_cpus": 2}) for _ in range(10)]
     assert len(pids) == 10
@@ -253,8 +253,10 @@ def test_ssh():
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_share_function(cpu):
-    my_function = rh.function(fn=summer, name="@/remote_function", system=cpu).save()
+def test_share_function(cpu_cluster):
+    my_function = rh.function(
+        fn=summer, name="@/remote_function", system=cpu_cluster
+    ).save()
 
     my_function.share(
         users=["donny@run.house", "josh@run.house"],
@@ -375,9 +377,9 @@ def test_byo_cluster_maps():
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_load_function_in_new_env(cpu):
+def test_load_function_in_new_env(cpu_cluster):
     remote_sum = rh.function(
-        fn=summer, name="@/remote_function", system=cpu, reqs=[], dryrun=True
+        fn=summer, name="@/remote_function", system=cpu_cluster, reqs=[], dryrun=True
     ).save()
 
     byo_cluster = rh.cluster(name="different-cluster")
@@ -396,9 +398,9 @@ def test_load_function_in_new_env(cpu):
 
 
 @pytest.mark.clustertest
-def test_nested_function(cpu):
-    summer_cpu = rh.function(fn=summer, system=cpu)
-    call_function_cpu = rh.function(fn=call_function, system=cpu)
+def test_nested_function(cpu_cluster):
+    summer_cpu = rh.function(fn=summer, system=cpu_cluster)
+    call_function_cpu = rh.function(fn=call_function, system=cpu_cluster)
 
     kwargs = {"a": 1, "b": 5}
     res = call_function_cpu(summer_cpu, **kwargs)

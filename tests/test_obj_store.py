@@ -34,56 +34,58 @@ def do_tqdm_printing_and_logging(steps=6):
 
 
 @pytest.mark.clustertest
-def test_get_from_cluster(cpu):
-    print_fn = rh.function(fn=do_printing_and_logging, system=cpu)
+def test_get_from_cluster(cpu_cluster):
+    print_fn = rh.function(fn=do_printing_and_logging, system=cpu_cluster)
     key = print_fn.remote()
     assert isinstance(key, str)
-    res = cpu.get(key, stream_logs=True)
+    res = cpu_cluster.get(key, stream_logs=True)
     assert res == list(range(50))
 
 
 @pytest.mark.clustertest
-def test_put_and_get_on_cluster(cpu):
+def test_put_and_get_on_cluster(cpu_cluster):
     test_list = list(range(5, 50, 2)) + ["a string"]
-    cpu.put("my_list", test_list)
-    ret = cpu.get("my_list")
+    cpu_cluster.put("my_list", test_list)
+    ret = cpu_cluster.get("my_list")
     assert all(a == b for (a, b) in zip(ret, test_list))
 
 
 @pytest.mark.clustertest
-def test_stream_logs(cpu):
-    print_fn = rh.function(fn=do_printing_and_logging, system=cpu)
+def test_stream_logs(cpu_cluster):
+    print_fn = rh.function(fn=do_printing_and_logging, system=cpu_cluster)
     res = print_fn(stream_logs=True)
     # TODO [DG] assert that the logs are streamed
     assert res == list(range(50))
 
 
 @pytest.mark.clustertest
-def test_multiprocessing_streaming(cpu):
-    re_fn = rh.function(multiproc_torch_sum, system=cpu, reqs=["./", "torch==1.12.1"])
+def test_multiprocessing_streaming(cpu_cluster):
+    re_fn = rh.function(
+        multiproc_torch_sum, system=cpu_cluster, reqs=["./", "torch==1.12.1"]
+    )
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn(summands, stream_logs=True)
     assert res == [4, 6, 8, 10, 12]
 
 
 @pytest.mark.clustertest
-def test_tqdm_streaming(cpu):
+def test_tqdm_streaming(cpu_cluster):
     # Note, this doesn't work properly in PyCharm due to incomplete
     # support for carriage returns in the PyCharm console.
-    print_fn = rh.function(fn=do_tqdm_printing_and_logging, system=cpu)
+    print_fn = rh.function(fn=do_tqdm_printing_and_logging, system=cpu_cluster)
     res = print_fn(steps=40, stream_logs=True)
     assert res == list(range(50))
 
 
 @pytest.mark.clustertest
-def test_cancel_run(cpu):
-    print_fn = rh.function(fn=do_printing_and_logging, system=cpu)
+def test_cancel_run(cpu_cluster):
+    print_fn = rh.function(fn=do_printing_and_logging, system=cpu_cluster)
     key = print_fn.remote()
     assert isinstance(key, str)
-    res = cpu.cancel(key)
+    res = cpu_cluster.cancel(key)
     assert res == "Cancelled"
     try:
-        cpu.get(key, stream_logs=True)
+        cpu_cluster.get(key, stream_logs=True)
     except Exception as e:
         assert "This task or its dependency was cancelled by" in str(e)
 

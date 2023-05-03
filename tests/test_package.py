@@ -1,3 +1,4 @@
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -11,6 +12,17 @@ cuda_116_url = "--index-url https://download.pytorch.org/whl/cu116"
 
 def setup():
     pass
+
+
+def send_tensor_to_cuda():
+    try:
+        import torch
+
+        a = torch.LongTensor(1).random_(0, 10)
+        a = a.to(device="cuda")
+        return a
+    except Exception as e:
+        return e
 
 
 @pytest.fixture
@@ -27,7 +39,7 @@ def test_from_string():
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_share_package(cpu):
+def test_share_package(cpu_cluster):
     import shutil
 
     # Create a local temp folder to install for the package
@@ -40,7 +52,7 @@ def test_share_package(cpu):
     p = rh.Package.from_string("local:./tmp_package")
     p.name = "package_to_share"  # shareable resource requires a name
 
-    p.to_cluster(dest_cluster=cpu)
+    p.to_cluster(dest_cluster=cpu_cluster)
 
     p.share(
         users=["josh@run.house", "donny@run.house"],
@@ -51,11 +63,10 @@ def test_share_package(cpu):
     shutil.rmtree(tmp_path)
 
     # Confirm the package's folder is now on the cluster
-    status_codes = cpu.run(commands=["ls tmp_package"])
+    status_codes = cpu_cluster.run(commands=["ls tmp_package"])
     assert "sample_file_0.txt" in status_codes[0][1]
 
 
-@pytest.mark.rnstest
 @pytest.mark.rnstest
 def test_share_git_package():
     git_package = rh.GitPackage(
@@ -119,58 +130,68 @@ def test_torch_install_command_generator_from_reqs():
 def test_torch_install_command_generator():
     """Checks that the command itself is correct (without actually running it on the cluster)"""
     cuda_version = "11.6"
-    install_commands = {
-        (
+    install_commands = [
+        [
             f"torch==1.13.1 {cuda_116_url}",
-            "",
-        ): f"torch==1.13.1 {cuda_116_url} {extra_index_url}",
-        (
+            cuda_version,
+            f"torch==1.13.1 {cuda_116_url} {extra_index_url}",
+        ],
+        [
             f"torch {extra_index_url}",
             cuda_version,
-        ): f"torch {extra_index_url} {cuda_116_url}",
-        ("matchatorch", cuda_version): f"matchatorch {cuda_116_url} {extra_index_url}",
-        (
+            f"torch {extra_index_url} {cuda_116_url}",
+        ],
+        ["matchatorch", cuda_version, f"matchatorch {cuda_116_url} {extra_index_url}"],
+        [
             "torch>=1.13.0, <2.0.0",
             cuda_version,
-        ): f"torch>=1.13.0,<2.0.0 {cuda_116_url} {extra_index_url}",
-        (
+            f"torch>=1.13.0,<2.0.0 {cuda_116_url} {extra_index_url}",
+        ],
+        [
             f"torch {cuda_116_url} torchaudio {extra_index_url}",
             cuda_version,
-        ): f"torch {cuda_116_url} {extra_index_url} "
-        f"torchaudio {extra_index_url} "
-        f"{cuda_116_url}",
-        (
+            f"torch {cuda_116_url} {extra_index_url} "
+            f"torchaudio {extra_index_url} "
+            f"{cuda_116_url}",
+        ],
+        [
             "torch torchpudding",
             cuda_version,
-        ): f"torch {cuda_116_url} {extra_index_url} torchpudding {cuda_116_url} "
-        f"{extra_index_url}",
-        (
+            f"torch {cuda_116_url} {extra_index_url} torchpudding {cuda_116_url} {extra_index_url}",
+        ],
+        [
             "torch>=1.13.0",
             cuda_version,
-        ): f"torch>=1.13.0 {cuda_116_url} {extra_index_url}",
-        (
+            f"torch>=1.13.0 {cuda_116_url} {extra_index_url}",
+        ],
+        [
             "torch>1.13.0",
             cuda_version,
-        ): f"torch>1.13.0 {cuda_116_url} {extra_index_url}",
-        (
+            f"torch>1.13.0 {cuda_116_url} {extra_index_url}",
+        ],
+        [
             "torch==1.13.0",
             cuda_version,
-        ): f"torch==1.13.0 {cuda_116_url} {extra_index_url}",
-        (
+            f"torch==1.13.0 {cuda_116_url} {extra_index_url}",
+        ],
+        [
             f"torch==1.13.0 {cuda_116_url}",
             cuda_version,
-        ): f"torch==1.13.0 {cuda_116_url} {extra_index_url}",
-        (
+            f"torch==1.13.0 {cuda_116_url} {extra_index_url}",
+        ],
+        [
             "torch~=1.13.0",
             cuda_version,
-        ): f"torch~=1.13.0 {cuda_116_url} {extra_index_url}",
-        (
+            f"torch~=1.13.0 {cuda_116_url} {extra_index_url}",
+        ],
+        [
             f"torch==99.99.999 {cuda_116_url}",
             cuda_version,
-        ): f"torch==99.99.999 {cuda_116_url} {extra_index_url}",
-    }
-
-    for (torch_version, cuda_version), expected_install_cmd in install_commands.items():
+            f"torch==99.99.999 {cuda_116_url} {extra_index_url}",
+        ],
+    ]
+    for cmds in install_commands:
+        torch_version, cuda_version, expected_install_cmd = cmds
         dummy_pkg = rh.Package.from_string(specifier=f"pip:{torch_version}")
         formatted_install_cmd = dummy_pkg.install_cmd_for_torch(
             torch_version, cuda_version
@@ -182,7 +203,12 @@ def test_torch_install_command_generator():
 
 
 @pytest.mark.clustertest
-@pytest.mark.parametrize("cluster", ["v100", "k80", "a10g"], indirect=True)
+@pytest.mark.gputest
+@pytest.mark.parametrize(
+    "cluster",
+    ["v100_gpu_cluster", "k80_gpu_cluster", "a10g_gpu_cluster"],
+    indirect=True,
+)
 def test_getting_cuda_version_on_clusters(request, cluster):
     """Gets the cuda version on the cluster and asserts it is the expected version"""
     return_codes: list = cluster.run_python(
@@ -203,7 +229,12 @@ def test_getting_cuda_version_on_clusters(request, cluster):
 
 
 @pytest.mark.clustertest
-@pytest.mark.parametrize("cluster", ["v100", "k80", "a10g"], indirect=True)
+@pytest.mark.gputest
+@pytest.mark.parametrize(
+    "cluster",
+    ["v100_gpu_cluster", "k80_gpu_cluster", "a10g_gpu_cluster"],
+    indirect=True,
+)
 def test_install_cmd_for_torch_on_cluster(request, cluster):
     """Checks that the install command for torch runs properly on the cluster.
     Confirms that we can properly install the package (and send a torch tensor to cuda to validate it"""
@@ -220,39 +251,29 @@ def test_install_cmd_for_torch_on_cluster(request, cluster):
     cuda_index_url = f"--index-url {cuda_url}"
 
     install_commands_for_cluster = [
-        f"torch==1.13.1 {cuda_index_url} {extra_index_url}",
-        f"torch>=1.13.0 {cuda_index_url} {extra_index_url}",
-        f"torch>1.13.0 {cuda_index_url} {extra_index_url}",
-        f"torch {extra_index_url} {cuda_index_url}",
-        f"torch>=1.13.0,<=2.0.0 {cuda_index_url} {extra_index_url}",
-        f"torch==2.0.0 {cuda_index_url} {extra_index_url} torchaudio {cuda_index_url} {extra_index_url}",
-        f"torch~=2.0.0 {cuda_index_url} {extra_index_url}",
+        f"torch==1.13.1 {cuda_index_url}",
+        f"torch>=1.13.0 {cuda_index_url}",
+        f"torch>1.13.0 {cuda_index_url}",
+        f"torch {cuda_index_url}",
+        f"torch>=1.13.0,<=2.0.0 {cuda_index_url}",
+        f"torch==2.0.0 {cuda_index_url} torchaudio {cuda_index_url}",
+        f"torch~=2.0.0 {cuda_index_url}",
     ]
 
     for install_cmd in install_commands_for_cluster:
         # Run the complete install command on the cluster
-        pip_install_cmd = cluster.run_python(
-            [
-                "import runhouse as rh",
-                f"rh.Package.pip_install(install_cmd='{install_cmd}')",
-            ]
-        )
-        assert (
-            "ERROR" not in pip_install_cmd[0][1]
-        ), f"Failed to install command on {cluster.name}"
+        try:
+            cluster.install_packages([install_cmd])
+        except subprocess.CalledProcessError:
+            assert False, f"Failed to install {install_cmd}"
 
-        # Send a tensor to CUDA using this torch version on the cluster
-        torch_cmds = cluster.run_python(
-            [
-                "import torch",
-                "a = torch.LongTensor(1).random_(0, 10)",
-                "a = a.to(device='cuda')",
-                "print(a)",
-            ]
-        )
-        assert (
-            "RuntimeError" not in torch_cmds[0][1]
-        ), f"Failed to send torch tensor to CUDA on cluster {cluster.name}"
+    # Send a tensor to CUDA using this torch version on the cluster
+    tensor_to_cuda = rh.function(send_tensor_to_cuda).to(cluster, reqs=["pytest"])
+
+    res = tensor_to_cuda()
+    assert not isinstance(
+        res, RuntimeError
+    ), f"Failed to send torch tensor to CUDA on {cluster.name}: {res}"
 
 
 if __name__ == "__main__":
