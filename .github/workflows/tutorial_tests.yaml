@@ -29,11 +29,11 @@ jobs:
 
       - name: Install python packages & dependencies
         run: |
-          pip install runhouse[aws] pytest torch diffusers transformers
+          pip install runhouse[aws] pytest torch diffusers transformers datasets
 
       - name: Run all tutorial tests
         run: |
-          pytest -v -k "tutorialtest
+          pytest -v -k "tutorialtest"
 
       - name: Teardown all tutorial clusters
         run: |

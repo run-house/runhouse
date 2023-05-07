@@ -98,11 +98,13 @@ class Package(Resource):
                 install_cmd = f"{local_path}" + install_args
             elif self.install_method == "reqs":
                 reqs_path = f"{local_path}/requirements.txt"
+                logging.info(f"reqs path: {reqs_path}")
                 if Path(reqs_path).expanduser().exists():
                     # Ensure each requirement listed in the file contains the full install command for torch packages
                     reqs_from_file: list = self.format_torch_cmd_in_reqs_file(
                         path=reqs_path, cuda_version=cuda_version
                     )
+                    logging.info(f"Got reqs from file to install: {reqs_from_file}")
 
                     # Format URLs for any torch packages listed in the requirements.txt file
                     logging.info(
@@ -214,6 +216,8 @@ class Package(Resource):
     @staticmethod
     def packages_to_install_from_cmd(install_cmd: str):
         """Split a string of command(s) into a list of separate commands"""
+        # Remove any --extra-index-url flags from the install command (to be added later by default)
+        install_cmd = re.sub(r"--extra-index-url\s+\S+", "", install_cmd)
         install_cmd = install_cmd.strip()
 
         if ", " in install_cmd:

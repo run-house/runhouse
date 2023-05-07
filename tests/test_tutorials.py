@@ -3,8 +3,6 @@ import unittest
 import pytest
 
 import runhouse as rh
-import torch
-from diffusers import StableDiffusionPipeline
 
 
 def sd_generate(
@@ -14,6 +12,9 @@ def sd_generate(
     guidance_scale=7.5,
     model_id="stabilityai/stable-diffusion-2-base",
 ):
+    import torch
+    from diffusers import StableDiffusionPipeline
+
     pipe = StableDiffusionPipeline.from_pretrained(
         model_id, torch_dtype=torch.float16, revision="fp16"
     ).to("cuda")
@@ -22,7 +23,6 @@ def sd_generate(
     ).images
 
 
-@pytest.mark.clustertest
 @pytest.mark.gputest
 @pytest.mark.tutorialtest
 def test_sd_generate(a10g_gpu_cluster):

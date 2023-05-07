@@ -1,10 +1,9 @@
-name: s3-tests
+name: aws-tests
 
 on: workflow_dispatch
 
-
 jobs:
-  s3-tests:
+  aws-tests:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository code
@@ -25,7 +24,7 @@ jobs:
         run: |
           pip install runhouse[aws] pytest tqdm datasets dask s3fs
 
-      - name: Run all s3 tests
+      - name: Run all aws tests
         env:
           TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
         run: pytest -v -k awstest -m "not gcptest" -m "not clustertest"

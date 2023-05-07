@@ -22,7 +22,9 @@ def setup():
     from runhouse.rns.api_utils.utils import create_s3_bucket
 
     create_s3_bucket(DATA_STORE_BUCKET)
-    # create_gcs_bucket(DATA_STORE_BUCKET) # TODO [JL] removing GCS tests for now
+
+    # TODO [JL] removing GCS tests for now
+    # create_gcs_bucket(DATA_STORE_BUCKET)
 
     # Create local dir with files to upload to cluster, buckets, etc.
     TEST_FOLDER_PATH.mkdir(parents=True, exist_ok=True)
@@ -307,8 +309,8 @@ def test_gcs_and_s3(local_folder):
 
 @pytest.mark.awstest
 def test_s3_folder_uploads_and_downloads():
-    # NOTE: you can specify a specific path like this:
-    # test_folder = rh.folder(path='/runhouse/my-folder', system='gs')
+    # NOTE: you can also specify a specific path like this:
+    # test_folder = rh.folder(path='/runhouse/my-folder', system='s3')
 
     s3_folder = rh.folder(system="s3")
     s3_folder.upload(src=str(TEST_FOLDER_PATH))
@@ -326,7 +328,7 @@ def test_s3_folder_uploads_and_downloads():
 
 
 @pytest.mark.clustertest
-def test_cluster_and_cluster(cpu_cluster, local_folder):
+def test_cluster_and_cluster(cpu_cluster, cpu_cluster_2, local_folder):
     # Upload sky secrets to cluster - required when syncing over the folder from c1 to c2
     cpu_cluster.send_secrets(providers=["sky"])
 
@@ -334,7 +336,7 @@ def test_cluster_and_cluster(cpu_cluster, local_folder):
     assert "sample_file_0.txt" in cluster_folder_1.ls(full_paths=False)
 
     # Cluster 1 to cluster 2
-    c2 = rh.cluster(name="test-byo-cluster").up_if_not()
+    c2 = rh.cluster(name=cpu_cluster_2).up_if_not()
     cluster_folder_2 = cluster_folder_1.to(system=c2, path=cluster_folder_1.path)
     assert "sample_file_0.txt" in cluster_folder_2.ls(full_paths=False)
 

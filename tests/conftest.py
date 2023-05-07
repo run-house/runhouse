@@ -18,10 +18,7 @@ def blob_data():
 
 @pytest.fixture
 def local_folder():
-    local_folder = rh.folder(path=Path.cwd() / "tests_tmp")
-    yield local_folder
-    local_folder.delete_in_system()
-    assert not local_folder.exists_in_system()
+    return rh.folder(path=Path.cwd() / "tests_tmp")
 
 
 # ----------------- Tables -----------------
@@ -84,6 +81,15 @@ def ray_table():
 
 
 # ----------------- Clusters -----------------
+
+
+@pytest.fixture
+def cluster(request):
+    """Parametrize over multiple fixtures - useful for running the same test on multiple hardware types."""
+    # Example: @pytest.mark.parametrize("cluster", ["v100_gpu_cluster", "k80_gpu_cluster"], indirect=True)"""
+    return request.getfixturevalue(request.param)
+
+
 @pytest.fixture
 def cpu_cluster():
     return rh.cluster("^rh-cpu").up_if_not()

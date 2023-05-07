@@ -62,7 +62,7 @@ def test_login_flow_in_new_env():
                 provider
             ), f"No credentials path for {provider} stored in .rh config!"
 
-    rh.Secrets.delete_from_vault(providers=["aws", "snowflake", "ssh", "sky"])
+    rh.Secrets.delete_from_vault(providers=["aws", "snowflake", "ssh", "sky", "github"])
     secrets_in_vault = rh.Secrets.download_into_env(
         save_locally=False, check_enabled=False
     )
