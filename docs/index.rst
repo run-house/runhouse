@@ -31,7 +31,7 @@ Runhouse has four top-level objectives:
 * Allowing resources to be shared among teams as living assets
 
 Keep reading on to see how Runhouse achieves this, or explore our
-:ref:`Architecture Section <High-level Architecture>`, :ref:`Python API`, and `Tutorials <https://github.com/run-house/tutorials>`_.
+:ref:`Architecture Section <Runhouse Architecture>`, :ref:`Python API`, and `Tutorials <https://github.com/run-house/tutorials>`_.
 
 .. warning::
     **This is an Alpha:**
@@ -45,22 +45,43 @@ Getting Started 🐣
     $ pip install runhouse
     # Or "runhouse[aws]", "runhouse[gcp]", "runhouse[azure]", "runhouse[all]"
 
-Please check out the :ref:`Installation` section for more detailed instructions.
+Please check out the :ref:`Installation and Setup Guide` for more detailed instructions.
 
 
 Table of Contents
 -----------------
 .. toctree::
    :maxdepth: 1
-   :caption: Using Runhouse
+   :caption: Getting Started
 
    installation
+   getting_started
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Runhouse API
+
    cli/cli
    main
 
-   REST API Guide <https://api.run.house/docs>
-   Dashboard <https://api.run.house>
-   Funhouse <https://github.com/run-house/funhouse>
+.. toctree::
+    :maxdepth: 1
+    :caption: API Tutorials
+
+    tutorials/resource
+    tutorials/compute
+    tutorials/data
+    tutorials/secrets_management
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Usage Examples
+
+   Inference: Stable Diffusion and FLAN T-5 <https://github.com/run-house/tutorials/tree/main/t01_Stable_Diffusion>
+   Training: Dreambooth <https://github.com/run-house/tutorials/tree/main/t02_Dreambooth>
+   Pipelining: BERT <https://github.com/run-house/tutorials/tree/main/t05_BERT_pipeline>
+   Distributed: HF Accelerate <https://github.com/run-house/tutorials/tree/stable/t04_Distributed>
+   Runhouse in Colab: DALLE img2img2 <https://github.com/run-house/tutorials/tree/main/t03_DALLE_SD_pipeline>
 
 .. toctree::
    :maxdepth: 1
@@ -68,27 +89,18 @@ Table of Contents
 
    secrets/secrets
    secrets/vault_secrets
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Appendix
+
+   architecture
    data_collection
+   debugging_logging
+   REST API Guide <https://api.run.house/docs>
+   Dashboard <https://api.run.house>
+   Funhouse <https://github.com/run-house/funhouse>
 
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Runhouse Architecture
-
-   overview/high_level
-   overview/compute
-   overview/data
-   overview/accessibility
-   overview/management
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Tutorials
-
-   10 min Quickstart: Stable Diffusion and FLAN T-5 <https://github.com/run-house/tutorials/tree/main/t01_Stable_Diffusion>
-   Dreambooth Training and Inference <https://github.com/run-house/tutorials/tree/main/t02_Dreambooth>
-   DALL-E to SD img2img in a Notebook <https://github.com/run-house/tutorials/tree/main/t03_DALLE_SD_pipeline>
-   BERT Full Pipeline <https://github.com/run-house/tutorials/tree/main/t05_BERT_pipeline>
 
 
 Contributing and Community

@@ -12,7 +12,7 @@ This includes both compute abstractions (clusters, functions, packages) and data
 .. toctree::
    :maxdepth: 1
 
-   rh_primitives/resource
+   api/resource
 
 
 Compute Abstractions
@@ -26,22 +26,22 @@ and rich debugging and accessibility interfaces built-in.
 .. toctree::
    :maxdepth: 1
 
-   rh_primitives/function
+   api/function
 
 .. toctree::
    :maxdepth: 1
 
-   rh_primitives/cluster
+   api/cluster
 
 .. toctree::
    :maxdepth: 1
 
-   rh_primitives/env
+   api/env
 
 .. toctree::
    :maxdepth: 1
 
-   rh_primitives/package
+   api/package
 
 
 Data Abstractions
@@ -55,15 +55,28 @@ to other data concepts in the future, like kv-stores, time-series, vector and gr
 .. toctree::
    :maxdepth: 1
 
-   rh_primitives/folder
+   api/folder
 
 
 .. toctree::
    :maxdepth: 1
 
-   rh_primitives/table
+   api/table
 
 .. toctree::
    :maxdepth: 1
 
-   rh_primitives/blob
+   api/blob
+
+
+Secrets
+------------------------------------
+Runhouse provides a convenient interface for managing your secrets in a secure manner.
+Secrets are stored in `Vault <https://www.vaultproject.io/>`_, an industry standard for
+secrets management, and never touches Runhouse servers. Please see
+:ref:`Security and Metadata Collection` for more information on security.
+
+.. toctree::
+   :maxdepth: 1
+
+   api/secrets
