@@ -20,7 +20,8 @@ def send_tensor_to_cuda():
 
         a = torch.LongTensor(1).random_(0, 10)
         a = a.to(device="cuda")
-        return a
+        return isinstance(a, torch.Tensor)
+
     except Exception as e:
         return e
 
@@ -267,12 +268,10 @@ def test_install_cmd_for_torch_on_cluster(request, cluster):
             assert False, f"Failed to install {install_cmd}"
 
     # Send a tensor to CUDA using this torch version on the cluster
-    tensor_to_cuda = rh.function(send_tensor_to_cuda).to(cluster, reqs=["pytest"])
+    tensor_to_cuda = rh.function(fn=send_tensor_to_cuda).to(cluster)
+    sent_to_cuda = tensor_to_cuda()
 
-    res = tensor_to_cuda()
-    assert not isinstance(
-        res, RuntimeError
-    ), f"Failed to send torch tensor to CUDA on {cluster.name}: {res}"
+    assert sent_to_cuda, f"Failed to send torch tensor to CUDA on {cluster.name}"
 
 
 if __name__ == "__main__":
