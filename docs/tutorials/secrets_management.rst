@@ -1,5 +1,5 @@
-Secrets in Vault
-=====================================
+Resource and Secrets Management
+===============================
 
 Saving Secrets
 ~~~~~~~~~~~~~~

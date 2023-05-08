@@ -1,18 +1,8 @@
-Resource
-====================================
+Resource Basics
+===============
+
 Resources are the Runhouse abstraction for objects that can be saved, shared, and reused.
 
-
-Resource Class
-~~~~~~~~~~~~~~
-.. autoclass:: runhouse.rns.resource.Resource
-   :members:
-   :exclude-members:
-
-    .. automethod:: __init__
-
-Resource API Usage
-~~~~~~~~~~~~~~~~~~
 Every named resource has a name ``my_resource.name`` and "full name" ``my_resource.rns_address``, and
 is organized into heirarchical folders. By default, providing a ``name`` resolves it as being in
 ``rh.current_folder()`` or the full address. Resources in the local RNS begin with the ``~`` folder,
