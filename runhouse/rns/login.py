@@ -54,7 +54,7 @@ def login(
         """
         )
         link = (
-            f'[link={configs.get("api_server_url")}/dashboard/?option=token]https://api.run.house[/link]'
+            f'[link={configs.get("api_server_url")}/dashboard/?option=token]https://api.run.house/dashboard/?option=token[/link]'
             if is_interactive()
             else f'{configs.get("api_server_url")}/dashboard/?option=token'
         )
