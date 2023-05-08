@@ -431,7 +431,9 @@ class Cluster(Resource):
         logfile = f"{self.name}_grpc_server.log"
         grpc_server_cmd = "python3 -m runhouse.servers.grpc.unary_server"
         # 2>&1 redirects stderr to stdout
-        screen_cmd = f"screen -dm bash -c '{grpc_server_cmd} >> ~/.rh/{logfile} 2>&1'"
+        screen_cmd = (
+            f"screen -dm bash -c '{grpc_server_cmd} |& tee -a ~/.rh/{logfile} 2>&1'"
+        )
         cmds = [kill_proc_cmd]
         if restart_ray:
             cmds.append("ray stop")
