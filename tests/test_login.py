@@ -1,4 +1,7 @@
 import os
+import unittest
+
+import pytest
 
 import runhouse as rh
 import sky
@@ -32,6 +35,8 @@ def add_secrets_to_vault(headers):
     )
 
 
+@pytest.mark.rnstest
+@pytest.mark.logintest
 def test_login_flow_in_new_env():
     token = os.getenv("TEST_TOKEN")
     headers = {"Authorization": f"Bearer {token}"}
@@ -67,3 +72,7 @@ def test_login_flow_in_new_env():
         save_locally=False, check_enabled=False
     )
     assert not secrets_in_vault
+
+
+if __name__ == "__main__":
+    unittest.main()

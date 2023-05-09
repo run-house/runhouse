@@ -30,4 +30,4 @@ jobs:
           TEST_AWS_SECRET_KEY: ${{ secrets.TEST_AWS_SECRET_KEY }}
           TEST_SKY_PRIVATE_KEY: ${{ secrets.TEST_SKY_PRIVATE_KEY }}
           TEST_SKY_PUBLIC_KEY: ${{ secrets.TEST_SKY_PUBLIC_KEY }}
-        run: pytest tests/test_login.py
+        run: pytest -v -k logintest

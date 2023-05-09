@@ -18,7 +18,10 @@ def blob_data():
 
 @pytest.fixture
 def local_folder():
-    return rh.folder(path=Path.cwd() / "tests_tmp")
+    local_folder = rh.folder(path=Path.cwd() / "tests_tmp")
+    yield local_folder
+    local_folder.delete_in_system()
+    assert not local_folder.exists_in_system()
 
 
 # ----------------- Tables -----------------
