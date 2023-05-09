@@ -24,7 +24,7 @@ To initialize a Runhouse Table, use the factory method ``rh.table``
 
 .. code:: python
 
-   my_table = rh.table(data=data,
+    my_table = rh.table(data=data,
                      name="~/my_pandas_table",
                      path="table/my_pandas_table.parquet",
                      system="file",
@@ -34,12 +34,12 @@ To load an existing table by name:
 
 .. code:: python
 
-   reloaded_table = rh.table(name="~/my_pandas_table", dryrun=True)
+    reloaded_table = rh.table(name="~/my_pandas_table", dryrun=True)
 
 This ``reloaded_table`` holds a reference to the Table's path, and can be used as follows:
 
 .. code:: python
 
-   batches = reloaded_table.stream(batch_size=100)
-      for batch in batches:
-         ....
+    batches = reloaded_table.stream(batch_size=100)
+    for batch in batches:
+        ....

@@ -197,7 +197,7 @@ def blob(
         >>> data = json.dumps(list(range(50))
         >>>
         >>> # Remote blob with name and no path (saved to bucket called runhouse/blobs/my-blob)
-        >>> rh.blob(name="@/my-blob", data=data, data_source='s3', dryrun=False)
+        >>> rh.blob(name="@/my-blob", data=data, system='s3', dryrun=False)
         >>>
         >>> # Remote blob with name and path
         >>> rh.blob(name='@/my-blob', path='/runhouse-tests/my_blob.pickle', data=data, system='s3', dryrun=False)
