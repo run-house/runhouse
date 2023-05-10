@@ -18,12 +18,13 @@ class Package(Resource):
 
     # https://pytorch.org/get-started/locally/
     # Note: no binaries exist for 11.4 (https://github.com/pytorch/pytorch/issues/75992)
-    TORCH_INDEX_URLS_FOR_CUDA = {
+    TORCH_INDEX_URLS = {
         "11.3": "https://download.pytorch.org/whl/cu113",
         "11.5": "https://download.pytorch.org/whl/cu115",
         "11.6": "https://download.pytorch.org/whl/cu116",
         "11.7": "https://download.pytorch.org/whl/cu117",
         "11.8": "https://download.pytorch.org/whl/cu118",
+        "cpu": "https://download.pytorch.org/whl/cpu",
     }
 
     def __init__(
@@ -75,7 +76,7 @@ class Package(Resource):
 
         install_cmd = ""
         install_args = f" {self.install_args}" if self.install_args else ""
-        cuda_version = self.detect_cuda_version()
+        cuda_version_or_cpu = self.detect_cuda_version_or_cpu()
 
         if isinstance(self.install_target, Folder):
             local_path = self.install_target.local_path
@@ -102,7 +103,7 @@ class Package(Resource):
                 if Path(reqs_path).expanduser().exists():
                     # Ensure each requirement listed in the file contains the full install command for torch packages
                     reqs_from_file: list = self.format_torch_cmd_in_reqs_file(
-                        path=reqs_path, cuda_version=cuda_version
+                        path=reqs_path, cuda_version_or_cpu=cuda_version_or_cpu
                     )
                     logging.info(f"Got reqs from file to install: {reqs_from_file}")
 
@@ -119,7 +120,7 @@ class Package(Resource):
             install_cmd = self.install_target + install_args
 
         if self.install_method == "pip":
-            install_cmd = self.install_cmd_for_torch(install_cmd, cuda_version)
+            install_cmd = self.install_cmd_for_torch(install_cmd, cuda_version_or_cpu)
             if not install_cmd:
                 raise ValueError("Invalid install command")
 
@@ -149,7 +150,7 @@ class Package(Resource):
     # ----------------------------------
     # Torch Install Helpers
     # ----------------------------------
-    def format_torch_cmd_in_reqs_file(self, path, cuda_version):
+    def format_torch_cmd_in_reqs_file(self, path, cuda_version_or_cpu):
         """Read requirements from file, append --index-url and --extra-index-url where relevant for torch packages,
         and return list of formatted packages."""
         with open(path) as f:
@@ -158,12 +159,12 @@ class Package(Resource):
         # Leave the file alone, maintain a separate list with the updated commands which we will later pip install
         reqs_from_file = []
         for req in reqs:
-            install_cmd = self.install_cmd_for_torch(req.strip(), cuda_version)
+            install_cmd = self.install_cmd_for_torch(req.strip(), cuda_version_or_cpu)
             reqs_from_file.append(install_cmd)
 
         return reqs_from_file
 
-    def install_cmd_for_torch(self, install_cmd, cuda_version):
+    def install_cmd_for_torch(self, install_cmd, cuda_version_or_cpu):
         """Return the correct formatted pip install command for the torch package(s) provided."""
         torch_source_packages = ["torch", "torchvision", "torchaudio"]
         if not any([x in install_cmd for x in torch_source_packages]):
@@ -173,7 +174,7 @@ class Package(Resource):
         final_install_cmd = ""
         for package_install_cmd in packages_to_install:
             formatted_cmd = self._install_url_for_torch_package(
-                package_install_cmd, cuda_version
+                package_install_cmd, cuda_version_or_cpu
             )
             if formatted_cmd:
                 final_install_cmd += formatted_cmd + " "
@@ -181,14 +182,14 @@ class Package(Resource):
         final_install_cmd = final_install_cmd.rstrip()
         return final_install_cmd if final_install_cmd != "" else None
 
-    def _install_url_for_torch_package(self, install_cmd, cuda_version):
+    def _install_url_for_torch_package(self, install_cmd, cuda_version_or_cpu):
         """Build the full install command, adding a --index-url and --extra-index-url where applicable."""
         # Grab the relevant index url for torch based on the CUDA version provided
         if "," in install_cmd:
             # If installing a range of versions format the string to make it compatible with `pip_install` method
             install_cmd = install_cmd.replace(" ", "")
 
-        index_url = self.torch_index_url_for_cuda(cuda_version)
+        index_url = self.torch_index_url(cuda_version_or_cpu)
         if index_url and not any(
             specifier in install_cmd for specifier in ["--index-url ", "-i "]
         ):
@@ -199,19 +200,28 @@ class Package(Resource):
 
         return install_cmd
 
-    def torch_index_url_for_cuda(self, cuda_version: str):
-        return self.TORCH_INDEX_URLS_FOR_CUDA.get(cuda_version)
+    def torch_index_url(self, cuda_version_or_cpu: str):
+        return self.TORCH_INDEX_URLS.get(cuda_version_or_cpu)
 
     @staticmethod
-    def detect_cuda_version():
-        """Use nvcc to get the cuda version."""
+    def detect_cuda_version_or_cpu():
+        """Return the CUDA version on the cluster. If we are on a CPU-only cluster return 'cpu'.
+
+        Note: A cpu-only machine may have the CUDA toolkit installed, which means nvcc will still return
+        a valid version. Also check if the NVIDIA driver is installed to confirm we are on a GPU."""
         try:
             cuda_version_info: str = subprocess.check_output(
                 "nvcc --version", shell=True
             ).decode("utf-8")
-            return cuda_version_info.split("release ")[1].split(",")[0]
+            cuda_version = cuda_version_info.split("release ")[1].split(",")[0]
         except subprocess.CalledProcessError:
-            return None
+            return "cpu"
+
+        try:
+            subprocess.check_call(["nvidia-smi"])
+            return cuda_version
+        except subprocess.CalledProcessError:
+            return "cpu"
 
     @staticmethod
     def packages_to_install_from_cmd(install_cmd: str):
