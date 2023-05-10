@@ -52,17 +52,21 @@ install on top of the environment using the ``reqs`` parameter.
     conda_env = rh.env(conda_env="local-conda-env-name")
 
 
-To setup and use an environment on a cluster, or for running a Function:
+To setup and use an environment on a cluster for running a Function:
 
 .. code:: python
 
     env = rh.env(...)
     gpu = rh.cluster(name="rh-a10x")
 
-    env.to(gpu)
-
     rh_func = rh.function(name="sd_generate")
     rh_func.to(gpu, env)
+
+You can also directly send and setup the environment on a cluster using:
+
+.. code:: python
+
+    env.to(gpu)
 
 To install packages on the environment on the system at any point:
 

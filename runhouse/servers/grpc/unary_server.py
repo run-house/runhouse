@@ -46,19 +46,18 @@ class UnaryService(pb2_grpc.UnaryServicer):
     def InstallPackages(self, request, context):
         self.register_activity()
         try:
-            packages, env_cmd = pickle.loads(request.message)
+            packages, env = pickle.loads(request.message)
             logger.info(f"Message received from client to install packages: {packages}")
             for package in packages:
                 if isinstance(package, str):
                     pkg = Package.from_string(package)
-
                 elif hasattr(package, "install"):
                     pkg = package
                 else:
                     raise ValueError(f"package {package} not recognized")
 
                 logger.info(f"Installing package: {str(pkg)}")
-                pkg.install(env_cmd)
+                pkg.install(env)
 
             self.register_activity()
             message = [None, None, None]

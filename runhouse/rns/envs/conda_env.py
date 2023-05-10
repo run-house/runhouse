@@ -1,15 +1,11 @@
 import logging
-import subprocess
-from pathlib import Path
 
 from typing import Dict, List, Optional, Union
-
-import yaml
 
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.packages import Package
 
-from .env import _process_reqs, Env
+from .env import Env
 
 
 class CondaEnv(Env):
@@ -17,9 +13,9 @@ class CondaEnv(Env):
 
     def __init__(
         self,
-        conda_env: Union[str, Dict],
+        conda_yaml: Union[str, Dict],
         name: Optional[str] = None,
-        reqs: List[Union[str, Package]] = None,
+        reqs: List[Union[str, Package]] = [],
         setup_cmds: List[str] = None,
         dryrun: bool = True,
         **kwargs,  # We have this here to ignore extra arguments when calling from_config
@@ -30,44 +26,8 @@ class CondaEnv(Env):
         .. note::
             To create a CondaEnv, please use the factory method :func:`env`.
         """
-        reqs = _process_reqs(reqs)
-        if isinstance(conda_env, str):
-            if Path(conda_env).expanduser().exists():  # local yaml path
-                conda_env = yaml.safe_load(open(conda_env))
-            elif f"\n{conda_env} " in subprocess.check_output(
-                "conda info --envs".split(" ")
-            ).decode("utf-8"):
-                res = subprocess.check_output(
-                    f"conda env export -n {conda_env} --no-build".split(" ")
-                ).decode("utf-8")
-                conda_env = yaml.load(res)
-            else:
-                raise Exception(
-                    f"{conda_env} must be a Dict or point to an existing path or conda environment."
-                )
-        # ensure correct version to Ray -- this is subject to change if SkyPilot adds additional ray version support
-        conda_env["dependencies"] = (
-            conda_env["dependencies"] if "dependencies" in conda_env else []
-        )
-        if not [dep for dep in conda_env["dependencies"] if "pip" in dep]:
-            conda_env["dependencies"].append("pip")
-        if not [
-            dep
-            for dep in conda_env["dependencies"]
-            if isinstance(dep, Dict) and "pip" in dep
-        ]:
-            conda_env["dependencies"].append({"pip": ["ray==2.0.1"]})
-        else:
-            for dep in conda_env["dependencies"]:
-                if (
-                    isinstance(dep, Dict)
-                    and "pip" in dep
-                    and not [pip for pip in dep["pip"] if "ray" in pip]
-                ):
-                    dep["pip"].append("ray==2.0.1")
-                    continue
-
-        self.conda_env = conda_env  # dict representing conda env
+        self.reqs = reqs
+        self.conda_yaml = conda_yaml  # dict representing conda env
         super().__init__(name=name, reqs=reqs, setup_cmds=setup_cmds, dryrun=dryrun)
 
     @staticmethod
@@ -77,17 +37,17 @@ class CondaEnv(Env):
     @property
     def config_for_rns(self):
         config = super().config_for_rns
-        config.update({"conda_env": self.conda_env})
+        config.update({"conda_yaml": self.conda_yaml})
         return config
 
     @property
     def env_name(self):
-        return self.conda_env["name"]
+        return self.conda_yaml["name"]
 
     def _setup_env(self, system: Cluster):
-        if not ["python" in dep for dep in self.conda_env["dependencies"]]:
+        if not ["python" in dep for dep in self.conda_yaml["dependencies"]]:
             base_python_version = system.run(["python --version"])[0][1].split()[1]
-            self.conda_env["dependencies"].append(f"python=={base_python_version}")
+            self.conda_yaml["dependencies"].append(f"python=={base_python_version}")
 
         try:
             system.run(["conda --version"])
@@ -110,7 +70,7 @@ class CondaEnv(Env):
                 "import yaml",
                 "from pathlib import Path",
                 f"path = Path('{path}').expanduser()",
-                f"yaml.dump({self.conda_env}, open(path/'{self.env_name}.yml', 'w'))",
+                f"yaml.dump({self.conda_yaml}, open(path/'{self.env_name}.yml', 'w'))",
             ]
         )
 
@@ -121,7 +81,7 @@ class CondaEnv(Env):
         system.sync_runhouse_to_cluster(env=self)
 
         if self.reqs:
-            system.install_packages(self.reqs, self._run_cmd)
+            system.install_packages(self.reqs, self)
 
         if self.setup_cmds:
             cmd = f"{self._activate_cmd} && {self.setup_cmds.join(' && ')}"

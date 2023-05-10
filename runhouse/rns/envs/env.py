@@ -1,5 +1,4 @@
 import copy
-from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from runhouse.rh_config import rns_client
@@ -10,41 +9,7 @@ from runhouse.rns.packages import Package
 from runhouse.rns.packages.package import _get_cluster_from
 from runhouse.rns.resource import Resource
 
-
-def _process_reqs(reqs):
-    preprocessed_reqs = []
-    for package in reqs:
-        # TODO [DG] the following is wrong. RNS address doesn't have to start with '/'. However if we check if each
-        #  string exists in RNS this will be incredibly slow, so leave it for now.
-        if (
-            isinstance(package, str)
-            and package[0] == "/"
-            and rns_client.exists(package)
-        ):
-            # If package is an rns address
-            package = rns_client.load_config(package)
-        elif (
-            isinstance(package, str)
-            and Path(package.split(":")[-1]).expanduser().exists()
-        ):
-            # if package refers to a local path package
-            package = Package.from_string(package)
-        elif isinstance(package, dict):
-            package = Package.from_config(package, dryrun=True)
-        preprocessed_reqs.append(package)
-    return preprocessed_reqs
-
-
-def _get_env_from(env):
-    if isinstance(env, Resource):
-        return env
-    elif isinstance(env, List):
-        return Env(reqs=env)
-    elif isinstance(env, Dict):
-        return Env.from_config(env)
-    elif isinstance(env, str) and rns_client.exists(env, resource_type="env"):
-        return Env.from_name(env)
-    return env
+from runhouse.rns.utils.env import _get_conda_yaml, _process_reqs
 
 
 class Env(Resource):
@@ -53,7 +18,7 @@ class Env(Resource):
     def __init__(
         self,
         name: Optional[str] = None,
-        reqs: List[Union[str, Package]] = None,
+        reqs: List[Union[str, Package]] = [],
         setup_cmds: List[str] = None,
         dryrun: bool = True,
         **kwargs,  # We have this here to ignore extra arguments when calling from_config
@@ -64,7 +29,7 @@ class Env(Resource):
             To create an Env, please use the factory method :func:`env`.
         """
         super().__init__(name=name, dryrun=dryrun)
-        self.reqs = _process_reqs(reqs)
+        self.reqs = reqs
         self.setup_cmds = setup_cmds
 
     @staticmethod
@@ -121,21 +86,10 @@ class Env(Resource):
         new_env.reqs = self._reqs_to(system, path, mount)
 
         if isinstance(system, Cluster):
+            system.check_grpc()
             new_env._setup_env(system)
 
         return new_env
-
-    def install_packages(
-        self, pkgs: List[str or Package], system: Union[Cluster, Dict, str]
-    ):
-        """
-        Additionally install given packages on the environment on the system.
-        Note that this does not update the runhouse Env object or metadata, but simply installs
-        packages on the existing env on the system.
-        """
-        system = _get_cluster_from(system)
-        assert isinstance(system, Cluster)
-        system.install_packages(pkgs, self._run_cmd)
 
     @property
     def _activate_cmd(self):
@@ -148,7 +102,7 @@ class Env(Resource):
 
 def env(
     name: Optional[str] = None,
-    reqs: List[Union[str, Package]] = None,
+    reqs: List[Union[str, Package]] = [],
     conda_env: Union[str, Dict] = None,
     setup_cmds: List[str] = None,
     dryrun: bool = True,
@@ -172,16 +126,18 @@ def env(
     config = rns_client.load_config(name) if load else {}
     config["name"] = name or config.get("rns_address", None) or config.get("name")
 
-    reqs = reqs if reqs is not None else config.get("reqs", [])
-    config["reqs"] = reqs
+    reqs = reqs if reqs else config.get("reqs", [])
+    config["reqs"] = _process_reqs(reqs)
 
     config["setup_cmds"] = (
         setup_cmds if setup_cmds is not None else config.get("setup_cmds")
     )
-    config["conda_env"] = conda_env or config.get("conda_env")
+    conda_yaml = _get_conda_yaml(conda_env) or config.get("conda_yaml")
 
-    if config["conda_env"]:
+    if conda_yaml:
         from runhouse.rns.envs.conda_env import CondaEnv
+
+        config["conda_yaml"] = conda_yaml
 
         return CondaEnv.from_config(config, dryrun=dryrun)
 

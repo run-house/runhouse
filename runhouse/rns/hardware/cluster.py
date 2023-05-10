@@ -182,13 +182,15 @@ class Cluster(Resource):
         if status_codes[0][0] != 0:
             raise ValueError(f"Error installing runhouse on cluster <{self.name}>")
 
-    def install_packages(self, reqs: List[Union[Package, str]], env_cmd: str = ""):
+    def install_packages(
+        self, reqs: List[Union[Package, str]], env: Union["Env", str] = None
+    ):
         """Install the given packages on the cluster.
 
         Args:
             reqs (List[Package or str): List of packages to install on cluster and env
-            env_cmd (str): Command prefix for running it on an environment, corresponding to env._run_cmd.
-                (Default: ``""``)
+            env (Env or str): Environment to install package on. If left empty, defaults to base environment.
+                (Default: ``None``)
         """
         self.check_grpc()
         to_install = []
@@ -212,7 +214,7 @@ class Cluster(Resource):
             f"Installing packages on cluster {self.name}: "
             f"{[req if isinstance(req, str) else str(req) for req in reqs]}"
         )
-        self.client.install_packages(to_install, env_cmd)
+        self.client.install_packages(to_install, env)
 
     def get(self, key: str, default: Any = None, stream_logs: bool = False):
         """Get the object at the given key from the cluster's object store."""
@@ -558,6 +560,7 @@ class Cluster(Resource):
     def run(
         self,
         commands: List[str],
+        env: Union["Env", str] = None,
         stream_logs: bool = True,
         port_forward: Optional[int] = None,
         require_outputs: bool = True,
@@ -566,7 +569,17 @@ class Cluster(Resource):
         # TODO [DG] suspect autostop while running?
         runner = command_runner.SSHCommandRunner(self.address, **self.ssh_creds())
         return_codes = []
+
+        cmd_prefix = ""
+        if env:
+            if isinstance(env, str):
+                from runhouse.rns.envs import Env
+
+                env = Env.from_name(env)
+            cmd_prefix = env._run_cmd
+
         for command in commands:
+            command = f"{cmd_prefix} {command}" if cmd_prefix else command
             logger.info(f"Running command on {self.name}: {command}")
             ret_code = runner.run(
                 command,
@@ -580,13 +593,21 @@ class Cluster(Resource):
     def run_python(
         self,
         commands: List[str],
+        env: Union["Env", str] = None,
         stream_logs: bool = True,
         port_forward: Optional[int] = None,
     ):
         """Run a list of python commands on the cluster."""
+        cmd_prefix = "python3 -c"
+        if env:
+            if isinstance(env, str):
+                from runhouse.rns.envs import Env
+
+                env = Env.from_name(env)
+            cmd_prefix = f"{env._run_cmd} {cmd_prefix}"
         command_str = "; ".join(commands)
         return_codes = self.run(
-            [f'python3 -c "{command_str}"'],
+            [f"{cmd_prefix} {command_str}"],
             stream_logs=stream_logs,
             port_forward=port_forward,
         )

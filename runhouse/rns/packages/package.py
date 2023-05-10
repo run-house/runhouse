@@ -71,12 +71,12 @@ class Package(Resource):
             return f"Package: {self.install_target.path}"
         return f"Package: {self.install_target}"
 
-    def install(self, env_cmd: str = ""):
+    def install(self, env: Union[str, "Env"] = None):
         """Install package.
 
         Args:
-            env_cmd (str): Prefix command with this to install package on a specific env. Corresponds to
-                ``env._run_cmd``. (Default: ``""``)
+            env (Env or str): Environment to install package on. If left empty, defaults to base environment.
+                (Default: ``None``)
         """
         logging.info(
             f"Installing package {str(self)} with method {self.install_method}."
@@ -87,7 +87,6 @@ class Package(Resource):
 
         if isinstance(self.install_target, Folder):
             local_path = self.install_target.local_path
-
             if self.install_method == "pip":
                 # TODO [DG] Revisit: Would be nice if we could use -e by default, but importlib on the grpc server
                 #  isn't finding the package right after its installed.
@@ -126,7 +125,7 @@ class Package(Resource):
 
             self.pip_install(install_cmd)
         elif self.install_method == "conda":
-            self.conda_install(install_cmd, env_cmd)
+            self.conda_install(install_cmd, env)
         elif self.install_method in ["local", "reqs"]:
             if isinstance(self.install_target, Folder):
                 sys.path.append(local_path)
@@ -242,19 +241,31 @@ class Package(Resource):
     # ----------------------------------
 
     @staticmethod
-    def pip_install(install_cmd: str, env_cmd: str = ""):
+    def pip_install(install_cmd: str, env: Union[str, "Env"] = ""):
         """Run pip install."""
-        cmd_prefix = env_cmd if env_cmd else f"{sys.executable} -m"
+        if env:
+            if isinstance(env, str):
+                from runhouse.rns.envs import Env
+
+                env = Env.from_name(env)
+            cmd_prefix = env._run_cmd
+        else:
+            cmd_prefix = f"{sys.executable} -m"
         cmd = f"{cmd_prefix} pip install {install_cmd}"
         logging.info(f"Running: {cmd}")
         subprocess.check_call(cmd.split(" "))
 
     @staticmethod
-    def conda_install(install_cmd: str, env_cmd: str = ""):
+    def conda_install(install_cmd: str, env: Union[str, "Env"] = ""):
         """Run conda install."""
-        cmd_prefix = f"{env_cmd} " if env_cmd else ""
-        cmd = f"{cmd_prefix}conda install -y {install_cmd}"
-        logging.info(f"Running: conda install {install_cmd}")
+        cmd = f"conda install -y {install_cmd}"
+        if env:
+            if isinstance(env, str):
+                from runhouse.rns.envs import Env
+
+                env = Env.from_name(env)
+            cmd = f"{env._run_cmd} {cmd}"
+        logging.info(f"Running: {cmd}")
         # check if conda is installed, and if not, install it
         try:
             subprocess.check_call(["conda", "--version"])

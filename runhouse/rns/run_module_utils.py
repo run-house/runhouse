@@ -37,7 +37,6 @@ def call_fn_by_type(
         kwargs = rh_config.obj_store.get_obj_refs_dict(kwargs)
 
         ray.init(ignore_reinit_error=True)
-        # have tried adding it to os.environ before ray.init
         num_gpus = ray.cluster_resources().get("GPU", 0)
         num_cuda_devices = resources.get("num_gpus") or num_gpus
 
@@ -48,7 +47,6 @@ def call_fn_by_type(
             str((Path.home() / relative_path).resolve()) if relative_path else None
         )
         runtime_env = {"env_vars": {"PYTHONPATH": module_path or ""}}
-        # have tried adding it to runtime env, env_vars here
         if conda_env:
             runtime_env["conda"] = conda_env
 
@@ -88,7 +86,7 @@ def call_fn_by_type(
         if fn_type == "remote":
             rh_config.obj_store.put_obj_ref(key=run_key, obj_ref=obj_ref)
             res = pickle.dumps(run_key)
-        elif fn_type in ("call", "nested"):
+        elif fn_type in ("call"):
             res = ray.get(obj_ref)
         else:
             res = pickle.dumps(ray.get(obj_ref))
