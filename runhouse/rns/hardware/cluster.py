@@ -20,7 +20,7 @@ from runhouse.rns.packages.package import Package
 from runhouse.rns.resource import Resource
 from runhouse.rns.utils.hardware import _current_cluster
 
-from runhouse.servers.grpc.unary_client import UnaryClient
+from runhouse.servers.http.http_client import HTTPClient
 from runhouse.servers.grpc.unary_server import UnaryService
 
 logger = logging.getLogger(__name__)
@@ -281,7 +281,7 @@ class Cluster(Resource):
                 self._grpc_tunnel = ssh_tunnel
         else:
             self._grpc_tunnel, connected_port = self.ssh_tunnel(
-                UnaryClient.DEFAULT_PORT,
+                HTTPClient.DEFAULT_PORT,
                 remote_port=UnaryService.DEFAULT_PORT,
                 num_ports_to_try=5,
             )
@@ -292,11 +292,11 @@ class Cluster(Resource):
         )
 
         # Connecting to localhost because it's tunneled into the server at the specified port.
-        self.client = UnaryClient(host="127.0.0.1", port=connected_port)
+        self.client = HTTPClient(host="127.0.0.1", port=connected_port)
         waited = 0
-        while not self.is_connected() and waited <= self.GRPC_TIMEOUT:
-            time.sleep(0.25)
-            waited += 0.25
+        # while not self.is_connected() and waited <= self.GRPC_TIMEOUT:
+        #     time.sleep(0.25)
+        #     waited += 0.25
 
     def check_grpc(self, restart_grpc_server=True):
         if not self.address:
@@ -324,6 +324,8 @@ class Cluster(Resource):
                     self.up_if_not()
                 else:
                     self.restart_grpc_server(resync_rh=False)
+
+        return
 
         if self.is_connected():
             return
@@ -441,7 +443,7 @@ class Cluster(Resource):
             self.save_config_to_cluster()
         kill_proc_cmd = 'pkill -f "python3 -m runhouse.servers.grpc.unary_server"'
         logfile = f"{self.name}_grpc_server.log"
-        grpc_server_cmd = "python3 -m runhouse.servers.grpc.unary_server"
+        grpc_server_cmd = "python3 -m runhouse.servers.http.http_server"
         # 2>&1 redirects stderr to stdout
         screen_cmd = (
             f"screen -dm bash -c '{grpc_server_cmd} |& tee -a ~/.rh/{logfile} 2>&1'"

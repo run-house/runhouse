@@ -143,6 +143,8 @@ class Function(Resource):
             new_function.system = self.system
 
         logging.info("Setting up Function on cluster.")
+        # To up cluster in case it's not yet up
+        new_function.system.check_grpc()
         new_env = env.to(new_function.system)
         logging.info("Function setup complete.")
         new_function.env = new_env
@@ -424,7 +426,7 @@ class Function(Resource):
 
         [relative_path, module_name, fn_name] = self.fn_pointers
         name = self.name or fn_name or "anonymous function"
-        logger.info(f"Running {name} via gRPC")
+        logger.info(f"Running {name} via HTTP")
         env_name = (
             self.env.env_name if (self.env and isinstance(self.env, CondaEnv)) else None
         )
