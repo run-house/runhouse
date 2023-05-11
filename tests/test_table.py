@@ -2,7 +2,6 @@ import shutil
 import unittest
 from pathlib import Path
 
-import datasets
 import pandas as pd
 import pyarrow as pa
 import pytest
@@ -862,7 +861,7 @@ def test_create_and_fetch_huggingface_data_from_s3(huggingface_table):
     )
 
     reloaded_table = rh.Table.from_name(name)
-    reloaded_data: datasets.Dataset = reloaded_table.fetch()
+    reloaded_data = reloaded_table.fetch()
     assert huggingface_table.shape == reloaded_data.shape
 
     del huggingface_table

@@ -5,7 +5,6 @@ import unittest
 import pytest
 
 import runhouse as rh
-from tqdm.auto import tqdm  # progress bar
 
 from tests.test_function import multiproc_torch_sum
 
@@ -25,6 +24,8 @@ def do_printing_and_logging():
 
 
 def do_tqdm_printing_and_logging(steps=6):
+    from tqdm.auto import tqdm  # progress bar
+
     progress_bar = tqdm(range(steps))
     for i in range(steps):
         # Wait to make sure we're actually streaming

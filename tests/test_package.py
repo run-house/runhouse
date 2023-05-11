@@ -184,7 +184,7 @@ def test_torch_install_command_generator_from_reqs():
     dummy_pkg = rh.Package.from_string(specifier="pip:dummy_package")
 
     reqs_from_file: list = dummy_pkg.format_torch_cmd_in_reqs_file(
-        path=test_reqs_file, cuda_version="11.6"
+        path=test_reqs_file, cuda_version_or_cpu="11.6"
     )
 
     for idx, install_cmd in enumerate(reqs_from_file):
