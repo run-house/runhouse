@@ -607,7 +607,7 @@ class Cluster(Resource):
             cmd_prefix = f"{env._run_cmd} {cmd_prefix}"
         command_str = "; ".join(commands)
         return_codes = self.run(
-            [f"{cmd_prefix} {command_str}"],
+            [f'{cmd_prefix} "{command_str}"'],
             stream_logs=stream_logs,
             port_forward=port_forward,
         )
