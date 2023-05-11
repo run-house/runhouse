@@ -71,17 +71,22 @@ class Package(Resource):
             return f"Package: {self.install_target.path}"
         return f"Package: {self.install_target}"
 
-    def install(self):
-        """Install package."""
-        logging.info(f"Installing {str(self)} with method {self.install_method}.")
+    def install(self, env: Union[str, "Env"] = None):
+        """Install package.
 
+        Args:
+            env (Env or str): Environment to install package on. If left empty, defaults to base environment.
+                (Default: ``None``)
+        """
+        logging.info(
+            f"Installing package {str(self)} with method {self.install_method}."
+        )
         install_cmd = ""
         install_args = f" {self.install_args}" if self.install_args else ""
         cuda_version_or_cpu = self.detect_cuda_version_or_cpu()
 
         if isinstance(self.install_target, Folder):
             local_path = self.install_target.local_path
-
             if self.install_method == "pip":
                 # TODO [DG] Revisit: Would be nice if we could use -e by default, but importlib on the grpc server
                 #  isn't finding the package right after its installed.
@@ -118,9 +123,9 @@ class Package(Resource):
             if not install_cmd:
                 raise ValueError("Invalid install command")
 
-            self.pip_install(install_cmd)
+            self.pip_install(install_cmd, env)
         elif self.install_method == "conda":
-            self.conda_install(install_cmd)
+            self.conda_install(install_cmd, env)
         elif self.install_method in ["local", "reqs"]:
             if isinstance(self.install_target, Folder):
                 sys.path.append(local_path)
@@ -236,21 +241,35 @@ class Package(Resource):
     # ----------------------------------
 
     @staticmethod
-    def pip_install(install_cmd: str):
+    def pip_install(install_cmd: str, env: Union[str, "Env"] = ""):
         """Run pip install."""
-        logging.info(f"Running: pip install {install_cmd}")
-        subprocess.check_call(
-            [sys.executable, "-m", "pip", "install"] + install_cmd.split(" ")
-        )
+        if env:
+            if isinstance(env, str):
+                from runhouse.rns.envs import Env
+
+                env = Env.from_name(env)
+            cmd_prefix = env._run_cmd
+        else:
+            cmd_prefix = f"{sys.executable} -m"
+        cmd = f"{cmd_prefix} pip install {install_cmd}"
+        logging.info(f"Running: {cmd}")
+        subprocess.check_call(cmd.split(" "))
 
     @staticmethod
-    def conda_install(install_cmd: str):
+    def conda_install(install_cmd: str, env: Union[str, "Env"] = ""):
         """Run conda install."""
-        logging.info(f"Running: conda install {install_cmd}")
+        cmd = f"conda install -y {install_cmd}"
+        if env:
+            if isinstance(env, str):
+                from runhouse.rns.envs import Env
+
+                env = Env.from_name(env)
+            cmd = f"{env._run_cmd} {cmd}"
+        logging.info(f"Running: {cmd}")
         # check if conda is installed, and if not, install it
         try:
             subprocess.check_call(["conda", "--version"])
-            subprocess.run(["conda", "install", "-y"] + install_cmd.split(" "))
+            subprocess.run(cmd.split(" "))
         except FileNotFoundError:
             logging.info("Conda not found, installing...")
             subprocess.check_call(
@@ -259,9 +278,7 @@ class Package(Resource):
             )
             subprocess.check_call(["bash", "~/miniconda.sh", "-b", "-p", "~/miniconda"])
             subprocess.check_call("source $HOME/miniconda3/bin/activate".split(" "))
-            status = subprocess.check_call(
-                ["conda", "install", "-y"] + install_cmd.split(" ")
-            )
+            status = subprocess.check_call(cmd.split(" "))
             if not status == 0:
                 raise RuntimeError(
                     "Conda install failed, check that the package exists and is "

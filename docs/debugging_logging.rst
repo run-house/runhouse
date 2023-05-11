@@ -25,11 +25,12 @@ Alternatively, to see logs on your local machine while running a remote function
 Debugging
 ~~~~~~~~~
 
-To set a breakpoint, add ``import pdb; pdb.set_trace()`` to whereever you want to set your debugging session.
+For general debugging that doesn't occur within remote function calls, you can add
+``import pdb; pdb.set_trace()`` whereever you want to set your debugging session.
 If the code is being run locally at the point of the debugger, you'll be able to access the session from your
 local machine. If the code is being run remotely on a cluster, you will need to ssh into the cluster with
 ``ssh cluster-name``, and then run ``screen -r`` inside the cluster. From there, you will see the GRPC logs
-being printed out, and can debug normally inside the ``scree``n.
+being printed out, and can debug normally inside the ``screen``.
 
 .. note::
 
@@ -38,3 +39,9 @@ being printed out, and can debug normally inside the ``scree``n.
 
     If you accidentally terminate the GRPC server, you can run ``cluster.restart_grpc_server()`` to restart the
     server.
+
+For debugging remote functions, which are launched using ``ray``, we can utilize Ray's debugger. Add a
+```breakpoint()`` call inside the function where you want to start the debugging session, then ssh into the
+cluster with ``ssh cluster-name``, and call ``ray debug`` to view select the breakpoint to enter. You can run
+normal ``pdb`` commands within the debugging session, and can refer to
+`Ray Debugger <https://docs.ray.io/en/latest/ray-observability/ray-debugging.html>`_ for more information.

@@ -11,6 +11,29 @@ extra_index_url = "--extra-index-url https://pypi.python.org/simple/"
 cuda_116_url = "--index-url https://download.pytorch.org/whl/cu116"
 
 
+def _create_s3_package():
+    import shutil
+
+    from runhouse.rns.api_utils.utils import create_s3_bucket
+
+    s3_bucket_path = "runhouse-folder"
+    folder_name = "tmp_s3_package"
+
+    create_s3_bucket(s3_bucket_path)
+    # Create a local temp folder to install for the package
+    tmp_path = Path(rh_config.rns_client.locate_working_dir()) / folder_name
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    for i in range(3):
+        output_file = Path(f"{tmp_path}/sample_file_{i}.txt")
+        output_file.write_text(f"file{i}")
+
+    pkg = rh.Package.from_string(f"local:./{folder_name}")
+    s3_pkg = pkg.to(system="s3", path=f"/{s3_bucket_path}/package-tests")
+
+    shutil.rmtree(tmp_path)
+    return s3_pkg, folder_name
+
+
 def setup():
     pass
 
@@ -125,33 +148,15 @@ def test_mount_local_package_to_cluster(cpu_cluster):
 @pytest.mark.clustertest
 @pytest.mark.awstest
 def test_package_file_system_to_cluster(cpu_cluster):
-    import shutil
+    s3_pkg, folder_name = _create_s3_package()
 
-    from runhouse.rns.api_utils.utils import create_s3_bucket
-
-    s3_bucket_path = "runhouse-folder"
-    create_s3_bucket(s3_bucket_path)
-    folder_name = "tmp_s3_package"
-
-    # Create a local temp folder to install for the package
-    tmp_path = Path(rh_config.rns_client.locate_working_dir()) / folder_name
-    tmp_path.mkdir(parents=True, exist_ok=True)
-    for i in range(3):
-        output_file = Path(f"{tmp_path}/sample_file_{i}.txt")
-        output_file.write_text(f"file{i}")
-
-    pkg = rh.Package.from_string(f"local:./{folder_name}")
-    s3_pkg = pkg.to(system="s3", path=f"/{s3_bucket_path}/package-tests")
     assert s3_pkg.install_target.system == "s3"
     assert s3_pkg.install_target.exists_in_system()
 
     s3_pkg.to(system=cpu_cluster, mount=True, path=folder_name)
 
-    shutil.rmtree(tmp_path)
-
     # Confirm the package's folder is now on the cluster
-    status_codes = cpu_cluster.run(commands=[f"ls {folder_name}"])
-    assert "sample_file_0.txt" in status_codes[0][1]
+    assert "sample_file_0.txt" in cpu_cluster.run([f"ls {folder_name}"])[0][1]
 
 
 @pytest.mark.localtest

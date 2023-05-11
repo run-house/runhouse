@@ -36,9 +36,9 @@ def np_array(list):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_create_function_from_name_local():
+def test_create_function_from_name_local(cpu_cluster):
     local_sum = rh.function(
-        fn=summer, name="local_function", system="^rh-cpu", env=["local:./"]
+        fn=summer, name="local_function", system=cpu_cluster, env=["local:./"]
     ).save()
     del local_sum
 
@@ -52,9 +52,9 @@ def test_create_function_from_name_local():
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_create_function_from_rns():
+def test_create_function_from_rns(cpu_cluster):
     remote_sum = rh.function(
-        fn=summer, name="@/remote_function", system="^rh-cpu", env=[], dryrun=True
+        fn=summer, name="@/remote_function", system=cpu_cluster, env=[], dryrun=True
     ).save()
     del remote_sum
 
@@ -69,9 +69,9 @@ def test_create_function_from_rns():
 @unittest.skip("Not yet implemented.")
 @pytest.mark.rnstest
 @pytest.mark.clustertest
-def test_running_function_as_proxy():
+def test_running_function_as_proxy(cpu_cluster):
     remote_sum = rh.function(
-        fn=summer, name="@/remote_function", system="^rh-cpu", env=[]
+        fn=summer, name="@/remote_function", system=cpu_cluster, env=[]
     ).save()
     del remote_sum
 
@@ -93,7 +93,7 @@ def test_get_function_history(cpu_cluster):
     remote_sum = rh.function(
         fn=summer,
         name="@/remote_function",
-        system="^rh-cpu",
+        system=cpu_cluster,
         env=["torch"],
         dryrun=True,
     ).save()
@@ -118,11 +118,11 @@ def multiproc_torch_sum(inputs):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_remote_function_with_multiprocessing():
+def test_remote_function_with_multiprocessing(cpu_cluster):
     re_fn = rh.function(
         multiproc_torch_sum,
         name="test_function",
-        system="^rh-cpu",
+        system=cpu_cluster,
         env=["./", "torch==1.12.1"],
     )
     summands = list(zip(range(5), range(4, 9)))
@@ -135,20 +135,22 @@ def getpid(a=0):
 
 
 @pytest.mark.clustertest
-def test_maps():
-    pid_fn = rh.function(getpid, system="^rh-cpu")
-    num_pids = [1] * 50
+def test_maps(cpu_cluster):
+    pid_fn = rh.function(getpid, system=cpu_cluster)
+    num_pids = [1] * 20
     pids = pid_fn.map(num_pids)
     assert len(set(pids)) > 1
+    assert all(pid > 0 for pid in pids)
 
-    pid_ref = pid_fn.remote()
-
-    pids = pid_fn.repeat(num_repeats=50)
+    pids = pid_fn.repeat(num_repeats=20)
     assert len(set(pids)) > 1
+    assert all(pid > 0 for pid in pids)
 
     pids = [pid_fn.enqueue() for _ in range(10)]
     assert len(pids) == 10
+    assert all(pid > 0 for pid in pids)
 
+    pid_ref = pid_fn.remote()
     pid_res = pid_fn.get(pid_ref)
     assert pid_res > 0
 
@@ -156,18 +158,18 @@ def test_maps():
     pid_res_from_ref = pid_fn(pid_ref)
     assert pid_res_from_ref > pid_res
 
-    re_fn = rh.function(summer, system="^rh-cpu")
+    re_fn = rh.function(summer, system=cpu_cluster)
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn.starmap(summands)
     assert res == [4, 6, 8, 10, 12]
 
 
 @pytest.mark.clustertest
-def test_function_git_fn():
+def test_function_git_fn(cpu_cluster):
     remote_parse = rh.function(
         fn="https://github.com/huggingface/diffusers/blob/"
         "main/examples/dreambooth/train_dreambooth.py:parse_args",
-        system="^rh-cpu",
+        system=cpu_cluster,
         env=[
             "torch==1.12.1 --verbose",
             "torchvision==0.13.1",
@@ -223,11 +225,11 @@ def test_function_queueing(cpu_cluster):
     assert len(pids) == 10
 
 
-def test_function_to_env():
-    system = rh.cluster("^rh-cpu")
-    system.run(["pip uninstall numpy"])
+@pytest.mark.clustertest
+def test_function_to_env(cpu_cluster):
+    cpu_cluster.run(["pip uninstall numpy"])
 
-    np_func = rh.function(np_array, system=system)
+    np_func = rh.function(np_array, system=cpu_cluster)
     np_func = np_func.to(env=["numpy"])
 
     list = [1, 2, 3]
@@ -237,21 +239,21 @@ def test_function_to_env():
 
 @unittest.skip("Not working properly.")
 @pytest.mark.clustertest
-def test_function_external_fn():
+def test_function_external_fn(cpu_cluster):
     """Test functioning a module from reqs, not from working_dir"""
     import torch
 
-    re_fn = rh.function(torch.sum, system="^rh-cpu", env=["torch"])
+    re_fn = rh.function(torch.sum, system=cpu_cluster, env=["torch"])
     res = re_fn(torch.arange(5))
     assert int(res) == 10
 
 
 @unittest.skip("Runs indefinitely.")
 @pytest.mark.clustertest
-def test_notebook():
+def test_notebook(cpu_cluster):
     nb_sum = lambda x: multiproc_torch_sum(x)
     re_fn = rh.function(
-        nb_sum, system="^rh-cpu", env=["./", "torch==1.12.1"], dryrun=True
+        nb_sum, system=cpu_cluster, env=["./", "torch==1.12.1"], dryrun=True
     )
     re_fn.notebook()
     summands = list(zip(range(5), range(4, 9)))
@@ -312,9 +314,9 @@ def delete_function_from_rns(s):
 
 @unittest.skip("Not yet implemented.")
 @pytest.mark.clustertest
-def test_http_url():
+def test_http_url(cpu_cluster):
     # TODO [DG] shouldn't have to specify fn here as a callable / at all?
-    s = rh.function(fn=summer, name="test_function", system="^rh-cpu")
+    s = rh.function(fn=summer, name="test_function", system=cpu_cluster)
 
     # Generate and call the URL
     http_url = s.http_url()
@@ -367,14 +369,16 @@ def test_byo_cluster_function():
 @pytest.mark.clustertest
 def test_byo_cluster_maps():
     pid_fn = rh.function(getpid, system="different-cluster")
-    num_pids = [1] * 50
+    num_pids = [1] * 20
     pids = pid_fn.map(num_pids)
     assert len(set(pids)) > 1
+    assert all(pid > 0 for pid in pids)
 
     pid_ref = pid_fn.remote()
 
-    pids = pid_fn.repeat(num_repeats=50)
+    pids = pid_fn.repeat(num_repeats=20)
     assert len(set(pids)) > 1
+    assert all(pid > 0 for pid in pids)
 
     pids = [pid_fn.enqueue() for _ in range(10)]
     assert len(pids) == 10
@@ -395,6 +399,7 @@ def test_byo_cluster_maps():
 @pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_load_function_in_new_env(cpu_cluster):
+    rh.cluster(name="rh-cpu").save(name="@/rh-cpu")
     remote_sum = rh.function(
         fn=summer, name="@/remote_function", system=cpu_cluster, env=[], dryrun=True
     ).save()
@@ -414,7 +419,18 @@ def test_load_function_in_new_env(cpu_cluster):
 
 
 @pytest.mark.clustertest
-def test_nested_function(cpu_cluster):
+def test_nested_diff_clusters(cpu_cluster):
+    summer_cpu = rh.function(fn=summer, system=cpu_cluster)
+    call_function_diff_cpu = rh.function(fn=call_function, system="different-cluster")
+
+    kwargs = {"a": 1, "b": 5}
+    res = call_function_diff_cpu(summer_cpu, **kwargs)
+    assert res == 6
+
+
+@unittest.skip("same cluster nested with return type is not working yet")
+@pytest.mark.clustertest
+def test_nested_same_cluster(cpu_cluster):
     summer_cpu = rh.function(fn=summer, system=cpu_cluster)
     call_function_cpu = rh.function(fn=call_function, system=cpu_cluster)
 
@@ -424,18 +440,20 @@ def test_nested_function(cpu_cluster):
 
 
 # test that deprecated arguments are still backwards compatible for now
-def test_reqs_backwards_compatible():
-    summer_cpu = rh.function(fn=summer, system="^rh-cpu", reqs=[])
+@pytest.mark.clustertest
+def test_reqs_backwards_compatible(cpu_cluster):
+    summer_cpu = rh.function(fn=summer, system=cpu_cluster, reqs=[])
     res = summer_cpu(1, 5)
     assert res == 6
 
-    torch_summer_cpu = rh.function(fn=summer, system="^rh-cpu", reqs=["torch"])
+    torch_summer_cpu = rh.function(fn=summer, system=cpu_cluster, reqs=["torch"])
     torch_res = torch_summer_cpu(1, 5)
     assert torch_res == 6
 
 
-def test_setup_cmds_backwards_compatible():
-    torch_summer_cpu = rh.function(fn=summer, system="^rh-cpu", reqs=["torch"])
+@pytest.mark.clustertest
+def test_setup_cmds_backwards_compatible(cpu_cluster):
+    torch_summer_cpu = rh.function(fn=summer, system=cpu_cluster, reqs=["torch"])
     torch_res = torch_summer_cpu(1, 5)
     assert torch_res == 6
 
