@@ -435,7 +435,7 @@ def table(
             [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
         data_config (Optional[dict]): The data config to pass to the underlying fsspec handler.
         partition_cols (Optional[list]): List of columns to partition the table by.
-        mkdir (bool): Whether to (Default: ``False``)
+        mkdir (bool): Whether to create a remote folder for the table. (Default: ``False``)
         dryrun (bool): Whether to create the Table if it doesn't exist, or load a Table object as a dryrun.
             (Default: ``False``)
         stream_format (Optional[str]): Format to stream the Table as.

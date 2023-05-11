@@ -643,7 +643,7 @@ def function(
     reqs: Optional[List[str]] = None,
     setup_cmds: Optional[List[str]] = None,
 ):
-    """Factory method for constructing a Runhouse Function object.
+    """Builds an instance of :class:`Function`.
 
     Args:
         fn (Optional[str or Callable]): The function to execute on the remote system when the function is called.

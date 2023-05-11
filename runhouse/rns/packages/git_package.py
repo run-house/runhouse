@@ -52,7 +52,7 @@ class GitPackage(Package):
             return f"GitPackage: {self.name}"
         return f"GitPackage: {self.git_url}@{self.revision}"
 
-    def install(self, env: Union[str, "Env"] = ""):
+    def install(self, env: Union[str, "Env"] = None):
         # Clone down the repo
         if not Path(self.install_target).exists():
             logging.info(f"Cloning: git clone {self.git_url}")

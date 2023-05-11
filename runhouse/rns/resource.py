@@ -218,8 +218,12 @@ class Resource:
                 Example: ``{"Authorization": f"Bearer {token}"}``
 
         Returns:
-            `added_users`: users who already have an account and have been granted access to the resource.
-            `new_users`: users who do not have Runhouse accounts.
+            Tuple(Dict, Dict):
+
+            `added_users`:
+                users who already have an account and have been granted access to the resource.
+            `new_users`:
+                users who do not have Runhouse accounts.
 
         Example:
             >>> added_users, new_users = my_resource.share(users=["username1", "user2@gmail.com"], access_type='write')

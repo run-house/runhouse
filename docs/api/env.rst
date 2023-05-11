@@ -3,10 +3,12 @@ Env
 An Env is a Runhouse primitive that represents an compute environment.
 
 
-Env Factory Method
+Env Factory Methods
 ~~~~~~~~~~~~~~~~~~~
 
 .. autofunction:: runhouse.env
+
+.. autofunction:: runhouse.conda_env
 
 Env Class
 ~~~~~~~~~~
@@ -30,7 +32,7 @@ Conda Env Class
 API Usage
 ~~~~~~~~~
 
-To initalize an Env, use ``rh.env``.
+To initalize an env resource, use ``rh.env`` or ``rh.conda_env``.
 
 .. code:: python
 
@@ -51,6 +53,11 @@ install on top of the environment using the ``reqs`` parameter.
     # from a local conda env
     conda_env = rh.env(conda_env="local-conda-env-name")
 
+You can also directly create a CondaEnv using the ``rh.conda_env`` factory method:
+
+.. code:: python
+
+    conda_env = rh.conda_env(reqs=["pip:diffusers"], name="conda_env")
 
 To setup and use an environment on a cluster for running a Function:
 
