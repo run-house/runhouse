@@ -2,12 +2,12 @@ import shutil
 import unittest
 from pathlib import Path
 
-import datasets
 import pandas as pd
 import pyarrow as pa
+import pytest
 import ray.data
-
 import runhouse as rh
+
 from runhouse import Folder
 
 TEMP_LOCAL_FOLDER = Path("~/.rh/temp").expanduser()
@@ -32,60 +32,10 @@ def tokenize_function(examples):
     return tokenizer(examples["text"], padding="max_length", truncation=True)
 
 
-def load_sample_data(data_type):
-    if data_type == "huggingface":
-        from datasets import load_dataset
-
-        dataset = load_dataset("yelp_review_full", split="train[:1%]")
-        return dataset
-
-    elif data_type == "pyarrow":
-        df = pd.DataFrame(
-            {
-                "int": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                "str": ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"],
-            }
-        )
-        arrow_table = pa.Table.from_pandas(df)
-        return arrow_table
-
-    elif data_type == "cudf":
-        import cudf
-
-        gdf = cudf.DataFrame(
-            {"id": [1, 2, 3, 4, 5, 6], "grade": ["a", "b", "b", "a", "a", "e"]}
-        )
-        return gdf
-
-    elif data_type == "pandas":
-        df = pd.DataFrame(
-            {"id": [1, 2, 3, 4, 5, 6], "grade": ["a", "b", "b", "a", "a", "e"]}
-        )
-        return df
-
-    elif data_type == "dask":
-        import dask.dataframe as dd
-
-        index = pd.date_range("2021-09-01", periods=2400, freq="1H")
-        df = pd.DataFrame({"a": range(2400), "b": list("abcaddbe" * 300)}, index=index)
-        ddf = dd.from_pandas(df, npartitions=NUM_PARTITIONS)
-        return ddf
-
-    elif data_type == "ray":
-        import ray
-
-        ds = ray.data.range(10000)
-        return ds
-
-    else:
-        raise Exception(f"Unsupported data type {data_type}")
-
-
 # -----------------------------------------------
 # ----------------- Local tests -----------------
 # -----------------------------------------------
-
-
+@pytest.mark.rnstest
 def test_create_and_reload_file_locally():
     local_path = Path.cwd() / "table_tests/local_test_table"
     local_path.mkdir(parents=True, exist_ok=True)
@@ -125,13 +75,13 @@ def test_create_and_reload_file_locally():
     assert not reloaded_table.exists_in_system()
 
 
-def test_create_and_reload_pandas_locally():
-    orig_data = load_sample_data("pandas")
+@pytest.mark.rnstest
+def test_create_and_reload_pandas_locally(pandas_table):
     name = "~/my_test_local_pandas_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=pandas_table,
             name=name,
             system="file",
             mkdir=True,
@@ -143,14 +93,14 @@ def test_create_and_reload_pandas_locally():
     reloaded_table = rh.Table.from_name(name)
     reloaded_data: ray.data.Dataset = reloaded_table.data
 
-    assert orig_data.equals(reloaded_data.to_pandas())
+    assert pandas_table.equals(reloaded_data.to_pandas())
 
     batches = reloaded_table.stream(batch_size=10)
     for idx, batch in enumerate(batches):
         assert isinstance(batch, pd.DataFrame)
         assert batch["id"].tolist() == list(range(1, 7))
 
-    del orig_data
+    del pandas_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -159,13 +109,13 @@ def test_create_and_reload_pandas_locally():
     assert not reloaded_table.exists_in_system()
 
 
-def test_create_and_reload_pyarrow_locally():
-    orig_data = load_sample_data("pyarrow")
+@pytest.mark.rnstest
+def test_create_and_reload_pyarrow_locally(arrow_table):
     name = "~/my_test_local_pyarrow_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=arrow_table,
             name=name,
             system="file",
             mkdir=True,
@@ -177,14 +127,14 @@ def test_create_and_reload_pyarrow_locally():
     reloaded_table = rh.Table.from_name(name)
     reloaded_data: ray.data.Dataset = reloaded_table.data
 
-    assert orig_data.to_pandas().equals(reloaded_data.to_pandas())
+    assert arrow_table.to_pandas().equals(reloaded_data.to_pandas())
 
     batches = reloaded_table.stream(batch_size=10)
     for idx, batch in enumerate(batches):
         assert isinstance(batch, pa.Table)
         assert batch["int"].to_pylist() == list(range(1, 11))
 
-    del orig_data
+    del arrow_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -193,13 +143,13 @@ def test_create_and_reload_pyarrow_locally():
     assert not reloaded_table.exists_in_system()
 
 
-def test_create_and_reload_ray_locally():
-    orig_data = load_sample_data("ray")
+@pytest.mark.rnstest
+def test_create_and_reload_ray_locally(ray_table):
     name = "~/my_test_local_ray_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=ray_table,
             name=name,
             system="file",
             mkdir=True,
@@ -211,14 +161,14 @@ def test_create_and_reload_ray_locally():
     reloaded_table = rh.Table.from_name(name)
     reloaded_data: ray.data.Dataset = reloaded_table.data
 
-    assert orig_data.to_pandas().equals(reloaded_data.to_pandas())
+    assert ray_table.to_pandas().equals(reloaded_data.to_pandas())
 
     batches = reloaded_table.stream(batch_size=10)
     for idx, batch in enumerate(batches):
         assert isinstance(batch, pa.Table)
         assert batch["value"].to_pylist() == list(range(idx * 10, (idx + 1) * 10))
 
-    del orig_data
+    del ray_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -227,13 +177,13 @@ def test_create_and_reload_ray_locally():
     assert not reloaded_table.exists_in_system()
 
 
-def test_create_and_reload_huggingface_locally():
-    orig_data = load_sample_data("huggingface")
+@pytest.mark.rnstest
+def test_create_and_reload_huggingface_locally(huggingface_table):
     name = "~/my_test_local_huggingface_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=huggingface_table,
             name=name,
             system="file",
             mkdir=True,
@@ -245,14 +195,14 @@ def test_create_and_reload_huggingface_locally():
     reloaded_table = rh.Table.from_name(name)
     reloaded_data: ray.data.Dataset = reloaded_table.data
 
-    assert orig_data.to_pandas().equals(reloaded_data.to_pandas())
+    assert huggingface_table.to_pandas().equals(reloaded_data.to_pandas())
 
     batches = reloaded_table.stream(batch_size=10, as_dict=False)
     for idx, batch in enumerate(batches):
         assert batch.column_names == ["label", "text"]
         assert batch.shape == (10, 2)
 
-    del orig_data
+    del huggingface_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -261,13 +211,13 @@ def test_create_and_reload_huggingface_locally():
     assert not reloaded_table.exists_in_system()
 
 
-def test_create_and_reload_dask_locally():
-    orig_data = load_sample_data("dask")
+@pytest.mark.rnstest
+def test_create_and_reload_dask_locally(dask_table):
     name = "~/my_test_local_dask_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=dask_table,
             name=name,
             path="table_tests/dask_test_table",
             system="file",
@@ -286,7 +236,7 @@ def test_create_and_reload_dask_locally():
         assert batch.column_names == ["a", "b"]
         assert batch.shape == (10, 2)
 
-    del orig_data
+    del dask_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -298,13 +248,14 @@ def test_create_and_reload_dask_locally():
 # --------------------------------------------
 # ----------------- S3 tests -----------------
 # --------------------------------------------
-def test_create_and_reload_pyarrow_data_from_s3():
-    orig_data = load_sample_data(data_type="pyarrow")
+@pytest.mark.awstest
+@pytest.mark.rnstest
+def test_create_and_reload_pyarrow_data_from_s3(arrow_table):
     name = "@/my_test_pyarrow_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=arrow_table,
             name=name,
             path=f"/{BUCKET_NAME}/pyarrow_df",
             system="s3",
@@ -316,13 +267,13 @@ def test_create_and_reload_pyarrow_data_from_s3():
 
     reloaded_table = rh.Table.from_name(name)
     reloaded_data: ray.data.Dataset = reloaded_table.data
-    assert reloaded_data.to_pandas().equals(orig_data.to_pandas())
+    assert reloaded_data.to_pandas().equals(arrow_table.to_pandas())
 
     batches = reloaded_table.stream(batch_size=10)
     for idx, batch in enumerate(batches):
         assert batch.column_names == ["int", "str"]
 
-    del orig_data
+    del arrow_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -331,13 +282,14 @@ def test_create_and_reload_pyarrow_data_from_s3():
     assert not reloaded_table.exists_in_system()
 
 
-def test_create_and_reload_pandas_data_from_s3():
-    orig_data = load_sample_data(data_type="pandas")
+@pytest.mark.awstest
+@pytest.mark.rnstest
+def test_create_and_reload_pandas_data_from_s3(pandas_table):
     name = "@/my_test_pandas_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=pandas_table,
             name=name,
             path=f"/{BUCKET_NAME}/pandas_df",
             system="s3",
@@ -349,14 +301,14 @@ def test_create_and_reload_pandas_data_from_s3():
 
     reloaded_table = rh.Table.from_name(name)
     reloaded_data: ray.data.Dataset = reloaded_table.data
-    assert orig_data.equals(reloaded_data.to_pandas())
+    assert pandas_table.equals(reloaded_data.to_pandas())
 
     batches = reloaded_table.stream(batch_size=10)
     for idx, batch in enumerate(batches):
         assert isinstance(batch, pd.DataFrame)
         assert batch["id"].tolist() == list(range(1, 7))
 
-    del orig_data
+    del pandas_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -365,13 +317,14 @@ def test_create_and_reload_pandas_data_from_s3():
     assert not reloaded_table.exists_in_system()
 
 
-def test_create_and_reload_huggingface_data_from_s3():
-    orig_data: datasets.Dataset = load_sample_data(data_type="huggingface")
+@pytest.mark.awstest
+@pytest.mark.rnstest
+def test_create_and_reload_huggingface_data_from_s3(huggingface_table):
     name = "@/my_test_hf_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=huggingface_table,
             name=name,
             path=f"/{BUCKET_NAME}/huggingface_data",
             system="s3",
@@ -389,7 +342,7 @@ def test_create_and_reload_huggingface_data_from_s3():
         assert batch.column_names == ["label", "text"]
         assert batch.shape == (10, 2)
 
-    del orig_data
+    del huggingface_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -398,13 +351,14 @@ def test_create_and_reload_huggingface_data_from_s3():
     assert not reloaded_table.exists_in_system()
 
 
-def test_create_and_reload_dask_data_from_s3():
-    orig_data = load_sample_data(data_type="dask")
+@pytest.mark.awstest
+@pytest.mark.rnstest
+def test_create_and_reload_dask_data_from_s3(dask_table):
     name = "@/my_test_dask_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=dask_table,
             name=name,
             path=f"/{BUCKET_NAME}/dask",
             system="s3",
@@ -423,7 +377,7 @@ def test_create_and_reload_dask_data_from_s3():
         assert batch.column_names == ["a", "b"]
         assert batch.shape == (10, 2)
 
-    del orig_data
+    del dask_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -432,13 +386,14 @@ def test_create_and_reload_dask_data_from_s3():
     assert not reloaded_table.exists_in_system()
 
 
-def test_create_and_reload_ray_data_from_s3():
-    orig_data = load_sample_data(data_type="ray")
+@pytest.mark.awstest
+@pytest.mark.rnstest
+def test_create_and_reload_ray_data_from_s3(ray_table):
     name = "@/my_test_ray_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=ray_table,
             name=name,
             path=f"/{BUCKET_NAME}/ray_data",
             system="s3",
@@ -450,14 +405,14 @@ def test_create_and_reload_ray_data_from_s3():
 
     reloaded_table = rh.Table.from_name(name)
     reloaded_data: ray.data.Dataset = reloaded_table.data
-    assert reloaded_data.to_pandas().equals(orig_data.to_pandas())
+    assert reloaded_data.to_pandas().equals(ray_table.to_pandas())
 
     batches = reloaded_table.stream(batch_size=10)
     for idx, batch in enumerate(batches):
         assert isinstance(batch, pa.Table)
         assert batch["value"].to_pylist() == list(range(idx * 10, (idx + 1) * 10))
 
-    del orig_data
+    del ray_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -467,13 +422,14 @@ def test_create_and_reload_ray_data_from_s3():
 
 
 # ----------------- Iter -----------------
-def test_load_pandas_data_as_iter():
-    orig_data = load_sample_data(data_type="pandas")
+@pytest.mark.awstest
+@pytest.mark.rnstest
+def test_load_pandas_data_as_iter(pandas_table):
     name = "@/my_test_pandas_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=pandas_table,
             name=name,
             path=f"/{BUCKET_NAME}/pandas",
             system="s3",
@@ -489,7 +445,7 @@ def test_load_pandas_data_as_iter():
     assert isinstance(reloaded_data, pd.Series)
     assert reloaded_data.to_dict() == {"id": 1, "grade": "a"}
 
-    del orig_data
+    del pandas_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -498,13 +454,14 @@ def test_load_pandas_data_as_iter():
     assert not reloaded_table.exists_in_system()
 
 
-def test_load_pyarrow_data_as_iter():
-    orig_data = load_sample_data(data_type="pyarrow")
+@pytest.mark.awstest
+@pytest.mark.rnstest
+def test_load_pyarrow_data_as_iter(arrow_table):
     name = "@/my_test_pyarrow_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=arrow_table,
             name=name,
             path=f"/{BUCKET_NAME}/pyarrow-data",
             system="s3",
@@ -520,7 +477,7 @@ def test_load_pyarrow_data_as_iter():
     assert isinstance(reloaded_data, pa.ChunkedArray)
     assert reloaded_data.to_pylist() == list(range(1, 11))
 
-    del orig_data
+    del arrow_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -529,13 +486,14 @@ def test_load_pyarrow_data_as_iter():
     assert not reloaded_table.exists_in_system()
 
 
-def test_load_huggingface_data_as_iter():
-    orig_data = load_sample_data(data_type="huggingface")
+@pytest.mark.awstest
+@pytest.mark.rnstest
+def test_load_huggingface_data_as_iter(huggingface_table):
     name = "@/my_test_huggingface_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=huggingface_table,
             name=name,
             path=f"/{BUCKET_NAME}/huggingface-dataset",
             system="s3",
@@ -549,7 +507,7 @@ def test_load_huggingface_data_as_iter():
     reloaded_data: pa.ChunkedArray = next(iter(reloaded_table))
     assert isinstance(reloaded_data, pa.ChunkedArray)
 
-    del orig_data
+    del huggingface_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -559,13 +517,14 @@ def test_load_huggingface_data_as_iter():
 
 
 # ----------------- Shuffling -----------------
-def test_shuffling_pyarrow_data_from_s3():
-    orig_data = load_sample_data(data_type="pyarrow")
+@pytest.mark.awstest
+@pytest.mark.rnstest
+def test_shuffling_pyarrow_data_from_s3(arrow_table):
     name = "@/my_test_shuffled_pyarrow_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=arrow_table,
             name=name,
             path=f"/{BUCKET_NAME}/pyarrow",
             system="s3",
@@ -581,10 +540,10 @@ def test_shuffling_pyarrow_data_from_s3():
     )
     for idx, batch in enumerate(batches):
         assert isinstance(batch, pa.Table)
-        assert orig_data.columns[0].to_pylist() != batch.columns[0].to_pylist()
-        assert orig_data.columns[1].to_pylist() != batch.columns[1].to_pylist()
+        assert arrow_table.columns[0].to_pylist() != batch.columns[0].to_pylist()
+        assert arrow_table.columns[1].to_pylist() != batch.columns[1].to_pylist()
 
-    del orig_data
+    del arrow_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -596,21 +555,20 @@ def test_shuffling_pyarrow_data_from_s3():
 # -------------------------------------------------
 # ----------------- Cluster tests -----------------
 # -------------------------------------------------
-def test_create_and_reload_pandas_data_from_cluster():
-    cluster = rh.cluster(name="^rh-cpu").up_if_not()
-
+@pytest.mark.clustertest
+@pytest.mark.rnstest
+def test_create_and_reload_pandas_data_from_cluster(pandas_table, cpu_cluster):
     # Make sure the destination folder for the data exists on the cluster
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/pandas-data"
-    cluster.run([f"mkdir -p {data_path_on_cluster}"])
+    cpu_cluster.run([f"mkdir -p {data_path_on_cluster}"])
 
-    orig_data = load_sample_data(data_type="pandas")
     name = "@/my_test_pandas_table"
     my_table = (
         rh.table(
-            data=orig_data,
+            data=pandas_table,
             name=name,
             path=data_path_on_cluster,
-            system=cluster,
+            system=cpu_cluster,
         )
         .write()
         .save()
@@ -619,14 +577,14 @@ def test_create_and_reload_pandas_data_from_cluster():
     reloaded_table = rh.Table.from_name(name)
 
     reloaded_data: ray.data.Dataset = reloaded_table.data
-    assert orig_data.equals(reloaded_data.to_pandas())
+    assert pandas_table.equals(reloaded_data.to_pandas())
 
     batches = reloaded_table.stream(batch_size=10)
     for idx, batch in enumerate(batches):
         assert isinstance(batch, pd.DataFrame)
         assert batch["id"].tolist() == list(range(1, 7))
 
-    del orig_data
+    del pandas_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -635,21 +593,20 @@ def test_create_and_reload_pandas_data_from_cluster():
     assert not reloaded_table.exists_in_system()
 
 
-def test_create_and_reload_ray_data_from_cluster():
-    cluster = rh.cluster("^rh-cpu").up_if_not().save()
-
+@pytest.mark.clustertest
+@pytest.mark.rnstest
+def test_create_and_reload_ray_data_from_cluster(ray_table, cpu_cluster):
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/ray-data"
-    cluster.run([f"mkdir -p {data_path_on_cluster}"])
+    cpu_cluster.run([f"mkdir -p {data_path_on_cluster}"])
 
-    orig_data = load_sample_data(data_type="ray")
     name = "@/my_test_ray_cluster_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=ray_table,
             name=name,
             path=data_path_on_cluster,
-            system=cluster,
+            system=cpu_cluster,
         )
         .write()
         .save()
@@ -657,14 +614,14 @@ def test_create_and_reload_ray_data_from_cluster():
 
     reloaded_table = rh.Table.from_name(name)
     reloaded_data: ray.data.Dataset = reloaded_table.data
-    assert orig_data.to_pandas().equals(reloaded_data.to_pandas())
+    assert ray_table.to_pandas().equals(reloaded_data.to_pandas())
 
     batches = reloaded_table.stream(batch_size=10)
     for idx, batch in enumerate(batches):
         assert isinstance(batch, pa.Table)
         assert batch["value"].to_pylist() == list(range(idx * 10, (idx + 1) * 10))
 
-    del orig_data
+    del ray_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -673,21 +630,20 @@ def test_create_and_reload_ray_data_from_cluster():
     assert not reloaded_table.exists_in_system()
 
 
-def test_create_and_reload_pyarrow_data_from_cluster():
-    cluster = rh.cluster("^rh-cpu").up_if_not().save()
-
+@pytest.mark.clustertest
+@pytest.mark.rnstest
+def test_create_and_reload_pyarrow_data_from_cluster(arrow_table, cpu_cluster):
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/pyarrow-data"
-    cluster.run([f"mkdir -p {data_path_on_cluster}"])
+    cpu_cluster.run([f"mkdir -p {data_path_on_cluster}"])
 
-    orig_data = load_sample_data(data_type="pyarrow")
     name = "@/my_test_pyarrow_cluster_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=arrow_table,
             name=name,
             path=data_path_on_cluster,
-            system=cluster,
+            system=cpu_cluster,
         )
         .write()
         .save()
@@ -695,13 +651,13 @@ def test_create_and_reload_pyarrow_data_from_cluster():
 
     reloaded_table = rh.Table.from_name(name)
     reloaded_data: ray.data.Dataset = reloaded_table.data
-    assert orig_data.to_pandas().equals(reloaded_data.to_pandas())
+    assert arrow_table.to_pandas().equals(reloaded_data.to_pandas())
 
     batches = reloaded_table.stream(batch_size=10)
     for idx, batch in enumerate(batches):
         assert batch.column_names == ["int", "str"]
 
-    del orig_data
+    del arrow_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -710,21 +666,22 @@ def test_create_and_reload_pyarrow_data_from_cluster():
     assert not reloaded_table.exists_in_system()
 
 
-def test_create_and_reload_huggingface_data_from_cluster():
-    cluster = rh.cluster("^rh-cpu").up_if_not().save()
-
+@pytest.mark.clustertest
+@pytest.mark.rnstest
+def test_create_and_reload_huggingface_data_from_cluster(
+    huggingface_table, cpu_cluster
+):
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/hf-data"
-    cluster.run([f"mkdir -p {data_path_on_cluster}"])
+    cpu_cluster.run([f"mkdir -p {data_path_on_cluster}"])
 
-    orig_data = load_sample_data(data_type="huggingface")
     name = "@/my_test_hf_cluster_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=huggingface_table,
             name=name,
             path=data_path_on_cluster,
-            system=cluster,
+            system=cpu_cluster,
         )
         .write()
         .save()
@@ -732,7 +689,7 @@ def test_create_and_reload_huggingface_data_from_cluster():
 
     reloaded_table = rh.Table.from_name(name)
     reloaded_data: ray.data.Dataset = reloaded_table.data
-    assert orig_data.to_pandas().equals(reloaded_data.to_pandas())
+    assert huggingface_table.to_pandas().equals(reloaded_data.to_pandas())
 
     # Stream in as huggingface dataset
     batches = reloaded_table.stream(batch_size=10, as_dict=False)
@@ -740,7 +697,7 @@ def test_create_and_reload_huggingface_data_from_cluster():
         assert batch.column_names == ["label", "text"]
         assert batch.shape == (10, 2)
 
-    del orig_data
+    del huggingface_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -749,21 +706,20 @@ def test_create_and_reload_huggingface_data_from_cluster():
     assert not reloaded_table.exists_in_system()
 
 
-def test_create_and_reload_dask_data_from_cluster():
-    cluster = rh.cluster("^rh-cpu").up_if_not().save()
-
+@pytest.mark.clustertest
+@pytest.mark.rnstest
+def test_create_and_reload_dask_data_from_cluster(dask_table, cpu_cluster):
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/dask-data"
-    cluster.run([f"mkdir -p {data_path_on_cluster}"])
+    cpu_cluster.run([f"mkdir -p {data_path_on_cluster}"])
 
-    orig_data = load_sample_data(data_type="dask")
     name = "@/my_test_dask_cluster_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=dask_table,
             name=name,
             path=data_path_on_cluster,
-            system=cluster,
+            system=cpu_cluster,
         )
         .write()
         .save()
@@ -778,7 +734,7 @@ def test_create_and_reload_dask_data_from_cluster():
         assert batch.column_names == ["a", "b"]
         assert batch.shape == (10, 2)
 
-    del orig_data
+    del dask_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -787,18 +743,19 @@ def test_create_and_reload_dask_data_from_cluster():
     assert not reloaded_table.exists_in_system()
 
 
-def test_to_cluster_attr():
+@pytest.mark.clustertest
+@pytest.mark.rnstest
+def test_to_cluster_attr(pandas_table, cpu_cluster):
     local_path = Path.cwd() / "table_tests/local_test_table"
     local_path.mkdir(parents=True, exist_ok=True)
 
     Path(local_path).mkdir(parents=True, exist_ok=True)
 
-    orig_data = pd.DataFrame({"my_col": list(range(50))})
     name = "~/my_local_test_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=pandas_table,
             name=name,
             path=str(local_path),
             system="file",
@@ -807,16 +764,15 @@ def test_to_cluster_attr():
         .save()
     )
 
-    cluster = rh.cluster("^rh-cpu").up_if_not().save()
-    cluster_table = my_table.to(system=cluster)
+    cluster_table = my_table.to(system=cpu_cluster)
 
     assert isinstance(cluster_table.system, rh.Cluster)
     assert cluster_table._folder._fs_str == "ssh"
 
     data = cluster_table.data
-    assert data.to_pandas().equals(orig_data)
+    assert data.to_pandas().equals(pandas_table)
 
-    del orig_data
+    del pandas_table
     del my_table
 
     cluster_table.delete_configs()
@@ -827,13 +783,14 @@ def test_to_cluster_attr():
 # -------------------------------------------------
 # ----------------- Fetching tests -----------------
 # -------------------------------------------------
-def test_create_and_fetch_pyarrow_data_from_s3():
-    orig_data = load_sample_data(data_type="pyarrow")
+@pytest.mark.awstest
+@pytest.mark.rnstest
+def test_create_and_fetch_pyarrow_data_from_s3(arrow_table):
     name = "@/my_test_fetch_pyarrow_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=arrow_table,
             name=name,
             path=f"/{BUCKET_NAME}/pyarrow",
             system="s3",
@@ -845,9 +802,9 @@ def test_create_and_fetch_pyarrow_data_from_s3():
 
     reloaded_table = rh.Table.from_name(name)
     reloaded_data: pa.Table = reloaded_table.fetch()
-    assert orig_data == reloaded_data
+    assert arrow_table == reloaded_data
 
-    del orig_data
+    del arrow_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -856,13 +813,14 @@ def test_create_and_fetch_pyarrow_data_from_s3():
     assert not reloaded_table.exists_in_system()
 
 
-def test_create_and_fetch_pandas_data_from_s3():
-    orig_data = load_sample_data(data_type="pandas")
+@pytest.mark.awstest
+@pytest.mark.rnstest
+def test_create_and_fetch_pandas_data_from_s3(pandas_table):
     name = "@/my_test_fetch_pandas_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=pandas_table,
             name=name,
             path=f"/{BUCKET_NAME}/pandas",
             system="s3",
@@ -874,9 +832,9 @@ def test_create_and_fetch_pandas_data_from_s3():
 
     reloaded_table = rh.Table.from_name(name)
     reloaded_data: pd.DataFrame = reloaded_table.fetch()
-    assert orig_data.equals(reloaded_data)
+    assert pandas_table.equals(reloaded_data)
 
-    del orig_data
+    del pandas_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -885,13 +843,14 @@ def test_create_and_fetch_pandas_data_from_s3():
     assert not reloaded_table.exists_in_system()
 
 
-def test_create_and_fetch_huggingface_data_from_s3():
-    orig_data = load_sample_data(data_type="huggingface")
+@pytest.mark.awstest
+@pytest.mark.rnstest
+def test_create_and_fetch_huggingface_data_from_s3(huggingface_table):
     name = "@/my_test_fetch_huggingface_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=huggingface_table,
             name=name,
             path=f"/{BUCKET_NAME}/huggingface",
             system="s3",
@@ -902,10 +861,10 @@ def test_create_and_fetch_huggingface_data_from_s3():
     )
 
     reloaded_table = rh.Table.from_name(name)
-    reloaded_data: datasets.Dataset = reloaded_table.fetch()
-    assert orig_data.description == reloaded_data.description
+    reloaded_data = reloaded_table.fetch()
+    assert huggingface_table.shape == reloaded_data.shape
 
-    del orig_data
+    del huggingface_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -914,13 +873,14 @@ def test_create_and_fetch_huggingface_data_from_s3():
     assert not reloaded_table.exists_in_system()
 
 
-def test_create_and_fetch_ray_data_from_s3():
-    orig_data = load_sample_data(data_type="ray")
+@pytest.mark.awstest
+@pytest.mark.rnstest
+def test_create_and_fetch_ray_data_from_s3(ray_table):
     name = "@/my_test_fetch_ray_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=ray_table,
             name=name,
             path=f"/{BUCKET_NAME}/ray",
             system="s3",
@@ -932,9 +892,9 @@ def test_create_and_fetch_ray_data_from_s3():
 
     reloaded_table = rh.Table.from_name(name)
     reloaded_data: ray.data.Dataset = reloaded_table.fetch()
-    assert orig_data.to_pandas().equals(reloaded_data.to_pandas())
+    assert ray_table.to_pandas().equals(reloaded_data.to_pandas())
 
-    del orig_data
+    del ray_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -943,12 +903,14 @@ def test_create_and_fetch_ray_data_from_s3():
     assert not reloaded_table.exists_in_system()
 
 
-def test_create_and_fetch_dask_data_from_s3():
-    orig_data = load_sample_data(data_type="dask")
+@pytest.mark.awstest
+@pytest.mark.rnstest
+def test_create_and_fetch_dask_data_from_s3(dask_table):
     name = "@/my_test_fetch_dask_table"
+
     my_table = (
         rh.table(
-            data=orig_data,
+            data=dask_table,
             name=name,
             path=f"/{BUCKET_NAME}/dask",
             system="s3",
@@ -960,9 +922,9 @@ def test_create_and_fetch_dask_data_from_s3():
 
     reloaded_table = rh.Table.from_name(name)
     reloaded_data: "dask.dataframe.core.DataFrame" = reloaded_table.fetch()
-    assert orig_data.npartitions == reloaded_data.npartitions
+    assert dask_table.npartitions == reloaded_data.npartitions
 
-    del orig_data
+    del dask_table
     del my_table
 
     reloaded_table.delete_configs()
@@ -974,13 +936,13 @@ def test_create_and_fetch_dask_data_from_s3():
 # -------------------------------------------------
 # ----------------- Table Sharing tests -----------------
 # -------------------------------------------------
-def test_sharing_table():
-    orig_data = load_sample_data(data_type="pandas")
+@pytest.mark.rnstest
+def test_sharing_table(pandas_table):
     name = "shared_pandas_table"
 
     my_table = (
         rh.table(
-            data=orig_data,
+            data=pandas_table,
             name=name,
             system="s3",
             mkdir=True,
@@ -998,6 +960,7 @@ def test_sharing_table():
     assert my_table.exists_in_system()
 
 
+@pytest.mark.rnstest
 def test_read_shared_table():
     my_table = rh.Table.from_name(name="@/shared_pandas_table")
     df: pd.DataFrame = my_table.fetch()

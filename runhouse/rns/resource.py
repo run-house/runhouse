@@ -82,7 +82,7 @@ class Resource:
         """Traverse up the filesystem until reaching one of the directories in rns_base_folders,
         then compute the relative path to that.
 
-        Maybe later, account for folders along the path with a differnt RNS name."""
+        Maybe later, account for folders along the path with a different RNS name."""
 
         if (
             self.name is None or self._rns_folder is None
@@ -201,6 +201,7 @@ class Resource:
         users: list,
         access_type: Union[ResourceAccess, str] = ResourceAccess.READ,
         notify_users: bool = False,
+        headers: Optional[Dict] = None,
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
         """Grant access to the resource for the list of users. If a user has a Runhouse account they
         will receive an email notifying them of their new access. If the user does not have a Runhouse account they will
@@ -213,6 +214,8 @@ class Resource:
             users (list): list of user emails and / or runhouse account usernames.
             access_type (:obj:`ResourceAccess`, optional): access type to provide for the resource.
             notify_users (bool): Send email notification to users who have been given access. Defaults to `False`.
+            headers (Optional[Dict]): Request headers to provide for the request to RNS. Contains the user's auth token.
+                Example: ``{"Authorization": f"Bearer {token}"}``
 
         Returns:
             `added_users`: users who already have an account and have been granted access to the resource.
@@ -257,5 +260,6 @@ class Resource:
             user_emails=users,
             access_type=access_type,
             notify_users=notify_users,
+            headers=headers,
         )
         return added_users, new_users

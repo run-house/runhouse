@@ -724,9 +724,9 @@ class Folder(Resource):
         ) or rh.rns.top_level_rns_fns.exists(self.path)
 
     def delete_in_system(self):
-        """Delete from file system."""
+        """Delete all contents in folder from file system."""
         try:
-            self.fsspec_fs.rmdir(self.path)
+            self.fsspec_fs.rm(self.path, recursive=True)
         except FileNotFoundError:
             pass
 
