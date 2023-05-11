@@ -86,7 +86,7 @@ def call_fn_by_type(
         if fn_type == "remote":
             rh_config.obj_store.put_obj_ref(key=run_key, obj_ref=obj_ref)
             res = pickle.dumps(run_key)
-        elif fn_type in ("call"):
+        elif fn_type in ("call", "nested"):
             res = ray.get(obj_ref)
         else:
             res = pickle.dumps(ray.get(obj_ref))

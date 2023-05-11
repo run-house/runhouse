@@ -428,7 +428,6 @@ def test_nested_diff_clusters(cpu_cluster):
     assert res == 6
 
 
-@unittest.skip("same cluster nested with return type is not working yet")
 @pytest.mark.clustertest
 def test_nested_same_cluster(cpu_cluster):
     summer_cpu = rh.function(fn=summer, system=cpu_cluster)
