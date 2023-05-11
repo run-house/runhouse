@@ -13,7 +13,7 @@ import ray.data
 import runhouse as rh
 from runhouse.rh_config import rns_client
 from runhouse.rns.folders.folder import folder
-from runhouse.rns.obj_store import _current_cluster
+from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
 
 from .. import OnDemandCluster, Resource
 
@@ -501,15 +501,7 @@ def table(
             # save to the default bucket
             data_path = f"{Table.DEFAULT_FOLDER_PATH}/{table_name_in_path}"
 
-    if isinstance(config["system"], str) and rns_client.exists(
-        config["system"], resource_type="cluster"
-    ):
-        config["system"] = rns_client.load_config(config["system"])
-    elif isinstance(config["system"], dict):
-        from runhouse.rns.hardware.cluster import Cluster
-
-        config["system"] = Cluster.from_config(config["system"])
-
+    config["system"] = _get_cluster_from(config["system"])
     config["name"] = name
     config["path"] = data_path
     config["file_name"] = file_name or config.get("file_name")

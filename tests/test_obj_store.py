@@ -61,7 +61,7 @@ def test_stream_logs(cpu_cluster):
 @pytest.mark.clustertest
 def test_multiprocessing_streaming(cpu_cluster):
     re_fn = rh.function(
-        multiproc_torch_sum, system=cpu_cluster, reqs=["./", "torch==1.12.1"]
+        multiproc_torch_sum, system=cpu_cluster, env=["./", "torch==1.12.1"]
     )
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn(summands, stream_logs=True)

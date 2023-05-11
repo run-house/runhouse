@@ -12,12 +12,12 @@ This includes both compute abstractions (clusters, functions, packages) and data
 .. toctree::
    :maxdepth: 1
 
-   rh_primitives/resource
+   api/resource
 
 
 Compute Abstractions
 ------------------------------------
-The Function, Cluster, and Package APIs allow a seamless flow of code and execution across local and remote compute.
+The Function, Cluster, Env, and Package APIs allow a seamless flow of code and execution across local and remote compute.
 They blur the line between program execution and deployment, providing both a path of least resistence for running
 a sub-routine on specific hardware, while unceremoniously turning that sub-routine into a reusable service.
 They also provide convenient dependency isolation and management, provider-agnostic provisioning and termination,
@@ -26,17 +26,22 @@ and rich debugging and accessibility interfaces built-in.
 .. toctree::
    :maxdepth: 1
 
-   rh_primitives/function
+   api/function
 
 .. toctree::
    :maxdepth: 1
 
-   rh_primitives/cluster
+   api/cluster
 
 .. toctree::
    :maxdepth: 1
 
-   rh_primitives/package
+   api/env
+
+.. toctree::
+   :maxdepth: 1
+
+   api/package
 
 
 Data Abstractions
@@ -50,15 +55,28 @@ to other data concepts in the future, like kv-stores, time-series, vector and gr
 .. toctree::
    :maxdepth: 1
 
-   rh_primitives/folder
+   api/folder
 
 
 .. toctree::
    :maxdepth: 1
 
-   rh_primitives/table
+   api/table
 
 .. toctree::
    :maxdepth: 1
 
-   rh_primitives/blob
+   api/blob
+
+
+Secrets
+------------------------------------
+Runhouse provides a convenient interface for managing your secrets in a secure manner.
+Secrets are stored in `Vault <https://www.vaultproject.io/>`_, an industry standard for
+secrets management, and never touches Runhouse servers. Please see
+:ref:`Security and Metadata Collection` for more information on security.
+
+.. toctree::
+   :maxdepth: 1
+
+   api/secrets

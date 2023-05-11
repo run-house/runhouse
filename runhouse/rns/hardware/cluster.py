@@ -15,9 +15,10 @@ from sky.utils import command_runner
 from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
 from runhouse.rh_config import open_grpc_tunnels, rns_client
-from runhouse.rns.obj_store import _current_cluster
+from runhouse.rns.folders.folder import Folder
 from runhouse.rns.packages.package import Package
 from runhouse.rns.resource import Resource
+from runhouse.rns.utils.hardware import _current_cluster
 
 from runhouse.servers.grpc.unary_client import UnaryClient
 from runhouse.servers.grpc.unary_server import UnaryService
@@ -159,7 +160,7 @@ class Cluster(Resource):
             rh_package = Package.from_string(
                 f"reqs:{local_rh_package_path}", dryrun=True
             )
-            rh_package.to_cluster(self, mount=False)
+            rh_package.to(self)
             status_codes = self.run(["pip install ./runhouse"], stream_logs=True)
         # elif local_rh_package_path.parent.name == 'site-packages':
         else:
@@ -167,8 +168,10 @@ class Cluster(Resource):
             # status_codes = self.run(['pip install runhouse-nightly==0.0.2.20221202'], stream_logs=True)
             # rh_package = 'runhouse_nightly-0.0.1.dev20221202-py3-none-any.whl'
             # rh_download_cmd = f'curl https://runhouse-package.s3.amazonaws.com/{rh_package} --output {rh_package}'
-            # TODO need to check user's current version and install same version?
-            _install_url = _install_url or "runhouse"
+            if not _install_url:
+                import runhouse
+
+                _install_url = f"runhouse=={runhouse.__version__}"
             rh_install_cmd = f"pip install {_install_url}"
             status_codes = self.run([rh_install_cmd], stream_logs=True)
 
@@ -181,23 +184,18 @@ class Cluster(Resource):
         to_install = []
         for package in reqs:
             if isinstance(package, str):
-                # If the package is a local folder, we need to create the package to sync it over to the cluster
                 pkg_obj = Package.from_string(package, dryrun=False)
             else:
                 pkg_obj = package
 
-            from runhouse.rns.folders.folder import Folder
-
-            if (
-                isinstance(pkg_obj.install_target, Folder)
-                and pkg_obj.install_target.is_local()
-            ):
-                pkg_str = pkg_obj.name or Path(pkg_obj.install_target.path).name
-                logging.info(
-                    f"Copying local package {pkg_str} to cluster <{self.name}>"
-                )
-                remote_package = pkg_obj.to_cluster(self, mount=False)
-                to_install.append(remote_package)
+            if isinstance(pkg_obj.install_target, Folder):
+                if not pkg_obj.install_target.system == self:
+                    pkg_str = pkg_obj.name or Path(pkg_obj.install_target.path).name
+                    logging.info(
+                        f"Copying local package {pkg_str} to cluster <{self.name}>"
+                    )
+                    pkg_obj = pkg_obj.to(self)
+                to_install.append(pkg_obj)
             else:
                 to_install.append(package)  # Just appending the string!
         logging.info(
@@ -433,7 +431,9 @@ class Cluster(Resource):
         logfile = f"{self.name}_grpc_server.log"
         grpc_server_cmd = "python3 -m runhouse.servers.grpc.unary_server"
         # 2>&1 redirects stderr to stdout
-        screen_cmd = f"screen -dm bash -c '{grpc_server_cmd} >> ~/.rh/{logfile} 2>&1'"
+        screen_cmd = (
+            f"screen -dm bash -c '{grpc_server_cmd} |& tee -a ~/.rh/{logfile} 2>&1'"
+        )
         cmds = [kill_proc_cmd]
         if restart_ray:
             cmds.append("ray stop")

@@ -47,18 +47,18 @@ def sd_generate(prompt):
     return model(prompt).images[0]
 
 if __name__ == "__main__":
-    gpu = rh.cluster(name='my-a100', instance_type='A100:1', provider='cheapest')
-    sd_generate = rh.function(sd_generate).to(gpu, reqs=['./', 'torch', 'diffusers'])
+    gpu = rh.cluster(name="my-a100", instance_type="A100:1", provider="cheapest")
+    sd_generate = rh.function(sd_generate).to(gpu, reqs=["./", "torch", "diffusers"])
     sd_generate("An oil painting of Keanu Reeves eating a sandwich.").show()
 
-    sd_generate.save(name='sd_generate')
+    sd_generate.save(name="sd_generate")
 ```
 By saving, I or anyone I share with can load and call into this service with a single line of code, from anywhere
 with a Python interpreter and internet connection (notebook, IDE, CI/CD, orchestrator node, etc.):
 ```python
 import runhouse as rh
 
-sd_generate = rh.Function.from_name('sd_generate')
+sd_generate = rh.Function.from_name("sd_generate")
 image = sd_generate("A hot dog made of matcha.")
 ```
 There's no magic yaml, DSL, code serialization, or "submitting for execution." We're
@@ -92,14 +92,14 @@ from transformers import AutoTokenizer
 
 def tokenize_dataset(dataset_table):
     hf_dataset = dataset_table.to("here").convert_to("hf_dataset").fetch()
-    tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
-    tokenized_ds = hf_dataset.map(lambda x: tokenizer(x['text'], truncation=True, padding=True), batched=True)
+    tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
+    tokenized_ds = hf_dataset.map(lambda x: tokenizer(x["text"], truncation=True, padding=True), batched=True)
     return rh.table(tokenized_ds).write()
 
 if __name__ == "__main__":
     # Load a table in from anywhere (S3, GCS, Azure, cluster fs, local fs, etc)
     raw_dataset = rh.table(system="gcs", path="my_bucket/my_data.parquet")
-    tokenize_dataset = rh.function(tokenize_dataset).to("^rh-32-cpu", reqs=["./", "transformers", "tokenizers"])
+    tokenize_dataset = rh.function(tokenize_dataset).to("^rh-32-cpu", env=["./", "transformers", "tokenizers"])
     tokenized_table = tokenize_dataset(raw_dataset).to("gcs", path="my_bucket/preprocessed_data.parquet")
     tokenized_table.save("preprocessed-dataset")
 ```
@@ -109,7 +109,7 @@ import runhouse as rh
 
 def train_model(preprocessed_table):
     ...
-    preprocessed_table.stream_format = 'torch'
+    preprocessed_table.stream_format = "torch"
     for batch in preprocessed_table.stream(batch_size=30):
         ...
 
@@ -117,7 +117,7 @@ def train_model(preprocessed_table):
 
 if __name__ == "__main__":
     preprocessed_table = rh.Table.from_name("preprocessed-dataset")
-    train_model = rh.function(train_model).to("my-a100", reqs=["./", "torch", "transformers"])
+    train_model = rh.function(train_model).to("my-a100", env=["./", "torch", "transformers"])
     trained_model = train_model(preprocessed_table)
     trained_model.to("s3", path="runhouse/my_bucket").save(name="yelp_fine_tuned_bert")
 ```

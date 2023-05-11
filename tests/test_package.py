@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 import runhouse as rh
+from runhouse import rh_config
 
 extra_index_url = "--extra-index-url https://pypi.python.org/simple/"
 cuda_116_url = "--index-url https://download.pytorch.org/whl/cu116"
@@ -12,6 +13,10 @@ cuda_116_url = "--index-url https://download.pytorch.org/whl/cu116"
 
 def setup():
     pass
+
+
+def summer(a, b):
+    return a + b
 
 
 def send_tensor_to_cuda():
@@ -29,8 +34,11 @@ def send_tensor_to_cuda():
 @pytest.mark.localtest
 def test_from_string():
     p = rh.Package.from_string("reqs:~/runhouse")
-    assert isinstance(p.install_target, rh.Folder)
-    assert p.install_target.path == str(Path.home() / "runhouse")
+    if (Path.home() / "runhouse").exists():
+        assert isinstance(p.install_target, rh.Folder)
+        assert p.install_target.path == str(Path.home() / "runhouse")
+    else:
+        assert p.install_target == "~/runhouse"
 
 
 @pytest.mark.clustertest
@@ -48,7 +56,7 @@ def test_share_package(cpu_cluster):
     p = rh.Package.from_string("local:./tmp_package")
     p.name = "package_to_share"  # shareable resource requires a name
 
-    p.to_cluster(dest_cluster=cpu_cluster)
+    p.to(system=cpu_cluster)
 
     p.share(
         users=["josh@run.house", "donny@run.house"],
@@ -84,6 +92,66 @@ def test_share_git_package():
 def test_load_shared_git_package():
     git_package = rh.Package.from_name(name="@/shared_git_package")
     assert git_package.config_for_rns
+
+
+@pytest.mark.clustertest
+def test_local_package_function(cpu_cluster):
+    function = rh.function(fn=summer).to(cpu_cluster, env=["./"])
+
+    req = function.env.reqs[0]
+    assert isinstance(req, rh.Package)
+    assert isinstance(req.install_target, rh.Folder)
+    assert req.install_target.system == cpu_cluster
+
+
+@pytest.mark.clustertest
+def test_local_package_to_cluster(cpu_cluster):
+    package = rh.Package.from_string("./").to(cpu_cluster)
+
+    assert isinstance(package.install_target, rh.Folder)
+    assert package.install_target.system == cpu_cluster
+
+
+@pytest.mark.clustertest
+def test_mount_local_package_to_cluster(cpu_cluster):
+    mount_path = "package_mount"
+    package = rh.Package.from_string("./").to(cpu_cluster, path=mount_path, mount=True)
+
+    assert isinstance(package.install_target, rh.Folder)
+    assert package.install_target.system == cpu_cluster
+    assert mount_path in cpu_cluster.run(["ls"])[0][1]
+
+
+@pytest.mark.clustertest
+@pytest.mark.awstest
+def test_package_file_system_to_cluster(cpu_cluster):
+    import shutil
+
+    from runhouse.rns.api_utils.utils import create_s3_bucket
+
+    s3_bucket_path = "runhouse-folder"
+    create_s3_bucket(s3_bucket_path)
+    folder_name = "tmp_s3_package"
+
+    # Create a local temp folder to install for the package
+    tmp_path = Path(rh_config.rns_client.locate_working_dir()) / folder_name
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    for i in range(3):
+        output_file = Path(f"{tmp_path}/sample_file_{i}.txt")
+        output_file.write_text(f"file{i}")
+
+    pkg = rh.Package.from_string(f"local:./{folder_name}")
+    s3_pkg = pkg.to(system="s3", path=f"/{s3_bucket_path}/package-tests")
+    assert s3_pkg.install_target.system == "s3"
+    assert s3_pkg.install_target.exists_in_system()
+
+    s3_pkg.to(system=cpu_cluster, mount=True, path=folder_name)
+
+    shutil.rmtree(tmp_path)
+
+    # Confirm the package's folder is now on the cluster
+    status_codes = cpu_cluster.run(commands=[f"ls {folder_name}"])
+    assert "sample_file_0.txt" in status_codes[0][1]
 
 
 @pytest.mark.localtest

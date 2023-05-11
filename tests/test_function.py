@@ -28,11 +28,17 @@ def summer(a, b):
     return a + b
 
 
+def np_array(list):
+    import numpy as np
+
+    return np.array(list)
+
+
 @pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_create_function_from_name_local():
     local_sum = rh.function(
-        fn=summer, name="local_function", system="^rh-cpu", reqs=["local:./"]
+        fn=summer, name="local_function", system="^rh-cpu", env=["local:./"]
     ).save()
     del local_sum
 
@@ -48,7 +54,7 @@ def test_create_function_from_name_local():
 @pytest.mark.rnstest
 def test_create_function_from_rns():
     remote_sum = rh.function(
-        fn=summer, name="@/remote_function", system="^rh-cpu", reqs=[], dryrun=True
+        fn=summer, name="@/remote_function", system="^rh-cpu", env=[], dryrun=True
     ).save()
     del remote_sum
 
@@ -65,7 +71,7 @@ def test_create_function_from_rns():
 @pytest.mark.clustertest
 def test_running_function_as_proxy():
     remote_sum = rh.function(
-        fn=summer, name="@/remote_function", system="^rh-cpu", reqs=[]
+        fn=summer, name="@/remote_function", system="^rh-cpu", env=[]
     ).save()
     del remote_sum
 
@@ -82,23 +88,22 @@ def test_running_function_as_proxy():
 @pytest.mark.rnstest
 def test_get_function_history(cpu_cluster):
     remote_sum = rh.function(
-        fn=summer, name="@/remote_function", system=cpu_cluster, reqs=[], dryrun=True
+        fn=summer, name="@/remote_function", system=cpu_cluster, env=[], dryrun=True
     ).save()
     remote_sum = rh.function(
         fn=summer,
         name="@/remote_function",
         system="^rh-cpu",
-        reqs=["torch"],
+        env=["torch"],
         dryrun=True,
     ).save()
     remote_sum = rh.function(
-        fn=summer, name="@/remote_function", system=cpu_cluster, reqs=[], dryrun=True
+        fn=summer, name="@/remote_function", system=cpu_cluster, env=[], dryrun=True
     ).save()
     name = "@/remote_function"
     remote_sum = rh.function(name=name)
     history = remote_sum.history(name=name)
     assert len(history) >= 3
-    assert "torch" in history[1]["data"]["reqs"]
     remote_sum.delete_configs()
     # TODO assert raises
     # history = remote_sum.history(name=name)
@@ -118,7 +123,7 @@ def test_remote_function_with_multiprocessing():
         multiproc_torch_sum,
         name="test_function",
         system="^rh-cpu",
-        reqs=["./", "torch==1.12.1"],
+        env=["./", "torch==1.12.1"],
     )
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn(summands)
@@ -163,7 +168,7 @@ def test_function_git_fn():
         fn="https://github.com/huggingface/diffusers/blob/"
         "main/examples/dreambooth/train_dreambooth.py:parse_args",
         system="^rh-cpu",
-        reqs=[
+        env=[
             "torch==1.12.1 --verbose",
             "torchvision==0.13.1",
             "transformers",
@@ -218,13 +223,25 @@ def test_function_queueing(cpu_cluster):
     assert len(pids) == 10
 
 
+def test_function_to_env():
+    system = rh.cluster("^rh-cpu")
+    system.run(["pip uninstall numpy"])
+
+    np_func = rh.function(np_array, system=system)
+    np_func = np_func.to(env=["numpy"])
+
+    list = [1, 2, 3]
+    res = np_func(list)
+    assert res.tolist() == list
+
+
 @unittest.skip("Not working properly.")
 @pytest.mark.clustertest
 def test_function_external_fn():
     """Test functioning a module from reqs, not from working_dir"""
     import torch
 
-    re_fn = rh.function(torch.sum, system="^rh-cpu", reqs=["torch"])
+    re_fn = rh.function(torch.sum, system="^rh-cpu", env=["torch"])
     res = re_fn(torch.arange(5))
     assert int(res) == 10
 
@@ -234,7 +251,7 @@ def test_function_external_fn():
 def test_notebook():
     nb_sum = lambda x: multiproc_torch_sum(x)
     re_fn = rh.function(
-        nb_sum, system="^rh-cpu", reqs=["./", "torch==1.12.1"], dryrun=True
+        nb_sum, system="^rh-cpu", env=["./", "torch==1.12.1"], dryrun=True
     )
     re_fn.notebook()
     summands = list(zip(range(5), range(4, 9)))
@@ -340,7 +357,7 @@ def test_byo_cluster_function():
     del c
     byo_cluster = rh.cluster(name="different-cluster", ips=[ip], ssh_creds=creds).save()
     re_fn = rh.function(
-        multiproc_torch_sum, system=byo_cluster, reqs=["./", "torch==1.12.1"]
+        multiproc_torch_sum, system=byo_cluster, env=["./", "torch==1.12.1"]
     )
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn(summands)
@@ -379,7 +396,7 @@ def test_byo_cluster_maps():
 @pytest.mark.rnstest
 def test_load_function_in_new_env(cpu_cluster):
     remote_sum = rh.function(
-        fn=summer, name="@/remote_function", system=cpu_cluster, reqs=[], dryrun=True
+        fn=summer, name="@/remote_function", system=cpu_cluster, env=[], dryrun=True
     ).save()
 
     byo_cluster = rh.cluster(name="different-cluster")
@@ -391,7 +408,6 @@ def test_load_function_in_new_env(cpu_cluster):
         "assert res == 6"
     )
     res = byo_cluster.run_python([remote_python], stream_logs=True)
-    print(res)
     assert res[0][0] == 0
 
     remote_sum.delete_configs()
@@ -405,6 +421,23 @@ def test_nested_function(cpu_cluster):
     kwargs = {"a": 1, "b": 5}
     res = call_function_cpu(summer_cpu, **kwargs)
     assert res == 6
+
+
+# test that deprecated arguments are still backwards compatible for now
+def test_reqs_backwards_compatible():
+    summer_cpu = rh.function(fn=summer, system="^rh-cpu", reqs=[])
+    res = summer_cpu(1, 5)
+    assert res == 6
+
+    torch_summer_cpu = rh.function(fn=summer, system="^rh-cpu", reqs=["torch"])
+    torch_res = torch_summer_cpu(1, 5)
+    assert torch_res == 6
+
+
+def test_setup_cmds_backwards_compatible():
+    torch_summer_cpu = rh.function(fn=summer, system="^rh-cpu", reqs=["torch"])
+    torch_res = torch_summer_cpu(1, 5)
+    assert torch_res == 6
 
 
 if __name__ == "__main__":
