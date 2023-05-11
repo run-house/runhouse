@@ -9,6 +9,7 @@ repos:
     rev: v1.3.2
     hooks:
       - id: ufmt
+        exclude: (runhouse/servers/grpc/unary_pb2.py|runhouse/servers/grpc/unary_pb2_grpc.py)
         additional_dependencies:
           - black == 22.6.0
           - usort == 1.0.4

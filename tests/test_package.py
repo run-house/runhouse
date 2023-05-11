@@ -148,7 +148,6 @@ def test_mount_local_package_to_cluster(cpu_cluster):
 @pytest.mark.clustertest
 @pytest.mark.awstest
 def test_package_file_system_to_cluster(cpu_cluster):
-    import shutil
     s3_pkg, folder_name = _create_s3_package()
 
     assert s3_pkg.install_target.system == "s3"

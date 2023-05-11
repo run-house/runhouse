@@ -123,7 +123,7 @@ class Package(Resource):
             if not install_cmd:
                 raise ValueError("Invalid install command")
 
-            self.pip_install(install_cmd)
+            self.pip_install(install_cmd, env)
         elif self.install_method == "conda":
             self.conda_install(install_cmd, env)
         elif self.install_method in ["local", "reqs"]:
