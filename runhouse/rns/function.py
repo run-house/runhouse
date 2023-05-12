@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import warnings
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -13,11 +14,14 @@ import requests
 from runhouse import rh_config
 from runhouse.rns.api_utils.resource_access import ResourceAccess
 from runhouse.rns.api_utils.utils import is_jsonable, load_resp_content, read_resp_data
+from runhouse.rns.envs import CondaEnv, Env
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.packages import git_package, Package
 
 from runhouse.rns.resource import Resource
-from runhouse.rns.run_module_utils import call_fn_by_type, get_fn_by_name
+from runhouse.rns.run_module_utils import call_fn_by_type
+
+from runhouse.rns.utils.env import _get_env_from
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +32,11 @@ class Function(Resource):
 
     def __init__(
         self,
-        fn_pointers: Tuple[str, str, str],
+        fn_pointers: Optional[Tuple] = None,
         system: Optional[Cluster] = None,
         name: Optional[str] = None,
-        reqs: Optional[List[str]] = None,
-        setup_cmds: Optional[List[str]] = None,
+        env: Optional[Env] = None,
+        serialize_notebook_fn=False,
         dryrun: bool = False,
         access: Optional[str] = None,
         resources: Optional[dict] = None,
@@ -47,36 +51,22 @@ class Function(Resource):
         """
         self.fn_pointers = fn_pointers
         self.system = system
-        self.reqs = reqs
-        self.setup_cmds = setup_cmds or []
+        self.env = env
+        self.serialize_notebook_fn = serialize_notebook_fn
         self.access = access or self.DEFAULT_ACCESS
         self.dryrun = dryrun
         self.resources = resources or {}
         super().__init__(name=name, dryrun=dryrun)
 
-        if not self.dryrun and self.system and self.access in ["write", "read"]:
-            self.to(self.system, reqs=self.reqs, setup_cmds=setup_cmds)
+        self = self.to(self.system, env=self.env)
 
     # ----------------- Constructor helper methods -----------------
 
     @staticmethod
     def from_config(config: dict, dryrun: bool = True):
         """Create a Function object from a config dictionary."""
-        config["reqs"] = [
-            Package.from_config(package, dryrun=True)
-            if isinstance(package, dict)
-            else package
-            for package in config["reqs"]
-        ]
-
         if isinstance(config["system"], dict):
             config["system"] = Cluster.from_config(config["system"], dryrun=dryrun)
-
-        if "fn_pointers" not in config:
-            raise ValueError(
-                "No fn_pointers provided in config. Please provide a path "
-                "to a python file, module, and function name."
-            )
 
         return Function(**config, dryrun=dryrun)
 
@@ -96,15 +86,48 @@ class Function(Resource):
 
     def to(
         self,
-        system: Union[str, Cluster],
+        system: Union[str, Cluster] = None,
+        env: Union[List[str], Env] = None,
+        # Variables below are deprecated
         reqs: Optional[List[str]] = None,
-        setup_cmds: Optional[List[str]] = None,
+        setup_cmds: Optional[List[str]] = [],
     ):
         """
-        Set up a Function on the given system, install the reqs, and run setup_cmds.
+        Set up a Function and Env on the given system.
 
         See the args of the factory method :func:`function` for more information.
         """
+        if setup_cmds:
+            warnings.warn(
+                "``setup_cmds`` argument has been deprecated. "
+                "Please pass in setup commands to the ``Env`` class corresponding to the function instead."
+            )
+
+        # to retain backwards compatibility
+        if reqs or setup_cmds:
+            warnings.warn(
+                "``reqs`` and ``setup_cmds`` arguments has been deprecated. Please use ``env`` instead."
+            )
+            env = Env(reqs=reqs, setup_cmds=setup_cmds)
+        elif env and isinstance(env, List):
+            env = Env(reqs=env, setup_cmds=setup_cmds)
+        else:
+            env = env or self.env
+            env = _get_env_from(env)
+
+        if self.env:
+            new_reqs = [req for req in self.env.reqs if req not in env.reqs]
+            env.reqs += new_reqs
+
+        if (
+            self.dryrun
+            or not (system or self.system)
+            or self.access not in ["write", "read"]
+        ):
+            # don't move the function to a system
+            self.env = env
+            return self
+
         # We need to backup the system here so the __getstate__ method of the cluster
         # doesn't wipe the client and _grpc_client of this function's cluster when
         # deepcopy copies it.
@@ -112,29 +135,24 @@ class Function(Resource):
         self.system = None
         new_function = copy.deepcopy(self)
         self.system = hw_backup
-        if isinstance(system, str):
-            system = Cluster.from_name(system, dryrun=self.dryrun)
-        new_function.system = system
-        new_function.reqs = reqs if reqs else self.reqs
-        new_function.setup_cmds = setup_cmds if setup_cmds else self.setup_cmds
+
+        if system:
+            if isinstance(system, str):
+                system = Cluster.from_name(system, dryrun=self.dryrun)
+            new_function.system = system
+        else:
+            new_function.system = self.system
 
         logging.info("Setting up Function on cluster.")
-        new_function.system.install_packages(new_function.reqs)
-        if self.setup_cmds:
-            new_function.system.run(self.setup_cmds)
+        new_env = env.to(new_function.system)
         logging.info("Function setup complete.")
+        new_function.env = new_env
 
         return new_function
 
-    def run_setup(self, cmds: List[str], force: bool = False):
+    def run_setup(self, cmds: List[str]):
         """Run the given setup commands on the system."""
-        to_run = []
-        for cmd in cmds:
-            if force or cmd not in self.setup_cmds:
-                to_run.append(cmd)
-        if to_run:
-            self.setup_cmds.extend(to_run)
-            self.system.run(to_run)
+        self.system.run(cmds)
 
     @staticmethod
     def extract_fn_paths(raw_fn: Callable, reqs: List[str]):
@@ -196,8 +214,12 @@ class Function(Resource):
         remote_import_path = None
         for req in reqs:
             local_path = None
-            if not isinstance(req, str) and req.is_local():
-                local_path = Path(req.local_path)
+            if (
+                isinstance(req, Package)
+                and not isinstance(req.install_target, str)
+                and req.install_target.is_local()
+            ):
+                local_path = Path(req.install_target.local_path)
             elif isinstance(req, str):
                 if req.split(":")[0] in ["local", "reqs", "pip"]:
                     req = req.split(":")[1]
@@ -216,8 +238,10 @@ class Function(Resource):
                     remote_import_path = str(
                         local_path.name / Path(root_path).relative_to(local_path)
                     )
+                    break
                 except ValueError:  # Not a subdirectory
                     pass
+
         return remote_import_path, module_name, fn_name
 
     # Found in python decorator logic, maybe use
@@ -248,20 +272,23 @@ class Function(Resource):
                 not self.system or self.system.name == rh_config.obj_store.cluster_name
             ):
                 [relative_path, module_name, fn_name] = self.fn_pointers
-                fn = get_fn_by_name(
-                    module_name=module_name,
-                    fn_name=fn_name,
-                    relative_path=relative_path,
+                if self.system.on_this_cluster():
+                    fn_type = "nested"
+                conda_env = (
+                    self.env.env_name
+                    if self.env and isinstance(self.env, CondaEnv)
+                    else None
                 )
                 return call_fn_by_type(
-                    fn,
-                    fn_type,
-                    fn_name,
-                    relative_path,
-                    self.resources,
-                    name_run,
-                    args,
-                    kwargs,
+                    fn_type=fn_type,
+                    fn_name=fn_name,
+                    relative_path=relative_path,
+                    module_name=module_name,
+                    resources=self.resources,
+                    conda_env=conda_env,
+                    run_name=name_run,
+                    args=args,
+                    kwargs=kwargs,
                 )
             else:
                 return self._call_fn_with_ssh_access(
@@ -447,12 +474,16 @@ class Function(Resource):
         [relative_path, module_name, fn_name] = self.fn_pointers
         name = self.name or fn_name or "anonymous function"
         logger.info(f"Running {name} via gRPC")
+        env_name = (
+            self.env.env_name if (self.env and isinstance(self.env, CondaEnv)) else None
+        )
         res = self.system.run_module(
             relative_path,
             module_name,
             fn_name,
             fn_type,
             resources,
+            env_name,
             run_name,
             args,
             kwargs,
@@ -549,11 +580,7 @@ class Function(Resource):
         config.update(
             {
                 "system": self._resource_string_for_subconfig(self.system),
-                "reqs": [
-                    self._resource_string_for_subconfig(package)
-                    for package in self.reqs
-                ],
-                "setup_cmds": self.setup_cmds,
+                "env": self._resource_string_for_subconfig(self.env),
                 "fn_pointers": self.fn_pointers,
                 "resources": self.resources,
             }
@@ -750,16 +777,18 @@ def function(
     fn: Optional[Union[str, Callable]] = None,
     name: Optional[str] = None,
     system: Optional[Union[str, Cluster]] = None,
-    reqs: Optional[List[str]] = None,
-    setup_cmds: Optional[List[str]] = None,
+    env: Union[Optional[List[str]], Env] = None,
     resources: Optional[dict] = None,
     # TODO image: Optional[str] = None,
     dryrun: bool = False,
     load_secrets: bool = False,
     serialize_notebook_fn: bool = False,
     load: bool = True,
+    # args below are deprecated
+    reqs: Optional[List[str]] = None,
+    setup_cmds: Optional[List[str]] = None,
 ):
-    """Factory method for constructing a Runhouse Function object.
+    """Builds an instance of :class:`Function`.
 
     Args:
         fn (Optional[str or Callable]): The function to execute on the remote system when the function is called.
@@ -767,9 +796,8 @@ def function(
             This can be either from a local config or from the RNS.
         system (Optional[str or Cluster]): Hardware (cluster) on which to execute the Function.
             This can be either the string name of a Cluster object, or a Cluster object.
-        reqs (Optional[List[str]]): List of requirements to install on the remote cluster, or path to the
+        env (Optional[List[str]]): List of requirements to install on the remote cluster, or path to the
             requirements.txt file.
-        setup_cmds (Optional[List[str]]): List of setup commands to run on the Cluster.
         resources (Optional[dict]): Optional number (int) of resources needed to run the Function on the Cluster.
             Keys must be ``num_cpus`` and ``num_gpus``.
         dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
@@ -788,9 +816,9 @@ def function(
         >>>    return a + b
         >>>
         >>> # creating the function
-        >>> summer = rh.function(fn=sum, system=cluster, reqs=['requirements.txt'])
+        >>> summer = rh.function(fn=sum, system=cluster, env=['requirements.txt'])
         >>> # or, equivalently
-        >>> summer = rh.function(fn=sum).to(cluster, reqs=['requirements.txt'])
+        >>> summer = rh.function(fn=sum).to(cluster, env=['requirements.txt'])
         >>>
         >>> # using the function
         >>> summer(5, 8)  # returns 13
@@ -798,25 +826,37 @@ def function(
 
     config = rh_config.rns_client.load_config(name) if load else {}
     config["name"] = name or config.get("rns_address", None) or config.get("name")
-    config["reqs"] = reqs if reqs is not None else config.get("reqs", [])
     config["resources"] = (
         resources if resources is not None else config.get("resources")
     )
+    config["serialize_notebook_fn"] = serialize_notebook_fn or config.get(
+        "serialize_notebook_fn"
+    )
 
-    processed_reqs = []
-    for req in config["reqs"]:
-        # TODO [DG] the following is wrong. RNS address doesn't have to start with '/'. However if we check if each
-        #  string exists in RNS this will be incredibly slow, so leave it for now.
-        if isinstance(req, str) and req[0] == "/" and rh_config.rns_client.exists(req):
-            # If req is an rns address
-            req = rh_config.rns_client.load_config(req)
-        processed_reqs.append(req)
-    config["reqs"] = processed_reqs
+    if setup_cmds:
+        warnings.warn(
+            "``setup_cmds`` argument has been deprecated. "
+            "Please pass in setup commands to rh.Env corresponding to the function instead."
+        )
+    if reqs is not None:
+        warnings.warn(
+            "``reqs`` argument has been deprecated. Please use ``env`` instead."
+        )
+        env = Env(reqs=reqs, setup_cmds=setup_cmds)
+    else:
+        env = env or config.get("env")
+        env = _get_env_from(env)
 
+    reqs = env.reqs if env else []
     if callable(fn):
-        if not [req for req in config["reqs"] if "./" in req]:
-            config["reqs"].append("./")
-        fn_pointers = Function.extract_fn_paths(raw_fn=fn, reqs=config["reqs"])
+        if not [
+            req
+            for req in reqs
+            if (isinstance(req, str) and "./" in req)
+            or (isinstance(req, Package) and req.is_local())
+        ]:
+            reqs.append("./")
+        fn_pointers = Function.extract_fn_paths(raw_fn=fn, reqs=reqs)
         if fn_pointers[1] == "notebook":
             fn_pointers = Function._handle_nb_fn(
                 fn,
@@ -854,8 +894,14 @@ def function(
             git_url=f"https://github.com/{username}/{repo_name}.git",
             revision=branch_name,
         )
-        config["reqs"].insert(0, repo_package)
+        reqs.insert(0, repo_package)
 
+    if env:
+        env.reqs = reqs
+    else:
+        env = Env(reqs=reqs, setup_cmds=setup_cmds)
+
+    config["env"] = env
     config["system"] = system or config.get("system")
     if isinstance(config["system"], str):
         hw_dict = rh_config.rns_client.load_config(config["system"])
@@ -865,10 +911,6 @@ def function(
                 f"not found locally or in RNS."
             )
         config["system"] = hw_dict
-
-    config["setup_cmds"] = (
-        setup_cmds if setup_cmds is not None else config.get("setup_cmds")
-    )
 
     config["access_level"] = config.get("access_level", Function.DEFAULT_ACCESS)
 

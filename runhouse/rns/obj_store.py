@@ -3,22 +3,7 @@ from typing import Any, Dict, List, Optional
 
 import ray
 
-import yaml
-
-
-def _current_cluster(key="name"):
-    """Retrive key value from the current cluster config.
-    If key is "config", returns entire config."""
-    if Path("~/.rh/cluster_config.yaml").expanduser().exists():
-        with open(Path("~/.rh/cluster_config.yaml").expanduser()) as f:
-            cluster_config = yaml.safe_load(f)
-        if key == "config":
-            return cluster_config
-        elif key == "cluster_name":
-            return cluster_config["name"].rsplit("/", 1)[-1]
-        return cluster_config[key]
-    else:
-        return None
+from runhouse.rns.utils.hardware import _current_cluster
 
 
 THIS_CLUSTER = _current_cluster("cluster_name")

@@ -1,5 +1,5 @@
-High-level Architecture
-====================================
+Runhouse Architecture
+=====================
 
 Runhouse has four top-level objectives:
 
@@ -12,6 +12,14 @@ Runhouse has four top-level objectives:
 
 It achieves the above by providing four pillar features:
 
+.. toctree::
+   :maxdepth: 1
+
+   architecture/compute
+   architecture/data
+   architecture/accessibility
+   architecture/management
+
 
 #. :ref:`Compute <Compute>` - The Function, Cluster, and Package APIs allow
    a seamless flow of code and execution across local and remote compute. They blur the line
@@ -21,14 +29,12 @@ It achieves the above by providing four pillar features:
    isolation and management, provider-agnostic provisioning and termination, and rich
    debugging and accessibility interfaces built-in.
 
-
 #. :ref:`Data <Data>` - The Folder, Table, and Blob APIs provide a simple interface for storing,
    recalling, and moving data between the user's laptop, remote compute, cloud storage,
    and specialized storage (e.g. data warehouses). They provide least-common-denominator
    APIs across providers, allowing users to easily specify the actions they want to take on the
    data without needed to dig into provider-specific APIs. We'd like to extend this to other
    data concepts in the future, like kv-stores, time-series, vector and graph databases, etc.
-
 
 #. :ref:`Accessibility <Accessibility>` - Runhouse strives to provide a Google-Docs-like experience for
    portability and sharing of resources across users and environments. This is achieved by:
@@ -46,7 +52,6 @@ It achieves the above by providing four pillar features:
      It provides a simple interface for storing and retrieving secrets from a variety of
      providers (e.g. AWS, Azure, GCP, Hugging Face, Github, etc.) as well as SSH Keys and
      custom secrets, and stores them in Hashicorp Vault.
-
 
 #. :ref:`Management <Management>` - Runhouse provides tools for visibility and management of resources
    as long-living assets shared by teams or projects. Both resources and users can be

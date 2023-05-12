@@ -1,0 +1,30 @@
+name: aws-tests
+
+on: workflow_dispatch
+
+jobs:
+  aws-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Configure aws
+        run: |
+          aws configure set aws_access_key_id ${{ secrets.DEV_AWS_ACCESS_KEY }}
+          aws configure set aws_secret_access_key ${{ secrets.DEV_AWS_SECRET_KEY }}
+          aws configure set default.region us-east-1
+
+      - name: Install python packages & dependencies
+        run: |
+          pip install runhouse[aws] pytest tqdm datasets dask s3fs
+
+      - name: Run all aws tests
+        env:
+          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+        run: pytest -v -k awstest -m "not gcptest" -m "not clustertest"

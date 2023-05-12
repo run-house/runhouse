@@ -54,8 +54,8 @@ class UnaryClient(object):
         # os.environ['GRPC_TRACE'] = 'all'
         # os.environ['GRPC_VERBOSITY'] = 'DEBUG'
 
-    def install_packages(self, to_install):
-        message = pb2.Message(message=pickle.dumps(to_install))
+    def install_packages(self, to_install, env=None):
+        message = pb2.Message(message=pickle.dumps((to_install, env)))
         server_res = self.stub.InstallPackages(message)
         [res, fn_exception, fn_traceback] = pickle.loads(server_res.message)
         if fn_exception is not None:
@@ -139,6 +139,7 @@ class UnaryClient(object):
         fn_name,
         fn_type,
         resources,
+        conda_env,
         run_name,
         args,
         kwargs,
@@ -154,6 +155,7 @@ class UnaryClient(object):
                 fn_name,
                 fn_type,
                 resources,
+                conda_env,
                 run_name,
                 args,
                 kwargs,
@@ -164,12 +166,14 @@ class UnaryClient(object):
         server_res = self.stub.RunModule(message)
         end = time.time()
         logging.info(f"Time to send message: {round(end - start, 2)} seconds")
-        [res, fn_exception, fn_traceback] = pickle.loads(server_res.message)
-        if fn_exception is not None:
-            logger.error(f"Error inside function {fn_type}: {fn_exception}.")
-            logger.error(f"Traceback: {fn_traceback}")
-            raise fn_exception
-        return res
+        if server_res.result != b"":
+            res = pickle.loads(server_res.result)
+            return res
+        if server_res.exception != b"":
+            exception = pickle.loads(server_res.exception)
+            logger.error(f"Error inside function {fn_type}: {exception}.")
+            logger.error(f"Traceback: {server_res.traceback}")
+            raise exception
 
     def is_connected(self):
         return self._connectivity_state in [

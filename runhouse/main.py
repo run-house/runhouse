@@ -20,11 +20,27 @@ console = Console()
 
 
 @app.command()
-def login(token: Optional[str] = typer.Argument(None, help="Your Runhouse API token")):
+def login(
+    token: Optional[str] = typer.Argument(None, help="Your Runhouse API token"),
+    yes: Optional[bool] = typer.Option(
+        False, "--yes", "-y", help="Sets any confirmations to 'yes' automatically."
+    ),
+):
     """Login to Runhouse. Validates token provided, with options to upload or download stored secrets or config between
     local environment and Runhouse / Vault.
     """
-    valid_token: str = login_module.login(token=token, interactive=True, ret_token=True)
+    valid_token: str = (
+        login_module.login(
+            token=token,
+            download_config=True,
+            upload_config=True,
+            download_secrets=True,
+            upload_secrets=True,
+        )
+        if yes
+        else login_module.login(token=token, interactive=True, ret_token=True)
+    )
+
     if valid_token:
         webbrowser.open(
             f"{configs.get('api_server_url')}/dashboard?token={valid_token}"

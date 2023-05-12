@@ -1,9 +1,13 @@
+import os
 import shutil
 import unittest
 from pathlib import Path
 
+import pytest
+
 import runhouse as rh
 from ray import cloudpickle as pickle
+from runhouse.rh_config import configs
 
 TEST_FOLDER_PATH = Path.cwd() / "tests_tmp"
 
@@ -15,10 +19,12 @@ def setup():
     from pathlib import Path
 
     # Create buckets in S3 and GCS
-    from runhouse.rns.api_utils.utils import create_gcs_bucket, create_s3_bucket
+    from runhouse.rns.api_utils.utils import create_s3_bucket
 
     create_s3_bucket(DATA_STORE_BUCKET)
-    create_gcs_bucket(DATA_STORE_BUCKET)
+
+    # TODO [JL] removing GCS tests for now
+    # create_gcs_bucket(DATA_STORE_BUCKET)
 
     # Create local dir with files to upload to cluster, buckets, etc.
     TEST_FOLDER_PATH.mkdir(parents=True, exist_ok=True)
@@ -45,26 +51,27 @@ def test_github_folder():
 # ----------------- Run tests -----------------
 
 
-def test_from_cluster():
-    cluster = rh.cluster(name="^rh-cpu").up_if_not()
-    rh.folder(path=str(Path.cwd())).to(cluster, path="~/my_new_tests_folder")
-    tests_folder = rh.folder(system=cluster, path="~/my_new_tests_folder")
+@pytest.mark.clustertest
+def test_from_cluster(cpu_cluster):
+    rh.folder(path=str(Path.cwd())).to(cpu_cluster, path="~/my_new_tests_folder")
+    tests_folder = rh.folder(system=cpu_cluster, path="~/my_new_tests_folder")
     assert "my_new_tests_folder/test_folder.py" in tests_folder.ls()
 
 
-def test_to_cluster_attr():
-    cluster = rh.cluster(name="^rh-cpu").up_if_not()
-    local_folder = rh.folder(path=TEST_FOLDER_PATH)
-    cluster_folder = local_folder.to(system=cluster)
+@pytest.mark.awstest
+@pytest.mark.clustertest
+def test_to_cluster_attr(cpu_cluster, local_folder):
+    cluster_folder = local_folder.to(system=cpu_cluster)
     assert isinstance(cluster_folder.system, rh.Cluster)
     assert cluster_folder._fs_str == "ssh"
 
     s3_folder = rh.folder(path=TEST_FOLDER_PATH, system="s3")
-    cluster_folder_s3 = s3_folder.to(system=cluster)
+    cluster_folder_s3 = s3_folder.to(system=cpu_cluster)
     assert isinstance(cluster_folder_s3.system, rh.Cluster)
     assert cluster_folder_s3._fs_str == "ssh"
 
 
+@pytest.mark.awstest
 def test_create_and_save_data_to_s3_folder():
     data = list(range(50))
     s3_folder = rh.folder(path=DATA_STORE_PATH, system="s3")
@@ -74,6 +81,7 @@ def test_create_and_save_data_to_s3_folder():
     assert s3_folder.exists_in_system()
 
 
+@pytest.mark.awstest
 def test_read_data_from_existing_s3_folder():
     # Note: Uses folder created above
     s3_folder = rh.folder(path=DATA_STORE_PATH, system="s3")
@@ -84,6 +92,7 @@ def test_read_data_from_existing_s3_folder():
     assert data == list(range(50))
 
 
+@pytest.mark.awstest
 def test_create_and_delete_folder_from_s3():
     s3_folder = rh.folder(name=DATA_STORE_PATH, system="s3")
     s3_folder.mkdir()
@@ -93,19 +102,21 @@ def test_create_and_delete_folder_from_s3():
     assert not s3_folder.exists_in_system()
 
 
-def test_folder_attr_on_cluster():
-    c = rh.cluster("^rh-cpu").up_if_not()
-    cluster_folder = rh.folder(path=TEST_FOLDER_PATH).to(system=c)
-    fs_str_cluster = rh.function(fn=fs_str_rh_fn).to(system=c)
+@pytest.mark.clustertest
+def test_folder_attr_on_cluster(cpu_cluster):
+    cluster_folder = rh.folder(path=TEST_FOLDER_PATH).to(system=cpu_cluster)
+    fs_str_cluster = rh.function(fn=fs_str_rh_fn).to(system=cpu_cluster)
     fs_str = fs_str_cluster(cluster_folder)
     assert fs_str == "file"
 
 
-def test_cluster_tos():
+@pytest.mark.gcptest
+@pytest.mark.awstest
+@pytest.mark.clustertest
+def test_cluster_tos(cpu_cluster):
     tests_folder = rh.folder(path=str(Path.cwd()))
 
-    c = rh.cluster("^rh-cpu").up_if_not()
-    tests_folder = tests_folder.to(system=c)
+    tests_folder = tests_folder.to(system=cpu_cluster)
     assert "test_folder.py" in tests_folder.ls(full_paths=False)
 
     # to local
@@ -129,18 +140,17 @@ def test_cluster_tos():
         bucket_name = gcs.bucket_name_from_path(gcs.path)
         print(
             f"Permissions to gs bucket ({bucket_name}) may not be fully enabled "
-            f"on the cluster {c.name}. For now please manually enable them directly on the cluster. "
+            f"on the cluster {cpu_cluster.name}. For now please manually enable them directly on the cluster. "
             f"See https://cloud.google.com/sdk/gcloud/reference/auth/login"
         )
 
 
-def test_local_and_cluster():
+@pytest.mark.clustertest
+def test_local_and_cluster(cpu_cluster, local_folder):
     # Local to cluster
-    local_folder = rh.folder(path=TEST_FOLDER_PATH)
     local_folder.mkdir()
     local_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
-    c = rh.cluster("^rh-cpu").up_if_not()
-    cluster_folder = local_folder.to(system=c)
+    cluster_folder = local_folder.to(system=cpu_cluster)
     assert "sample_file_0.txt" in cluster_folder.ls(full_paths=False)
 
     # Cluster to local
@@ -151,9 +161,9 @@ def test_local_and_cluster():
     delete_local_folder(tmp_path)
 
 
-def test_local_and_s3():
+@pytest.mark.awstest
+def test_local_and_s3(local_folder):
     # Local to S3
-    local_folder = rh.folder(path=TEST_FOLDER_PATH)
     s3_folder = local_folder.to(system="s3")
     assert "sample_file_0.txt" in s3_folder.ls(full_paths=False)
 
@@ -168,9 +178,9 @@ def test_local_and_s3():
     s3_folder.delete_in_system()
 
 
-def test_local_and_gcs():
+@pytest.mark.gcptest
+def test_local_and_gcs(local_folder):
     # Local to GCS
-    local_folder = rh.folder(path=TEST_FOLDER_PATH)
     gcs_folder = local_folder.to(system="gs")
     assert "sample_file_0.txt" in gcs_folder.ls(full_paths=False)
 
@@ -185,11 +195,11 @@ def test_local_and_gcs():
     gcs_folder.delete_in_system()
 
 
-def test_cluster_and_s3():
+@pytest.mark.awstest
+@pytest.mark.clustertest
+def test_cluster_and_s3(cpu_cluster, local_folder):
     # Local to cluster
-    local_folder = rh.folder(path=TEST_FOLDER_PATH)
-    c = rh.cluster("^rh-cpu").up_if_not()
-    cluster_folder = local_folder.to(system=c)
+    cluster_folder = local_folder.to(system=cpu_cluster)
     assert "sample_file_0.txt" in cluster_folder.ls(full_paths=False)
 
     # Cluster to S3
@@ -197,25 +207,22 @@ def test_cluster_and_s3():
     assert "sample_file_0.txt" in s3_folder.ls(full_paths=False)
 
     # S3 to cluster
-    cluster_from_s3 = s3_folder.to(system=c)
+    cluster_from_s3 = s3_folder.to(system=cpu_cluster)
     assert "sample_file_0.txt" in cluster_from_s3.ls(full_paths=False)
 
     s3_folder.delete_in_system()
 
 
 @unittest.skip("requires GCS setup")
-def test_cluster_and_gcs():
-    # Local to cluster
-    local_folder = rh.folder(path=TEST_FOLDER_PATH)
-    c = rh.cluster("^rh-cpu").up_if_not()
-
+@pytest.mark.clustertest
+def test_cluster_and_gcs(cpu_cluster, local_folder):
     # Make sure we have gsutil and gcloud on the cluster - needed for copying the package + authenticating
-    c.install_packages(["gsutil"])
+    cpu_cluster.install_packages(["gsutil"])
 
     # TODO [JL] might be necessary to install gcloud on the cluster
     # c.run(['sudo snap install google-cloud-cli --classic'])
 
-    cluster_folder = local_folder.to(system=c)
+    cluster_folder = local_folder.to(system=cpu_cluster)
     assert "sample_file_0.txt" in cluster_folder.ls(full_paths=False)
 
     # Cluster to GCS
@@ -223,7 +230,7 @@ def test_cluster_and_gcs():
     try:
         assert "sample_file_0.txt" in gcs_folder.ls(full_paths=False)
         # GCS to cluster
-        cluster_from_gcs = gcs_folder.to(system=c)
+        cluster_from_gcs = gcs_folder.to(system=cpu_cluster)
         assert "sample_file_0.txt" in cluster_from_gcs.ls(full_paths=False)
 
         gcs_folder.delete_in_system()
@@ -233,14 +240,14 @@ def test_cluster_and_gcs():
         bucket_name = gcs_folder.bucket_name_from_path(gcs_folder.path)
         raise PermissionError(
             f"Permissions to gs bucket ({bucket_name}) may not be fully enabled "
-            f"on the cluster {c.name}. For now please manually enable them directly on the cluster. "
+            f"on the cluster {cpu_cluster.name}. For now please manually enable them directly on the cluster. "
             f"See https://cloud.google.com/sdk/gcloud/reference/auth/login"
         )
 
 
-def test_s3_and_s3():
+@pytest.mark.awstest
+def test_s3_and_s3(local_folder):
     # Local to S3
-    local_folder = rh.folder(path=TEST_FOLDER_PATH)
     s3_folder = local_folder.to(system="s3")
     assert "sample_file_0.txt" in s3_folder.ls(full_paths=False)
 
@@ -252,9 +259,9 @@ def test_s3_and_s3():
     new_s3_folder.delete_in_system()
 
 
-def test_gcs_and_gcs():
+@pytest.mark.gcptest
+def test_gcs_and_gcs(local_folder):
     # Local to GCS
-    local_folder = rh.folder(path=TEST_FOLDER_PATH)
     gcs_folder = local_folder.to(system="gs")
     assert "sample_file_0.txt" in gcs_folder.ls(full_paths=False)
 
@@ -266,9 +273,11 @@ def test_gcs_and_gcs():
     new_gcs_folder.delete_in_system()
 
 
-def test_s3_and_gcs():
+@pytest.mark.gcptest
+@pytest.mark.awstest
+@unittest.skip("requires GCS setup")
+def test_s3_and_gcs(local_folder):
     # Local to S3
-    local_folder = rh.folder(path=TEST_FOLDER_PATH)
     s3_folder = local_folder.to(system="s3")
     assert "sample_file_0.txt" in s3_folder.ls(full_paths=False)
 
@@ -281,10 +290,11 @@ def test_s3_and_gcs():
     s3_folder.delete_in_system()
 
 
+@pytest.mark.gcptest
+@pytest.mark.awstest
 @unittest.skip("requires GCS setup")
-def test_gcs_and_s3():
+def test_gcs_and_s3(local_folder):
     # Local to GCS
-    local_folder = rh.folder(path=TEST_FOLDER_PATH)
     gcs_folder = local_folder.to(system="gs")
     assert "sample_file_0.txt" in gcs_folder.ls(full_paths=False)
 
@@ -297,9 +307,10 @@ def test_gcs_and_s3():
     gcs_folder.delete_in_system()
 
 
+@pytest.mark.awstest
 def test_s3_folder_uploads_and_downloads():
-    # NOTE: you can specify a specific path like this:
-    # test_folder = rh.folder(path='/runhouse/my-folder', system='gs')
+    # NOTE: you can also specify a specific path like this:
+    # test_folder = rh.folder(path='/runhouse/my-folder', system='s3')
 
     s3_folder = rh.folder(system="s3")
     s3_folder.upload(src=str(TEST_FOLDER_PATH))
@@ -316,38 +327,49 @@ def test_s3_folder_uploads_and_downloads():
     assert not s3_folder.exists_in_system()
 
 
-def test_cluster_and_cluster():
-    # Local to cluster 1
-    local_folder = rh.folder(path=TEST_FOLDER_PATH)
-    c1 = rh.cluster("^rh-cpu").up_if_not()
-
+@pytest.mark.clustertest
+def test_cluster_and_cluster(cpu_cluster, cpu_cluster_2, local_folder):
     # Upload sky secrets to cluster - required when syncing over the folder from c1 to c2
-    c1.send_secrets(providers=["sky"])
+    cpu_cluster.send_secrets(providers=["sky"])
 
-    cluster_folder_1 = local_folder.to(system=c1)
+    cluster_folder_1 = local_folder.to(system=cpu_cluster)
     assert "sample_file_0.txt" in cluster_folder_1.ls(full_paths=False)
 
     # Cluster 1 to cluster 2
-    c2 = rh.cluster(name="test-byo-cluster").up_if_not()
+    c2 = rh.cluster(name=cpu_cluster_2).up_if_not()
     cluster_folder_2 = cluster_folder_1.to(system=c2, path=cluster_folder_1.path)
     assert "sample_file_0.txt" in cluster_folder_2.ls(full_paths=False)
 
 
+@pytest.mark.awstest
+@pytest.mark.rnstest
 def test_s3_sharing():
+    token = os.getenv("TEST_TOKEN") or configs.get("token")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    assert (
+        token
+    ), "No token provided. Either set `TEST_TOKEN` env variable or set `token` in the .rh config file"
+
+    # Login to ensure the default folder / username are saved down correctly
+    rh.login(token=token, download_config=True, interactive=False)
+
     s3_folder = rh.folder(
-        name="my-s3-shared-folder", path=DATA_STORE_PATH, system="s3"
+        name="@/my-s3-shared-folder", path=DATA_STORE_PATH, system="s3"
     ).save()
     assert s3_folder.ls(full_paths=False)
 
     s3_folder.share(
-        users=["donny@run.house", "josh.lewittes@gmail.com"],
+        users=["donny@run.house", "josh@run.house"],
         access_type="read",
         notify_users=False,
+        headers=headers,
     )
 
     assert s3_folder.ls(full_paths=False)
 
 
+@pytest.mark.rnstest
 def test_load_shared_folder():
     from runhouse import Folder
 

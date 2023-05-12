@@ -16,9 +16,10 @@ from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
 import runhouse as rh
 from runhouse.rh_config import open_grpc_tunnels, rns_client
-from runhouse.rns.obj_store import _current_cluster
+from runhouse.rns.folders.folder import Folder
 from runhouse.rns.packages.package import Package
 from runhouse.rns.resource import Resource
+from runhouse.rns.utils.hardware import _current_cluster
 
 from runhouse.servers.grpc.unary_client import UnaryClient
 from runhouse.servers.grpc.unary_server import UnaryService
@@ -144,7 +145,7 @@ class Cluster(Resource):
             packages = [p.split("==")[0] for p in packages]
         return packages
 
-    def sync_runhouse_to_cluster(self, _install_url=None):
+    def sync_runhouse_to_cluster(self, _install_url=None, env=None):
         if not self.address:
             raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
         local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
@@ -160,52 +161,61 @@ class Cluster(Resource):
             rh_package = Package.from_string(
                 f"reqs:{local_rh_package_path}", dryrun=True
             )
-            rh_package.to_cluster(self, mount=False)
-            status_codes = self.run(["pip install ./runhouse"], stream_logs=True)
+            rh_package.to(self)
+            rh_install_cmd = "pip install ./runhouse"
         # elif local_rh_package_path.parent.name == 'site-packages':
         else:
             # Package is installed in site-packages
             # status_codes = self.run(['pip install runhouse-nightly==0.0.2.20221202'], stream_logs=True)
             # rh_package = 'runhouse_nightly-0.0.1.dev20221202-py3-none-any.whl'
             # rh_download_cmd = f'curl https://runhouse-package.s3.amazonaws.com/{rh_package} --output {rh_package}'
-            # TODO need to check user's current version and install same version?
-            _install_url = _install_url or "runhouse"
+            if not _install_url:
+                import runhouse
+
+                _install_url = f"runhouse=={runhouse.__version__}"
             rh_install_cmd = f"pip install {_install_url}"
-            status_codes = self.run([rh_install_cmd], stream_logs=True)
+
+        install_cmd = (
+            f"{env._activate_cmd} && {rh_install_cmd}" if env else rh_install_cmd
+        )
+        status_codes = self.run([install_cmd], stream_logs=True)
 
         if status_codes[0][0] != 0:
             raise ValueError(f"Error installing runhouse on cluster <{self.name}>")
 
-    def install_packages(self, reqs: List[Union[Package, str]]):
-        """Install the given packages on the cluster."""
+    def install_packages(
+        self, reqs: List[Union[Package, str]], env: Union["Env", str] = None
+    ):
+        """Install the given packages on the cluster.
+
+        Args:
+            reqs (List[Package or str): List of packages to install on cluster and env
+            env (Env or str): Environment to install package on. If left empty, defaults to base environment.
+                (Default: ``None``)
+        """
         self.check_grpc()
         to_install = []
         for package in reqs:
             if isinstance(package, str):
-                # If the package is a local folder, we need to create the package to sync it over to the cluster
                 pkg_obj = Package.from_string(package, dryrun=False)
             else:
                 pkg_obj = package
 
-            from runhouse.rns.folders.folder import Folder
-
-            if (
-                isinstance(pkg_obj.install_target, Folder)
-                and pkg_obj.install_target.is_local()
-            ):
-                pkg_str = pkg_obj.name or Path(pkg_obj.install_target.path).name
-                logging.info(
-                    f"Copying local package {pkg_str} to cluster <{self.name}>"
-                )
-                remote_package = pkg_obj.to_cluster(self, mount=False)
-                to_install.append(remote_package)
+            if isinstance(pkg_obj.install_target, Folder):
+                if not pkg_obj.install_target.system == self:
+                    pkg_str = pkg_obj.name or Path(pkg_obj.install_target.path).name
+                    logging.info(
+                        f"Copying local package {pkg_str} to cluster <{self.name}>"
+                    )
+                    pkg_obj = pkg_obj.to(self)
+                to_install.append(pkg_obj)
             else:
                 to_install.append(package)  # Just appending the string!
         logging.info(
             f"Installing packages on cluster {self.name}: "
             f"{[req if isinstance(req, str) else str(req) for req in reqs]}"
         )
-        self.client.install_packages(to_install)
+        self.client.install_packages(to_install, env)
 
     def get(self, key: str, default: Any = None, stream_logs: bool = False):
         """Get the object at the given key from the cluster's object store."""
@@ -440,7 +450,9 @@ class Cluster(Resource):
         logfile = f"{self.name}_grpc_server.log"
         grpc_server_cmd = "python3 -m runhouse.servers.grpc.unary_server"
         # 2>&1 redirects stderr to stdout
-        screen_cmd = f"screen -dm bash -c '{grpc_server_cmd} >> ~/.rh/{logfile} 2>&1'"
+        screen_cmd = (
+            f"screen -dm bash -c '{grpc_server_cmd} |& tee -a ~/.rh/{logfile} 2>&1'"
+        )
         cmds = [kill_proc_cmd]
         if restart_ray:
             cmds.append("ray stop")
@@ -480,6 +492,7 @@ class Cluster(Resource):
         fn_name,
         fn_type,
         resources,
+        conda_env,
         run_name,
         args,
         kwargs,
@@ -491,6 +504,7 @@ class Cluster(Resource):
             fn_name,
             fn_type,
             resources,
+            conda_env,
             run_name,
             args,
             kwargs,
@@ -555,6 +569,7 @@ class Cluster(Resource):
     def run(
         self,
         commands: List[str],
+        env: Union["Env", str] = None,
         stream_logs: bool = True,
         port_forward: Optional[int] = None,
         require_outputs: bool = True,
@@ -593,8 +608,18 @@ class Cluster(Resource):
         require_outputs: bool = True,
     ):
         return_codes = []
+
+        cmd_prefix = ""
+        if env:
+            if isinstance(env, str):
+                from runhouse.rns.envs import Env
+
+                env = Env.from_name(env)
+            cmd_prefix = env._run_cmd
+
         runner = command_runner.SSHCommandRunner(self.address, **self.ssh_creds())
         for command in commands:
+            command = f"{cmd_prefix} {command}" if cmd_prefix else command
             logger.info(f"Running command on {self.name}: {command}")
             ret_code = runner.run(
                 command,
@@ -608,15 +633,23 @@ class Cluster(Resource):
     def run_python(
         self,
         commands: List[str],
+        env: Union["Env", str] = None,
         stream_logs: bool = True,
         port_forward: Optional[int] = None,
         name_run: Optional[Union[str, bool]] = None,
     ):
         """Run a list of python commands on the cluster."""
+        cmd_prefix = "python3 -c"
+        if env:
+            if isinstance(env, str):
+                from runhouse.rns.envs import Env
+
+                env = Env.from_name(env)
+            cmd_prefix = f"{env._run_cmd} {cmd_prefix}"
         command_str = "; ".join(commands)
         # If invoking a run as part of the python commands also return the Run object
         return_codes = self.run(
-            [f'python3 -c "{command_str}"'],
+            [f'{cmd_prefix} "{command_str}"'],
             stream_logs=stream_logs,
             port_forward=port_forward,
             name_run=name_run,
@@ -658,3 +691,11 @@ class Cluster(Resource):
                 tunnel.stop()
                 kill_jupyter_cmd = f"jupyter notebook stop {port_fwd}"
                 self.run(commands=[kill_jupyter_cmd])
+
+    def remove_conda_env(
+        self,
+        env: Union[str, "CondaEnv"],
+    ):
+        """Remove conda env from the cluster."""
+        env_name = env if isinstance(env, str) else env.env_name
+        self.run([f"conda env remove -n {env_name}"])

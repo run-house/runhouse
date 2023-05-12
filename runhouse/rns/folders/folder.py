@@ -15,8 +15,8 @@ import sshfs
 import runhouse as rh
 from runhouse.rh_config import rns_client
 from runhouse.rns.api_utils.utils import generate_uuid
-from runhouse.rns.obj_store import _current_cluster
 from runhouse.rns.resource import Resource
+from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
 
 fsspec.register_implementation("ssh", sshfs.SSHFileSystem)
 # SSHFileSystem is not yet builtin.
@@ -297,10 +297,7 @@ class Folder(Resource):
         # to more performant cloud-specific APIs
         from runhouse.rns.hardware import Cluster
 
-        if isinstance(system, str) and rns_client.exists(
-            system, resource_type="cluster"
-        ):
-            system = Cluster.from_name(system, dryrun=self.dryrun)
+        system = _get_cluster_from(system)
 
         if system == "file":
             return self.to_local(dest_path=path, data_config=data_config)
@@ -510,7 +507,7 @@ class Folder(Resource):
         return (
             self._fs_str == "file"
             and self.path is not None
-            and Path(self.path).exists()
+            and Path(self.path).expanduser().exists()
         ) or self._local_mount_path
 
     def upload(self, src: str, region: Optional[str] = None):
@@ -728,7 +725,7 @@ class Folder(Resource):
         ) or rh.rns.top_level_rns_fns.exists(self.path)
 
     def delete_in_system(self, path: Optional[str] = None):
-        """Delete from file system. Note: will remove the folder and all its contents."""
+        """Delete all contents in folder from file system. Note: will remove the folder and all its contents."""
         try:
             self.fsspec_fs.rm(path or self.path, recursive=True)
         except FileNotFoundError:
@@ -899,8 +896,8 @@ def folder(
                 f"fsspec file system {file_system} not officially supported. Use at your own risk."
             )
             new_folder = Folder.from_config(config, dryrun=dryrun)
-        elif rns_client.exists(file_system, resource_type="cluster"):
-            config["system"] = rns_client.load_config(file_system)
+        elif isinstance(_get_cluster_from(file_system), Resource):
+            config["system"] = _get_cluster_from(file_system)
         else:
             raise ValueError(
                 f"File system {file_system} not found. Have you installed the "
