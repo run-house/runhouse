@@ -7,7 +7,6 @@ from functools import wraps
 from pathlib import Path
 
 import ray
-import ray.cloudpickle as pickle
 
 from ray import cloudpickle as pickle
 
@@ -17,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def call_fn_by_type(
+    fn,
     fn_type,
     fn_name,
     relative_path,
@@ -30,12 +30,16 @@ def call_fn_by_type(
     from runhouse import Run
 
     run_key = run_name or Run.base_folder_name(fn_name)
-    logger.info(f"Run key: {run_key}")
+    logger.info(f"Run key: {run_key} for run name: {run_name}")
 
     # TODO other possible fn_types: 'batch', 'streaming'
     if fn_type == "get":
         obj_ref = args[0]
         res = pickle.dumps(rh_config.obj_store.get(obj_ref))
+    elif fn_type == "get_or_run":
+        # look up result in object store, if the run is not started execute and synchronously return the result
+        run_status: dict = _get_or_run(run_key, fn, args, kwargs)
+        res = pickle.dumps(run_status)
     else:
         args = rh_config.obj_store.get_obj_refs_list(args)
         kwargs = rh_config.obj_store.get_obj_refs_dict(kwargs)
@@ -102,6 +106,27 @@ def call_fn_by_type(
         else:
             res = pickle.dumps(ray.get(obj_ref))
     return res
+
+
+def get_fn_by_name(module_name, fn_name, relative_path=None):
+    if relative_path:
+        module_path = str((Path.home() / relative_path).resolve())
+        sys.path.append(module_path)
+        logger.info(f"Appending {module_path} to sys.path")
+
+    if module_name in rh_config.obj_store.imported_modules:
+        importlib.invalidate_caches()
+        rh_config.obj_store.imported_modules[module_name] = importlib.reload(
+            rh_config.obj_store.imported_modules[module_name]
+        )
+        logger.info(f"Reloaded module {module_name}")
+    else:
+        logger.info(f"Importing module {module_name}")
+        rh_config.obj_store.imported_modules[module_name] = importlib.import_module(
+            module_name
+        )
+    fn = getattr(rh_config.obj_store.imported_modules[module_name], fn_name)
+    return fn
 
 
 def get_fn_from_pointers(fn_pointers, fn_type, num_gpus, *args, **kwargs):
@@ -174,6 +199,7 @@ def _run_fn_synchronously(run_key, fn, args, kwargs):
     new_run, config_path_on_cluster = _create_new_run(
         run_key, fn, current_cluster, args, kwargs
     )
+    logger.info(f"Starting execution of function for {run_key}, waiting for completion")
 
     with new_run:
         # Open context manager to track stderr and stdout + other artifacts created by the function for this run
@@ -198,10 +224,11 @@ def current_cluster_obj():
     return cluster(f"@/{THIS_CLUSTER}")
 
 
-def _get_or_run(run_key, fn, args, kwargs):
+def _get_or_run(run_key, fn, args, kwargs) -> dict:
     from runhouse import Run
 
     system = current_cluster_obj()
+    logger.info(f"Current System: {system.name}")
 
     config_path_on_system = Run.default_config_path(run_key, system)
     config_path = os.path.abspath(os.path.expanduser(config_path_on_system))
@@ -240,6 +267,10 @@ def _get_or_run(run_key, fn, args, kwargs):
         logger.info(f"Run {run_key} is still running")
         return {"status": run_status, "result": run_key}
 
+    else:
+        logger.warning(f"Run {run_key} in unexpected state: {run_status}")
+        return {"status": run_status, "result": None}
+
 
 def _create_new_run(run_key, fn, current_cluster, args, kwargs):
     from runhouse import Run, run
@@ -257,6 +288,7 @@ def _create_new_run(run_key, fn, current_cluster, args, kwargs):
         name=run_key, fn=fn, system=current_cluster, load=False, overwrite=True
     )
 
+    logger.info(f"Writing inputs to path: {new_run.fn_inputs_path()}")
     # Write the inputs to the function for this run to folder
     new_run.write(
         data=pickle.dumps(inputs),

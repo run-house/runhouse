@@ -120,3 +120,57 @@ def a10g_gpu_cluster():
     return rh.cluster(
         name="rh-a10x", instance_type="g5.2xlarge", provider="aws"
     ).up_if_not()
+
+
+# ----------------- Functions -----------------
+def summer(a: int, b: int):
+    return a + b
+
+
+def save_and_load_artifacts():
+    cpu = rh.cluster("^rh-cpu").save()
+    loaded_cluster = rh.load(name=cpu.name)
+    return loaded_cluster.name
+
+
+def slow_running_func(a, b):
+    import time
+
+    time.sleep(200)
+    return a + b
+
+
+@pytest.fixture
+def summer_func(cpu_cluster):
+    try:
+        return rh.Function.from_name("summer_func")
+    except:
+        return (
+            rh.function(summer, name="summer_func")
+            .to(cpu_cluster, env=["pytest"])
+            .save()
+        )
+
+
+@pytest.fixture
+def func_with_artifacts(cpu_cluster):
+    try:
+        return rh.Function.from_name("artifacts_func")
+    except:
+        return (
+            rh.function(save_and_load_artifacts, name="artifacts_func")
+            .to(cpu_cluster, env=["pytest"])
+            .save()
+        )
+
+
+@pytest.fixture
+def slow_func(cpu_cluster):
+    try:
+        return rh.Function.from_name("slow_func")
+    except:
+        return (
+            rh.function(slow_running_func, name="slow_func")
+            .to(cpu_cluster, env=["pytest"])
+            .save()
+        )

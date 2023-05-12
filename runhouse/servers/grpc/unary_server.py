@@ -16,7 +16,7 @@ import runhouse.servers.grpc.unary_pb2 as pb2
 import runhouse.servers.grpc.unary_pb2_grpc as pb2_grpc
 from runhouse.rh_config import configs, obj_store
 from runhouse.rns.packages.package import Package
-from runhouse.rns.run_module_utils import call_fn_by_type
+from runhouse.rns.run_module_utils import call_fn_by_type, get_fn_by_name
 from runhouse.rns.top_level_rns_fns import (
     clear_pinned_memory,
     pinned_keys,
@@ -217,12 +217,24 @@ class UnaryService(pb2_grpc.UnaryServicer):
             resources,
             conda_env,
             run_name,
-                args,
-                kwargs,
-            ] = pickle.loads(request.message)
+            args,
+            kwargs,
+        ] = pickle.loads(request.message)
+
+        module_path = (
+            str((Path.home() / relative_path).resolve()) if relative_path else None
+        )
+        logger.info(f"Module path on unary server: {module_path}")
+
+        if module_name == "notebook":
+            fn = fn_name  # Already unpickled above
+        else:
+            fn = get_fn_by_name(module_name, fn_name, module_path)
+        logger.info(f"Fn in RunModule: {type(fn)}")
 
         try:
             result = call_fn_by_type(
+                fn=fn,
                 fn_type=fn_type,
                 fn_name=fn_name,
                 relative_path=relative_path,

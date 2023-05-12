@@ -19,7 +19,7 @@ from runhouse.rns.hardware import Cluster
 from runhouse.rns.packages import git_package, Package
 
 from runhouse.rns.resource import Resource
-from runhouse.rns.run_module_utils import call_fn_by_type
+from runhouse.rns.run_module_utils import call_fn_by_type, get_fn_by_name
 
 from runhouse.rns.utils.env import _get_env_from
 
@@ -56,6 +56,7 @@ class Function(Resource):
         self.access = access or self.DEFAULT_ACCESS
         self.dryrun = dryrun
         self.resources = resources or {}
+
         super().__init__(name=name, dryrun=dryrun)
 
         self = self.to(self.system, env=self.env)
@@ -67,6 +68,8 @@ class Function(Resource):
         """Create a Function object from a config dictionary."""
         if isinstance(config["system"], dict):
             config["system"] = Cluster.from_config(config["system"], dryrun=dryrun)
+        if isinstance(config["env"], dict):
+            config["env"] = Env.from_config(config["env"], dryrun=dryrun)
 
         return Function(**config, dryrun=dryrun)
 
@@ -279,7 +282,15 @@ class Function(Resource):
                     if self.env and isinstance(self.env, CondaEnv)
                     else None
                 )
+
+                fn = get_fn_by_name(
+                    module_name=module_name,
+                    fn_name=fn_name,
+                    relative_path=relative_path,
+                )
+
                 return call_fn_by_type(
+                    fn=fn,
                     fn_type=fn_type,
                     fn_name=fn_name,
                     relative_path=relative_path,
@@ -588,7 +599,8 @@ class Function(Resource):
         return config
 
     def _save_sub_resources(self):
-        self.system.save()
+        if isinstance(self.system, Resource):
+            self.system.save()
 
     # TODO maybe reuse these if we starting putting each function in its own container
     # @staticmethod
@@ -898,8 +910,6 @@ def function(
 
     if env:
         env.reqs = reqs
-    else:
-        env = Env(reqs=reqs, setup_cmds=setup_cmds)
 
     config["env"] = env
     config["system"] = system or config.get("system")

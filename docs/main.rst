@@ -46,7 +46,7 @@ and rich debugging and accessibility interfaces built-in.
 .. toctree::
    :maxdepth: 1
 
-   rh_primitives/run
+   api/run
 
 
 Data Abstractions

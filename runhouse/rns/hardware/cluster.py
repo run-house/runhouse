@@ -585,7 +585,7 @@ class Cluster(Resource):
                 # Capture the stdout and stderr from the commands, and save them to the .rh/logs/<run_key> folder
                 # on the cluster.
                 return_codes = self._run_commands(
-                    commands, stream_logs, port_forward, require_outputs
+                    commands, stream_logs, env, port_forward, require_outputs
                 )
 
             logger.info(
@@ -595,7 +595,7 @@ class Cluster(Resource):
             )
         else:
             return_codes = self._run_commands(
-                commands, stream_logs, port_forward, require_outputs
+                commands, stream_logs, env, port_forward, require_outputs
             )
 
         return return_codes
@@ -604,6 +604,7 @@ class Cluster(Resource):
         self,
         commands: list,
         stream_logs: bool,
+        env=None,
         port_forward: int = None,
         require_outputs: bool = True,
     ):
