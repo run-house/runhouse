@@ -28,9 +28,9 @@ class S3Folder(Folder):
         """Load config values into the object."""
         return S3Folder(**config, dryrun=dryrun)
 
-    def delete_in_system(self):
+    def delete_in_system(self, path: Optional[str] = None):
         """Delete s3 folder along with its contents."""
-        for p in self.s3.ls(self.path):
+        for p in self.s3.ls(path or self.path):
             self.s3.rm(p)
 
     def delete_bucket(self):

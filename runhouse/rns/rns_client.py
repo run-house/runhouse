@@ -27,6 +27,7 @@ class RNSClient:
     DEFAULT_FS = "file"
 
     def __init__(self, configs) -> None:
+        self.run_stack = []
         self._configs = configs
         self._prev_folders = []
 
@@ -179,6 +180,36 @@ class RNSClient:
                 del payload[k]
         payload["data"] = data
         return payload
+
+    # Run Stack
+    # ---------------------
+
+    def start_run(self, run_obj: "Run"):
+        self.run_stack.append(run_obj)
+
+    def stop_run(self):
+        return self.run_stack.pop()
+
+    def current_run(self):
+        if not self.run_stack:
+            return None
+        return self.run_stack[-1]
+
+    def add_upstream_resource(self, name: str):
+        """Add a resource's name to the current run's upstream artifact registry if it's being loaded"""
+        current_run = self.current_run()
+        if current_run:
+            artifact_name = self.resolve_rns_path(name)
+            current_run.register_upstream_artifact(artifact_name)
+
+    def add_downstream_resource(self, name: str):
+        """Add a resource's name to the current run's downstream artifact registry if it's being saved"""
+        current_run = self.current_run()
+        if current_run:
+            artifact_name = self.resolve_rns_path(name)
+            current_run.register_downstream_artifact(artifact_name)
+
+    # ---------------------
 
     def grant_resource_access(
         self,

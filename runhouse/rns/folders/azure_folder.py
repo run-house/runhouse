@@ -15,7 +15,7 @@ class AzureFolder(Folder):
         """Load config values into the object."""
         return AzureFolder(**config, dryrun=dryrun)
 
-    def delete_in_system(self):
+    def delete_in_system(self, path: Optional[str] = None):
         """Delete Azure folder along with its contents."""
         raise NotImplementedError
 

@@ -78,6 +78,11 @@ class UnaryClient(object):
         res = self.stub.ListKeys(pb2.Message())
         return pickle.loads(res.message)
 
+    def get_run_object(self, run_key, system, config_path):
+        message = pb2.Message(message=pickle.dumps((run_key, system, config_path)))
+        res = self.stub.GetRunObject(message)
+        return pickle.loads(res.message)
+
     # TODO [DG]: maybe just merge cancel into this so we can get log streaming back as we cancel a job
     def get_object(self, key, stream_logs=False):
         """
@@ -128,14 +133,31 @@ class UnaryClient(object):
         self.stub.ClearPins(message)
 
     def run_module(
-        self, relative_path, module_name, fn_name, fn_type, resources, args, kwargs
+        self,
+        relative_path,
+        module_name,
+        fn_name,
+        fn_type,
+        resources,
+        run_name,
+        args,
+        kwargs,
     ):
         """
         Client function to call the rpc for RunModule
         """
         # Measure the time it takes to send the message
         serialized_module = pickle.dumps(
-            [relative_path, module_name, fn_name, fn_type, resources, args, kwargs]
+            [
+                relative_path,
+                module_name,
+                fn_name,
+                fn_type,
+                resources,
+                run_name,
+                args,
+                kwargs,
+            ]
         )
         start = time.time()
         message = pb2.Message(message=serialized_module)

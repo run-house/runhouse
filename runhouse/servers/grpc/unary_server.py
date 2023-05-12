@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import traceback
 from concurrent import futures
 from pathlib import Path
@@ -72,6 +73,29 @@ class UnaryService(pb2_grpc.UnaryServicer):
 
         return pb2.MessageResponse(message=pickle.dumps(message), received=False)
 
+    def GetRunObject(self, request, context):
+        self.register_activity()
+        run_key, system, config_path = pickle.loads(request.message)
+        from runhouse import Run
+
+        config_path = config_path or Run.default_config_path(run_key, system)
+        config_path_on_system = os.path.abspath(os.path.expanduser(config_path))
+
+        # Load config data for this Run saved on the system
+        try:
+            with open(config_path_on_system, "r") as f:
+                run_config = json.load(f)
+
+            # Re-load the Run object
+            ret = Run(**run_config, dryrun=True)
+            self.register_activity()
+        except FileNotFoundError:
+            logger.error(f"No config file found in path: {config_path_on_system}")
+            ret = None
+            self.register_activity()
+
+        return pb2.MessageResponse(message=pickle.dumps(ret), received=True)
+
     def GetObject(self, request, context):
         self.register_activity()
         key, stream_logs = pickle.loads(request.message)
@@ -98,6 +122,9 @@ class UnaryService(pb2_grpc.UnaryServicer):
             if stream_logs:
                 if not logfiles:
                     logfiles = obj_store.get_logfiles(key)
+                    if not logfiles:
+                        logger.info(f"No log files found for {key}")
+                        continue
                     open_files = [open(i, "r") for i in logfiles]
                     logger.info(f"Streaming logs for {key} from {logfiles}")
 
@@ -121,7 +148,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
             # We got the object back from the object store, so we're done (but we went through the loop once
             # more to get any remaining log lines)
             [f.close() for f in open_files]
-        yield pb2.MessageResponse(
+        return pb2.MessageResponse(
             message=pickle.dumps(ret_obj), received=True, output_type=OutputType.RESULT
         )
 
@@ -193,6 +220,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
                 fn_name,
                 fn_type,
                 resources,
+                run_name,
                 args,
                 kwargs,
             ] = pickle.loads(request.message)
@@ -212,6 +240,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
                 fn_name=fn_name,
                 module_path=module_path,
                 resources=resources,
+                run_name=run_name,
                 args=args,
                 kwargs=kwargs,
             )

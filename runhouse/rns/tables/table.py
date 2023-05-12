@@ -154,8 +154,12 @@ class Table(Resource):
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Table {name} not found.")
+
         # We don't need to load the cluster dict here (if system is a cluster) because the table init
-        # goes through the Folder factory method, which does that.
+        # goes through the Folder factory method, which handles that.
+
+        # Add this table's name to the resource artifact registry if part of a run
+        rns_client.add_upstream_resource(name)
 
         # Uses the table subclass associated with the `resource_subtype`
         table_cls = _load_table_subclass(config=config, dryrun=dryrun)

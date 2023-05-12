@@ -19,9 +19,9 @@ class GCSFolder(Folder):
         """Load config values into the object."""
         return GCSFolder(**config, dryrun=dryrun)
 
-    def delete_in_system(self):
+    def delete_in_system(self, path: Optional[str] = None):
         """Delete gcs folder along with its contents."""
-        for p in self.fsspec_fs.ls(self.path):
+        for p in self.fsspec_fs.ls(path or self.path):
             self.fsspec_fs.rm(p)
 
     def delete_bucket(self):

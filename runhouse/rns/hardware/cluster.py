@@ -14,6 +14,7 @@ import sshtunnel
 from sky.utils import command_runner
 from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
+import runhouse as rh
 from runhouse.rh_config import open_grpc_tunnels, rns_client
 from runhouse.rns.obj_store import _current_cluster
 from runhouse.rns.packages.package import Package
@@ -210,6 +211,12 @@ class Cluster(Resource):
         """Get the object at the given key from the cluster's object store."""
         self.check_grpc()
         return self.client.get_object(key, stream_logs=stream_logs) or default
+
+    def get_run(self, run_key: str, config_path: str = None):
+        self.check_grpc()
+        return self.client.get_run_object(
+            run_key, system=self.name, config_path=config_path
+        )
 
     def add_secrets(self, provider_secrets: dict):
         """Copy secrets from current environment onto the cluster"""
@@ -467,11 +474,26 @@ class Cluster(Resource):
         pass
 
     def run_module(
-        self, relative_path, module_name, fn_name, fn_type, resources, args, kwargs
+        self,
+        relative_path,
+        module_name,
+        fn_name,
+        fn_type,
+        resources,
+        run_name,
+        args,
+        kwargs,
     ):
         self.check_grpc()
         return self.client.run_module(
-            relative_path, module_name, fn_name, fn_type, resources, args, kwargs
+            relative_path,
+            module_name,
+            fn_name,
+            fn_type,
+            resources,
+            run_name,
+            args,
+            kwargs,
         )
 
     def is_connected(self):
@@ -536,11 +558,42 @@ class Cluster(Resource):
         stream_logs: bool = True,
         port_forward: Optional[int] = None,
         require_outputs: bool = True,
-    ):
+        name_run: Optional[Union[str, bool]] = None,
+    ) -> list:
         """Run a list of shell commands on the cluster."""
         # TODO [DG] suspect autostop while running?
-        runner = command_runner.SSHCommandRunner(self.address, **self.ssh_creds())
+        if name_run:
+            run_name = rh.Run.create_run_name(name_run)
+            with rh.run(
+                name=run_name, system=self, cmds=commands, load=False, overwrite=True
+            ) as run_obj:
+                # Capture the stdout and stderr from the commands, and save them to the .rh/logs/<run_key> folder
+                # on the cluster.
+                return_codes = self._run_commands(
+                    commands, stream_logs, port_forward, require_outputs
+                )
+
+            logger.info(
+                f"Saved run with name: `{run_obj.name}`. Logs can found on {self.name} "
+                f"in path: {run_obj.path}, or "
+                f"in python:\n`my_run = {self.name}.get_run({run_name})`\n`my_run.stdout()`"
+            )
+        else:
+            return_codes = self._run_commands(
+                commands, stream_logs, port_forward, require_outputs
+            )
+
+        return return_codes
+
+    def _run_commands(
+        self,
+        commands: list,
+        stream_logs: bool,
+        port_forward: int = None,
+        require_outputs: bool = True,
+    ):
         return_codes = []
+        runner = command_runner.SSHCommandRunner(self.address, **self.ssh_creds())
         for command in commands:
             logger.info(f"Running command on {self.name}: {command}")
             ret_code = runner.run(
@@ -557,13 +610,16 @@ class Cluster(Resource):
         commands: List[str],
         stream_logs: bool = True,
         port_forward: Optional[int] = None,
+        name_run: Optional[Union[str, bool]] = None,
     ):
         """Run a list of python commands on the cluster."""
         command_str = "; ".join(commands)
+        # If invoking a run as part of the python commands also return the Run object
         return_codes = self.run(
             [f'python3 -c "{command_str}"'],
             stream_logs=stream_logs,
             port_forward=port_forward,
+            name_run=name_run,
         )
         return return_codes
 

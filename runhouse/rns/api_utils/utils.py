@@ -50,8 +50,20 @@ def generate_uuid():
     return uuid.uuid4().hex
 
 
+def utc_now():
+    """Current time as datetime object."""
+    return datetime.datetime.now(datetime.timezone.utc)
+
+
 def log_timestamp():
-    return int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1e9)
+    """Return as timestamp in nanoseconds."""
+    return int(utc_now().timestamp() * 1e9)
+
+
+def log_datetime():
+    """Current time as readable datetime string.
+    Example: '2023-04-23'"""
+    return utc_now().strftime("%Y-%m-%d")
 
 
 def create_s3_bucket(bucket_name: str):

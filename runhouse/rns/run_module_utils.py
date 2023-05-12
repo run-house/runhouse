@@ -1,22 +1,27 @@
 import importlib
+import json
 import logging
+import os
 import sys
-from datetime import datetime
 from functools import wraps
 from pathlib import Path
 
 import ray
 
-from runhouse import rh_config
+from ray import cloudpickle as pickle
 
+from runhouse import rh_config
 
 logger = logging.getLogger(__name__)
 
 
 def call_fn_by_type(
-    fn, fn_type, fn_name, module_path, resources, args=None, kwargs=None
+    fn, fn_type, fn_name, module_path, resources, run_name, args=None, kwargs=None
 ):
-    run_key = f"{fn_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    from runhouse import Run
+
+    run_key = run_name or Run.base_folder_name(fn_name)
+    logger.info(f"Run key: {run_key}")
 
     # TODO other possible fn_types: 'batch', 'streaming'
     if fn_type == "call":
@@ -28,14 +33,23 @@ def call_fn_by_type(
             k: rh_config.obj_store.get(v, default=v) if isinstance(v, str) else v
             for k, v in kwargs.items()
         }
-        res = fn(*args, **kwargs)
+        if run_name is not None:
+            # Create a synchronous run
+            res = _run_fn_synchronously(run_key, fn, args, kwargs)
+        else:
+            res = fn(*args, **kwargs)
     elif fn_type == "get":
         obj_ref = args[0]
         res = rh_config.obj_store.get(obj_ref)
+    elif fn_type == "get_or_run":
+        # look up result in object store, if the run is not started execute and synchronously return the result
+        res = _get_or_run(run_key, fn, args, kwargs)
+        return res
     else:
         args = rh_config.obj_store.get_obj_refs_list(args)
         kwargs = rh_config.obj_store.get_obj_refs_dict(kwargs)
 
+        logger.info(f"Creating log files for {run_key}")
         logging_wrapped_fn = enable_logging_fn_wrapper(fn, run_key)
 
         has_gpus = ray.cluster_resources().get("GPU", 0) > 0
@@ -64,8 +78,12 @@ def call_fn_by_type(
         if fn_type == "remote":
             rh_config.obj_store.put_obj_ref(key=run_key, obj_ref=obj_ref)
             res = run_key
+            # create a new thread and start running the function in the background - when finished it will
+            # be stored in the ray object store for faster retrieval
+            _run_fn_async(run_key, fn, obj_ref, args, kwargs)
         else:
             res = ray.get(obj_ref)
+
     return res
 
 
@@ -88,6 +106,179 @@ def get_fn_by_name(module_name, fn_name, relative_path=None):
         )
     fn = getattr(rh_config.obj_store.imported_modules[module_name], fn_name)
     return fn
+
+
+def _execute_remote_async_fn(run_key, fn, obj_ref, args, kwargs):
+    logger.info(f"Executing remote function for {run_key}")
+
+    current_cluster = current_cluster_obj()
+    logger.info(f"Current cluster: {current_cluster.name}")
+
+    new_run, config_path_on_cluster = _create_new_run(
+        run_key, fn, current_cluster, args, kwargs
+    )
+    logger.info(f"Created new run {new_run.name} in path: {config_path_on_cluster}")
+
+    logger.info("Using ray to execute function async...")
+
+    result = ray.get(obj_ref)
+
+    logger.info(f"Finished running function async for {run_key}")
+
+    _register_completed_run(
+        run_key=run_key,
+        config_path=config_path_on_cluster,
+        result=result,
+    )
+
+
+def _run_fn_async(run_key, fn, obj_ref, args, kwargs):
+    import threading
+
+    t = threading.Thread(
+        target=_execute_remote_async_fn, args=(run_key, fn, obj_ref, args, kwargs)
+    )
+    t.start()
+    logger.info(f"Started new thread for running {run_key}")
+
+
+def _run_fn_synchronously(run_key, fn, args, kwargs):
+    current_cluster = current_cluster_obj()
+    new_run, config_path_on_cluster = _create_new_run(
+        run_key, fn, current_cluster, args, kwargs
+    )
+
+    with new_run:
+        # Open context manager to track stderr and stdout + other artifacts created by the function for this run
+        # With async runs we call ray.remote() which creates the symlink to the worker files for us,
+        # but since we are running this synchronously we need to create those files ourselves (via the context manager)
+        res = fn(*args, **kwargs)
+
+    logger.info(f"Finished running function synchronously for {run_key}")
+
+    _register_completed_run(
+        run_key=run_key,
+        config_path=config_path_on_cluster,
+        result=res,
+    )
+    return res
+
+
+def current_cluster_obj():
+    from runhouse import cluster
+    from runhouse.rns.obj_store import THIS_CLUSTER
+
+    return cluster(f"@/{THIS_CLUSTER}")
+
+
+def _get_or_run(run_key, fn, args, kwargs):
+    from runhouse import Run
+
+    system = current_cluster_obj()
+
+    config_path_on_system = Run.default_config_path(run_key, system)
+    config_path = os.path.abspath(os.path.expanduser(config_path_on_system))
+    logger.info(f"Config path on system for {run_key}: {config_path}")
+
+    try:
+        # Load config data for this Run saved on the cluster
+        with open(config_path, "r") as f:
+            run_config = json.load(f)
+    except FileNotFoundError:
+        logger.error(f"Failed to find existing config for run in path {config_path}")
+        return {"status": Run.NOT_STARTED_STATUS, "result": None}
+
+    # Re-load the Run object
+    existing_run = Run(**run_config, dryrun=True)
+    logger.info(f"Loaded existing Run {run_key} from {system.name}")
+
+    config = existing_run.config_for_rns
+    run_status = config.get("status")
+
+    if run_status == Run.COMPLETED_STATUS:
+        logger.info(f"Run {run_key} is already completed, returning result")
+        return {"status": run_status, "result": existing_run.result()}
+
+    elif run_status == Run.NOT_STARTED_STATUS:
+        logger.info(f"Run {run_key} has not started, starting now")
+        result = fn(*args, **kwargs)
+        logger.info(f"Finished running {run_key}")
+        return {"status": run_status, "result": result}
+
+    elif run_status == Run.ERROR_STATUS:
+        logger.info(f"Run {run_key} has failed, returning stderr")
+        return {"status": run_status, "result": existing_run.stderr()}
+
+    elif existing_run.status == Run.RUNNING_STATUS:
+        logger.info(f"Run {run_key} is still running")
+        return {"status": run_status, "result": run_key}
+
+
+def _create_new_run(run_key, fn, current_cluster, args, kwargs):
+    from runhouse import Run, run
+
+    logger.info(f"Creating Run with name: {run_key}")
+
+    # Path to config file inside the dedicated folder for this particular run
+    run_config_file: str = Run.default_config_path(name=run_key, system=current_cluster)
+    config_path = os.path.abspath(os.path.expanduser(run_config_file))
+
+    inputs = {"args": args, "kwargs": kwargs}
+
+    # Create a new Run object, and save down its config data to the log folder on the cluster
+    new_run = run(
+        name=run_key, fn=fn, system=current_cluster, load=False, overwrite=True
+    )
+
+    # Write the inputs to the function for this run to folder
+    new_run.write(
+        data=pickle.dumps(inputs),
+        path=new_run.fn_inputs_path(),
+    )
+
+    logger.info(f"Finished writing inputs for {run_key} to path: {config_path}")
+
+    new_run.register_new_fn_run()
+
+    return new_run, config_path
+
+
+def _register_completed_run(run_key, config_path, result):
+    from runhouse import Run
+
+    # Load the Run object we previously created
+    logger.info(f"Registering completed run for {run_key} in path: {config_path}")
+
+    # Load the config for this Run from the local file system on the cluster
+    existing_run = Run.from_file(
+        name=run_key, path=f"~/{rh_config.obj_store.LOGS_DIR}/{run_key}"
+    )
+
+    logger.info(
+        f"Loaded existing Run {existing_run.name} from the cluster's file system"
+    )
+
+    if not existing_run.exists_in_system(path=existing_run._stdout_path):
+        existing_run._folder.put({f"{run_key}.out": "".encode()})
+        logger.info(f"Created empty stdout file in path: {existing_run._stdout_path}")
+
+    if not existing_run.exists_in_system(path=existing_run._stderr_path):
+        existing_run._folder.put({f"{run_key}.err": "".encode()})
+        logger.info(f"Created empty stderr file in path: {existing_run._stderr_path}")
+
+    # Update the config data for the completed run
+    logger.info(f"Registering completed run for {run_key}")
+    existing_run.register_fn_run_completion()
+
+    # Write the result of the Run to its dedicated log folder on the cluster
+    existing_run.write(
+        data=pickle.dumps(result),
+        path=existing_run.fn_result_path(),
+    )
+
+    logger.info(
+        f"Saved pickled result to folder in path: {existing_run.fn_result_path()}"
+    )
 
 
 RAY_LOGFILE_PATH = Path("/tmp/ray/session_latest/logs")

@@ -88,7 +88,7 @@ def test_get_function_history():
     ).save()
     name = "@/remote_function"
     remote_sum = rh.function(name=name)
-    history = remote_sum.history(name=name)
+    history = remote_sum.history()
     assert len(history) >= 3
     assert "torch" in history[1]["data"]["reqs"]
     remote_sum.delete_configs()

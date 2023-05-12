@@ -1,4 +1,5 @@
 import copy
+import json
 import logging
 import os
 import shutil
@@ -705,7 +706,7 @@ class Folder(Resource):
 
         Example:
             >>> with my_folder.open('obj_name') as my_file:
-            >>>        pickle.load(my_file)
+            >>>        pickle.from_system(my_file)
         """
         return self.fsspec_fs.open(self.path + "/" + name, mode=mode, encoding=encoding)
 
@@ -726,10 +727,10 @@ class Folder(Resource):
             self.fsspec_url
         ) or rh.rns.top_level_rns_fns.exists(self.path)
 
-    def delete_in_system(self):
-        """Delete from file system."""
+    def delete_in_system(self, path: Optional[str] = None):
+        """Delete from file system. Note: will remove the folder and all its contents."""
         try:
-            self.fsspec_fs.rmdir(self.path)
+            self.fsspec_fs.rm(path or self.path, recursive=True)
         except FileNotFoundError:
             pass
 
@@ -740,14 +741,16 @@ class Folder(Resource):
         except FileNotFoundError:
             pass
 
-    def put(self, contents, overwrite=False):
+    def put(self, contents, overwrite=False, as_json=False):
         """Put given contents in folder. Contents must be one of the following:
 
-        - Dict with keys being the file names and values being the file-like objects to write
+        - Dict with keys being the file names (without full paths) and values being the file-like objects to write
 
         - Resource
 
         - List of Resources.
+
+        If ``as_json`` is set to ``True`` will dump the contents as json. By default expects data to be encoded.
         """
         # TODO create the bucket if it doesn't already exist
         # Handle lists of resources just for convenience
@@ -816,16 +819,20 @@ class Folder(Resource):
         #     time = datetime.today().strftime('%Y-%m-%d_%H:%M:%S')
         #     self.data_url = self.data_url + time or time
         filenames = list(contents)
+        write_mode = "w" if as_json else "wb"
         fss_files = fsspec.open_files(
             self.fsspec_url + "/*",
-            mode="wb",
+            mode=write_mode,
             **self.data_config,
             num=len(contents),
             name_function=filenames.__getitem__,
         )
         for (fss_file, raw_file) in zip(fss_files, contents.values()):
             with fss_file as f:
-                f.write(raw_file)
+                if as_json:
+                    json.dump(raw_file, f)
+                else:
+                    f.write(raw_file)
 
     @staticmethod
     def bucket_name_from_path(path: str) -> str:
