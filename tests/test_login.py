@@ -35,7 +35,6 @@ def add_secrets_to_vault(headers):
     )
 
 
-@pytest.mark.rnstest
 @pytest.mark.logintest
 def test_login_flow_in_new_env():
     token = os.getenv("TEST_TOKEN")
