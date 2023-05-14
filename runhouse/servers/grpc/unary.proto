@@ -6,10 +6,11 @@ service Unary{
   // A simple RPC.
   //
   // Obtains the MessageResponse at a given position.
-  rpc RunModule(Message) returns (MessageResponse) {}
+  rpc RunModule(Message) returns (RunMessageResponse) {}
   rpc InstallPackages(Message) returns (MessageResponse) {}
   rpc ClearPins(Message) returns (MessageResponse) {}
   rpc CancelRun(Message) returns (MessageResponse) {}
+  rpc ListKeys(Message) returns (MessageResponse) {}
   rpc PutObject(Message) returns (MessageResponse) {}
   rpc AddSecrets(Message) returns (MessageResponse) {}
 
@@ -22,6 +23,12 @@ message Message {
   bytes message = 1;
   string module_name = 2;
   string func_name = 3;
+}
+
+message RunMessageResponse {
+    bytes result = 1;
+    bytes exception = 2;
+    string traceback = 3;
 }
 
 message MessageResponse{

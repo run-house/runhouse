@@ -1,12 +1,12 @@
-Secrets in Vault
-=====================================
+Resource and Secrets Management
+===============================
 
 Saving Secrets
 ~~~~~~~~~~~~~~
 There are a few ways to save secrets to Runhouse to make them available conveniently across environments.
 
 If your secrets are saved into your local environment (e.g. :code:`~/.aws/...`), the fastest way to save them is to run
-:code:`runhouse login` in your command line (or :code:`runhouse.login()`` in a Python interpreter), which will prompt
+:code:`runhouse login` in your command line (or :code:`runhouse.login()` in a Python interpreter), which will prompt
 you for your Runhouse token and ask if you'd like to upload secrets. It will then extract secrets from your environment
 and upload them to Vault. Alternatively, you can run:
 

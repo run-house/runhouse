@@ -36,7 +36,7 @@ service we call the Runhouse RNS API. Both have their advantages:
     By default, the only top-level folders in the Runhouse RNS you have permission to write to are your
     username and any organizations you are in.
 
-We're still early in uncovering the patterns and antipatterns for a global shared environment for compute and data resources (shocker),
+We're still early in uncovering the patterns and antipatterns for a global shared environment for compute and data resources,
 but for now we generally encourage OSS projects to publish resources in the local RNS of their package, and individuals and teams to largely rely on Runhouse RNS.
 
 
@@ -132,7 +132,7 @@ To save updated configs to Runhouse to access them elsewhere:
 Viewing RPC Logs
 ~~~~~~~~~~~~~~~~
 Function logs can be streamed back by passing :code:`stream_logs=True` to the function run. The logs are
-also output onto the cluster on `~/.rh/<cluster_name>_grpc_server.log`, which you can view after ssh-ing in
+also output onto the cluster on :code:`~/.rh/<cluster_name>_grpc_server.log`, which you can view after ssh-ing in
 with :code:`ssh <cluster name>`
 
 Restarting the RPC Server

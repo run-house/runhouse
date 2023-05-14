@@ -1,23 +1,28 @@
 import os
 import unittest
 
+import pytest
+
 import runhouse as rh
 
-from runhouse.rns.hardware import cluster, OnDemandCluster
+from runhouse.rns.hardware import OnDemandCluster
 
 
-def test_cluster_config():
-    rh_cpu = cluster(name="^rh-cpu")
-    if not rh_cpu.is_up():
-        rh_cpu.up()
-    config = rh_cpu.config_for_rns
+def is_on_cluster(cluster):
+    return cluster.on_this_cluster()
+
+
+@pytest.mark.clustertest
+def test_cluster_config(cpu_cluster):
+    config = cpu_cluster.config_for_rns
     cluster2 = OnDemandCluster.from_config(config)
-    assert cluster2.address == rh_cpu.address
+    assert cluster2.address == cpu_cluster.address
 
 
-def test_cluster_sharing():
-    c = cluster(name="^rh-cpu").up_if_not().save()
-    c.share(
+@pytest.mark.clustertest
+@pytest.mark.rnstest
+def test_cluster_sharing(cpu_cluster):
+    cpu_cluster.share(
         users=["donny@run.house", "josh@run.house"],
         access_type="write",
         notify_users=False,
@@ -25,15 +30,15 @@ def test_cluster_sharing():
     assert True
 
 
-def test_read_shared_cluster():
-    c = cluster(name="/jlewitt1/rh-cpu")
-    res = c.run_python(["import numpy", "print(numpy.__version__)"])
+@pytest.mark.clustertest
+def test_read_shared_cluster(cpu_cluster):
+    res = cpu_cluster.run_python(["import numpy", "print(numpy.__version__)"])
     assert res[0][1]
 
 
-def test_install():
-    c = cluster(name="^rh-cpu")
-    c.install_packages(
+@pytest.mark.clustertest
+def test_install(cpu_cluster):
+    cpu_cluster.install_packages(
         [
             "./",
             "torch==1.12.1",
@@ -43,47 +48,38 @@ def test_install():
     )
 
 
-def test_basic_run():
+@pytest.mark.clustertest
+def test_basic_run(cpu_cluster):
     # Create temp file where fn's will be stored
     test_cmd = "echo hi"
-    hw = cluster(name="^rh-cpu")
-    hw.up_if_not()
-    res = hw.run(commands=[test_cmd])
+    cpu_cluster.up_if_not()
+    res = cpu_cluster.run(commands=[test_cmd])
     assert "hi" in res[0][1]
 
 
-def test_restart_grpc():
-    hw = cluster(name="^rh-cpu")
-    hw.up_if_not()
-    codes = hw.restart_grpc_server(resync_rh=False)
+@pytest.mark.clustertest
+def test_restart_grpc(cpu_cluster):
+    cpu_cluster.up_if_not()
+    codes = cpu_cluster.restart_grpc_server(resync_rh=False)
     assert codes
 
 
-def test_same_cluster():
-    hw = cluster(name="^rh-cpu")
-    hw.up_if_not()
+@pytest.mark.clustertest
+def test_on_same_cluster(cpu_cluster):
+    hw_copy = cpu_cluster.copy()
+    cpu_cluster.up_if_not()
 
-    hw_copy = cluster(name="^rh-cpu")
-
-    def dummy_func(a):
-        return a
-
-    func_hw = rh.function(dummy_func).to(hw)
-    assert hw.on_same_cluster(func_hw)
-    assert hw_copy.on_same_cluster(func_hw)
+    func_hw = rh.function(is_on_cluster).to(cpu_cluster)
+    assert func_hw(cpu_cluster)
+    assert func_hw(hw_copy)
 
 
-def test_diff_cluster():
-    hw = cluster(name="^rh-cpu")
-    hw.up_if_not()
+@pytest.mark.clustertest
+def test_on_diff_cluster(cpu_cluster, cpu_cluster_2):
+    diff_hw = cpu_cluster_2
 
-    def dummy_func(a):
-        return a
-
-    func_hw = rh.function(dummy_func).to(hw)
-
-    new_hw = cluster(name="diff-cpu")
-    assert not new_hw.on_same_cluster(func_hw)
+    func_hw = rh.function(is_on_cluster).to(cpu_cluster)
+    assert not func_hw(diff_hw)
 
 
 def test_submit_job_on_slurm_cluster():

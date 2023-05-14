@@ -186,9 +186,10 @@ class RNSClient:
         user_emails: list,
         access_type: ResourceAccess,
         notify_users: bool,
+        headers: Optional[dict] = None,
     ):
         resource_uri = self.resource_uri(rns_address)
-        headers = self.request_headers
+        headers = headers or self.request_headers
         access_payload = {
             "users": user_emails,
             "access_type": access_type,
@@ -373,7 +374,7 @@ class RNSClient:
     def resolve_rns_data_resource_name(self, name: str):
         """If no name is explicitly provided for the data resource, we need to create one based on the relevant
         rns path. If name is None, return a hex uuid.
-        For example: my_blob -> jlewitt1/my_blob"
+        For example: my_blob -> my_username/my_blob"
         """
         if name is None:
             return generate_uuid()

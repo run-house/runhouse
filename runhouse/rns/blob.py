@@ -7,8 +7,8 @@ import runhouse as rh
 from runhouse.rh_config import rns_client
 from runhouse.rns.api_utils.utils import generate_uuid
 from runhouse.rns.folders.folder import Folder, folder
-from runhouse.rns.obj_store import _current_cluster
 from runhouse.rns.resource import Resource
+from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class Blob(Resource):
         blob_config = {
             "path": self.path,  # pair with data source to create the physical URL
             "resource_type": self.RESOURCE_TYPE,
-            "system": self.system,
+            "system": self._resource_string_for_subconfig(self.system),
         }
         config.update(blob_config)
         return config
@@ -182,7 +182,7 @@ def blob(
         name (Optional[str]): Name to give the blob object, to be reused later on.
         path (Optional[str]): Path (or path) of the blob object.
         system (Optional[str]): File system. Currently this must be one of:
-           [``file``, ``github``, ``sftp``, ``ssh``,``s3``, ``gs``, ``azure``].
+           [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
             We are working to add additional file system support.
         data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
         mkdir (bool): Whether to create a remote folder for the blob. (Default: ``False``)
@@ -197,7 +197,7 @@ def blob(
         >>> data = json.dumps(list(range(50))
         >>>
         >>> # Remote blob with name and no path (saved to bucket called runhouse/blobs/my-blob)
-        >>> rh.blob(name="@/my-blob", data=data, data_source='s3', dryrun=False)
+        >>> rh.blob(name="@/my-blob", data=data, system='s3', dryrun=False)
         >>>
         >>> # Remote blob with name and path
         >>> rh.blob(name='@/my-blob', path='/runhouse-tests/my_blob.pickle', data=data, system='s3', dryrun=False)
@@ -249,15 +249,7 @@ def blob(
     config["name"] = name
     config["path"] = data_path
     config["data_config"] = data_config or config.get("data_config")
-
-    if isinstance(config["system"], str) and rns_client.exists(
-        config["system"], resource_type="cluster"
-    ):
-        config["system"] = rns_client.load_config(config["system"])
-    elif isinstance(config["system"], dict):
-        from runhouse.rns.hardware.cluster import Cluster
-
-        config["system"] = Cluster.from_config(config["system"])
+    config["system"] = _get_cluster_from(config["system"])
 
     if mkdir:
         # create the remote folder for the blob

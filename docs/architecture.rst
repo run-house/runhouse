@@ -1,5 +1,5 @@
-High-level Architecture
-====================================
+Runhouse Architecture
+=====================
 
 Runhouse has four top-level objectives:
 
@@ -11,6 +11,14 @@ Runhouse has four top-level objectives:
 
 
 It achieves the above by providing four pillar features:
+
+.. toctree::
+   :maxdepth: 1
+
+   architecture/compute
+   architecture/data
+   architecture/accessibility
+   architecture/management
 
 
 #. :ref:`Compute <Compute>` - The Function, Cluster, and Package APIs allow
@@ -49,7 +57,9 @@ It achieves the above by providing four pillar features:
    as long-living assets shared by teams or projects. Both resources and users can be
    organized into arbitrarily-nested groups to apply access permissions, default behaviors (e.g.
    default storage locations, compute providers, instance autotermination, etc.), project delineation,
-   or staging (e.g. dev vs. prod). The `Management UI <https://api.run.house/>`_ provides an individual or
+   or staging (e.g. dev vs. prod).
+
+   The `Management UI <https://api.run.house/>`_ provides an individual or
    admin view of all resources, secrets, groups, and sharing (this is only an MVP, and will be
    overhauled soon). Resource metadata is automatically versioned in RNS, allowing teams to maintain
    single-sources of truth for assets with zero downtime to update or roll back, and trace exact

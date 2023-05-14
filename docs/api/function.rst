@@ -29,9 +29,9 @@ To initialize a function, from a local function:
       ...
 
    # Runhouse Function, to be run on my_cluster Cluster
-   my_function = rh.function(fn=local_function, system=my_cluster, reqs=['requirements.txt'])
+   my_function = rh.function(fn=local_function, system=my_cluster, env=['requirements.txt'])
    # or, equivalently
-   my_function = rh.function(fn=local_function).to(my_cluster, reqs=['requirements.txt'])
+   my_function = rh.function(fn=local_function).to(my_cluster, env=['requirements.txt'])
 
 To use the function, simply call it as you would the local function.
 
@@ -46,14 +46,14 @@ To intialize a function, from an existing Github function:
    my_github_function = rh.function(
                            fn='https://github.com/huggingface/diffusers/blob/v0.11.1/examples/dreambooth/train_dreambooth.py:main',
                            system=my_cluster,
-                           reqs=['requirements.txt'],
+                           env=['requirements.txt'],
                         )
 
 To name the function, to be accessed by name later on, pass in the `name` argument to the factory method.
 
 .. code-block:: python
 
-   my_function = rh.function(fn=local_function, system=my_cluster, reqs=['requirements.txt'], name="my_function_name")
+   my_function = rh.function(fn=local_function, system=my_cluster, env=['requirements.txt'], name="my_function_name")
 
 Advanced API Usage
 ~~~~~~~~~~~~~~~~~~

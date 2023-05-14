@@ -46,7 +46,7 @@ To load an existing blob by name:
    my_local_blob = rh.blob(name="~/my_blob")
    my_s3_blob = rh.blob(name="@/my_blob")
 
-To get the contets from the blob:
+To get the contents from the blob:
 
 .. code:: python
 

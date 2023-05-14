@@ -15,7 +15,7 @@ import runhouse.servers.grpc.unary_pb2 as pb2
 import runhouse.servers.grpc.unary_pb2_grpc as pb2_grpc
 from runhouse.rh_config import configs, obj_store
 from runhouse.rns.packages.package import Package
-from runhouse.rns.run_module_utils import call_fn_by_type, get_fn_by_name
+from runhouse.rns.run_module_utils import call_fn_by_type
 from runhouse.rns.top_level_rns_fns import (
     clear_pinned_memory,
     pinned_keys,
@@ -38,7 +38,6 @@ class UnaryService(pb2_grpc.UnaryServicer):
         # Collect metadata for the cluster immediately on init
         self._collect_cluster_stats()
 
-        self._installed_packages = []
         self.register_activity()
 
     def register_activity(self):
@@ -47,7 +46,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
     def InstallPackages(self, request, context):
         self.register_activity()
         try:
-            packages = pickle.loads(request.message)
+            packages, env = pickle.loads(request.message)
             logger.info(f"Message received from client to install packages: {packages}")
             for package in packages:
                 if isinstance(package, str):
@@ -57,11 +56,8 @@ class UnaryService(pb2_grpc.UnaryServicer):
                 else:
                     raise ValueError(f"package {package} not recognized")
 
-                if (str(pkg)) in self._installed_packages:
-                    continue
                 logger.info(f"Installing package: {str(pkg)}")
-                pkg.install()
-                self._installed_packages.append(str(pkg))
+                pkg.install(env)
 
             self.register_activity()
             message = [None, None, None]
@@ -157,49 +153,65 @@ class UnaryService(pb2_grpc.UnaryServicer):
 
     def CancelRun(self, request, context):
         self.register_activity()
-        run_keys, force = pickle.loads(request.message)
-        if not hasattr(run_keys, "len"):
+        run_keys, force, all = pickle.loads(request.message)
+        if all:
+            # Cancel all runs
+            run_keys = obj_store.keys()
+        elif not hasattr(run_keys, "len"):
             run_keys = [run_keys]
-        obj_refs = obj_store.get_obj_refs_list(run_keys)
-        [
-            ray.cancel(obj_ref, force=force, recursive=True)
-            for obj_ref in obj_refs
-            if isinstance(obj_ref, ray.ObjectRef)
-        ]
+
+        for obj_ref in obj_store.get_obj_refs_list(run_keys):
+            obj_store.cancel(obj_ref)
+
+        if all:
+            obj_store.clear()
+
         return pb2.MessageResponse(
             message=pickle.dumps("Cancelled"),
             received=True,
             output_type=OutputType.RESULT,
         )
 
+    def ListKeys(self, request, context):
+        self.register_activity()
+        keys: list = obj_store.keys()
+        return pb2.MessageResponse(
+            message=pickle.dumps(keys), received=True, output_type=OutputType.RESULT
+        )
+
     def RunModule(self, request, context):
         self.register_activity()
         # get the function result from the incoming request
+        [
+            relative_path,
+            module_name,
+            fn_name,
+            fn_type,
+            resources,
+            conda_env,
+            args,
+            kwargs,
+        ] = pickle.loads(request.message)
+
         try:
-            [relative_path, module_name, fn_name, fn_type, args, kwargs] = pickle.loads(
-                request.message
+            result = call_fn_by_type(
+                fn_type=fn_type,
+                fn_name=fn_name,
+                relative_path=relative_path,
+                module_name=module_name,
+                resources=resources,
+                conda_env=conda_env,
+                args=args,
+                kwargs=kwargs,
             )
-
-            module_path = (
-                str((Path.home() / relative_path).resolve()) if relative_path else None
-            )
-
-            if module_name == "notebook":
-                fn = fn_name  # Already unpickled above
-            else:
-                fn = get_fn_by_name(module_name, fn_name, module_path)
-
-            res = call_fn_by_type(fn, fn_type, fn_name, module_path, args, kwargs)
-            # [res, None, None] is a silly hack for packaging result alongside exception and traceback
-            result = {"message": pickle.dumps([res, None, None]), "received": True}
-
             self.register_activity()
-            return pb2.MessageResponse(**result)
+            return pb2.RunMessageResponse(result=result, exception=None, traceback=None)
         except Exception as e:
             logger.exception(e)
-            message = [None, e, traceback.format_exc()]
             self.register_activity()
-            return pb2.MessageResponse(message=pickle.dumps(message), received=False)
+            return pb2.RunMessageResponse(
+                result=None, exception=e, traceback=traceback.format_exc()
+            )
 
     def AddSecrets(self, request, context):
         from runhouse import Secrets

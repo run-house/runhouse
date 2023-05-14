@@ -1,5 +1,5 @@
-Data Collection
-====================================
+Security and Metadata Collection
+================================
 By default, Runhouse collects metadata from provisioned clusters.
 This data will only be used by Runhouse to improve the product.
 No Personal Identifiable Information (PII) is collected and we will not sell or buy data about you.

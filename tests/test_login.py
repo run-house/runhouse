@@ -1,4 +1,7 @@
 import os
+import unittest
+
+import pytest
 
 import runhouse as rh
 import sky
@@ -32,6 +35,8 @@ def add_secrets_to_vault(headers):
     )
 
 
+@pytest.mark.rnstest
+@pytest.mark.logintest
 def test_login_flow_in_new_env():
     token = os.getenv("TEST_TOKEN")
     headers = {"Authorization": f"Bearer {token}"}
@@ -46,7 +51,7 @@ def test_login_flow_in_new_env():
     providers_in_vault = list(secrets_in_vault)
 
     # Login and download secrets stored in Vault into the new env
-    rh.login(token=token, download_secrets=True)
+    rh.login(token=token, download_secrets=True, interactive=False)
 
     # Once secrets are saved down to their local config, confirm we have sky enabled
     sky.check.check(quiet=True)
@@ -62,8 +67,12 @@ def test_login_flow_in_new_env():
                 provider
             ), f"No credentials path for {provider} stored in .rh config!"
 
-    rh.Secrets.delete_from_vault(providers=["aws", "snowflake", "ssh", "sky"])
+    rh.Secrets.delete_from_vault(providers=["aws", "snowflake", "ssh", "sky", "github"])
     secrets_in_vault = rh.Secrets.download_into_env(
         save_locally=False, check_enabled=False
     )
     assert not secrets_in_vault
+
+
+if __name__ == "__main__":
+    unittest.main()
