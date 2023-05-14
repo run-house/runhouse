@@ -8,6 +8,10 @@ import runhouse as rh
 from runhouse.rns.hardware import OnDemandCluster
 
 
+def summer(a, b):
+    return a + b
+
+
 def is_on_cluster(cluster):
     return cluster.on_this_cluster()
 
@@ -82,23 +86,25 @@ def test_on_diff_cluster(cpu_cluster, cpu_cluster_2):
     assert not func_hw(diff_hw)
 
 
-def test_submit_job_on_slurm_cluster():
+@pytest.mark.slurmtest
+def test_submit_job_to_slurm_via_rest():
+    # Initialize Slurm cluster with REST API attributes
     sc = rh.cluster(
         name="my_slurm_cluster",
-        url=os.getenv("SLURM_URL"),
-        auth_user=os.getenv("SLURM_USER"),
-        jwt_token=os.getenv("SLURM_JWT"),
-    ).save()
+        api_url=os.getenv("SLURM_URL"),
+        api_auth_user=os.getenv("SLURM_USER"),
+        api_jwt_token=os.getenv("SLURM_JWT"),
+    )
 
     job_payload = {
         "job": {
             "name": "test",
             "ntasks": 1,
             "nodes": 1,
-            "current_working_directory": "/home/ubuntu/test",
+            "current_working_directory": "/home/ubuntu/tests",
             "standard_input": "/dev/null",
-            "standard_output": "/home/ubuntu/test/test.out",
-            "standard_error": "/home/ubuntu/test/test_error.out",
+            "standard_output": "/home/ubuntu/tests/%j.out",
+            "standard_error": "/home/ubuntu/tests/%j.out",
             "environment": {
                 "PATH": "/bin:/usr/bin/:/usr/local/bin/",
                 "LD_LIBRARY_PATH": "/lib/:/lib64/:/usr/local/lib",
@@ -106,8 +112,29 @@ def test_submit_job_on_slurm_cluster():
         },
         "script": "#!/bin/bash\necho 'Hello world, I am running on node' $HOSTNAME\nsleep 10\ndate",
     }
-    node_ip = sc.submit_job(payload=job_payload)
-    assert node_ip
+
+    job_id = sc.submit_job(payload=job_payload)
+
+    assert isinstance(job_id, int)
+
+
+@pytest.mark.slurmtest
+def test_submit_job_to_slurm_via_ssh():
+    # Initialize Slurm cluster with SSH attributes
+    sc = rh.cluster(
+        name="my_slurm_cluster",
+        ssh_creds={
+            "ssh_user": "ubuntu",
+            "ssh_private_key": "~/.ssh/runhouse-auth.pem",
+        },
+        ips=[os.getenv("SLURM_NODE_IP")],
+        log_folder="tests",
+        partition="rhcluster",
+    )
+
+    job_id = sc.submit_job(summer, a=1, b=2)
+
+    assert isinstance(job_id, int)
 
 
 if __name__ == "__main__":

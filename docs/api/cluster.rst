@@ -31,6 +31,44 @@ various cluster properties.
 
     .. automethod:: __init__
 
+SlurmCluster Class
+~~~~~~~~~~~~~~~~~~~~~
+A SlurmCluster is an abstraction that allows you to interface with an existing Slurm cluster.
+Runhouse currently supports two main methods for interacting with the cluster:
+
+**REST API**
+
+Interface into the cluster via the Slurm REST API.
+
+The following parameters must be provided when initializing the SlurmCluster (more on this below):
+
+- :code:`api_url`
+- :code:`api_auth_user`
+- :code:`api_jwt_token`
+- :code:`api_version`
+
+.. note::
+    This assumes the `slurmrestd <https://slurm.schedmd.com/slurmrestd.html>`_  API daemon is already installed on
+    the cluster, and that HTTP is enabled.
+
+**SSH**
+
+The following parameters must be provided when initializing the SlurmCluster (more on this below):
+
+- :code:`ssh_creds`
+- :code:`ips`
+- :code:`log_folder`
+
+.. note::
+    This assumes that `submitit <https://github.com/facebookincubator/submitit>`_ is already installed on the cluster.
+    Runhouse uses submitit under the hood to submit jobs.
+
+.. autoclass:: runhouse.SlurmCluster
+   :members:
+   :exclude-members:
+
+    .. automethod:: __init__
+
 Hardware Setup
 ~~~~~~~~~~~~~~
 For BYO Clusters, no additional setup is required. You will just need to have the IP address for the cluster

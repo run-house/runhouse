@@ -37,13 +37,13 @@ def cluster(
         use_spot (bool, optional): Whether or not to use spot instance.
         image_id (str, optional): Custom image ID for the cluster.
         region (str, optional): The region to use for the cluster.
-        ips (List[str], optional): List of IP addresses for the BYO cluster.
+        ips (List[str], optional): List of IP addresses for the BYO or Slurm cluster.
         ssh_creds (dict, optional): Dictionary mapping SSH credentials.
             Example: ``ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'}``
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
         load (bool): Whether to load an existing config for the Cluster. (Default: ``True``)
-        kwargs (dict): Extra arguments to pass. Useful when initializing a SlurmCluster.
+        kwargs (dict): Extra arguments to pass. Relevant when initializing a SlurmCluster.
             (Default: ``{}``)
 
     Returns:
@@ -62,15 +62,21 @@ def cluster(
         >>>                  autostop_mins=-1,
         >>>                  use_spot=True,
         >>>                  image_id='my_ami_string',
-        >>>                  region='us-east-1',
-        >>>                  )
+        >>>                  region='us-east-1')
 
-        >>> # Slurm Cluster
+        >>> # Slurm Cluster via REST API
         >>> gpu = rh.cluster(name='my_slurm_cluster',
-        >>>                  url='http://*.**.**.***:6820',
-        >>>                  auth_user='ubuntu',
-        >>>                  jwt_token='eyJhbGc*******',
-        >>>                  )
+        >>>                  api_url='http://*.**.**.***:6820',
+        >>>                  api_auth_user='ubuntu',
+        >>>                  api_jwt_token='eyJhbGc*******')
+
+        >>> # Slurm Cluster via SSH
+        >>> gpu = rh.cluster(name='my_slurm_cluster',
+        >>>                  ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'},
+        >>>                  ips=["3.91.***.***", "3.237.**.**"],
+        >>>                  partition="rhcluster",
+        >>>                  log_folder="slurm_logs"
+    )
     """
     config = rns_client.load_config(name) if load else {}
     config["name"] = name or config.get("rns_address", None) or config.get("name")
@@ -78,7 +84,10 @@ def cluster(
     # ssh creds should only be in Secrets management, not in config
     config["ssh_creds"] = ssh_creds or config.get("ssh_creds", None)
 
-    if set(list(kwargs)).issubset(["url", "auth_user", "jwt_token"]):
+    kwarg_params = set(list(kwargs))
+    if kwarg_params and kwarg_params.issubset(
+        ["api_url", "api_auth_user", "api_jwt_token", "partition", "log_folder"]
+    ):
         return SlurmCluster.from_config(config, dryrun, **kwargs)
 
     if config["ips"]:

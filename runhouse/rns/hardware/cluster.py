@@ -43,6 +43,8 @@ class Cluster(Resource):
         between. You can BYO (bring-your-own) cluster by providing cluster IP and ssh_creds, or
         this can be an on-demand cluster that is spun up/down through
         `SkyPilot <https://github.com/skypilot-org/skypilot>`_, using your cloud credentials.
+        A BYO cluster can also be an existing Slurm cluster, which can be interfaced using credentials and
+        IP address(es) via SSH or by providing a url, auth user, and jwt token via the Slurm REST API.
 
         .. note::
             To build a cluster, please use the factory method :func:`cluster`.

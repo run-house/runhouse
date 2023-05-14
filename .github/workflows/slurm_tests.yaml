@@ -1,0 +1,28 @@
+name: slurm-tests
+
+on: workflow_dispatch
+
+jobs:
+  slurm-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install python packages & dependencies
+        run: |
+          pip install runhouse submitit
+
+      - name: Run all Slurm tests
+        env:
+          SLURM_URL: ${{ secrets.SLURM_URL }}
+          SLURM_USER: ${{ secrets.SLURM_USER }}
+          SLURM_JWT: ${{ secrets.SLURM_JWT }}
+          SLURM_NODE_IP: ${{ secrets.SLURM_NODE_IP }}
+
+        run: pytest -v -k slurmtest

@@ -40,7 +40,7 @@ class OnDemandCluster(Cluster):
         On-demand `SkyPilot <https://github.com/skypilot-org/skypilot/>`_ Cluster.
 
         .. note::
-            To build a cluster, please use the factory method :func:`cluster`.
+            To build an on-demand cluster, please use the factory method :func:`cluster`.
         """
 
         super().__init__(name=name, dryrun=dryrun)
