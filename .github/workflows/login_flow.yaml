@@ -2,7 +2,7 @@ name: test-login-flow
 
 on:
   push:
-    branches: [ main, slurm-cluster ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 

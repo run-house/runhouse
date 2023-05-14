@@ -1,3 +1,4 @@
+import os
 import pickle
 from pathlib import Path
 
@@ -120,3 +121,27 @@ def a10g_gpu_cluster():
     return rh.cluster(
         name="rh-a10x", instance_type="g5.2xlarge", provider="aws"
     ).up_if_not()
+
+
+@pytest.fixture
+def slurm_ssh_cluster():
+    return rh.cluster(
+        name="ssh_slurm_cluster",
+        ssh_creds={
+            "ssh_user": "ubuntu",
+            "ssh_private_key": "~/.ssh/runhouse-auth.pem",
+        },
+        ips=[os.getenv("SLURM_NODE_IP")],
+        log_folder="tests",
+        partition="rhcluster",
+    ).save()
+
+
+@pytest.fixture
+def slurm_api_cluster():
+    return rh.cluster(
+        name="rest_api_slurm_cluster",
+        api_url=os.getenv("SLURM_URL"),
+        api_auth_user=os.getenv("SLURM_USER"),
+        api_jwt_token=os.getenv("SLURM_JWT"),
+    ).save()

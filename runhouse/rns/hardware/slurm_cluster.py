@@ -63,16 +63,20 @@ class SlurmCluster(Cluster):
         .. note::
             To build a slurm cluster, please use the factory method :func:`cluster`.
         """
-        # SSH attributes
+        # SSH specific attributes
         self.partition = partition
         self.log_folder = log_folder
         self.ips = ips
 
-        # REST API attributes
+        # REST API specific attributes
         self.api_url = api_url
         self.api_auth_user = api_auth_user
         self.api_jwt_token = api_jwt_token
         self.api_version = api_version or self.DEFAULT_API_VERSION
+
+        self._use_rest_api = all(
+            v is not None for v in [api_url, api_auth_user, api_jwt_token]
+        )
 
         super().__init__(name=name, dryrun=True, ips=self.ips, ssh_creds=ssh_creds)
 
@@ -85,12 +89,7 @@ class SlurmCluster(Cluster):
     @property
     def config_for_rns(self):
         config = super().config_for_rns
-        if self.ssh_creds():
-            # Add the SSH specific attributes if relevant
-            config.update({"partition": self.partition, "log_folder": self.log_folder})
-
-        if self.api_url:
-            # Add the REST API specific attributes if relevant
+        if self._use_rest_api:
             config.update(
                 {
                     "api_url": self.api_url,
@@ -99,6 +98,8 @@ class SlurmCluster(Cluster):
                     "api_version": self.api_version,
                 }
             )
+        else:
+            config.update({"partition": self.partition, "log_folder": self.log_folder})
 
         return config
 
@@ -127,15 +128,71 @@ class SlurmCluster(Cluster):
                 "Must provide either a payload or a function to submit a job."
             )
 
-    def get_job_status(self, job_id: int) -> str:
+    def status(self, job_id: int) -> str:
         """Get the status of a job."""
-        # TODO [JL]
-        raise NotImplementedError
+        try:
+            if not self._use_rest_api:
+                raise NotImplementedError("Not implemented for SSH")
 
-    def delete_job(self, job_id: int) -> str:
-        """Delete a job."""
-        # TODO [JL]
-        raise NotImplementedError
+            return self._get_job_output(job_id, "job_state")
+
+        except Exception as e:
+            raise e
+
+    def result(self, job_id: int) -> str:
+        """Get the result of a job. Returns the result as a string."""
+        try:
+            if self._use_rest_api:
+                raise NotImplementedError("Not implemented for REST API")
+
+            return self._get_job_output(job_id, "result")
+
+        except Exception as e:
+            raise e
+
+    def stderr(self, job_id: int) -> str:
+        """Get the stderr of a job."""
+        try:
+            output_type = "standard_error" if self._use_rest_api else "stderr"
+            return self._get_job_output(job_id, output_type)
+
+        except Exception as e:
+            raise e
+
+    def stdout(self, job_id: int) -> str:
+        """Get the stdout of a job."""
+        try:
+            output_type = "standard_output" if self._use_rest_api else "stdout"
+            return self._get_job_output(job_id, output_type)
+
+        except Exception as e:
+            raise e
+
+    def _get_job_output(self, job_id: int, output_type: str):
+        if self._use_rest_api:
+            resp = requests.get(
+                f"{self.api_url}/slurm/{self.api_version}/job/{job_id}",
+                headers=self._slurmrestd_headers(),
+            )
+            if resp.status_code != 200:
+                raise Exception(f"Error getting job {job_id} via REST API: {resp.text}")
+
+            resp_data = load_resp_content(resp)
+            return resp_data["jobs"][0].get(output_type)
+
+        else:
+            job_cmd = [
+                "import submitit",
+                f"job = submitit.Job(folder='{self.log_folder}', job_id='{job_id}')",
+            ]
+
+            ret = self.run_python(job_cmd + [f"print(job.{output_type}())"])
+
+            resp = ret[0][1]
+            if ret[0][0] != 0:
+                raise Exception(f"Failed to get job {output_type}: {resp}")
+
+            return resp.strip()
 
     # ----------------- SSH -----------------
     def _submit_via_ssh(self, fn: Callable, *args, **kwargs) -> int:
@@ -187,7 +244,8 @@ class SlurmCluster(Cluster):
     @staticmethod
     def _inspect_fn(fn):
         """Grab the function's name, params, and return str repr. This is necessary since we are using submitit to
-        run the function via SSH, and we need to define the function inside the SSH command."""
+        run the function via SSH, and we need to define the function to run as part of the job inside
+        the SSH command."""
         # Get function name
         func_name = fn.__name__
 

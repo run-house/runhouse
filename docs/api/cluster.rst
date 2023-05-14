@@ -33,7 +33,7 @@ various cluster properties.
 
 SlurmCluster Class
 ~~~~~~~~~~~~~~~~~~~~~
-A SlurmCluster is an abstraction that allows you to interface with an existing Slurm cluster.
+A SlurmCluster is an abstraction for interfacing with an existing Slurm cluster.
 Runhouse currently supports two main methods for interacting with the cluster:
 
 **REST API**
