@@ -154,7 +154,7 @@ class Function(Resource):
         self.system.run(cmds)
 
     @staticmethod
-    def extract_fn_paths(raw_fn: Callable, reqs: List[str]):
+    def _extract_fn_paths(raw_fn: Callable, reqs: List[str]):
         """Get the path to the module, module name, and function name to be able to import it on the server"""
         if not isinstance(raw_fn, Callable):
             raise TypeError(
@@ -627,7 +627,7 @@ class Function(Resource):
             # module = module_from_spec(spec)
             # spec.loader.exec_module(module)
             # new_fn = getattr(module, fn_pointers[2])
-            # fn_pointers = Function.extract_fn_paths(raw_fn=new_fn, reqs=config['reqs'])
+            # fn_pointers = Function._extract_fn_paths(raw_fn=new_fn, reqs=config['reqs'])
 
 
 def function(
@@ -713,7 +713,7 @@ def function(
             or (isinstance(req, Package) and req.is_local())
         ]:
             reqs.append("./")
-        fn_pointers = Function.extract_fn_paths(raw_fn=fn, reqs=reqs)
+        fn_pointers = Function._extract_fn_paths(raw_fn=fn, reqs=reqs)
         if fn_pointers[1] == "notebook":
             fn_pointers = Function._handle_nb_fn(
                 fn,

@@ -23,28 +23,28 @@ class AzureFolder(Folder):
         """Delete the Azure bucket."""
         raise NotImplementedError
 
-    def upload(self, src: str, region: Optional[str] = None):
+    def _upload(self, src: str, region: Optional[str] = None):
         """Upload a folder to an Azure bucket."""
         raise NotImplementedError
 
-    def upload_command(self, src: str, dest: str):
+    def _upload_command(self, src: str, dest: str):
         raise NotImplementedError
 
-    def download(self, dest):
+    def _download(self, dest):
         """Download a folder from a Azure bucket to local dir."""
         raise NotImplementedError
 
-    def download_command(self, src, dest):
+    def _download_command(self, src, dest):
         raise NotImplementedError
 
-    def to_cluster(self, dest_cluster, path=None, mount=False):
+    def _to_cluster(self, dest_cluster, path=None, mount=False):
         raise NotImplementedError
 
-    def to_local(self, dest_path: str, data_config: dict):
+    def _to_local(self, dest_path: str, data_config: dict):
         """Copy a folder from an Azure bucket to local dir."""
         raise NotImplementedError
 
-    def to_data_store(
+    def _to_data_store(
         self,
         system: str,
         data_store_path: Optional[str] = None,

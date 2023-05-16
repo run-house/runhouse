@@ -313,12 +313,12 @@ def test_s3_folder_uploads_and_downloads():
     # test_folder = rh.folder(path='/runhouse/my-folder', system='s3')
 
     s3_folder = rh.folder(system="s3")
-    s3_folder.upload(src=str(TEST_FOLDER_PATH))
+    s3_folder._upload(src=str(TEST_FOLDER_PATH))
 
     assert s3_folder.exists_in_system()
 
     downloaded_path_folder = str(Path.cwd() / "downloaded_s3")
-    s3_folder.download(dest=downloaded_path_folder)
+    s3_folder._download(dest=downloaded_path_folder)
 
     assert Path(downloaded_path_folder).exists()
 

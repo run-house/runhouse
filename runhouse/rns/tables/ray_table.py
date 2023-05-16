@@ -24,7 +24,7 @@ class RayTable(Table):
 
     def write(self):
         if self._cached_data is not None:
-            self.write_ray_dataset(self.data)
+            self._write_ray_dataset(self.data)
             logger.info(f"Saved {str(self)} to: {self.fsspec_url}")
 
         return self

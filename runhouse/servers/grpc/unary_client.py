@@ -158,7 +158,7 @@ class UnaryClient(object):
         message = pb2.Message(message=serialized_module)
         server_res = self.stub.RunModule(message)
         end = time.time()
-        logging.info(f"Time to send message: {round(end - start, 2)} seconds")
+        logging.info(f"Time to call remote function: {round(end - start, 2)} seconds")
         if server_res.result != b"":
             res = pickle.loads(server_res.result)
             return res
