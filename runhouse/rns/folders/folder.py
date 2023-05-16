@@ -299,22 +299,22 @@ class Folder(Resource):
         system = _get_cluster_from(system)
 
         if system == "file":
-            return self.to_local(dest_path=path, data_config=data_config)
+            return self._to_local(dest_path=path, data_config=data_config)
         elif isinstance(system, Cluster):  # If system is a cluster
-            return self.to_cluster(dest_cluster=system, path=path)
+            return self._to_cluster(dest_cluster=system, path=path)
         elif system in ["s3", "gs", "azure"]:
-            return self.to_data_store(
+            return self._to_data_store(
                 system=system, data_store_path=path, data_config=data_config
             )
         else:
-            self.fsspec_copy(system, path, data_config)
+            self._fsspec_copy(system, path, data_config)
             new_folder = copy.deepcopy(self)
             new_folder.path = path
             new_folder.system = system
             new_folder.data_config = data_config or {}
             return new_folder
 
-    def fsspec_copy(self, system: str, path: str, data_config: dict):
+    def _fsspec_copy(self, system: str, path: str, data_config: dict):
         """Copy the fsspec filesystem to the given new filesystem and path."""
         # Fallback for other fsspec filesystems, but very slow:
         if self.is_local():
@@ -349,7 +349,7 @@ class Folder(Resource):
         new_folder.data_config = data_config or {}
         return new_folder
 
-    def to_local(self, dest_path: str, data_config: dict):
+    def _to_local(self, dest_path: str, data_config: dict):
         """Copies folder to local."""
         from runhouse.rns.hardware import Cluster
 
@@ -361,13 +361,13 @@ class Folder(Resource):
         elif isinstance(self.system, Cluster):
             return self._cluster_to_local(cluster=self.system, dest_path=dest_path)
         else:
-            self.fsspec_copy("file", dest_path, data_config)
+            self._fsspec_copy("file", dest_path, data_config)
 
         return self.destination_folder(
             dest_path=dest_path, dest_system="file", data_config=data_config
         )
 
-    def to_data_store(
+    def _to_data_store(
         self,
         system: str,
         data_store_path: Optional[str] = None,
@@ -387,13 +387,17 @@ class Folder(Resource):
         if (
             self._fs_str == "file"
         ):  # Also covers the case where we're on the cluster at system
-            new_folder.upload(src=local_folder_path)
+            new_folder._upload(src=local_folder_path)
         elif isinstance(self.system, Cluster):
             self.system.run(
-                [new_folder.upload_command(src=local_folder_path, dest=new_folder.path)]
+                [
+                    new_folder._upload_command(
+                        src=local_folder_path, dest=new_folder.path
+                    )
+                ]
             )
         else:
-            self.fsspec_copy("file", data_store_path, data_config)
+            self._fsspec_copy("file", data_store_path, data_config)
 
         return new_folder
 
@@ -433,7 +437,7 @@ class Folder(Resource):
         )
         return self._local_mount_path
 
-    def to_cluster(self, dest_cluster, path=None, mount=False):
+    def _to_cluster(self, dest_cluster, path=None, mount=False):
         """Copy the folder from a file or cluster source onto a destination cluster."""
         if not dest_cluster.address:
             raise ValueError("Cluster must be started before copying data to it.")
@@ -474,8 +478,9 @@ class Folder(Resource):
                     f"For example: `rh.Secrets.to({self.system.name}, providers=['aws'])`"
                 )
         else:
+            # data store folders have their own specific _to_cluster functions
             raise TypeError(
-                f"`to_cluster` not supported for filesystem type {type(self.system)}"
+                f"`Sending from filesystem type {type(self.system)} is not supported"
             )
 
         return dest_folder
@@ -509,15 +514,15 @@ class Folder(Resource):
             and Path(self.path).expanduser().exists()
         ) or self._local_mount_path
 
-    def upload(self, src: str, region: Optional[str] = None):
+    def _upload(self, src: str, region: Optional[str] = None):
         """Upload a folder to a remote bucket."""
         raise NotImplementedError
 
-    def upload_command(self, src: str, dest: str):
+    def _upload_command(self, src: str, dest: str):
         """CLI command for uploading folder to remote bucket. Needed when uploading a folder from a cluster."""
         raise NotImplementedError
 
-    def run_upload_cli_cmd(self, sync_dir_command: str, access_denied_message: str):
+    def _run_upload_cli_cmd(self, sync_dir_command: str, access_denied_message: str):
         """Uploads a folder to a remote bucket.
         Based on the CLI command skypilot uses to upload the folder"""
         from sky.data.data_utils import run_upload_cli
@@ -528,10 +533,10 @@ class Folder(Resource):
             bucket_name=self.bucket_name_from_path(self.path),
         )
 
-    def download(self, dest):
+    def _download(self, dest):
         raise NotImplementedError
 
-    def download_command(self, src, dest):
+    def _download_command(self, src, dest):
         """CLI command for downloading folder from remote bucket. Needed when downloading a folder to a cluster."""
         raise NotImplementedError
 

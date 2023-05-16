@@ -30,9 +30,9 @@ class HuggingFaceTable(Table):
 
             if isinstance(self.data, datasets.Dataset):
                 arrow_table = self.data.data.table
-                ray_dataset = self.ray_dataset_from_arrow(arrow_table)
+                ray_dataset = self._ray_dataset_from_arrow(arrow_table)
                 self.data, hf_dataset = ray_dataset, self.data
-                self.write_ray_dataset(self.data)
+                self._write_ray_dataset(self.data)
             elif isinstance(self.data, datasets.DatasetDict):
                 # TODO [JL] Add support for dataset dict
                 raise NotImplementedError(
