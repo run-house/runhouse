@@ -127,7 +127,7 @@ def restart_grpc(
 ):
     """Restart the gRPC server on a cluster."""
     c = cluster(name=cluster_name)
-    c.restart_grpc_server(resync_rh=resync_rh, restart_ray=restart_ray)
+    c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray)
 
 
 @app.callback()

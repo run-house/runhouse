@@ -59,7 +59,7 @@ def test_basic_run(cpu_cluster):
 @pytest.mark.clustertest
 def test_restart_grpc(cpu_cluster):
     cpu_cluster.up_if_not()
-    codes = cpu_cluster.restart_grpc_server(resync_rh=False)
+    codes = cpu_cluster.restart_server(resync_rh=False)
     assert codes
 
 

@@ -83,7 +83,7 @@ class Env(Resource):
         new_env.reqs = self._reqs_to(system, path, mount)
 
         if isinstance(system, Cluster):
-            system.check_grpc()
+            system.check_server()
             new_env._setup_env(system)
 
         return new_env

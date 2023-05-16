@@ -144,7 +144,7 @@ class Function(Resource):
 
         logging.info("Setting up Function on cluster.")
         # To up cluster in case it's not yet up
-        new_function.system.check_grpc()
+        new_function.system.check_server()
         new_env = env.to(new_function.system)
         logging.info("Function setup complete.")
         new_function.env = new_env

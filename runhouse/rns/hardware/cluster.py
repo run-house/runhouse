@@ -192,7 +192,7 @@ class Cluster(Resource):
             env (Env or str): Environment to install package on. If left empty, defaults to base environment.
                 (Default: ``None``)
         """
-        self.check_grpc()
+        self.check_server()
         to_install = []
         for package in reqs:
             if isinstance(package, str):
@@ -218,35 +218,35 @@ class Cluster(Resource):
 
     def get(self, key: str, default: Any = None, stream_logs: bool = False):
         """Get the object at the given key from the cluster's object store."""
-        self.check_grpc()
+        self.check_server()
         return self.client.get_object(key, stream_logs=stream_logs) or default
 
     def add_secrets(self, provider_secrets: dict):
         """Copy secrets from current environment onto the cluster"""
-        self.check_grpc()
+        self.check_server()
         return self.client.add_secrets(pickle.dumps(provider_secrets))
 
     def put(self, key: str, obj: Any):
         """Put the given object on the cluster's object store at the given key."""
-        self.check_grpc()
+        self.check_server()
         return self.client.put_object(key, obj)
 
     def list_keys(self):
         """List all keys in the cluster's object store."""
-        self.check_grpc()
+        self.check_server()
         res = self.client.list_keys()
         return res
 
     def cancel(self, key: Optional[str] = None, force=False, all=False):
         """Cancel a given run on cluster by its key. If `all` is set to ``True``, then all jobs on the
         cluster will be cancelled."""
-        self.check_grpc()
+        self.check_server()
         return self.client.cancel_runs(key, force=force, all=all)
 
     def clear_pins(self, pins: Optional[List[str]] = None):
         """Remove the given pinned items from the cluster. If `pins` is set to ``None``, then
         all pinned objects will be cleared."""
-        self.check_grpc()
+        self.check_server()
         self.client.clear_pins(pins)
         logger.info(f'Clearing pins on cluster {pins or ""}')
 
@@ -256,7 +256,7 @@ class Cluster(Resource):
 
     # ----------------- gRPC Methods ----------------- #
 
-    def connect_grpc(self, force_reconnect=False):
+    def connect_server_client(self, tunnel=True, force_reconnect=False):
         # FYI based on: https://sshtunnel.readthedocs.io/en/latest/#example-1
         # FYI If we ever need to do this from scratch, we can use this example:
         # https://github.com/paramiko/paramiko/blob/main/demos/rforward.py#L74
@@ -298,7 +298,7 @@ class Cluster(Resource):
         #     time.sleep(0.25)
         #     waited += 0.25
 
-    def check_grpc(self, restart_grpc_server=True):
+    def check_server(self, restart_server=True):
         if not self.address:
             # For OnDemandCluster, this initial check doesn't trigger a sky.status, which is slow.
             # If cluster simply doesn't have an address we likely need to up it.
@@ -314,8 +314,11 @@ class Cluster(Resource):
 
         if not self.client:
             try:
-                self.connect_grpc()
+                self.connect_server_client()
+                # Empty ping
+                self.client.install_packages([])
             except (
+                Exception,
                 grpc.RpcError,
                 sshtunnel.BaseSSHTunnelForwarderError,
             ):
@@ -323,25 +326,25 @@ class Cluster(Resource):
                 if not self.is_up():
                     self.up_if_not()
                 else:
-                    self.restart_grpc_server(resync_rh=False)
+                    self.restart_server(resync_rh=False)
 
         return
 
         if self.is_connected():
             return
 
-        self.connect_grpc()
+        self.connect_server_client()
         if self.is_connected():
             return
 
-        if restart_grpc_server:
-            self.restart_grpc_server(resync_rh=False)
-            self.connect_grpc()
+        if restart_server:
+            self.restart_server(resync_rh=False)
+            self.connect_server_client()
             if self.is_connected():
                 return
 
-            self.restart_grpc_server(resync_rh=True)
-            self.connect_grpc()
+            self.restart_server(resync_rh=True)
+            self.connect_server_client()
             if self.is_connected():
                 return
 
@@ -351,8 +354,8 @@ class Cluster(Resource):
         #     self.client.ping()
         # except Exception as e:
         #     if restart_if_down:
-        #         self.restart_grpc_server(resync_rh=resync_rh)
-        #         self.connect_grpc(force_reconnect=True)
+        #         self.restart_server(resync_rh=resync_rh)
+        #         self.connect_server_client(force_reconnect=True)
         #         self.client.ping()
         #     else:
         #         raise e
@@ -430,7 +433,7 @@ class Cluster(Resource):
     #     connected = True
     #     print(f"SSH tunnel is open to {self.address}:{local_port}")
 
-    def restart_grpc_server(
+    def restart_server(
         self,
         _rh_install_url: str = None,
         resync_rh: bool = True,
@@ -491,7 +494,7 @@ class Cluster(Resource):
         args,
         kwargs,
     ):
-        self.check_grpc()
+        self.check_server()
         return self.client.run_module(
             relative_path,
             module_name,

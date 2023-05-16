@@ -110,7 +110,7 @@ server has already imported. This runs much more quickly than shutting down and 
 
 .. code-block:: python
 
-    my_cluster.restart_grpc_server()
+    my_cluster.restart_server()
 
 For notebook users, to tunnel a JupyterLab server into your local browser:
 

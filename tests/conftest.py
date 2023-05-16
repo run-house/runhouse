@@ -120,3 +120,10 @@ def a10g_gpu_cluster():
     return rh.cluster(
         name="rh-a10x", instance_type="g5.2xlarge", provider="aws"
     ).up_if_not()
+
+
+# ----------------- Envs -----------------
+
+@pytest.fixture
+def test_env():
+    return rh.env(["pytest"])

@@ -143,7 +143,7 @@ reallocating the hardware itself (minutes). You can do this by running:
 
 .. code-block:: python
 
-    my_cluster.restart_grpc_server()
+    my_cluster.restart_server()
 
 
 Notebooks

@@ -36,9 +36,9 @@ def np_array(list):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_create_function_from_name_local(cpu_cluster):
+def test_create_function_from_name_local(cpu_cluster, test_env):
     local_sum = rh.function(
-        fn=summer, name="local_function", system=cpu_cluster, env=["local:./"]
+        fn=summer, name="local_function", system=cpu_cluster, env=test_env
     ).save()
     del local_sum
 
