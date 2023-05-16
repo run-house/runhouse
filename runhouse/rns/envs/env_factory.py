@@ -36,11 +36,15 @@ def env(
     Example:
         >>> # regular python env
         >>> env = rh.env(reqs=["torch", "pip"])
-        >>> env = rh.env(reqs=["requirements.txt"], name="myenv")
+        >>> env = rh.env(reqs=["reqs:./"], name="myenv")
         >>>
         >>> # conda env, see also rh.conda_env
-        >>> conda_dict = {"name": "conda_env", "channels": ["conda-forge"], "dependencies": ["python=3.10.0"]}
-        >>> env = rh.env(conda_env=conda_dict)
+        >>> conda_env_dict =
+        >>>     {"name": "new-conda-env", "channels": ["defaults"], "dependencies": "pip", {"pip": "diffusers"})
+        >>> conda_env = rh.env(conda_env=conda_env_dict)             # from a dict
+        >>> conda_env = rh.env(conda_env="conda_env.yaml")           # from a yaml file
+        >>> conda_env = rh.env(conda_env="local-conda-env-name")     # from a existing local conda env
+        >>> conda_env = rh.env(conda_env="conda_env.yaml", reqs=["pip:/accelerate"])   # with additional reqs
     """
 
     config = rns_client.load_config(name) if load else {}
