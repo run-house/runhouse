@@ -260,13 +260,18 @@ class Function(Resource):
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             if not self.system or self.system.name == rh_config.obj_store.cluster_name:
                 [relative_path, module_name, fn_name] = self.fn_pointers
-                if self.system.on_this_cluster():
-                    fn_type = "nested"
                 conda_env = (
                     self.env.env_name
                     if self.env and isinstance(self.env, CondaEnv)
                     else None
                 )
+                # If we're on this cluster, don't pickle the result before passing back.
+                # We need to pickle before passing back in most cases because the env in
+                # which the function executes may have a different set of packages than the
+                # server, so when Ray passes a result back into the server it will may fail to
+                # unpickle. We assume the user's client has the necessary packages to unpickle
+                # their own result.
+                serialize_res = not self.system.on_this_cluster()
                 return call_fn_by_type(
                     fn_type=fn_type,
                     fn_name=fn_name,
@@ -276,6 +281,7 @@ class Function(Resource):
                     conda_env=conda_env,
                     args=args,
                     kwargs=kwargs,
+                    serialize_res=serialize_res,
                 )
             elif stream_logs:
                 run_key = self.remote(*args, **kwargs)

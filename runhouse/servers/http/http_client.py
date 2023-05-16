@@ -1,53 +1,43 @@
+import json
 import logging
-import re
-import sys
 import time
 import requests
 
-import grpc
-
 import ray.cloudpickle as pickle
 
+from runhouse.servers.http.http_utils import pickle_b64, b64_unpickle, OutputType, handle_response, Response
 import runhouse.servers.grpc.unary_pb2 as pb2
-
-import runhouse.servers.grpc.unary_pb2_grpc as pb2_grpc
 
 logger = logging.getLogger(__name__)
 
 
-class OutputType:
-    STDOUT = "stdout"
-    STDERR = "stderr"
-    RESULT = "result"
-
-
 class HTTPClient:
     """
-    Client for gRPC functionality
-    # TODO rename ClusterClient
+    Client for cluster RPCs
     """
 
     DEFAULT_PORT = 50052
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
-    TIMEOUT_SEC = 3
+    CHECK_TIMEOUT_SEC = 3
 
     def __init__(self, host, port=DEFAULT_PORT):
         self.host = host
         self.port = port
 
-    def request(self, endpoint, data=None):
-        import codecs
+    def request(self, endpoint, data=None, err_str=None, timeout=None):
         response = requests.post(f"http://{self.host}:{self.port}/{endpoint}/",
-                                 json={"data": codecs.encode(pickle.dumps(data), "base64").decode()}).json()
-        return pickle.loads(codecs.decode(response.encode(), "base64"))
+                                 json={"data": data},
+                                 timeout=timeout)
+        output_type = response.json()["output_type"]
+        return handle_response(response.json(), output_type, err_str)
+
+    def check_server(self, cluster_config=None):
+        self.request("check", data=json.dumps(cluster_config, indent=4), timeout=self.CHECK_TIMEOUT_SEC)
 
     def install_packages(self, to_install, env=""):
-        [res, fn_exception, fn_traceback] = self.request("install", (to_install, env))
-        if fn_exception is not None:
-            logger.error(f"Error installing packages {to_install}: {fn_exception}")
-            logger.error(f"Traceback: {fn_traceback}")
-            raise fn_exception
-        return res
+        self.request("install",
+                     pickle_b64((to_install, env)),
+                     err_str=f"Error installing packages {to_install}")
 
     def add_secrets(self, secrets):
         message = pb2.Message(message=secrets)
@@ -68,32 +58,15 @@ class HTTPClient:
         """
         Get a value from the server
         """
-        message = pb2.Message(message=pickle.dumps((key, stream_logs)))
-        for resp in self.stub.GetObject(message):
-            output_type = resp.output_type
-            server_res = pickle.loads(resp.message)
-            if output_type == OutputType.STDOUT:
-                # Regex to match tqdm progress bars
-                tqdm_regex = re.compile(r"(.+)%\|(.+)\|\s+(.+)/(.+)")
-                for line in server_res:
-                    if tqdm_regex.match(line):
-                        # tqdm lines are always preceded by a \n, so we can use \x1b[1A to move the cursor up one line
-                        # For some reason, doesn't work in PyCharm's console, but works in the terminal
-                        print("\x1b[1A\r" + line, end="", flush=True)
-                    else:
-                        print(line, end="", flush=True)
-            elif output_type == OutputType.STDERR:
-                for line in server_res:
-                    print(line, file=sys.stderr)
-            else:
-                [res, fn_exception, fn_traceback] = server_res
-                if fn_exception is not None:
-                    logger.error(
-                        f"Error running or getting run_key {key}: {fn_exception}."
-                    )
-                    logger.error(f"Traceback: {fn_traceback}")
-                    raise fn_exception
-                return res
+        res = requests.get(f"http://{self.host}:{self.port}/get_object/",
+                            json={"data": pickle_b64((key, stream_logs))})
+        for responses_json in res.iter_content(chunk_size=None):
+            for resp in responses_json.decode().split('{"data":')[1:]:
+                resp = json.loads('{"data":'+resp)
+                output_type = resp['output_type']
+                result = handle_response(resp, output_type, f"Error running or getting key {key}")
+                if output_type not in [OutputType.STDOUT, OutputType.STDERR]:
+                    return result
 
     def put_object(self, key, value):
         message = pb2.Message(message=pickle.dumps((key, value)))
@@ -138,22 +111,9 @@ class HTTPClient:
             kwargs,
         ]
         start = time.time()
-        [res, fn_exception, fn_traceback] = self.request("run", module_info)
+        res = self.request("run",
+                           pickle_b64(module_info),
+                           err_str=f"Error inside function {fn_type}")
         end = time.time()
-        logging.info(f"Time to send message: {round(end - start, 2)} seconds")
-        if res:
-            return pickle.loads(res)
-        if fn_exception:
-            logger.error(f"Error inside function {fn_type}: {fn_exception}.")
-            logger.error(f"Traceback: {fn_traceback}")
-            raise fn_exception
-
-    def is_connected(self):
-        return self._connectivity_state in [
-            grpc.ChannelConnectivity.READY,
-            grpc.ChannelConnectivity.IDLE,
-        ]
-
-    def shutdown(self):
-        if self.channel:
-            self.channel.close()
+        logging.info(f"Time to call remote function: {round(end - start, 2)} seconds")
+        return res

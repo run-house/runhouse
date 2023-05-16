@@ -136,6 +136,7 @@ def getpid(a=0):
 
 @pytest.mark.clustertest
 def test_maps(cpu_cluster):
+    cpu_cluster.restart_server(resync_rh=True, restart_ray=True)
     pid_fn = rh.function(getpid, system=cpu_cluster)
     num_pids = [1] * 20
     pids = pid_fn.map(num_pids)

@@ -24,6 +24,7 @@ def call_fn_by_type(
     conda_env=None,
     args=None,
     kwargs=None,
+    serialize_res=True,
 ):
     run_key = f"{fn_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
@@ -54,46 +55,44 @@ def call_fn_by_type(
         logging_wrapped_fn = enable_logging_fn_wrapper(get_fn_from_pointers, run_key)
 
         ray_fn = ray.remote(
-            num_cpus=resources.get("num_cpus") or 0.0001,
-            num_gpus=resources.get("num_gpus") or 0.0001 if num_gpus > 0 else None,
-            max_calls=len(args) if fn_type in ["map", "starmap"] else 1,
+            num_cpus=resources.get("num_cpus", None),
+            num_gpus=resources.get("num_gpus", None),
+            max_calls=1,
             runtime_env=runtime_env,
         )(logging_wrapped_fn)
 
         if fn_type == "map":
             obj_ref = [
-                ray_fn.remote(fn_pointers, fn_type, num_cuda_devices, arg, **kwargs)
+                ray_fn.remote(fn_pointers, serialize_res, num_cuda_devices, arg, **kwargs)
                 for arg in args
             ]
         elif fn_type == "starmap":
             obj_ref = [
-                ray_fn.remote(fn_pointers, fn_type, num_cuda_devices, *arg, **kwargs)
+                ray_fn.remote(fn_pointers, serialize_res, num_cuda_devices, *arg, **kwargs)
                 for arg in args
             ]
-        elif fn_type in ("queue", "remote", "call", "nested"):
+        elif fn_type in ("queue", "remote", "call"):
             obj_ref = ray_fn.remote(
-                fn_pointers, fn_type, num_cuda_devices, *args, **kwargs
+                fn_pointers, serialize_res, num_cuda_devices, *args, **kwargs
             )
         elif fn_type == "repeat":
             [num_repeats, args] = args
             obj_ref = [
-                ray_fn.remote(fn_pointers, fn_type, num_cuda_devices, *args, **kwargs)
+                ray_fn.remote(fn_pointers, serialize_res, num_cuda_devices, *args, **kwargs)
                 for _ in range(num_repeats)
             ]
         else:
             raise ValueError(f"fn_type {fn_type} not recognized")
 
         if fn_type == "remote":
-            rh_config.obj_store.put_obj_ref(key=run_key, obj_ref=obj_ref)
-            res = pickle.dumps(run_key)
-        elif fn_type in ("call", "nested"):
-            res = ray.get(obj_ref)
+            res = (run_key, obj_ref)
         else:
-            res = pickle.dumps(ray.get(obj_ref))
+            res = ray.get(obj_ref)
+
     return res
 
 
-def get_fn_from_pointers(fn_pointers, fn_type, num_gpus, *args, **kwargs):
+def get_fn_from_pointers(fn_pointers, serialize_res, num_gpus, *args, **kwargs):
     (module_path, module_name, fn_name) = fn_pointers
     if module_name == "notebook":
         fn = fn_name  # already unpickled
@@ -119,7 +118,7 @@ def get_fn_from_pointers(fn_pointers, fn_type, num_gpus, *args, **kwargs):
     os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
 
     result = fn(*args, **kwargs)
-    if fn_type == "call":
+    if serialize_res:
         return pickle.dumps(result)
     return result
 

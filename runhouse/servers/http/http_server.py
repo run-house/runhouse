@@ -1,21 +1,21 @@
+import codecs
 import json
 import logging
 import traceback
-from concurrent import futures
 from pathlib import Path
+import subprocess
 
-import grpc
 import ray
 from ray import serve
 import ray.cloudpickle as pickle
-from starlette.requests import Request
 import requests
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+from fastapi.encoders import jsonable_encoder
 
 import runhouse.servers.grpc.unary_pb2 as pb2
 
-import runhouse.servers.grpc.unary_pb2_grpc as pb2_grpc
 from runhouse.rh_config import configs, obj_store
 from runhouse.rns.packages.package import Package
 from runhouse.rns.run_module_utils import call_fn_by_type
@@ -24,16 +24,11 @@ from runhouse.rns.top_level_rns_fns import (
     pinned_keys,
     remove_pinned_object,
 )
-from runhouse.servers.grpc.unary_client import OutputType
+from runhouse.servers.http.http_utils import Message, Response, pickle_b64, b64_unpickle, OutputType
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
-
-from pydantic import BaseModel
-
-class Message(BaseModel):
-    data: str
 
 @serve.deployment()
 @serve.ingress(app)
@@ -54,12 +49,34 @@ class HTTPServer:
     def register_activity(self):
         set_last_active_time_to_now()
 
+    @app.post("/check")
+    def check_server(self, message: Message):
+        self.register_activity()
+        cluster_config = message.data
+        try:
+            if cluster_config:
+                logger.info(f"Message received from client to check server: {cluster_config}")
+                rh_dir = Path("~/.rh").expanduser()
+                rh_dir.mkdir(exist_ok=True)
+                (rh_dir / "cluster_config.yaml").write_text(cluster_config)
+                # json.dump(cluster_config, open(rh_dir / "cluster_config.yaml", "w"), indent=4)
+
+            # Check if Ray is deadlocked
+            # Get `ray status` from command line
+            status = subprocess.check_output(["ray", "status"]).decode("utf-8")
+            return Response(data=pickle_b64(status), output_type=OutputType.RESULT)
+        except Exception as e:
+            logger.exception(e)
+            self.register_activity()
+            return Response(err=pickle_b64(e),
+                            traceback=pickle_b64(traceback.format_exc()),
+                            output_type=OutputType.EXCEPTION)
+
     @app.post("/install")
     def install(self, message: Message):
         self.register_activity()
-        import codecs
         try:
-            packages, env = pickle.loads(codecs.decode(message.data.encode(), "base64"))
+            packages, env = b64_unpickle(message.data)
             logger.info(f"Message received from client to install packages: {packages}")
             for package in packages:
                 if isinstance(package, str):
@@ -74,28 +91,87 @@ class HTTPServer:
                 pkg.install(env)
 
             self.register_activity()
-            message = [None, None, None]
+            return Response(output_type=OutputType.SUCCESS)
         except Exception as e:
             logger.exception(e)
-            message = [None, e, traceback.format_exc()]
             self.register_activity()
+            return Response(err=pickle_b64(e),
+                            traceback=pickle_b64(traceback.format_exc()),
+                            output_type=OutputType.EXCEPTION)
 
-        return codecs.encode(pickle.dumps(message), "base64").decode()
-
-    def GetObject(self, request, context):
+    @app.post("/run")
+    def RunModule(self, message: Message):
         self.register_activity()
-        key, stream_logs = pickle.loads(request.message)
+        # get the function result from the incoming request
+        [
+            relative_path,
+            module_name,
+            fn_name,
+            fn_type,
+            resources,
+            conda_env,
+            args,
+            kwargs,
+        ] = b64_unpickle(message.data)
+
+        try:
+            result = call_fn_by_type(
+                fn_type=fn_type,
+                fn_name=fn_name,
+                relative_path=relative_path,
+                module_name=module_name,
+                resources=resources,
+                conda_env=conda_env,
+                args=args,
+                kwargs=kwargs,
+                serialize_res=True,
+            )
+            # We need to pin the obj_ref in the server's Python context rather than inside the call_fn context,
+            # because the call_fn context is a separate process and the pinned object will be lost when Ray
+            # garbage collects the call_fn process.
+            if fn_type == "remote":
+                (run_key, obj_ref) = result
+                obj_store.put_obj_ref(key=run_key, obj_ref=obj_ref)
+                result = pickle.dumps(run_key)
+
+            self.register_activity()
+            if isinstance(result, list):
+                return Response(data=[codecs.encode(i, "base64").decode() for i in result],
+                                output_type=OutputType.RESULT_LIST)
+            else:
+                return Response(data=codecs.encode(result, "base64").decode(),
+                                output_type=OutputType.RESULT)
+        except Exception as e:
+            logger.exception(e)
+            self.register_activity()
+            return Response(err=pickle_b64(e),
+                            traceback=pickle_b64(traceback.format_exc()),
+                            output_type=OutputType.EXCEPTION)
+
+    @app.get("/get_object")
+    def GetObject(self, message: Message):
+        self.register_activity()
+        key, stream_logs = b64_unpickle(message.data)
         logger.info(f"Message received from client to get object: {key}")
 
+        # ret_obj = obj_store.get(key, timeout=self.LOGGING_WAIT_TIME)
+        # return json.dumps(jsonable_encoder(Response(
+        #     message=ret_obj,
+        #     output_type=OutputType.RESULT)))
+        return StreamingResponse(self._get_object_and_logs_generator(key, stream_logs=stream_logs),
+                                 media_type='application/json')
+
+    def _get_object_and_logs_generator(self, key, stream_logs=False):
         logfiles = None
         open_files = None
         ret_obj = None
+        err = None
+        tb = None
         returned = False
         while not returned:
             try:
-                res = obj_store.get(key, timeout=self.LOGGING_WAIT_TIME)
-                logger.info(f"Got object of type {type(res)} back from object store")
-                ret_obj = [res, None, None]
+                ret_obj = obj_store.get(key, timeout=self.LOGGING_WAIT_TIME)
+                logger.info(f"Got object of type {type(ret_obj)} back from object store")
                 returned = True
                 # Don't return yet, go through the loop once more to get any remaining log lines
             except ray.exceptions.GetTimeoutError:
@@ -103,7 +179,14 @@ class HTTPServer:
             except ray.exceptions.TaskCancelledError as e:
                 logger.info(f"Attempted to get task {key} that was cancelled.")
                 returned = True
-                ret_obj = [None, e, traceback.format_exc()]
+                ret_obj = None
+                err = e
+                tb = traceback.format_exc()
+            except Exception as e:
+                yield json.dumps(jsonable_encoder(Response(
+                    error=pickle_b64(e),
+                    traceback=pickle_b64(traceback.format_exc()),
+                    output_type=OutputType.EXCEPTION)))
 
             if stream_logs:
                 if not logfiles:
@@ -121,19 +204,24 @@ class HTTPServer:
                         #     ret_lines.append(f"Process {i}:")
                         ret_lines += file_lines
                 if ret_lines:
-                    yield pb2.MessageResponse(
-                        message=pickle.dumps(ret_lines),
-                        received=True,
+                    yield json.dumps(jsonable_encoder(Response(
+                        data=ret_lines,
                         output_type=OutputType.STDOUT,
-                    )
+                    )))
 
         if stream_logs:
             # We got the object back from the object store, so we're done (but we went through the loop once
             # more to get any remaining log lines)
             [f.close() for f in open_files]
-        yield pb2.MessageResponse(
-            message=pickle.dumps(ret_obj), received=True, output_type=OutputType.RESULT
-        )
+        if ret_obj:
+            yield json.dumps(jsonable_encoder(Response(
+                data=codecs.encode(ret_obj, "base64").decode(),
+                output_type=OutputType.RESULT)))
+        else:
+            yield json.dumps(jsonable_encoder(Response(
+                error=pickle_b64(err),
+                traceback=pickle_b64(tb),
+                output_type=OutputType.EXCEPTION)))
 
     def PutObject(self, request, context):
         self.register_activity()
@@ -192,42 +280,6 @@ class HTTPServer:
         return pb2.MessageResponse(
             message=pickle.dumps(keys), received=True, output_type=OutputType.RESULT
         )
-
-    @app.post("/run")
-    def RunModule(self, message: Message):
-        import codecs
-        self.register_activity()
-        # get the function result from the incoming request
-        [
-            relative_path,
-            module_name,
-            fn_name,
-            fn_type,
-            resources,
-            conda_env,
-            args,
-            kwargs,
-        ] = pickle.loads(codecs.decode(message.data.encode(), "base64"))
-
-        try:
-            result = call_fn_by_type(
-                fn_type=fn_type,
-                fn_name=fn_name,
-                relative_path=relative_path,
-                module_name=module_name,
-                resources=resources,
-                conda_env=conda_env,
-                args=args,
-                kwargs=kwargs,
-            )
-            self.register_activity()
-            message = [result, None, None]
-        except Exception as e:
-            logger.exception(e)
-            message = [None, e, traceback.format_exc()]
-            self.register_activity()
-
-        return codecs.encode(pickle.dumps(message), "base64").decode()
 
     def AddSecrets(self, request, context):
         from runhouse import Secrets
@@ -335,6 +387,4 @@ class HTTPServer:
                 f"({resp.status_code}) Failed to send logs to Grafana Loki: {resp.text}"
             )
 
-if __name__ == "__main__":
-    server = HTTPServer.bind()
-    serve.run(server, host="127.0.0.1", port=50052)
+server = HTTPServer.bind()

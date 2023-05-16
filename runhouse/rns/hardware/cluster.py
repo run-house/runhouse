@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import grpc
 import ray.cloudpickle as pickle
+import requests.exceptions
 import sshtunnel
 
 from sky.utils import command_runner
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 class Cluster(Resource):
     RESOURCE_TYPE = "cluster"
-    GRPC_TIMEOUT = 5  # seconds
+    REQUEST_TIMEOUT = 5  # seconds
 
     def __init__(
         self,
@@ -57,9 +58,9 @@ class Cluster(Resource):
         self.client = None
 
         if not dryrun and self.address:
+            self.check_server()
             # OnDemandCluster will start ray itself, but will also set address later, so won't reach here.
             self.start_ray()
-            self.save_config_to_cluster()
 
     def save_config_to_cluster(self):
         import json
@@ -294,7 +295,7 @@ class Cluster(Resource):
         # Connecting to localhost because it's tunneled into the server at the specified port.
         self.client = HTTPClient(host="127.0.0.1", port=connected_port)
         waited = 0
-        # while not self.is_connected() and waited <= self.GRPC_TIMEOUT:
+        # while not self.is_connected() and waited <= self.REQUEST_TIMEOUT:
         #     time.sleep(0.25)
         #     waited += 0.25
 
@@ -315,11 +316,13 @@ class Cluster(Resource):
         if not self.client:
             try:
                 self.connect_server_client()
-                # Empty ping
-                self.client.install_packages([])
+                cluster_config = self.config_for_rns
+                if "sky_state" in cluster_config.keys():
+                    # a bunch of setup commands that mess up json dump
+                    del cluster_config["sky_state"]
+                self.client.check_server(cluster_config=cluster_config)
             except (
-                Exception,
-                grpc.RpcError,
+                requests.exceptions.ConnectionError,
                 sshtunnel.BaseSSHTunnelForwarderError,
             ):
                 # It's possible that the cluster went down while we were trying to install packages.
@@ -327,7 +330,6 @@ class Cluster(Resource):
                     self.up_if_not()
                 else:
                     self.restart_server(resync_rh=False)
-
         return
 
         if self.is_connected():
@@ -443,10 +445,9 @@ class Cluster(Resource):
         # TODO how do we capture errors if this fails?
         if resync_rh:
             self.sync_runhouse_to_cluster(_install_url=_rh_install_url)
-            self.save_config_to_cluster()
-        kill_proc_cmd = 'pkill -f "python3 -m runhouse.servers.grpc.unary_server"'
-        logfile = f"{self.name}_grpc_server.log"
-        grpc_server_cmd = "python3 -m runhouse.servers.http.http_server"
+        logfile = f"cluster_server_{self.name}.log"
+        grpc_server_cmd = "serve run runhouse.servers.http.http_server:server --host 127.0.0.1 --port 50052"
+        kill_proc_cmd = f'pkill -f "{grpc_server_cmd}"'
         # 2>&1 redirects stderr to stdout
         screen_cmd = (
             f"screen -dm bash -c '{grpc_server_cmd} |& tee -a ~/.rh/{logfile} 2>&1'"
@@ -473,7 +474,7 @@ class Cluster(Resource):
             commands=cmds,
             stream_logs=True,
         )
-        # As of 2022-27-Dec still seems we need this.
+        # As of 2023-15-May still seems we need this.
         time.sleep(2)
         return status_codes
 
@@ -507,7 +508,7 @@ class Cluster(Resource):
         )
 
     def is_connected(self):
-        return self.client is not None and self.client.is_connected()
+        return self.client is not None
 
     def disconnect(self):
         if self._grpc_tunnel:
