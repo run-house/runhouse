@@ -79,8 +79,8 @@ Table of Contents
 
    tutorials/examples/inference
    tutorials/examples/training
+   tutorials/examples/distributed
    Pipelining: BERT <https://github.com/run-house/tutorials/tree/main/t05_BERT_pipeline>
-   Distributed: HF Accelerate <https://github.com/run-house/tutorials/tree/stable/t04_Distributed>
    Runhouse in Colab: DALLE img2img2 <https://github.com/run-house/tutorials/tree/main/t03_DALLE_SD_pipeline>
 
 .. toctree::
