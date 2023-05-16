@@ -101,7 +101,7 @@ class Package(Resource):
                 logging.info(f"reqs path: {reqs_path}")
                 if Path(reqs_path).expanduser().exists():
                     # Ensure each requirement listed in the file contains the full install command for torch packages
-                    reqs_from_file: list = self.format_torch_cmd_in_reqs_file(
+                    reqs_from_file: list = self._format_torch_cmd_in_reqs_file(
                         path=reqs_path, cuda_version_or_cpu=cuda_version_or_cpu
                     )
                     logging.info(f"Got reqs from file to install: {reqs_from_file}")
@@ -119,7 +119,7 @@ class Package(Resource):
             install_cmd = self.install_target + install_args
 
         if self.install_method == "pip":
-            install_cmd = self.install_cmd_for_torch(install_cmd, cuda_version_or_cpu)
+            install_cmd = self._install_cmd_for_torch(install_cmd, cuda_version_or_cpu)
             if not install_cmd:
                 raise ValueError("Invalid install command")
 
@@ -149,7 +149,7 @@ class Package(Resource):
     # ----------------------------------
     # Torch Install Helpers
     # ----------------------------------
-    def format_torch_cmd_in_reqs_file(self, path, cuda_version_or_cpu):
+    def _format_torch_cmd_in_reqs_file(self, path, cuda_version_or_cpu):
         """Read requirements from file, append --index-url and --extra-index-url where relevant for torch packages,
         and return list of formatted packages."""
         with open(path) as f:
@@ -158,18 +158,18 @@ class Package(Resource):
         # Leave the file alone, maintain a separate list with the updated commands which we will later pip install
         reqs_from_file = []
         for req in reqs:
-            install_cmd = self.install_cmd_for_torch(req.strip(), cuda_version_or_cpu)
+            install_cmd = self._install_cmd_for_torch(req.strip(), cuda_version_or_cpu)
             reqs_from_file.append(install_cmd)
 
         return reqs_from_file
 
-    def install_cmd_for_torch(self, install_cmd, cuda_version_or_cpu):
+    def _install_cmd_for_torch(self, install_cmd, cuda_version_or_cpu):
         """Return the correct formatted pip install command for the torch package(s) provided."""
         torch_source_packages = ["torch", "torchvision", "torchaudio"]
         if not any([x in install_cmd for x in torch_source_packages]):
             return install_cmd
 
-        packages_to_install: list = self.packages_to_install_from_cmd(install_cmd)
+        packages_to_install: list = self._packages_to_install_from_cmd(install_cmd)
         final_install_cmd = ""
         for package_install_cmd in packages_to_install:
             formatted_cmd = self._install_url_for_torch_package(
@@ -223,7 +223,7 @@ class Package(Resource):
             return "cpu"
 
     @staticmethod
-    def packages_to_install_from_cmd(install_cmd: str):
+    def _packages_to_install_from_cmd(install_cmd: str):
         """Split a string of command(s) into a list of separate commands"""
         # Remove any --extra-index-url flags from the install command (to be added later by default)
         install_cmd = re.sub(r"--extra-index-url\s+\S+", "", install_cmd)
@@ -302,7 +302,7 @@ class Package(Resource):
             return self
 
         if isinstance(system, Resource):
-            new_folder = self.install_target.to_cluster(system, path=path, mount=mount)
+            new_folder = self.install_target._to_cluster(system, path=path, mount=mount)
         else:  # to fs
             new_folder = self.install_target.to(system, path=path)
         new_folder.system = system
