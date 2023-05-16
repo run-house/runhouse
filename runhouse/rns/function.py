@@ -260,6 +260,8 @@ class Function(Resource):
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             if not self.system or self.system.name == rh_config.obj_store.cluster_name:
                 [relative_path, module_name, fn_name] = self.fn_pointers
+                if self.system.on_this_cluster():
+                    fn_type = "nested"
                 conda_env = (
                     self.env.env_name
                     if self.env and isinstance(self.env, CondaEnv)
@@ -645,7 +647,7 @@ def function(
     reqs: Optional[List[str]] = None,
     setup_cmds: Optional[List[str]] = None,
 ):
-    """Factory method for constructing a Runhouse Function object.
+    """Builds an instance of :class:`Function`.
 
     Args:
         fn (Optional[str or Callable]): The function to execute on the remote system when the function is called.

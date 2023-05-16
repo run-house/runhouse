@@ -130,7 +130,7 @@ To run a Shell command on the cluster:
 
   my_cluster.run(['git clone ...', 'pip install ...'])
 
-To run a Python on the cluster:
+To run a Python command on the cluster:
 
 .. code-block:: python
 

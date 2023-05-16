@@ -37,6 +37,10 @@ def env(
         >>> # regular python env
         >>> env = rh.env(reqs=["torch", "pip"])
         >>> env = rh.env(reqs=["requirements.txt"], name="myenv")
+        >>>
+        >>> # conda env, see also rh.conda_env
+        >>> conda_dict = {"name": "conda_env", "channels": ["conda-forge"], "dependencies": ["python=3.10.0"]}
+        >>> env = rh.env(conda_env=conda_dict)
     """
 
     config = rns_client.load_config(name) if load else {}
