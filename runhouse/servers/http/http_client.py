@@ -16,7 +16,7 @@ class HTTPClient:
 
     DEFAULT_PORT = 50052
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
-    CHECK_TIMEOUT_SEC = 3
+    CHECK_TIMEOUT_SEC = 5
 
     def __init__(self, host, port=DEFAULT_PORT):
         self.host = host
@@ -141,7 +141,9 @@ class HTTPClient:
 
     def add_secrets(self, secrets):
         failed_providers = self.request(
-            "secrets", pickle_b64(secrets), err_str="Error sending secrets"
+            "secrets",
+            req_type="post",
+            data=pickle_b64(secrets),
+            err_str="Error sending secrets"
         )
-        if failed_providers:
-            logger.warning(f"Failed to send secrets for providers: {failed_providers}")
+        return failed_providers

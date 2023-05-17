@@ -9,7 +9,7 @@ from pathlib import Path
 import ray
 import ray.cloudpickle as pickle
 
-from runhouse import rh_config
+from runhouse.rh_config import obj_store
 
 
 logger = logging.getLogger(__name__)
@@ -31,12 +31,9 @@ def call_fn_by_type(
     # TODO other possible fn_types: 'batch', 'streaming'
     if fn_type == "get":
         obj_ref = args[0]
-        res = pickle.dumps(rh_config.obj_store.get(obj_ref))
+        res = pickle.dumps(obj_store.get(obj_ref))
 
     else:
-        args = rh_config.obj_store.get_obj_refs_list(args)
-        kwargs = rh_config.obj_store.get_obj_refs_dict(kwargs)
-
         ray.init(ignore_reinit_error=True)
         num_gpus = ray.cluster_resources().get("GPU", 0)
         num_cuda_devices = resources.get("num_gpus") or num_gpus
@@ -55,20 +52,24 @@ def call_fn_by_type(
         logging_wrapped_fn = enable_logging_fn_wrapper(get_fn_from_pointers, run_key)
 
         ray_fn = ray.remote(
-            num_cpus=resources.get("num_cpus", None),
-            num_gpus=resources.get("num_gpus", None),
+            num_cpus=resources.get("num_cpus", .0001),  # So ray doesn't block execution by default
+            num_gpus=resources.get("num_gpus"),
             max_calls=1,
             runtime_env=runtime_env,
         )(logging_wrapped_fn)
 
         if fn_type == "map":
             obj_ref = [
-                ray_fn.remote(fn_pointers, serialize_res, num_cuda_devices, arg, **kwargs)
+                ray_fn.remote(
+                    fn_pointers, serialize_res, num_cuda_devices, arg, **kwargs
+                )
                 for arg in args
             ]
         elif fn_type == "starmap":
             obj_ref = [
-                ray_fn.remote(fn_pointers, serialize_res, num_cuda_devices, *arg, **kwargs)
+                ray_fn.remote(
+                    fn_pointers, serialize_res, num_cuda_devices, *arg, **kwargs
+                )
                 for arg in args
             ]
         elif fn_type in ("queue", "remote", "call"):
@@ -78,7 +79,9 @@ def call_fn_by_type(
         elif fn_type == "repeat":
             [num_repeats, args] = args
             obj_ref = [
-                ray_fn.remote(fn_pointers, serialize_res, num_cuda_devices, *args, **kwargs)
+                ray_fn.remote(
+                    fn_pointers, serialize_res, num_cuda_devices, *args, **kwargs
+                )
                 for _ in range(num_repeats)
             ]
         else:
@@ -92,6 +95,14 @@ def call_fn_by_type(
     return res
 
 
+def deserialize_args_and_kwargs(args, kwargs):
+    if args:
+        args = pickle.loads(args)
+    if kwargs:
+        kwargs = pickle.loads(kwargs)
+    return args, kwargs
+
+
 def get_fn_from_pointers(fn_pointers, serialize_res, num_gpus, *args, **kwargs):
     (module_path, module_name, fn_name) = fn_pointers
     if module_name == "notebook":
@@ -101,18 +112,18 @@ def get_fn_from_pointers(fn_pointers, serialize_res, num_gpus, *args, **kwargs):
             sys.path.append(module_path)
             logger.info(f"Appending {module_path} to sys.path")
 
-        if module_name in rh_config.obj_store.imported_modules:
+        if module_name in obj_store.imported_modules:
             importlib.invalidate_caches()
-            rh_config.obj_store.imported_modules[module_name] = importlib.reload(
-                rh_config.obj_store.imported_modules[module_name]
+            obj_store.imported_modules[module_name] = importlib.reload(
+                obj_store.imported_modules[module_name]
             )
             logger.info(f"Reloaded module {module_name}")
         else:
             logger.info(f"Importing module {module_name}")
-            rh_config.obj_store.imported_modules[module_name] = importlib.import_module(
+            obj_store.imported_modules[module_name] = importlib.import_module(
                 module_name
             )
-        fn = getattr(rh_config.obj_store.imported_modules[module_name], fn_name)
+        fn = getattr(obj_store.imported_modules[module_name], fn_name)
 
     cuda_visible_devices = list(range(int(num_gpus)))
     os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))

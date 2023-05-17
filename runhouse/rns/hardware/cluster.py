@@ -223,7 +223,7 @@ class Cluster(Resource):
     def add_secrets(self, provider_secrets: dict):
         """Copy secrets from current environment onto the cluster"""
         self.check_server()
-        return self.client.add_secrets(pickle.dumps(provider_secrets))
+        return self.client.add_secrets(provider_secrets)
 
     def put(self, key: str, obj: Any):
         """Put the given object on the cluster's object store at the given key."""
@@ -324,46 +324,13 @@ class Cluster(Resource):
                 # It's possible that the cluster went down while we were trying to install packages.
                 if not self.is_up():
                     self.up_if_not()
-                else:
+                elif restart_server:
                     self.restart_server(resync_rh=False)
+                    # Try again
+                    self.check_server(restart_server=False)
+                else:
+                    raise ValueError(f"Could not connect to cluster <{self.name}>")
         return
-
-        if self.is_connected():
-            return
-
-        self.connect_server_client()
-        if self.is_connected():
-            return
-
-        if restart_server:
-            self.restart_server(resync_rh=False)
-            self.connect_server_client()
-            if self.is_connected():
-                return
-
-            self.restart_server(resync_rh=True)
-            self.connect_server_client()
-            if self.is_connected():
-                return
-
-        raise ValueError(f"Could not connect to cluster <{self.name}>")
-
-        # try:
-        #     self.client.ping()
-        # except Exception as e:
-        #     if restart_if_down:
-        #         self.restart_server(resync_rh=resync_rh)
-        #         self.connect_server_client(force_reconnect=True)
-        #         self.client.ping()
-        #     else:
-        #         raise e
-
-    @staticmethod
-    def check_port(ip_address, port):
-        import socket
-
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        return s.connect_ex(("127.0.0.1", int(port)))
 
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
@@ -385,8 +352,8 @@ class Cluster(Resource):
 
                 ssh_tunnel = SSHTunnelForwarder(
                     self.address,
-                    ssh_username=creds["ssh_user"],
-                    ssh_pkey=creds["ssh_private_key"],
+                    ssh_username=creds.get("ssh_user"),
+                    ssh_pkey=creds.get("ssh_private_key"),
                     local_bind_address=("", local_port),
                     remote_bind_address=("127.0.0.1", remote_port or local_port),
                     set_keepalive=1,
@@ -471,7 +438,7 @@ class Cluster(Resource):
             stream_logs=True,
         )
         # As of 2023-15-May still seems we need this.
-        time.sleep(2)
+        time.sleep(3)
         return status_codes
 
     @contextlib.contextmanager

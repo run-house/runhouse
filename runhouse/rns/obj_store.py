@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import ray
+import ray.cloudpickle as pickle
 
 from runhouse.rns.utils.hardware import _current_cluster
 
@@ -40,23 +41,31 @@ class ObjStore:
         self.obj_store_cache[key] = obj_ref
 
     def get(
-        self, key: str, default: Optional[Any] = None, timeout: Optional[float] = None
+        self,
+        key: str,
+        default: Optional[Any] = None,
+        timeout: Optional[float] = None,
+        resolve: bool = True,
     ):
         obj_ref = self.obj_store_cache.get(key, None)
-        if obj_ref:
-            return ray.get(obj_ref, timeout=timeout)
+        if obj_ref and resolve:
+            obj = ray.get(obj_ref, timeout=timeout)
+            if isinstance(obj, bytes):
+                return pickle.loads(obj)
+            else:
+                return obj
         else:
             return default
 
-    def get_obj_refs_list(self, keys: List):
+    def get_obj_refs_list(self, keys: List, resolve=True):
         return [
-            self.obj_store_cache.get(key, key) if isinstance(key, str) else key
+            self.get(key, default=key, resolve=resolve) if isinstance(key, str) else key
             for key in keys
         ]
 
-    def get_obj_refs_dict(self, d: Dict):
+    def get_obj_refs_dict(self, d: Dict, resolve=True):
         return {
-            k: self.obj_store_cache.get(v, v) if isinstance(v, str) else v
+            k: self.get(v, default=v, resolve=resolve) if isinstance(v, str) else v
             for k, v in d.items()
         }
 

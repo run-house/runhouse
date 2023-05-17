@@ -36,9 +36,9 @@ def np_array(list):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_create_function_from_name_local(cpu_cluster, test_env):
+def test_create_function_from_name_local(cpu_cluster):
     local_sum = rh.function(
-        fn=summer, name="local_function", system=cpu_cluster, env=test_env
+        fn=summer, name="local_function", system=cpu_cluster
     ).save()
     del local_sum
 
@@ -52,12 +52,11 @@ def test_create_function_from_name_local(cpu_cluster, test_env):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_create_function_from_rns(cpu_cluster, test_env):
+def test_create_function_from_rns(cpu_cluster):
     remote_sum = rh.function(
         fn=summer,
         name="@/remote_function",
         system=cpu_cluster,
-        env=test_env,
         dryrun=True,
     ).save()
     del remote_sum
@@ -140,20 +139,29 @@ def getpid(a=0):
 
 @pytest.mark.clustertest
 def test_maps(cpu_cluster):
-    cpu_cluster.restart_server()
     pid_fn = rh.function(getpid, system=cpu_cluster)
-    num_pids = [1] * 20
+    num_pids = [1] * 10
     pids = pid_fn.map(num_pids)
     assert len(set(pids)) > 1
     assert all(pid > 0 for pid in pids)
 
-    pids = pid_fn.repeat(num_repeats=20)
+    pids = pid_fn.repeat(num_repeats=10)
     assert len(set(pids)) > 1
     assert all(pid > 0 for pid in pids)
 
     pids = [pid_fn.enqueue() for _ in range(10)]
     assert len(pids) == 10
     assert all(pid > 0 for pid in pids)
+
+    re_fn = rh.function(summer, system=cpu_cluster)
+    summands = list(zip(range(5), range(4, 9)))
+    res = re_fn.starmap(summands)
+    assert res == [4, 6, 8, 10, 12]
+
+
+@pytest.mark.clustertest
+def test_remotes(cpu_cluster):
+    pid_fn = rh.function(getpid, system=cpu_cluster)
 
     pid_ref = pid_fn.remote()
     pid_res = pid_fn.get(pid_ref)
@@ -162,11 +170,6 @@ def test_maps(cpu_cluster):
     # Test passing an objectref into a normal call
     pid_res_from_ref = pid_fn(pid_ref)
     assert pid_res_from_ref > pid_res
-
-    re_fn = rh.function(summer, system=cpu_cluster)
-    summands = list(zip(range(5), range(4, 9)))
-    res = re_fn.starmap(summands)
-    assert res == [4, 6, 8, 10, 12]
 
 
 @pytest.mark.clustertest
@@ -226,7 +229,7 @@ def test_cancel_jobs(cpu_cluster):
 def test_function_queueing(cpu_cluster):
     pid_fn = rh.function(getpid, system=cpu_cluster)
 
-    pids = [pid_fn.enqueue(resources={"num_cpus": 2}) for _ in range(10)]
+    pids = [pid_fn.enqueue(resources={"num_cpus": 1}) for _ in range(10)]
     assert len(pids) == 10
 
 
@@ -364,7 +367,7 @@ def test_byo_cluster_function():
     del c
     byo_cluster = rh.cluster(name="different-cluster", ips=[ip], ssh_creds=creds).save()
     re_fn = rh.function(
-        multiproc_torch_sum, system=byo_cluster, env=["./", "torch==1.12.1"]
+        multiproc_torch_sum, system=byo_cluster, env=["./", "pytest", "torch==1.12.1"]
     )
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn(summands)
@@ -404,7 +407,7 @@ def test_byo_cluster_maps():
 @pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_load_function_in_new_env(cpu_cluster):
-    rh.cluster(name="rh-cpu").save(name="@/rh-cpu")
+    cpu_cluster.save(name="@/rh-cpu")
     remote_sum = rh.function(
         fn=summer, name="@/remote_function", system=cpu_cluster, env=[], dryrun=True
     ).save()

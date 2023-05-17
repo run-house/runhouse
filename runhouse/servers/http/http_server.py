@@ -126,6 +126,8 @@ class HTTPServer:
         ] = b64_unpickle(message.data)
 
         try:
+            args = obj_store.get_obj_refs_list(args)
+            kwargs = obj_store.get_obj_refs_dict(kwargs)
             result = call_fn_by_type(
                 fn_type=fn_type,
                 fn_name=fn_name,
@@ -323,7 +325,7 @@ class HTTPServer:
             elif not hasattr(run_keys, "len"):
                 run_keys = [run_keys]
 
-            for obj_ref in obj_store.get_obj_refs_list(run_keys):
+            for obj_ref in obj_store.get_obj_refs_list(run_keys, resolve=False):
                 obj_store.cancel(obj_ref)
 
             if cancel_runs:

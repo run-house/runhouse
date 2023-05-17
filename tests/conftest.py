@@ -96,16 +96,18 @@ def cluster(request):
 @pytest.fixture
 def cpu_cluster():
     c = rh.cluster("^rh-cpu")
-    c.name = "donny-rh-cpu"
     c.up_if_not()
+    c.install_packages(["pytest"])
     return c
 
 
 @pytest.fixture
 def cpu_cluster_2():
-    return rh.cluster(
+    c = rh.cluster(
         name="other-cpu", instance_type="CPU:2+", provider="aws"
     ).up_if_not()
+    c.install_packages(["pytest"])
+    return c
 
 
 @pytest.fixture
