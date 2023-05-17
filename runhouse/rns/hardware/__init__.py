@@ -1,6 +1,5 @@
-from .cluster import Cluster
-from .cluster_factory import cluster
-from .on_demand_cluster import OnDemandCluster
+from .cluster import cluster, Cluster
+from .on_demand_cluster import autocluster, OnDemandCluster
 
 # TODO KubeRayCluster, AnyscaleRayCluster etc.
 #  Other cluster types: Spark? Bare Kubernetes (e.g. EKS, GKS)?

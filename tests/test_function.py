@@ -279,7 +279,7 @@ def delete_function_from_rns(s):
 
     try:
         # Terminate the cluster
-        s.cluster.teardown_and_delete()
+        s.autocluster.teardown_and_delete()
     except Exception as e:
         raise Exception(f"Failed to teardown the cluster: {e}")
 
@@ -319,7 +319,7 @@ def test_http_url_with_curl():
 @pytest.mark.rnstest
 def test_byo_cluster_function():
     # Spin up a new basic m5.xlarge EC2 instance
-    c = rh.cluster(
+    c = rh.autocluster(
         instance_type="m5.xlarge",
         provider="aws",
         region="us-east-1",
@@ -375,7 +375,7 @@ def test_load_function_in_new_env(cpu_cluster):
         rh.function(fn=summer, name=REMOTE_FUNC_NAME).to(system=cpu_cluster).save()
     )
 
-    byo_cluster = rh.cluster(name="different-cluster")
+    byo_cluster = rh.autocluster(name="different-cluster")
     byo_cluster.send_secrets(["ssh"])
     remote_python = (
         "import runhouse as rh; "

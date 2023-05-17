@@ -65,7 +65,7 @@ There are two types of supported cluster types:
               )
 
     # Using a Cloud provider
-    cluster = rh.cluster(
+    cluster = rh.autocluster(
                   name="cpu-cluster",
                   instance_type="CPU:8",
                   provider="cheapest",       # "AWS", "GCP", "Azure", "Lambda", or "cheapest" (default)
@@ -267,10 +267,10 @@ up the kernel.
     INFO | 2023-05-06 21:03:17,622 | Time to send message: 0.12 seconds
     INFO | 2023-05-06 21:03:17,624 | Submitted remote call to cluster. Result or logs can be retrieved
      with run_key "getpid_20230506_210317", e.g.
-    `rh.cluster(name="/carolineechen/cpu-cluster").get("getpid_20230506_210317", stream_logs=True)` in python
+    `rh.autocluster(name="/carolineechen/cpu-cluster").get("getpid_20230506_210317", stream_logs=True)` in python
     `runhouse logs "cpu-cluster" getpid_20230506_210317` from the command line.
      or cancelled with
-    `rh.cluster(name="/carolineechen/cpu-cluster").cancel("getpid_20230506_210317")` in python or
+    `rh.autocluster(name="/carolineechen/cpu-cluster").cancel("getpid_20230506_210317")` in python or
     `runhouse cancel "cpu-cluster" getpid_20230506_210317` from the command line.
 
 
@@ -423,10 +423,10 @@ To stream logs, pass in ``stream_logs=True`` to the function call.
     INFO | 2023-05-06 21:06:29,477 | Time to send message: 0.12 seconds
     INFO | 2023-05-06 21:06:29,483 | Submitted remote call to cluster. Result or logs can be retrieved
      with run_key "getpid_20230506_210629", e.g.
-    `rh.cluster(name="/carolineechen/cpu-cluster").get("getpid_20230506_210629", stream_logs=True)` in python
+    `rh.autocluster(name="/carolineechen/cpu-cluster").get("getpid_20230506_210629", stream_logs=True)` in python
     `runhouse logs "cpu-cluster" getpid_20230506_210629` from the command line.
      or cancelled with
-    `rh.cluster(name="/carolineechen/cpu-cluster").cancel("getpid_20230506_210629")` in python or
+    `rh.autocluster(name="/carolineechen/cpu-cluster").cancel("getpid_20230506_210629")` in python or
     `runhouse cancel "cpu-cluster" getpid_20230506_210629` from the command line.
     :task_name:getpid
     :task_name:getpid

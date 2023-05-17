@@ -336,7 +336,7 @@ def test_cluster_and_cluster(cpu_cluster, cpu_cluster_2, local_folder):
     assert "sample_file_0.txt" in cluster_folder_1.ls(full_paths=False)
 
     # Cluster 1 to cluster 2
-    c2 = rh.cluster(name=cpu_cluster_2).up_if_not()
+    c2 = rh.autocluster(name=cpu_cluster_2).up_if_not()
     cluster_folder_2 = cluster_folder_1.to(system=c2, path=cluster_folder_1.path)
     assert "sample_file_0.txt" in cluster_folder_2.ls(full_paths=False)
 

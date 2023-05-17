@@ -55,7 +55,7 @@ For On-Demand Clusters, use the ``rh.cluster`` factory method as follows.
 
 .. code-block:: python
 
-  my_cluster = rh.cluster(name='rh-4-a100s',
+  my_cluster = rh.autocluster(name='rh-4-a100s',
                           instance_type='A100:4',    # or 'CPU:8', 'g5.2xlarge', etc
                           provider='gcp',            # Defaults to `cheapest` if empty
                           autostop_mins=-1,          # Defaults to default_autostop_mins, -1 suspends autostop
@@ -79,11 +79,11 @@ up if needed), or a BYO or OnDemandCluster that is already up, you can simply pa
 
 .. code-block:: python
 
-  my_cluster = rh.cluster(name='~/my-local-a100')
-  my_cluster = rh.cluster(name='@/my-a100-in-rh-rns')
+  my_cluster = rh.autocluster(name='~/my-local-a100')
+  my_cluster = rh.autocluster(name='@/my-a100-in-rh-rns')
 
   # or, if you just want to load the Cluster object without refreshing its status
-  my_cluster = rh.cluster(name='^rh-v100', dryrun=True)
+  my_cluster = rh.autocluster(name='^rh-v100', dryrun=True)
 
 Advanced API Usage
 ~~~~~~~~~~~~~~~~~~

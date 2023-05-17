@@ -57,7 +57,7 @@ haven’t done so yet.
 
 .. code:: python
 
-    gpu = rh.cluster(name='rh-a10x')
+    gpu = rh.autocluster(name='rh-a10x')
     gpu.up_if_not()
 
 Upload training photos to Colab, place them in a folder, and send our

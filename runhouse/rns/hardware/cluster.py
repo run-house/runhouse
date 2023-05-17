@@ -4,6 +4,7 @@ import pkgutil
 import subprocess
 import threading
 import time
+import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -78,7 +79,7 @@ class Cluster(Resource):
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
-        # TODO use 'resource_subtype' in config?
+        # TODO use 'resource_subtype' in config? (this will need to be more robust when we add more cluster types)
         if "ips" in config:
             return Cluster(**config, dryrun=dryrun)
         else:
@@ -659,3 +660,54 @@ class Cluster(Resource):
         """Remove conda env from the cluster."""
         env_name = env if isinstance(env, str) else env.env_name
         self.run([f"conda env remove -n {env_name}"])
+
+
+# Cluster factory method
+def cluster(
+    name: str,
+    ips: List[str] = None,
+    ssh_creds: Optional[dict] = None,
+    dryrun: bool = False,
+    **kwargs,
+) -> Cluster:
+    """
+    Builds an instance of :class:`Cluster`.
+
+    Args:
+        name (str): Name for the cluster, to re-use later on.
+        ips (List[str], optional): List of IP addresses for the BYO cluster.
+        ssh_creds (dict, optional): Dictionary mapping SSH credentials.
+            Example: ``ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'}``
+        dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
+            (Default: ``False``)
+
+    Returns:
+        Cluster: The resulting cluster.
+
+    Example:
+        >>> # BYO Cluster
+        >>> gpu = rh.autocluster(ips=['<ip of the cluster>'],
+        >>>          ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'},
+        >>>          name='rh-a10x')
+    """
+    if ips is None and ssh_creds is None and dryrun:
+        # If only the name is provided and dryrun is set to True
+        return Cluster.from_name(name)
+
+    if kwargs:
+        warnings.warn(
+            "The `cluster` factory is now intended to be used for BYO clusters only. "
+            "If you would like to create an on-demand cluster, please use `rh.autocluster()`"
+        )
+        from runhouse import autocluster
+
+        return autocluster(name=name, **kwargs)
+
+    config = rns_client.load_config(name)
+    config["name"] = name or config.get("rns_address", None) or config.get("name")
+    config["ips"] = ips or config.get("ips", None)
+
+    # ssh creds should only be in Secrets management, not in config
+    config["ssh_creds"] = ssh_creds or config.get("ssh_creds", None)
+
+    return Cluster.from_config(config, dryrun=dryrun)

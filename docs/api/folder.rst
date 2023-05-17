@@ -32,7 +32,7 @@ To copy a folder from one system to another (in this case, from local to a clust
 
 .. code:: python
 
-   local_cluster = rh.cluster(...).up_if_not()  # Instantiate cluster and check that it is up
+   local_cluster = rh.autocluster(...).up_if_not()  # Instantiate cluster and check that it is up
    local_folder = rh.folder(Path.cwd(), name='my_local_folder')
 
    # Send the folder to my_cluster

@@ -50,10 +50,10 @@ Setup <https://runhouse-docs.readthedocs-hosted.com/en/main/rh_primitives/cluste
 .. code:: python
 
     # single V100 GPU
-    # gpu = rh.cluster(name="rh-v100", instance_type="V100:1").up_if_not()
+    # gpu = rh.autocluster(name="rh-v100", instance_type="V100:1").up_if_not()
 
     # multigpu: 4 V100s
-    gpu = rh.cluster(name="rh-4-v100", instance_type="V100:1").up_if_not()
+    gpu = rh.autocluster(name="rh-4-v100", instance_type="V100:1").up_if_not()
 
     # Set GPU to autostop after 60 min of inactivity (default is 30 min)
     gpu.keep_warm(60)  # or -1 to keep up indefinitely
@@ -189,10 +189,10 @@ hardware!
     INFO | 2023-03-20 20:11:45,718 | Time to send message: 0.3 seconds
     INFO | 2023-03-20 20:11:45,720 | Submitted remote call to cluster. Result or logs can be retrieved
      with run_key "launch_training_20230320_201145", e.g.
-    `rh.cluster(name="~/rh-v100").get("launch_training_20230320_201145", stream_logs=True)` in python
+    `rh.autocluster(name="~/rh-v100").get("launch_training_20230320_201145", stream_logs=True)` in python
     `runhouse logs "rh-v100" launch_training_20230320_201145` from the command line.
      or cancelled with
-    `rh.cluster(name="~/rh-v100").cancel("launch_training_20230320_201145")` in python or
+    `rh.autocluster(name="~/rh-v100").cancel("launch_training_20230320_201145")` in python or
     `runhouse cancel "rh-v100" launch_training_20230320_201145` from the command line.
     :task_name:launch_training
     :task_name:launch_training

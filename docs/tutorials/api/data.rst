@@ -39,7 +39,7 @@ API tutorial for a more in-depth walkthrough of clusters.
 
 .. code:: python
 
-    cluster = rh.cluster(
+    cluster = rh.autocluster(
                   name="cpu-cluster",
                   instance_type="CPU:8",
                   provider="cheapest",       # "AWS", "GCP", "Azure", "Lambda", or "cheapest" (default)

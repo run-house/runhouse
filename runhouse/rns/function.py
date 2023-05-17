@@ -377,7 +377,7 @@ class Function(Resource):
                 fn_type="remote", args=args, kwargs=kwargs
             )
             cluster_name = (
-                f'rh.cluster(name="{self.system.rns_address}")'
+                f'rh.autocluster(name="{self.system.rns_address}")'
                 if self.system.name
                 else "<my_cluster>"
             )

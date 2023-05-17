@@ -4,7 +4,7 @@
 
 from .blob import Blob
 from .function import Function
-from .hardware import Cluster, cluster, OnDemandCluster
+from .hardware import autocluster, Cluster, cluster, OnDemandCluster
 from .packages.package import Package
 from .resource import Resource
 from .secrets.secrets import Secrets

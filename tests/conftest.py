@@ -95,28 +95,30 @@ def cluster(request):
 
 @pytest.fixture
 def cpu_cluster():
-    return rh.cluster("^rh-cpu").up_if_not()
+    return rh.autocluster("^rh-cpu").up_if_not()
 
 
 @pytest.fixture
 def cpu_cluster_2():
-    return rh.cluster(
+    return rh.autocluster(
         name="other-cpu", instance_type="CPU:2+", provider="aws"
     ).up_if_not()
 
 
 @pytest.fixture
 def v100_gpu_cluster():
-    return rh.cluster("^rh-v100", provider="aws").up_if_not()
+    return rh.autocluster("^rh-v100", provider="aws").up_if_not()
 
 
 @pytest.fixture
 def k80_gpu_cluster():
-    return rh.cluster(name="rh-k80", instance_type="K80:1", provider="aws").up_if_not()
+    return rh.autocluster(
+        name="rh-k80", instance_type="K80:1", provider="aws"
+    ).up_if_not()
 
 
 @pytest.fixture
 def a10g_gpu_cluster():
-    return rh.cluster(
+    return rh.autocluster(
         name="rh-a10x", instance_type="g5.2xlarge", provider="aws"
     ).up_if_not()
