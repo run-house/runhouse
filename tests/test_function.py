@@ -318,22 +318,16 @@ def delete_function_from_rns(s):
         raise Exception(f"Failed to teardown the cluster: {e}")
 
 
-@unittest.skip("Not yet implemented.")
 @pytest.mark.clustertest
 def test_http_url(cpu_cluster):
-    # TODO [DG] shouldn't have to specify fn here as a callable / at all?
-    s = rh.function(fn=summer, name="test_function", system=cpu_cluster)
-
-    # Generate and call the URL
-    http_url = s.http_url()
-    assert http_url
-
-    res = s(a=1, b=2)
-
-    # delete_configs the Function data from the RNS
-    # delete_function_from_rns(s)
-
-    assert res == 3
+    remote_sum = rh.function(summer).to(cpu_cluster).save("@/remote_function")
+    cpu_cluster.ssh_tunnel(80, 50052)
+    sum1 = requests.post(f"http://127.0.0.1:80/call/remote_function/",
+                         json={"args": [1, 2]}).json()
+    assert sum1 == 3
+    sum2 = requests.post(f"http://127.0.0.1:80/call/remote_function/",
+                         json={"kwargs": {"a": 1, "b": 2}}).json()
+    assert sum2 == 3
 
 
 @unittest.skip("Not yet implemented.")

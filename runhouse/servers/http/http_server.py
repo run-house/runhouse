@@ -25,6 +25,7 @@ from runhouse.rns.top_level_rns_fns import (
 from runhouse.servers.http.http_utils import (
     b64_unpickle,
     Message,
+    Args,
     OutputType,
     pickle_b64,
     Response,
@@ -458,6 +459,13 @@ class HTTPServer:
             logger.error(
                 f"({resp.status_code}) Failed to send logs to Grafana Loki: {resp.text}"
             )
+
+    @app.post("/call/{fn_name}")
+    def run_module(self, fn_name: str, args: Args):
+        self.register_activity()
+        from runhouse import function
+        fn = function(name=fn_name, dryrun=True)
+        return fn(*(args.args or []), **(args.kwargs or {}))
 
 
 server = HTTPServer.bind()

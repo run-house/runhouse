@@ -2,7 +2,7 @@ import codecs
 import logging
 import re
 import sys
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict, Any
 
 from pydantic import BaseModel
 from ray import cloudpickle as pickle
@@ -15,6 +15,11 @@ DEFAULT_SERVER_PORT = 50052
 
 class Message(BaseModel):
     data: str
+
+
+class Args(BaseModel):
+    args: Optional[List[Any]]
+    kwargs: Optional[Dict[str, Any]]
 
 
 class Response(BaseModel):

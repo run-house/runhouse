@@ -9,6 +9,7 @@ from typing import Optional
 import requests
 
 from runhouse.rns.api_utils.resource_access import ResourceAccess
+from runhouse.rns.utils.hardware import _current_cluster
 from runhouse.rns.api_utils.utils import (
     generate_uuid,
     load_resp_content,
@@ -229,6 +230,9 @@ class RNSClient:
             return {}
 
         rns_address = self.resolve_rns_path(name)
+
+        if rns_address == _current_cluster("name"):
+            return _current_cluster("config")
 
         if rns_address[0] in ["~", "^"]:
             config = self._load_config_from_local(rns_address)
