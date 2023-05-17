@@ -39,15 +39,16 @@ def np_array(list):
 @pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_create_function_from_name_local(cpu_cluster):
-    local_sum = rh.function(fn=summer, name="local_function", system=cpu_cluster).save()
+    local_name = "~/local_function"
+    local_sum = rh.function(summer).to(cpu_cluster).save(local_name)
     del local_sum
 
-    remote_sum = rh.Function.from_name(name="local_function")
+    remote_sum = rh.Function.from_name(local_name)
     res = remote_sum(1, 5)
     assert res == 6
 
     remote_sum.delete_configs()
-    assert rh.exists("local_function") is False
+    assert rh.exists(local_name) is False
 
 
 @unittest.skip("Not yet implemented.")
@@ -67,11 +68,16 @@ def test_running_function_as_proxy(cpu_cluster):
 @pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_create_function_from_rns(cpu_cluster):
-    remote_sum = rh.function(fn=summer, name=REMOTE_FUNC_NAME).to(cpu_cluster).save()
+    remote_sum = rh.function(summer).to(cpu_cluster).save(REMOTE_FUNC_NAME)
+    del remote_sum
 
     # reload the function
+    remote_sum = rh.function(name=REMOTE_FUNC_NAME)
     res = remote_sum(1, 5)
     assert res == 6
+
+    remote_sum.delete_configs()
+    assert not rh.exists(REMOTE_FUNC_NAME)
 
 
 @pytest.mark.clustertest
@@ -329,7 +335,9 @@ def test_byo_cluster_function():
     creds = c.ssh_creds()
     del c
     byo_cluster = rh.cluster(name="different-cluster", ips=[ip], ssh_creds=creds).save()
-    re_fn = rh.function(multiproc_torch_sum).to(byo_cluster, env=["torch==1.12.1"])
+    re_fn = rh.function(multiproc_torch_sum).to(
+        byo_cluster, env=["torch==1.12.1", "pytest"]
+    )
 
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn(summands)
@@ -370,9 +378,7 @@ def test_byo_cluster_maps():
 @pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_load_function_in_new_env(cpu_cluster):
-    remote_sum = (
-        rh.function(fn=summer, name=REMOTE_FUNC_NAME).to(system=cpu_cluster).save()
-    )
+    remote_sum = rh.function(summer).to(cpu_cluster).save(REMOTE_FUNC_NAME)
 
     byo_cluster = rh.cluster(name="different-cluster")
     byo_cluster.send_secrets(["ssh"])
