@@ -118,8 +118,8 @@ class Function(Resource):
             env = env or self.env
             env = _get_env_from(env)
 
-        if self.env:
-            new_reqs = [req for req in self.env.reqs if req not in env.reqs]
+        if env:
+            new_reqs = [req for req in env.reqs if req not in env.reqs]
             env.reqs += new_reqs
 
         if (
@@ -910,6 +910,8 @@ def function(
 
     if env:
         env.reqs = reqs
+    else:
+        env = Env(reqs=reqs, setup_cmds=setup_cmds)
 
     config["env"] = env
     config["system"] = system or config.get("system")

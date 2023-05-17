@@ -79,8 +79,11 @@ representing the custom name to assign the Run, or a boolean :code:`True` to ind
     def summer(a, b):
         return a + b
 
-    # Defining a function which lives on the "rh-cpu" cluster
-    my_func = rh.function(summer, system="^rh-cpu", name="my_test_func")
+    # Initialize the cluster object (and provision the cluster if it does not already exist)
+    cpu = rh.cluster("^rh-cpu").up_if_not()
+
+    # Create a function object and send it to the cpu cluster
+    my_func = rh.function(summer, name="my_test_func").to(cpu)
 
     # Call the function with its input args, and provide it with a `name_run` argument to trigger a run
     my_func(1, 2, name_run="my_fn_run")
@@ -93,9 +96,6 @@ In order to get the results of the Run, we can call the :code:`result()` method:
 
 .. code-block:: python
 
-    import runhouse as rh
-
-    cpu = rh.cluster("^rh-cpu")
     fn_run = cpu.get_run("my_fn_run")
 
     # If the function for this run has finished executing, we can load the result:
@@ -114,20 +114,12 @@ To create a Run by executing a CLI command:
 
 .. code-block:: python
 
-    import runhouse as rh
-
-    cpu = rh.cluster("^rh-cpu")
-
     # Run a CLI command on the cluster and provide the `name_run` param to trigger a run
     return_codes = cpu.run(["python --version"], name_run="my_cli_run")
 
 To create a Run by executing Python commands:
 
 .. code-block:: python
-
-    import runhouse as rh
-
-    cpu = rh.cluster("^rh-cpu")
 
      return_codes = cpu.run_python(
         [

@@ -62,7 +62,7 @@ class Run(Resource):
         self.system = system or Folder.DEFAULT_FS
         self.cmds = cmds
 
-        self.run_type = run_type or self.detect_run_type(fn)
+        self.run_type = run_type or self._detect_run_type(fn)
 
         self.status = status
         self.start_time = start_time
@@ -91,10 +91,6 @@ class Run(Resource):
             dryrun=dryrun,
         )
 
-        self._config_path = self.config_path()
-        self._stdout_path = self.stdout_path()
-        self._stderr_path = self.stderr_path()
-
         self.fn_name = fn.__name__ if fn else kwargs.get("fn_name")
 
         # Artifacts loaded by the Run (i.e. upstream dependencies)
@@ -102,6 +98,11 @@ class Run(Resource):
 
         # Artifacts saved by the Run (i.e. downstream dependencies)
         self.downstream_artifacts: list = kwargs.get("downstream_artifacts", [])
+
+        # Path the main folder storing the metadata, inputs, and results for the Run saved on the system.
+        self._config_path = f"{self.path}/{self.RUN_CONFIG_FILE}"
+        self._stdout_path = self._path_to_log_file(ext=".out")
+        self._stderr_path = self._path_to_log_file(ext=".err")
 
     def __enter__(self):
         self.status = self.RUNNING_STATUS
@@ -136,7 +137,7 @@ class Run(Resource):
         if self.run_type != self.FUNCTION_RUN:
             # Save Run config to its folder on the system - this will already happen on the cluster
             # for function based runs
-            self.write_config()
+            self._write_config()
 
         # return False to propagate any exception that occurred inside the with block
         return False
@@ -155,6 +156,7 @@ class Run(Resource):
             "resource_type": self.RESOURCE_TYPE,
             "system": self._resource_string_for_subconfig(self.system),
             "status": self.status,
+            # NOTE: artifacts are currently only tracked in context manager based runs
             "upstream_artifacts": self.upstream_artifacts,
             "downstream_artifacts": self.downstream_artifacts,
         }
@@ -206,21 +208,12 @@ class Run(Resource):
         if artifact_name not in self.downstream_artifacts:
             self.downstream_artifacts.append(artifact_name)
 
-    def write_config(self, overwrite: bool = True):
-        """Write the Run's current config dict to the system."""
-        logger.info(f"Config to save on system: {self.config_for_rns}")
-        self._folder.put(
-            {self.RUN_CONFIG_FILE: self.config_for_rns},
-            overwrite=overwrite,
-            as_json=True,
-        )
-
     def save(
         self,
         name: str = None,
         overwrite: bool = True,
     ):
-        """If the Run did not previously have a name (ex: context manager Run) or it is being overwritten,
+        """If the Run did not previously have a name or it is being overwritten,
         update the Run config stored on the system before saving to RNS."""
         run_config = self.config_for_rns
         config_path = self._config_path
@@ -232,7 +225,7 @@ class Run(Resource):
         return super().save(name, overwrite)
 
     def write(self, data: Any, path: str):
-        """Write serialized data (ex: fn inputs or fn result, stdout, stderr, config) to a
+        """Write Run associated data (ex: function inputs or result, stdout, stderr) to the
         specified path on the system."""
         blob(data=data, system=self.system, path=path).write()
 
@@ -304,7 +297,17 @@ class Run(Resource):
         Optionally provide a custom path to check, otherwise will default to the Run's folder path."""
         return self._folder.fsspec_fs.exists(path or self.path)
 
-    def detect_run_type(self, fn):
+    def _write_config(self, overwrite: bool = True):
+        """Write the Run's config data to the system (this is the same data that will be stored in RNS
+        if the Run is saved)."""
+        logger.info(f"Config to save on system: {self.config_for_rns}")
+        self._folder.put(
+            {self.RUN_CONFIG_FILE: self.config_for_rns},
+            overwrite=overwrite,
+            as_json=True,
+        )
+
+    def _detect_run_type(self, fn):
         if isinstance(fn, Callable):
             return self.FUNCTION_RUN
         elif self.cmds is not None:
@@ -313,13 +316,13 @@ class Run(Resource):
             return self.CTX_MANAGER
 
     def register_new_fn_run(self):
-        """Log a Run once it's been triggered on the system."""
+        """Log a function based Run once it's been triggered on the system."""
         self.start_time = self.current_timestamp
         self.status = self.RUNNING_STATUS
 
         # Write config data for the Run to its config file on the system
         logger.info("Registering new function run")
-        self.write_config()
+        self._write_config()
 
     def register_fn_run_completion(self):
         """Update the Run's config once it's finished running on the system."""
@@ -331,7 +334,7 @@ class Run(Resource):
             self.status = self.COMPLETED_STATUS
 
         logger.info("Registering function run completion")
-        self.write_config()
+        self._write_config()
 
     @staticmethod
     def from_file(name: str, path: str = None):
@@ -350,8 +353,7 @@ class Run(Resource):
         run_config = json.loads(local_folder.get(name=Run.RUN_CONFIG_FILE))
 
         # Re-load the Run object
-        existing_run = Run(**run_config, dryrun=True)
-        return existing_run
+        return Run(**run_config, dryrun=True)
 
     @staticmethod
     def path_to_latest_fn_run(fn_name: str, system: str) -> Union[str, None]:
@@ -418,9 +420,9 @@ class Run(Resource):
             return timestamp_key
         return f"{name}_{timestamp_key}"
 
-    def path_to_log_file(self, ext: str):
+    def _path_to_log_file(self, ext: str):
         """Generate path to a specific log file type in the system. Example: ``stdout`` or ``stderr``."""
-        path = self.default_path_for_ext(ext)
+        path = self._default_path_for_ext(ext)
 
         # Stdout and Stderr files created on a cluster by default are symlinks - convert those to regular files
         # in the Run's folder to ensure they can be copied from the cluster to other systems
@@ -429,10 +431,10 @@ class Run(Resource):
 
         return path
 
-    def default_path_for_ext(self, ext: str) -> str:
+    def _default_path_for_ext(self, ext: str) -> str:
         """Path the file for the Run saved on the system (ex: ``.out`` or ``.err``).
         Note: For a function based Run, the ``.out`` and ``.err`` files are created for us on the grpc server."""
-        existing_file = self.find_file_path_by_ext(ext=ext)
+        existing_file = self._find_file_path_by_ext(ext=ext)
         if existing_file:
             # If file already exists in file (ex: with function on a Ray cluster this will already be
             # generated for us)
@@ -444,7 +446,7 @@ class Run(Resource):
         else:
             return f"{self.base_cluster_path()}/{self.name}" + ext
 
-    def convert_symlink_to_file(self, path: str):
+    def _convert_symlink_to_file(self, path: str):
         """If the system is a Cluster and the file path is a symlink, convert it to a regular file.
         This is necessary to allow for copying of the file between systems (ex: cluster --> s3 or cluster --> local)."""
         if isinstance(self.system, Cluster):
@@ -457,7 +459,7 @@ class Run(Resource):
                     [f"cp --remove-destination `readlink {path}` {path}"]
                 )
 
-    def find_file_path_by_ext(self, ext: str) -> Union[str, None]:
+    def _find_file_path_by_ext(self, ext: str) -> Union[str, None]:
         """Get the file path by provided extension. Needed when loading the stdout and stderr files associated
         with a particular run."""
         if not self.exists_in_system():
@@ -475,14 +477,6 @@ class Run(Resource):
 
         return files_with_ext[0]
 
-    def stdout_path(self) -> str:
-        """Path to stdout file for the Run saved on the system."""
-        return self.path_to_log_file(ext=".out")
-
-    def stderr_path(self) -> str:
-        """Path to stderr file for the Run saved on the system."""
-        return self.path_to_log_file(ext=".err")
-
     def fn_inputs_path(self):
         """Path the pickled inputs used for the function which are saved on the system."""
         return f"{self.path}/inputs.pkl"
@@ -490,10 +484,6 @@ class Run(Resource):
     def fn_result_path(self):
         """Path the pickled result for the function which are saved on the system."""
         return f"{self.path}/result.pkl"
-
-    def config_path(self):
-        """Path the main folder storing the metadata, inputs, and results for the Run saved on the system."""
-        return f"{self.path}/{self.RUN_CONFIG_FILE}"
 
     def base_local_path(self):
         """Path to the base folder for this Run if the system is local."""

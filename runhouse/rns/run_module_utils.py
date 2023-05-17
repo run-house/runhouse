@@ -317,14 +317,6 @@ def _register_completed_run(run_key, config_path, result):
         f"Loaded existing Run {existing_run.name} from the cluster's file system"
     )
 
-    if not existing_run.exists_in_system(path=existing_run._stdout_path):
-        existing_run._folder.put({f"{run_key}.out": "".encode()})
-        logger.info(f"Created empty stdout file in path: {existing_run._stdout_path}")
-
-    if not existing_run.exists_in_system(path=existing_run._stderr_path):
-        existing_run._folder.put({f"{run_key}.err": "".encode()})
-        logger.info(f"Created empty stderr file in path: {existing_run._stderr_path}")
-
     # Update the config data for the completed run
     logger.info(f"Registering completed run for {run_key}")
     existing_run.register_fn_run_completion()
