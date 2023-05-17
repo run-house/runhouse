@@ -76,6 +76,7 @@ class ObjStore:
         obj_ref = self.obj_store_cache.get(key, None)
         if obj_ref:
             ray.cancel(obj_ref, force=force, recursive=recursive)
+        self.delete(key)
 
     def get_logfiles(self, key: str, log_type=None):
         # Info on ray logfiles: https://docs.ray.io/en/releases-2.2.0/ray-observability/ray-logging.html#id1

@@ -83,8 +83,7 @@ def test_cancel_run(cpu_cluster):
     print_fn = rh.function(fn=do_printing_and_logging, system=cpu_cluster)
     key = print_fn.remote()
     assert isinstance(key, str)
-    res = cpu_cluster.cancel(key)
-    assert res == "Cancelled"
+    cpu_cluster.cancel(key)
     try:
         cpu_cluster.get(key, stream_logs=True)
     except Exception as e:

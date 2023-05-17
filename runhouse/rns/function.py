@@ -370,7 +370,7 @@ class Function(Resource):
 
     def remote(self, *args, **kwargs):
         """Run async remote call on cluster."""
-        # TODO [DG] pin the obj_ref and return a string (printed to log) so result can be retrieved later and we
+        # TODO [DG] pin the run_key and return a string (printed to log) so result can be retrieved later and we
         # don't need to init ray here. Also, allow user to pass the string as a param to remote().
         # TODO [DG] add rpc for listing gettaable strings, plus metadata (e.g. when it was created)
         # We need to ray init here so the returned Ray object ref doesn't throw an error it's deserialized
@@ -401,23 +401,14 @@ class Function(Resource):
                 "Function.remote only works with Write or Read access, not Proxy access"
             )
 
-    def get(self, obj_ref):
+    def get(self, run_key):
         """Get the result of a Function call that was submitted as async using `remote`.
 
         Args:
-            obj_ref: A single or list of Ray.ObjectRef objects returned by a Function.remote() call. The ObjectRefs
+            run_key: A single or list of runhouse run_key strings returned by a Function.remote() call. The ObjectRefs
                 must be from the cluster that this Function is running on.
         """
-        # TODO [DG] replace with self.system.get()?
-        if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
-            arg_list = obj_ref if isinstance(obj_ref, list) else [obj_ref]
-            return self._call_fn_with_ssh_access(
-                fn_type="get", args=arg_list, kwargs={}
-            )
-        else:
-            raise NotImplementedError(
-                "Function.get only works with Write or Read access, not Proxy access"
-            )
+        return self.system.get(run_key)
 
     def _call_fn_with_ssh_access(self, fn_type, resources=None, args=None, kwargs=None):
         # https://docs.ray.io/en/latest/ray-core/tasks/patterns/map-reduce.html

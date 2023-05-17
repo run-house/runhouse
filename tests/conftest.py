@@ -95,7 +95,10 @@ def cluster(request):
 
 @pytest.fixture
 def cpu_cluster():
-    return rh.cluster("^rh-cpu").up_if_not()
+    c = rh.cluster("^rh-cpu")
+    c.name = "donny-rh-cpu"
+    c.up_if_not()
+    return c
 
 
 @pytest.fixture
@@ -123,6 +126,7 @@ def a10g_gpu_cluster():
 
 
 # ----------------- Envs -----------------
+
 
 @pytest.fixture
 def test_env():

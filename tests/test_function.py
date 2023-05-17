@@ -52,9 +52,13 @@ def test_create_function_from_name_local(cpu_cluster, test_env):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_create_function_from_rns(cpu_cluster):
+def test_create_function_from_rns(cpu_cluster, test_env):
     remote_sum = rh.function(
-        fn=summer, name="@/remote_function", system=cpu_cluster, env=[], dryrun=True
+        fn=summer,
+        name="@/remote_function",
+        system=cpu_cluster,
+        env=test_env,
+        dryrun=True,
     ).save()
     del remote_sum
 
@@ -136,7 +140,7 @@ def getpid(a=0):
 
 @pytest.mark.clustertest
 def test_maps(cpu_cluster):
-    cpu_cluster.restart_server(resync_rh=True, restart_ray=True)
+    cpu_cluster.restart_server()
     pid_fn = rh.function(getpid, system=cpu_cluster)
     num_pids = [1] * 20
     pids = pid_fn.map(num_pids)
@@ -228,7 +232,7 @@ def test_function_queueing(cpu_cluster):
 
 @pytest.mark.clustertest
 def test_function_to_env(cpu_cluster):
-    cpu_cluster.run(["pip uninstall numpy"])
+    cpu_cluster.run(["pip uninstall numpy -y"])
 
     np_func = rh.function(np_array, system=cpu_cluster)
     np_func = np_func.to(env=["numpy"])

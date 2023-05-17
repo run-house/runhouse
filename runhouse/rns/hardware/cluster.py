@@ -7,7 +7,6 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import grpc
 import ray.cloudpickle as pickle
 import requests.exceptions
 import sshtunnel
@@ -21,8 +20,7 @@ from runhouse.rns.packages.package import Package
 from runhouse.rns.resource import Resource
 from runhouse.rns.utils.hardware import _current_cluster
 
-from runhouse.servers.http.http_client import HTTPClient
-from runhouse.servers.grpc.unary_server import UnaryService
+from runhouse.servers.http import DEFAULT_SERVER_PORT, HTTPClient
 
 logger = logging.getLogger(__name__)
 
@@ -215,7 +213,7 @@ class Cluster(Resource):
             f"Installing packages on cluster {self.name}: "
             f"{[req if isinstance(req, str) else str(req) for req in reqs]}"
         )
-        self.client.install_packages(to_install, env)
+        self.client.install(to_install, env)
 
     def get(self, key: str, default: Any = None, stream_logs: bool = False):
         """Get the object at the given key from the cluster's object store."""
@@ -242,7 +240,9 @@ class Cluster(Resource):
         """Cancel a given run on cluster by its key. If `all` is set to ``True``, then all jobs on the
         cluster will be cancelled."""
         self.check_server()
-        return self.client.cancel_runs(key, force=force, all=all)
+        if all:
+            key = "all"
+        return self.client.cancel_runs(key, force=force)
 
     def clear_pins(self, pins: Optional[List[str]] = None):
         """Remove the given pinned items from the cluster. If `pins` is set to ``None``, then
@@ -283,7 +283,7 @@ class Cluster(Resource):
         else:
             self._grpc_tunnel, connected_port = self.ssh_tunnel(
                 HTTPClient.DEFAULT_PORT,
-                remote_port=UnaryService.DEFAULT_PORT,
+                remote_port=DEFAULT_SERVER_PORT,
                 num_ports_to_try=5,
             )
         open_grpc_tunnels[self.address] = (
@@ -294,10 +294,6 @@ class Cluster(Resource):
 
         # Connecting to localhost because it's tunneled into the server at the specified port.
         self.client = HTTPClient(host="127.0.0.1", port=connected_port)
-        waited = 0
-        # while not self.is_connected() and waited <= self.REQUEST_TIMEOUT:
-        #     time.sleep(0.25)
-        #     waited += 0.25
 
     def check_server(self, restart_server=True):
         if not self.address:
