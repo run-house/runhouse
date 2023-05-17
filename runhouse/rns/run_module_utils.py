@@ -52,9 +52,9 @@ def call_fn_by_type(
         logging_wrapped_fn = enable_logging_fn_wrapper(get_fn_from_pointers, run_key)
 
         ray_fn = ray.remote(
-            num_cpus=resources.get("num_cpus", .0001),  # So ray doesn't block execution by default
-            num_gpus=resources.get("num_gpus"),
-            max_calls=1,
+            num_cpus=resources.get("num_cpus") or 0.0001,
+            num_gpus=resources.get("num_gpus") or 0.0001 if num_gpus > 0 else None,
+            max_calls=len(args) if fn_type in ["map", "starmap"] else 1,
             runtime_env=runtime_env,
         )(logging_wrapped_fn)
 
