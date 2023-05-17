@@ -320,13 +320,15 @@ def delete_function_from_rns(s):
 
 @pytest.mark.clustertest
 def test_http_url(cpu_cluster):
-    remote_sum = rh.function(summer).to(cpu_cluster).save("@/remote_function")
+    rh.function(summer).to(cpu_cluster).save("@/remote_function")
     cpu_cluster.ssh_tunnel(80, 50052)
-    sum1 = requests.post(f"http://127.0.0.1:80/call/remote_function/",
-                         json={"args": [1, 2]}).json()
+    sum1 = requests.post(
+        "http://127.0.0.1:80/call/remote_function/", json={"args": [1, 2]}
+    ).json()
     assert sum1 == 3
-    sum2 = requests.post(f"http://127.0.0.1:80/call/remote_function/",
-                         json={"kwargs": {"a": 1, "b": 2}}).json()
+    sum2 = requests.post(
+        "http://127.0.0.1:80/call/remote_function/", json={"kwargs": {"a": 1, "b": 2}}
+    ).json()
     assert sum2 == 3
 
 

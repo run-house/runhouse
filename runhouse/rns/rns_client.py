@@ -9,13 +9,13 @@ from typing import Optional
 import requests
 
 from runhouse.rns.api_utils.resource_access import ResourceAccess
-from runhouse.rns.utils.hardware import _current_cluster
 from runhouse.rns.api_utils.utils import (
     generate_uuid,
     load_resp_content,
     read_resp_data,
     remove_null_values_from_dict,
 )
+from runhouse.rns.utils.hardware import _current_cluster
 
 logger = logging.getLogger(__name__)
 

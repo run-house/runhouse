@@ -23,9 +23,9 @@ from runhouse.rns.top_level_rns_fns import (
     remove_pinned_object,
 )
 from runhouse.servers.http.http_utils import (
+    Args,
     b64_unpickle,
     Message,
-    Args,
     OutputType,
     pickle_b64,
     Response,
@@ -461,9 +461,10 @@ class HTTPServer:
             )
 
     @app.post("/call/{fn_name}")
-    def run_module(self, fn_name: str, args: Args):
+    def call_fn(self, fn_name: str, args: Args):
         self.register_activity()
         from runhouse import function
+
         fn = function(name=fn_name, dryrun=True)
         return fn(*(args.args or []), **(args.kwargs or {}))
 
