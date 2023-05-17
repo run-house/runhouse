@@ -66,6 +66,8 @@ class Function(Resource):
         """Create a Function object from a config dictionary."""
         if isinstance(config["system"], dict):
             config["system"] = Cluster.from_config(config["system"], dryrun=dryrun)
+        if isinstance(config["env"], dict):
+            config["env"] = Env.from_config(config["env"], dryrun=dryrun)
 
         return Function(**config, dryrun=dryrun)
 
@@ -115,6 +117,8 @@ class Function(Resource):
             env = _get_env_from(env)
 
         if self.env:
+            # Note: Here we add the existing reqs in the function’s env into the new env
+            # (otherwise we don’t have a way to add in "./")
             new_reqs = [req for req in self.env.reqs if req not in env.reqs]
             env.reqs += new_reqs
 

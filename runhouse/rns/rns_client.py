@@ -87,13 +87,17 @@ class RNSClient:
             return str(dir_path)
         else:
             if searched_dirs is None:
-                searched_dirs = {dir_path,}
+                searched_dirs = {
+                    dir_path,
+                }
             else:
                 searched_dirs.add(dir_path)
             parent_path = Path(dir_path).parent
             if parent_path in searched_dirs:
                 return None
-            return cls.find_parent_with_file(parent_path, file, searched_dirs=searched_dirs)
+            return cls.find_parent_with_file(
+                parent_path, file, searched_dirs=searched_dirs
+            )
 
     @classmethod
     def locate_working_dir(cls, cwd=os.getcwd()):
