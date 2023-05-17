@@ -144,6 +144,6 @@ class HTTPClient:
             "secrets",
             req_type="post",
             data=pickle_b64(secrets),
-            err_str="Error sending secrets"
+            err_str="Error sending secrets",
         )
         return failed_providers

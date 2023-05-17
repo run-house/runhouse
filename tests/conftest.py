@@ -103,9 +103,7 @@ def cpu_cluster():
 
 @pytest.fixture
 def cpu_cluster_2():
-    c = rh.cluster(
-        name="other-cpu", instance_type="CPU:2+", provider="aws"
-    ).up_if_not()
+    c = rh.cluster(name="other-cpu", instance_type="CPU:2+", provider="aws").up_if_not()
     c.install_packages(["pytest"])
     return c
 
