@@ -8,6 +8,8 @@ import runhouse as rh
 from runhouse.rns.api_utils.resource_access import ResourceAccess
 from runhouse.rns.api_utils.utils import load_resp_content
 
+REMOTE_FUNC_NAME = "@/remote_function"
+
 
 def setup():
     rh.set_folder("~/tests", create=True)
@@ -50,48 +52,38 @@ def test_create_function_from_name_local(cpu_cluster):
     assert rh.exists("local_function") is False
 
 
-@pytest.mark.clustertest
-@pytest.mark.rnstest
-def test_create_function_from_rns(cpu_cluster):
-    name = "@/remote_function"
-    remote_sum = rh.function(fn=summer, name=name).to(cpu_cluster).save()
-
-    # reload the function
-    res = remote_sum(1, 5)
-    assert res == 6
-
-    remote_sum.delete_configs()
-    assert not rh.exists(name)
-
-
 @unittest.skip("Not yet implemented.")
 @pytest.mark.rnstest
 @pytest.mark.clustertest
 def test_running_function_as_proxy(cpu_cluster):
-    name = "@/remote_function"
-    remote_sum = rh.function(fn=summer, name=name).to(cpu_cluster).save()
-
     # reload the function from RNS
-    remote_sum = rh.Function.from_name(name)
+    remote_sum = rh.Function.from_name(REMOTE_FUNC_NAME)
     remote_sum.access = ResourceAccess.PROXY
     res = remote_sum(1, 5)
     assert res == 6
 
     remote_sum.delete_configs()
-    assert not rh.exists(name)
+    assert not rh.exists(REMOTE_FUNC_NAME)
+
+
+@pytest.mark.clustertest
+@pytest.mark.rnstest
+def test_create_function_from_rns(cpu_cluster):
+    remote_sum = rh.function(fn=summer, name=REMOTE_FUNC_NAME).to(cpu_cluster).save()
+
+    # reload the function
+    res = remote_sum(1, 5)
+    assert res == 6
 
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_get_function_history(cpu_cluster):
-    name = "@/remote_function"
-    remote_sum = rh.function(fn=summer, name=name).to(cpu_cluster, env=["torch"]).save()
+    # reload the function from RNS
+    remote_sum = rh.Function.from_name(REMOTE_FUNC_NAME)
 
-    history = remote_sum.history(name=name)
+    history = remote_sum.history(name=REMOTE_FUNC_NAME)
     assert history
-
-    remote_sum.delete_configs()
-    assert not rh.exists(name)
 
 
 def multiproc_torch_sum(inputs):
@@ -255,9 +247,7 @@ def test_ssh():
 @pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_share_function(cpu_cluster):
-    my_function = (
-        rh.function(fn=summer, name="@/remote_function").to(cpu_cluster).save()
-    )
+    my_function = rh.function(fn=summer, name=REMOTE_FUNC_NAME).to(cpu_cluster).save()
 
     my_function.share(
         users=["donny@run.house", "josh@run.house"],
@@ -269,7 +259,7 @@ def test_share_function(cpu_cluster):
 
 @pytest.mark.rnstest
 def test_load_shared_function():
-    my_function = rh.Function.from_name(name="@/remote_function")
+    my_function = rh.Function.from_name(name=REMOTE_FUNC_NAME)
     res = my_function(1, 2)
     assert res == 3
 
@@ -382,7 +372,7 @@ def test_byo_cluster_maps():
 @pytest.mark.rnstest
 def test_load_function_in_new_env(cpu_cluster):
     remote_sum = (
-        rh.function(fn=summer, name="@/remote_function").to(system=cpu_cluster).save()
+        rh.function(fn=summer, name=REMOTE_FUNC_NAME).to(system=cpu_cluster).save()
     )
 
     byo_cluster = rh.cluster(name="different-cluster")

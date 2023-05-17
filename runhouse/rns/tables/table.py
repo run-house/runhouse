@@ -149,7 +149,7 @@ class Table(Resource):
         self._folder.data_config = new_data_config
 
     @classmethod
-    def from_name(cls, name, dryrun=True):
+    def from_name(cls, name, dryrun=False):
         """Load existing Table via its name."""
         config = rns_client.load_config(name=name)
         if not config:

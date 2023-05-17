@@ -200,7 +200,10 @@ class Cluster(Resource):
             else:
                 pkg_obj = package
 
-            if isinstance(pkg_obj.install_target, Folder):
+            if isinstance(pkg_obj, dict):
+                pkg_obj = Package.from_config(pkg_obj)
+                to_install.append(pkg_obj)
+            elif isinstance(pkg_obj.install_target, Folder):
                 if not pkg_obj.install_target.system == self:
                     pkg_str = pkg_obj.name or Path(pkg_obj.install_target.path).name
                     logging.info(
