@@ -68,19 +68,19 @@ Table of Contents
     :maxdepth: 1
     :caption: API Tutorials
 
-    tutorials/resource
-    tutorials/compute
-    tutorials/data
-    tutorials/secrets_management
+    tutorials/api/resource
+    tutorials/api/compute
+    tutorials/api/data
+    tutorials/api/secrets_management
 
 .. toctree::
    :maxdepth: 1
    :caption: Usage Examples
 
-   Inference: Stable Diffusion and FLAN T-5 <https://github.com/run-house/tutorials/tree/main/t01_Stable_Diffusion>
-   Training: Dreambooth <https://github.com/run-house/tutorials/tree/main/t02_Dreambooth>
+   tutorials/examples/inference
+   tutorials/examples/training
+   tutorials/examples/distributed
    Pipelining: BERT <https://github.com/run-house/tutorials/tree/main/t05_BERT_pipeline>
-   Distributed: HF Accelerate <https://github.com/run-house/tutorials/tree/stable/t04_Distributed>
    Runhouse in Colab: DALLE img2img2 <https://github.com/run-house/tutorials/tree/main/t03_DALLE_SD_pipeline>
 
 .. toctree::

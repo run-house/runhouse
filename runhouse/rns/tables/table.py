@@ -149,7 +149,7 @@ class Table(Resource):
         self._folder.data_config = new_data_config
 
     @classmethod
-    def from_name(cls, name, dryrun=True):
+    def from_name(cls, name, dryrun=False):
         """Load existing Table via its name."""
         config = rns_client.load_config(name=name)
         if not config:
@@ -179,15 +179,15 @@ class Table(Resource):
             data_to_write = self.data
 
             if isinstance(data_to_write, pd.DataFrame):
-                data_to_write = self.ray_dataset_from_pandas(data_to_write)
+                data_to_write = self._ray_dataset_from_pandas(data_to_write)
 
             if isinstance(data_to_write, pa.Table):
-                data_to_write = self.ray_dataset_from_arrow(data_to_write)
+                data_to_write = self._ray_dataset_from_arrow(data_to_write)
 
             if not isinstance(data_to_write, ray.data.Dataset):
                 raise TypeError(f"Invalid Table format {type(data_to_write)}")
 
-            self.write_ray_dataset(data_to_write)
+            self._write_ray_dataset(data_to_write)
             logger.info(f"Saved {str(self)} to: {self.fsspec_url}")
 
         return self
@@ -295,7 +295,7 @@ class Table(Resource):
         )
         return dataset
 
-    def write_ray_dataset(self, data_to_write: ray.data.Dataset):
+    def _write_ray_dataset(self, data_to_write: ray.data.Dataset):
         """Write a ray dataset to a fsspec filesystem"""
         if self.partition_cols:
             # TODO [JL]: https://arrow.apache.org/docs/python/generated/pyarrow.parquet.write_to_dataset.html
@@ -308,12 +308,12 @@ class Table(Resource):
         )
 
     @staticmethod
-    def ray_dataset_from_arrow(data: pa.Table):
+    def _ray_dataset_from_arrow(data: pa.Table):
         """Convert an Arrow Table to a Ray Dataset"""
         return ray.data.from_arrow(data)
 
     @staticmethod
-    def ray_dataset_from_pandas(data: pd.DataFrame):
+    def _ray_dataset_from_pandas(data: pd.DataFrame):
         """Convert an Pandas DataFrame to a Ray Dataset"""
         return ray.data.from_pandas(data)
 

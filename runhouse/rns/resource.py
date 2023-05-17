@@ -141,7 +141,7 @@ class Resource:
         return config
 
     @classmethod
-    def from_name(cls, name, dryrun=True):
+    def from_name(cls, name, dryrun=False):
         """Load existing Resource via its name."""
         config = rns_client.load_config(name=name)
         if not config:

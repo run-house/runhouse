@@ -35,7 +35,7 @@ class GCPSecrets(Secrets):
     def save_secrets(cls, secrets: dict, overwrite: bool = False):
 
         dest_path = cls.default_credentials_path()
-        cls.check_secrets_for_mismatches(
+        cls._check_secrets_for_mismatches(
             secrets_to_save=secrets, secrets_path=dest_path, overwrite=overwrite
         )
 
@@ -59,4 +59,4 @@ class GCPSecrets(Secrets):
             )
 
         cls.save_to_json_file(config, dest_path)
-        cls.add_provider_to_rh_config()
+        cls._add_provider_to_rh_config()

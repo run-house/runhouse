@@ -27,7 +27,7 @@ class LambdaSecrets(Secrets):
     def save_secrets(cls, secrets: dict, overwrite: bool = False):
 
         dest_path = cls.default_credentials_path()
-        cls.check_secrets_for_mismatches(
+        cls._check_secrets_for_mismatches(
             secrets_to_save=secrets, secrets_path=dest_path, overwrite=overwrite
         )
 
@@ -36,4 +36,4 @@ class LambdaSecrets(Secrets):
         with open(dest_path, "w") as f:
             f.write(f'api_key = {secrets["api_key"]}\n')
 
-        cls.add_provider_to_rh_config()
+        cls._add_provider_to_rh_config()
