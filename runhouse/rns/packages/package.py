@@ -430,6 +430,9 @@ def package(
 
     Returns:
         Package: The resulting package.
+
+    Example:
+        >>> # TODO [CC]
     """
     config = rh_config.rns_client.load_config(name) if load else {}
     config["name"] = name or config.get("rns_address", None) or config.get("name")
