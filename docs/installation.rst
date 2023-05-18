@@ -43,7 +43,9 @@ where we spin up and down cloud instances (in your own cloud account) for you.
 We use `SkyPilot <https://skypilot.readthedocs.io/en/latest/>`_ for much of the heavy lifting
 with launching and terminating cloud instances, and will use their APIs to check for proper setup.
 To check which cloud providers are setup, as well as detailed instructions for setting up other
-cloud providers, run the following on CLI.
+cloud providers, run the following on CLI, or check out SkyPilot's
+`cloud account setup <https://skypilot.readthedocs.io/en/latest/getting-started/installation.html#cloud-account-setup>`_
+for instructions.
 
 .. code-block:: console
 
@@ -71,10 +73,9 @@ To create an account, visit our `dashboard <https://api.run.house/>`_, or simply
 
 .. note::
     These portability features only ever store light metadata about your resources
-    (e.g. my_folder_name, cloud provider, storage bucket, path) on our API servers.
+    (e.g. folder name, cloud provider, storage bucket, path) on our API servers.
     *All the actual data and compute stays inside your own cloud account and never hits our servers*.
 
-    The Secrets service stores your secrets in `Hashicorp Vault <https://www.vaultproject.io/>`_ (an industry standard for secrets management),
-    and our secrets APIs simply call Vault's APIs. We never store secrets on our API servers.
-    We plan to add support for BYO secrets management shortly.
-    Let us know if you need it and which system you use.
+    Secrets are stored in `Hashicorp Vault <https://www.vaultproject.io/>`_ (an industry standard for secrets management),
+    never on our API servers, and our APIs simply call into Vault's APIs.
+    We plan to add support for BYO secrets management shortly. Let us know if you need it and which system you use.

@@ -26,6 +26,7 @@ Install Runhouse and Setup Cluster
 
     import runhouse as rh
 
+
 Optionally, login to Runhouse to sync credentials.
 
 .. code:: python
@@ -82,9 +83,9 @@ use ``.to()`` to send the folder to a remote cluster.
 
 .. parsed-literal::
 
-    INFO | 2023-05-08 20:15:23,316 | Creating new file folder if it does not already exist in path: /content/sample_folder
-    INFO | 2023-05-08 20:15:23,318 | Copying folder from file:///content/sample_folder to: cpu-cluster, with path: sample_folder
-    INFO | 2023-05-08 20:15:24,766 | Running command on cpu-cluster: ls sample_folder
+    INFO | 2023-05-18 22:04:19,262 | Creating new file folder if it does not already exist in path: /content/sample_folder
+    INFO | 2023-05-18 22:04:19,270 | Copying folder from file:///content/sample_folder to: cpu-cluster, with path: sample_folder
+    INFO | 2023-05-18 22:04:21,170 | Running command on cpu-cluster: ls sample_folder
     0.txt
     1.txt
     2.txt
@@ -106,6 +107,23 @@ You can also send the folder to file storage, such as S3, GS, and Azure.
 
     s3_folder = local_folder.to(system="s3")
     s3_folder.ls(full_paths=False)
+
+
+.. parsed-literal::
+
+    INFO | 2023-05-18 22:04:25,030 | Copying folder from file:///content/sample_folder to: s3, with path: /runhouse-folder/79fe2eef03744148852156a003445885
+    INFO | 2023-05-18 22:04:25,034 | Attempting to load config for /carolineechen/s3 from RNS.
+    INFO | 2023-05-18 22:04:25,275 | No config found in RNS: {'detail': 'Resource does not exist'}
+    INFO | 2023-05-18 22:04:26,717 | Found credentials in shared credentials file: ~/.aws/credentials
+
+
+
+
+.. parsed-literal::
+
+    ['0.txt', '1.txt', '2.txt', '3.txt', '4.txt']
+
+
 
 Similarly, you can send folders from a cluster to file storage, cluster
 to cluster, or file storage to file storage. These are all done without
@@ -144,9 +162,11 @@ Let’s step through an example using Pandas tables:
 
 .. parsed-literal::
 
-    INFO | 2023-05-08 21:49:13,620 | Attempting to load config for /carolineechen/file from RNS.
-    INFO | 2023-05-08 21:49:13,684 | No config found in RNS: {'detail': 'Resource does not exist'}
-    INFO | 2023-05-08 21:49:13,687 | Creating new file folder if it does not already exist in path: /root/.cache/runhouse/tables/0b9b0c0c5afc4d03b475db6ec61f7b7b
+    INFO | 2023-05-18 22:10:14,856 | Attempting to load config for /carolineechen/sample_table from RNS.
+    INFO | 2023-05-18 22:10:15,076 | No config found in RNS: {'detail': 'Resource does not exist'}
+    INFO | 2023-05-18 22:10:15,078 | Attempting to load config for /carolineechen/file from RNS.
+    INFO | 2023-05-18 22:10:15,261 | No config found in RNS: {'detail': 'Resource does not exist'}
+    INFO | 2023-05-18 22:10:15,266 | Creating new file folder if it does not already exist in path: /root/.cache/runhouse/tables/carolineechen/sample_table
        id grade
     0   1     a
     1   2     b
@@ -164,16 +184,47 @@ cluster:
     rh_table.to(system="s3")
     rh_table.to(cluster)
 
-To stream batches of the table, we can create a new table object with an
-iterable ``.data`` field using the ``rh.table`` constructor and passing
+
+.. parsed-literal::
+
+    INFO | 2023-05-18 22:10:24,487 | Copying folder from file:///root/.cache/runhouse/tables/carolineechen/sample_table to: s3, with path: /runhouse-folder/9215396cea4040c093997f3d5ae48943
+    INFO | 2023-05-18 22:10:24,490 | Attempting to load config for /carolineechen/s3 from RNS.
+    INFO | 2023-05-18 22:10:24,648 | No config found in RNS: {'detail': 'Resource does not exist'}
+    INFO | 2023-05-18 22:10:25,468 | Copying folder from file:///root/.cache/runhouse/tables/carolineechen/sample_table to: cpu-cluster, with path: ~/.cache/runhouse/ed2fd40ca63140408444deca935528ec
+
+
+
+
+.. parsed-literal::
+
+    <runhouse.rns.tables.pandas_table.PandasTable at 0x7fc346de6c50>
+
+
+
+To stream batches of the table, we reload the table object, but with an
+iterable ``.data`` field, using the ``rh.table`` constructor and passing
 in the name.
+
+Note that you can’t directly do this with the original table object, as
+it’s ``.data`` field is the original ``data`` passed in, and not
+necessarily in an iterable format.
 
 .. code:: python
 
     reloaded_table = rh.table(name=table_name)
+
+.. code:: python
+
     batches = reloaded_table.stream(batch_size=2)
     for _, batch in batches:
         print(batch)
+
+
+.. parsed-literal::
+
+    2023-05-18 22:13:41,227	WARNING read_api.py:330 -- ⚠️  The number of blocks in this dataset (0) limits its parallelism to 0 concurrent tasks. This is much less than the number of available CPU slots in the cluster. Use `.repartition(n)` to increase the number of dataset blocks.
+    Parquet Files Sample: : 0it [00:00, ?it/s]
+
 
 Blobs
 -----
@@ -206,16 +257,28 @@ can be written down or synced to systems.
 
 .. parsed-literal::
 
-    INFO | 2023-05-08 21:40:29,141 | Attempting to load config for /carolineechen/local_blob from RNS.
-    INFO | 2023-05-08 21:40:29,212 | Attempting to load config for /carolineechen/file from RNS.
-    INFO | 2023-05-08 21:40:29,267 | No config found in RNS: {'detail': 'Resource does not exist'}
-    INFO | 2023-05-08 21:40:29,269 | Creating new file folder if it does not already exist in path: /root/.cache/runhouse/blobs/aa9001761bb14d13bd3545b1f6127a6e/carolineechen
+    INFO | 2023-05-18 22:15:54,332 | Attempting to load config for /carolineechen/local_blob from RNS.
+    INFO | 2023-05-18 22:15:54,524 | Attempting to load config for /carolineechen/file from RNS.
+    INFO | 2023-05-18 22:15:54,690 | No config found in RNS: {'detail': 'Resource does not exist'}
+    INFO | 2023-05-18 22:15:54,692 | Creating new file folder if it does not already exist in path: /root/.cache/runhouse/blobs/aa9001761bb14d13bd3545b1f6127a6e/carolineechen
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]
-    INFO | 2023-05-08 21:40:29,274 | Attempting to load config for /carolineechen/local_blob from RNS.
-    INFO | 2023-05-08 21:40:29,332 | Attempting to load config for /carolineechen/file from RNS.
-    INFO | 2023-05-08 21:40:29,388 | No config found in RNS: {'detail': 'Resource does not exist'}
-    INFO | 2023-05-08 21:40:29,390 | Creating new file folder if it does not already exist in path: /root/.cache/runhouse/blobs/aa9001761bb14d13bd3545b1f6127a6e/carolineechen
+    INFO | 2023-05-18 22:15:54,695 | Attempting to load config for /carolineechen/local_blob from RNS.
+    INFO | 2023-05-18 22:15:54,854 | Attempting to load config for /carolineechen/file from RNS.
+    INFO | 2023-05-18 22:15:55,015 | No config found in RNS: {'detail': 'Resource does not exist'}
+    INFO | 2023-05-18 22:15:55,017 | Creating new file folder if it does not already exist in path: /root/.cache/runhouse/blobs/aa9001761bb14d13bd3545b1f6127a6e/carolineechen
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]
+    INFO | 2023-05-18 22:15:55,024 | Copying folder from file:///root/.cache/runhouse/blobs/aa9001761bb14d13bd3545b1f6127a6e/carolineechen to: cpu-cluster, with path: ~/.cache/runhouse/c4ff6d2954124f119932689ff9afa58b
+    INFO | 2023-05-18 22:15:56,856 | Copying folder from file:///root/.cache/runhouse/blobs/aa9001761bb14d13bd3545b1f6127a6e/carolineechen to: s3, with path: /runhouse-folder/932d21850d2a43d8badd485e0d583758
+    INFO | 2023-05-18 22:15:56,861 | Attempting to load config for /carolineechen/s3 from RNS.
+    INFO | 2023-05-18 22:15:57,029 | No config found in RNS: {'detail': 'Resource does not exist'}
+
+
+
+
+.. parsed-literal::
+
+    <runhouse.rns.blob.Blob at 0x7fc33c268550>
+
 
 
 .. code:: python
@@ -226,11 +289,63 @@ can be written down or synced to systems.
     # create blob from cluster
     rh.blob(path="path/on/cluster", system=cluster)
 
-Terminate Cluster
------------------
+
+.. parsed-literal::
+
+    INFO | 2023-05-18 22:16:05,189 | Attempting to load config for /carolineechen/s3 from RNS.
+    INFO | 2023-05-18 22:16:05,352 | No config found in RNS: {'detail': 'Resource does not exist'}
+    INFO | 2023-05-18 22:16:05,354 | Creating new s3 folder if it does not already exist in path: /runhouse-blob/d135efb148b14ae9a05d50d0ba4c7c82
+    INFO | 2023-05-18 22:16:05,374 | Found credentials in shared credentials file: ~/.aws/credentials
+    INFO | 2023-05-18 22:16:05,863 | Creating new ssh folder if it does not already exist in path: path/on
+    INFO | 2023-05-18 22:16:05,919 | Opening SSH connection to 3.93.183.178, port 22
+    INFO | 2023-05-18 22:16:05,951 | [conn=0] Connected to SSH server at 3.93.183.178, port 22
+    INFO | 2023-05-18 22:16:05,952 | [conn=0]   Local address: 172.28.0.12, port 44872
+    INFO | 2023-05-18 22:16:05,955 | [conn=0]   Peer address: 3.93.183.178, port 22
+    INFO | 2023-05-18 22:16:06,083 | [conn=0] Beginning auth for user ubuntu
+    INFO | 2023-05-18 22:16:06,198 | [conn=0] Auth for user ubuntu succeeded
+    INFO | 2023-05-18 22:16:06,201 | [conn=0, chan=0] Requesting new SSH session
+    INFO | 2023-05-18 22:16:06,540 | [conn=0, chan=0]   Subsystem: sftp
+    INFO | 2023-05-18 22:16:06,573 | [conn=0, chan=0] Starting SFTP client
+
+
+
+
+.. parsed-literal::
+
+    <runhouse.rns.blob.Blob at 0x7fc33c27a710>
+
+
+
+To get the contents from a blob:
+
+.. code:: python
+
+    raw_data = local_blob.fetch()
+    pickle.loads(raw_data)  # deserialization
+
+
+
+
+.. parsed-literal::
+
+    '[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]'
+
+
+
+Now that you understand the basics, feel free to play around with more
+complicated scenarios! You can also check out our additional API and
+example usage tutorials on our `docs
+site <https://runhouse-docs.readthedocs-hosted.com/en/latest/index.html>`__.
+
+Cluster Termination
+-------------------
 
 .. code:: python
 
     !sky down cpu-cluster
     # or
+    cluster.teardown()
+
+.. code:: python
+
     cluster.teardown()
