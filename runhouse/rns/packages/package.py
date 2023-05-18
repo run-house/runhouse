@@ -405,11 +405,10 @@ def package(
     install_method: str = None,
     install_str: str = None,
     url: str = None,
-    system: str = Folder.DEFAULT_FS,
+    system: str = None,
     dryrun: bool = False,
     local_mount: bool = False,
     data_config: Optional[Dict] = None,
-    load: bool = True,
 ) -> Package:
     """
     Builds an instance of :class:`Package`.
@@ -426,16 +425,32 @@ def package(
             (Default: ``False``)
         local_mount (bool): Whether to locally mount the installed package. (Default: ``False``)
         data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
-        load (bool): Whether to load an existing config for the Package. (Default: ``True``)
 
     Returns:
         Package: The resulting package.
+
+    Example:
+        >>> # Load package
+        >>> reloaded_package = rh.package(name="my-package", dryrun=True)
     """
-    config = rh_config.rns_client.load_config(name) if load else {}
+    if (
+        install_method is None
+        and install_str is None
+        and url is None
+        and system is None
+        and data_config is None
+        and not dryrun
+        and not local_mount
+    ):
+        # If only the name is provided and dryrun is set to True
+        return Package.from_name(name)
+
+    config = rh_config.rns_client.load_config(name)
     config["name"] = name or config.get("rns_address", None) or config.get("name")
 
     config["install_method"] = install_method or config.get("install_method")
     if url is not None:
+        system = config.get("system") or system or Folder.DEFAULT_FS
         config["install_target"] = Folder(
             path=url, system=system, local_mount=local_mount, data_config=data_config
         )

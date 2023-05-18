@@ -58,7 +58,7 @@ with a Python interpreter and internet connection (notebook, IDE, CI/CD, orchest
 ```python
 import runhouse as rh
 
-sd_generate = rh.Function.from_name("sd_generate")
+sd_generate = rh.function(name="sd_generate")
 image = sd_generate("A hot dog made of matcha.")
 ```
 There's no magic yaml, DSL, code serialization, or "submitting for execution." We're
@@ -82,7 +82,7 @@ outputs_s3.save("dreambooth_outputs")
 
 To load down the folder in full later:
 ```python
-rh.Folder.from_name("dreambooth_outputs").to("here")
+rh.folder(name="dreambooth_outputs", dryrun=True).to("here")
 ```
 
 We support interactive blob and table primitives too:
@@ -116,7 +116,7 @@ def train_model(preprocessed_table):
     return rh.blob(pickle.dumps(model)).write()
 
 if __name__ == "__main__":
-    preprocessed_table = rh.Table.from_name("preprocessed-dataset")
+    preprocessed_table = rh.table(name="preprocessed-dataset")
     train_model = rh.function(train_model).to("my-a100", env=["./", "torch", "transformers"])
     trained_model = train_model(preprocessed_table)
     trained_model.to("s3", path="runhouse/my_bucket").save(name="yelp_fine_tuned_bert")

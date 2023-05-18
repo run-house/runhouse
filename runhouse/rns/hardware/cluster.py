@@ -79,13 +79,15 @@ class Cluster(Resource):
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
-        # TODO use 'resource_subtype' in config? (this will need to be more robust when we add more cluster types)
-        if "ips" in config:
+        resource_subtype = config.get("resource_subtype")
+        if resource_subtype == "cluster":
             return Cluster(**config, dryrun=dryrun)
-        else:
+        elif resource_subtype == "OnDemandCluster":
             from runhouse.rns.hardware import OnDemandCluster
 
             return OnDemandCluster(**config, dryrun=dryrun)
+        else:
+            raise ValueError(f"Unknown cluster type {resource_subtype}")
 
     @property
     def config_for_rns(self):
@@ -689,10 +691,13 @@ def cluster(
         >>> gpu = rh.autocluster(ips=['<ip of the cluster>'],
         >>>          ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'},
         >>>          name='rh-a10x')
+
+        >>> # Load cluster from above
+        >>> reloaded_cluster = rh.cluster(name="rh-a10x", dryrun=True)
     """
     if ips is None and ssh_creds is None and dryrun:
         # If only the name is provided and dryrun is set to True
-        return Cluster.from_name(name)
+        return Cluster.from_name(name, dryrun)
 
     if kwargs:
         warnings.warn(

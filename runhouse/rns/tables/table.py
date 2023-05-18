@@ -423,7 +423,6 @@ def table(
     dryrun: bool = False,
     stream_format: Optional[str] = None,
     metadata: Optional[dict] = None,
-    load: bool = True,
 ) -> Table:
     """Constructs a Table object, which can be used to interact with the table at the given path.
 
@@ -441,7 +440,6 @@ def table(
         stream_format (Optional[str]): Format to stream the Table as.
             Currently this must be one of: [``pyarrow``, ``torch``, ``tf``, ``pandas``]
         metadata (Optional[dict]): Metadata to store for the table.
-        load (bool): Whether to load an existing config for the Table. (Default: ``True``)
 
     Returns:
         Table: The resulting Table object.
@@ -457,9 +455,28 @@ def table(
         >>> )
         >>>
         >>> # Load table from above
-        >>> reloaded_table = rh.table(name="~/my_test_pandas_table")
+        >>> reloaded_table = rh.table(name="~/my_test_pandas_table", dryrun=True)
     """
-    config = rns_client.load_config(name) if load else {}
+    if (
+        all(
+            param is None
+            for param in (
+                data,
+                path,
+                system,
+                data_config,
+                partition_cols,
+                stream_format,
+                metadata,
+            )
+        )
+        and not mkdir
+        and dryrun
+    ):
+        # Try reloading existing table
+        return Table.from_name(name, dryrun)
+
+    config = rns_client.load_config(name)
 
     config["system"] = (
         system

@@ -56,7 +56,7 @@ class Blob(Resource):
         return config
 
     @staticmethod
-    def from_config(config: dict, dryrun=True):
+    def from_config(config: dict, dryrun=False):
         return Blob(**config, dryrun=dryrun)
 
     @property
@@ -173,7 +173,6 @@ def blob(
     data_config: Optional[Dict] = None,
     mkdir: bool = False,
     dryrun: bool = False,
-    load: bool = True,
 ):
     """Returns a Blob object, which can be used to interact with the resource at the given path
 
@@ -188,7 +187,6 @@ def blob(
         mkdir (bool): Whether to create a remote folder for the blob. (Default: ``False``)
         dryrun (bool): Whether to create the Blob if it doesn't exist, or load a Blob object as a dryrun.
             (Default: ``False``)
-        load (bool): Whether to load an existing config for the Blob. (Default: ``True``)
 
     Returns:
         Blob: The resulting blob.
@@ -212,7 +210,23 @@ def blob(
         >>> my_local_blob = rh.blob(name="~/my_blob")
         >>> my_s3_blob = rh.blob(name="@/my_blob")
     """
-    config = rns_client.load_config(name) if load else {}
+    if (
+        all(
+            param is None
+            for param in (
+                data,
+                path,
+                system,
+                data_config,
+            )
+        )
+        and not mkdir
+        and dryrun
+    ):
+        # Try reloading existing blob
+        return Blob.from_name(name, dryrun)
+
+    config = rns_client.load_config(name)
 
     system = (
         system

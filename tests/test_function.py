@@ -44,7 +44,7 @@ def test_create_function_from_name_local(cpu_cluster):
     ).save()
     del local_sum
 
-    remote_sum = rh.Function.from_name(name="local_function")
+    remote_sum = rh.function(name="local_function", dryrun=True)
     res = remote_sum(1, 5)
     assert res == 6
 
@@ -57,7 +57,7 @@ def test_create_function_from_name_local(cpu_cluster):
 @pytest.mark.clustertest
 def test_running_function_as_proxy(cpu_cluster):
     # reload the function from RNS
-    remote_sum = rh.Function.from_name(REMOTE_FUNC_NAME)
+    remote_sum = rh.function(name=REMOTE_FUNC_NAME, dryrun=True)
     remote_sum.access = ResourceAccess.PROXY
     res = remote_sum(1, 5)
     assert res == 6
@@ -80,7 +80,7 @@ def test_create_function_from_rns(cpu_cluster):
 @pytest.mark.rnstest
 def test_get_function_history(cpu_cluster):
     # reload the function from RNS
-    remote_sum = rh.Function.from_name(REMOTE_FUNC_NAME)
+    remote_sum = rh.function(name=REMOTE_FUNC_NAME, dryrun=True)
 
     history = remote_sum.history(name=REMOTE_FUNC_NAME)
     assert history
@@ -259,7 +259,7 @@ def test_share_function(cpu_cluster):
 
 @pytest.mark.rnstest
 def test_load_shared_function():
-    my_function = rh.Function.from_name(name=REMOTE_FUNC_NAME)
+    my_function = rh.function(name=REMOTE_FUNC_NAME, dryrun=True)
     res = my_function(1, 2)
     assert res == 3
 
@@ -279,7 +279,7 @@ def delete_function_from_rns(s):
 
     try:
         # Terminate the cluster
-        s.autocluster.teardown_and_delete()
+        s.cluster.teardown_and_delete()
     except Exception as e:
         raise Exception(f"Failed to teardown the cluster: {e}")
 
@@ -375,7 +375,7 @@ def test_load_function_in_new_env(cpu_cluster):
         rh.function(fn=summer, name=REMOTE_FUNC_NAME).to(system=cpu_cluster).save()
     )
 
-    byo_cluster = rh.autocluster(name="different-cluster")
+    byo_cluster = rh.cluster(name="different-cluster", dryrun=True)
     byo_cluster.send_secrets(["ssh"])
     remote_python = (
         "import runhouse as rh; "

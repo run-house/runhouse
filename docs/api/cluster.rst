@@ -79,11 +79,11 @@ up if needed), or a BYO or OnDemandCluster that is already up, you can simply pa
 
 .. code-block:: python
 
-  my_cluster = rh.autocluster(name='~/my-local-a100')
-  my_cluster = rh.autocluster(name='@/my-a100-in-rh-rns')
+  my_cluster = rh.cluster(name='~/my-local-a100')
+  my_cluster = rh.cluster(name='@/my-a100-in-rh-rns')
 
   # or, if you just want to load the Cluster object without refreshing its status
-  my_cluster = rh.autocluster(name='^rh-v100', dryrun=True)
+  my_cluster = rh.cluster(name='^rh-v100', dryrun=True)
 
 Advanced API Usage
 ~~~~~~~~~~~~~~~~~~

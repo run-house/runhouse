@@ -27,9 +27,9 @@ just the name.
 
 .. code-block:: python
 
-    rh.function(name='my_function')
-    rh.autocluster(name='~/my_name')
-    rh.table(name='@/my_datasets/my_table')
+    rh.function(name='my_function', dryrun=True)
+    rh.cluster(name='~/my_name', dryrun=True)
+    rh.table(name='@/my_datasets/my_table', dryrun=True)
 
 You may need to pass the full rns_address if the resource is not in :code:`rh.current_folder()`. To check
 if a resource exists, you can call:

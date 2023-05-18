@@ -118,7 +118,7 @@ class Folder(Resource):
 
     # ----------------------------------
     @staticmethod
-    def from_config(config: dict, dryrun=True):
+    def from_config(config: dict, dryrun=False):
         """Load config values into the object."""
         if config["system"] == "s3":
             from .s3_folder import S3Folder
@@ -842,7 +842,6 @@ def folder(
     dryrun: bool = False,
     local_mount: bool = False,
     data_config: Optional[Dict] = None,
-    load: bool = True,
 ) -> Folder:
     """Creates a Runhouse folder object, which can be used to interact with the folder at the given path.
 
@@ -856,17 +855,29 @@ def folder(
             (Default: ``False``)
         local_mount (bool): Whether or not to mount the folder locally. (Default: ``False``)
         data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
-        load (bool): Whether to load an existing config for the Folder. (Default: ``True``)
 
     Returns:
         Folder: The resulting folder.
 
     Example:
         >>> rh.folder(name='training_imgs', path='remote_directory/images', system='s3')
+
+        >>> # Load folder from above
+        >>> reloaded_folder = rh.folder(name="training_imgs", dryrun=True)
     """
     # TODO [DG] Include loud warning that relative paths are relative to the git root / working directory!
 
-    config = rns_client.load_config(name) if load else {}
+    if (
+        path is None
+        and system is None
+        and local_mount is None
+        and data_config is None
+        and not dryrun
+    ):
+        # If only the name is provided and dryrun is set to True
+        return Folder.from_name(name)
+
+    config = rns_client.load_config(name)
     config["name"] = name or config.get("rns_address", None) or config.get("name")
     config["path"] = path or config.get("path")
     config["local_mount"] = local_mount or config.get("local_mount")

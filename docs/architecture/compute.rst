@@ -85,7 +85,7 @@ You can load an existing cluster by name from local or Runhouse RNS simply by:
     gpu = rh.autocluster(name='^rh-v100')  # Loads a builtin cluster config
 
     # or, if you just want to load the Cluster object without refreshing its status
-    gpu = rh.autocluster(name='^rh-v100', dryrun=True)
+    gpu = rh.cluster(name='^rh-v100', dryrun=True)
 
 
 Packages

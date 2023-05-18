@@ -16,9 +16,8 @@ def env(
     name: Optional[str] = None,
     setup_cmds: List[str] = None,
     dryrun: bool = True,
-    load: bool = True,
 ):
-    """FBuilds an instance of :class:`Env`.
+    """Builds an instance of :class:`Env`.
 
     Args:
         reqs (List[str]): List of package names to install in this environment.
@@ -28,7 +27,7 @@ def env(
         setup_cmds (Optional[List[str]]): List of CLI commands to run for setup when the environment is
             being set up on a cluster.
         dryrun (bool, optional): Whether to run in dryrun mode. (Default: ``True``)
-        load (bool, optional): Whether to load the environment. (Default: ``True``)
+
 
     Returns:
         Env: The resulting Env object.
@@ -41,9 +40,17 @@ def env(
         >>> # conda env, see also rh.conda_env
         >>> conda_dict = {"name": "conda_env", "channels": ["conda-forge"], "dependencies": ["python=3.10.0"]}
         >>> env = rh.env(conda_env=conda_dict)
+
+        >>> # Load env from above
+        >>> rh.env(name="resource_name", dryrun=True)
+
     """
 
-    config = rns_client.load_config(name) if load else {}
+    if not reqs and conda_env is None and setup_cmds is None and name and dryrun:
+        # If only the name is provided and dryrun is set to True
+        return Env.from_name(name, dryrun)
+
+    config = rns_client.load_config(name)
     config["name"] = name or config.get("rns_address", None) or config.get("name")
 
     reqs = reqs if reqs else config.get("reqs", [])
@@ -68,7 +75,6 @@ def conda_env(
     setup_cmds: List[str] = None,
     name: Optional[str] = None,
     dryrun: bool = True,
-    load: bool = True,
 ):
     """Builds an instance of :class:`CondaEnv`.
 
@@ -80,7 +86,6 @@ def conda_env(
         setup_cmds (Optional[List[str]]): List of CLI commands to run for setup when the environment is
             being set up on a cluster.
         dryrun (bool, optional): Whether to run in dryrun mode. (Default: ``True``)
-        load (bool, optional): Whether to load the environment. (Default: ``True``)
 
     Returns:
         CondaEnv: The resulting CondaEnv object.
@@ -96,4 +101,4 @@ def conda_env(
         else:
             conda_env = {"name": datetime.now().strftime("%Y%m%d_%H%M%S")}
 
-    return env(reqs, conda_env, name, setup_cmds, dryrun, load)
+    return env(reqs, conda_env, name, setup_cmds, dryrun)

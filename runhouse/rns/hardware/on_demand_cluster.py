@@ -426,19 +426,30 @@ def autocluster(
         >>>                  image_id='my_ami_string',
         >>>                  region='us-east-1',
         >>>                  )
+
+        >>> # Load cluster from above
+        >>> reloaded_cluster = rh.cluster(name="rh-4-a100s", dryrun=True)
+
+        >>> # Alternatively can also use the autocluster factory
+        >>> reloaded_cluster = rh.autocluster(name="rh-4-a100s", dryrun=True)
     """
     if (
-        instance_type is None
-        and num_instances is None
-        and provider is None
-        and autostop_mins is None
+        all(
+            param is None
+            for param in (
+                instance_type,
+                num_instances,
+                provider,
+                autostop_mins,
+                image_id,
+                region,
+            )
+        )
         and not use_spot
-        and image_id is None
-        and region is None
         and dryrun
     ):
         # If only the name is provided and dryrun is set to True
-        return OnDemandCluster.from_name(name)
+        return OnDemandCluster.from_name(name, dryrun)
 
     config = rns_client.load_config(name)
     config["name"] = name or config.get("rns_address", None) or config.get("name")

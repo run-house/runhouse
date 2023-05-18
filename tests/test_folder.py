@@ -371,9 +371,9 @@ def test_s3_sharing():
 
 @pytest.mark.rnstest
 def test_load_shared_folder():
-    from runhouse import Folder
+    from runhouse import folder
 
-    my_folder = Folder.from_name("@/my-s3-shared-folder")
+    my_folder = folder(name="@/my-s3-shared-folder", dryrun=True)
     folder_contents = my_folder.ls()
     assert folder_contents
 

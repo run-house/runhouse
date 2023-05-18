@@ -116,7 +116,7 @@ def test_env_git_reqs(cpu_cluster):
 # -------- CONDA ENV TESTS ----------- #
 
 
-def _get_conda_env(name="rh-test", python_version="3.10.9", pip_reqs=[]):
+def _get_conda_env(name="rh-test", python_version="3.10.9"):
     conda_env = {
         "name": name,
         "channels": ["defaults"],
@@ -141,7 +141,7 @@ def test_conda_env_from_name_local():
     local_env = rh.env(name=env_name, conda_env=conda_env).save()
     del local_env
 
-    remote_env = rh.env(name=env_name)
+    remote_env = rh.env(name=env_name, dryrun=True)
     assert remote_env.conda_yaml == conda_env
     assert remote_env.env_name == conda_env["name"]
 

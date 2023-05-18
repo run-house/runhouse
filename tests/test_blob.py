@@ -37,7 +37,7 @@ def test_create_and_reload_local_blob_with_name(blob_data):
     del blob_data
     del my_blob
 
-    reloaded_blob = rh.Blob.from_name(name)
+    reloaded_blob = rh.blob(name=name, dryrun=True)
     reloaded_data = pickle.loads(reloaded_blob.data)
     assert reloaded_data == list(range(50))
 
@@ -66,7 +66,7 @@ def test_create_and_reload_local_blob_with_path(blob_data):
     del blob_data
     del my_blob
 
-    reloaded_blob = rh.Blob.from_name(name)
+    reloaded_blob = rh.blob(name=name, dryrun=True)
     reloaded_data = pickle.loads(reloaded_blob.data)
     assert reloaded_data == list(range(50))
 
@@ -113,7 +113,7 @@ def test_create_and_reload_rns_blob(blob_data):
     del blob_data
     del my_blob
 
-    reloaded_blob = rh.Blob.from_name(name)
+    reloaded_blob = rh.blob(name=name, dryrun=True)
     reloaded_data = pickle.loads(reloaded_blob.data)
     assert reloaded_data == list(range(50))
 
@@ -144,7 +144,7 @@ def test_create_and_reload_rns_blob_with_path(blob_data):
     del blob_data
     del my_blob
 
-    reloaded_blob = rh.Blob.from_name(name)
+    reloaded_blob = rh.blob(name=name, dryrun=True)
     reloaded_data = pickle.loads(reloaded_blob.data)
     assert reloaded_data == list(range(50))
 
@@ -240,7 +240,7 @@ def test_sharing_blob(blob_data):
 
 @pytest.mark.rnstest
 def test_load_shared_blob():
-    my_blob = rh.Blob.from_name(name="@/shared_blob")
+    my_blob = rh.blob(name="@/shared_blob")
     assert my_blob.exists_in_system()
 
     raw_data = my_blob.fetch()

@@ -62,7 +62,7 @@ class Function(Resource):
     # ----------------- Constructor helper methods -----------------
 
     @staticmethod
-    def from_config(config: dict, dryrun: bool = True):
+    def from_config(config: dict, dryrun: bool = False):
         """Create a Function object from a config dictionary."""
         if isinstance(config["system"], dict):
             config["system"] = Cluster.from_config(config["system"], dryrun=dryrun)
@@ -644,7 +644,6 @@ def function(
     dryrun: bool = False,
     load_secrets: bool = False,
     serialize_notebook_fn: bool = False,
-    load: bool = True,
     # args below are deprecated
     reqs: Optional[List[str]] = None,
     setup_cmds: Optional[List[str]] = None,
@@ -667,7 +666,6 @@ def function(
             (Default: ``False``)
         serialize_notebook_fn (bool): If function is of a notebook setting, whether or not to serialized the function.
             (Default: ``False``)
-        load (bool): Whether to load an existing config for the Function. (Default: ``True``)
 
     Returns:
         Function: The resulting Function object.
@@ -675,17 +673,25 @@ def function(
     Example:
         >>> def sum(a, b):
         >>>    return a + b
-        >>>
-        >>> # creating the function
-        >>> summer = rh.function(fn=sum, system=cluster, env=['requirements.txt'])
-        >>> # or, equivalently
-        >>> summer = rh.function(fn=sum).to(cluster, env=['requirements.txt'])
-        >>>
+
+        >>> summer = rh.function(fn=sum, name="my_func").to(cluster, env=['requirements.txt'])
+
         >>> # using the function
         >>> summer(5, 8)  # returns 13
-    """
 
-    config = rh_config.rns_client.load_config(name) if load else {}
+        >>> # Load function from above
+        >>> reloaded_function = rh.function(name="my_func", dryrun=True)
+    """
+    if (
+        all(param is None for param in (fn, system, env, resources, reqs, setup_cmds))
+        and not load_secrets
+        and not serialize_notebook_fn
+        and dryrun
+    ):
+        # Try reloading existing function
+        return Function.from_name(name, dryrun)
+
+    config = rh_config.rns_client.load_config(name)
     config["name"] = name or config.get("rns_address", None) or config.get("name")
     config["resources"] = (
         resources if resources is not None else config.get("resources")

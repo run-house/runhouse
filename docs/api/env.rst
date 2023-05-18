@@ -64,7 +64,7 @@ To setup and use an environment on a cluster for running a Function:
 .. code:: python
 
     env = rh.env(...)
-    gpu = rh.autocluster(name="rh-a10x")
+    gpu = rh.cluster(name="rh-a10x", dryrun=True)
 
     rh_func = rh.function(name="sd_generate")
     rh_func.to(gpu, env)

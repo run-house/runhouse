@@ -56,7 +56,7 @@ def test_create_and_reload_file_locally():
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: ray.data.Dataset = reloaded_table.data
 
     assert reloaded_data.to_pandas().equals(orig_data)
@@ -90,7 +90,7 @@ def test_create_and_reload_pandas_locally(pandas_table):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: ray.data.Dataset = reloaded_table.data
 
     assert pandas_table.equals(reloaded_data.to_pandas())
@@ -124,7 +124,7 @@ def test_create_and_reload_pyarrow_locally(arrow_table):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: ray.data.Dataset = reloaded_table.data
 
     assert arrow_table.to_pandas().equals(reloaded_data.to_pandas())
@@ -158,7 +158,7 @@ def test_create_and_reload_ray_locally(ray_table):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: ray.data.Dataset = reloaded_table.data
 
     assert ray_table.to_pandas().equals(reloaded_data.to_pandas())
@@ -192,7 +192,7 @@ def test_create_and_reload_huggingface_locally(huggingface_table):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: ray.data.Dataset = reloaded_table.data
 
     assert huggingface_table.to_pandas().equals(reloaded_data.to_pandas())
@@ -227,7 +227,7 @@ def test_create_and_reload_dask_locally(dask_table):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: "dask.dataframe.core.DataFrame" = reloaded_table.data.to_dask()
     assert reloaded_data.columns.to_list() == ["a", "b"]
 
@@ -265,7 +265,7 @@ def test_create_and_reload_pyarrow_data_from_s3(arrow_table):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: ray.data.Dataset = reloaded_table.data
     assert reloaded_data.to_pandas().equals(arrow_table.to_pandas())
 
@@ -299,7 +299,7 @@ def test_create_and_reload_pandas_data_from_s3(pandas_table):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: ray.data.Dataset = reloaded_table.data
     assert pandas_table.equals(reloaded_data.to_pandas())
 
@@ -334,7 +334,7 @@ def test_create_and_reload_huggingface_data_from_s3(huggingface_table):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
 
     # Stream in as huggingface dataset
     batches = reloaded_table.stream(batch_size=10, as_dict=False)
@@ -368,7 +368,7 @@ def test_create_and_reload_dask_data_from_s3(dask_table):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: "dask.dataframe.core.DataFrame" = reloaded_table.data.to_dask()
     assert reloaded_data.columns.to_list() == ["a", "b"]
 
@@ -403,7 +403,7 @@ def test_create_and_reload_ray_data_from_s3(ray_table):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: ray.data.Dataset = reloaded_table.data
     assert reloaded_data.to_pandas().equals(ray_table.to_pandas())
 
@@ -439,7 +439,7 @@ def test_load_pandas_data_as_iter(pandas_table):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: ray.data.Dataset = next(iter(reloaded_table))
 
     assert isinstance(reloaded_data, pd.Series)
@@ -471,7 +471,7 @@ def test_load_pyarrow_data_as_iter(arrow_table):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: pa.ChunkedArray = next(iter(reloaded_table))
 
     assert isinstance(reloaded_data, pa.ChunkedArray)
@@ -503,7 +503,7 @@ def test_load_huggingface_data_as_iter(huggingface_table):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: pa.ChunkedArray = next(iter(reloaded_table))
     assert isinstance(reloaded_data, pa.ChunkedArray)
 
@@ -534,7 +534,7 @@ def test_shuffling_pyarrow_data_from_s3(arrow_table):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     batches = reloaded_table.stream(
         batch_size=10, shuffle_seed=42, shuffle_buffer_size=10
     )
@@ -574,7 +574,7 @@ def test_create_and_reload_pandas_data_from_cluster(pandas_table, cpu_cluster):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
 
     reloaded_data: ray.data.Dataset = reloaded_table.data
     assert pandas_table.equals(reloaded_data.to_pandas())
@@ -612,7 +612,7 @@ def test_create_and_reload_ray_data_from_cluster(ray_table, cpu_cluster):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: ray.data.Dataset = reloaded_table.data
     assert ray_table.to_pandas().equals(reloaded_data.to_pandas())
 
@@ -649,7 +649,7 @@ def test_create_and_reload_pyarrow_data_from_cluster(arrow_table, cpu_cluster):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: ray.data.Dataset = reloaded_table.data
     assert arrow_table.to_pandas().equals(reloaded_data.to_pandas())
 
@@ -687,7 +687,7 @@ def test_create_and_reload_huggingface_data_from_cluster(
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: ray.data.Dataset = reloaded_table.data
     assert huggingface_table.to_pandas().equals(reloaded_data.to_pandas())
 
@@ -725,7 +725,7 @@ def test_create_and_reload_dask_data_from_cluster(dask_table, cpu_cluster):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: "dask.dataframe.core.DataFrame" = reloaded_table.data.to_dask()
     assert reloaded_data.columns.to_list() == ["a", "b"]
 
@@ -800,7 +800,7 @@ def test_create_and_fetch_pyarrow_data_from_s3(arrow_table):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: pa.Table = reloaded_table.fetch()
     assert arrow_table == reloaded_data
 
@@ -830,7 +830,7 @@ def test_create_and_fetch_pandas_data_from_s3(pandas_table):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: pd.DataFrame = reloaded_table.fetch()
     assert pandas_table.equals(reloaded_data)
 
@@ -860,7 +860,7 @@ def test_create_and_fetch_huggingface_data_from_s3(huggingface_table):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data = reloaded_table.fetch()
     assert huggingface_table.shape == reloaded_data.shape
 
@@ -890,7 +890,7 @@ def test_create_and_fetch_ray_data_from_s3(ray_table):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: ray.data.Dataset = reloaded_table.fetch()
     assert ray_table.to_pandas().equals(reloaded_data.to_pandas())
 
@@ -920,7 +920,7 @@ def test_create_and_fetch_dask_data_from_s3(dask_table):
         .save()
     )
 
-    reloaded_table = rh.Table.from_name(name)
+    reloaded_table = rh.table(name=name, dryrun=True)
     reloaded_data: "dask.dataframe.core.DataFrame" = reloaded_table.fetch()
     assert dask_table.npartitions == reloaded_data.npartitions
 
@@ -962,7 +962,7 @@ def test_sharing_table(pandas_table):
 
 @pytest.mark.rnstest
 def test_read_shared_table():
-    my_table = rh.Table.from_name(name="@/shared_pandas_table")
+    my_table = rh.table(name="@/shared_pandas_table", dryrun=True)
     df: pd.DataFrame = my_table.fetch()
     assert not df.empty
 

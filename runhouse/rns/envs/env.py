@@ -32,7 +32,15 @@ class Env(Resource):
     @staticmethod
     def from_config(config: dict, dryrun: bool = True):
         """Create an Env object from a config dict"""
-        return Env(**config, dryrun=dryrun)
+        resource_subtype = config.get("resource_subtype")
+        if resource_subtype == "Env":
+            return Env(**config, dryrun=dryrun)
+        elif resource_subtype == "CondaEnv":
+            from runhouse import CondaEnv
+
+            return CondaEnv(**config, dryrun=dryrun)
+        else:
+            raise ValueError(f"Invalid resource type {resource_subtype}")
 
     @property
     def config_for_rns(self):
