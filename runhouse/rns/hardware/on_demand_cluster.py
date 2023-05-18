@@ -446,7 +446,6 @@ def autocluster(
             )
         )
         and not use_spot
-        and dryrun
     ):
         # If only the name is provided and dryrun is set to True
         return OnDemandCluster.from_name(name, dryrun)

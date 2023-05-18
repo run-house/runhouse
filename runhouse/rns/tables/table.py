@@ -65,7 +65,7 @@ class Table(Resource):
         self.metadata = metadata or {}
 
     @staticmethod
-    def from_config(config: dict, dryrun=True):
+    def from_config(config: dict, dryrun=False):
         if isinstance(config["system"], dict):
             config["system"] = OnDemandCluster.from_config(
                 config["system"], dryrun=dryrun
@@ -471,7 +471,6 @@ def table(
             )
         )
         and not mkdir
-        and dryrun
     ):
         # Try reloading existing table
         return Table.from_name(name, dryrun)

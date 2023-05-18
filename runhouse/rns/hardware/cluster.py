@@ -695,7 +695,7 @@ def cluster(
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.cluster(name="rh-a10x", dryrun=True)
     """
-    if ips is None and ssh_creds is None and dryrun:
+    if ips is None and ssh_creds is None:
         # If only the name is provided and dryrun is set to True
         return Cluster.from_name(name, dryrun)
 

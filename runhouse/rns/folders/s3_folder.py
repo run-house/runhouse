@@ -24,7 +24,7 @@ class S3Folder(Folder):
         super().__init__(dryrun=dryrun, **kwargs)
 
     @staticmethod
-    def from_config(config: dict, dryrun=True):
+    def from_config(config: dict, dryrun=False):
         """Load config values into the object."""
         return S3Folder(**config, dryrun=dryrun)
 

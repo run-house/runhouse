@@ -28,16 +28,16 @@ To initalize a Blob, use ``rh.blob``:
    data = json.dumps(list(range(50)))
 
    # Remote blob with name and no path (saved to bucket called runhouse/blobs/my-blob)
-   rh.blob(name="@/my-blob", data=data, data_source='s3', dryrun=False)
+   rh.blob(name="@/my-blob", data=data, data_source='s3')
 
    # Remote blob with name and path
-   rh.blob(name='@/my-blob', path='/runhouse-tests/my_blob.pickle', data=data, system='s3', dryrun=False)
+   rh.blob(name='@/my-blob', path='/runhouse-tests/my_blob.pickle', data=data, system='s3')
 
    # Local blob with name and path, save to local filesystem
-   rh.blob(name=name, data=data, path=str(Path.cwd() / "my_blob.pickle"), dryrun=False)
+   rh.blob(name=name, data=data, path=str(Path.cwd() / "my_blob.pickle"))
 
    # Local blob with name and no path (saved to ~/.cache/blobs/my-blob)
-   rh.blob(name="~/my-blob", data=data, dryrun=False)
+   rh.blob(name="~/my-blob", data=data)
 
 To load an existing blob by name:
 

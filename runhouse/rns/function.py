@@ -686,7 +686,6 @@ def function(
         all(param is None for param in (fn, system, env, resources, reqs, setup_cmds))
         and not load_secrets
         and not serialize_notebook_fn
-        and dryrun
     ):
         # Try reloading existing function
         return Function.from_name(name, dryrun)

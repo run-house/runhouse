@@ -23,7 +23,7 @@ class PandasTable(Table):
                 yield row
 
     @staticmethod
-    def from_config(config: dict, dryrun=True):
+    def from_config(config: dict, dryrun=False):
         """Load config values into the object."""
         if isinstance(config["system"], dict):
             config["system"] = OnDemandCluster.from_config(

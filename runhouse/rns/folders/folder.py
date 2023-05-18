@@ -867,15 +867,9 @@ def folder(
     """
     # TODO [DG] Include loud warning that relative paths are relative to the git root / working directory!
 
-    if (
-        path is None
-        and system is None
-        and local_mount is None
-        and data_config is None
-        and not dryrun
-    ):
-        # If only the name is provided and dryrun is set to True
-        return Folder.from_name(name)
+    if path is None and system is None and local_mount is None and data_config is None:
+        # If only the name is provided
+        return Folder.from_name(name, dryrun)
 
     config = rns_client.load_config(name)
     config["name"] = name or config.get("rns_address", None) or config.get("name")

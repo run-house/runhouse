@@ -375,7 +375,7 @@ def test_load_function_in_new_env(cpu_cluster):
         rh.function(fn=summer, name=REMOTE_FUNC_NAME).to(system=cpu_cluster).save()
     )
 
-    byo_cluster = rh.cluster(name="different-cluster", dryrun=True)
+    byo_cluster = rh.cluster(name="different-cluster")
     byo_cluster.send_secrets(["ssh"])
     remote_python = (
         "import runhouse as rh; "

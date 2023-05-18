@@ -439,11 +439,10 @@ def package(
         and url is None
         and system is None
         and data_config is None
-        and not dryrun
         and not local_mount
     ):
         # If only the name is provided and dryrun is set to True
-        return Package.from_name(name)
+        return Package.from_name(name, dryrun)
 
     config = rh_config.rns_client.load_config(name)
     config["name"] = name or config.get("rns_address", None) or config.get("name")

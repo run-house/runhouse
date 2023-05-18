@@ -195,20 +195,20 @@ def blob(
         >>> data = json.dumps(list(range(50))
         >>>
         >>> # Remote blob with name and no path (saved to bucket called runhouse/blobs/my-blob)
-        >>> rh.blob(name="@/my-blob", data=data, system='s3', dryrun=False)
+        >>> rh.blob(name="@/my-blob", data=data, system='s3')
         >>>
         >>> # Remote blob with name and path
-        >>> rh.blob(name='@/my-blob', path='/runhouse-tests/my_blob.pickle', data=data, system='s3', dryrun=False)
+        >>> rh.blob(name='@/my-blob', path='/runhouse-tests/my_blob.pickle', data=data, system='s3')
         >>>
         >>> # Local blob with name and path, save to local filesystem
-        >>> rh.blob(name=name, data=data, path=str(Path.cwd() / "my_blob.pickle"), dryrun=False)
+        >>> rh.blob(name=name, data=data, path=str(Path.cwd() / "my_blob.pickle"))
         >>>
         >>> # Local blob with name and no path (saved to ~/.cache/blobs/my-blob)
-        >>> rh.blob(name="~/my-blob", data=data, dryrun=False)
+        >>> rh.blob(name="~/my-blob", data=data)
 
         >>> # Loading a blob
-        >>> my_local_blob = rh.blob(name="~/my_blob")
-        >>> my_s3_blob = rh.blob(name="@/my_blob")
+        >>> my_local_blob = rh.blob(name="~/my_blob", dryrun=True)
+        >>> my_s3_blob = rh.blob(name="@/my_blob", dryrun=True)
     """
     if (
         all(
@@ -221,7 +221,6 @@ def blob(
             )
         )
         and not mkdir
-        and dryrun
     ):
         # Try reloading existing blob
         return Blob.from_name(name, dryrun)
