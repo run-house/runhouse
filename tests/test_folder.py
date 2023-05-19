@@ -146,19 +146,14 @@ def test_cluster_tos(cpu_cluster):
 
 
 @pytest.mark.clustertest
-def test_local_and_cluster(cpu_cluster, local_folder):
+def test_local_and_cluster(cpu_cluster, local_folder, tmp_path):
     # Local to cluster
-    local_folder.mkdir()
-    local_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
     cluster_folder = local_folder.to(system=cpu_cluster)
     assert "sample_file_0.txt" in cluster_folder.ls(full_paths=False)
 
     # Cluster to local
-    tmp_path = Path.cwd() / "tmp_from_cluster"
     local_from_cluster = cluster_folder.to("here", path=tmp_path)
     assert "sample_file_0.txt" in local_from_cluster.ls(full_paths=False)
-
-    delete_local_folder(tmp_path)
 
 
 @pytest.mark.awstest
@@ -308,19 +303,19 @@ def test_gcs_and_s3(local_folder):
 
 
 @pytest.mark.awstest
-def test_s3_folder_uploads_and_downloads():
+def test_s3_folder_uploads_and_downloads(local_folder, tmp_path):
     # NOTE: you can also specify a specific path like this:
     # test_folder = rh.folder(path='/runhouse/my-folder', system='s3')
 
     s3_folder = rh.folder(system="s3")
-    s3_folder._upload(src=str(TEST_FOLDER_PATH))
+    s3_folder._upload(src=local_folder.path)
 
     assert s3_folder.exists_in_system()
 
-    downloaded_path_folder = str(Path.cwd() / "downloaded_s3")
+    downloaded_path_folder = tmp_path / "downloaded_s3"
     s3_folder._download(dest=downloaded_path_folder)
 
-    assert Path(downloaded_path_folder).exists()
+    assert downloaded_path_folder.exists()
 
     # remove folder in s3
     s3_folder.delete_in_system()
@@ -336,8 +331,7 @@ def test_cluster_and_cluster(cpu_cluster, cpu_cluster_2, local_folder):
     assert "sample_file_0.txt" in cluster_folder_1.ls(full_paths=False)
 
     # Cluster 1 to cluster 2
-    c2 = rh.cluster(name=cpu_cluster_2).up_if_not()
-    cluster_folder_2 = cluster_folder_1.to(system=c2, path=cluster_folder_1.path)
+    cluster_folder_2 = cluster_folder_1.to(system=cpu_cluster_2, path=cluster_folder_1.path)
     assert "sample_file_0.txt" in cluster_folder_2.ls(full_paths=False)
 
 

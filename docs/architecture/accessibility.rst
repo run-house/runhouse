@@ -132,7 +132,7 @@ To save updated configs to Runhouse to access them elsewhere:
 Viewing RPC Logs
 ~~~~~~~~~~~~~~~~
 Function logs can be streamed back by passing :code:`stream_logs=True` to the function run. The logs are
-also output onto the cluster on :code:`~/.rh/<cluster_name>_grpc_server.log`, which you can view after ssh-ing in
+also output onto the cluster on :code:`~/.rh/cluster_server_<cluster_name>.log`, which you can view after ssh-ing in
 with :code:`ssh <cluster name>`
 
 Restarting the RPC Server

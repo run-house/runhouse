@@ -84,9 +84,9 @@ def test_create_function_from_rns(cpu_cluster):
 @pytest.mark.rnstest
 def test_get_function_history(cpu_cluster):
     # reload the function from RNS
-    remote_sum = rh.Function.from_name(REMOTE_FUNC_NAME)
+    remote_sum = rh.function(summer).to(cpu_cluster).save(REMOTE_FUNC_NAME)
 
-    history = remote_sum.history(name=REMOTE_FUNC_NAME)
+    history = remote_sum.history()
     assert history
 
 
@@ -378,13 +378,14 @@ def test_byo_cluster_maps():
 @pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_load_function_in_new_env(cpu_cluster):
+    cpu_cluster.save("@/rh-cpu")  # Needs to be saved to rns, right now has a local name by default
     remote_sum = rh.function(summer).to(cpu_cluster).save(REMOTE_FUNC_NAME)
 
     byo_cluster = rh.cluster(name="different-cluster")
     byo_cluster.send_secrets(["ssh"])
     remote_python = (
         "import runhouse as rh; "
-        "remote_sum = rh.function(name='remote_function'); "
+        f"remote_sum = rh.function(name='{REMOTE_FUNC_NAME}'); "
         "res = remote_sum(1, 5); "
         "assert res == 6"
     )

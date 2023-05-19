@@ -13,7 +13,7 @@ import sshtunnel
 from sky.utils import command_runner
 from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
-from runhouse.rh_config import open_grpc_tunnels, rns_client
+from runhouse.rh_config import open_cluster_tunnels, rns_client
 from runhouse.rns.folders.folder import Folder
 from runhouse.rns.packages.package import Package
 from runhouse.rns.resource import Resource
@@ -51,7 +51,7 @@ class Cluster(Resource):
         self.address = ips[0] if ips else None
         self._ssh_creds = ssh_creds
         self.ips = ips
-        self._grpc_tunnel = None
+        self._rpc_tunnel = None
         self.client = None
 
         if not dryrun and self.address:
@@ -267,29 +267,29 @@ class Cluster(Resource):
             raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
 
         # TODO [DG] figure out how to ping to see if tunnel is already up
-        if self._grpc_tunnel and force_reconnect:
-            self._grpc_tunnel.close()
+        if self._rpc_tunnel and force_reconnect:
+            self._rpc_tunnel.close()
 
         # TODO Check if port is already open instead of refcounting?
         # status = subprocess.run(['nc', '-z', self.address, str(self.grpc_port)], capture_output=True)
         # if not self.check_port(self.address, UnaryClient.DEFAULT_PORT):
 
         tunnel_refcount = 0
-        if self.address in open_grpc_tunnels:
-            ssh_tunnel, connected_port, tunnel_refcount = open_grpc_tunnels[
+        if self.address in open_cluster_tunnels:
+            ssh_tunnel, connected_port, tunnel_refcount = open_cluster_tunnels[
                 self.address
             ]
             ssh_tunnel.check_tunnels()
             if ssh_tunnel.tunnel_is_up[ssh_tunnel.local_bind_address]:
-                self._grpc_tunnel = ssh_tunnel
+                self._rpc_tunnel = ssh_tunnel
         else:
-            self._grpc_tunnel, connected_port = self.ssh_tunnel(
+            self._rpc_tunnel, connected_port = self.ssh_tunnel(
                 HTTPClient.DEFAULT_PORT,
                 remote_port=DEFAULT_SERVER_PORT,
                 num_ports_to_try=5,
             )
-        open_grpc_tunnels[self.address] = (
-            self._grpc_tunnel,
+        open_cluster_tunnels[self.address] = (
+            self._rpc_tunnel,
             connected_port,
             tunnel_refcount + 1,
         )
@@ -371,18 +371,6 @@ class Cluster(Resource):
 
         return ssh_tunnel, local_port
 
-    # TODO [DG] Remove this for now, for some reason it was causing execution to hang after programs completed
-    # def __del__(self):
-    #     if self.address in open_grpc_tunnels:
-    #         tunnel, port, refcount = open_grpc_tunnels[self.address]
-    #         if refcount == 1:
-    #             tunnel.close()
-    #             open_grpc_tunnels.pop(self.address)
-    #         else:
-    #             open_grpc_tunnels[self.address] = (tunnel, port, refcount - 1)
-    #     elif self._grpc_tunnel:  # Not sure why this would be reached but keeping it just in case
-    #         self._grpc_tunnel.close()
-
     # import paramiko
     # ssh = paramiko.SSHClient()
     # ssh.load_system_host_keys()
@@ -411,11 +399,11 @@ class Cluster(Resource):
         if resync_rh:
             self.sync_runhouse_to_cluster(_install_url=_rh_install_url)
         logfile = f"cluster_server_{self.name}.log"
-        grpc_server_cmd = "serve run runhouse.servers.http.http_server:server --host 127.0.0.1 --port 50052"
-        kill_proc_cmd = f'pkill -f "{grpc_server_cmd}"'
+        http_server_cmd = "serve run runhouse.servers.http.http_server:server --host 127.0.0.1 --port 50052"
+        kill_proc_cmd = f'pkill -f "{http_server_cmd}"'
         # 2>&1 redirects stderr to stdout
         screen_cmd = (
-            f"screen -dm bash -c '{grpc_server_cmd} |& tee -a ~/.rh/{logfile} 2>&1'"
+            f"screen -dm bash -c '{http_server_cmd} |& tee -a ~/.rh/{logfile} 2>&1'"
         )
         cmds = [kill_proc_cmd]
         if restart_ray:
@@ -476,8 +464,8 @@ class Cluster(Resource):
         return self.client is not None
 
     def disconnect(self):
-        if self._grpc_tunnel:
-            self._grpc_tunnel.stop()
+        if self._rpc_tunnel:
+            self._rpc_tunnel.stop()
         # if self.client:
         #     self.client.shutdown()
 
@@ -485,7 +473,7 @@ class Cluster(Resource):
         """Delete non-serializable elements (e.g. thread locks) before pickling."""
         state = self.__dict__.copy()
         state["client"] = None
-        state["_grpc_tunnel"] = None
+        state["_rpc_tunnel"] = None
         return state
 
     # ----------------- SSH Methods ----------------- #

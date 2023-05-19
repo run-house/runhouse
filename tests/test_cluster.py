@@ -1,3 +1,4 @@
+import copy
 import unittest
 
 import pytest
@@ -57,7 +58,7 @@ def test_basic_run(cpu_cluster):
 
 
 @pytest.mark.clustertest
-def test_restart_grpc(cpu_cluster):
+def test_restart_server(cpu_cluster):
     cpu_cluster.up_if_not()
     codes = cpu_cluster.restart_server(resync_rh=False)
     assert codes
@@ -65,7 +66,7 @@ def test_restart_grpc(cpu_cluster):
 
 @pytest.mark.clustertest
 def test_on_same_cluster(cpu_cluster):
-    hw_copy = cpu_cluster.copy()
+    hw_copy = copy.copy(cpu_cluster)
     cpu_cluster.up_if_not()
 
     func_hw = rh.function(is_on_cluster).to(cpu_cluster)

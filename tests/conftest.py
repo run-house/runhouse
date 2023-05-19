@@ -17,11 +17,10 @@ def blob_data():
 
 
 @pytest.fixture
-def local_folder():
-    local_folder = rh.folder(path=Path.cwd() / "tests_tmp")
-    yield local_folder
-    local_folder.delete_in_system()
-    assert not local_folder.exists_in_system()
+def local_folder(tmp_path):
+    local_folder = rh.folder(path= tmp_path / "tests_tmp")
+    local_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
+    return local_folder
 
 
 # ----------------- Tables -----------------

@@ -10,7 +10,7 @@ Logging
 
 There are two main ways to access logs.
 
-Logs are automatically output onto the cluster, in the file ``~/.rh/<cluster-name>_grpc_server.log``.
+Logs are automatically output onto the cluster, in the file ``~/.rh/cluster_server_<cluster_name>.log``.
 You can ssh into the cluster with ``ssh cluster-name`` to access these logs.
 
 Alternatively, to see logs on your local machine while running a remote function, you can add the

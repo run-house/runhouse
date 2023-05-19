@@ -216,6 +216,7 @@ def test_login():
     assert rh.rns_client.default_folder == "/..."
 
 
+@unittest.skip("This test deletes local secrets")
 @pytest.mark.rnstest
 def test_logout():
     enabled_providers = rh.Secrets.enabled_providers(as_str=True)

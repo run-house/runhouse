@@ -103,7 +103,7 @@ To start an ssh session into the cluster so you can poke around or debug:
   # In Python
   my_cluster.ssh()
 
-Function logs are output onto the cluster, which can be viewed at :code:`~/.rh/<cluster_name>_grpc_server.log`.
+Function logs are output onto the cluster, which can be viewed at :code:`~/.rh/cluster_server_<cluster_name>.log`.
 
 You can restart the RPC server, in the case that it crashes or you want to update a package that the
 server has already imported. This runs much more quickly than shutting down and restarting a cluster.

@@ -58,7 +58,6 @@ class OnDemandCluster(Cluster):
         self.region = region
 
         self.address = None
-        self._grpc_tunnel = None
         self.client = None
         self.sky_state = sky_state
 

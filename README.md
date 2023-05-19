@@ -145,15 +145,7 @@ runhouse login
 
 ### 🔌 Installation
 
-⚠️ On Apple M1 or M2 machines ⚠️, you will need to install grpcio with conda
-before you install Runhouse - more specifically, before you install Ray.
-If you already have Ray installed, you can skip this.
-[See here](https://docs.ray.io/en/master/ray-overview/installation.html#m1-mac-apple-silicon-support)
-for how to install grpc properly on Apple silicon. You'll only know if you did
-this correctly if you run `ray.init()` in a Python interpreter. If you're
-having trouble with this, let us know.
-
-Runhouse can be installed with:
+Runhouse can be installed from Pypi with:
 ```
 pip install runhouse
 ```
