@@ -21,15 +21,6 @@ additional dependencies (to install the right versions of tools like boto, gsuti
     # Or
     $ pip install "runhouse[all]"
 
-.. tip::
-    On Apple M1 or M2 machines️, you will need to install grpcio with conda using ``conda install grpcio``
-    before you install Runhouse - more specifically, before you install Ray. If you already have Ray installed,
-    you can skip this.
-
-    For more information, see `Ray docs <https://docs.ray.io/en/master/ray-overview/installation.html#m1-mac-apple-silicon-support/>`_.
-    You should be able to successfully run :code:`ray.init()` in a Python interpreter.
-    If you're having trouble with this, let us know.
-
 Cluster Setup
 ~~~~~~~~~~~~~
 Runhouse is not managed compute; everything runs inside your own compute and storage, using your credentials.

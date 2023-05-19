@@ -9,7 +9,7 @@ from pathlib import Path
 import ray
 import ray.cloudpickle as pickle
 
-from runhouse import rh_config
+from runhouse.rh_config import obj_store
 
 
 logger = logging.getLogger(__name__)
@@ -24,18 +24,16 @@ def call_fn_by_type(
     conda_env=None,
     args=None,
     kwargs=None,
+    serialize_res=True,
 ):
     run_key = f"{fn_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
     # TODO other possible fn_types: 'batch', 'streaming'
     if fn_type == "get":
         obj_ref = args[0]
-        res = pickle.dumps(rh_config.obj_store.get(obj_ref))
+        res = pickle.dumps(obj_store.get(obj_ref))
 
     else:
-        args = rh_config.obj_store.get_obj_refs_list(args)
-        kwargs = rh_config.obj_store.get_obj_refs_dict(kwargs)
-
         ray.init(ignore_reinit_error=True)
         num_gpus = ray.cluster_resources().get("GPU", 0)
         num_cuda_devices = resources.get("num_gpus") or num_gpus
@@ -62,38 +60,50 @@ def call_fn_by_type(
 
         if fn_type == "map":
             obj_ref = [
-                ray_fn.remote(fn_pointers, fn_type, num_cuda_devices, arg, **kwargs)
+                ray_fn.remote(
+                    fn_pointers, serialize_res, num_cuda_devices, arg, **kwargs
+                )
                 for arg in args
             ]
         elif fn_type == "starmap":
             obj_ref = [
-                ray_fn.remote(fn_pointers, fn_type, num_cuda_devices, *arg, **kwargs)
+                ray_fn.remote(
+                    fn_pointers, serialize_res, num_cuda_devices, *arg, **kwargs
+                )
                 for arg in args
             ]
-        elif fn_type in ("queue", "remote", "call", "nested"):
+        elif fn_type in ("queue", "remote", "call"):
             obj_ref = ray_fn.remote(
-                fn_pointers, fn_type, num_cuda_devices, *args, **kwargs
+                fn_pointers, serialize_res, num_cuda_devices, *args, **kwargs
             )
         elif fn_type == "repeat":
             [num_repeats, args] = args
             obj_ref = [
-                ray_fn.remote(fn_pointers, fn_type, num_cuda_devices, *args, **kwargs)
+                ray_fn.remote(
+                    fn_pointers, serialize_res, num_cuda_devices, *args, **kwargs
+                )
                 for _ in range(num_repeats)
             ]
         else:
             raise ValueError(f"fn_type {fn_type} not recognized")
 
         if fn_type == "remote":
-            rh_config.obj_store.put_obj_ref(key=run_key, obj_ref=obj_ref)
-            res = pickle.dumps(run_key)
-        elif fn_type in ("call", "nested"):
-            res = ray.get(obj_ref)
+            res = (run_key, obj_ref)
         else:
-            res = pickle.dumps(ray.get(obj_ref))
+            res = ray.get(obj_ref)
+
     return res
 
 
-def get_fn_from_pointers(fn_pointers, fn_type, num_gpus, *args, **kwargs):
+def deserialize_args_and_kwargs(args, kwargs):
+    if args:
+        args = pickle.loads(args)
+    if kwargs:
+        kwargs = pickle.loads(kwargs)
+    return args, kwargs
+
+
+def get_fn_from_pointers(fn_pointers, serialize_res, num_gpus, *args, **kwargs):
     (module_path, module_name, fn_name) = fn_pointers
     if module_name == "notebook":
         fn = fn_name  # already unpickled
@@ -102,24 +112,24 @@ def get_fn_from_pointers(fn_pointers, fn_type, num_gpus, *args, **kwargs):
             sys.path.append(module_path)
             logger.info(f"Appending {module_path} to sys.path")
 
-        if module_name in rh_config.obj_store.imported_modules:
+        if module_name in obj_store.imported_modules:
             importlib.invalidate_caches()
-            rh_config.obj_store.imported_modules[module_name] = importlib.reload(
-                rh_config.obj_store.imported_modules[module_name]
+            obj_store.imported_modules[module_name] = importlib.reload(
+                obj_store.imported_modules[module_name]
             )
             logger.info(f"Reloaded module {module_name}")
         else:
             logger.info(f"Importing module {module_name}")
-            rh_config.obj_store.imported_modules[module_name] = importlib.import_module(
+            obj_store.imported_modules[module_name] = importlib.import_module(
                 module_name
             )
-        fn = getattr(rh_config.obj_store.imported_modules[module_name], fn_name)
+        fn = getattr(obj_store.imported_modules[module_name], fn_name)
 
     cuda_visible_devices = list(range(int(num_gpus)))
     os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
 
     result = fn(*args, **kwargs)
-    if fn_type == "call":
+    if serialize_res:
         return pickle.dumps(result)
     return result
 

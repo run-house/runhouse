@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 configs = Defaults()
 
-open_grpc_tunnels = {}
+open_cluster_tunnels = {}
 
 rns_client = RNSClient(configs=configs)
 

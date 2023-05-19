@@ -15,6 +15,7 @@ from runhouse.rns.api_utils.utils import (
     read_resp_data,
     remove_null_values_from_dict,
 )
+from runhouse.rns.utils.hardware import _current_cluster
 
 logger = logging.getLogger(__name__)
 
@@ -229,6 +230,9 @@ class RNSClient:
             return {}
 
         rns_address = self.resolve_rns_path(name)
+
+        if rns_address == _current_cluster("name"):
+            return _current_cluster("config")
 
         if rns_address[0] in ["~", "^"]:
             config = self._load_config_from_local(rns_address)

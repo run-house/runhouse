@@ -32,6 +32,10 @@ class Env(Resource):
     @staticmethod
     def from_config(config: dict, dryrun: bool = True):
         """Create an Env object from a config dict"""
+        config["reqs"] = [
+            Package.from_config(req) if isinstance(req, dict) else req
+            for req in config.get("reqs", [])
+        ]
         return Env(**config, dryrun=dryrun)
 
     @property
@@ -83,7 +87,7 @@ class Env(Resource):
         new_env.reqs = self._reqs_to(system, path, mount)
 
         if isinstance(system, Cluster):
-            system.check_grpc()
+            system.check_server()
             new_env._setup_env(system)
 
         return new_env
