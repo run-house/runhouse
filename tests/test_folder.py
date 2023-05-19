@@ -308,7 +308,7 @@ def test_github_folder(tmp_path):
         system="file", path=tmp_path / "torchrfcs", data_config={}
     )
     assert (tmp_path / "torchrfcs").exists()
-    assert "RFC-0000-template.md" in gh_to_local.ls()
+    assert "RFC-0000-template.md" in gh_to_local.ls(full_paths=False)
 
 
 if __name__ == "__main__":

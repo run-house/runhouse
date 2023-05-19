@@ -15,19 +15,19 @@ def blob_data():
     return pickle.dumps(list(range(50)))
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def local_folder(tmp_path):
     local_folder = rh.folder(path=tmp_path / "tests_tmp")
     local_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
     return local_folder
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def cluster_folder(cpu_cluster, local_folder):
     return local_folder.to(system=cpu_cluster)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def s3_folder(local_folder):
     s3_folder = local_folder.to(system="s3")
     yield s3_folder
@@ -36,7 +36,7 @@ def s3_folder(local_folder):
     s3_folder.delete_in_system()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def gcs_folder(local_folder):
     gcs_folder = local_folder.to(system="gs")
     yield gcs_folder
