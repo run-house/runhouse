@@ -3,7 +3,7 @@ Training with Runhouse: Dreambooth
 
 .. raw:: html
 
-    <p><a href="https://colab.research.google.com/github/run-house/tutorials/blob/main/t02_Dreambooth/x01_colab_dreambooth.ipynb">
+    <p><a href="https://colab.research.google.com/github/run-house/tutorials/blob/stable/t02_Dreambooth/x01_colab_dreambooth.ipynb">
     <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 This tutorial shows how you can easily import and reuse GitHub code
@@ -51,7 +51,7 @@ Dreambooth Fine-Tuning and Inference
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Please refer to `cluster
-setup <https://runhouse-docs.readthedocs-hosted.com/en/main/installation.html#cluster-setup>`__
+setup <https://runhouse-docs.readthedocs-hosted.com/en/stable/installation.html#cluster-setup>`__
 for instructions on setting up local hardware credentials, if you
 haven’t done so yet.
 
