@@ -71,6 +71,7 @@ install_requires = [
     "typer",
     "skypilot==0.2.5",
     "ray[serve]==2.0.1",
+    "fastapi",
 ]
 
 # NOTE: Change the templates/spot-controller.yaml.j2 file if any of the following
