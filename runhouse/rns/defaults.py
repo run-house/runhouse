@@ -78,6 +78,7 @@ class Defaults:
         # We don't need to save these
         to_upload.pop("token", None)
         to_upload.pop("username", None)
+        to_upload.pop("secrets", None)
 
         endpoint = (
             self.USER_ENDPOINT

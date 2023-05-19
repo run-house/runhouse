@@ -378,7 +378,9 @@ def test_byo_cluster_maps():
 @pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_load_function_in_new_env(cpu_cluster):
-    cpu_cluster.save("@/rh-cpu")  # Needs to be saved to rns, right now has a local name by default
+    cpu_cluster.save(
+        "@/rh-cpu"
+    )  # Needs to be saved to rns, right now has a local name by default
     remote_sum = rh.function(summer).to(cpu_cluster).save(REMOTE_FUNC_NAME)
 
     byo_cluster = rh.cluster(name="different-cluster")

@@ -35,9 +35,9 @@ being printed out, and can debug normally inside the ``screen``.
 .. note::
 
     When debugging inside ``screen``, please use ``Ctrl A+D`` to exit out of the screen. Do NOT use ``Ctrl C``,
-    which will terminate the GRPC server.
+    which will terminate the RPC server.
 
-    If you accidentally terminate the GRPC server, you can run ``cluster.restart_server()`` to restart the
+    If you accidentally terminate the RPC server, you can run ``cluster.restart_server()`` to restart the
     server.
 
 For debugging remote functions, which are launched using ``ray``, we can utilize Ray's debugger. Add a
