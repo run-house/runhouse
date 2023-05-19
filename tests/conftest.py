@@ -15,19 +15,19 @@ def blob_data():
     return pickle.dumps(list(range(50)))
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def local_folder(tmp_path):
     local_folder = rh.folder(path=tmp_path / "tests_tmp")
     local_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
     return local_folder
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def cluster_folder(cpu_cluster, local_folder):
     return local_folder.to(system=cpu_cluster)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def s3_folder(local_folder):
     s3_folder = local_folder.to(system="s3")
     yield s3_folder
@@ -36,7 +36,7 @@ def s3_folder(local_folder):
     s3_folder.delete_in_system()
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def gcs_folder(local_folder):
     gcs_folder = local_folder.to(system="gs")
     yield gcs_folder
@@ -114,7 +114,7 @@ def cluster(request):
     return request.getfixturevalue(request.param)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def cpu_cluster():
     c = rh.cluster("^rh-cpu")
     c.up_if_not()
@@ -122,24 +122,24 @@ def cpu_cluster():
     return c
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def cpu_cluster_2():
     c = rh.cluster(name="other-cpu", instance_type="CPU:2+", provider="aws").up_if_not()
     c.install_packages(["pytest"])
     return c
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def v100_gpu_cluster():
     return rh.cluster("^rh-v100", provider="aws").up_if_not()
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def k80_gpu_cluster():
     return rh.cluster(name="rh-k80", instance_type="K80:1", provider="aws").up_if_not()
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def a10g_gpu_cluster():
     return rh.cluster(
         name="rh-a10x", instance_type="g5.2xlarge", provider="aws"

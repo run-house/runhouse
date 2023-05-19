@@ -29,7 +29,7 @@ For general debugging that doesn't occur within remote function calls, you can a
 ``import pdb; pdb.set_trace()`` whereever you want to set your debugging session.
 If the code is being run locally at the point of the debugger, you'll be able to access the session from your
 local machine. If the code is being run remotely on a cluster, you will need to ssh into the cluster with
-``ssh cluster-name``, and then run ``screen -r`` inside the cluster. From there, you will see the GRPC logs
+``ssh cluster-name``, and then run ``screen -r`` inside the cluster. From there, you will see the RPC logs
 being printed out, and can debug normally inside the ``screen``.
 
 .. note::

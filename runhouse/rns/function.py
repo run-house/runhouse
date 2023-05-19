@@ -57,7 +57,8 @@ class Function(Resource):
         self.resources = resources or {}
         super().__init__(name=name, dryrun=dryrun)
 
-        self = self.to(self.system, env=self.env)
+        if not self.dryrun:
+            self = self.to(self.system, env=self.env)
 
     # ----------------- Constructor helper methods -----------------
 
@@ -132,8 +133,7 @@ class Function(Resource):
             return self
 
         # We need to backup the system here so the __getstate__ method of the cluster
-        # doesn't wipe the client and _grpc_client of this function's cluster when
-        # deepcopy copies it.
+        # doesn't wipe the client of this function's cluster when deepcopy copies it.
         hw_backup = self.system
         self.system = None
         new_function = copy.deepcopy(self)
@@ -602,7 +602,7 @@ class Function(Resource):
     def _handle_nb_fn(fn, fn_pointers, serialize_notebook_fn, name):
         """Handle the case where the user passes in a notebook function"""
         if serialize_notebook_fn:
-            # This will all be cloudpickled by the gRPC client and unpickled by the gRPC server
+            # This will all be cloudpickled by the RPC client and unpickled by the RPC server
             # Note that this means the function cannot be saved, and it's better that way because
             # pickling functions is not meant for long term storage. Case in point, this method will be
             # sensitive to differences in minor Python versions between the serializing and deserializing envs.

@@ -48,14 +48,15 @@ class ObjStore:
         resolve: bool = True,
     ):
         obj_ref = self.obj_store_cache.get(key, None)
-        if obj_ref and resolve:
-            obj = ray.get(obj_ref, timeout=timeout)
-            if isinstance(obj, bytes):
-                return pickle.loads(obj)
-            else:
-                return obj
-        else:
+        if not obj_ref:
             return default
+        if not resolve:
+            return obj_ref
+        obj = ray.get(obj_ref, timeout=timeout)
+        if isinstance(obj, bytes):
+            return pickle.loads(obj)
+        else:
+            return obj
 
     def get_obj_refs_list(self, keys: List, resolve=True):
         return [
@@ -82,10 +83,10 @@ class ObjStore:
         self.obj_store_cache = {}
 
     def cancel(self, key: str, force: bool = False, recursive: bool = True):
-        obj_ref = self.obj_store_cache.get(key, None)
-        if obj_ref:
-            ray.cancel(obj_ref, force=force, recursive=recursive)
-        self.delete(key)
+        obj_ref = self.get(key, resolve=False)
+        if not obj_ref:
+            raise ValueError(f"Object with key {key} not found in object store.")
+        ray.cancel(obj_ref, force=force, recursive=recursive)
 
     def get_logfiles(self, key: str, log_type=None):
         # Info on ray logfiles: https://docs.ray.io/en/releases-2.2.0/ray-observability/ray-logging.html#id1

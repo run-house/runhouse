@@ -84,10 +84,9 @@ def test_cancel_run(cpu_cluster):
     key = print_fn.remote()
     assert isinstance(key, str)
     cpu_cluster.cancel(key)
-    try:
+    with pytest.raises(Exception) as e:
         cpu_cluster.get(key, stream_logs=True)
-    except Exception as e:
-        assert "This task or its dependency was cancelled by" in str(e)
+    assert "This task or its dependency was cancelled by" in str(e.value)
 
 
 if __name__ == "__main__":

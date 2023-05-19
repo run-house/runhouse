@@ -37,6 +37,10 @@ class HTTPClient:
             json={"data": data},
             timeout=timeout,
         )
+        if response.status_code != 200:
+            raise ValueError(
+                f"Error calling {endpoint} on server: {res.content.decode()}"
+            )
         output_type = response.json()["output_type"]
         return handle_response(response.json(), output_type, err_str)
 
@@ -101,6 +105,10 @@ class HTTPClient:
             f"http://{self.host}:{self.port}/object/",
             json={"data": pickle_b64((key, stream_logs))},
         )
+        if res.status_code != 200:
+            raise ValueError(
+                f"Error getting key {key} from server: {res.content.decode()}"
+            )
         for responses_json in res.iter_content(chunk_size=None):
             for resp in responses_json.decode().split('{"data":')[1:]:
                 resp = json.loads('{"data":' + resp)
@@ -124,7 +132,7 @@ class HTTPClient:
             "object",
             req_type="delete",
             data=pickle_b64((pins or [])),
-            err_str=f"Error installing packages {to_install}",
+            err_str=f"Error clearing pins {pins}",
         )
 
     def cancel_runs(self, keys, force=False):

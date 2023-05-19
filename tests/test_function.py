@@ -1,18 +1,16 @@
 import os
+import time
 import unittest
 from multiprocessing import Pool
 
 import pytest
+import ray.exceptions
 import requests
 import runhouse as rh
 from runhouse.rns.api_utils.resource_access import ResourceAccess
 from runhouse.rns.api_utils.utils import load_resp_content
 
 REMOTE_FUNC_NAME = "@/remote_function"
-
-
-def setup():
-    rh.set_folder("~/tests", create=True)
 
 
 def call_function(fn, **kwargs):
@@ -188,17 +186,33 @@ def test_list_keys(cpu_cluster):
     assert set([pid_ref1, pid_ref2]).issubset(current_jobs)
 
 
+def slow_getpid(a=0):
+    time.sleep(10)
+    return os.getpid() + a
+
+
 @pytest.mark.clustertest
 def test_cancel_jobs(cpu_cluster):
-    pid_fn = rh.function(getpid).to(cpu_cluster)
+    pid_fn = rh.function(slow_getpid).to(cpu_cluster)
 
-    pid_ref1 = pid_fn.remote()
-    pid_ref2 = pid_fn.remote()
+    pid_ref1 = pid_fn.remote(2)
+    time.sleep(1)  # So the runkeys are more than 1 second apart
+    pid_ref2 = pid_fn.remote(5)
 
-    cpu_cluster.cancel(all=True)
+    print("Cancelling jobs")
+    cpu_cluster.cancel_all()
 
-    current_jobs = cpu_cluster.list_keys()
-    assert not set([pid_ref1, pid_ref2]).issubset(current_jobs)
+    with pytest.raises(Exception) as e:
+        print(pid_fn.get(pid_ref1))
+        assert isinstance(
+            e, (ray.exceptions.TaskCancelledError, ray.exceptions.RayTaskError)
+        )
+
+    with pytest.raises(Exception) as e:
+        print(pid_fn.get(pid_ref2))
+        assert isinstance(
+            e, (ray.exceptions.TaskCancelledError, ray.exceptions.RayTaskError)
+        )
 
 
 @pytest.mark.clustertest
@@ -256,7 +270,7 @@ def test_ssh():
 @pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_share_function(cpu_cluster):
-    my_function = rh.function(fn=summer, name=REMOTE_FUNC_NAME).to(cpu_cluster).save()
+    my_function = rh.function(fn=summer).to(cpu_cluster).save(REMOTE_FUNC_NAME)
 
     my_function.share(
         users=["donny@run.house", "josh@run.house"],

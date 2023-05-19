@@ -196,27 +196,23 @@ class HTTPServer:
                 # Don't return yet, go through the loop once more to get any remaining log lines
             except ray.exceptions.GetTimeoutError:
                 pass
-            except ray.exceptions.TaskCancelledError as e:
+            except (
+                ray.exceptions.TaskCancelledError,
+                ray.exceptions.RayTaskError,
+            ) as e:
                 logger.info(f"Attempted to get task {key} that was cancelled.")
                 returned = True
-                ret_obj = None
                 err = e
                 tb = traceback.format_exc()
             except Exception as e:
-                yield json.dumps(
-                    jsonable_encoder(
-                        Response(
-                            error=pickle_b64(e),
-                            traceback=pickle_b64(traceback.format_exc()),
-                            output_type=OutputType.EXCEPTION,
-                        )
-                    )
-                )
+                returned = True
+                err = e
+                tb = traceback.format_exc()
 
             if stream_logs:
                 if not logfiles:
                     logfiles = obj_store.get_logfiles(key)
-                    open_files = [open(i, "r") for i in logfiles]
+                    open_files = [open(i, "r") for i in (logfiles or [])]
                     logger.info(f"Streaming logs for {key} from {logfiles}")
 
                 # Grab all the lines written to all the log files since the last time we checked
@@ -238,11 +234,21 @@ class HTTPServer:
                         )
                     )
 
-        if stream_logs:
+        if stream_logs and open_files:
             # We got the object back from the object store, so we're done (but we went through the loop once
             # more to get any remaining log lines)
             [f.close() for f in open_files]
-        if ret_obj:
+        if err:
+            yield json.dumps(
+                jsonable_encoder(
+                    Response(
+                        error=pickle_b64(err),
+                        traceback=pickle_b64(tb),
+                        output_type=OutputType.EXCEPTION,
+                    )
+                )
+            )
+        else:
             if isinstance(ret_obj, bytes):
                 ret_serialized = codecs.encode(ret_obj, "base64").decode()
             else:
@@ -252,16 +258,6 @@ class HTTPServer:
                     Response(
                         data=ret_serialized,
                         output_type=OutputType.RESULT,
-                    )
-                )
-            )
-        else:
-            yield json.dumps(
-                jsonable_encoder(
-                    Response(
-                        error=pickle_b64(err),
-                        traceback=pickle_b64(tb),
-                        output_type=OutputType.EXCEPTION,
                     )
                 )
             )
@@ -316,21 +312,14 @@ class HTTPServer:
         # Having this be a POST instead of a DELETE on the "run" endpoint is strange, but we're not actually
         # deleting the run, just cancelling it. Maybe we should merge this into get_object to allow streaming logs.
         self.register_activity()
-        run_keys, force = b64_unpickle(message.data)
-        logger.info(f"Message received from client to cancel runs: {run_keys}")
-        cancel_runs = run_keys == "all"
+        run_key, force = b64_unpickle(message.data)
+        logger.info(f"Message received from client to cancel runs: {run_key}")
         try:
-            if cancel_runs:
-                # Cancel cancel_runs runs
-                run_keys = obj_store.keys()
-            elif not hasattr(run_keys, "len"):
-                run_keys = [run_keys]
+            if run_key == "all":
+                [obj_store.cancel(key, force=force) for key in obj_store.keys()]
+            else:
+                obj_store.cancel(run_key, force=force)
 
-            for obj_ref in obj_store.get_obj_refs_list(run_keys, resolve=False):
-                obj_store.cancel(obj_ref)
-
-            if cancel_runs:
-                obj_store.clear()
             return Response(output_type=OutputType.SUCCESS)
         except Exception as e:
             logger.exception(e)

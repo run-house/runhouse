@@ -238,13 +238,15 @@ class Cluster(Resource):
         res = self.client.list_keys()
         return res
 
-    def cancel(self, key: Optional[str] = None, force=False, all=False):
-        """Cancel a given run on cluster by its key. If `all` is set to ``True``, then all jobs on the
-        cluster will be cancelled."""
+    def cancel(self, key: str, force=False):
+        """Cancel a given run on cluster by its key."""
         self.check_server()
-        if all:
-            key = "all"
         return self.client.cancel_runs(key, force=force)
+
+    def cancel_all(self, force=False):
+        """Cancel all runs on cluster."""
+        self.check_server()
+        return self.client.cancel_runs("all", force=force)
 
     def clear_pins(self, pins: Optional[List[str]] = None):
         """Remove the given pinned items from the cluster. If `pins` is set to ``None``, then
@@ -257,7 +259,7 @@ class Cluster(Resource):
         """Whether this function is being called on the same cluster."""
         return _current_cluster("name") == self.rns_address
 
-    # ----------------- gRPC Methods ----------------- #
+    # ----------------- RPC Methods ----------------- #
 
     def connect_server_client(self, tunnel=True, force_reconnect=False):
         # FYI based on: https://sshtunnel.readthedocs.io/en/latest/#example-1
@@ -394,7 +396,7 @@ class Cluster(Resource):
         resync_rh: bool = True,
         restart_ray: bool = False,
     ):
-        """Restart the GRPC server."""
+        """Restart the RPC server."""
         # TODO how do we capture errors if this fails?
         if resync_rh:
             self.sync_runhouse_to_cluster(_install_url=_rh_install_url)

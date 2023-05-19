@@ -125,7 +125,7 @@ def restart_server(
     restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
     resync_rh: bool = typer.Option(False, help="Resync the Runhouse package"),
 ):
-    """Restart the gRPC server on a cluster."""
+    """Restart the RPC server on a cluster."""
     c = cluster(name=cluster_name)
     c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray)
 
