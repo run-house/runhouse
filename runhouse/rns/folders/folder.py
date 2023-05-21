@@ -851,7 +851,7 @@ def folder(
     Args:
         name (Optional[str]): Name to give the folder, to be re-used later on.
         path (Optional[str or Path]): Path (or path) that the folder is located at.
-        system (Optional[str]): File system. Currently this must be one of:
+        system (Optional[str]): File system or cluster name. If providing a file system this must be one of:
             [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
             We are working to add additional file system support.
         dryrun (bool): Whether to create the Folder if it doesn't exist, or load a Folder object as a dryrun.

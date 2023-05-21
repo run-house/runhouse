@@ -150,7 +150,7 @@ def test_maps(cpu_cluster):
     assert len(pids) == 10
     assert all(pid > 0 for pid in pids)
 
-    pid_ref = pid_fn.remote()
+    pid_ref = pid_fn.run()
     pid_res = pid_fn.get(pid_ref)
     assert pid_res > 0
 
@@ -197,8 +197,8 @@ def test_function_git_fn(cpu_cluster):
 def test_list_keys(cpu_cluster):
     pid_fn = rh.function(getpid, system=cpu_cluster)
 
-    pid_ref1 = pid_fn.remote()
-    pid_ref2 = pid_fn.remote()
+    pid_ref1 = pid_fn.run()
+    pid_ref2 = pid_fn.run()
 
     current_jobs = cpu_cluster.list_keys()
     assert set([pid_ref1, pid_ref2]).issubset(current_jobs)
@@ -208,8 +208,8 @@ def test_list_keys(cpu_cluster):
 def test_cancel_jobs(cpu_cluster):
     pid_fn = rh.function(getpid, system=cpu_cluster)
 
-    pid_ref1 = pid_fn.remote()
-    pid_ref2 = pid_fn.remote()
+    pid_ref1 = pid_fn.run()
+    pid_ref2 = pid_fn.run()
 
     cpu_cluster.cancel(all=True)
 
@@ -374,7 +374,7 @@ def test_byo_cluster_maps():
     assert len(set(pids)) > 1
     assert all(pid > 0 for pid in pids)
 
-    pid_ref = pid_fn.remote()
+    pid_ref = pid_fn.run()
 
     pids = pid_fn.repeat(num_repeats=20)
     assert len(set(pids)) > 1

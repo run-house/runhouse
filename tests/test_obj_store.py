@@ -37,7 +37,7 @@ def do_tqdm_printing_and_logging(steps=6):
 @pytest.mark.clustertest
 def test_get_from_cluster(cpu_cluster):
     print_fn = rh.function(fn=do_printing_and_logging, system=cpu_cluster)
-    key = print_fn.remote()
+    key = print_fn.run()
     assert isinstance(key, str)
     res = cpu_cluster.get(key, stream_logs=True)
     assert res == list(range(50))
@@ -81,7 +81,7 @@ def test_tqdm_streaming(cpu_cluster):
 @pytest.mark.clustertest
 def test_cancel_run(cpu_cluster):
     print_fn = rh.function(fn=do_printing_and_logging, system=cpu_cluster)
-    key = print_fn.remote()
+    key = print_fn.run()
     assert isinstance(key, str)
     res = cpu_cluster.cancel(key)
     assert res == "Cancelled"

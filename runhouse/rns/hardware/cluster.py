@@ -222,11 +222,17 @@ class Cluster(Resource):
         self.check_grpc()
         return self.client.get_object(key, stream_logs=stream_logs) or default
 
-    def get_run(self, run_key: str, config_path: str = None):
+    def get_run(self, run_name: str, folder_path: str = None):
         self.check_grpc()
         return self.client.get_run_object(
-            run_key, system=self.name, config_path=config_path
+            run_name, system=self.name, folder_path=folder_path
         )
+
+    def run_cmds(
+        self, run_name: str, commands: list, cmd_prefix: str, python_cmd: bool
+    ):
+        self.check_grpc()
+        return self.client.run_commands(run_name, commands, cmd_prefix, python_cmd)
 
     def add_secrets(self, provider_secrets: dict):
         """Copy secrets from current environment onto the cluster"""
@@ -574,41 +580,11 @@ class Cluster(Resource):
         port_forward: Optional[int] = None,
         require_outputs: bool = True,
         name_run: Optional[Union[str, bool]] = None,
+        python_cmd: bool = False,
     ) -> list:
-        """Run a list of shell commands on the cluster."""
+        """Run a list of shell commands on the cluster. If `name_run` is provided, the commands will be
+        sent over to the cluster before being executed and a Run object will be created."""
         # TODO [DG] suspect autostop while running?
-        if name_run:
-            run_name = rh.Run.create_run_name(name_run)
-            with rh.run(
-                name=run_name, system=self, cmds=commands, load=False, overwrite=True
-            ) as run_obj:
-                # Capture the stdout and stderr from the commands, and save them to the .rh/logs/<run_key> folder
-                # on the cluster.
-                return_codes = self._run_commands(
-                    commands, stream_logs, env, port_forward, require_outputs
-                )
-
-            logger.info(
-                f"Saved run with name: `{run_obj.name}`. Logs can found on {self.name} "
-                f"in path: {run_obj.path}, or "
-                f"in python:\n`my_run = {self.name}.get_run({run_name})`\n`my_run.stdout()`"
-            )
-        else:
-            return_codes = self._run_commands(
-                commands, stream_logs, env, port_forward, require_outputs
-            )
-
-        return return_codes
-
-    def _run_commands(
-        self,
-        commands: list,
-        stream_logs: bool,
-        env=None,
-        port_forward: int = None,
-        require_outputs: bool = True,
-    ):
-        return_codes = []
 
         cmd_prefix = ""
         if env:
@@ -617,6 +593,28 @@ class Cluster(Resource):
 
                 env = Env.from_name(env)
             cmd_prefix = env._run_cmd
+
+        if name_run:
+            run_name = rh.Run.create_run_name(name_run)
+            # Call RPC for creating the Run object and executing the commands
+            return_codes = self.run_cmds(run_name, commands, cmd_prefix, python_cmd)
+            return return_codes
+
+        # Use SSH runner to run the commands
+        return_codes = self._run_commands_with_ssh(
+            commands, cmd_prefix, stream_logs, port_forward, require_outputs
+        )
+        return return_codes
+
+    def _run_commands_with_ssh(
+        self,
+        commands: list,
+        cmd_prefix: str,
+        stream_logs: bool,
+        port_forward: int = None,
+        require_outputs: bool = True,
+    ):
+        return_codes = []
 
         runner = command_runner.SSHCommandRunner(self.address, **self.ssh_creds())
         for command in commands:
@@ -654,6 +652,7 @@ class Cluster(Resource):
             stream_logs=stream_logs,
             port_forward=port_forward,
             name_run=name_run,
+            python_cmd=True,
         )
         return return_codes
 

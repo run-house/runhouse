@@ -153,7 +153,6 @@ class Resource:
         config = cls._check_for_child_configs(config)
 
         # Add this resource's name to the resource artifact registry if part of a run
-        logger.info(f"Checking to add {name} to upstream list of resources")
         rns_client.add_upstream_resource(name)
 
         # Uses child class's from_config

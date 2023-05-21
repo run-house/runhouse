@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import traceback
 from concurrent import futures
 from pathlib import Path
@@ -12,9 +11,9 @@ import requests
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 import runhouse.servers.grpc.unary_pb2 as pb2
-
 import runhouse.servers.grpc.unary_pb2_grpc as pb2_grpc
-from runhouse.rh_config import configs, obj_store
+from runhouse.rh_config import configs, obj_store, rns_client
+from runhouse.rns.api_utils.utils import resolve_absolute_path
 from runhouse.rns.packages.package import Package
 from runhouse.rns.run_module_utils import call_fn_by_type, get_fn_by_name
 from runhouse.rns.top_level_rns_fns import (
@@ -71,26 +70,102 @@ class UnaryService(pb2_grpc.UnaryServicer):
 
     def GetRunObject(self, request, context):
         self.register_activity()
-        run_key, system, config_path = pickle.loads(request.message)
+        run_name, system, folder_path = pickle.loads(request.message)
         from runhouse import Run
 
-        config_path = config_path or Run.default_config_path(run_key, system)
-        config_path_on_system = os.path.abspath(os.path.expanduser(config_path))
+        folder_path = folder_path or Run.base_cluster_folder_path(run_name)
+        folder_path_on_system = resolve_absolute_path(folder_path)
+        logger.info(
+            f"folder_path_on_system in getting run object: {folder_path_on_system}"
+        )
 
-        # Load config data for this Run saved on the system
+        # Load config data for this Run saved locally on the system
         try:
-            with open(config_path_on_system, "r") as f:
-                run_config = json.load(f)
-
-            # Re-load the Run object
-            ret = Run(**run_config, dryrun=True)
+            ret = Run.from_file(run_name=run_name, folder_path=folder_path_on_system)
             self.register_activity()
         except FileNotFoundError:
-            logger.error(f"No config file found in path: {config_path_on_system}")
+            logger.error(f"No config found in local file path: {folder_path_on_system}")
             ret = None
             self.register_activity()
 
         return pb2.MessageResponse(message=pickle.dumps(ret), received=True)
+
+    def RunCommands(self, request, context):
+        import subprocess
+
+        from runhouse import run, Run
+        from runhouse.rns.obj_store import THIS_CLUSTER
+
+        self.register_activity()
+        run_name, commands, cmd_prefix, python_cmd = pickle.loads(request.message)
+
+        folder_path = Run.base_cluster_folder_path(run_name)
+        folder_path_on_system = resolve_absolute_path(folder_path)
+
+        run_obj = run(
+            name=run_name, cmds=commands, overwrite=True, path=folder_path_on_system
+        )
+
+        run_obj.register_new_fn_run()
+
+        try:
+            final_stdout = []
+            final_stderr = []
+
+            for command in commands:
+                command = f"{cmd_prefix} {command}" if cmd_prefix else command
+
+                shell = True
+                if not python_cmd:
+                    # CLI command
+                    command = command.split()
+                    shell = False
+
+                result = subprocess.run(
+                    command, shell=shell, capture_output=True, text=True
+                )
+
+                stdout = result.stdout
+                stderr = result.stderr
+
+                if stdout:
+                    final_stdout.append(stdout)
+
+                if stderr:
+                    final_stderr.append(stderr)
+
+            final_stdout = "\n".join(final_stdout)
+            final_stderr = "\n".join(final_stderr)
+
+            run_obj.end_time = run_obj.current_timestamp()
+            run_obj.status = run_obj.COMPLETED_STATUS
+
+            # Write the stdout and stderr of the Run to its dedicated log folder on the cluster
+            run_obj.write(data=final_stdout.encode(), path=run_obj.path_to_stdout())
+            run_obj.write(data=final_stderr.encode(), path=run_obj.path_to_stderr())
+
+            logger.info(
+                f"Finished saving stdout and stderr for the run to path: {run_obj.path}"
+            )
+
+            # TODO [JL] better way of setting the system for this run to the current cluster (and not local)
+            config_data = run_obj.config_for_rns
+
+            current_cluster = rns_client.resolve_rns_path(THIS_CLUSTER)
+            logger.info(f"Current cluster: {current_cluster}")
+
+            config_data["system"] = rns_client.resolve_rns_path(current_cluster)
+
+            run_obj._write_config(config=config_data)
+
+        except Exception as e:
+            logger.error(f"Failed to run commands on cluster: {e}")
+            final_stdout = str(e)
+            self.register_activity()
+
+        logger.info(f"Finished running commands for {run_name}: {final_stdout}")
+
+        return pb2.MessageResponse(message=pickle.dumps(final_stdout), received=True)
 
     def GetObject(self, request, context):
         self.register_activity()

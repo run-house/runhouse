@@ -1,6 +1,7 @@
 import ast
 import datetime
 import json
+import os
 import uuid
 
 from requests import Response
@@ -64,6 +65,10 @@ def log_datetime():
     """Current time as readable datetime string.
     Example: '2023-04-23'"""
     return utc_now().strftime("%Y-%m-%d")
+
+
+def resolve_absolute_path(path: str):
+    return os.path.abspath(os.path.expanduser(path))
 
 
 def create_s3_bucket(bucket_name: str):

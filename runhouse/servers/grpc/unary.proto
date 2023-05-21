@@ -14,6 +14,7 @@ service Unary{
   rpc PutObject(Message) returns (MessageResponse) {}
   rpc AddSecrets(Message) returns (MessageResponse) {}
   rpc GetRunObject(Message) returns (MessageResponse) {}
+  rpc RunCommands(Message) returns (MessageResponse) {}
 
   // streaming RPC
   rpc GetObject(Message) returns (stream MessageResponse) {}

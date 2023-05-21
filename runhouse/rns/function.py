@@ -261,15 +261,20 @@ class Function(Resource):
         self, *args, stream_logs=False, name_run: Union[str, bool] = None, **kwargs
     ):
         """Call the function on its system. If ``stream_logs`` is True, the logs will be streamed to stdout.
-        If ``name_run`` is provided, a Run will be created for this function call and the Run's key will be returned."""
+        If ``name_run`` is provided, a Run will be created for this function call, which will be executed
+        synchronously on the cluster before returning its result."""
         fn_type = "call"
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
-            if name_run is not None:
-                # Create and save a Run for this function - the function will be executed async on the cluster
-                # The Run's key will be returned and can be used to retrieve the Run's results
-                return self._create_async_run(name_run, self.name, *args, **kwargs)
+            if name_run:
+                from runhouse import Run
+
+                # Create a new run, execute the function synchronously on the cluster, and return the result
+                run_name = Run.create_run_name(name_run=name_run)
+                return self._call_fn_with_ssh_access(
+                    fn_type=fn_type, run_name=run_name, args=args, kwargs=kwargs
+                )
             elif stream_logs:
-                run_key = self.remote(*args, **kwargs)
+                run_key = self.run(*args, **kwargs)
                 return self.system.get(run_key, stream_logs=True)
             elif (
                 not self.system or self.system.name == rh_config.obj_store.cluster_name
@@ -282,7 +287,6 @@ class Function(Resource):
                     if self.env and isinstance(self.env, CondaEnv)
                     else None
                 )
-
                 fn = get_fn_by_name(
                     module_name=module_name,
                     fn_name=fn_name,
@@ -382,18 +386,31 @@ class Function(Resource):
                 "Function.enqueue only works with Write or Read access, not Proxy access"
             )
 
-    def remote(self, run_name=None, *args, **kwargs):
-        """Run async remote call on cluster."""
-        # TODO [DG] pin the obj_ref and return a string (printed to log) so result can be retrieved later and we
-        # don't need to init ray here. Also, allow user to pass the string as a param to remote().
-        # TODO [DG] add rpc for listing gettaable strings, plus metadata (e.g. when it was created)
-        # We need to ray init here so the returned Ray object ref doesn't throw an error it's deserialized
-        # import ray
-        # ray.init(ignore_reinit_error=True)
+    def run(self, name_run: Union[str, bool] = None, *args, **kwargs):
+        """Run async remote call on cluster.
+
+        Args:
+            name_run (Union[str, bool]): Name of the Run to create. If ``True``, a name will automatically
+             be generated.
+             *args: Optional args for the Function
+             **kwargs: Optional kwargs for the Function
+        Returns:
+            Run: Run object
+
+        """
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
-            run_key = self._call_fn_with_ssh_access(
+            from runhouse import Run
+
+            run_name = (
+                Run.create_run_name(name_run)
+                if name_run
+                else Run.base_folder_name(self.name)
+            )
+
+            run_obj = self._call_fn_with_ssh_access(
                 fn_type="remote", run_name=run_name, args=args, kwargs=kwargs
             )
+
             cluster_name = (
                 f'rh.cluster(name="{self.system.rns_address}")'
                 if self.system.name
@@ -402,14 +419,14 @@ class Function(Resource):
             # TODO print this nicely
             logger.info(
                 f"Submitted remote call to cluster. Result or logs can be retrieved"
-                f'\n with run_key "{run_key}", e.g. '
-                f'\n`{cluster_name}.get("{run_key}", stream_logs=True)` in python '
-                f'\n`runhouse logs "{self.system.name}" {run_key}` from the command line.'
+                f'\n with run name "{run_name}", e.g. '
+                f'\n`{cluster_name}.get("{run_name}", stream_logs=True)` in python '
+                f'\n`runhouse logs "{self.system.name}" {run_name}` from the command line.'
                 f"\n or cancelled with "
-                f'\n`{cluster_name}.cancel("{run_key}")` in python or '
-                f'\n`runhouse cancel "{self.system.name}" {run_key}` from the command line.'
+                f'\n`{cluster_name}.cancel("{run_name}")` in python or '
+                f'\n`runhouse cancel "{self.system.name}" {run_name}` from the command line.'
             )
-            return run_key
+            return run_obj
         else:
             raise NotImplementedError(
                 "Function.remote only works with Write or Read access, not Proxy access"
@@ -418,7 +435,6 @@ class Function(Resource):
     def get(
         self,
         obj_ref: Union[ray.ObjectRef, List[ray.ObjectRef]] = None,
-        run_str: str = None,
     ):
         """Get the result of a Function call that was submitted as async using `remote`.
 
@@ -426,23 +442,12 @@ class Function(Resource):
             obj_ref (Optional[Union[ray.ObjectRef, List[ray.ObjectRef]]): A single or list of Ray.ObjectRef objects
                 returned by a Function.remote() call.
                 The ObjectRefs must be from the cluster that this Function is running on.
-            run_str (Optional[str]): Name of the specific Run to load. If set to ``latest``, return the result of the
-                latest Run for this function name.
-                Can also specify a custom Run name (e.g. ``my_run_20230430_105400``) or
-                its latest Run (ex: ``my_run:latest``).
 
         Example:
             >>> pid_fn = rh.function(my_func, system="^rh-cpu")
-            >>> pid_ref = pid_fn.remote()
+            >>> pid_ref = pid_fn.run()
             >>> pid_res = pid_fn.get(pid_ref)
-
-            >>> res = my_func.get(run_str="latest")
-
-            >>> res = my_func.get(run_str="my_func_20230430_105400")
         """
-        # TODO [JL] support adding timestamp of a particular run
-        if run_str is not None:
-            return self._load_run_from_str(run_str)
 
         # TODO [DG] replace with self.system.get()?
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
@@ -463,9 +468,9 @@ class Function(Resource):
         from runhouse import Run
 
         name_run: str = Run.create_run_name(name_run, fn_name=fn_name or self.name)
-        run_key = self.remote(name_run, *args, **kwargs)
+        run_name = self.run(name_run, *args, **kwargs)
 
-        return run_key
+        return run_name
 
     def _call_fn_with_ssh_access(
         self, fn_type, resources=None, run_name=None, args=None, kwargs=None
@@ -483,8 +488,10 @@ class Function(Resource):
             raise RuntimeError(f"No fn pointers saved for {name}")
 
         [relative_path, module_name, fn_name] = self.fn_pointers
+
         name = self.name or fn_name or "anonymous function"
         logger.info(f"Running {name} via gRPC")
+
         env_name = (
             self.env.env_name if (self.env and isinstance(self.env, CondaEnv)) else None
         )
@@ -500,44 +507,6 @@ class Function(Resource):
             kwargs,
         )
         return res
-
-    def _load_run_from_str(self, run_str: str) -> Union[Any, str]:
-        """Load the Run from the cluster based on the string provided. If ``run_str`` is set to ``latest``,
-        load the most recent run for this function.
-        If the run has completed, return the deserialized result.
-        If the run is still running, return the run's key.
-        If the run has failed, return the stderr logs."""
-        from runhouse import Run
-
-        config_path = None
-        if run_str == "latest":
-            # Get the path to the latest Run for this function. This looks for a Run which contains the
-            # function name. For custom named Runs user must explicitly provide its name.
-            config_path = Run.path_to_latest_fn_run(
-                fn_name=self.name, system=self.system.name
-            )
-            if config_path is None:
-                raise FileNotFoundError(
-                    f"Could not find run for {self.name} on {self.system.name}"
-                )
-
-        existing_run = self.system.get_run(run_key=run_str, config_path=config_path)
-        if not existing_run:
-            raise ValueError(f"No run found on {self.system.name} with name {run_str}")
-
-        if existing_run.status == existing_run.COMPLETED_STATUS:
-            return existing_run.result()
-
-        elif existing_run.status == existing_run.ERROR_STATUS:
-            logger.info(f"Run {run_str} failed")
-            return existing_run.stderr()
-
-        elif existing_run.status == existing_run.RUNNING_STATUS:
-            logger.info(f"Run {run_str} is still in progress")
-            return run_str
-
-        else:
-            raise Exception(f"Run {run_str} in unexpected state {existing_run.status}")
 
     # TODO [DG] test this properly
     # def debug(self, redirect_logging=False, timeout=10000, *args, **kwargs):
@@ -679,62 +648,55 @@ class Function(Resource):
                 kill_jupyter_cmd = f"jupyter notebook stop {port_fwd}"
                 self.system.run(commands=[kill_jupyter_cmd])
 
-    def get_or_run(
-        self, run_name: str = None, run_async=False, *args, **kwargs
-    ) -> Union[Any, str]:
-        """Check if run was already completed and load results if so. If no run exists on the cluster, create a new one.
-        If the run has completed, the result will be returned.
-        If the Run is still running or has not yet been triggered, the Run's name will be returned.
-        If the Run failed, the stderr logs will be returned.
+    def get_or_call(self, name_run: str = None, *args, **kwargs) -> Any:
+        """Check if Run was already completed, and if so return the result.
+        If no cached Run is found on the cluster, create a new one and run it synchronously before
+        returning its result.
 
         Args:
-            run_name (Optional[str]): Name of a particular run for this function.
+            name_run (Optional[str]): Name of a particular run for this function.
                 If not provided will use the function's name.
-            run_async (bool): If ``run_async`` is ``True`` will execute the function async on the cluster and
-                immediately return the run's key.
-                By default, execute the function synchronously and wait before returning the run's output.
             *args: Arguments to pass to the function for the run (relevant if creating a new run).
             **kwargs: Keyword arguments to pass to the function for the run (relevant if creating a new run).
+
+        Returns:
+            Any: Result of the Run
+
+        """
+        name_run = name_run or self.name
+
+        res = self._call_fn_with_ssh_access(
+            fn_type="get_or_call", run_name=name_run, args=args, kwargs=kwargs
+        )
+
+        return res
+
+    def get_or_run(self, name_run: str = None, *args, **kwargs) -> "Run":
+        """Check if Run was already completed. If no cached Run is found on the cluster, create a new one.
+        Note: If the Run has already completed, will not trigger a new Run.
+
+        Args:
+            name_run (Optional[str]): Name of a particular run for this function.
+                If not provided will use the function's name.
+            *args: Arguments to pass to the function for the run (relevant if creating a new run).
+            **kwargs: Keyword arguments to pass to the function for the run (relevant if creating a new run).
+
+        Returns:
+            Run: Run object
+
         """
         from runhouse import Run
 
-        # Use the function's name if no custom run name provided
-        run_name = run_name or self.name
+        name_run = name_run or self.name
+        if name_run == "latest":
+            # TODO [JL]
+            raise NotImplementedError("Latest not currently supported")
 
-        resp: dict = self._call_fn_with_ssh_access(
-            fn_type="get_or_run", run_name=run_name, args=args, kwargs=kwargs
+        completed_run: "Run" = self._call_fn_with_ssh_access(
+            fn_type="get_or_run", run_name=name_run, args=args, kwargs=kwargs
         )
 
-        run_status = resp.get("status")
-        result = resp.get("result")
-
-        if run_status == Run.NOT_STARTED_STATUS:
-            if run_async:
-                # Trigger the run on the cluster to immediately start its execution, and in the interim
-                # return its run key for future reference
-                logger.info(
-                    f"No run found with name {run_name}, triggering a new one async"
-                )
-                return self._create_async_run(run_name, self.name, *args, **kwargs)
-            else:
-                # Trigger the run synchronously and wait for the result
-                logger.info(
-                    f"No run found with name {run_name}, triggering a new one and waiting for results"
-                )
-                return self._call_fn_with_ssh_access(
-                    fn_type="call", run_name=run_name, args=args, kwargs=kwargs
-                )
-
-        elif run_status == Run.ERROR_STATUS:
-            raise RuntimeError(f"Run {run_name} failed with error: {result}")
-
-        elif run_status == Run.RUNNING_STATUS:
-            logger.info(f"Run {run_name} is still running, returning its run key")
-            return result
-
-        else:
-            logger.info(f"Run {run_name} returned with status {run_status}")
-            return result
+        return completed_run
 
     def keep_warm(
         self,
@@ -833,7 +795,7 @@ def function(
         >>> summer = rh.function(fn=sum).to(cluster, env=['requirements.txt'])
         >>>
         >>> # using the function
-        >>> summer(5, 8)  # returns 13
+        >>> res = summer(5, 8)  # returns 13
     """
 
     config = rh_config.rns_client.load_config(name) if load else {}

@@ -7,6 +7,7 @@ import pytest
 import runhouse as rh
 
 FUNC_RUN_NAME = "my_test_run"
+ASYNC_RUN_NAME = "my_async_run"
 CTX_MGR_RUN = "my_run_activity"
 
 CLI_RUN_NAME = "my_cli_run"
@@ -36,22 +37,23 @@ def test_create_cli_python_command_run(cpu_cluster):
         name_run=CLI_RUN_NAME,
     )
 
-    assert return_codes[0][0] == 0
+    assert "INFO" in return_codes
 
 
 @pytest.mark.clustertest
 def test_create_cli_command_run(cpu_cluster):
-    # Run CLI command on the specified system. Save the run results to the .rh/logs/<run_name> folder of the system.
-    return_codes = cpu_cluster.run(["python --version"], name_run=CLI_RUN_NAME)
-
-    assert return_codes[0][1].strip() == "Python 3.10.6"
+    """Run CLI command on the specified system.
+    Saves the run results to the .rh/logs/<run_name> folder of the system."""
+    cmd_stdout = cpu_cluster.run(["python --version"], name_run=CLI_RUN_NAME)
+    assert cmd_stdout.strip() == "Python 3.10.6"
 
 
 @pytest.mark.clustertest
 def test_load_cli_command_run_from_cluster(cpu_cluster):
     # Run only exists on the cluster (hasn't yet been saved to RNS).
     cli_run = cpu_cluster.get_run(CLI_RUN_NAME)
-    assert cli_run
+    # assert cli_run
+    assert cli_run.stdout()
 
 
 @pytest.mark.clustertest
@@ -68,8 +70,8 @@ def test_save_cli_run_on_cluster_to_rns(cpu_cluster):
 def test_read_cli_command_stdout():
     # Read the stdout from the system the command was run
     cli_run = rh.Run.from_name(name=CLI_RUN_NAME)
-    output = cli_run.stdout()
-    assert output == "Python 3.10.6"
+    cli_stdout = cli_run.stdout()
+    assert cli_stdout == "Python 3.10.6"
 
 
 @pytest.mark.clustertest
@@ -98,11 +100,10 @@ def test_delete_cli_run_from_rns():
 
 @pytest.mark.clustertest
 def test_create_run_on_cluster(summer_func):
-    """Intializes a Run, which will run async on the cluster.
-    Returns the Run's key, which points to a specific folder on the cluster where the Run data lives.
-    (in .rh/logs/<run_key>)"""
-    fn_run_key = summer_func(1, 2, name_run=FUNC_RUN_NAME)
-    assert isinstance(fn_run_key, str)
+    """Intializes a Run, which will run synchronously on the cluster.
+    Returns the function's result"""
+    res = summer_func(1, 2, name_run=FUNC_RUN_NAME)
+    assert res == 3
 
 
 @pytest.mark.clustertest
@@ -115,7 +116,7 @@ def test_read_fn_stdout(cpu_cluster):
 
 
 @pytest.mark.clustertest
-def test_load_existing_run_from_cluster(cpu_cluster):
+def test_load_run_result(cpu_cluster):
     """Load the Run created above directly from the cluster."""
     # Run only exists on the cluster (hasn't yet been saved to RNS).
     func_run = cpu_cluster.get_run(FUNC_RUN_NAME)
@@ -123,18 +124,75 @@ def test_load_existing_run_from_cluster(cpu_cluster):
 
 
 @pytest.mark.clustertest
-def test_get_fn_run_by_name(summer_func):
-    """Load the Run created above from the cluster."""
-    run_output = summer_func.get(run_str=FUNC_RUN_NAME)
+def test_get_or_call_from_cache(summer_func):
+    """Cached version of synchronous run - if already completed return the result, otherwise run and wait for
+    completion before returning the result.
+    Note: In this test since we already ran the function, it should immediately return the result"""
+    run_output = summer_func.get_or_call(name_run=FUNC_RUN_NAME)
 
     assert run_output == 3
 
 
 @pytest.mark.clustertest
-def test_get_or_run_existing_fn_by_name(summer_func):
-    run_output = summer_func.get_or_run(run_name=FUNC_RUN_NAME)
+def test_get_or_call_no_cache(summer_func):
+    """Cached version of synchronous run - if already completed return the result, otherwise run and wait for
+    completion before returning the result.
+    Note: In this test since we do not have a run with this name, it should first execute the function"""
+    run_output = summer_func.get_or_call(name_run="another_sync_run", a=1, b=2)
 
     assert run_output == 3
+
+
+@unittest.skip("Not implemented yet.")
+@pytest.mark.clustertest
+def test_get_or_call_latest(summer_func):
+    """Cached version of synchronous run - if already completed return the result, otherwise run and wait for
+    completion before returning the result.
+    Note: In this test since we are providing a name of "latest", it should return the latest cached version"""
+    run_output = summer_func.get_or_call("latest")
+
+    assert run_output == 3
+
+
+@pytest.mark.clustertest
+def test_run_fn_async(summer_func):
+    """Execute function async on the cluster. If a run already exists, do not re-run. Returns a Run object."""
+    async_run = summer_func.run(name_run=ASYNC_RUN_NAME, a=1, b=2)
+    assert isinstance(async_run, rh.Run)
+
+
+@pytest.mark.clustertest
+def test_get_or_run(summer_func):
+    """Execute function async on the cluster. If a run already exists, do not re-run. Returns a Run object.
+    Note: In this test since we already ran the function with this run name, will immediately return the Run object."""
+    async_run = summer_func.get_or_run(name_run="async_get_or_run", a=1, b=2)
+    assert isinstance(async_run, rh.Run)
+
+
+@pytest.mark.clustertest
+def test_get_async_run_result(summer_func):
+    """Read the results from an async run."""
+    async_run = summer_func.get_or_run(name_run=ASYNC_RUN_NAME)
+    assert isinstance(async_run, rh.Run)
+    assert async_run.result() == 3
+
+
+@pytest.mark.clustertest
+def test_get_or_run_no_cache(summer_func):
+    """Execute function async on the cluster. If a run already exists, do not re-run. Returns a Run object.
+    Note: In this test since no Run exists with this name, will trigger the function async on the cluster and in the
+    meantime return a Run object."""
+    async_run = summer_func.get_or_run(name_run="new_async_run", a=1, b=2)
+    assert isinstance(async_run, rh.Run)
+
+
+@unittest.skip("Not implemented yet.")
+@pytest.mark.clustertest
+def test_get_or_run_latest(summer_func):
+    """Execute function async on the cluster. If a run already exists, do not re-run. Returns a Run object.
+    Note: In this test since we are providing "latest", will return the latest cached version."""
+    async_run = summer_func.get_or_run(name_run="latest")
+    assert isinstance(async_run, rh.Run)
 
 
 @unittest.skip("Not yet implemented.")
@@ -152,35 +210,10 @@ def test_create_run_with_artifacts(func_with_artifacts):
 
 
 @pytest.mark.clustertest
-def test_get_or_run_new_fn_by_name(summer_func):
-    """Checks if run already exists with name, if not create a new one and return the results synchronously"""
-    run_output = summer_func.get_or_run(run_name="my_new_run", a=1, b=2)
-
-    assert run_output == 3
-
-
-@pytest.mark.clustertest
-def test_get_or_run_new_fn_async(slow_func):
-    """Checks if run already exists with name, if not create a new one and return the run key, function will
-    run async on the cluster"""
-    # Create new run, trigger the execution async and get a run key in return (since function will have
-    # status of "RUNNING")
-    new_run_key = slow_func.get_or_run(run_name="async_run", run_async=True, a=1, b=2)
-    assert isinstance(new_run_key, str)
-
-
-@pytest.mark.clustertest
 def test_delete_async_run_from_system(cpu_cluster):
-    async_run = cpu_cluster.get_run("async_run")
+    async_run = cpu_cluster.get_run(ASYNC_RUN_NAME)
     async_run.delete_in_system()
     assert not async_run.exists_in_system()
-
-
-@pytest.mark.clustertest
-def test_get_or_run_new_fn(func_with_artifacts):
-    # Create a new run, get results synchronously
-    res = func_with_artifacts.get_or_run(run_name="sync_run")
-    assert res == "rh-cpu"
 
 
 @pytest.mark.clustertest
@@ -196,52 +229,17 @@ def test_save_fn_run_to_rns(cpu_cluster):
 
 
 @pytest.mark.clustertest
-def test_create_anon_run_on_cluster(request, summer_func):
-    """Create a new Run without giving it an explicit name"""
-    fn_run_key = summer_func(1, 2, name_run=True)
-
-    print(f"Created a Run with name: {fn_run_key}")
-
-    # Since this is an anom run save its auto-generated name to the cache for re-use in later tests
-    request.config.cache.set("anon_run_name", fn_run_key)
-
-    assert isinstance(fn_run_key, str)
+def test_create_anon_run_on_cluster(summer_func):
+    """Create a new Run without giving it an explicit name.
+    Note: this will run synchronously and return the result"""
+    res = summer_func(1, 2, name_run=True)
+    assert res == 3
 
 
-@pytest.mark.clustertest
-def test_get_anon_fn_run_by_name_from_system(request, summer_func):
-    # Load a Run by its specific name (not necessarily the latest one)
-    run_name = request.config.cache.get("anon_run_name", None)
-    assert (
-        run_name
-    ), "No anon run name found, run the test `test_create_anom_run` to generate one"
-
-    run_output = summer_func.get(run_str=run_name)
-
-    assert run_output == 3
-
-
-@pytest.mark.clustertest
-def test_load_anon_run_from_cluster(request):
-    run_name = request.config.cache.get("anon_run_name", None)
-    assert (
-        run_name
-    ), "No anon run name found, run the test `test_create_anon_run` to save the name of the Run to the cache."
-
-    cpu = rh.cluster("^rh-cpu").up_if_not()
-    func_run = cpu.get_run(FUNC_RUN_NAME)
-
-    if func_run.status == rh.Run.COMPLETED_STATUS:
-        assert func_run.result() == 3
-    elif func_run.status == rh.Run.RUNNING_STATUS:
-        assert func_run.stdout()
-    else:
-        assert False, "Run is in an unexpected state"
-
-
+@unittest.skip("Not yet implemented.")
 @pytest.mark.clustertest
 def test_latest_fn_run(summer_func):
-    run_output = summer_func.get(run_str="latest")
+    run_output = summer_func.get_or_call(run_str="latest")
 
     assert run_output == 3
 
@@ -256,11 +254,12 @@ def test_copy_fn_run_from_cluster_to_local():
 @pytest.mark.clustertest
 @pytest.mark.awstest
 def test_copy_fn_run_from_system_to_s3(cpu_cluster):
-    my_run = cpu_cluster.get_run(FUNC_RUN_NAME)
+    my_run = cpu_cluster.get_run("new_async_run")
     my_run_on_s3 = my_run.to("s3", path=f"/{S3_BUCKET}/my_test_run")
 
     assert my_run_on_s3.exists_in_system()
 
+    # Delete the run from s3
     my_run_on_s3.delete_in_system()
     assert not my_run_on_s3.exists_in_system()
 
@@ -293,9 +292,8 @@ def test_delete_fn_run_from_rns():
 
 @pytest.mark.clustertest
 def test_slow_running_fn_run(cpu_cluster, slow_func):
-    run_name = "slow_func_run"
-    run_key = slow_func(2, 2, name_run=run_name)
-    print(f"Run key: {run_key}")
+    run_name = slow_func(2, 2, name_run="slow_func_run")
+    print(f"Run name: {run_name}")
 
     func_run = cpu_cluster.get_run(FUNC_RUN_NAME)
     assert func_run
@@ -341,13 +339,13 @@ def test_create_local_ctx_manager_run(summer_func):
 
 @pytest.mark.localtest
 def test_load_named_ctx_manager_run():
-    ctx_run = rh.Run.from_file(name=CTX_MGR_RUN)
+    ctx_run = rh.Run.from_file(run_name=CTX_MGR_RUN)
     assert ctx_run.exists_in_system()
 
 
 @pytest.mark.localtest
 def test_read_stdout_from_ctx_manager_run():
-    ctx_run = rh.Run.from_file(name=CTX_MGR_RUN)
+    ctx_run = rh.Run.from_file(run_name=CTX_MGR_RUN)
     stdout = ctx_run.stdout()
     pprint(stdout)
     assert stdout
@@ -355,14 +353,14 @@ def test_read_stdout_from_ctx_manager_run():
 
 @pytest.mark.rnstest
 def test_save_ctx_run_to_rns():
-    ctx_run = rh.Run.from_file(name=CTX_MGR_RUN)
+    ctx_run = rh.Run.from_file(run_name=CTX_MGR_RUN)
     ctx_run.save()
     assert rh.exists(name=ctx_run.name, resource_type=rh.Run.RESOURCE_TYPE)
 
 
 @pytest.mark.clustertest
 def test_delete_run_from_system():
-    ctx_run = rh.Run.from_file(name=CTX_MGR_RUN)
+    ctx_run = rh.Run.from_file(run_name=CTX_MGR_RUN)
     ctx_run.delete_in_system()
     assert not ctx_run.exists_in_system()
 
