@@ -11,7 +11,6 @@ import requests
 from fastapi import FastAPI
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
-from ray import serve
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 from runhouse.rh_config import configs, obj_store
@@ -29,6 +28,7 @@ from runhouse.servers.http.http_utils import (
     OutputType,
     pickle_b64,
     Response,
+    DEFAULT_SERVER_PORT
 )
 
 logger = logging.getLogger(__name__)
@@ -36,8 +36,6 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 
 
-@serve.deployment()
-@serve.ingress(app)
 class HTTPServer:
     DEFAULT_PORT = 50052
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
@@ -50,14 +48,16 @@ class HTTPServer:
         # Collect metadata for the cluster immediately on init
         self._collect_cluster_stats()
 
-        self.register_activity()
+        HTTPServer.register_activity()
 
-    def register_activity(self):
+    @staticmethod
+    def register_activity():
         set_last_active_time_to_now()
 
+    @staticmethod
     @app.post("/check")
-    def check_server(self, message: Message):
-        self.register_activity()
+    def check_server(message: Message):
+        HTTPServer.register_activity()
         cluster_config = message.data
         try:
             if cluster_config:
@@ -75,16 +75,17 @@ class HTTPServer:
             return Response(data=pickle_b64(status), output_type=OutputType.RESULT)
         except Exception as e:
             logger.exception(e)
-            self.register_activity()
+            HTTPServer.register_activity()
             return Response(
                 error=pickle_b64(e),
                 traceback=pickle_b64(traceback.format_exc()),
                 output_type=OutputType.EXCEPTION,
             )
 
+    @staticmethod
     @app.post("/env")
-    def install(self, message: Message):
-        self.register_activity()
+    def install(message: Message):
+        HTTPServer.register_activity()
         try:
             packages, env = b64_unpickle(message.data)
             logger.info(f"Message received from client to install packages: {packages}")
@@ -100,20 +101,21 @@ class HTTPServer:
                 logger.info(f"Installing package: {str(pkg)}")
                 pkg.install(env)
 
-            self.register_activity()
+            HTTPServer.register_activity()
             return Response(output_type=OutputType.SUCCESS)
         except Exception as e:
             logger.exception(e)
-            self.register_activity()
+            HTTPServer.register_activity()
             return Response(
                 error=pickle_b64(e),
                 traceback=pickle_b64(traceback.format_exc()),
                 output_type=OutputType.EXCEPTION,
             )
 
+    @staticmethod
     @app.post("/run")
-    def run_module(self, message: Message):
-        self.register_activity()
+    def run_module(message: Message):
+        HTTPServer.register_activity()
         # get the function result from the incoming request
         [
             relative_path,
@@ -148,7 +150,7 @@ class HTTPServer:
                 obj_store.put_obj_ref(key=run_key, obj_ref=obj_ref)
                 result = pickle.dumps(run_key)
 
-            self.register_activity()
+            HTTPServer.register_activity()
             if isinstance(result, list):
                 return Response(
                     data=[codecs.encode(i, "base64").decode() for i in result],
@@ -161,25 +163,27 @@ class HTTPServer:
                 )
         except Exception as e:
             logger.exception(e)
-            self.register_activity()
+            HTTPServer.register_activity()
             return Response(
                 error=pickle_b64(e),
                 traceback=pickle_b64(traceback.format_exc()),
                 output_type=OutputType.EXCEPTION,
             )
 
+    @staticmethod
     @app.get("/object")
-    def get_object(self, message: Message):
-        self.register_activity()
+    def get_object(message: Message):
+        HTTPServer.register_activity()
         key, stream_logs = b64_unpickle(message.data)
         logger.info(f"Message received from client to get object: {key}")
 
         return StreamingResponse(
-            self._get_object_and_logs_generator(key, stream_logs=stream_logs),
+            HTTPServer._get_object_and_logs_generator(key, stream_logs=stream_logs),
             media_type="application/json",
         )
 
-    def _get_object_and_logs_generator(self, key, stream_logs=False):
+    @staticmethod
+    def _get_object_and_logs_generator(key, stream_logs=False):
         logfiles = None
         open_files = None
         ret_obj = None
@@ -188,7 +192,7 @@ class HTTPServer:
         returned = False
         while not returned:
             try:
-                ret_obj = obj_store.get(key, timeout=self.LOGGING_WAIT_TIME)
+                ret_obj = obj_store.get(key, timeout=HTTPServer.LOGGING_WAIT_TIME)
                 logger.info(
                     f"Got object of type {type(ret_obj)} back from object store"
                 )
@@ -262,9 +266,10 @@ class HTTPServer:
                 )
             )
 
+    @staticmethod
     @app.put("/object")
-    def put_object(self, message: Message):
-        self.register_activity()
+    def put_object(message: Message):
+        HTTPServer.register_activity()
         # We may not want to deserialize the object here in case the object requires dependencies
         # (to be used inside an env) which aren't present in the BaseEnv.
         key, obj = b64_unpickle(message.data)
@@ -274,16 +279,17 @@ class HTTPServer:
             return Response(output_type=OutputType.SUCCESS)
         except Exception as e:
             logger.exception(e)
-            self.register_activity()
+            HTTPServer.register_activity()
             return Response(
                 error=pickle_b64(e),
                 traceback=pickle_b64(traceback.format_exc()),
                 output_type=OutputType.EXCEPTION,
             )
 
+    @staticmethod
     @app.delete("/object")
-    def delete_obj(self, message: Message):
-        self.register_activity()
+    def delete_obj(message: Message):
+        HTTPServer.register_activity()
         pins_to_clear = b64_unpickle(message.data)
         logger.info(
             f"Message received from client to clear pins: {pins_to_clear or 'all'}"
@@ -300,18 +306,19 @@ class HTTPServer:
                 return Response(data=pickle_b64(cleared), output_type=OutputType.RESULT)
         except Exception as e:
             logger.exception(e)
-            self.register_activity()
+            HTTPServer.register_activity()
             return Response(
                 error=pickle_b64(e),
                 traceback=pickle_b64(traceback.format_exc()),
                 output_type=OutputType.EXCEPTION,
             )
 
+    @staticmethod
     @app.post("/cancel")
-    def cancel_run(self, message: Message):
+    def cancel_run(message: Message):
         # Having this be a POST instead of a DELETE on the "run" endpoint is strange, but we're not actually
         # deleting the run, just cancelling it. Maybe we should merge this into get_object to allow streaming logs.
-        self.register_activity()
+        HTTPServer.register_activity()
         run_key, force = b64_unpickle(message.data)
         logger.info(f"Message received from client to cancel runs: {run_key}")
         try:
@@ -323,24 +330,26 @@ class HTTPServer:
             return Response(output_type=OutputType.SUCCESS)
         except Exception as e:
             logger.exception(e)
-            self.register_activity()
+            HTTPServer.register_activity()
             return Response(
                 error=pickle_b64(e),
                 traceback=pickle_b64(traceback.format_exc()),
                 output_type=OutputType.EXCEPTION,
             )
 
+    @staticmethod
     @app.get("/keys")
-    def get_keys(self):
-        self.register_activity()
+    def get_keys():
+        HTTPServer.register_activity()
         keys: list = obj_store.keys()
         return Response(data=pickle_b64(keys), output_type=OutputType.RESULT)
 
+    @staticmethod
     @app.post("/secrets")
-    def add_secrets(self, message: Message):
+    def add_secrets(message: Message):
         from runhouse import Secrets
 
-        self.register_activity()
+        HTTPServer.register_activity()
         secrets_to_add: dict = b64_unpickle(message.data)
         failed_providers = (
             {}
@@ -369,27 +378,29 @@ class HTTPServer:
             )
         except Exception as e:
             logger.exception(e)
-            self.register_activity()
+            HTTPServer.register_activity()
             return Response(
                 error=pickle_b64(e),
                 traceback=pickle_b64(traceback.format_exc()),
                 output_type=OutputType.EXCEPTION,
             )
 
-    def _collect_cluster_stats(self):
+    @staticmethod
+    def _collect_cluster_stats():
         """Collect cluster metadata and send to Grafana Loki"""
         if configs.get("disable_data_collection") is True:
             return
 
-        cluster_data = self._cluster_status_report()
-        sky_data = self._cluster_sky_report()
+        cluster_data = HTTPServer._cluster_status_report()
+        sky_data = HTTPServer._cluster_sky_report()
 
-        self._log_cluster_data(
+        HTTPServer._log_cluster_data(
             {**cluster_data, **sky_data},
             labels={"username": configs.get("username"), "environment": "prod"},
         )
 
-    def _cluster_status_report(self):
+    @staticmethod
+    def _cluster_status_report():
         import ray._private.usage.usage_lib as ray_usage_lib
         from ray._private import gcs_utils
 
@@ -407,11 +418,12 @@ class HTTPServer:
 
         return {**cluster_metadata, **cluster_status_report}
 
-    def _cluster_sky_report(self):
+    @staticmethod
+    def _cluster_sky_report():
         try:
             from runhouse import Secrets
 
-            sky_ray_data = Secrets.read_yaml_file(self.SKY_YAML)
+            sky_ray_data = Secrets.read_yaml_file(HTTPServer.SKY_YAML)
         except FileNotFoundError:
             # For on prem clusters we won't have sky data
             return {}
@@ -426,7 +438,8 @@ class HTTPServer:
             "instance_type": node_config.get("node_config", {}).get("InstanceType"),
         }
 
-    def _log_cluster_data(self, data: dict, labels: dict):
+    @staticmethod
+    def _log_cluster_data(data: dict, labels: dict):
         from runhouse.rns.api_utils.utils import log_timestamp
 
         payload = {
@@ -449,13 +462,17 @@ class HTTPServer:
                 f"({resp.status_code}) Failed to send logs to Grafana Loki: {resp.text}"
             )
 
+    @staticmethod
     @app.post("/call/{fn_name}")
-    def call_fn(self, fn_name: str, args: Args):
-        self.register_activity()
+    def call_fn(fn_name: str, args: Args):
+        HTTPServer.register_activity()
         from runhouse import function
 
         fn = function(name=fn_name, dryrun=True)
         return fn(*(args.args or []), **(args.kwargs or {}))
 
 
-server = HTTPServer.bind()
+if __name__ == "__main__":
+    import uvicorn
+    HTTPServer()
+    uvicorn.run(app, host="127.0.0.1", port=DEFAULT_SERVER_PORT)

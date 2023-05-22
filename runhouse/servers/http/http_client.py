@@ -39,7 +39,7 @@ class HTTPClient:
         )
         if response.status_code != 200:
             raise ValueError(
-                f"Error calling {endpoint} on server: {res.content.decode()}"
+                f"Error calling {endpoint} on server: {response.content.decode()}"
             )
         output_type = response.json()["output_type"]
         return handle_response(response.json(), output_type, err_str)
@@ -104,6 +104,7 @@ class HTTPClient:
         res = requests.get(
             f"http://{self.host}:{self.port}/object/",
             json={"data": pickle_b64((key, stream_logs))},
+            stream=True,
         )
         if res.status_code != 200:
             raise ValueError(
