@@ -80,7 +80,7 @@ In this example we load an existing blob and deserialize ourselves with :code:`p
 .. code-block:: python
 
     # reload the blob object
-    my_blob = rh.blob(name="my_blob")
+    my_blob = rh.blob(name="my_blob", dryrun=True)
 
     raw_data = my_blob.fetch()
     # need to do the deserialization ourselves

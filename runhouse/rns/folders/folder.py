@@ -270,7 +270,7 @@ class Folder(Resource):
     def to(
         self,
         system: Union[str, "Cluster"],
-        path: Optional[str] = None,
+        path: Optional[Union[str, Path]] = None,
         data_config: Optional[dict] = None,
     ):
         """Copy the folder to a new filesystem, and return a new Folder object pointing to the new location."""

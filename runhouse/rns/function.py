@@ -637,7 +637,7 @@ def function(
     fn: Optional[Union[str, Callable]] = None,
     name: Optional[str] = None,
     system: Optional[Union[str, Cluster]] = None,
-    env: Union[Optional[List[str]], Env] = None,
+    env: Optional[Union[List[str], Env, str]] = None,
     resources: Optional[dict] = None,
     # TODO image: Optional[str] = None,
     dryrun: bool = False,
@@ -655,8 +655,8 @@ def function(
             This can be either from a local config or from the RNS.
         system (Optional[str or Cluster]): Hardware (cluster) on which to execute the Function.
             This can be either the string name of a Cluster object, or a Cluster object.
-        env (Optional[List[str]]): List of requirements to install on the remote cluster, or path to the
-            requirements.txt file.
+        env (Optional[List[str] or Env or str]): List of requirements to install on the remote cluster, or path to the
+            requirements.txt file, or Env object or string name of an Env object.
         resources (Optional[dict]): Optional number (int) of resources needed to run the Function on the Cluster.
             Keys must be ``num_cpus`` and ``num_gpus``.
         dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.

@@ -189,10 +189,10 @@ hardware!
     INFO | 2023-03-20 20:11:45,718 | Time to send message: 0.3 seconds
     INFO | 2023-03-20 20:11:45,720 | Submitted remote call to cluster. Result or logs can be retrieved
      with run_key "launch_training_20230320_201145", e.g.
-    `rh.autocluster(name="~/rh-v100").get("launch_training_20230320_201145", stream_logs=True)` in python
+    `rh.cluster(name="~/rh-v100").get("launch_training_20230320_201145", stream_logs=True)` in python
     `runhouse logs "rh-v100" launch_training_20230320_201145` from the command line.
      or cancelled with
-    `rh.autocluster(name="~/rh-v100").cancel("launch_training_20230320_201145")` in python or
+    `rh.cluster(name="~/rh-v100").cancel("launch_training_20230320_201145")` in python or
     `runhouse cancel "rh-v100" launch_training_20230320_201145` from the command line.
     :task_name:launch_training
     :task_name:launch_training

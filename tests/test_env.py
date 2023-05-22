@@ -1,5 +1,6 @@
 import os
 import shutil
+import unittest
 
 from pathlib import Path
 
@@ -277,8 +278,8 @@ def np_summer(a, b):
 
 @pytest.mark.clustertest
 def test_conda_call_fn(cpu_cluster):
-    conda_dict = _get_conda_env(name="c", pip_reqs=["numpy"])
-    conda_env = rh.env(conda_env=conda_dict, reqs=["pytest"])
+    conda_dict = _get_conda_env(name="c")
+    conda_env = rh.env(conda_env=conda_dict, reqs=["pytest", "numpy"])
     fn = rh.function(np_summer).to(system=cpu_cluster, env=conda_env)
     result = fn(1, 4)
     assert result == 5
@@ -286,9 +287,13 @@ def test_conda_call_fn(cpu_cluster):
 
 @pytest.mark.clustertest
 def test_conda_map_fn(cpu_cluster):
-    conda_dict = _get_conda_env(name="test-map-fn", pip_reqs=["numpy"])
-    conda_env = rh.env(conda_env=conda_dict, reqs=["pytest"])
+    conda_dict = _get_conda_env(name="test-map-fn")
+    conda_env = rh.env(conda_env=conda_dict, reqs=["pytest", "numpy"])
     map_fn = rh.function(np_summer, system=cpu_cluster, env=conda_env)
     inputs = list(zip(range(5), range(4, 9)))
     results = map_fn.starmap(inputs)
     assert results == [4, 6, 8, 10, 12]
+
+
+if __name__ == "__main__":
+    unittest.main()

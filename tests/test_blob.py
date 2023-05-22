@@ -243,7 +243,7 @@ def test_sharing_blob(blob_data):
 
 @pytest.mark.rnstest
 def test_load_shared_blob():
-    my_blob = rh.blob(name="@/shared_blob")
+    my_blob = rh.blob(name="@/shared_blob", dryrun=True)
     assert my_blob.exists_in_system()
 
     raw_data = my_blob.fetch()

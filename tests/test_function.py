@@ -451,5 +451,4 @@ def test_setup_cmds_backwards_compatible(cpu_cluster):
 
 
 if __name__ == "__main__":
-    setup()
     unittest.main()

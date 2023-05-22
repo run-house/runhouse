@@ -116,7 +116,7 @@ def train_model(preprocessed_table):
     return rh.blob(pickle.dumps(model)).write()
 
 if __name__ == "__main__":
-    preprocessed_table = rh.table(name="preprocessed-dataset")
+    preprocessed_table = rh.table(name="preprocessed-dataset", dryrun=True)
     train_model = rh.function(train_model).to("my-a100", env=["./", "torch", "transformers"])
     trained_model = train_model(preprocessed_table)
     trained_model.to("s3", path="runhouse/my_bucket").save(name="yelp_fine_tuned_bert")

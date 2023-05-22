@@ -39,7 +39,7 @@ class HTTPClient:
         )
         if response.status_code != 200:
             raise ValueError(
-                f"Error calling {endpoint} on server: {res.content.decode()}"
+                f"Error calling {endpoint} on server: {response.content.decode()}"
             )
         output_type = response.json()["output_type"]
         return handle_response(response.json(), output_type, err_str)

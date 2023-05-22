@@ -116,7 +116,7 @@ def cluster(request):
 
 @pytest.fixture(scope="session")
 def cpu_cluster():
-    c = rh.cluster("^rh-cpu")
+    c = rh.autocluster("^rh-cpu")
     c.up_if_not()
     c.install_packages(["pytest"])
     return c
@@ -124,24 +124,28 @@ def cpu_cluster():
 
 @pytest.fixture(scope="session")
 def cpu_cluster_2():
-    c = rh.cluster(name="other-cpu", instance_type="CPU:2+", provider="aws").up_if_not()
+    c = rh.autocluster(
+        name="other-cpu", instance_type="CPU:2+", provider="aws"
+    ).up_if_not()
     c.install_packages(["pytest"])
     return c
 
 
 @pytest.fixture(scope="session")
 def v100_gpu_cluster():
-    return rh.cluster("^rh-v100", provider="aws").up_if_not()
+    return rh.autocluster("^rh-v100", provider="aws").up_if_not()
 
 
 @pytest.fixture(scope="session")
 def k80_gpu_cluster():
-    return rh.cluster(name="rh-k80", instance_type="K80:1", provider="aws").up_if_not()
+    return rh.autocluster(
+        name="rh-k80", instance_type="K80:1", provider="aws"
+    ).up_if_not()
 
 
 @pytest.fixture(scope="session")
 def a10g_gpu_cluster():
-    return rh.cluster(
+    return rh.autocluster(
         name="rh-a10x", instance_type="g5.2xlarge", provider="aws"
     ).up_if_not()
 

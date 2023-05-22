@@ -38,14 +38,12 @@ class Env(Resource):
         ]
 
         resource_subtype = config.get("resource_subtype")
-        if resource_subtype == "Env":
-            return Env(**config, dryrun=dryrun)
-        elif resource_subtype == "CondaEnv":
+        if resource_subtype == "CondaEnv":
             from runhouse import CondaEnv
 
             return CondaEnv(**config, dryrun=dryrun)
-        else:
-            raise ValueError(f"Invalid resource type {resource_subtype}")
+
+        return Env(**config, dryrun=dryrun)
 
     @property
     def config_for_rns(self):

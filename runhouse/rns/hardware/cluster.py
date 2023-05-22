@@ -646,9 +646,9 @@ def cluster(
 
     Example:
         >>> # BYO Cluster
-        >>> gpu = rh.autocluster(ips=['<ip of the cluster>'],
-        >>>          ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'},
-        >>>          name='rh-a10x')
+        >>> gpu = rh.cluster(ips=['<ip of the cluster>'],
+        >>>                  ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'},
+        >>>                  name='rh-a10x')
 
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.cluster(name="rh-a10x", dryrun=True)
