@@ -75,3 +75,18 @@ pip install -r docs/requirements.txt
 cd docs/
 make clean html
 ```
+
+If updating or adding a notebook or colab file, please follow the following steps:
+
+* export the notebook into a `.ipynb` file, such as `<insert_notebook_name>.ipynb`
+* add/update the notebook file under `docs/notebooks`
+* get the `.rst` formatted notebook using the CLI command `jupyter nbconvert --to rst <insert_notebook_name>.ipynb`
+* move the `.rst` file into the correct directory in the `docs` directory
+* add the following lines under the rst file title to link out to the generated colab
+
+```
+.. raw:: html
+
+    <p><a href="https://colab.research.google.com/github/run-house/runhouse/blob/default/docs/notebooks/<insert_notebook_name>.ipynb">
+    <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
+```

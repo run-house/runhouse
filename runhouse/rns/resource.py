@@ -157,11 +157,10 @@ class Resource:
         self.delete_configs()
         self._name = None
 
-    @staticmethod
-    def history(name: str) -> List[Dict]:
+    def history(self) -> List[Dict]:
         """Return the history of the resource, including specific config fields (e.g. blob path) and which runs
         have overwritten it."""
-        resource_uri = rns_client.resource_uri(name)
+        resource_uri = rns_client.resource_uri(self.rns_address)
         resp = requests.get(
             f"{rns_client.api_server_url}/resource/history/{resource_uri}",
             headers=rns_client.request_headers,

@@ -3,7 +3,7 @@ Distributed: HuggingFace Accelerate
 
 .. raw:: html
 
-    <p><a href="https://colab.research.google.com/github/run-house/tutorials/blob/main/t04_Distributed/x01_colab_accelerate_multigpu.ipynb">
+    <p><a href="https://colab.research.google.com/github/run-house/tutorials/blob/stable/t04_Distributed/x01_colab_accelerate_multigpu.ipynb">
     <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 
@@ -45,7 +45,7 @@ On-Demand Cluster (AWS, Azure, GCP, or LambdaLabs)
 
 For instructions on setting up cloud access for on-demand clusters,
 please refer to `Hardware
-Setup <https://runhouse-docs.readthedocs-hosted.com/en/main/rh_primitives/cluster.html#hardware-setup>`__.
+Setup <https://runhouse-docs.readthedocs-hosted.com/en/stable/rh_primitives/cluster.html#hardware-setup>`__.
 
 .. code:: python
 

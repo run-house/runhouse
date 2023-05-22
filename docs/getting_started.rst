@@ -3,7 +3,7 @@ Getting Started Example
 
 .. raw:: html
 
-    <p><a href="https://colab.research.google.com/github/run-house/runhouse/blob/main/docs/notebooks/getting_started.ipynb">
+    <p><a href="https://colab.research.google.com/github/run-house/runhouse/blob/stable/docs/notebooks/getting_started.ipynb">
     <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 In this basic getting started example, we demonstrate how you can use Runhouse to bridge the gap

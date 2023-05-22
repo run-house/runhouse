@@ -99,6 +99,7 @@ def login(
         # We need to fresh the RNSClient to use the newly loaded configs
         rns_client.refresh_defaults()
     elif upload_config:
+        configs.load_defaults_from_file()
         configs.upload_defaults(defaults=configs.defaults_cache)
     else:
         # If we are not downloading or uploading config, we still want to make sure the token is valid
@@ -140,8 +141,8 @@ def logout(
     interactive_session: bool = (
         interactive if interactive is not None else is_interactive()
     )
-    for provider in Secrets.enabled_providers():
-        provider_name: str = provider.PROVIDER_NAME
+    for (provider_name, secret) in configs.get("secrets", {}).items():
+        provider = Secrets.builtin_provider_class_from_name(provider_name)
         if provider_name == "ssh":
             continue
         provider_creds_path: Union[str, tuple] = provider.default_credentials_path()

@@ -46,19 +46,20 @@ def test_create_env():
 
 @pytest.mark.clustertest
 def test_to_cluster(cpu_cluster):
-    test_env = rh.env(name="test_env", reqs=["numpy"])
+    test_env = rh.env(name="test_env", reqs=["transformers"])
 
     test_env.to(cpu_cluster)
-    res = cpu_cluster.run_python(["import numpy"])
+    res = cpu_cluster.run_python(["import transformers"])
     assert res[0][0] == 0  # import was successful
 
-    cpu_cluster.run(["pip uninstall numpy"])
+    cpu_cluster.run(["pip uninstall transformers -y"])
 
 
 @pytest.mark.awstest
 @pytest.mark.clustertest
 def test_to_fs_to_cluster(cpu_cluster):
     s3_pkg, folder_name = _create_s3_package()
+    cpu_cluster.install_packages(["s3fs"])
 
     test_env_s3 = rh.env(name="test_env_s3", reqs=["s3fs", "scipy", s3_pkg]).to("s3")
     count = 0

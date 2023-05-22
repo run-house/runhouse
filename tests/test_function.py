@@ -1,18 +1,16 @@
 import os
+import time
 import unittest
 from multiprocessing import Pool
 
 import pytest
+import ray.exceptions
 import requests
 import runhouse as rh
 from runhouse.rns.api_utils.resource_access import ResourceAccess
 from runhouse.rns.api_utils.utils import load_resp_content
 
 REMOTE_FUNC_NAME = "@/remote_function"
-
-
-def setup():
-    rh.set_folder("~/tests", create=True)
 
 
 def call_function(fn, **kwargs):
@@ -39,9 +37,8 @@ def np_array(list):
 @pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_create_function_from_name_local(cpu_cluster):
-    local_sum = rh.function(
-        fn=summer, name="local_function", system=cpu_cluster, env=["local:./"]
-    ).save()
+    local_name = "~/local_function"
+    local_sum = rh.function(summer).to(cpu_cluster).save(local_name)
     del local_sum
 
     remote_sum = rh.function(name="local_function", dryrun=True)
@@ -49,7 +46,7 @@ def test_create_function_from_name_local(cpu_cluster):
     assert res == 6
 
     remote_sum.delete_configs()
-    assert rh.exists("local_function") is False
+    assert rh.exists(local_name) is False
 
 
 @unittest.skip("Not yet implemented.")
@@ -69,20 +66,25 @@ def test_running_function_as_proxy(cpu_cluster):
 @pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_create_function_from_rns(cpu_cluster):
-    remote_sum = rh.function(fn=summer, name=REMOTE_FUNC_NAME).to(cpu_cluster).save()
+    remote_sum = rh.function(summer).to(cpu_cluster).save(REMOTE_FUNC_NAME)
+    del remote_sum
 
     # reload the function
+    remote_sum = rh.function(name=REMOTE_FUNC_NAME)
     res = remote_sum(1, 5)
     assert res == 6
+
+    remote_sum.delete_configs()
+    assert not rh.exists(REMOTE_FUNC_NAME)
 
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_get_function_history(cpu_cluster):
     # reload the function from RNS
-    remote_sum = rh.function(name=REMOTE_FUNC_NAME, dryrun=True)
+    remote_sum = rh.function(summer).to(cpu_cluster).save(REMOTE_FUNC_NAME)
 
-    history = remote_sum.history(name=REMOTE_FUNC_NAME)
+    history = remote_sum.history()
     assert history
 
 
@@ -112,18 +114,28 @@ def getpid(a=0):
 @pytest.mark.clustertest
 def test_maps(cpu_cluster):
     pid_fn = rh.function(getpid, system=cpu_cluster)
-    num_pids = [1] * 20
+    num_pids = [1] * 10
     pids = pid_fn.map(num_pids)
     assert len(set(pids)) > 1
     assert all(pid > 0 for pid in pids)
 
-    pids = pid_fn.repeat(num_repeats=20)
+    pids = pid_fn.repeat(num_repeats=10)
     assert len(set(pids)) > 1
     assert all(pid > 0 for pid in pids)
 
     pids = [pid_fn.enqueue() for _ in range(10)]
     assert len(pids) == 10
     assert all(pid > 0 for pid in pids)
+
+    re_fn = rh.function(summer, system=cpu_cluster)
+    summands = list(zip(range(5), range(4, 9)))
+    res = re_fn.starmap(summands)
+    assert res == [4, 6, 8, 10, 12]
+
+
+@pytest.mark.clustertest
+def test_remotes(cpu_cluster):
+    pid_fn = rh.function(getpid, system=cpu_cluster)
 
     pid_ref = pid_fn.remote()
     pid_res = pid_fn.get(pid_ref)
@@ -132,11 +144,6 @@ def test_maps(cpu_cluster):
     # Test passing an objectref into a normal call
     pid_res_from_ref = pid_fn(pid_ref)
     assert pid_res_from_ref > pid_res
-
-    re_fn = rh.function(summer, system=cpu_cluster)
-    summands = list(zip(range(5), range(4, 9)))
-    res = re_fn.starmap(summands)
-    assert res == [4, 6, 8, 10, 12]
 
 
 @pytest.mark.clustertest
@@ -179,30 +186,46 @@ def test_list_keys(cpu_cluster):
     assert set([pid_ref1, pid_ref2]).issubset(current_jobs)
 
 
+def slow_getpid(a=0):
+    time.sleep(10)
+    return os.getpid() + a
+
+
 @pytest.mark.clustertest
 def test_cancel_jobs(cpu_cluster):
-    pid_fn = rh.function(getpid).to(cpu_cluster)
+    pid_fn = rh.function(slow_getpid).to(cpu_cluster)
 
-    pid_ref1 = pid_fn.remote()
-    pid_ref2 = pid_fn.remote()
+    pid_ref1 = pid_fn.remote(2)
+    time.sleep(1)  # So the runkeys are more than 1 second apart
+    pid_ref2 = pid_fn.remote(5)
 
-    cpu_cluster.cancel(all=True)
+    print("Cancelling jobs")
+    cpu_cluster.cancel_all()
 
-    current_jobs = cpu_cluster.list_keys()
-    assert not set([pid_ref1, pid_ref2]).issubset(current_jobs)
+    with pytest.raises(Exception) as e:
+        print(pid_fn.get(pid_ref1))
+        assert isinstance(
+            e, (ray.exceptions.TaskCancelledError, ray.exceptions.RayTaskError)
+        )
+
+    with pytest.raises(Exception) as e:
+        print(pid_fn.get(pid_ref2))
+        assert isinstance(
+            e, (ray.exceptions.TaskCancelledError, ray.exceptions.RayTaskError)
+        )
 
 
 @pytest.mark.clustertest
 def test_function_queueing(cpu_cluster):
     pid_fn = rh.function(getpid).to(cpu_cluster)
 
-    pids = [pid_fn.enqueue(resources={"num_cpus": 2}) for _ in range(10)]
+    pids = [pid_fn.enqueue(resources={"num_cpus": 1}) for _ in range(10)]
     assert len(pids) == 10
 
 
 @pytest.mark.clustertest
 def test_function_to_env(cpu_cluster):
-    cpu_cluster.run(["pip uninstall numpy"])
+    cpu_cluster.run(["pip uninstall numpy -y"])
 
     np_func = rh.function(np_array).to(cpu_cluster, env=["numpy"])
 
@@ -247,7 +270,7 @@ def test_ssh():
 @pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_share_function(cpu_cluster):
-    my_function = rh.function(fn=summer, name=REMOTE_FUNC_NAME).to(cpu_cluster).save()
+    my_function = rh.function(fn=summer).to(cpu_cluster).save(REMOTE_FUNC_NAME)
 
     my_function.share(
         users=["donny@run.house", "josh@run.house"],
@@ -284,22 +307,18 @@ def delete_function_from_rns(s):
         raise Exception(f"Failed to teardown the cluster: {e}")
 
 
-@unittest.skip("Not yet implemented.")
 @pytest.mark.clustertest
 def test_http_url(cpu_cluster):
-    # TODO [DG] shouldn't have to specify fn here as a callable / at all?
-    s = rh.function(fn=summer, name="test_function", system=cpu_cluster)
-
-    # Generate and call the URL
-    http_url = s.http_url()
-    assert http_url
-
-    res = s(a=1, b=2)
-
-    # delete_configs the Function data from the RNS
-    # delete_function_from_rns(s)
-
-    assert res == 3
+    rh.function(summer).to(cpu_cluster).save("@/remote_function")
+    cpu_cluster.ssh_tunnel(80, 50052)
+    sum1 = requests.post(
+        "http://127.0.0.1:80/call/remote_function/", json={"args": [1, 2]}
+    ).json()
+    assert sum1 == 3
+    sum2 = requests.post(
+        "http://127.0.0.1:80/call/remote_function/", json={"kwargs": {"a": 1, "b": 2}}
+    ).json()
+    assert sum2 == 3
 
 
 @unittest.skip("Not yet implemented.")
@@ -330,7 +349,9 @@ def test_byo_cluster_function():
     creds = c.ssh_creds()
     del c
     byo_cluster = rh.cluster(name="different-cluster", ips=[ip], ssh_creds=creds).save()
-    re_fn = rh.function(multiproc_torch_sum).to(byo_cluster, env=["torch==1.12.1"])
+    re_fn = rh.function(multiproc_torch_sum).to(
+        byo_cluster, env=["torch==1.12.1", "pytest"]
+    )
 
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn(summands)
@@ -371,15 +392,16 @@ def test_byo_cluster_maps():
 @pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_load_function_in_new_env(cpu_cluster):
-    remote_sum = (
-        rh.function(fn=summer, name=REMOTE_FUNC_NAME).to(system=cpu_cluster).save()
-    )
+    cpu_cluster.save(
+        "@/rh-cpu"
+    )  # Needs to be saved to rns, right now has a local name by default
+    remote_sum = rh.function(summer).to(cpu_cluster).save(REMOTE_FUNC_NAME)
 
     byo_cluster = rh.cluster(name="different-cluster")
     byo_cluster.send_secrets(["ssh"])
     remote_python = (
         "import runhouse as rh; "
-        "remote_sum = rh.function(name='remote_function'); "
+        f"remote_sum = rh.function(name='{REMOTE_FUNC_NAME}'); "
         "res = remote_sum(1, 5); "
         "assert res == 6"
     )

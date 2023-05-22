@@ -58,7 +58,6 @@ class OnDemandCluster(Cluster):
         self.region = region
 
         self.address = None
-        self._grpc_tunnel = None
         self.client = None
         self.sky_state = sky_state
 
@@ -316,6 +315,8 @@ class OnDemandCluster(Cluster):
                         "~/.rh": "~/.rh",
                     }
                 )
+            # If we choose to reduce collisions of cluster names:
+            # cluster_name = self.rns_address.strip('~/').replace("/", "-")
             sky.launch(
                 task,
                 cluster_name=self.name,
@@ -328,7 +329,7 @@ class OnDemandCluster(Cluster):
             raise ValueError(f"Cluster provider {self.provider} not supported.")
 
         self.update_from_sky_status()
-        self.restart_grpc_server()
+        self.restart_server()
 
     def keep_warm(self, autostop_mins: int = -1):
         """Keep the cluster warm for given number of minutes after inactivity. If `autostop_mins` is set

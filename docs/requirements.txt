@@ -13,4 +13,5 @@ sshtunnel==0.4.0
 typer==0.4.2
 skypilot
 fsspec==2022.10.0
+chardet
 runhouse

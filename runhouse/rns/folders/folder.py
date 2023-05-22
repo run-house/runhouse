@@ -118,7 +118,10 @@ class Folder(Resource):
 
     # ----------------------------------
     @staticmethod
-    def from_config(config: dict, dryrun=False):
+    def from_config(config: dict, dryrun=True, _resolve_children=True):
+        if _resolve_children:
+            config = Folder._check_for_child_configs(config)
+
         """Load config values into the object."""
         if config["system"] == "s3":
             from .s3_folder import S3Folder
@@ -457,26 +460,17 @@ class Folder(Resource):
             dest_cluster.rsync(source=self.path, dest=dest_path, up=True, contents=True)
 
         elif isinstance(self.system, Resource):
-            src_path = self.path
+            if self.system.rns_address == dest_cluster.rns_address:
+                # We're on the same cluster, so we can just move the files
+                if self.path == path:
+                    return self
+                else:
+                    dest_cluster.run(
+                        [f"mkdir -p {dest_path}", f"cp -r {self.path}/* {dest_path}"],
+                    )
+            else:
+                self._cluster_to_cluster(dest_cluster, dest_path)
 
-            cluster_creds = self.system.ssh_creds()
-            creds_file = cluster_creds["ssh_private_key"]
-
-            dest_cluster.run([f"mkdir -p {dest_path}"])
-            command = (
-                f"rsync -Pavz --filter='dir-merge,- .gitignore' -e \"ssh -i '{creds_file}' "
-                f"-o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes "
-                f"-o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=30s -o ForwardAgent=yes "
-                f'-o ControlMaster=auto -o ControlPersist=300s" {src_path}/ {dest_cluster.address}:{dest_path}'
-            )
-            status_codes = self.system.run([command])
-            if status_codes[0][0] != 0:
-                raise Exception(
-                    f"Error syncing folder to destination cluster ({dest_cluster.name}). "
-                    f"Make sure the source cluster ({self.system.name}) has the necessary provider keys "
-                    f"loaded in path: {creds_file}. "
-                    f"For example: `rh.Secrets.to({self.system.name}, providers=['aws'])`"
-                )
         else:
             # data store folders have their own specific _to_cluster functions
             raise TypeError(
@@ -484,6 +478,28 @@ class Folder(Resource):
             )
 
         return dest_folder
+
+    def _cluster_to_cluster(self, dest_cluster, dest_path):
+        src_path = self.path
+
+        cluster_creds = self.system.ssh_creds()
+        creds_file = cluster_creds["ssh_private_key"]
+
+        dest_cluster.run([f"mkdir -p {dest_path}"])
+        command = (
+            f"rsync -Pavz --filter='dir-merge,- .gitignore' -e \"ssh -i '{creds_file}' "
+            f"-o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes "
+            f"-o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=30s -o ForwardAgent=yes "
+            f'-o ControlMaster=auto -o ControlPersist=300s" {src_path}/ {dest_cluster.address}:{dest_path}'
+        )
+        status_codes = self.system.run([command])
+        if status_codes[0][0] != 0:
+            raise Exception(
+                f"Error syncing folder to destination cluster ({dest_cluster.name}). "
+                f"Make sure the source cluster ({self.system.name}) has the necessary provider keys "
+                f"loaded in path: {creds_file}. "
+                f"For example: `rh.Secrets.to({self.system.name}, providers=['aws'])`"
+            )
 
     def _cluster_to_local(self, cluster, dest_path):
         """Create a local folder with dest_path from the cluster.

@@ -88,7 +88,7 @@ class Package(Resource):
         if isinstance(self.install_target, Folder):
             local_path = self.install_target.local_path
             if self.install_method == "pip":
-                # TODO [DG] Revisit: Would be nice if we could use -e by default, but importlib on the grpc server
+                # TODO [DG] Revisit: Would be nice if we could use -e by default, but importlib on the rpc server
                 #  isn't finding the package right after its installed.
                 # if (Path(local_path) / 'setup.py').exists():
                 #     install_cmd = f'-e {local_path}' + install_args
@@ -430,6 +430,8 @@ def package(
         Package: The resulting package.
 
     Example:
+        >>> # TODO [CC]
+
         >>> # Load package
         >>> reloaded_package = rh.package(name="my-package", dryrun=True)
     """

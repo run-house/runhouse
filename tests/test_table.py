@@ -1,6 +1,5 @@
 import shutil
 import unittest
-from pathlib import Path
 
 import pandas as pd
 import pyarrow as pa
@@ -10,7 +9,6 @@ import runhouse as rh
 
 from runhouse import Folder
 
-TEMP_LOCAL_FOLDER = Path("~/.rh/temp").expanduser()
 BUCKET_NAME = "runhouse-table"
 NUM_PARTITIONS = 10
 
@@ -36,11 +34,8 @@ def tokenize_function(examples):
 # ----------------- Local tests -----------------
 # -----------------------------------------------
 @pytest.mark.rnstest
-def test_create_and_reload_file_locally():
-    local_path = Path.cwd() / "table_tests/local_test_table"
-    local_path.mkdir(parents=True, exist_ok=True)
-
-    Path(local_path).mkdir(parents=True, exist_ok=True)
+def test_create_and_reload_file_locally(tmp_path):
+    local_path = tmp_path / "table_tests/local_test_table"
 
     orig_data = pd.DataFrame({"my_col": list(range(50))})
     name = "~/my_local_test_table"
@@ -212,14 +207,14 @@ def test_create_and_reload_huggingface_locally(huggingface_table):
 
 
 @pytest.mark.rnstest
-def test_create_and_reload_dask_locally(dask_table):
+def test_create_and_reload_dask_locally(dask_table, tmp_path):
     name = "~/my_test_local_dask_table"
 
     my_table = (
         rh.table(
             data=dask_table,
             name=name,
-            path="table_tests/dask_test_table",
+            path=str(tmp_path / "table_tests/dask_test_table"),
             system="file",
             mkdir=True,
         )
@@ -745,12 +740,8 @@ def test_create_and_reload_dask_data_from_cluster(dask_table, cpu_cluster):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_to_cluster_attr(pandas_table, cpu_cluster):
-    local_path = Path.cwd() / "table_tests/local_test_table"
-    local_path.mkdir(parents=True, exist_ok=True)
-
-    Path(local_path).mkdir(parents=True, exist_ok=True)
-
+def test_to_cluster_attr(pandas_table, cpu_cluster, tmp_path):
+    local_path = tmp_path / "table_tests/local_test_table"
     name = "~/my_local_test_table"
 
     my_table = (

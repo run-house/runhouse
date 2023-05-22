@@ -39,6 +39,7 @@ def test_set_folder(tmp_path):
     assert rh.current_folder() == "~/tests"
     assert (Path(rh.rh_config.rns_client.rh_directory) / "tests/bert_ft").exists()
     assert rh.exists("~/tests/bert_ft")
+    rh.set_folder("@")
 
 
 @pytest.mark.rnstest
@@ -78,6 +79,7 @@ def test_ls():
     rh.set_folder("~")
     assert "bert_ft" in rh.folder("tests").resources()
     assert "bert_ft" in rh.resources("tests")
+    rh.set_folder("@")
 
 
 @pytest.mark.rnstest

@@ -57,7 +57,8 @@ class Function(Resource):
         self.resources = resources or {}
         super().__init__(name=name, dryrun=dryrun)
 
-        self = self.to(self.system, env=self.env)
+        if not self.dryrun:
+            self = self.to(self.system, env=self.env)
 
     # ----------------- Constructor helper methods -----------------
 
@@ -132,8 +133,7 @@ class Function(Resource):
             return self
 
         # We need to backup the system here so the __getstate__ method of the cluster
-        # doesn't wipe the client and _grpc_client of this function's cluster when
-        # deepcopy copies it.
+        # doesn't wipe the client of this function's cluster when deepcopy copies it.
         hw_backup = self.system
         self.system = None
         new_function = copy.deepcopy(self)
@@ -147,6 +147,8 @@ class Function(Resource):
             new_function.system = self.system
 
         logging.info("Setting up Function on cluster.")
+        # To up cluster in case it's not yet up
+        new_function.system.check_server()
         new_env = env.to(new_function.system)
         logging.info("Function setup complete.")
         new_function.env = new_env
@@ -262,13 +264,18 @@ class Function(Resource):
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             if not self.system or self.system.name == rh_config.obj_store.cluster_name:
                 [relative_path, module_name, fn_name] = self.fn_pointers
-                if self.system.on_this_cluster():
-                    fn_type = "nested"
                 conda_env = (
                     self.env.env_name
                     if self.env and isinstance(self.env, CondaEnv)
                     else None
                 )
+                # If we're on this cluster, don't pickle the result before passing back.
+                # We need to pickle before passing back in most cases because the env in
+                # which the function executes may have a different set of packages than the
+                # server, so when Ray passes a result back into the server it will may fail to
+                # unpickle. We assume the user's client has the necessary packages to unpickle
+                # their own result.
+                serialize_res = not self.system.on_this_cluster()
                 return call_fn_by_type(
                     fn_type=fn_type,
                     fn_name=fn_name,
@@ -278,6 +285,7 @@ class Function(Resource):
                     conda_env=conda_env,
                     args=args,
                     kwargs=kwargs,
+                    serialize_res=serialize_res,
                 )
             elif stream_logs:
                 run_key = self.remote(*args, **kwargs)
@@ -366,7 +374,7 @@ class Function(Resource):
 
     def remote(self, *args, **kwargs):
         """Run async remote call on cluster."""
-        # TODO [DG] pin the obj_ref and return a string (printed to log) so result can be retrieved later and we
+        # TODO [DG] pin the run_key and return a string (printed to log) so result can be retrieved later and we
         # don't need to init ray here. Also, allow user to pass the string as a param to remote().
         # TODO [DG] add rpc for listing gettaable strings, plus metadata (e.g. when it was created)
         # We need to ray init here so the returned Ray object ref doesn't throw an error it's deserialized
@@ -397,23 +405,14 @@ class Function(Resource):
                 "Function.remote only works with Write or Read access, not Proxy access"
             )
 
-    def get(self, obj_ref):
+    def get(self, run_key):
         """Get the result of a Function call that was submitted as async using `remote`.
 
         Args:
-            obj_ref: A single or list of Ray.ObjectRef objects returned by a Function.remote() call. The ObjectRefs
+            run_key: A single or list of runhouse run_key strings returned by a Function.remote() call. The ObjectRefs
                 must be from the cluster that this Function is running on.
         """
-        # TODO [DG] replace with self.system.get()?
-        if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
-            arg_list = obj_ref if isinstance(obj_ref, list) else [obj_ref]
-            return self._call_fn_with_ssh_access(
-                fn_type="get", args=arg_list, kwargs={}
-            )
-        else:
-            raise NotImplementedError(
-                "Function.get only works with Write or Read access, not Proxy access"
-            )
+        return self.system.get(run_key)
 
     def _call_fn_with_ssh_access(self, fn_type, resources=None, args=None, kwargs=None):
         # https://docs.ray.io/en/latest/ray-core/tasks/patterns/map-reduce.html
@@ -430,7 +429,7 @@ class Function(Resource):
 
         [relative_path, module_name, fn_name] = self.fn_pointers
         name = self.name or fn_name or "anonymous function"
-        logger.info(f"Running {name} via gRPC")
+        logger.info(f"Running {name} via HTTP")
         env_name = (
             self.env.env_name if (self.env and isinstance(self.env, CondaEnv)) else None
         )
@@ -603,7 +602,7 @@ class Function(Resource):
     def _handle_nb_fn(fn, fn_pointers, serialize_notebook_fn, name):
         """Handle the case where the user passes in a notebook function"""
         if serialize_notebook_fn:
-            # This will all be cloudpickled by the gRPC client and unpickled by the gRPC server
+            # This will all be cloudpickled by the RPC client and unpickled by the RPC server
             # Note that this means the function cannot be saved, and it's better that way because
             # pickling functions is not meant for long term storage. Case in point, this method will be
             # sensitive to differences in minor Python versions between the serializing and deserializing envs.
