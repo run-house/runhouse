@@ -308,33 +308,6 @@ def delete_function_from_rns(s):
 
 
 @pytest.mark.clustertest
-def test_http_url(cpu_cluster):
-    rh.function(summer).to(cpu_cluster).save("@/remote_function")
-    cpu_cluster.ssh_tunnel(80, 50052)
-    sum1 = requests.post(
-        "http://127.0.0.1:80/call/remote_function/", json={"args": [1, 2]}
-    ).json()
-    assert sum1 == 3
-    sum2 = requests.post(
-        "http://127.0.0.1:80/call/remote_function/", json={"kwargs": {"a": 1, "b": 2}}
-    ).json()
-    assert sum2 == 3
-
-
-@unittest.skip("Not yet implemented.")
-def test_http_url_with_curl():
-    # NOTE: Assumes the Function has already been created and deployed to running cluster
-    s = rh.function(name="test_function")
-    curl_cmd = s.http_url(a=1, b=2, curl_command=True)
-    print(curl_cmd)
-
-    # delete_configs the function data from the RNS
-    delete_function_from_rns(s)
-
-    assert True
-
-
-@pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_byo_cluster_function():
     # Spin up a new basic m5.xlarge EC2 instance
@@ -429,6 +402,33 @@ def test_nested_same_cluster(cpu_cluster):
     kwargs = {"a": 1, "b": 5}
     res = call_function_cpu(summer_cpu, **kwargs)
     assert res == 6
+
+
+@pytest.mark.clustertest
+def test_http_url(cpu_cluster):
+    rh.function(summer).to(cpu_cluster).save("@/remote_function")
+    cpu_cluster.ssh_tunnel(80, 50052)
+    sum1 = requests.post(
+        "http://127.0.0.1:80/call/remote_function/", json={"args": [1, 2]}
+    ).json()
+    assert sum1 == 3
+    sum2 = requests.post(
+        "http://127.0.0.1:80/call/remote_function/", json={"kwargs": {"a": 1, "b": 2}}
+    ).json()
+    assert sum2 == 3
+
+
+@unittest.skip("Not yet implemented.")
+def test_http_url_with_curl():
+    # NOTE: Assumes the Function has already been created and deployed to running cluster
+    s = rh.function(name="test_function")
+    curl_cmd = s.http_url(a=1, b=2, curl_command=True)
+    print(curl_cmd)
+
+    # delete_configs the function data from the RNS
+    delete_function_from_rns(s)
+
+    assert True
 
 
 # test that deprecated arguments are still backwards compatible for now
