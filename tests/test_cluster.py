@@ -75,11 +75,9 @@ def test_on_same_cluster(cpu_cluster):
 
 
 @pytest.mark.clustertest
-def test_on_diff_cluster(cpu_cluster, cpu_cluster_2):
-    diff_hw = cpu_cluster_2
-
+def test_on_diff_cluster(cpu_cluster, byo_cpu):
     func_hw = rh.function(is_on_cluster).to(cpu_cluster)
-    assert not func_hw(diff_hw)
+    assert not func_hw(byo_cpu)
 
 
 if __name__ == "__main__":

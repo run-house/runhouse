@@ -24,11 +24,11 @@ from runhouse.rns.top_level_rns_fns import (
 from runhouse.servers.http.http_utils import (
     Args,
     b64_unpickle,
+    DEFAULT_SERVER_PORT,
     Message,
     OutputType,
     pickle_b64,
     Response,
-    DEFAULT_SERVER_PORT
 )
 
 logger = logging.getLogger(__name__)
@@ -474,5 +474,6 @@ class HTTPServer:
 
 if __name__ == "__main__":
     import uvicorn
+
     HTTPServer()
     uvicorn.run(app, host="127.0.0.1", port=DEFAULT_SERVER_PORT)

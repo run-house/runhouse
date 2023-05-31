@@ -259,7 +259,7 @@ def test_s3_folder_uploads_and_downloads(local_folder, tmp_path):
 
 
 @pytest.mark.clustertest
-def test_cluster_and_cluster(cpu_cluster, cpu_cluster_2, local_folder):
+def test_cluster_and_cluster(cpu_cluster, byo_cpu, local_folder):
     # Upload sky secrets to cluster - required when syncing over the folder from c1 to c2
     cpu_cluster.send_secrets(providers=["sky"])
 
@@ -267,9 +267,7 @@ def test_cluster_and_cluster(cpu_cluster, cpu_cluster_2, local_folder):
     assert "sample_file_0.txt" in cluster_folder_1.ls(full_paths=False)
 
     # Cluster 1 to cluster 2
-    cluster_folder_2 = cluster_folder_1.to(
-        system=cpu_cluster_2, path=cluster_folder_1.path
-    )
+    cluster_folder_2 = cluster_folder_1.to(system=byo_cpu, path=cluster_folder_1.path)
     assert "sample_file_0.txt" in cluster_folder_2.ls(full_paths=False)
 
 

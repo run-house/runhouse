@@ -125,7 +125,7 @@ class Cluster(Resource):
             # Check if ray is installed
             if "ray" not in self._get_pip_installs(strip_versions=True):
                 self.run(
-                    ["pip install ray==2.0.1"]
+                    ["pip install ray==2.4.0"]
                 )  # pin to SkyPilot's Ray requirement
                 res = self.run(["ray start --head"])
                 if not res[0][0]:

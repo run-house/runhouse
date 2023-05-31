@@ -55,7 +55,7 @@ class S3Folder(Folder):
 
         sync_dir_command = self._upload_command(src=src, dest=self.path)
         self._run_upload_cli_cmd(
-            sync_dir_command, access_denied_message=s3_store.ACCESS_DENIED_MESSAGE
+            sync_dir_command, access_denied_message=s3_store._ACCESS_DENIED_MESSAGE
         )
 
     def _upload_command(self, src: str, dest: str):
@@ -116,7 +116,7 @@ class S3Folder(Folder):
                 src=self.fsspec_url, dest=data_store_path
             )
             self._run_upload_cli_cmd(
-                sync_dir_command, access_denied_message=S3Store.ACCESS_DENIED_MESSAGE
+                sync_dir_command, access_denied_message=S3Store._ACCESS_DENIED_MESSAGE
             )
         elif system == "gs":
             from sky.data import data_transfer
