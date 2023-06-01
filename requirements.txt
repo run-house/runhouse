@@ -6,3 +6,5 @@ sshtunnel>=0.3.0
 sshfs
 typer
 skypilot==0.3.0
+fastapi
+uvicorn
