@@ -45,8 +45,11 @@ class HTTPServer:
     def __init__(self, *args, **kwargs):
         ray.init(address="auto", ignore_reinit_error=True)
 
-        # Collect metadata for the cluster immediately on init
-        self._collect_cluster_stats()
+        try:
+            # Collect metadata for the cluster immediately on init
+            self._collect_cluster_stats()
+        except Exception as e:
+            logger.error(f"Failed to collect cluster stats: {str(e)}")
 
         HTTPServer.register_activity()
 
