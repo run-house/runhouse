@@ -80,15 +80,15 @@ You can load an existing cluster by name from local or Runhouse RNS simply by:
 
 .. code-block:: python
 
-    gpu = rh.autocluster(name='~/my-local-a100')
-    gpu = rh.autocluster(name='@/my-a100-in-rh-rns')
-    gpu = rh.autocluster(name='^rh-v100')  # Loads a builtin cluster config
+    gpu = rh.cluster(name='~/my-local-a100')
+    gpu = rh.cluster(name='@/my-a100-in-rh-rns')
+    gpu = rh.cluster(name='^rh-v100')  # Loads a builtin cluster config
 
     # or, if you just want to load the Cluster object without refreshing its status
     gpu = rh.cluster(name='^rh-v100', dryrun=True)
 
 .. note::
-    To reload an on-demand cluster you can also use the :code:`autocluster` factory:
+    To reload an on-demand cluster you can also use the :code:`autocluster` factory directly:
     :code:`gpu = rh.autocluster(name='^rh-v100', dryrun=True)`
 
 

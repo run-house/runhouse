@@ -629,7 +629,7 @@ def cluster(
     ssh_creds: Optional[dict] = None,
     dryrun: bool = False,
     **kwargs,
-) -> Cluster:
+) -> Union[Cluster, "OnDemandCluster"]:
     """
     Builds an instance of :class:`Cluster`.
 
@@ -642,7 +642,7 @@ def cluster(
             (Default: ``False``)
 
     Returns:
-        Cluster: The resulting cluster.
+        Union[Cluster, OnDemandCluster]: The resulting cluster.
 
     Example:
         >>> # BYO Cluster
@@ -659,8 +659,8 @@ def cluster(
 
     if kwargs:
         warnings.warn(
-            "The `cluster` factory is now intended to be used for BYO clusters only. "
-            "If you would like to create an on-demand cluster, please use `rh.autocluster()`"
+            "The `cluster` factory is intended to be used for BYO clusters only. "
+            "If you would like to create an on-demand cluster, please use `rh.autocluster()` instead."
         )
         from runhouse import autocluster
 

@@ -82,7 +82,7 @@ outputs_s3.save("dreambooth_outputs")
 
 To load down the folder in full later:
 ```python
-rh.folder(name="dreambooth_outputs", dryrun=True).to("here")
+rh.folder(name="dreambooth_outputs").to("here")
 ```
 
 We support interactive blob and table primitives too:
