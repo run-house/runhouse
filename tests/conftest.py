@@ -15,6 +15,9 @@ def blob_data():
     return pickle.dumps(list(range(50)))
 
 
+# ----------------- Folders -----------------
+
+
 @pytest.fixture
 def local_folder(tmp_path):
     local_folder = rh.folder(path=tmp_path / "tests_tmp")
@@ -117,16 +120,23 @@ def cluster(request):
 @pytest.fixture(scope="session")
 def cpu_cluster():
     c = rh.autocluster("^rh-cpu")
+    c.name = "donny-rh-cpu"
     c.up_if_not()
     c.install_packages(["pytest"])
     return c
 
 
 @pytest.fixture(scope="session")
-def cpu_cluster_2():
-    c = rh.autocluster(
-        name="other-cpu", instance_type="CPU:2+", provider="aws"
+def byo_cpu():
+    # Spin up a new basic m5.xlarge EC2 instance
+    c = rh.cluster(
+        instance_type="m5.xlarge",
+        provider="aws",
+        region="us-east-1",
+        image_id="ami-0a313d6098716f372",
+        name="test-byo-cluster",
     ).up_if_not()
+    c = rh.cluster(name="different-cluster", ips=[c.address], ssh_creds=c.ssh_creds())
     c.install_packages(["pytest"])
     return c
 
@@ -156,3 +166,18 @@ def a10g_gpu_cluster():
 @pytest.fixture
 def test_env():
     return rh.env(["pytest"])
+
+
+# ----------------- Packages -----------------
+
+
+@pytest.fixture
+def local_package(local_folder):
+    return rh.package(path=local_folder.path, install_method="local")
+
+
+@pytest.fixture
+def s3_package(s3_folder):
+    return rh.package(
+        path=s3_folder.path, system=s3_folder.system, install_method="local"
+    )

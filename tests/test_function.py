@@ -308,49 +308,10 @@ def delete_function_from_rns(s):
 
 
 @pytest.mark.clustertest
-def test_http_url(cpu_cluster):
-    rh.function(summer).to(cpu_cluster).save("@/remote_function")
-    cpu_cluster.ssh_tunnel(80, 50052)
-    sum1 = requests.post(
-        "http://127.0.0.1:80/call/remote_function/", json={"args": [1, 2]}
-    ).json()
-    assert sum1 == 3
-    sum2 = requests.post(
-        "http://127.0.0.1:80/call/remote_function/", json={"kwargs": {"a": 1, "b": 2}}
-    ).json()
-    assert sum2 == 3
-
-
-@unittest.skip("Not yet implemented.")
-def test_http_url_with_curl():
-    # NOTE: Assumes the Function has already been created and deployed to running cluster
-    s = rh.function(name="test_function")
-    curl_cmd = s.http_url(a=1, b=2, curl_command=True)
-    print(curl_cmd)
-
-    # delete_configs the function data from the RNS
-    delete_function_from_rns(s)
-
-    assert True
-
-
-@pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_byo_cluster_function():
-    # Spin up a new basic m5.xlarge EC2 instance
-    c = rh.autocluster(
-        instance_type="m5.xlarge",
-        provider="aws",
-        region="us-east-1",
-        image_id="ami-0a313d6098716f372",
-        name="test-byo-cluster",
-    ).up_if_not()
-    ip = c.address
-    creds = c.ssh_creds()
-    del c
-    byo_cluster = rh.cluster(name="different-cluster", ips=[ip], ssh_creds=creds).save()
+def test_byo_cluster_function(byo_cpu):
     re_fn = rh.function(multiproc_torch_sum).to(
-        byo_cluster, env=["torch==1.12.1", "pytest"]
+        byo_cpu, env=["torch==1.12.1", "pytest"]
     )
 
     summands = list(zip(range(5), range(4, 9)))
@@ -360,8 +321,8 @@ def test_byo_cluster_function():
 
 
 @pytest.mark.clustertest
-def test_byo_cluster_maps():
-    pid_fn = rh.function(getpid).to(system="different-cluster")
+def test_byo_cluster_maps(byo_cpu):
+    pid_fn = rh.function(getpid).to(byo_cpu)
     num_pids = [1] * 20
     pids = pid_fn.map(num_pids)
     assert len(set(pids)) > 1
@@ -383,7 +344,7 @@ def test_byo_cluster_maps():
     pid_res_from_ref = pid_fn(pid_ref)
     assert pid_res_from_ref > pid_res
 
-    re_fn = rh.function(summer, system="different-cluster")
+    re_fn = rh.function(summer).to(byo_cpu)
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn.starmap(summands)
     assert res == [4, 6, 8, 10, 12]
@@ -391,30 +352,29 @@ def test_byo_cluster_maps():
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_load_function_in_new_env(cpu_cluster):
+def test_load_function_in_new_env(cpu_cluster, byo_cpu):
     cpu_cluster.save(
-        "@/rh-cpu"
+        f"@/{cpu_cluster.name}"
     )  # Needs to be saved to rns, right now has a local name by default
     remote_sum = rh.function(summer).to(cpu_cluster).save(REMOTE_FUNC_NAME)
 
-    byo_cluster = rh.cluster(name="different-cluster")
-    byo_cluster.send_secrets(["ssh"])
+    byo_cpu.send_secrets(["ssh"])
     remote_python = (
         "import runhouse as rh; "
         f"remote_sum = rh.function(name='{REMOTE_FUNC_NAME}'); "
         "res = remote_sum(1, 5); "
         "assert res == 6"
     )
-    res = byo_cluster.run_python([remote_python], stream_logs=True)
+    res = byo_cpu.run_python([remote_python], stream_logs=True)
     assert res[0][0] == 0
 
     remote_sum.delete_configs()
 
 
 @pytest.mark.clustertest
-def test_nested_diff_clusters(cpu_cluster):
+def test_nested_diff_clusters(cpu_cluster, byo_cpu):
     summer_cpu = rh.function(summer).to(cpu_cluster)
-    call_function_diff_cpu = rh.function(call_function).to("different-cluster")
+    call_function_diff_cpu = rh.function(call_function).to(byo_cpu)
 
     kwargs = {"a": 1, "b": 5}
     res = call_function_diff_cpu(summer_cpu, **kwargs)
@@ -429,6 +389,35 @@ def test_nested_same_cluster(cpu_cluster):
     kwargs = {"a": 1, "b": 5}
     res = call_function_cpu(summer_cpu, **kwargs)
     assert res == 6
+
+
+@pytest.mark.clustertest
+def test_http_url(cpu_cluster):
+    rh.function(summer).to(cpu_cluster).save("@/remote_function")
+    tun, port = cpu_cluster.ssh_tunnel(80, 50052)
+    sum1 = requests.post(
+        "http://127.0.0.1:80/call/remote_function/", json={"args": [1, 2]}
+    ).json()
+    assert sum1 == 3
+    sum2 = requests.post(
+        "http://127.0.0.1:80/call/remote_function/", json={"kwargs": {"a": 1, "b": 2}}
+    ).json()
+    assert sum2 == 3
+
+    tun.close()
+
+
+@unittest.skip("Not yet implemented.")
+def test_http_url_with_curl():
+    # NOTE: Assumes the Function has already been created and deployed to running cluster
+    s = rh.function(name="test_function")
+    curl_cmd = s.http_url(a=1, b=2, curl_command=True)
+    print(curl_cmd)
+
+    # delete_configs the function data from the RNS
+    delete_function_from_rns(s)
+
+    assert True
 
 
 # test that deprecated arguments are still backwards compatible for now

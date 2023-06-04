@@ -128,7 +128,7 @@ class Cluster(Resource):
             # Check if ray is installed
             if "ray" not in self._get_pip_installs(strip_versions=True):
                 self.run(
-                    ["pip install ray==2.0.1"]
+                    ["pip install ray==2.4.0"]
                 )  # pin to SkyPilot's Ray requirement
                 res = self.run(["ray start --head"])
                 if not res[0][0]:
@@ -404,7 +404,7 @@ class Cluster(Resource):
         if resync_rh:
             self.sync_runhouse_to_cluster(_install_url=_rh_install_url)
         logfile = f"cluster_server_{self.name}.log"
-        http_server_cmd = "serve run runhouse.servers.http.http_server:server --host 127.0.0.1 --port 50052"
+        http_server_cmd = "python -m runhouse.servers.http.http_server"
         kill_proc_cmd = f'pkill -f "{http_server_cmd}"'
         # 2>&1 redirects stderr to stdout
         screen_cmd = (

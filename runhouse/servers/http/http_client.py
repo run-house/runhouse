@@ -104,6 +104,7 @@ class HTTPClient:
         res = requests.get(
             f"http://{self.host}:{self.port}/object/",
             json={"data": pickle_b64((key, stream_logs))},
+            stream=True,
         )
         if res.status_code != 200:
             raise ValueError(

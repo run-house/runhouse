@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, Optional, Union
 
 from runhouse import rh_config
-from runhouse.rns.folders.folder import Folder
+from runhouse.rns.folders.folder import Folder, folder
 from runhouse.rns.resource import Resource
 from runhouse.rns.utils.hardware import _get_cluster_from
 
@@ -404,7 +404,7 @@ def package(
     name: str = None,
     install_method: str = None,
     install_str: str = None,
-    url: str = None,
+    path: str = None,
     system: str = None,
     dryrun: bool = False,
     local_mount: bool = False,
@@ -417,7 +417,7 @@ def package(
         name (str): Name to assign the pacakge.
         install_method (str): Method for installing the package. Options: [``pip``, ``conda``, ``reqs``, ``local``]
         install_str (str): Additional arguments to install.
-        url (str): URL of the package to install.
+        path (str): URL of the package to install.
         system (str): File system. Currently this must be one of:
             [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
             We are working to add additional file system support.
@@ -450,10 +450,10 @@ def package(
     config["name"] = name or config.get("rns_address", None) or config.get("name")
 
     config["install_method"] = install_method or config.get("install_method")
-    if url is not None:
+    if path is not None:
         system = config.get("system") or system or Folder.DEFAULT_FS
-        config["install_target"] = Folder(
-            path=url, system=system, local_mount=local_mount, data_config=data_config
+        config["install_target"] = folder(
+            path=path, system=system, local_mount=local_mount, data_config=data_config
         )
         config["install_args"] = install_str
     elif install_str is not None:

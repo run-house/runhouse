@@ -49,7 +49,7 @@ class GCSFolder(Folder):
 
         sync_dir_command = self._upload_command(src=src, dest=self.path)
         self._run_upload_cli_cmd(
-            sync_dir_command, access_denied_message=gcs_store.ACCESS_DENIED_MESSAGE
+            sync_dir_command, access_denied_message=gcs_store._ACCESS_DENIED_MESSAGE
         )
 
     def _upload_command(self, src: str, dest: str):
@@ -103,7 +103,7 @@ class GCSFolder(Folder):
                 src=self.fsspec_url, dest=data_store_path
             )
             self._run_upload_cli_cmd(
-                sync_dir_command, access_denied_message=GcsStore.ACCESS_DENIED_MESSAGE
+                sync_dir_command, access_denied_message=GcsStore._ACCESS_DENIED_MESSAGE
             )
         elif system == "s3":
             from sky.data import data_transfer
