@@ -111,13 +111,12 @@ def call_fn_by_type(
             run_obj = _get_or_run_async(run_key, obj_ref, fn, args, kwargs)
             res = (run_obj, obj_ref)
         elif fn_type == "get_or_call":
+            # Get the result if it exists, otherwise create a new synchronous run
             res = _get_or_call_synchronously(run_key, obj_ref, fn, args, kwargs)
-            logger.info(f"Type of res for get or call synchronous run: {type(res)}")
         elif fn_type in ("call", "nested"):
             if run_name:
-                # Create a synchronous run
+                # Create a new synchronous run
                 res = _run_fn_synchronously(run_key, obj_ref, fn, args, kwargs)
-                logger.info(f"Type of res for synchronous run: {type(res)}")
             else:
                 res = ray.get(obj_ref)
         else:
@@ -132,6 +131,27 @@ def deserialize_args_and_kwargs(args, kwargs):
     if kwargs:
         kwargs = pickle.loads(kwargs)
     return args, kwargs
+
+
+def get_fn_by_name(module_name, fn_name, relative_path=None):
+    if relative_path:
+        module_path = str((Path.home() / relative_path).resolve())
+        sys.path.append(module_path)
+        logger.info(f"Appending {module_path} to sys.path")
+
+    if module_name in rh_config.obj_store.imported_modules:
+        importlib.invalidate_caches()
+        rh_config.obj_store.imported_modules[module_name] = importlib.reload(
+            rh_config.obj_store.imported_modules[module_name]
+        )
+        logger.info(f"Reloaded module {module_name}")
+    else:
+        logger.info(f"Importing module {module_name}")
+        rh_config.obj_store.imported_modules[module_name] = importlib.import_module(
+            module_name
+        )
+    fn = getattr(rh_config.obj_store.imported_modules[module_name], fn_name)
+    return fn
 
 
 def get_fn_from_pointers(fn_pointers, serialize_res, num_gpus, *args, **kwargs):
@@ -228,9 +248,6 @@ def _run_fn_synchronously(run_name, obj_ref, fn, args, kwargs):
     )
 
     logger.info(f"Registered run completion in path: {completed_run.folder.path}")
-
-    # # Need to decode the result for a synchronous run since we are returning it directly back to the user
-    # result = pickle.loads(result)
 
     return result
 

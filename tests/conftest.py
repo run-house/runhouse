@@ -44,7 +44,7 @@ def gcs_folder(local_folder):
     gcs_folder = local_folder.to(system="gs")
     yield gcs_folder
 
-    # Delete files from S3
+    # Delete files from GCS
     gcs_folder.rm()
 
 
@@ -119,8 +119,7 @@ def cluster(request):
 
 @pytest.fixture(scope="session")
 def cpu_cluster():
-    c = rh.cluster("^rh-cpu")
-    c.name = "donny-rh-cpu"
+    c = rh.cluster("josh-rh-cpu")
     c.up_if_not()
     c.install_packages(["pytest"])
     return c
@@ -179,3 +178,57 @@ def s3_package(s3_folder):
     return rh.package(
         path=s3_folder.path, system=s3_folder.system, install_method="local"
     )
+
+
+# ----------------- Functions -----------------
+def summer(a: int, b: int):
+    return a + b
+
+
+def save_and_load_artifacts():
+    cpu = rh.cluster("^rh-cpu").save()
+    loaded_cluster = rh.load(name=cpu.name)
+    return loaded_cluster.name
+
+
+def slow_running_func(a, b):
+    import time
+
+    time.sleep(200)
+    return a + b
+
+
+@pytest.fixture
+def summer_func(cpu_cluster):
+    try:
+        return rh.Function.from_name("summer_func")
+    except:
+        return (
+            rh.function(summer, name="summer_func")
+            .to(cpu_cluster, env=["pytest"])
+            .save()
+        )
+
+
+@pytest.fixture
+def func_with_artifacts(cpu_cluster):
+    try:
+        return rh.Function.from_name("artifacts_func")
+    except:
+        return (
+            rh.function(save_and_load_artifacts, name="artifacts_func")
+            .to(cpu_cluster, env=["pytest"])
+            .save()
+        )
+
+
+@pytest.fixture
+def slow_func(cpu_cluster):
+    try:
+        return rh.Function.from_name("slow_func")
+    except:
+        return (
+            rh.function(slow_running_func, name="slow_func")
+            .to(cpu_cluster, env=["pytest"])
+            .save()
+        )

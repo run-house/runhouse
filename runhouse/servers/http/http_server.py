@@ -210,7 +210,6 @@ class HTTPServer:
 
         folder_path = folder_path or Run._base_cluster_folder_path(run_name)
         folder_path_on_system = resolve_absolute_path(folder_path)
-        logger.info(f"folder path on system: {folder_path_on_system}")
 
         try:
             HTTPServer.register_activity()

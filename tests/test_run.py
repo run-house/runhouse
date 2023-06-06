@@ -85,7 +85,6 @@ def test_get_or_call_latest(summer_func):
 @pytest.mark.clustertest
 def test_run_fn_async(summer_func):
     """Execute function async on the cluster. If a run already exists, do not re-run. Returns a Run object."""
-    # TODO [JL] - "Error inside function remote: Only one live display may be active at once"
     async_run = summer_func.run(name_run=ASYNC_RUN_NAME, a=1, b=2)
 
     assert isinstance(async_run, rh.Run)

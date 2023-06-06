@@ -21,7 +21,6 @@ from runhouse.rns.resource import Resource
 from runhouse.rns.run_module_utils import call_fn_by_type, get_fn_by_name
 
 from runhouse.rns.utils.env import _get_env_from
-from runhouse.rns.utils.hardware import _current_cluster
 
 logger = logging.getLogger(__name__)
 
