@@ -300,6 +300,9 @@ class Cluster(Resource):
         self.client = HTTPClient(host="127.0.0.1", port=connected_port)
 
     def check_server(self, restart_server=True):
+        if self.name == _current_cluster("name"):
+            return
+
         if not self.address:
             # For OnDemandCluster, this initial check doesn't trigger a sky.status, which is slow.
             # If cluster simply doesn't have an address we likely need to up it.

@@ -86,7 +86,9 @@ def test_cancel_run(cpu_cluster):
     cpu_cluster.cancel(key)
     with pytest.raises(Exception) as e:
         cpu_cluster.get(key, stream_logs=True)
-    assert "ray.exceptions.TaskCancelledError" in str(e.value)
+    # NOTE [DG]: For some reason the exception randomly returns in different formats
+    assert ("ray.exceptions.TaskCancelledError" in str(e.value) or
+            "This task or its dependency was cancelled by" in str(e.value))
 
 
 if __name__ == "__main__":

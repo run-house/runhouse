@@ -21,6 +21,7 @@ from runhouse.rns.resource import Resource
 from runhouse.rns.run_module_utils import call_fn_by_type
 
 from runhouse.rns.utils.env import _get_env_from
+from runhouse.rns.utils.hardware import _current_cluster
 
 logger = logging.getLogger(__name__)
 
@@ -262,7 +263,7 @@ class Function(Resource):
     def __call__(self, *args, stream_logs=False, **kwargs):
         fn_type = "call"
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
-            if not self.system or self.system.name == rh_config.obj_store.cluster_name:
+            if not self.system or self.system.name == _current_cluster("name"):
                 [relative_path, module_name, fn_name] = self.fn_pointers
                 conda_env = (
                     self.env.env_name
