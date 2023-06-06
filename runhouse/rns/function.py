@@ -374,12 +374,6 @@ class Function(Resource):
 
     def remote(self, *args, **kwargs):
         """Run async remote call on cluster."""
-        # TODO [DG] pin the run_key and return a string (printed to log) so result can be retrieved later and we
-        # don't need to init ray here. Also, allow user to pass the string as a param to remote().
-        # TODO [DG] add rpc for listing gettaable strings, plus metadata (e.g. when it was created)
-        # We need to ray init here so the returned Ray object ref doesn't throw an error it's deserialized
-        # import ray
-        # ray.init(ignore_reinit_error=True)
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             run_key = self._call_fn_with_ssh_access(
                 fn_type="remote", args=args, kwargs=kwargs

@@ -1,6 +1,5 @@
 import copy
 import logging
-import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -17,6 +16,9 @@ from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
 
 from .. import OnDemandCluster, Resource
 
+import ray
+PREFETCH_KWARG = "prefetch_batches" if ray.__version__ >= "2.4.0" else "prefetch_blocks"
+
 logger = logging.getLogger(__name__)
 
 
@@ -26,7 +28,7 @@ class Table(Resource):
     DEFAULT_CACHE_FOLDER = ".cache/runhouse/tables"
     DEFAULT_STREAM_FORMAT = "pyarrow"
     DEFAULT_BATCH_SIZE = 256
-    DEFAULT_PREFETCH_BLOCKS = 1
+    DEFAULT_PREFETCH_BATCHES = 1
 
     def __init__(
         self,
@@ -252,7 +254,7 @@ class Table(Resource):
         drop_last: bool = False,
         shuffle_seed: Optional[int] = None,
         shuffle_buffer_size: Optional[int] = None,
-        prefetch_blocks: Optional[int] = None,
+        prefetch_batches: Optional[int] = None,
     ):
         """Return a local batched iterator over the ray dataset."""
         ray_data = self.data
@@ -261,30 +263,33 @@ class Table(Resource):
             # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.iter_torch_batches.html#ray.data.Dataset.iter_torch_batches
             return ray_data.iter_torch_batches(
                 batch_size=batch_size,
-                prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
                 drop_last=drop_last,
                 local_shuffle_buffer_size=shuffle_buffer_size,
                 local_shuffle_seed=shuffle_seed,
+                # We need to do this to handle the name change of the prefetch_batches argument in ray 2.4.0
+                **{PREFETCH_KWARG: prefetch_batches or self.DEFAULT_PREFETCH_BATCHES},
             )
 
         elif self.stream_format == "tf":
             # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.iter_tf_batches.html
             return ray_data.iter_tf_batches(
                 batch_size=batch_size,
-                prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
                 drop_last=drop_last,
                 local_shuffle_buffer_size=shuffle_buffer_size,
                 local_shuffle_seed=shuffle_seed,
+                # We need to do this to handle the name change of the prefetch_batches argument in ray 2.4.0
+                **{PREFETCH_KWARG: prefetch_batches or self.DEFAULT_PREFETCH_BATCHES},
             )
         else:
             # https://docs.ray.io/en/latest/data/api/dataset.html#ray.data.Dataset.iter_batches
             return ray_data.iter_batches(
                 batch_size=batch_size,
-                prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
                 batch_format=self.stream_format,
                 drop_last=drop_last,
                 local_shuffle_buffer_size=shuffle_buffer_size,
                 local_shuffle_seed=shuffle_seed,
+                # We need to do this to handle the name change of the prefetch_batches argument in ray 2.4.0
+                **{PREFETCH_KWARG: prefetch_batches or self.DEFAULT_PREFETCH_BATCHES},
             )
 
     def read_ray_dataset(self, columns: Optional[List[str]] = None):
@@ -302,8 +307,12 @@ class Table(Resource):
             logger.warning("Partitioning by column not currently supported.")
             pass
 
+        # delete existing contents or they'll just be appended to
+        self.delete_in_system()
+
         # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.write_parquet.html
-        data_to_write.repartition(os.cpu_count() * 2).write_parquet(
+        # data_to_write.repartition(os.cpu_count() * 2).write_parquet(
+        data_to_write.write_parquet(
             self.fsspec_url, filesystem=self._folder.fsspec_fs
         )
 
@@ -325,13 +334,11 @@ class Table(Resource):
         except:
             return None
 
-    def delete_in_system(self, recursive: bool = True):
+    def delete_in_system(self):
         """Remove contents of all subdirectories (ex: partitioned data folders)"""
         # If file(s) are directories, recursively delete contents and then also remove the directory
         # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.spec.AbstractFileSystem.rm
-        self._folder.fsspec_fs.rm(self.path, recursive=recursive)
-        if self.system == "file" and recursive:
-            self._folder.delete_in_system()
+        self._folder.delete_in_system()
 
     def exists_in_system(self):
         """Whether table exists in file system"""
