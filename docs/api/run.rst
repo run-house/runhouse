@@ -1,8 +1,8 @@
 Run
 ====================================
 
-A Run is a Runhouse primitive used for capturing logs, inputs, results, or other artifacts that are
-loaded or saved within a particular function call, CLI or Python command, or context manager.
+A Run is a Runhouse primitive used for capturing logs, inputs, results within a particular function call,
+CLI or Python command, or context manager.
 Runs also serve as a convenient way to trace the usage and upstream / downstream dependencies between different
 Runhouse artifacts.
 
@@ -26,10 +26,16 @@ Use Cases
 ~~~~~~~~~
 Runs can be useful in a number of different ways:
 
-- **Lineage**: Using Runs, we can easily trace the usage and dependencies between various
+- **Caching**: Using Runs, we can easily trace the usage and dependencies between various
   resources. For example, we may have a pipeline that produces a pre-preprocessed dataset, trains a model, and exports
   the model for inference. It would be useful to know which functions (or microservices) were used to produce each
-  stage of the pipeline, and which data artifacts were created along the way.
+  stage of the pipeline, and which data artifacts were created along the way. Caching also works among a team, so
+  when one person on a team creates a Run, others can benefit from the cached result (without needing to check
+  whether the result is present yet).
+
+
+- **Auditability**: With Runs we can easily inspect inputs, logs and outputs for a particular function call or
+  command execution. This makes it much easier to debug or reproduce a particular workflow.
 
 
 - **Sharing**: Runs (like all other Runhouse objects) can easily be shared among team members. This is useful when we have
@@ -78,7 +84,7 @@ When a Run is completed it stores the following information in its dedicated fol
 
 .. note::
     By default, the Run's folder sits in the :code:`~/.rh/logs/<run_name>` directory if the system is a cluster,
-    or in the :code:`rh` folder of the working directory if the Run is local.
+    or in the :code:`rh` folder of the working directory if the Run is local. See :ref:`Run Logs` for more details.
 
 
 Creating a Run
@@ -89,6 +95,7 @@ Calling a Function
 ------------------
 We can create a Run when executing a function by providing the :code:`name_run` argument. This can be either a string
 representing the custom name to assign the Run, or a boolean :code:`True` to indicate this Run should be named.
+By default :code:`name_run` is set to :code:`False`.
 
 .. code-block:: python
 
@@ -98,7 +105,7 @@ representing the custom name to assign the Run, or a boolean :code:`True` to ind
         return a + b
 
     # Initialize the cluster object (and provision the cluster if it does not already exist)
-    cpu = rh.cluster(name="^rh-cpu", dryrun=True)
+    cpu = rh.cluster(name="^rh-cpu")
 
     # Create a function object and send it to the cpu cluster
     my_func = rh.function(summer, name="my_test_func").to(cpu)
@@ -108,8 +115,13 @@ representing the custom name to assign the Run, or a boolean :code:`True` to ind
 
 
 When this function :code:`my_func` is called, Runhouse triggers the function execution on the cluster
-and returns the Run's result.
+and returns the Run's result. The Run's config metadata, inputs, and stdout / stderr are also stored in the .rh folder
+of the cluster's file system.
 
+.. note::
+
+    In addition to calling the function directly, you can also
+    use :code:`.run()` :ref:`async interface <Asynchronous Run>`.
 
 Running Commands
 --------------------------------
@@ -138,8 +150,43 @@ To create a Run by executing Python commands:
     )
 
 
-Context Manager
----------------
+Advanced API Usage
+------------------
+
+Loading Runs
+~~~~~~~~~~~~
+There are a few ways to load a Run:
+
+- **Run factory**: Via the :ref:`Run Factory <Run Factory Method>` by using the :code:`rh.run()` method.
+
+- **From a cluster**: Load a Run that lives on a cluster by using :code:`cluster.get_run()`.
+  This method takes a :code:`run_name` argument with the name of the Run to load.
+
+- **From a system via its path**: Load a Run from a specific folder path on system by calling
+  the :code:`Run.from_path()` method. This method takes a :code:`path` argument specifying the path to the Run's folder.
+
+.. note::
+    Each of these methods will return a :ref:`Run` object.
+
+**Loading Results**
+
+To load the results of the Run, we can call the :code:`result()` method:
+
+.. code-block:: python
+
+    # Load the run from its cluster
+    fn_run = cpu.get_run("my_fn_run")
+
+    # If the function for this run has finished executing, we can load the result:
+    result = pickle.loads(fn_run.result())
+
+.. tip::
+    We can also call :code:`fn_run.stderr()` to view the Run's stderr output, and :code:`fn_run.stdout()`
+    to view the Run's stdout output.
+
+
+Accessing and Using Runs
+~~~~~~~~~~~~~~~~~~~~~~~~
 We can trace activity and capture logs within a block of code using a context manager. By default the Run's config
 will be stored on the local filesystem in the :code:`rh/<run_name>` folder of the current working directory.
 
@@ -157,48 +204,38 @@ will be stored on the local filesystem in the :code:`rh/<run_name>` folder of th
         my_func(1, 2, name_run="my_new_run")
 
         current_run = my_func.system.get_run("my_new_run")
-        run_res = current_run.result()
+        run_res = pickle.loads(current_run.result())
         print(f"Run result: {run_res}")
 
     print(f"Saved Run with name: {r.name} to path: {r.path}")
 
 
-We can then load this Run from the local file system:
+We can then load this Run from its system:
 
 .. code-block:: python
 
     import runhouse as rh
 
-    ctx_run = rh.Run.from_file(name="my_ctx_run")
-    print(f"Loaded run from path: {ctx_run.path}"})
-
-
-Advanced API Usage
-~~~~~~~~~~~~~~~~~~
+    # Load the Run from the rh directory in the current working directory of the project
+    ctx_run = rh.Run.from_path(path="~/rh/runs/my_ctx_run")
 
 Caching
--------
+~~~~~~~
 Runhouse provides varying levels of control for running and caching the results of a Run.
 
 We can invoke a run both synchronously and asynchronously, and with or without caching:
 
-**Synchronous Run**
+Synchronous Run
+---------------
 
 To create a Run which executes a function synchronously without any caching, we call the function and
 provide the :code:`name_run` argument. The function will be executed on the cluster, and will
 return its result once completed.
 
-.. code-block:: python
-
-    import runhouse as rh
-
-    # Note: Assumes the function is saved in RNS
-    my_func = rh.Function.from_name("my_func")
-    res = my_func(1, 2, name_run="my_fn_run")
-
-For a fully synchronous run which also checks for a cached result, we can call the :code:`get_or_call()` method on the function.
-If a result already exists with this Run name, the result will be returned. Otherwise, the function will be
-executed synchronously on the cluster and the result will be returned once the function execution is complete:
+For a fully synchronous run which also checks for a cached result, we can call the :code:`get_or_call()` method
+on the function. If a result already exists with this Run name, the result will be returned.
+Otherwise, the function will be executed synchronously on the cluster and the result will be returned once
+the function execution is complete:
 
 .. code-block:: python
 
@@ -208,8 +245,8 @@ executed synchronously on the cluster and the result will be returned once the f
     res = my_func.get_or_call(1, 2, name_run="my_fn_run")
 
 
-**Asynchronous Run**
-
+Asynchronous Run
+----------------
 To run a function asynchronously without any caching, we can call the :code:`run()` method. The function will
 begin executing on the cluster in the background, and in the meantime a :code:`Run` object will be returned:
 
@@ -221,8 +258,8 @@ begin executing on the cluster in the background, and in the meantime a :code:`R
     run_obj = my_func.run(1, 2, name_run="my_async_run")
 
 
-For a fully asynchronous run which also checks for a cached result, we can call the :code:`get_or_run()` method on the function.
-A :code:`Run` object will be returned whether the result is cached or not:
+For a fully asynchronous run which also checks for a cached result, we can call the :code:`get_or_run()` method
+on the function. A :code:`Run` object will be returned whether the result is cached or not:
 
 .. code-block:: python
 
@@ -232,22 +269,9 @@ A :code:`Run` object will be returned whether the result is cached or not:
     run_obj = my_func.get_or_run(1, 2, name_run="my_async_run")
 
 
-In order to get outputs of the Run, we can call the :code:`result()` method:
 
-.. code-block:: python
-
-    fn_run = cpu.get_run("my_fn_run")
-
-    # If the function for this run has finished executing, we can load the result:
-    result = fn_run.result()
-
-.. tip::
-    We can also call :code:`fn_run.stderr()` to view the Run's stderr output, and :code:`fn_run.stdout()`
-    to view the Run's stdout output.
-
-
-Syncing Between Systems
----------------------------
+Moving Runs Between Systems
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To copy the Run's folder contents from the cluster to the local environment:
 
@@ -266,3 +290,33 @@ To copy the Run's folder contents to a remote storage bucket:
 
     my_run = cpu.get_run("my_run")
     my_run_on_s3 = my_run.to("s3", path="/s3-bucket/s3-folder")
+
+Run Logs
+~~~~~~~~
+
+You can view a Run's logs in python:
+
+.. code-block:: python
+
+    cpu.get("my_run", stream_logs=True)
+
+Or via the command line:
+
+.. code-block:: cli
+
+    runhouse logs cpu my_run
+
+Cancelling a Run
+~~~~~~~~~~~~~~~~
+
+For cancelling a Run:
+
+.. code-block:: python
+
+    cpu.cancel("my_run")
+
+Or via the command line:
+
+.. code-block:: cli
+
+    runhouse cancel cpu my_run

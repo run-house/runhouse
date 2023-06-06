@@ -1,5 +1,4 @@
 import pickle
-from pathlib import Path
 
 import pandas as pd
 
@@ -16,12 +15,37 @@ def blob_data():
     return pickle.dumps(list(range(50)))
 
 
+# ----------------- Folders -----------------
+
+
 @pytest.fixture
-def local_folder():
-    local_folder = rh.folder(path=Path.cwd() / "tests_tmp")
-    yield local_folder
-    local_folder.delete_in_system()
-    assert not local_folder.exists_in_system()
+def local_folder(tmp_path):
+    local_folder = rh.folder(path=tmp_path / "tests_tmp")
+    local_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
+    return local_folder
+
+
+@pytest.fixture
+def cluster_folder(cpu_cluster, local_folder):
+    return local_folder.to(system=cpu_cluster)
+
+
+@pytest.fixture
+def s3_folder(local_folder):
+    s3_folder = local_folder.to(system="s3")
+    yield s3_folder
+
+    # Delete files from S3
+    s3_folder.rm()
+
+
+@pytest.fixture
+def gcs_folder(local_folder):
+    gcs_folder = local_folder.to(system="gs")
+    yield gcs_folder
+
+    # Delete files from S3
+    gcs_folder.rm()
 
 
 # ----------------- Tables -----------------
@@ -93,33 +117,68 @@ def cluster(request):
     return request.getfixturevalue(request.param)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def cpu_cluster():
-    return rh.cluster("^rh-cpu").up_if_not()
+    c = rh.cluster("^rh-cpu")
+    c.name = "donny-rh-cpu"
+    c.up_if_not()
+    c.install_packages(["pytest"])
+    return c
 
 
-@pytest.fixture
-def cpu_cluster_2():
-    return rh.cluster(
-        name="other-cpu", instance_type="CPU:2+", provider="aws"
+@pytest.fixture(scope="session")
+def byo_cpu():
+    # Spin up a new basic m5.xlarge EC2 instance
+    c = rh.cluster(
+        instance_type="m5.xlarge",
+        provider="aws",
+        region="us-east-1",
+        image_id="ami-0a313d6098716f372",
+        name="test-byo-cluster",
     ).up_if_not()
+    c = rh.cluster(name="different-cluster", ips=[c.address], ssh_creds=c.ssh_creds())
+    c.install_packages(["pytest"])
+    return c
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def v100_gpu_cluster():
     return rh.cluster("^rh-v100", provider="aws").up_if_not()
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def k80_gpu_cluster():
     return rh.cluster(name="rh-k80", instance_type="K80:1", provider="aws").up_if_not()
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def a10g_gpu_cluster():
     return rh.cluster(
         name="rh-a10x", instance_type="g5.2xlarge", provider="aws"
     ).up_if_not()
+
+
+# ----------------- Envs -----------------
+
+
+@pytest.fixture
+def test_env():
+    return rh.env(["pytest"])
+
+
+# ----------------- Packages -----------------
+
+
+@pytest.fixture
+def local_package(local_folder):
+    return rh.package(path=local_folder.path, install_method="local")
+
+
+@pytest.fixture
+def s3_package(s3_folder):
+    return rh.package(
+        path=s3_folder.path, system=s3_folder.system, install_method="local"
+    )
 
 
 # ----------------- Functions -----------------

@@ -5,37 +5,9 @@ from pathlib import Path
 import pytest
 
 import runhouse as rh
-from runhouse import rh_config
 
 extra_index_url = "--extra-index-url https://pypi.python.org/simple/"
 cuda_116_url = "--index-url https://download.pytorch.org/whl/cu116"
-
-
-def _create_s3_package():
-    import shutil
-
-    from runhouse.rns.api_utils.utils import create_s3_bucket
-
-    s3_bucket_path = "runhouse-folder"
-    folder_name = "tmp_s3_package"
-
-    create_s3_bucket(s3_bucket_path)
-    # Create a local temp folder to install for the package
-    tmp_path = Path(rh_config.rns_client.locate_working_dir()) / folder_name
-    tmp_path.mkdir(parents=True, exist_ok=True)
-    for i in range(3):
-        output_file = Path(f"{tmp_path}/sample_file_{i}.txt")
-        output_file.write_text(f"file{i}")
-
-    pkg = rh.Package.from_string(f"local:./{folder_name}")
-    s3_pkg = pkg.to(system="s3", path=f"/{s3_bucket_path}/package-tests")
-
-    shutil.rmtree(tmp_path)
-    return s3_pkg, folder_name
-
-
-def setup():
-    pass
 
 
 def summer(a, b):
@@ -147,13 +119,12 @@ def test_mount_local_package_to_cluster(cpu_cluster):
 
 @pytest.mark.clustertest
 @pytest.mark.awstest
-def test_package_file_system_to_cluster(cpu_cluster):
-    s3_pkg, folder_name = _create_s3_package()
+def test_package_file_system_to_cluster(cpu_cluster, s3_package):
+    assert s3_package.install_target.system == "s3"
+    assert s3_package.install_target.exists_in_system()
 
-    assert s3_pkg.install_target.system == "s3"
-    assert s3_pkg.install_target.exists_in_system()
-
-    s3_pkg.to(system=cpu_cluster, mount=True, path=folder_name)
+    folder_name = Path(s3_package.install_target.path).stem
+    s3_package.to(system=cpu_cluster, mount=True, path=folder_name)
 
     # Confirm the package's folder is now on the cluster
     assert "sample_file_0.txt" in cpu_cluster.run([f"ls {folder_name}"])[0][1]
@@ -188,7 +159,7 @@ def test_torch_install_command_generator_from_reqs():
 
     dummy_pkg = rh.Package.from_string(specifier="pip:dummy_package")
 
-    reqs_from_file: list = dummy_pkg.format_torch_cmd_in_reqs_file(
+    reqs_from_file: list = dummy_pkg._format_torch_cmd_in_reqs_file(
         path=test_reqs_file, cuda_version_or_cpu="11.6"
     )
 
@@ -268,7 +239,7 @@ def test_torch_install_command_generator():
     for cmds in packages_to_install:
         torch_version, cuda_version, expected_install_cmd = cmds
         dummy_pkg = rh.Package.from_string(specifier=f"pip:{torch_version}")
-        formatted_install_cmd = dummy_pkg.install_cmd_for_torch(
+        formatted_install_cmd = dummy_pkg._install_cmd_for_torch(
             torch_version, cuda_version
         )
 
@@ -351,5 +322,4 @@ def test_install_cmd_for_torch_on_cluster(request, cluster):
 
 
 if __name__ == "__main__":
-    setup()
     unittest.main()

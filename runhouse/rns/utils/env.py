@@ -80,7 +80,7 @@ def _get_conda_yaml(conda_env=None):
         for dep in conda_yaml["dependencies"]
         if isinstance(dep, Dict) and "pip" in dep
     ]:
-        conda_yaml["dependencies"].append({"pip": ["ray==2.0.1"]})
+        conda_yaml["dependencies"].append({"pip": ["ray<=2.4.0,>=2.2.0"]})
     else:
         for dep in conda_yaml["dependencies"]:
             if (
@@ -88,6 +88,6 @@ def _get_conda_yaml(conda_env=None):
                 and "pip" in dep
                 and not [pip for pip in dep["pip"] if "ray" in pip]
             ):
-                dep["pip"].append("ray==2.0.1")
+                dep["pip"].append("ray<=2.4.0,>=2.2.0")
                 continue
     return conda_yaml

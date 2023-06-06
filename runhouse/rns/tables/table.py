@@ -1,6 +1,5 @@
 import copy
 import logging
-import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -8,6 +7,8 @@ import fsspec
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+
+import ray
 import ray.data
 
 import runhouse as rh
@@ -16,6 +17,8 @@ from runhouse.rns.folders.folder import folder
 from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
 
 from .. import OnDemandCluster, Resource
+
+PREFETCH_KWARG = "prefetch_batches" if ray.__version__ >= "2.4.0" else "prefetch_blocks"
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +29,7 @@ class Table(Resource):
     DEFAULT_CACHE_FOLDER = ".cache/runhouse/tables"
     DEFAULT_STREAM_FORMAT = "pyarrow"
     DEFAULT_BATCH_SIZE = 256
-    DEFAULT_PREFETCH_BLOCKS = 1
+    DEFAULT_PREFETCH_BATCHES = 1
 
     def __init__(
         self,
@@ -149,7 +152,7 @@ class Table(Resource):
         self._folder.data_config = new_data_config
 
     @classmethod
-    def from_name(cls, name, dryrun=True):
+    def from_name(cls, name, dryrun=False):
         """Load existing Table via its name."""
         config = rns_client.load_config(name=name)
         if not config:
@@ -183,15 +186,15 @@ class Table(Resource):
             data_to_write = self.data
 
             if isinstance(data_to_write, pd.DataFrame):
-                data_to_write = self.ray_dataset_from_pandas(data_to_write)
+                data_to_write = self._ray_dataset_from_pandas(data_to_write)
 
             if isinstance(data_to_write, pa.Table):
-                data_to_write = self.ray_dataset_from_arrow(data_to_write)
+                data_to_write = self._ray_dataset_from_arrow(data_to_write)
 
             if not isinstance(data_to_write, ray.data.Dataset):
                 raise TypeError(f"Invalid Table format {type(data_to_write)}")
 
-            self.write_ray_dataset(data_to_write)
+            self._write_ray_dataset(data_to_write)
             logger.info(f"Saved {str(self)} to: {self.fsspec_url}")
 
         return self
@@ -256,7 +259,7 @@ class Table(Resource):
         drop_last: bool = False,
         shuffle_seed: Optional[int] = None,
         shuffle_buffer_size: Optional[int] = None,
-        prefetch_blocks: Optional[int] = None,
+        prefetch_batches: Optional[int] = None,
     ):
         """Return a local batched iterator over the ray dataset."""
         ray_data = self.data
@@ -265,30 +268,33 @@ class Table(Resource):
             # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.iter_torch_batches.html#ray.data.Dataset.iter_torch_batches
             return ray_data.iter_torch_batches(
                 batch_size=batch_size,
-                prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
                 drop_last=drop_last,
                 local_shuffle_buffer_size=shuffle_buffer_size,
                 local_shuffle_seed=shuffle_seed,
+                # We need to do this to handle the name change of the prefetch_batches argument in ray 2.4.0
+                **{PREFETCH_KWARG: prefetch_batches or self.DEFAULT_PREFETCH_BATCHES},
             )
 
         elif self.stream_format == "tf":
             # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.iter_tf_batches.html
             return ray_data.iter_tf_batches(
                 batch_size=batch_size,
-                prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
                 drop_last=drop_last,
                 local_shuffle_buffer_size=shuffle_buffer_size,
                 local_shuffle_seed=shuffle_seed,
+                # We need to do this to handle the name change of the prefetch_batches argument in ray 2.4.0
+                **{PREFETCH_KWARG: prefetch_batches or self.DEFAULT_PREFETCH_BATCHES},
             )
         else:
             # https://docs.ray.io/en/latest/data/api/dataset.html#ray.data.Dataset.iter_batches
             return ray_data.iter_batches(
                 batch_size=batch_size,
-                prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
                 batch_format=self.stream_format,
                 drop_last=drop_last,
                 local_shuffle_buffer_size=shuffle_buffer_size,
                 local_shuffle_seed=shuffle_seed,
+                # We need to do this to handle the name change of the prefetch_batches argument in ray 2.4.0
+                **{PREFETCH_KWARG: prefetch_batches or self.DEFAULT_PREFETCH_BATCHES},
             )
 
     def read_ray_dataset(self, columns: Optional[List[str]] = None):
@@ -299,25 +305,27 @@ class Table(Resource):
         )
         return dataset
 
-    def write_ray_dataset(self, data_to_write: ray.data.Dataset):
+    def _write_ray_dataset(self, data_to_write: ray.data.Dataset):
         """Write a ray dataset to a fsspec filesystem"""
         if self.partition_cols:
             # TODO [JL]: https://arrow.apache.org/docs/python/generated/pyarrow.parquet.write_to_dataset.html
             logger.warning("Partitioning by column not currently supported.")
             pass
 
+        # delete existing contents or they'll just be appended to
+        self.delete_in_system()
+
         # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.write_parquet.html
-        data_to_write.repartition(os.cpu_count() * 2).write_parquet(
-            self.fsspec_url, filesystem=self._folder.fsspec_fs
-        )
+        # data_to_write.repartition(os.cpu_count() * 2).write_parquet(
+        data_to_write.write_parquet(self.fsspec_url, filesystem=self._folder.fsspec_fs)
 
     @staticmethod
-    def ray_dataset_from_arrow(data: pa.Table):
+    def _ray_dataset_from_arrow(data: pa.Table):
         """Convert an Arrow Table to a Ray Dataset"""
         return ray.data.from_arrow(data)
 
     @staticmethod
-    def ray_dataset_from_pandas(data: pd.DataFrame):
+    def _ray_dataset_from_pandas(data: pd.DataFrame):
         """Convert an Pandas DataFrame to a Ray Dataset"""
         return ray.data.from_pandas(data)
 
@@ -329,13 +337,13 @@ class Table(Resource):
         except:
             return None
 
-    def delete_in_system(self, recursive: bool = True):
+    def rm(self, recursive: bool = True):
         """Remove contents of all subdirectories (ex: partitioned data folders)"""
         # If file(s) are directories, recursively delete contents and then also remove the directory
         # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.spec.AbstractFileSystem.rm
-        self._folder.fsspec_fs.rm(self.path, recursive=recursive)
+        self._folder.fsspec_fs.rm(recursive=recursive)
         if self.system == "file" and recursive:
-            self._folder.delete_in_system()
+            self._folder.rm()
 
     def exists_in_system(self):
         """Whether table exists in file system"""

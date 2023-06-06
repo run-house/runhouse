@@ -10,8 +10,6 @@ import yaml
 from runhouse.rns.folders.folder import Folder
 from runhouse.rns.packages import Package
 
-from .test_package import _create_s3_package
-
 pip_reqs = ["torch", "numpy"]
 
 # -------- BASE ENV TESTS ----------- #
@@ -46,21 +44,23 @@ def test_create_env():
 
 @pytest.mark.clustertest
 def test_to_cluster(cpu_cluster):
-    test_env = rh.env(name="test_env", reqs=["numpy"])
+    test_env = rh.env(name="test_env", reqs=["transformers"])
 
     test_env.to(cpu_cluster)
-    res = cpu_cluster.run_python(["import numpy"])
+    res = cpu_cluster.run_python(["import transformers"])
     assert res[0][0] == 0  # import was successful
 
-    cpu_cluster.run(["pip uninstall numpy"])
+    cpu_cluster.run(["pip uninstall transformers -y"])
 
 
 @pytest.mark.awstest
 @pytest.mark.clustertest
-def test_to_fs_to_cluster(cpu_cluster):
-    s3_pkg, folder_name = _create_s3_package()
+def test_to_fs_to_cluster(cpu_cluster, s3_package):
+    cpu_cluster.install_packages(["s3fs"])
 
-    test_env_s3 = rh.env(name="test_env_s3", reqs=["s3fs", "scipy", s3_pkg]).to("s3")
+    test_env_s3 = rh.env(name="test_env_s3", reqs=["s3fs", "scipy", s3_package]).to(
+        "s3"
+    )
     count = 0
     for req in test_env_s3.reqs:
         if isinstance(req, Package) and isinstance(req.install_target, Folder):
@@ -69,6 +69,7 @@ def test_to_fs_to_cluster(cpu_cluster):
             count += 1
     assert count == 1
 
+    folder_name = "test_package"
     test_env_cluster = test_env_s3.to(system=cpu_cluster, path=folder_name, mount=True)
     for req in test_env_cluster.reqs:
         if isinstance(req, Package) and isinstance(req.install_target, Folder):
@@ -235,11 +236,11 @@ def test_conda_git_reqs(cpu_cluster):
 
 
 @pytest.mark.clustertest
-def test_conda_env_to_fs_to_cluster(cpu_cluster):
-    s3_pkg, folder_name = _create_s3_package()
-
+def test_conda_env_to_fs_to_cluster(cpu_cluster, s3_package):
     conda_env = _get_conda_env(name="s3-env")
-    conda_env_s3 = rh.env(reqs=["s3fs", "scipy", s3_pkg], conda_env=conda_env).to("s3")
+    conda_env_s3 = rh.env(reqs=["s3fs", "scipy", s3_package], conda_env=conda_env).to(
+        "s3"
+    )
     count = 0
     for req in conda_env_s3.reqs:
         if isinstance(req, Package) and isinstance(req.install_target, Folder):
@@ -248,6 +249,7 @@ def test_conda_env_to_fs_to_cluster(cpu_cluster):
             count += 1
     assert count == 1
 
+    folder_name = "test_package"
     count = 0
     conda_env_cluster = conda_env_s3.to(
         system=cpu_cluster, path=folder_name, mount=True

@@ -33,7 +33,7 @@ jobs:
 
       - name: Run all tutorial tests
         run: |
-          pytest -v -k "tutorialtest"
+          pytest -v -k tutorialtest
 
       - name: Teardown all tutorial clusters
         run: |

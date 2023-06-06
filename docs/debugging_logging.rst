@@ -10,7 +10,7 @@ Logging
 
 There are two main ways to access logs.
 
-Logs are automatically output onto the cluster, in the file ``~/.rh/<cluster-name>_grpc_server.log``.
+Logs are automatically output onto the cluster, in the file ``~/.rh/cluster_server_<cluster_name>.log``.
 You can ssh into the cluster with ``ssh cluster-name`` to access these logs.
 
 Alternatively, to see logs on your local machine while running a remote function, you can add the
@@ -29,15 +29,15 @@ For general debugging that doesn't occur within remote function calls, you can a
 ``import pdb; pdb.set_trace()`` whereever you want to set your debugging session.
 If the code is being run locally at the point of the debugger, you'll be able to access the session from your
 local machine. If the code is being run remotely on a cluster, you will need to ssh into the cluster with
-``ssh cluster-name``, and then run ``screen -r`` inside the cluster. From there, you will see the GRPC logs
+``ssh cluster-name``, and then run ``screen -r`` inside the cluster. From there, you will see the RPC logs
 being printed out, and can debug normally inside the ``screen``.
 
 .. note::
 
     When debugging inside ``screen``, please use ``Ctrl A+D`` to exit out of the screen. Do NOT use ``Ctrl C``,
-    which will terminate the GRPC server.
+    which will terminate the RPC server.
 
-    If you accidentally terminate the GRPC server, you can run ``cluster.restart_grpc_server()`` to restart the
+    If you accidentally terminate the RPC server, you can run ``cluster.restart_server()`` to restart the
     server.
 
 For debugging remote functions, which are launched using ``ray``, we can utilize Ray's debugger. Add a

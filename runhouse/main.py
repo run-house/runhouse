@@ -120,14 +120,14 @@ def load_cluster(cluster_name: str):
 
 
 @app.command()
-def restart_grpc(
+def restart_server(
     cluster_name: str,
     restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
     resync_rh: bool = typer.Option(False, help="Resync the Runhouse package"),
 ):
-    """Restart the gRPC server on a cluster."""
+    """Restart the RPC server on a cluster."""
     c = cluster(name=cluster_name)
-    c.restart_grpc_server(resync_rh=resync_rh, restart_ray=restart_ray)
+    c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray)
 
 
 @app.callback()

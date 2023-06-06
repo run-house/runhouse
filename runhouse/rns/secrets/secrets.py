@@ -373,7 +373,7 @@ class Secrets:
         return [e.value for e in Providers]
 
     @classmethod
-    def check_secrets_for_mismatches(
+    def _check_secrets_for_mismatches(
         cls, secrets_to_save: dict, secrets_path: str, overwrite: bool
     ):
         """When overwrite is set to `False` and a secrets file already exists, check if new secrets clash with
@@ -405,7 +405,7 @@ class Secrets:
                 Secrets.delete_secrets_file(file_path=f)
 
     @classmethod
-    def add_provider_to_rh_config(cls, secrets_for_config: Optional[dict] = None):
+    def _add_provider_to_rh_config(cls, secrets_for_config: Optional[dict] = None):
         """Save the loaded provider config path to the runhouse config saved in the file system."""
         config_secrets = secrets_for_config or {
             cls.PROVIDER_NAME: cls.default_credentials_path()

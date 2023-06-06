@@ -144,7 +144,7 @@ class Resource:
         return config
 
     @classmethod
-    def from_name(cls, name, dryrun=True):
+    def from_name(cls, name, dryrun=False):
         """Load existing Resource via its name."""
         config = rns_client.load_config(name=name)
         if not config:
@@ -165,9 +165,9 @@ class Resource:
         self._name = None
 
     def history(self, num_entries: int = None) -> List[Dict]:
-        """Return the history of the resource, including specific config fields.
-        If ``num_entries`` is specified, return the latest number of entries specified."""
-        resource_uri = rns_client.resource_uri(self.name)
+        """Return the history of the resource, including specific config fields (e.g. blob path) and which runs
+        have overwritten it."""
+        resource_uri = rns_client.resource_uri(self.rns_address)
         base_uri = f"{rns_client.api_server_url}/resource/history/{resource_uri}"
         uri = f"{base_uri}?num_entries={num_entries}" if num_entries else base_uri
 

@@ -15,12 +15,12 @@ Runhouse allows you to send function code to a cluster, but still interact with 
 When you do this, the following steps occur:
 
 1. We check if the cluster is up, and bring up the cluster if not (only possible for :ref:`OnDemandClusters <OnDemandCluster>`)
-2. We check that the cluster's gRPC server has started to handle requests to do things like install packages, run modules, get previously executed results, etc. If it hasn't, we install Runhouse on the cluster and start the gRPC server. The gRPC server initializes Ray.
+2. We check that the cluster's RPC server has started to handle requests to do things like install packages, run modules, get previously executed results, etc. If it hasn't, we install Runhouse on the cluster and start the RPC server. The RPC server initializes Ray.
 3. We collect the dependencies from the :code:`reqs` parameter and install them on the cluster via :code:`cluster.install_packages()`. By default, we'll sync over the working git repo and install its :code:`requirements.txt` if it has one.
 
 
-When you run your function module, we send a gRPC request to the cluster with the module name and function entrypoint to run.
-The gRPC server adds the module to its python path, imports the module, grabs the function entrypoint, runs it,
+When you run your function module, we send a RPC request to the cluster with the module name and function entrypoint to run.
+The RPC server adds the module to its python path, imports the module, grabs the function entrypoint, runs it,
 and returns your results.
 
 We plan to support additional form factors for modules beyond "remote Python function" shortly, including HTTP endpoints, custom ASGIs, and more.
@@ -95,7 +95,7 @@ and back up the working directory to create a function that can be easily access
 This allows Runhouse to load your code onto the cluster on the fly, as well as do basic registration and dispatch of
 the :ref:`Function`.
 
-At a high level, we dump the list of packages into gRPC, and the packages are installed on the gRPC server
+At a high level, we dump the list of packages into an RPC, and the packages are installed on the RPC server
 on the cluster.
 
 We currently provide four general package install methods: local, requiements.txt, pip, and conda.

@@ -15,6 +15,7 @@ from runhouse.rns.api_utils.utils import (
     read_resp_data,
     remove_null_values_from_dict,
 )
+from runhouse.rns.utils.hardware import _current_cluster
 
 logger = logging.getLogger(__name__)
 
@@ -81,13 +82,24 @@ class RNSClient:
             )
 
     @classmethod
-    def find_parent_with_file(cls, dir_path, file):
+    def find_parent_with_file(cls, dir_path, file, searched_dirs=None):
         if Path(dir_path) == Path.home() or dir_path == Path("/"):
             return None
         if Path(dir_path, file).exists():
             return str(dir_path)
         else:
-            return cls.find_parent_with_file(Path(dir_path).parent, file)
+            if searched_dirs is None:
+                searched_dirs = {
+                    dir_path,
+                }
+            else:
+                searched_dirs.add(dir_path)
+            parent_path = Path(dir_path).parent
+            if parent_path in searched_dirs:
+                return None
+            return cls.find_parent_with_file(
+                parent_path, file, searched_dirs=searched_dirs
+            )
 
     @classmethod
     def locate_working_dir(cls, cwd=os.getcwd()):
@@ -200,14 +212,14 @@ class RNSClient:
         current_run = self.current_run()
         if current_run:
             artifact_name = self.resolve_rns_path(name)
-            current_run.register_upstream_artifact(artifact_name)
+            current_run._register_upstream_artifact(artifact_name)
 
     def add_downstream_resource(self, name: str):
         """Add a resource's name to the current run's downstream artifact registry if it's being saved"""
         current_run = self.current_run()
         if current_run:
             artifact_name = self.resolve_rns_path(name)
-            current_run.register_downstream_artifact(artifact_name)
+            current_run._register_downstream_artifact(artifact_name)
 
     # ---------------------
 
@@ -249,6 +261,9 @@ class RNSClient:
             return {}
 
         rns_address = self.resolve_rns_path(name)
+
+        if rns_address == _current_cluster("name"):
+            return _current_cluster("config")
 
         if rns_address[0] in ["~", "^"]:
             config = self._load_config_from_local(rns_address)
@@ -333,7 +348,7 @@ class RNSClient:
         resource_dir.mkdir(parents=True, exist_ok=True)
         config_path = resource_dir / "config.json"
         with open(config_path, "w") as f:
-            json.dump(config, f, indent=4)
+            json.dump(config, f)
         logger.info(f"Saving config for {rns_address} to: {config_path}")
 
     def _save_config_in_rns(self, config, resource_name):
