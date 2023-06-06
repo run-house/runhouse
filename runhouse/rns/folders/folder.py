@@ -15,7 +15,11 @@ import runhouse as rh
 from runhouse.rh_config import rns_client
 from runhouse.rns.api_utils.utils import generate_uuid
 from runhouse.rns.resource import Resource
-from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
+from runhouse.rns.utils.hardware import (
+    _current_cluster,
+    _get_cluster_from,
+    RESERVED_SYSTEM_NAMES,
+)
 
 fsspec.register_implementation("ssh", sshfs.SSHFileSystem)
 # SSHFileSystem is not yet builtin.
@@ -145,7 +149,11 @@ class Folder(Resource):
     def _check_for_child_configs(cls, config):
         """Overload by child resources to load any resources they hold internally."""
         system = config["system"]
-        if isinstance(system, str) and rns_client.exists(system):
+        if (
+            isinstance(system, str)
+            and system not in RESERVED_SYSTEM_NAMES
+            and rns_client.exists(system)
+        ):
             # if the system is set to a cluster
             cluster_config: dict = rns_client.load_config(name=system)
             if not cluster_config:

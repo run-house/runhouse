@@ -7,6 +7,8 @@ import fsspec
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+
+import ray
 import ray.data
 
 import runhouse as rh
@@ -16,7 +18,6 @@ from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
 
 from .. import OnDemandCluster, Resource
 
-import ray
 PREFETCH_KWARG = "prefetch_batches" if ray.__version__ >= "2.4.0" else "prefetch_blocks"
 
 logger = logging.getLogger(__name__)
@@ -312,9 +313,7 @@ class Table(Resource):
 
         # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.write_parquet.html
         # data_to_write.repartition(os.cpu_count() * 2).write_parquet(
-        data_to_write.write_parquet(
-            self.fsspec_url, filesystem=self._folder.fsspec_fs
-        )
+        data_to_write.write_parquet(self.fsspec_url, filesystem=self._folder.fsspec_fs)
 
     @staticmethod
     def _ray_dataset_from_arrow(data: pa.Table):

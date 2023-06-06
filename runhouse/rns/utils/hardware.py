@@ -5,6 +5,8 @@ import yaml
 
 from runhouse import rh_config
 
+RESERVED_SYSTEM_NAMES = ["file", "s3", "gs", "azure", "here", "ssh", "sftp"]
+
 
 def _current_cluster(key="name"):
     """Retrive key value from the current cluster config.
@@ -24,11 +26,13 @@ def _current_cluster(key="name"):
 def _get_cluster_from(system):
     from runhouse.rns import Resource
 
-    if isinstance(system, Resource) or (
-        isinstance(system, str)
-        and not rh_config.rns_client.exists(system, resource_type="cluster")
-    ):
+    if isinstance(system, Resource) and system.RESOURCE_TYPE == "cluster":
         return system
+    if isinstance(system, str):
+        if system in RESERVED_SYSTEM_NAMES or not rh_config.rns_client.exists(
+            system, resource_type="cluster"
+        ):
+            return system
 
     from runhouse.rns.hardware import Cluster
 

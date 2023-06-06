@@ -1,6 +1,7 @@
 from typing import List, Optional, Union
 
 from runhouse.rh_config import rns_client
+from ..utils.hardware import RESERVED_SYSTEM_NAMES
 
 from .cluster import Cluster
 from .on_demand_cluster import OnDemandCluster
@@ -61,6 +62,12 @@ def cluster(
         >>>                  region='us-east-1',
         >>>                  )
     """
+    if name in RESERVED_SYSTEM_NAMES:
+        raise ValueError(
+            f"Cluster name {name} is a reserved name. Please use a different name which is not one of "
+            f"{RESERVED_SYSTEM_NAMES}."
+        )
+
     config = rns_client.load_config(name) if load else {}
     config["name"] = name or config.get("rns_address", None) or config.get("name")
     config["ips"] = ips or config.get("ips", None)
