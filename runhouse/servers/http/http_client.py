@@ -4,13 +4,7 @@ import time
 
 import requests
 
-from runhouse.rns.api_utils.utils import read_resp_data
-from runhouse.servers.http.http_utils import (
-    b64_unpickle,
-    handle_response,
-    OutputType,
-    pickle_b64,
-)
+from runhouse.servers.http.http_utils import handle_response, OutputType, pickle_b64
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +42,6 @@ class HTTPClient:
                 f"Error calling {endpoint} on server: {response.content.decode()}"
             )
         output_type = response.json()["output_type"]
-
         return handle_response(response.json(), output_type, err_str)
 
     def check_server(self, cluster_config=None):
@@ -101,7 +94,6 @@ class HTTPClient:
             data=pickle_b64(module_info),
             err_str=f"Error inside function {fn_type}",
         )
-
         end = time.time()
         logging.info(f"Time to call remote function: {round(end - start, 2)} seconds")
         return res

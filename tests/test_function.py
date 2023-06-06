@@ -13,10 +13,6 @@ from runhouse.rns.api_utils.utils import load_resp_content
 REMOTE_FUNC_NAME = "@/remote_function"
 
 
-def setup():
-    pass
-
-
 def call_function(fn, **kwargs):
     return fn(**kwargs)
 

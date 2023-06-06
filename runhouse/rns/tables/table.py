@@ -344,6 +344,7 @@ class Table(Resource):
         self._folder.fsspec_fs.rm(recursive=recursive)
         if self.system == "file" and recursive:
             self._folder.rm()
+        self._folder.rm()
 
     def exists_in_system(self):
         """Whether table exists in file system"""

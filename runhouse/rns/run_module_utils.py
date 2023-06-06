@@ -134,27 +134,6 @@ def deserialize_args_and_kwargs(args, kwargs):
     return args, kwargs
 
 
-def get_fn_by_name(module_name, fn_name, relative_path=None):
-    if relative_path:
-        module_path = str((Path.home() / relative_path).resolve())
-        sys.path.append(module_path)
-        logger.info(f"Appending {module_path} to sys.path")
-
-    if module_name in rh_config.obj_store.imported_modules:
-        importlib.invalidate_caches()
-        rh_config.obj_store.imported_modules[module_name] = importlib.reload(
-            rh_config.obj_store.imported_modules[module_name]
-        )
-        logger.info(f"Reloaded module {module_name}")
-    else:
-        logger.info(f"Importing module {module_name}")
-        rh_config.obj_store.imported_modules[module_name] = importlib.import_module(
-            module_name
-        )
-    fn = getattr(rh_config.obj_store.imported_modules[module_name], fn_name)
-    return fn
-
-
 def get_fn_from_pointers(fn_pointers, serialize_res, num_gpus, *args, **kwargs):
     (module_path, module_name, fn_name) = fn_pointers
     if module_name == "notebook":
