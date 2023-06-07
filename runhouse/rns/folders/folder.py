@@ -935,8 +935,8 @@ def folder(
                 f"fsspec file system {file_system} not officially supported. Use at your own risk."
             )
             new_folder = Folder.from_config(config, dryrun=dryrun)
-        elif isinstance(_get_cluster_from(file_system), Resource):
-            config["system"] = _get_cluster_from(file_system)
+        elif isinstance(_get_cluster_from(file_system, dryrun=dryrun), Resource):
+            config["system"] = _get_cluster_from(file_system, dryrun)
         else:
             raise ValueError(
                 f"File system {file_system} not found. Have you installed the "

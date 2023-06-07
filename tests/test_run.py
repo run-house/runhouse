@@ -1,4 +1,3 @@
-import pickle
 import unittest
 from pprint import pprint
 
@@ -52,7 +51,6 @@ def test_load_run_result(cpu_cluster):
 
 @pytest.mark.clustertest
 def test_get_or_call_from_cache(summer_func):
-    # TODO [JL] Hanging on cluster
     """Cached version of synchronous run - if already completed return the result, otherwise run and wait for
     completion before returning the result."""
     # Note: In this test since we already ran the function, it should immediately return the result
@@ -84,6 +82,7 @@ def test_get_or_call_latest(summer_func):
 
 @pytest.mark.clustertest
 def test_run_fn_async(summer_func):
+    # TODO [JL] Failed - "Error inside function remote: Only one live display may be active at once"
     """Execute function async on the cluster. If a run already exists, do not re-run. Returns a Run object."""
     async_run = summer_func.run(name_run=ASYNC_RUN_NAME, a=1, b=2)
 
@@ -93,7 +92,7 @@ def test_run_fn_async(summer_func):
 @unittest.skip("Not implemented yet.")
 @pytest.mark.clustertest
 def test_send_run_to_system_on_completion(summer_func):
-    # Only once the run actually finishes send to S3
+    # Only once the run actually finishes do we send to S3
     async_run = summer_func.run(name_run=ASYNC_RUN_NAME, a=1, b=2).to(
         "s3", on_completion=True
     )
@@ -109,16 +108,17 @@ def test_get_or_run(summer_func):
     assert isinstance(async_run, rh.Run)
 
 
-@unittest.skip("Not implemented yet.")
 @pytest.mark.clustertest
-def test_run_refresh(summer_func):
+def test_run_refresh(slow_func):
     from runhouse.rns.run import RunStatus
 
-    async_run = summer_func.get_or_run(name_run="async_get_or_run")
+    async_run = slow_func.get_or_run(name_run="async_get_or_run")
 
     while async_run.refresh().status in [RunStatus.RUNNING, RunStatus.NOT_STARTED]:
-        # do stuff
+        # do stuff .....
         pass
+
+    assert async_run.refresh().status == RunStatus.COMPLETED
 
 
 @pytest.mark.clustertest
@@ -145,20 +145,6 @@ def test_get_or_run_latest(summer_func):
     # Note: In this test since we are providing "latest", will return the latest cached version.
     async_run = summer_func.get_or_run(name_run="latest")
     assert isinstance(async_run, rh.Run)
-
-
-@unittest.skip("Not yet implemented.")
-def test_create_run_with_artifacts(func_with_artifacts):
-    run_name = "run_with_artifacts"
-    cpu = rh.cluster("^rh-cpu").up_if_not()
-
-    res = func_with_artifacts(name_run=run_name)
-    print(f"Res: {res}")
-
-    func_run = cpu.get_run(run_name)
-
-    assert func_run.downstream_artifacts
-    assert func_run.upstream_artifacts
 
 
 @pytest.mark.clustertest
@@ -220,14 +206,14 @@ def test_copy_fn_run_from_system_to_s3(cpu_cluster):
 def test_read_fn_run_inputs_and_outputs():
     my_run = rh.Run.from_name(name=FUNC_RUN_NAME)
     inputs = my_run.inputs()
-    assert pickle.loads(inputs) == {"args": [1, 2], "kwargs": {}}
+    assert inputs == {"args": [1, 2], "kwargs": {}}
 
     output = my_run.result()
     assert output == 3
 
 
 @pytest.mark.rnstest
-def test_read_fn_run_from_rns():
+def test_read_fn_stdout_from_rns_run():
     # Read the stdout saved when running the function on the cluster
     my_run = rh.Run.from_name(name=FUNC_RUN_NAME)
     stdout = my_run.stdout()
@@ -243,15 +229,30 @@ def test_delete_fn_run_from_rns():
 
 
 @pytest.mark.clustertest
-def test_slow_running_fn_run(cpu_cluster, slow_func):
-    run_name = slow_func(2, 2, name_run="slow_func_run")
-    print(f"Run name: {run_name}")
+def test_slow_running_async_fn_run(cpu_cluster, slow_func):
+    """Run a function that takes a long time to run - since we are running this async we should
+    immediately get back the run object with a status of RUNNING."""
+    from runhouse.rns.run import RunStatus
 
-    func_run = cpu_cluster.get_run(FUNC_RUN_NAME)
+    async_run = slow_func.run(name_run="my_slow_async_run", a=1, b=2)
+
+    assert isinstance(async_run, rh.Run)
+    assert async_run.refresh().status == RunStatus.RUNNING
+
+
+@pytest.mark.clustertest
+def test_slow_running_fn_run(cpu_cluster, slow_func):
+    """Run a function that takes a long time to run - this waits for the execution to complete on the cluster
+    before returning the result."""
+    slow_run_name = "my_slow_run"
+    run_res = slow_func(2, 2, name_run=slow_run_name)
+    assert run_res == 4
+
+    func_run = cpu_cluster.get_run(slow_run_name)
     assert func_run
 
     func_run.folder.rm()
-    assert not func_run.exists_in_system()
+    assert not func_run.folder.exists_in_system()
 
 
 # ------------------------- CLI RUN ------------ ----------------------

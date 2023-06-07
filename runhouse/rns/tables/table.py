@@ -514,7 +514,7 @@ def table(
             # save to the default bucket
             data_path = f"{Table.DEFAULT_FOLDER_PATH}/{table_name_in_path}"
 
-    config["system"] = _get_cluster_from(config["system"])
+    config["system"] = _get_cluster_from(config["system"], dryrun=dryrun)
     config["name"] = name
     config["path"] = data_path
     config["file_name"] = file_name or config.get("file_name")

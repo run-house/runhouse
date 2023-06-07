@@ -38,16 +38,17 @@ def call_fn_by_type(
 
     # TODO other possible fn_types: 'batch', 'streaming'
     if fn_type == "get_or_run":
-        try:
-            # If Run already exists with this run key return the Run object
-            run_obj = _existing_run_from_file(run_key)
+        # If Run already exists with this run key return the Run object
+        run_obj = _existing_run_from_file(run_key)
+        if run_obj is not None:
             logger.info(f"Found existing Run {run_obj.name}")
             return pickle.dumps(run_obj)
-        except FileNotFoundError:
-            # No existing run found, continue on with async execution by setting the fn_type to "remote",
-            # which will trigger the execution async and return the run object along with the object ref
-            logger.info(f"No existing run found for {run_key}")
-            fn_type = "remote"
+        else:
+            # No existing run found, continue on with async execution by setting the fn_type to "remote_run",
+            # which will trigger the execution async and return the Run object
+            logger.info(f"No existing Run found in file system for {run_key}")
+            # Note: we distinguish this from "remote" bc we only want to return a Run object in this scenario
+            fn_type = "remote_run"
 
     if fn_type == "get":
         obj_ref = args[0]
@@ -92,7 +93,7 @@ def call_fn_by_type(
                 )
                 for arg in args
             ]
-        elif fn_type in ("queue", "remote", "call", "get_or_call"):
+        elif fn_type in ("queue", "remote", "remote_run", "call", "get_or_call"):
             obj_ref = ray_fn.remote(
                 fn_pointers, serialize_res, num_cuda_devices, *args, **kwargs
             )
@@ -107,11 +108,15 @@ def call_fn_by_type(
         else:
             raise ValueError(f"fn_type {fn_type} not recognized")
 
-        if fn_type == "remote":
+        if fn_type in ("remote", "remote_run"):
             run_obj = _get_or_run_async(run_key, obj_ref, fn, args, kwargs)
-            res = (run_obj, obj_ref)
+            if fn_type == "remote":
+                res = (run_obj, obj_ref)
+            else:
+                # If remote_run, only return the run object since this is being triggered via `get_or_run()`
+                res = pickle.dumps(run_obj)
         elif fn_type == "get_or_call":
-            # Get the result if it exists, otherwise create a new synchronous run
+            # Get the result if it already exists, otherwise create a new synchronous run and return its result
             res = _get_or_call_synchronously(run_key, obj_ref, fn, args, kwargs)
         elif fn_type in ("call", "nested"):
             if run_name:
@@ -257,42 +262,55 @@ def _get_or_call_synchronously(run_name, obj_ref, fn, args, kwargs) -> Any:
         # TODO [JL]
         raise NotImplementedError("Latest not currently supported")
 
-    try:
-        existing_run = _existing_run_from_file(run_name)
+    existing_run = _existing_run_from_file(run_name)
+    if existing_run is not None:
         logger.info(
             f"Loaded existing Run {existing_run.name} from the cluster's file system"
         )
-        return existing_run.result()
+        result = obj_store.get(run_name)
+        if result is not None:
+            # Return result saved in object store - result is not serialized so pickle
+            # it before sending back over the wire
+            return pickle.dumps(result)
 
-    except FileNotFoundError:
-        # No Run exists for this name, create a new one and run synchronously
-        logger.info(
-            f"No Run found on cluster for name {run_name}, creating a new one and running synchronously"
-        )
-        return _run_fn_synchronously(run_name, obj_ref, fn, args, kwargs)
+        path_to_results = existing_run._fn_result_path()
+
+        try:
+            # Try loading from the Run's folder
+            result = existing_run._load_blob_from_path(path=path_to_results).fetch()
+            if result is not None:
+                return result
+        except:
+            pass
+
+    # No Run exists for this name, create a new one and run synchronously
+    logger.info(
+        f"No Run found on cluster for name {run_name}, creating a new one and running synchronously"
+    )
+
+    return _run_fn_synchronously(run_name, obj_ref, fn, args, kwargs)
 
 
 def _get_or_run_async(run_key, obj_ref, fn, args, kwargs):
-    try:
-        existing_run = _existing_run_from_file(run_key)
+    existing_run = _existing_run_from_file(run_key)
+    if existing_run is not None:
         logger.info(
             f"Loaded existing Run {existing_run.name} from the cluster's file system"
         )
         return existing_run
 
-    except FileNotFoundError:
-        # No Run exists for this name, create a new one and run asynchronously
-        logger.info(f"No Run found for name {run_key}, creating a new one async")
+    # No Run exists for this name, create a new one and run asynchronously
+    logger.info(f"No Run found for name {run_key}, creating a new one async")
 
-        new_async_run = _create_new_run(run_key, fn, args, kwargs)
+    new_async_run = _create_new_run(run_key, fn, args, kwargs)
 
-        _run_fn_async(new_async_run, obj_ref)
+    _run_fn_async(new_async_run, obj_ref)
 
-        # Return a Run object for the async run - regardless of whether the function execution has completed
-        existing_run = _existing_run_from_file(run_key)
-        logger.info(f"Loaded existing async Run {existing_run.name}")
+    # Return a Run object for the async run - regardless of whether the function execution has completed
+    existing_run = _existing_run_from_file(run_key)
+    logger.info(f"Loaded existing async Run {existing_run.name}")
 
-        return existing_run
+    return existing_run
 
 
 def _create_new_run(run_name, fn, args, kwargs):
@@ -311,7 +329,6 @@ def _create_new_run(run_name, fn, args, kwargs):
     if not THIS_CLUSTER:
         raise ValueError("Failed to get current cluster from config")
 
-    logger.info(f"THIS_CLUSTER: {THIS_CLUSTER}")
     current_cluster: str = rh_config.rns_client.resolve_rns_path(THIS_CLUSTER)
 
     # Create a new Run object, and save down its config data to the log folder on the cluster
@@ -357,8 +374,6 @@ def _register_completed_run(path, run_status):
 
     # Update the config data for the completed run
     run_obj._register_fn_run_completion(run_status)
-
-    logger.info(f"Saved pickled result to folder in path: {run_obj._fn_result_path()}")
 
     return run_obj
 
@@ -437,7 +452,6 @@ def create_command_based_run(run_name, commands, cmd_prefix, python_cmd):
     run_obj.status = RunStatus.COMPLETED
 
     # Write the stdout and stderr of the Run to its dedicated log folder on the cluster
-    logger.info("Writing stdout and stderr to files in Run folder")
     run_obj.write(data=final_stdout.encode(), path=run_obj._stdout_path)
     run_obj.write(data=final_stderr.encode(), path=run_obj._stderr_path)
 

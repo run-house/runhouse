@@ -249,7 +249,7 @@ def blob(
     config["name"] = name
     config["path"] = data_path
     config["data_config"] = data_config or config.get("data_config")
-    config["system"] = _get_cluster_from(config["system"])
+    config["system"] = _get_cluster_from(config["system"], dryrun=dryrun)
 
     if mkdir:
         # create the remote folder for the blob

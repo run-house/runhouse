@@ -39,6 +39,9 @@ class Run(Resource):
     FUNCTION_RUN = "FUNCTION"
     CTX_MANAGER = "CTX_MANAGER"
 
+    RESULT_FILE = "result.pkl"
+    INPUTS_FILE = "inputs.pkl"
+
     def __init__(
         self,
         name: str = None,
@@ -59,11 +62,9 @@ class Run(Resource):
         super().__init__(name=run_name, dryrun=dryrun)
 
         self.cmds = cmds
+
         self.run_type = kwargs.get("run_type") or self._detect_run_type(fn)
-
-        self.status = RunStatus.NOT_STARTED
-
-        # If loading from a file, use the times already set in the kwargs
+        self.status = kwargs.get("status") or RunStatus.NOT_STARTED
         self.start_time = kwargs.get("start_time")
         self.end_time = kwargs.get("end_time")
 
@@ -225,7 +226,7 @@ class Run(Resource):
         if self.run_type == self.FUNCTION_RUN:
             # Grab result from the object store on the cluster, then write it down to the Run's dedicated folder
             result = self.folder.system.get(self.name)
-            self.folder.put({"result.pkl": pickle.dumps(result)}, overwrite=True)
+            self.folder.put({self.RESULT_FILE: pickle.dumps(result)}, overwrite=True)
             logger.info(
                 f"Saved result of Run {self.name} to path: {self._fn_result_path()}"
             )
@@ -248,16 +249,20 @@ class Run(Resource):
     def refresh(self):
         """Creates a new Run object from the system."""
         if isinstance(self.folder.system, Cluster):
-            return self.folder.system.get_run(run_name=self.name)
-        else:
-            # If local or remote storage
-            return self.folder.get(name=self.name)
+            try:
+                # Try loading the Run from the cluster's object store
+                return self.folder.system.get_run(run_name=self.name)
+            except:
+                pass
+
+        # Try loading the Run from the system's folder
+        return self.folder.get(name=self.name)
 
     def inputs(self) -> bytes:
-        """Load the pickled function inputs saved on the system for the Run.
-
-        *Note: It's the user's responsibility to unpickle the inputs.*"""
-        return blob(path=self._fn_inputs_path(), system=self.folder.system).fetch()
+        """Load the pickled function inputs saved on the system for the Run."""
+        return pickle.loads(
+            self._load_blob_from_path(path=self._fn_inputs_path()).fetch()
+        )
 
     def result(self, stream_logs=False) -> bytes:
         """Load the function result saved on the system for the Run. If the Run lives on a cluster, will load the
@@ -271,7 +276,7 @@ class Run(Resource):
 
         # Try reading result from the Run's dedicated folder on the system
         return pickle.loads(
-            blob(path=self._fn_result_path(), system=self.folder.system).fetch()
+            self._load_blob_from_path(path=self._fn_result_path()).fetch()
         )
 
     def stdout(self):
@@ -279,26 +284,26 @@ class Run(Resource):
         stdout_path = self._stdout_path
         logger.info(f"Reading stdout from path: {stdout_path}")
 
-        return (
-            blob(path=stdout_path, system=self.folder.system).fetch().decode().strip()
-        )
+        return self._load_blob_from_path(path=stdout_path).fetch().decode().strip()
 
     def stderr(self):
         """Read the stderr saved on the system for the Run."""
         stderr_path = self._stderr_path
         logger.info(f"Reading stderr from path: {stderr_path}")
 
-        return (
-            blob(path=stderr_path, system=self.folder.system).fetch().decode().strip()
-        )
+        return self._load_blob_from_path(stderr_path).fetch().decode().strip()
 
     def _fn_inputs_path(self):
         """Path to the pickled inputs used for the function which are saved on the system."""
-        return f"{self.folder.path}/inputs.pkl"
+        return f"{self.folder.path}/{self.INPUTS_FILE}"
 
     def _fn_result_path(self):
         """Path to the pickled result for the function which are saved on the system."""
-        return f"{self.folder.path}/result.pkl"
+        return f"{self.folder.path}/{self.RESULT_FILE}"
+
+    def _load_blob_from_path(self, path: str):
+        """Load a blob from the Run's folder in the specified path. (ex: function inputs, result, stdout, stderr)."""
+        return blob(path=path, system=self.folder.system)
 
     def _register_new_fn_run(self):
         """Log a function based Run once it's been triggered on the system."""
@@ -315,8 +320,7 @@ class Run(Resource):
 
         self.status = run_status
 
-        logger.info(f"Registering function run completion with status: {run_status}")
-        logger.info(f"Start time when registering completion: {self.start_time}")
+        logger.info(f"Registering a completed Run with status: {run_status}")
         self._write_config()
 
     def _write_config(self, config: dict = None, overwrite: bool = True):
@@ -373,12 +377,9 @@ class Run(Resource):
     def _find_file_path_by_ext(self, ext: str) -> Union[str, None]:
         """Get the file path by provided extension. Needed when loading the stdout and stderr files associated
         with a particular run."""
-        if not self.folder.exists_in_system():
-            # Folder not found on system
-            return None
-
-        folder_contents: list = self.folder.ls()
-        if not folder_contents:
+        try:
+            folder_contents: list = self.folder.ls()
+        except FileNotFoundError:
             return None
 
         files_with_ext = list(filter(lambda x: x.endswith(ext), folder_contents))
@@ -386,6 +387,7 @@ class Run(Resource):
             # No .out / .err file already created in the logs folder for this Run
             return None
 
+        # TODO [JL] take the most recent if there are multiple?
         return files_with_ext[0]
 
     def _register_upstream_artifact(self, artifact_name: str):
@@ -441,7 +443,9 @@ class Run(Resource):
             raise TypeError("Invalid name_run type. Must be a string or `True`.")
 
     @classmethod
-    def from_path(cls, path: str, system: Union[str, Cluster] = None) -> "Run":
+    def from_path(
+        cls, path: str, system: Union[str, Cluster] = None
+    ) -> Union["Run", None]:
         """Load a local Run based on the path to its dedicated folder on a system.
 
         Args:
@@ -458,7 +462,8 @@ class Run(Resource):
         )
 
         if not local_folder.exists_in_system():
-            raise FileNotFoundError(f"No config found in path: {path}")
+            logger.info(f"No Run config found in path: {local_folder.path}")
+            return None
 
         # Load config file for this Run
         run_config = json.loads(local_folder.get(name=cls.RUN_CONFIG_FILE))

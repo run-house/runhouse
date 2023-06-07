@@ -119,7 +119,7 @@ def cluster(request):
 
 @pytest.fixture(scope="session")
 def cpu_cluster():
-    c = rh.cluster("josh-rh-cpu")
+    c = rh.cluster("^rh-cpu")
     c.up_if_not()
     c.install_packages(["pytest"])
     return c
