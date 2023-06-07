@@ -8,6 +8,8 @@ Package Factory Method
 
 .. autofunction:: runhouse.package
 
+.. autofunction:: runhouse.git_package
+
 
 Package Class
 ~~~~~~~~~~~~~

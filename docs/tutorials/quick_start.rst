@@ -97,20 +97,23 @@ Secrets and Portability
 
 Using Runhouse with only the OSS Python package is perfectly fine, but
 you can unlock some unique portability features by creating an (always
-free) `account <https://api.run.house/>`__ and saving down your secrets
-and/or resource metadata there.
+free) `account <https://api.run.house/>`__ and securely saving down
+your secrets and/or resource metadata there.
 
 Think of the OSS-package-only experience as akin to Microsoft Office,
 while creating an account will make your cloud resources sharable and
 accessible from anywhere like Google Docs.
 
-Some notes on security \* Our API servers only ever store light metadata
-about your resources (e.g. folder name, cloud provider, storage bucket,
-path). All actual data and compute stays inside your own cloud account
-and never hits our servers. \* Secrets are stored in `Hashicorp
-Vault <https://www.vaultproject.io/>`__ (an industry standard for
-secrets management), never on our API servers, and our APIs simply call
-into Vault’s APIs.
+Some notes on security
+
+* Our API servers only ever store light metadata about your resources
+  (e.g. folder name, cloud provider, storage bucket, path). All actual
+  data and compute stays inside your own cloud account and never hits our
+  servers.
+
+* Secrets are stored in `Hashicorp Vault <https://www.vaultproject.io/>`__
+  (an industry standard for secrets management), never on our API servers,
+  and our APIs simply call into Vault’s APIs.
 
 Getting Started Example
 -----------------------

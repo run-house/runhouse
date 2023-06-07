@@ -3,10 +3,10 @@ Architecture Overview
 
 
 
-Resource APIs
-~~~~~~~~~~~~~
+Runhouse Resources
+~~~~~~~~~~~~~~~~~~
 
-Resources are the Runhouse primitive for objects that can be saved, shared, and reused. This can be divided
+Resources are the Runhouse primitive for objects that can be saved, shared, and reused. This can be split
 into compute resources (clusters, functions, and environments) and data resources (folder, table, blob, etc).
 
 Compute
@@ -54,9 +54,10 @@ from your secure Runhouse account.
 
 * **Resource Naming System (RNS)**: Consists of lightweight metadata for each resource type to captures the
   information needed to load it in a new environment, and a mechanism for saving and loading from either the working
-  git repo or a remote Runhouse key-value metadata store. The metadata store allows resources to be shared across
-  users and environments, while the git approach allows for local persistence and versioning or
-  sharing across OSS projects.
+  git repo or a remote Runhouse key-value metadata store. The git-based approach (Local RNS) allows for local
+  persistence and versioning or sharing across OSS projects. The metadata store (Runhouse RNS) is even more portable;
+  it allows resource sharing across users and environments, anywhere there is an Internet connection and Python
+  interpreter. The RNS is backed by a management API (see below) to view and manage all resources.
 
 * **Secrets API**: Provides a simple interface for storing and retrieving secrets to a allow a more seamless
   experience when accessing resources across environments. It provides a simple interface for storing and retrieving

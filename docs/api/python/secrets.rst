@@ -5,8 +5,8 @@ Secrets are stored in `Vault <https://www.vaultproject.io/>`_, and never on Runh
 
 See :ref:`Secrets in Vault` for more details on using the Secrets API.
 
-secrets
----------------------------
+Secrets
+-------
 
 .. autoclass:: runhouse.Secrets
    :members:
