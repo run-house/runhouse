@@ -29,4 +29,4 @@ from .rns.tables.table import table, Table
 # Briefly keep for BC.
 send = function
 
-__version__ = "0.0.5"
+__version__ = "0.0.6"

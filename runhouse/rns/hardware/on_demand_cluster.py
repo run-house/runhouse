@@ -324,7 +324,7 @@ class OnDemandCluster(Cluster):
             raise ValueError(f"Cluster provider {self.provider} not supported.")
 
         self.update_from_sky_status()
-        self.restart_server()
+        self.restart_server(restart_ray=True)
 
     def keep_warm(self, autostop_mins: int = -1):
         """Keep the cluster warm for given number of minutes after inactivity. If `autostop_mins` is set

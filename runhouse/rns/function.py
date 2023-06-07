@@ -55,7 +55,6 @@ class Function(Resource):
         self.access = access or self.DEFAULT_ACCESS
         self.dryrun = dryrun
         self.resources = resources or {}
-
         super().__init__(name=name, dryrun=dryrun)
 
         if not self.dryrun:
