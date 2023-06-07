@@ -1,68 +1,79 @@
-Runhouse Architecture
+Architecture Overview
 =====================
 
-Runhouse has four top-level objectives:
 
 
-#. Allowing users to natively program across compute resources
-#. Allowing users to command data between storage and compute
-#. Making resources accessible across environments and users
-#. Allowing resources to be shared among teams as living assets
+Resource APIs
+~~~~~~~~~~~~~
 
+Resources are the Runhouse primitive for objects that can be saved, shared, and reused. This can be divided
+into compute resources (clusters, functions, and environments) and data resources (folder, table, blob, etc).
 
-It achieves the above by providing four pillar features:
+Compute
+-------
 
-.. toctree::
-   :maxdepth: 1
+The Compute APIs allow a seamless flow of code and execution across local and remote compute. They blur the line
+between program execution and deployment, providing both a path of least resistence for running a sub-routine on
+specific hardware, while unceremoniously turning that sub-routine into a reusable service. They also provide
+convenient dependency isolation and management, provider-agnostic provisioning and termination, and rich
+debugging and accessibility interfaces built-in.
 
-   architecture/compute
-   architecture/data
-   architecture/accessibility
-   architecture/management
+* **Cluster**: A set of machines which can be sent code or data. Generally, they are Ray clusters under the hood.
 
+* **Environment**: A set of packages to be installed via HTTP on remote clusters.
 
-#. :ref:`Compute <Compute>` - The Function, Cluster, and Package APIs allow
-   a seamless flow of code and execution across local and remote compute. They blur the line
-   between program execution and deployment, providing both a path of least resistence
-   for running a sub-routine on specific hardware, while unceremoniously turning that
-   sub-routine into a reusable service. They also provide convenient dependency
-   isolation and management, provider-agnostic provisioning and termination, and rich
-   debugging and accessibility interfaces built-in.
+* **Functions**: Functions are associated with clusters and environments, and are executed using an HTTP endpoint.
 
-#. :ref:`Data <Data>` - The Folder, Table, and Blob APIs provide a simple interface for storing,
-   recalling, and moving data between the user's laptop, remote compute, cloud storage,
-   and specialized storage (e.g. data warehouses). They provide least-common-denominator
-   APIs across providers, allowing users to easily specify the actions they want to take on the
-   data without needed to dig into provider-specific APIs. We'd like to extend this to other
-   data concepts in the future, like kv-stores, time-series, vector and graph databases, etc.
+Data
+-------
 
-#. :ref:`Accessibility <Accessibility>` - Runhouse strives to provide a Google-Docs-like experience for
-   portability and sharing of resources across users and environments. This is achieved by:
+The Data APIs provide a simple interface for storing, recalling, and moving data between the user's laptop,
+remote compute, cloud storage, and specialized storage (e.g. data warehouses). They provide least-common-denominator
+APIs across providers, allowing users to easily specify the actions they want to take on the data without needed to
+dig into provider-specific APIs.
 
-   * The Resource Naming System (RNS) allows resources to be named, persisted, and recalled
-     across environments. It consists of a lightweight metadata standard for each resource type
-     which captures the information needed to load it in a new environment (e.g. Folder -> provider,
-     bucket, path, etc.), and a mechanism for saving and loading from either the working git repo or
-     a remote Runhouse key-value metadata store. The metadata store allows resources to be shared across
-     users and environments, while the git approach allows for local persistence and versioning or
-     sharing across OSS projects.
+* **Folder**: Represents a specified location (could be local, remote, or file storage), for managing where various
+  Runhouse resources live.
 
-   * The Secrets API provides a simple interface for storing and retrieving secrets
-     to a allow a more seamless experience when accessing resources across environments.
-     It provides a simple interface for storing and retrieving secrets from a variety of
-     providers (e.g. AWS, Azure, GCP, Hugging Face, Github, etc.) as well as SSH Keys and
-     custom secrets, and stores them in Hashicorp Vault.
+* **Table**: Provides convenient APIs for writing, partitioning, fetch, and stream various data types.
 
-#. :ref:`Management <Management>` - Runhouse provides tools for visibility and management of resources
-   as long-living assets shared by teams or projects. Both resources and users can be
-   organized into arbitrarily-nested groups to apply access permissions, default behaviors (e.g.
-   default storage locations, compute providers, instance autotermination, etc.), project delineation,
-   or staging (e.g. dev vs. prod).
+* **Blob**: Represents a single serialized file stored in a particular system.
 
-   The `Management UI <https://api.run.house/>`_ provides an individual or
-   admin view of all resources, secrets, groups, and sharing (this is only an MVP, and will be
-   overhauled soon). Resource metadata is automatically versioned in RNS, allowing teams to maintain
-   single-sources of truth for assets with zero downtime to update or roll back, and trace exact
-   lineage for any resource (assuming the underlying the resources are not being deleted). We provide
-   basic logging out of the box today, and are working on providing comprehensive logging, monitoring,
-   alerting.
+Accessibility and Management
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Runhouse enables the portability and sharing of resources across users and environments, and provides
+tools for visibility and management of these resources as long-living assets shared by teams or projects.
+
+Accessibility
+-------------
+
+The Runhouse RNS (Resource Naming System) provides a convenient way to name, presist, and recall resources
+acoss environments. Meanwhile, the Secrets APIs provide a simple interface for storing and retrieving secrets
+from your secure Runhouse account.
+
+* **Resource Naming System (RNS)**: Consists of lightweight metadata for each resource type to captures the
+  information needed to load it in a new environment, and a mechanism for saving and loading from either the working
+  git repo or a remote Runhouse key-value metadata store. The metadata store allows resources to be shared across
+  users and environments, while the git approach allows for local persistence and versioning or
+  sharing across OSS projects.
+
+* **Secrets API**: Provides a simple interface for storing and retrieving secrets to a allow a more seamless
+  experience when accessing resources across environments. It provides a simple interface for storing and retrieving
+  secrets from a variety of providers (e.g. AWS, Azure, GCP, Hugging Face, Github, etc.) as well as SSH Keys and
+  custom secrets, and stores them in Hashicorp Vault.
+
+* **Configs**: Set and preserve default configs across environments.
+
+Management
+----------
+
+Runhouse provides tools for visibility and management of resources as long-living assets shared by teams or projects.
+
+* **Organization structure**: Both resources and users can be organized into arbitrarily-nested groups to apply access
+  permissions, default behaviors (e.g. default storage locations, compute providers, instance autotermination, etc.),
+  project delineation, or staging (e.g. dev vs. prod).
+
+* **`Management UI <https://api.run.house/>`_**: provides an individual or admin view of all resources, secrets,
+  groups, and sharing. Resource metadata is automatically versioned in RNS, allowing teams to maintain single-sources
+  of truth for assets with zero downtime to update or roll back, and trace exact lineage for any existing resource.

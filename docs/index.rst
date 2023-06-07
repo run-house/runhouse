@@ -1,7 +1,7 @@
 .. runhouse documentation master file, created by
 
-Runhouse 🏃‍♀️🏠
-===================
+🏃‍♀️Runhouse Overview🏠
+====================
 
 .. raw:: html
 
@@ -22,30 +22,12 @@ or :code:`my_table.to('parquet_in_s3')`?
 Runhouse allows just that: send code and data to any of your compute or data infra (with your own cloud creds),
 all in Python, and continue to use them eagerly exactly as they were.
 
-Runhouse has four top-level objectives:
+Runhouse lets you:
 
-
-* Allowing users to natively program across compute resources
-* Allowing users to command data between storage and compute
-* Making resources accessible across environments and users
-* Allowing resources to be shared among teams as living assets
-
-Keep reading on to see how Runhouse achieves this, or explore our
-:ref:`Architecture Section <Runhouse Architecture>`, :ref:`Python API`, and `Tutorials <https://github.com/run-house/tutorials>`_.
-
-.. warning::
-    **This is an Alpha:**
-    Runhouse is heavily under development and we expect to iterate on the APIs before reaching beta (version 0.1.0).
-
-
-Getting Started 🐣
-------------------
-.. code-block:: console
-
-    $ pip install runhouse
-    # Or "runhouse[aws]", "runhouse[gcp]", "runhouse[azure]", "runhouse[all]"
-
-Please check out the :ref:`Installation and Setup Guide` for more detailed instructions.
+* Natively program across compute resources
+* Seamlessly command data between storage and compute
+* Access resources across environments and users
+* Shared resources among teams as living assets
 
 
 Table of Contents
@@ -54,24 +36,16 @@ Table of Contents
    :maxdepth: 1
    :caption: Getting Started
 
-   installation
-   getting_started
+   tutorials/quick_start
+   architecture
+   api_tutorials
 
 .. toctree::
    :maxdepth: 1
-   :caption: Runhouse API
+   :caption: API Reference
 
-   cli/cli
-   main
-
-.. toctree::
-    :maxdepth: 1
-    :caption: API Tutorials
-
-    tutorials/api/resource
-    tutorials/api/compute
-    tutorials/api/data
-    tutorials/api/secrets_management
+   api/python
+   api/cli
 
 .. toctree::
    :maxdepth: 1
@@ -81,31 +55,20 @@ Table of Contents
    tutorials/examples/training
    tutorials/examples/distributed
    Pipelining: BERT <https://github.com/run-house/tutorials/tree/stable/t05_BERT_pipeline>
-..    Runhouse in Colab: DALLE img2img2 <https://github.com/run-house/tutorials/tree/stable/t03_DALLE_SD_pipeline>
 
 .. toctree::
    :maxdepth: 1
-   :caption: Security
+   :caption: Additional Resources
 
-   secrets/secrets
-   secrets/vault_secrets
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Appendix
-
-   architecture
-   data_collection
    debugging_logging
+   data_collection
+   Source Code <https://github.com/run-house/runhouse>
    REST API Guide <https://api.run.house/docs>
    Dashboard <https://api.run.house>
    Funhouse <https://github.com/run-house/funhouse>
-
 
 
 Contributing and Community
 --------------------------
 - `Issue Tracker <https://github.com/run-house/runhouse/issues/>`_
 - `Contributing <https://github.com/run-house/runhouse/blob/main/CONTRIBUTING.md>`_
-- `Discord <https://discord.gg/RnhB6589Hs/>`_
-- `Twitter <https://twitter.com/runhouse_/>`_
