@@ -18,8 +18,7 @@ logger = logging.getLogger(__name__)
 
 class Secrets:
     """Handles cluster secrets management (reading and writing) across all major cloud providers.
-    Secrets are stored in Vault.
-    Checks for locally configured secrets before pulling down or saving to Vault"""
+    Secrets are securely stored in Hashicorp Vault."""
 
     PROVIDER_NAME = None
     CREDENTIALS_FILE = None
@@ -38,8 +37,7 @@ class Secrets:
 
     @classmethod
     def save_secrets(cls, secrets: Dict, overwrite: bool = False) -> Dict:
-        """Save secrets for providers to their respective configs. If overwrite is set to `False` will check for
-        potential clashes with existing secrets that may already be saved, otherwise will overwrite whatever exists."""
+        """Save secrets for providers to their respective configs."""
         raise NotImplementedError
 
     @classmethod
@@ -61,7 +59,7 @@ class Secrets:
         providers: Optional[List[str]] = None,
     ):
         """Upload all locally configured secrets into Vault. Secrets are loaded from their local config files.
-        (ex: ~/.aws/credentials). To upload custom secrets for custom providers, see Secrets.put()"""
+        (ex: ``~/.aws/credentials)``. To upload custom secrets for custom providers, see Secrets.put()"""
         secrets: dict = cls.load_provider_secrets(providers=providers)
         for provider_name, provider_secrets in secrets.items():
             if interactive:
@@ -122,6 +120,7 @@ class Secrets:
         """Upload locally configured secrets for a specified provider into Vault.
         To upload secrets for a custom provider (i.e. not AWS, GCP or Azure), include the secret param and specify
         the keys and values to upload.
+
         If from_env is True, will read secrets from environment variables instead of local config files.
         If file_path is provided, will read the secrets directly from the file
         If group is provided, will attribute the secrets to the specified group"""
@@ -364,7 +363,7 @@ class Secrets:
         return [cls.builtin_provider_class_from_name(c) for c in cloud_names]
 
     @classmethod
-    def builtin_providers(cls, as_str=False) -> list:
+    def builtin_providers(cls, as_str: bool = False) -> list:
         """Return list of all Runhouse providers (as class objects) supported out of the box."""
         from runhouse.rns.secrets.providers import Providers
 

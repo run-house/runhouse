@@ -1,9 +1,9 @@
-Training with Runhouse: Dreambooth
-==================================
+Training: Dreambooth
+====================
 
 .. raw:: html
 
-    <p><a href="https://colab.research.google.com/github/run-house/tutorials/blob/stable/t02_Dreambooth/x01_colab_dreambooth.ipynb">
+    <p><a href="https://colab.research.google.com/github/run-house/runhouse/blob/stable/docs/notebooks/examples/training.ipynb">
     <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 This tutorial shows how you can easily import and reuse GitHub code

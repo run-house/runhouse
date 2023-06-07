@@ -24,7 +24,7 @@ class CondaEnv(Env):
         Runhouse CondaEnv object.
 
         .. note::
-            To create a CondaEnv, please use the factory method :func:`env`.
+            To create a CondaEnv, please use the factory methods :func:`env` or :func:`conda_env`.
         """
         self.reqs = reqs
         self.conda_yaml = conda_yaml  # dict representing conda env
