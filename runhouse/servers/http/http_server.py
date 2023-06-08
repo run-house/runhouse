@@ -15,11 +15,7 @@ from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 from runhouse.rh_config import configs, obj_store
 from runhouse.rns.packages.package import Package
-from runhouse.rns.run_module_utils import (
-    call_fn_by_type,
-    create_command_based_run,
-    fn_from_module_path,
-)
+from runhouse.rns.run_module_utils import call_fn_by_type, create_command_based_run
 from runhouse.rns.top_level_rns_fns import (
     clear_pinned_memory,
     pinned_keys,
@@ -140,10 +136,7 @@ class HTTPServer:
             args = obj_store.get_obj_refs_list(args)
             kwargs = obj_store.get_obj_refs_dict(kwargs)
 
-            fn = fn_from_module_path(relative_path, fn_name, module_name)
-
             result = call_fn_by_type(
-                fn=fn,
                 fn_type=fn_type,
                 fn_name=fn_name,
                 relative_path=relative_path,
@@ -158,11 +151,15 @@ class HTTPServer:
             # We need to pin the run_key in the server's Python context rather than inside the call_fn context,
             # because the call_fn context is a separate process and the pinned object will be lost when Ray
             # garbage collects the call_fn process.
-            if fn_type == "remote":
-                (run_obj, obj_ref) = result
-                run_key = run_obj.name
+            from runhouse import Run
+
+            (res, obj_ref, run_key) = result
+
+            if obj_ref is not None:
                 obj_store.put_obj_ref(key=run_key, obj_ref=obj_ref)
-                result = pickle.dumps(run_obj)
+
+            result = pickle.dumps(res) if isinstance(res, Run) else res
+            logger.info(f"Result for run: {type(result)}")
 
             HTTPServer.register_activity()
             if isinstance(result, list):
@@ -212,7 +209,6 @@ class HTTPServer:
         folder_path_on_system = resolve_absolute_path(folder_path)
 
         try:
-            HTTPServer.register_activity()
             # Load config data for this Run saved locally on the system
             result = Run.from_path(path=folder_path_on_system)
             return Response(
@@ -221,7 +217,6 @@ class HTTPServer:
             )
 
         except Exception as e:
-            HTTPServer.register_activity()
             return Response(
                 error=pickle_b64(e),
                 traceback=pickle_b64(traceback.format_exc()),

@@ -157,8 +157,6 @@ Loading Runs
 ~~~~~~~~~~~~
 There are a few ways to load a Run:
 
-- **Run factory**: Via the :ref:`Run Factory <Run Factory Method>` by using the :code:`rh.run()` method.
-
 - **From a cluster**: Load a Run that lives on a cluster by using :code:`cluster.get_run()`.
   This method takes a :code:`run_name` argument with the name of the Run to load.
 
@@ -194,7 +192,7 @@ will be stored on the local filesystem in the :code:`rh/<run_name>` folder of th
 
     import runhouse as rh
 
-    with rh.run(name="my_ctx_mgr_run") as r:
+    with rh.Run(path="~/rh/runs/my_ctx_run") as r:
         # Add all Runhouse objects loaded or saved in the context manager to
         # the Run's artifact registry (upstream + downstream artifacts)
 
@@ -207,7 +205,14 @@ will be stored on the local filesystem in the :code:`rh/<run_name>` folder of th
         run_res = pickle.loads(current_run.result())
         print(f"Run result: {run_res}")
 
-    print(f"Saved Run with name: {r.name} to path: {r.path}")
+    r.save(name="my_ctx_mgr_run")
+
+    print(f"Saved Run to path: {r.path}")
+
+
+.. note::
+    We can specify the path to the Run's folder by providing the :code:`path` argument to :code:`Run` object. If we do
+    not specify a path the folder will be created in the :code:`rh` folder of the current working directory.
 
 
 We can then load this Run from its system:
@@ -216,7 +221,6 @@ We can then load this Run from its system:
 
     import runhouse as rh
 
-    # Load the Run from the rh directory in the current working directory of the project
     ctx_run = rh.Run.from_path(path="~/rh/runs/my_ctx_run")
 
 Caching

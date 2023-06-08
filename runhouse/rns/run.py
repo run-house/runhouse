@@ -5,7 +5,7 @@ import sys
 from datetime import datetime
 from enum import Enum
 from io import StringIO
-from typing import Any, Callable, List, Optional, Union
+from typing import Any, Optional, Union
 
 from ray import cloudpickle as pickle
 
@@ -13,7 +13,6 @@ from runhouse import blob
 from runhouse.rh_config import obj_store, rns_client
 from runhouse.rns.api_utils.utils import log_timestamp
 from runhouse.rns.folders.folder import Folder, folder
-from runhouse.rns.function import Function
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.resource import Resource
 from runhouse.rns.top_level_rns_fns import resolve_rns_path
@@ -45,25 +44,21 @@ class Run(Resource):
     def __init__(
         self,
         name: str = None,
-        fn: Callable = None,
+        fn_name: str = None,
         cmds: list = None,
         dryrun: bool = False,
         overwrite: bool = False,
+        data_config: dict = None,
         **kwargs,
     ):
         """
         Runhouse Run object
-
-        .. note::
-                To build a Run, please use the factory method :func:`run`, or pass in `name_run` into your
-                Runhouse function or command callable.
         """
         run_name = name or str(self._current_timestamp())
         super().__init__(name=run_name, dryrun=dryrun)
 
         self.cmds = cmds
 
-        self.run_type = kwargs.get("run_type") or self._detect_run_type(fn)
         self.status = kwargs.get("status") or RunStatus.NOT_STARTED
         self.start_time = kwargs.get("start_time")
         self.end_time = kwargs.get("end_time")
@@ -84,10 +79,12 @@ class Run(Resource):
         self.folder = folder(
             path=folder_path,
             system=folder_system,
+            data_config=data_config,
             dryrun=dryrun,
         )
 
-        self.fn_name = kwargs.get("fn_name") or (fn.__name__ if fn else None)
+        self.fn_name = fn_name or kwargs.get("fn_name")
+        self.run_type = kwargs.get("run_type") or self._detect_run_type()
 
         # Artifacts loaded by the Run (i.e. upstream dependencies)
         self.upstream_artifacts: list = kwargs.get("upstream_artifacts", [])
@@ -191,7 +188,7 @@ class Run(Resource):
         update the Run config stored on the system before saving to RNS."""
         run_config = self.config_for_rns
         config_path = self._path_to_config()
-        if not run_config["name"]:
+        if not run_config["name"] or name:
             run_config["name"] = resolve_rns_path(name or self.name)
             self._write_config(config=run_config)
             logger.info(f"Updated Run config name in path: {config_path}")
@@ -246,8 +243,8 @@ class Run(Resource):
 
         return new_run
 
-    def refresh(self):
-        """Creates a new Run object from the system."""
+    def refresh(self) -> "Run":
+        """Reload the Run object from the system."""
         if isinstance(self.folder.system, Cluster):
             try:
                 # Try loading the Run from the cluster's object store
@@ -256,7 +253,14 @@ class Run(Resource):
                 pass
 
         # Try loading the Run from the system's folder
-        return self.folder.get(name=self.name)
+        if not self.folder.exists_in_system():
+            raise FileNotFoundError(
+                f"No Run config found on system in path: {self.folder.path}"
+            )
+
+        run_config = json.loads(self.folder.get(name=self.RUN_CONFIG_FILE))
+        logger.info(f"Run config loaded in refresh: {run_config}")
+        return Run.from_config(run_config, dryrun=True)
 
     def inputs(self) -> bytes:
         """Load the pickled function inputs saved on the system for the Run."""
@@ -334,8 +338,8 @@ class Run(Resource):
             write_fn=lambda data, f: json.dump(data, f, indent=4),
         )
 
-    def _detect_run_type(self, fn):
-        if isinstance(fn, Callable):
+    def _detect_run_type(self):
+        if self.fn_name:
             return self.FUNCTION_RUN
         elif self.cmds is not None:
             return self.CMD_RUN
@@ -444,13 +448,17 @@ class Run(Resource):
 
     @classmethod
     def from_path(
-        cls, path: str, system: Union[str, Cluster] = None
+        cls,
+        path: str,
+        system: Union[str, Cluster] = None,
+        data_config: dict = None,
     ) -> Union["Run", None]:
         """Load a local Run based on the path to its dedicated folder on a system.
 
         Args:
             path (str): Path to the Run's dedicated folder on the local file system.
             system (Optional[str or Cluster]): Name of the system or a cluster object where the Run lives.
+            data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler for the folder.
 
         Returns:
             Run: The loaded Run object.
@@ -458,6 +466,7 @@ class Run(Resource):
         local_folder = folder(
             path=path,
             system=system,
+            data_config=data_config,
             dryrun=True,
         )
 
@@ -470,62 +479,4 @@ class Run(Resource):
 
         # Re-load the Run object
         logger.info(f"Run config from path: {run_config}")
-        return Run(**run_config, dryrun=True)
-
-
-def run(
-    name: Optional[str] = None,
-    fn: Optional[Union[str, Callable]] = None,
-    cmds: Optional[List] = None,
-    dryrun: bool = False,
-    load: bool = True,
-    overwrite: bool = False,
-    **kwargs,
-):
-    """Returns a Run object, which can be used to capture logs, inputs and results, artifact info, etc.
-    Currently supports running a particular Runhouse Function object, or CLI or Python command(s)
-    on a specified system (ex: on a cluster).
-
-    Args:
-        name (Optional[str]): Name to give the Run object, to be reused later on.
-        fn (Optional[str or Function]): The function to execute on the remote system when the function is called.
-            Can be provided as a function name or as a Runhouse ``Function`` object.
-        cmds (Optional[List]): List of CLI or Python commands to execute for the run.
-        dryrun (bool): Whether to create the Run if it doesn't exist, or load a Run object as a dryrun.
-            (Default: ``False``)
-        load (bool): Whether to try loading an existing config for the Run from RNS. (Default: ``True``)
-        overwrite (bool): Whether to overwrite the existing config for the Run. This will delete
-            the run's dedicated folder on the system if it already exists.(Default: ``False``)
-        **kwargs: Additional keyword arguments to pass to the Run object.
-
-    Returns:
-        Run: The resulting run.
-
-    Example:
-        >>> res = my_func(1, 2, name_run="my-run")
-
-        >>> cpu = rh.cluster("^rh-cpu").up_if_not()
-        >>> return_codes = cpu.run(["python --version"], name_run=True)
-
-        >>> with rh.run(name="my-run"):
-        >>>     print("do stuff")
-    """
-    config = rns_client.load_config(name) if load else {}
-
-    name = name or config.get("name")
-    fn = fn or config.get("fn_name")
-
-    if isinstance(fn, str):
-        fn = Function.from_name(fn)
-
-    if fn is not None and not isinstance(fn, Callable):
-        raise ValueError(f"fn provided must be a str or a Callable, not {type(fn)}")
-
-    config["fn"] = fn
-    config["cmds"] = cmds or config.get("cmds")
-    config["name"] = name
-    config["overwrite"] = config.get("overwrite") or overwrite
-
-    new_run = Run.from_config({**config, **kwargs}, dryrun=dryrun)
-
-    return new_run
+        return Run.from_config(run_config, dryrun=True)

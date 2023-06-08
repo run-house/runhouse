@@ -15,11 +15,7 @@ import runhouse.servers.grpc.unary_pb2_grpc as pb2_grpc
 from runhouse.rh_config import configs, obj_store
 from runhouse.rns.api_utils.utils import resolve_absolute_path
 from runhouse.rns.packages.package import Package
-from runhouse.rns.run_module_utils import (
-    call_fn_by_type,
-    create_command_based_run,
-    fn_from_module_path,
-)
+from runhouse.rns.run_module_utils import call_fn_by_type, create_command_based_run
 from runhouse.rns.top_level_rns_fns import (
     clear_pinned_memory,
     pinned_keys,
@@ -235,11 +231,8 @@ class UnaryService(pb2_grpc.UnaryServicer):
             kwargs,
         ] = pickle.loads(request.message)
 
-        fn = fn_from_module_path(relative_path, fn_name, module_name)
-
         try:
             result = call_fn_by_type(
-                fn=fn,
                 fn_type=fn_type,
                 fn_name=fn_name,
                 relative_path=relative_path,

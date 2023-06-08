@@ -5,21 +5,19 @@ import subprocess
 import sys
 from functools import wraps
 from pathlib import Path
-from typing import Any
+from typing import Any, Union
 
 import ray
 
 from ray import cloudpickle as pickle
 
 from runhouse import rh_config
-from runhouse.rh_config import obj_store
 from runhouse.rns.api_utils.utils import resolve_absolute_path
 
 logger = logging.getLogger(__name__)
 
 
 def call_fn_by_type(
-    fn,
     fn_type,
     fn_name,
     relative_path,
@@ -33,101 +31,111 @@ def call_fn_by_type(
 ):
     from runhouse import Run
 
-    run_key = run_name if run_name else Run._create_new_run_name(fn_name)
-    logger.info(f"Run key: {run_key}")
+    # **NOTE**: No need to pass in the fn callable here! We should be able to get it from the module_name and fn_name
 
-    # TODO other possible fn_types: 'batch', 'streaming'
-    if fn_type == "get_or_run":
+    run_name = run_name if run_name else Run._create_new_run_name(fn_name)
+
+    if fn_type.startswith("get_or"):
         # If Run already exists with this run key return the Run object
-        run_obj = _existing_run_from_file(run_key)
+        run_obj = _load_existing_run_on_cluster(run_name)
         if run_obj is not None:
             logger.info(f"Found existing Run {run_obj.name}")
-            return pickle.dumps(run_obj)
+            if fn_type == "get_or_run":
+                logger.info(
+                    f"Found existing Run with name: {run_name}, returning the Run object"
+                )
+                return run_obj, None, run_name
+            elif fn_type == "get_or_call":
+                logger.info(
+                    f"Found existing Run with name: {run_name}, returning its result"
+                )
+                fn_result = run_obj._load_blob_from_path(
+                    path=run_obj._fn_result_path()
+                ).fetch()
+                logger.info(f"Function result: {type(fn_result)}")
+                return fn_result, None, run_name
+            else:
+                raise ValueError(
+                    f"Invalid fn_type {fn_type} for an existing Run with name {run_name}"
+                )
         else:
-            # No existing run found, continue on with async execution by setting the fn_type to "remote_run",
-            # which will trigger the execution async and return the Run object
-            logger.info(f"No existing Run found in file system for {run_key}")
-            # Note: we distinguish this from "remote" bc we only want to return a Run object in this scenario
-            fn_type = "remote_run"
+            logger.info(f"No existing Run found in file system for {run_name}")
+            if fn_type == "get_or_run":
+                # No existing run found, continue on with async execution
+                fn_type = "remote"
+                logger.info(
+                    f"No Run found for name {run_name}, creating a new one async"
+                )
+            elif fn_type == "get_or_call":
+                # No existing run found, continue on with synchronous execution
+                fn_type = "call"
+                logger.info(
+                    f"No Run found for name {run_name}, creating a new one and running synchronously"
+                )
+            else:
+                raise ValueError(
+                    f"Invalid fn_type {fn_type} for a Run that does not exist with name {run_name}"
+                )
 
-    if fn_type == "get":
-        obj_ref = args[0]
-        res = pickle.dumps(obj_store.get(obj_ref))
-    else:
-        ray.init(ignore_reinit_error=True)
-        num_gpus = ray.cluster_resources().get("GPU", 0)
-        num_cuda_devices = resources.get("num_gpus") or num_gpus
+    ray.init(ignore_reinit_error=True)
+    num_gpus = ray.cluster_resources().get("GPU", 0)
+    num_cuda_devices = resources.get("num_gpus") or num_gpus
 
-        # We need to add the module_path to the PYTHONPATH because ray runs remotes in a new process
-        # We need to set max_calls to make sure ray doesn't cache the remote function and ignore changes to the module
-        # See: https://docs.ray.io/en/releases-2.2.0/ray-core/package-ref.html#ray-remote
-        module_path = (
-            str((Path.home() / relative_path).resolve()) if relative_path else None
+    # We need to add the module_path to the PYTHONPATH because ray runs remotes in a new process
+    # We need to set max_calls to make sure ray doesn't cache the remote function and ignore changes to the module
+    # See: https://docs.ray.io/en/releases-2.2.0/ray-core/package-ref.html#ray-remote
+    module_path = (
+        str((Path.home() / relative_path).resolve()) if relative_path else None
+    )
+    runtime_env = {"env_vars": {"PYTHONPATH": module_path or ""}}
+    if conda_env:
+        runtime_env["conda"] = conda_env
+
+    fn_pointers = (module_path, module_name, fn_name)
+
+    logging_wrapped_fn = enable_logging_fn_wrapper(get_fn_from_pointers, run_name)
+
+    ray_fn = ray.remote(
+        num_cpus=resources.get("num_cpus") or 0.0001,
+        num_gpus=resources.get("num_gpus") or 0.0001 if num_gpus > 0 else None,
+        max_calls=len(args) if fn_type in ["map", "starmap"] else 1,
+        runtime_env=runtime_env,
+    )(logging_wrapped_fn)
+
+    # TODO other possible fn_types: 'batch', 'streaming'
+    if fn_type == "map":
+        obj_ref = [
+            ray_fn.remote(fn_pointers, serialize_res, num_cuda_devices, arg, **kwargs)
+            for arg in args
+        ]
+    elif fn_type == "starmap":
+        obj_ref = [
+            ray_fn.remote(fn_pointers, serialize_res, num_cuda_devices, *arg, **kwargs)
+            for arg in args
+        ]
+    elif fn_type in ("queue", "remote", "call", "nested"):
+        run_obj = _create_new_run(run_name, fn_name, args, kwargs)
+        obj_ref = ray_fn.remote(
+            fn_pointers, serialize_res, num_cuda_devices, *args, **kwargs
         )
-        runtime_env = {"env_vars": {"PYTHONPATH": module_path or ""}}
-        if conda_env:
-            runtime_env["conda"] = conda_env
+    elif fn_type == "repeat":
+        [num_repeats, args] = args
+        obj_ref = [
+            ray_fn.remote(fn_pointers, serialize_res, num_cuda_devices, *args, **kwargs)
+            for _ in range(num_repeats)
+        ]
+    else:
+        raise ValueError(f"fn_type {fn_type} not recognized")
 
-        fn_pointers = (module_path, module_name, fn_name)
+    if fn_type in ("queue", "remote", "call", "nested"):
+        fn_result = _execute_fn_run(run_obj, run_name, fn_type, fn_name)
+        logger.info(f"Result from function execution: {type(fn_result)}")
+        res = fn_result
+    else:
+        res = ray.get(obj_ref)
 
-        logging_wrapped_fn = enable_logging_fn_wrapper(get_fn_from_pointers, run_key)
-
-        ray_fn = ray.remote(
-            num_cpus=resources.get("num_cpus") or 0.0001,
-            num_gpus=resources.get("num_gpus") or 0.0001 if num_gpus > 0 else None,
-            max_calls=len(args) if fn_type in ["map", "starmap"] else 1,
-            runtime_env=runtime_env,
-        )(logging_wrapped_fn)
-
-        if fn_type == "map":
-            obj_ref = [
-                ray_fn.remote(
-                    fn_pointers, serialize_res, num_cuda_devices, arg, **kwargs
-                )
-                for arg in args
-            ]
-        elif fn_type == "starmap":
-            obj_ref = [
-                ray_fn.remote(
-                    fn_pointers, serialize_res, num_cuda_devices, *arg, **kwargs
-                )
-                for arg in args
-            ]
-        elif fn_type in ("queue", "remote", "remote_run", "call", "get_or_call"):
-            obj_ref = ray_fn.remote(
-                fn_pointers, serialize_res, num_cuda_devices, *args, **kwargs
-            )
-        elif fn_type == "repeat":
-            [num_repeats, args] = args
-            obj_ref = [
-                ray_fn.remote(
-                    fn_pointers, serialize_res, num_cuda_devices, *args, **kwargs
-                )
-                for _ in range(num_repeats)
-            ]
-        else:
-            raise ValueError(f"fn_type {fn_type} not recognized")
-
-        if fn_type in ("remote", "remote_run"):
-            run_obj = _get_or_run_async(run_key, obj_ref, fn, args, kwargs)
-            if fn_type == "remote":
-                res = (run_obj, obj_ref)
-            else:
-                # If remote_run, only return the run object since this is being triggered via `get_or_run()`
-                res = pickle.dumps(run_obj)
-        elif fn_type == "get_or_call":
-            # Get the result if it already exists, otherwise create a new synchronous run and return its result
-            res = _get_or_call_synchronously(run_key, obj_ref, fn, args, kwargs)
-        elif fn_type in ("call", "nested"):
-            if run_name:
-                # Create a new synchronous run
-                res = _run_fn_synchronously(run_key, obj_ref, fn, args, kwargs)
-            else:
-                res = ray.get(obj_ref)
-        else:
-            res = ray.get(obj_ref)
-
-    return res
+    # Note: Results by default are serialized
+    return res, obj_ref, run_name
 
 
 def deserialize_args_and_kwargs(args, kwargs):
@@ -136,27 +144,6 @@ def deserialize_args_and_kwargs(args, kwargs):
     if kwargs:
         kwargs = pickle.loads(kwargs)
     return args, kwargs
-
-
-def get_fn_by_name(module_name, fn_name, relative_path=None):
-    if relative_path:
-        module_path = str((Path.home() / relative_path).resolve())
-        sys.path.append(module_path)
-        logger.info(f"Appending {module_path} to sys.path")
-
-    if module_name in rh_config.obj_store.imported_modules:
-        importlib.invalidate_caches()
-        rh_config.obj_store.imported_modules[module_name] = importlib.reload(
-            rh_config.obj_store.imported_modules[module_name]
-        )
-        logger.info(f"Reloaded module {module_name}")
-    else:
-        logger.info(f"Importing module {module_name}")
-        rh_config.obj_store.imported_modules[module_name] = importlib.import_module(
-            module_name
-        )
-    fn = getattr(rh_config.obj_store.imported_modules[module_name], fn_name)
-    return fn
 
 
 def get_fn_from_pointers(fn_pointers, serialize_res, num_gpus, *args, **kwargs):
@@ -168,18 +155,18 @@ def get_fn_from_pointers(fn_pointers, serialize_res, num_gpus, *args, **kwargs):
             sys.path.append(module_path)
             logger.info(f"Appending {module_path} to sys.path")
 
-        if module_name in obj_store.imported_modules:
+        if module_name in rh_config.obj_store.imported_modules:
             importlib.invalidate_caches()
-            obj_store.imported_modules[module_name] = importlib.reload(
-                obj_store.imported_modules[module_name]
+            rh_config.obj_store.imported_modules[module_name] = importlib.reload(
+                rh_config.obj_store.imported_modules[module_name]
             )
             logger.info(f"Reloaded module {module_name}")
         else:
             logger.info(f"Importing module {module_name}")
-            obj_store.imported_modules[module_name] = importlib.import_module(
+            rh_config.obj_store.imported_modules[module_name] = importlib.import_module(
                 module_name
             )
-        fn = getattr(obj_store.imported_modules[module_name], fn_name)
+        fn = getattr(rh_config.obj_store.imported_modules[module_name], fn_name)
 
     cuda_visible_devices = list(range(int(num_gpus)))
     os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
@@ -199,122 +186,62 @@ def _stdout_files_for_fn():
     return stdout_files
 
 
-def _execute_remote_async_fn(async_run_obj, obj_ref):
-    run_name = async_run_obj.name
-    run_folder_path = async_run_obj.folder.path
-    logger.info(
-        f"Executing remote function for {run_name}, saving to path: {run_folder_path}"
-    )
+def _execute_fn_with_ray(run_obj, fn_name):
+    result, run_status = _get_result_from_ray(run_obj.name)
 
-    with async_run_obj:
-        result, run_status = _get_result_from_ray(obj_ref)
+    run_obj._register_fn_run_completion(run_status)
 
-    # Save the result to the object store
-    obj_store.put(key=run_name, value=result)
-    logger.info(f"Saved result of type {type(result)} for {run_name} to object store")
-
-    # Result will already be serialized, so no need to serialize again before saving down
-    completed_run = _register_completed_run(path=run_folder_path, run_status=run_status)
+    _serialize_and_store_result(result, run_obj)
 
     logger.info(
-        f"Registered completed run: {completed_run.name} with status: {run_status}"
-    )
-    return completed_run
-
-
-def _run_fn_async(async_run_obj, obj_ref):
-    import threading
-
-    t = threading.Thread(target=_execute_remote_async_fn, args=(async_run_obj, obj_ref))
-    t.start()
-
-
-def _run_fn_synchronously(run_name, obj_ref, fn, args, kwargs):
-    """Run a function on the cluster, wait for its result, then return the Run object along with the result of the
-    function's execution."""
-    new_run = _create_new_run(run_name, fn, args, kwargs)
-
-    logger.info(
-        f"Starting execution of function for {run_name}, waiting for completion"
+        f"Registered completed async run {run_obj.name} for function {fn_name} with status: {run_status}"
     )
 
-    with new_run:
-        # Open context manager to track stderr and stdout + other artifacts created by the function for this run
-        # With async runs we call ray.remote() which creates the symlink to the worker files for us,
-        # but since we are running this synchronously we need to create those files ourselves (via the context manager)
-        result, run_status = _get_result_from_ray(obj_ref)
-
-    # Save the result to the object store
-    obj_store.put(key=run_name, value=result)
-    logger.info(f"Saved result of type {type(result)} for {run_name} to object store")
-
-    completed_run = _register_completed_run(
-        path=new_run.folder.path, run_status=run_status
-    )
-
-    logger.info(f"Registered run completion in path: {completed_run.folder.path}")
-
-    return result
+    return run_obj
 
 
-def _get_or_call_synchronously(run_name, obj_ref, fn, args, kwargs) -> Any:
-    if run_name == "latest":
-        # TODO [JL]
-        raise NotImplementedError("Latest not currently supported")
+def _execute_fn_run(run_obj, run_name, fn_type, fn_name) -> ["Run", Any]:
+    """Execute a function on the cluster. If the ``fn_type`` is ``remote``, then execute asynchronously on another
+    thread before returning the Run object. Otherwise execute the function synchronously and return its
+    result once completed."""
+    from runhouse import Run
 
-    existing_run = _existing_run_from_file(run_name)
-    if existing_run is not None:
-        logger.info(
-            f"Loaded existing Run {existing_run.name} from the cluster's file system"
-        )
-        result = obj_store.get(run_name)
-        if result is not None:
-            # Return result saved in object store - result is not serialized so pickle
-            # it before sending back over the wire
-            return pickle.dumps(result)
+    logger.info(f"Starting execution of type {fn_type} for Run with name: {run_name}")
 
-        path_to_results = existing_run._fn_result_path()
+    if fn_type == "remote":
+        import threading
 
-        try:
-            # Try loading from the Run's folder
-            result = existing_run._load_blob_from_path(path=path_to_results).fetch()
-            if result is not None:
-                return result
-        except:
-            pass
+        logger.info("Running remote function asynchronously on a new thread")
 
-    # No Run exists for this name, create a new one and run synchronously
-    logger.info(
-        f"No Run found on cluster for name {run_name}, creating a new one and running synchronously"
-    )
+        t = threading.Thread(target=_execute_fn_with_ray, args=(run_obj, fn_name))
+        t.start()
 
-    return _run_fn_synchronously(run_name, obj_ref, fn, args, kwargs)
+        # Reload the Run object
+        async_run = _load_existing_run_on_cluster(run_name)
+        return async_run
 
+    else:
+        fn_result, run_status = _get_result_from_ray(run_name)
 
-def _get_or_run_async(run_key, obj_ref, fn, args, kwargs):
-    existing_run = _existing_run_from_file(run_key)
-    if existing_run is not None:
-        logger.info(
-            f"Loaded existing Run {existing_run.name} from the cluster's file system"
-        )
-        return existing_run
+        path = run_obj.folder.path
+        logger.info(f"Registering completed run in path: {path}")
 
-    # No Run exists for this name, create a new one and run asynchronously
-    logger.info(f"No Run found for name {run_key}, creating a new one async")
+        run_obj = Run.from_path(path)
 
-    new_async_run = _create_new_run(run_key, fn, args, kwargs)
+        # Update the config data for the completed run
+        run_obj._register_fn_run_completion(run_status)
 
-    _run_fn_async(new_async_run, obj_ref)
+        _serialize_and_store_result(fn_result, run_obj)
 
-    # Return a Run object for the async run - regardless of whether the function execution has completed
-    existing_run = _existing_run_from_file(run_key)
-    logger.info(f"Loaded existing async Run {existing_run.name}")
+        logger.info(f"Completed Run for fn type {fn_type} in path: {path}")
 
-    return existing_run
+        # Result from Ray object store will not be serialized by default
+        return pickle.dumps(fn_result)
 
 
-def _create_new_run(run_name, fn, args, kwargs):
-    from runhouse import Run, run
+def _create_new_run(run_name, fn_name, args, kwargs):
+    """Create a new Run object and save down relevant config data to its dedicated folder on the cluster."""
+    from runhouse import Run
     from runhouse.rns.obj_store import THIS_CLUSTER
 
     # Path to config file inside the dedicated folder for this particular run
@@ -325,19 +252,16 @@ def _create_new_run(run_name, fn, args, kwargs):
     config_path = resolve_absolute_path(run_config_file)
 
     inputs = {"args": args, "kwargs": kwargs}
+    logger.info(f"Inputs for Run: {inputs}")
 
     if not THIS_CLUSTER:
         raise ValueError("Failed to get current cluster from config")
 
     current_cluster: str = rh_config.rns_client.resolve_rns_path(THIS_CLUSTER)
 
-    # Create a new Run object, and save down its config data to the log folder on the cluster
-    new_run = run(
-        name=run_name,
-        fn=fn,
-        overwrite=True,
-        fn_name=fn.__name__,
-        system=current_cluster,
+    # Create a new Run object
+    new_run = Run(
+        name=run_name, fn_name=fn_name, system=current_cluster, overwrite=True
     )
 
     # Save down config for new Run
@@ -354,69 +278,55 @@ def _create_new_run(run_name, fn, args, kwargs):
     return new_run
 
 
-def _get_result_from_ray(obj_ref):
+def _get_result_from_ray(run_name):
     from runhouse.rns.run import RunStatus
 
-    try:
-        result = ray.get(obj_ref)
-        return result, RunStatus.COMPLETED
+    result = rh_config.obj_store.get(key=run_name)
 
-    except Exception as e:
-        return str(e), RunStatus.ERROR
+    logger.info(f"Got result from ray object store: {type(result)}")
+
+    # TODO [JL] Handle exception being thrown to determine what status to set
+
+    return result, RunStatus.COMPLETED
 
 
-def _register_completed_run(path, run_status):
+def _load_existing_run_on_cluster(run_name) -> Union["Run", None]:
+    """Load a Run for a given name from the cluster's file system. If the Run is not found returns None."""
     from runhouse import Run
 
-    logger.info(f"Registering completed run in path: {path}")
-    run_obj = Run.from_path(path)
-    logger.info(f"Run obj in register completed run: {run_obj.config_for_rns}")
-
-    # Update the config data for the completed run
-    run_obj._register_fn_run_completion(run_status)
-
-    return run_obj
-
-
-def _existing_run_from_file(run_key):
-    from runhouse import Run
-
-    if run_key == "latest":
+    if run_name == "latest":
         # TODO [JL]
         raise NotImplementedError("Latest not currently supported")
     else:
-        folder_path = Run._base_cluster_folder_path(run_key)
+        folder_path = Run._base_cluster_folder_path(run_name)
 
     folder_path_on_system = resolve_absolute_path(folder_path)
+    logger.info(
+        f"folder path on system for loading run from file: {folder_path_on_system}"
+    )
 
     existing_run = Run.from_path(path=folder_path_on_system)
 
     return existing_run
 
 
-def fn_from_module_path(relative_path, fn_name, module_name):
-    module_path = (
-        str((Path.home() / relative_path).resolve()) if relative_path else None
-    )
-    logger.info(f"Module path on unary server: {module_path}")
-
-    if module_name == "notebook":
-        fn = fn_name  # Already unpickled above
-    else:
-        fn = get_fn_by_name(module_name, fn_name, module_path)
-
-    return fn
+def _serialize_and_store_result(result, run_obj):
+    """Save the result of the function to the Run's dedicated folder on the cluster"""
+    # NOTE: relying on the ray cluster object store for storing the object ref is a finicky
+    results_path = run_obj._fn_result_path()
+    logger.info(f"Writing function result to Run's folder in path: {results_path}")
+    run_obj.write(pickle.dumps(result), path=results_path)
 
 
 def create_command_based_run(run_name, commands, cmd_prefix, python_cmd):
-    from runhouse import Run, run
+    from runhouse import Run
     from runhouse.rns.obj_store import THIS_CLUSTER
     from runhouse.rns.run import RunStatus
 
     folder_path = Run._base_cluster_folder_path(run_name)
     folder_path_on_system = resolve_absolute_path(folder_path)
 
-    run_obj = run(
+    run_obj = Run(
         name=run_name, cmds=commands, overwrite=True, path=folder_path_on_system
     )
 
@@ -458,8 +368,6 @@ def create_command_based_run(run_name, commands, cmd_prefix, python_cmd):
     logger.info(
         f"Finished saving stdout and stderr for the run to path: {run_obj.folder.path}"
     )
-
-    # TODO [JL] better way of setting the system for this run to the current cluster (and not local)
     config_data = run_obj.config_for_rns
 
     current_cluster = rh_config.rns_client.resolve_rns_path(THIS_CLUSTER)

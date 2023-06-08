@@ -11,14 +11,7 @@ from ray import cloudpickle as pickle
 
 from runhouse.rh_config import configs
 
-S3_BUCKET = "runhouse-blob"
 TEMP_LOCAL_FOLDER = Path(__file__).parents[1] / "rh-blobs"
-
-
-def setup():
-    from runhouse.rns.api_utils.utils import create_s3_bucket
-
-    create_s3_bucket(S3_BUCKET)
 
 
 @pytest.mark.rnstest
@@ -127,14 +120,14 @@ def test_create_and_reload_rns_blob(blob_data):
 
 @pytest.mark.awstest
 @pytest.mark.rnstest
-def test_create_and_reload_rns_blob_with_path(blob_data):
+def test_create_and_reload_rns_blob_with_path(blob_data, blob_s3_bucket):
     name = "@/s3_blob"
     my_blob = (
         rh.blob(
             name=name,
             data=blob_data,
             system="s3",
-            path=f"/{S3_BUCKET}/test_blob.pickle",
+            path=f"/{blob_s3_bucket}/test_blob.pickle",
             mkdir=True,
         )
         .write()
@@ -263,5 +256,4 @@ def test_save_anom_blob_to_s3(blob_data):
 
 
 if __name__ == "__main__":
-    setup()
     unittest.main()

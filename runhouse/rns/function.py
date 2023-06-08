@@ -18,7 +18,7 @@ from runhouse.rns.hardware import Cluster
 from runhouse.rns.packages import git_package, Package
 
 from runhouse.rns.resource import Resource
-from runhouse.rns.run_module_utils import call_fn_by_type, get_fn_by_name
+from runhouse.rns.run_module_utils import call_fn_by_type
 
 from runhouse.rns.utils.env import _get_env_from
 
@@ -300,14 +300,7 @@ class Function(Resource):
                 # their own result.
                 serialize_res = not self.system.on_this_cluster()
 
-                fn = get_fn_by_name(
-                    module_name=module_name,
-                    fn_name=fn_name,
-                    relative_path=relative_path,
-                )
-
                 return call_fn_by_type(
-                    fn=fn,
                     fn_type=fn_type,
                     fn_name=fn_name,
                     relative_path=relative_path,

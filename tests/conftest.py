@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 import runhouse as rh
+from runhouse.rns.api_utils.utils import create_s3_bucket
 
 
 # https://docs.pytest.org/en/6.2.x/fixture.html#conftest-py-sharing-fixtures-across-multiple-files
@@ -194,7 +195,7 @@ def save_and_load_artifacts():
 def slow_running_func(a, b):
     import time
 
-    time.sleep(200)
+    time.sleep(20)
     return a + b
 
 
@@ -232,3 +233,41 @@ def slow_func(cpu_cluster):
             .to(cpu_cluster, env=["pytest"])
             .save()
         )
+
+
+# ----------------- S3 -----------------
+@pytest.fixture
+def runs_s3_bucket():
+    create_s3_bucket("runhouse-runs")
+
+
+@pytest.fixture
+def blob_s3_bucket():
+    create_s3_bucket("runhouse-blob")
+
+
+@pytest.fixture
+def table_s3_bucket():
+    create_s3_bucket("runhouse-table")
+
+
+# ----------------- Runs -----------------
+
+
+@pytest.fixture
+def submitted_run(summer_func):
+    """Initializes a Run, which will run synchronously on the cluster. Returns the function's result."""
+    run_name = "synchronous_run"
+    res = summer_func(1, 2, name_run=run_name)
+    assert res == 3
+    return run_name
+
+
+@pytest.fixture
+def submitted_async_run(summer_func):
+    """Execute function async on the cluster. If a run already exists, do not re-run. Returns a Run object."""
+    run_name = "async_run"
+    async_run = summer_func.run(name_run=run_name, a=1, b=2)
+
+    assert isinstance(async_run, rh.Run)
+    return run_name
