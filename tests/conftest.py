@@ -199,62 +199,48 @@ def slow_running_func(a, b):
     return a + b
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def summer_func(cpu_cluster):
-    try:
-        return rh.Function.from_name("summer_func")
-    except:
-        return (
-            rh.function(summer, name="summer_func")
-            .to(cpu_cluster, env=["pytest"])
-            .save()
-        )
+    return rh.function(summer, name="summer_func").to(cpu_cluster, env=["pytest"])
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def func_with_artifacts(cpu_cluster):
-    try:
-        return rh.Function.from_name("artifacts_func")
-    except:
-        return (
-            rh.function(save_and_load_artifacts, name="artifacts_func")
-            .to(cpu_cluster, env=["pytest"])
-            .save()
-        )
+    return rh.function(save_and_load_artifacts, name="artifacts_func").to(
+        cpu_cluster, env=["pytest"]
+    )
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def slow_func(cpu_cluster):
-    try:
-        return rh.Function.from_name("slow_func")
-    except:
-        return (
-            rh.function(slow_running_func, name="slow_func")
-            .to(cpu_cluster, env=["pytest"])
-            .save()
-        )
+    return rh.function(slow_running_func, name="slow_func").to(
+        cpu_cluster, env=["pytest"]
+    )
 
 
 # ----------------- S3 -----------------
-@pytest.fixture
+@pytest.fixture(scope="session")
 def runs_s3_bucket():
-    create_s3_bucket("runhouse-runs")
+    runs_bucket = create_s3_bucket("runhouse-runs")
+    return runs_bucket.name
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def blob_s3_bucket():
-    create_s3_bucket("runhouse-blob")
+    blob_bucket = create_s3_bucket("runhouse-blob")
+    return blob_bucket.name
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def table_s3_bucket():
-    create_s3_bucket("runhouse-table")
+    table_bucket = create_s3_bucket("runhouse-table")
+    return table_bucket.name
 
 
 # ----------------- Runs -----------------
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def submitted_run(summer_func):
     """Initializes a Run, which will run synchronously on the cluster. Returns the function's result."""
     run_name = "synchronous_run"
@@ -263,7 +249,7 @@ def submitted_run(summer_func):
     return run_name
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def submitted_async_run(summer_func):
     """Execute function async on the cluster. If a run already exists, do not re-run. Returns a Run object."""
     run_name = "async_run"

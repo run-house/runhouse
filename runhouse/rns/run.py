@@ -27,17 +27,18 @@ class RunStatus(str, Enum):
     ERROR = "ERROR"
 
 
-class Run(Resource):
-    RESOURCE_TYPE = "run"
-
-    LOCAL_RUN_PATH = f"{rns_client.rh_directory}/runs"
-    RUN_CONFIG_FILE = "config_for_rns.json"
-
-    # Supported Run types
+class RunType(str, Enum):
     CMD_RUN = "CMD"
     FUNCTION_RUN = "FUNCTION"
     CTX_MANAGER = "CTX_MANAGER"
 
+
+class Run(Resource):
+    RESOURCE_TYPE = "run"
+
+    LOCAL_RUN_PATH = f"{rns_client.rh_directory}/runs"
+
+    RUN_CONFIG_FILE = "config_for_rns.json"
     RESULT_FILE = "result.pkl"
     INPUTS_FILE = "inputs.pkl"
 
@@ -118,7 +119,7 @@ class Run(Resource):
         # for function based Runs
         self._write_config()
 
-        if self.run_type == self.FUNCTION_RUN:
+        if self.run_type == RunType.FUNCTION_RUN:
             # For function based Runs we use the logfiles already generated for the current Ray worker
             # on the cluster
             return
@@ -156,24 +157,24 @@ class Run(Resource):
 
     @property
     def run_config(self):
-        if self.run_type == self.FUNCTION_RUN:
+        if self.run_type == RunType.FUNCTION_RUN:
             # Function based run
             return {
                 "fn_name": self.fn_name,
-                "run_type": self.FUNCTION_RUN,
+                "run_type": RunType.FUNCTION_RUN,
             }
 
-        elif self.run_type == self.CMD_RUN:
+        elif self.run_type == RunType.CMD_RUN:
             # CLI command based run
             return {
                 "cmds": self.cmds,
-                "run_type": self.CMD_RUN,
+                "run_type": RunType.CMD_RUN,
             }
 
-        elif self.run_type == self.CTX_MANAGER:
+        elif self.run_type == RunType.CTX_MANAGER:
             # Context manager based run
             return {
-                "run_type": self.CTX_MANAGER,
+                "run_type": RunType.CTX_MANAGER,
             }
 
         else:
@@ -220,17 +221,17 @@ class Run(Resource):
 
         new_run = copy.copy(self)
 
-        if self.run_type == self.FUNCTION_RUN:
-            # Grab result from the object store on the cluster, then write it down to the Run's dedicated folder
-            result = self.folder.system.get(self.name)
-            self.folder.put({self.RESULT_FILE: pickle.dumps(result)}, overwrite=True)
-            logger.info(
-                f"Saved result of Run {self.name} to path: {self._fn_result_path()}"
-            )
+        if self.run_type == RunType.FUNCTION_RUN:
+            results_path = self._fn_result_path()
+            # Pickled function result should be saved down to the Run's folder on the cluster
+            if results_path not in self.folder.ls():
+                raise FileNotFoundError(
+                    f"No results saved down in path: {results_path}"
+                )
 
         for fp in [self._stdout_path, self._stderr_path]:
-            # Stdout and Stderr files created on a cluster can be symlinks to the files that Ray creates
-            # by default - before copying them to a new system  convert them to regular files
+            # Stdout and Stderr files created on a cluster can be symlinks to the files that we create via Ray
+            # by default - before copying them to a new system make sure they are regular files
             self._convert_symlink_to_file(path=fp)
 
         if system == "here":
@@ -244,22 +245,9 @@ class Run(Resource):
         return new_run
 
     def refresh(self) -> "Run":
-        """Reload the Run object from the system."""
-        if isinstance(self.folder.system, Cluster):
-            try:
-                # Try loading the Run from the cluster's object store
-                return self.folder.system.get_run(run_name=self.name)
-            except:
-                pass
-
-        # Try loading the Run from the system's folder
-        if not self.folder.exists_in_system():
-            raise FileNotFoundError(
-                f"No Run config found on system in path: {self.folder.path}"
-            )
-
+        """Reload the Run object from the system. This is useful for checking the status of a Run.
+        For example: ``my_run.refresh().status``"""
         run_config = json.loads(self.folder.get(name=self.RUN_CONFIG_FILE))
-        logger.info(f"Run config loaded in refresh: {run_config}")
         return Run.from_config(run_config, dryrun=True)
 
     def inputs(self) -> bytes:
@@ -268,40 +256,35 @@ class Run(Resource):
             self._load_blob_from_path(path=self._fn_inputs_path()).fetch()
         )
 
-    def result(self, stream_logs=False) -> bytes:
-        """Load the function result saved on the system for the Run. If the Run lives on a cluster, will load the
-        result from the Ray object store, otherwise will load from the system's folder."""
+    def result(self):
+        """Load the function result saved on the system for the Run.
 
-        if isinstance(self.folder.system, Cluster):
-            # Try reading result from the object store on the cluster
-            result = self.folder.system.get(self.name, stream_logs=stream_logs)
-            if result is not None:
-                return result
+        Note: If the Run has failed there will be no result saved on the system."""
+        results_path = self._fn_result_path()
+        if results_path not in self.folder.ls():
+            raise FileNotFoundError(f"No results file found in path: {results_path}")
 
-        # Try reading result from the Run's dedicated folder on the system
-        return pickle.loads(
-            self._load_blob_from_path(path=self._fn_result_path()).fetch()
-        )
+        return pickle.loads(self._load_blob_from_path(path=results_path).fetch())
 
-    def stdout(self):
+    def stdout(self) -> str:
         """Read the stdout saved on the system for the Run."""
         stdout_path = self._stdout_path
         logger.info(f"Reading stdout from path: {stdout_path}")
 
         return self._load_blob_from_path(path=stdout_path).fetch().decode().strip()
 
-    def stderr(self):
+    def stderr(self) -> str:
         """Read the stderr saved on the system for the Run."""
         stderr_path = self._stderr_path
         logger.info(f"Reading stderr from path: {stderr_path}")
 
         return self._load_blob_from_path(stderr_path).fetch().decode().strip()
 
-    def _fn_inputs_path(self):
+    def _fn_inputs_path(self) -> str:
         """Path to the pickled inputs used for the function which are saved on the system."""
         return f"{self.folder.path}/{self.INPUTS_FILE}"
 
-    def _fn_result_path(self):
+    def _fn_result_path(self) -> str:
         """Path to the pickled result for the function which are saved on the system."""
         return f"{self.folder.path}/{self.RESULT_FILE}"
 
@@ -309,30 +292,34 @@ class Run(Resource):
         """Load a blob from the Run's folder in the specified path. (ex: function inputs, result, stdout, stderr)."""
         return blob(path=path, system=self.folder.system)
 
-    def _register_new_fn_run(self):
-        """Log a function based Run once it's been triggered on the system."""
+    def _register_new_run(self):
+        """Log a Run once it's been triggered on the system."""
         self.start_time = self._current_timestamp()
         self.status = RunStatus.RUNNING
 
         # Write config data for the Run to its config file on the system
-        logger.info("Registering new function run")
+        logger.info("Registering new Run on system")
         self._write_config()
 
-    def _register_fn_run_completion(self, run_status: RunStatus):
-        """Update the Run's config once the function has finished running on the system."""
+    def _register_run_completion(self, run_status: RunStatus):
+        """Update the Run's config after its finished running on the system."""
         self.end_time = self._current_timestamp()
-
         self.status = run_status
 
         logger.info(f"Registering a completed Run with status: {run_status}")
         self._write_config()
 
     def _write_config(self, config: dict = None, overwrite: bool = True):
-        """Write the Run's config data to the system (this is the same data that will be stored in RNS
-        if the Run is saved)."""
-        logger.info(f"Config to save on system: {self.config_for_rns}")
+        """Write the Run's config data to the system.
+
+        Args:
+            config (Optional[Dict]): Config to write. If none is provided, the Run's config for RNS will be used.
+            overwrite (Optional[bool]): Overwrite the config if one is already saved down. Defaults to ``True``.
+        """
+        config_to_write = config or self.config_for_rns
+        logger.info(f"Config to save on system: {config_to_write}")
         self.folder.put(
-            {self.RUN_CONFIG_FILE: config or self.config_for_rns},
+            {self.RUN_CONFIG_FILE: config_to_write},
             overwrite=overwrite,
             mode="w",
             write_fn=lambda data, f: json.dump(data, f, indent=4),
@@ -340,13 +327,13 @@ class Run(Resource):
 
     def _detect_run_type(self):
         if self.fn_name:
-            return self.FUNCTION_RUN
+            return RunType.FUNCTION_RUN
         elif self.cmds is not None:
-            return self.CMD_RUN
+            return RunType.CMD_RUN
         else:
-            return self.CTX_MANAGER
+            return RunType.CTX_MANAGER
 
-    def _path_to_config(self):
+    def _path_to_config(self) -> str:
         """Path the main folder storing the metadata, inputs, and results for the Run saved on the system."""
         return f"{self.folder.path}/{self.RUN_CONFIG_FILE}"
 
@@ -361,7 +348,7 @@ class Run(Resource):
         path_to_ext = f"{self.folder.path}/{self.name}" + ext
         return path_to_ext
 
-    def _base_local_folder_path(self):
+    def _base_local_folder_path(self) -> str:
         """Path to the base folder for this Run on a local system."""
         return f"{self.LOCAL_RUN_PATH}/{self.name}"
 
@@ -422,7 +409,7 @@ class Run(Resource):
         existing_folder.rm()
 
     @staticmethod
-    def _create_new_run_name(name: str = None):
+    def _create_new_run_name(name: str = None) -> str:
         """Name of the Run's parent folder which contains the Run's data (config, stdout, stderr, etc).
         If a name is provided, prepend that to the current timestamp to complete the folder name."""
         timestamp_key = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -431,7 +418,7 @@ class Run(Resource):
         return f"{name}_{timestamp_key}"
 
     @staticmethod
-    def _base_cluster_folder_path(name: str):
+    def _base_cluster_folder_path(name: str) -> str:
         """Path to the base folder for this Run on a cluster."""
         return f"~/{obj_store.LOGS_DIR}/{name}"
 

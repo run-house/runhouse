@@ -569,7 +569,7 @@ class Cluster(Resource):
 
         if name_run:
             run_name = rh.Run._format_run_name(name_run)
-            # Call RPC for creating the Run object and executing the commands
+            # Call endpoint for creating the Run and executing the commands
             return_codes = self.run_cmds(run_name, commands, cmd_prefix, python_cmd)
             return return_codes
 

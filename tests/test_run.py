@@ -24,6 +24,7 @@ FILES_TO_CHECK = (
 
 
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_read_fn_stdout(cpu_cluster, submitted_run):
     """Reads the stdout for the Run."""
     fn_run = cpu_cluster.get_run(submitted_run)
@@ -33,6 +34,7 @@ def test_read_fn_stdout(cpu_cluster, submitted_run):
 
 
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_load_run_result(cpu_cluster, submitted_run):
     """Load the Run created above directly from the cluster."""
     # Note: Run only exists on the cluster (hasn't yet been saved to RNS).
@@ -41,6 +43,7 @@ def test_load_run_result(cpu_cluster, submitted_run):
 
 
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_get_or_call_from_cache(summer_func, submitted_run):
     """Cached version of synchronous run - if already completed return the result, otherwise run and wait for
     completion before returning the result."""
@@ -51,18 +54,47 @@ def test_get_or_call_from_cache(summer_func, submitted_run):
 
 
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_get_or_call_no_cache(summer_func):
     """Cached version of synchronous run - if already completed return the result, otherwise run and wait for
     completion before returning the result."""
     # Note: In this test since we do not have a run with this name, it should first execute the function
     # before returning its result
     run_output = summer_func.get_or_call(name_run="another_sync_run", a=1, b=2)
-
     assert run_output == 3
+
+
+@pytest.mark.clustertest
+@pytest.mark.runstest
+def test_invalid_fn_sync_run(summer_func, cpu_cluster):
+    # TODO [JL] failing - Ray is not always raising an exception, sometimes returns None
+    """Test error handling for invalid function Run. The function expects to receive integers but
+    does not receive any. No result should be saved down for this Run, and the result returned should be a string
+    containing the error message."""
+    invalid_run = "invalid_run"
+    invalid_run_result = summer_func.get_or_call(name_run=invalid_run)
+    assert "TypeError" in invalid_run_result
+
+    run_obj = cpu_cluster.get_run(invalid_run)
+    assert run_obj._fn_result_path() not in run_obj.folder.ls()
+
+
+@pytest.mark.clustertest
+@pytest.mark.runstest
+def test_invalid_fn_async_run(summer_func):
+    """Test error handling for invalid function Run. The function expects to receive integers but
+    does not receive any.
+    No result should be saved down for this Run, and the Run object returned should have a status of `ERROR`."""
+    invalid_async_run = "invalid_async_run"
+    run_obj = summer_func.get_or_run(name_run=invalid_async_run)
+
+    assert run_obj.refresh().status == rh.RunStatus.ERROR
+    assert run_obj._fn_result_path() not in run_obj.folder.ls()
 
 
 @unittest.skip("Not implemented yet.")
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_get_or_call_latest(summer_func):
     """Cached version of synchronous run - if already completed return the result, otherwise run and wait for
     completion before returning the result."""
@@ -74,6 +106,7 @@ def test_get_or_call_latest(summer_func):
 
 @unittest.skip("Not implemented yet.")
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_send_run_to_system_on_completion(summer_func, submitted_async_run):
     # Only once the run actually finishes do we send to S3
     async_run = summer_func.run(name_run=submitted_async_run, a=1, b=2).to(
@@ -84,6 +117,7 @@ def test_send_run_to_system_on_completion(summer_func, submitted_async_run):
 
 
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_run_refresh(slow_func):
     async_run = slow_func.get_or_run(name_run="async_get_or_run", a=1, b=2)
 
@@ -98,6 +132,7 @@ def test_run_refresh(slow_func):
 
 
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_get_async_run_result(summer_func, submitted_async_run):
     """Read the results from an async run."""
     async_run = summer_func.get_or_run(name_run=submitted_async_run)
@@ -106,6 +141,7 @@ def test_get_async_run_result(summer_func, submitted_async_run):
 
 
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_get_or_run_no_cache(summer_func):
     """Execute function async on the cluster. If a run already exists, do not re-run. Returns a Run object."""
     # Note: In this test since no Run exists with this name, will trigger the function async on the cluster and in the
@@ -119,6 +155,7 @@ def test_get_or_run_no_cache(summer_func):
 
 @unittest.skip("Not implemented yet.")
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_get_or_run_latest(summer_func):
     """Execute function async on the cluster. If a run already exists, do not re-run. Returns a Run object."""
     # Note: In this test since we are providing "latest", will return the latest cached version.
@@ -127,6 +164,7 @@ def test_get_or_run_latest(summer_func):
 
 
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_delete_async_run_from_system(cpu_cluster, submitted_async_run):
     async_run = cpu_cluster.get_run(submitted_async_run)
     async_run.folder.rm()
@@ -135,6 +173,7 @@ def test_delete_async_run_from_system(cpu_cluster, submitted_async_run):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
+@pytest.mark.runstest
 def test_save_fn_run_to_rns(cpu_cluster, submitted_run):
     """Saves run config to RNS"""
     func_run = cpu_cluster.get_run(submitted_run)
@@ -147,6 +186,7 @@ def test_save_fn_run_to_rns(cpu_cluster, submitted_run):
 
 
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_create_anon_run_on_cluster(summer_func):
     """Create a new Run without giving it an explicit name."""
     # Note: this will run synchronously and return the result
@@ -156,12 +196,14 @@ def test_create_anon_run_on_cluster(summer_func):
 
 @unittest.skip("Not yet implemented.")
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_latest_fn_run(summer_func):
     run_output = summer_func.get_or_call(run_str="latest")
     assert run_output == 3
 
 
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_copy_fn_run_from_cluster_to_local(cpu_cluster, submitted_run):
     my_run = cpu_cluster.get_run(submitted_run)
     my_local_run = my_run.to("here")
@@ -177,6 +219,7 @@ def test_copy_fn_run_from_cluster_to_local(cpu_cluster, submitted_run):
 
 @pytest.mark.clustertest
 @pytest.mark.awstest
+@pytest.mark.runstest
 def test_copy_fn_run_from_system_to_s3(cpu_cluster, runs_s3_bucket, submitted_run):
     my_run = cpu_cluster.get_run(submitted_run)
     my_run_on_s3 = my_run.to("s3", path=f"/{runs_s3_bucket}/my_test_run")
@@ -196,6 +239,7 @@ def test_copy_fn_run_from_system_to_s3(cpu_cluster, runs_s3_bucket, submitted_ru
 
 
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_read_fn_run_inputs_and_outputs(submitted_run):
     my_run = rh.Run.from_name(name=submitted_run)
     inputs = my_run.inputs()
@@ -206,6 +250,7 @@ def test_read_fn_run_inputs_and_outputs(submitted_run):
 
 
 @pytest.mark.rnstest
+@pytest.mark.runstest
 def test_read_fn_stdout_from_rns_run(submitted_run):
     # Read the stdout saved when running the function on the cluster
     my_run = rh.Run.from_name(name=submitted_run)
@@ -215,6 +260,7 @@ def test_read_fn_stdout_from_rns_run(submitted_run):
 
 
 @pytest.mark.rnstest
+@pytest.mark.runstest
 def test_delete_fn_run_from_rns(submitted_run):
     func_run = rh.Run.from_name(submitted_run)
     func_run.delete_configs()
@@ -222,9 +268,9 @@ def test_delete_fn_run_from_rns(submitted_run):
 
 
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_get_fn_status_updates(cpu_cluster, slow_func):
-    """Run a function that takes a long time to run - since we are running this async we should
-    immediately get back the run object with a status of RUNNING."""
+    """Run a function that takes a long time to run, confirming that its status changes as we refresh the Run"""
     async_run = slow_func.run(name_run="my_slow_async_run", a=1, b=2)
 
     assert isinstance(async_run, rh.Run)
@@ -232,6 +278,7 @@ def test_get_fn_status_updates(cpu_cluster, slow_func):
     assert async_run.status == rh.RunStatus.RUNNING
 
     while async_run.refresh().status != rh.RunStatus.COMPLETED:
+        # ... do something else while we wait for the run to finish
         pass
 
     assert async_run.refresh().status == rh.RunStatus.COMPLETED
@@ -241,32 +288,39 @@ def test_get_fn_status_updates(cpu_cluster, slow_func):
 
 
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_create_cli_python_command_run(cpu_cluster):
     # Run python commands on the specified system. Save the run results to the .rh/logs/<run_name> folder of the system.
     return_codes = cpu_cluster.run_python(
         [
             "import runhouse as rh",
+            "import pickle",
             "import logging",
-            "cpu = rh.cluster('^rh-cpu')",
-            "logging.info(f'On the cluster {cpu.name}!')",
-            "loaded_run = cpu.get_run('my_slow_async_run')",
-            "logger.info(f'Run Status: {loaded_run.status}')",
+            "local_blob = rh.blob(name='local_blob', data=pickle.dumps(list(range(50))), mkdir=True).write()",
+            "logging.info(f'Blob path: {local_blob.path}')",
+            "local_blob.rm()",
         ],
         name_run=CLI_RUN_NAME,
     )
     pprint(return_codes)
-    assert "Run Status" in return_codes
+
+    assert return_codes[0][0] == 0, "Failed to run python commands"
+    assert "Blob path" in return_codes[0][1].strip()
 
 
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_create_cli_command_run(cpu_cluster):
     """Run CLI command on the specified system.
     Saves the run results to the .rh/logs/<run_name> folder of the system."""
-    cmd_stdout = cpu_cluster.run(["python --version"], name_run=CLI_RUN_NAME)
-    assert cmd_stdout.strip() == "Python 3.10.6"
+    return_codes = cpu_cluster.run(["python --version"], name_run=CLI_RUN_NAME)
+
+    assert return_codes[0][0] == 0, "Failed to run CLI command"
+    assert return_codes[0][1].strip() == "Python 3.10.6"
 
 
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_load_cli_command_run_from_cluster(cpu_cluster):
     # Run only exists on the cluster (hasn't yet been saved to RNS).
     cli_run = cpu_cluster.get_run(CLI_RUN_NAME)
@@ -275,6 +329,7 @@ def test_load_cli_command_run_from_cluster(cpu_cluster):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
+@pytest.mark.runstest
 def test_save_cli_run_on_cluster_to_rns(cpu_cluster):
     cli_run = cpu_cluster.get_run(CLI_RUN_NAME)
     cli_run.save(name=CLI_RUN_NAME)
@@ -283,7 +338,8 @@ def test_save_cli_run_on_cluster_to_rns(cpu_cluster):
     assert loaded_run_from_rns
 
 
-@pytest.mark.clustertest
+@pytest.mark.rnstest
+@pytest.mark.runstest
 def test_read_cli_command_stdout():
     # Read the stdout from the system the command was run
     cli_run = rh.Run.from_name(name=CLI_RUN_NAME)
@@ -292,6 +348,7 @@ def test_read_cli_command_stdout():
 
 
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_delete_cli_run_from_system(cpu_cluster):
     cli_run = cpu_cluster.get_run(CLI_RUN_NAME)
     cli_run.folder.rm()
@@ -300,12 +357,14 @@ def test_delete_cli_run_from_system(cpu_cluster):
 
 
 @pytest.mark.rnstest
+@pytest.mark.runstest
 def test_cli_run_exists_in_rns():
     cli_run = rh.Run.from_name(name=CLI_RUN_NAME)
     assert rh.exists(cli_run.name, resource_type=rh.Run.RESOURCE_TYPE)
 
 
 @pytest.mark.rnstest
+@pytest.mark.runstest
 def test_delete_cli_run_from_rns():
     cli_run = rh.Run.from_name(CLI_RUN_NAME)
     cli_run.delete_configs()
@@ -317,22 +376,24 @@ def test_delete_cli_run_from_rns():
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_create_local_ctx_manager_run():
+@pytest.mark.runstest
+def test_create_local_ctx_manager_run(summer_func, cpu_cluster):
     from runhouse.rh_config import rns_client
+
+    ctx_mgr_func = "my_ctx_mgr_func"
 
     with rh.Run(path=PATH_TO_CTX_MGR_RUN) as r:
         # Add all Runhouse objects loaded or saved in the context manager to the Run's artifact registry
         # (upstream + downstream artifacts)
-        my_func = rh.Function.from_name("summer_func")
-        my_func.save("my_new_func")
+        summer_func.save(ctx_mgr_func)
 
-        my_func(1, 2, name_run="my_new_run")
+        summer_func(1, 2, name_run="my_new_run")
 
-        current_run = my_func.system.get_run("my_new_run")
+        current_run = summer_func.system.get_run("my_new_run")
         run_res = current_run.result()
         print(f"Run result: {run_res}")
 
-        cluster = rh.load(name="@/rh-cpu")
+        cluster = rh.load(name=cpu_cluster.name)
         print(f"Cluster loaded: {cluster.name}")
 
     r.save(name=CTX_MGR_RUN)
@@ -341,22 +402,23 @@ def test_create_local_ctx_manager_run():
 
     # Artifacts include the rns resolved name (ex: "/jlewitt1/rh-cpu")
     assert r.downstream_artifacts == [
-        rns_client.resolve_rns_path("my_new_func"),
-        rns_client.resolve_rns_path("rh-cpu"),
+        rns_client.resolve_rns_path(ctx_mgr_func),
+        rns_client.resolve_rns_path(cpu_cluster.name),
     ]
     assert r.upstream_artifacts == [
-        rns_client.resolve_rns_path("summer_func"),
-        rns_client.resolve_rns_path("rh-cpu"),
+        rns_client.resolve_rns_path(cpu_cluster.name),
     ]
 
 
 @pytest.mark.localtest
+@pytest.mark.runstest
 def test_load_named_ctx_manager_run():
     ctx_run = rh.Run.from_path(path=PATH_TO_CTX_MGR_RUN)
     assert ctx_run.folder.exists_in_system()
 
 
 @pytest.mark.localtest
+@pytest.mark.runstest
 def test_read_stdout_from_ctx_manager_run():
     ctx_run = rh.Run.from_path(path=PATH_TO_CTX_MGR_RUN)
     stdout = ctx_run.stdout()
@@ -365,6 +427,7 @@ def test_read_stdout_from_ctx_manager_run():
 
 
 @pytest.mark.rnstest
+@pytest.mark.runstest
 def test_save_ctx_run_to_rns():
     ctx_run = rh.Run.from_path(path=PATH_TO_CTX_MGR_RUN)
     ctx_run.save()
@@ -372,6 +435,7 @@ def test_save_ctx_run_to_rns():
 
 
 @pytest.mark.clustertest
+@pytest.mark.runstest
 def test_delete_run_from_system():
     ctx_run = rh.Run.from_path(path=PATH_TO_CTX_MGR_RUN)
     ctx_run.folder.rm()
@@ -379,6 +443,7 @@ def test_delete_run_from_system():
 
 
 @pytest.mark.rnstest
+@pytest.mark.runstest
 def test_delete_run_from_rns():
     ctx_run = rh.Run.from_name(CTX_MGR_RUN)
     ctx_run.delete_configs()

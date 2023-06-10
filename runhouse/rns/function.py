@@ -436,18 +436,6 @@ class Function(Resource):
         """
         return self.system.get(run_key)
 
-    def _create_async_run(
-        self, name_run: Union[str, bool], fn_name: str = None, *args, **kwargs
-    ):
-        """Create a new run on the cluster for this function. Function will execute async on the cluster.
-        Returns the run key for the run, corresponding to the run's folder on the cluster."""
-        from runhouse import Run
-
-        name_run: str = Run._format_run_name(name_run, fn_name=fn_name or self.name)
-        run_name = self.run(name_run, *args, **kwargs)
-
-        return run_name
-
     def _call_fn_with_ssh_access(
         self, fn_type, resources=None, run_name=None, args=None, kwargs=None
     ):

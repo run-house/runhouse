@@ -187,11 +187,15 @@ def _stdout_files_for_fn():
 
 
 def _execute_fn_with_ray(run_obj, fn_name):
+    from runhouse import RunStatus
+
     result, run_status = _get_result_from_ray(run_obj.name)
 
-    run_obj._register_fn_run_completion(run_status)
+    run_obj._register_run_completion(run_status)
 
-    _serialize_and_store_result(result, run_obj)
+    if run_status == RunStatus.COMPLETED:
+        # Only store result if Run completed successfully
+        _serialize_and_store_result(result, run_obj)
 
     logger.info(
         f"Registered completed async run {run_obj.name} for function {fn_name} with status: {run_status}"
@@ -204,7 +208,7 @@ def _execute_fn_run(run_obj, run_name, fn_type, fn_name) -> ["Run", Any]:
     """Execute a function on the cluster. If the ``fn_type`` is ``remote``, then execute asynchronously on another
     thread before returning the Run object. Otherwise execute the function synchronously and return its
     result once completed."""
-    from runhouse import Run
+    from runhouse import Run, RunStatus
 
     logger.info(f"Starting execution of type {fn_type} for Run with name: {run_name}")
 
@@ -224,14 +228,18 @@ def _execute_fn_run(run_obj, run_name, fn_type, fn_name) -> ["Run", Any]:
         fn_result, run_status = _get_result_from_ray(run_name)
 
         path = run_obj.folder.path
-        logger.info(f"Registering completed run in path: {path}")
+        logger.info(
+            f"Registering completed run with status {run_status} in path: {path}"
+        )
 
         run_obj = Run.from_path(path)
 
         # Update the config data for the completed run
-        run_obj._register_fn_run_completion(run_status)
+        run_obj._register_run_completion(run_status)
 
-        _serialize_and_store_result(fn_result, run_obj)
+        if run_status == RunStatus.COMPLETED:
+            # Only store result if Run completed successfully
+            _serialize_and_store_result(fn_result, run_obj)
 
         logger.info(f"Completed Run for fn type {fn_type} in path: {path}")
 
@@ -265,7 +273,7 @@ def _create_new_run(run_name, fn_name, args, kwargs):
     )
 
     # Save down config for new Run
-    new_run._register_new_fn_run()
+    new_run._register_new_run()
 
     # Save down pickled inputs to the function for the Run
     new_run.write(
@@ -281,13 +289,11 @@ def _create_new_run(run_name, fn_name, args, kwargs):
 def _get_result_from_ray(run_name):
     from runhouse.rns.run import RunStatus
 
-    result = rh_config.obj_store.get(key=run_name)
-
-    logger.info(f"Got result from ray object store: {type(result)}")
-
-    # TODO [JL] Handle exception being thrown to determine what status to set
-
-    return result, RunStatus.COMPLETED
+    try:
+        result = rh_config.obj_store.get(key=run_name)
+        return result, RunStatus.COMPLETED
+    except Exception as e:
+        return str(e), RunStatus.ERROR
 
 
 def _load_existing_run_on_cluster(run_name) -> Union["Run", None]:
@@ -312,13 +318,19 @@ def _load_existing_run_on_cluster(run_name) -> Union["Run", None]:
 
 def _serialize_and_store_result(result, run_obj):
     """Save the result of the function to the Run's dedicated folder on the cluster"""
-    # NOTE: relying on the ray cluster object store for storing the object ref is a finicky
+    # NOTE: relying on the ray cluster object store for storing the object ref is a finicky, so for now we
+    # serialize and store the result on the file system
     results_path = run_obj._fn_result_path()
     logger.info(f"Writing function result to Run's folder in path: {results_path}")
     run_obj.write(pickle.dumps(result), path=results_path)
 
 
-def create_command_based_run(run_name, commands, cmd_prefix, python_cmd):
+def create_command_based_run(run_name, commands, cmd_prefix, python_cmd) -> list:
+    """Create a Run for a CLI or python command(s).
+
+    Returns:
+        A list of tuples containing: (returncode, stdout, stderr)."""
+
     from runhouse import Run
     from runhouse.rns.obj_store import THIS_CLUSTER
     from runhouse.rns.run import RunStatus
@@ -330,10 +342,13 @@ def create_command_based_run(run_name, commands, cmd_prefix, python_cmd):
         name=run_name, cmds=commands, overwrite=True, path=folder_path_on_system
     )
 
-    run_obj._register_new_fn_run()
+    run_obj._register_new_run()
 
     final_stdout = []
     final_stderr = []
+    return_codes = []
+
+    run_status = RunStatus.COMPLETED
 
     for command in commands:
         command = f"{cmd_prefix} {command}" if cmd_prefix else command
@@ -355,29 +370,37 @@ def create_command_based_run(run_name, commands, cmd_prefix, python_cmd):
         if stderr:
             final_stderr.append(stderr)
 
+        return_code = result.returncode
+        if return_code != 0:
+            run_status = RunStatus.ERROR
+
+        commands_res = (return_code, stdout, stderr)
+        return_codes.append(commands_res)
+
+    end_time = Run._current_timestamp()
+
     final_stdout = "\n".join(final_stdout)
     final_stderr = "\n".join(final_stderr)
 
-    run_obj.end_time = run_obj._current_timestamp()
-    run_obj.status = RunStatus.COMPLETED
+    config_data = run_obj.config_for_rns
 
-    # Write the stdout and stderr of the Run to its dedicated log folder on the cluster
+    # Update the "system" stored in the config for this Run from "file" to the current cluster
+    config_data["system"] = rh_config.rns_client.resolve_rns_path(THIS_CLUSTER)
+    config_data["end_time"] = end_time
+    config_data["status"] = run_status
+
+    # Save the updated config for the Run
+    run_obj._write_config(config=config_data)
+
+    # Write the stdout and stderr of the Run to its dedicated folder
     run_obj.write(data=final_stdout.encode(), path=run_obj._stdout_path)
     run_obj.write(data=final_stderr.encode(), path=run_obj._stderr_path)
 
     logger.info(
-        f"Finished saving stdout and stderr for the run to path: {run_obj.folder.path}"
+        f"Finished saving stdout and stderr for the Run to path: {run_obj.folder.path}"
     )
-    config_data = run_obj.config_for_rns
 
-    current_cluster = rh_config.rns_client.resolve_rns_path(THIS_CLUSTER)
-    logger.info(f"Current cluster: {current_cluster}")
-
-    config_data["system"] = current_cluster
-
-    run_obj._write_config(config=config_data)
-
-    return final_stdout
+    return return_codes
 
 
 RAY_LOGFILE_PATH = Path("/tmp/ray/session_latest/logs")
