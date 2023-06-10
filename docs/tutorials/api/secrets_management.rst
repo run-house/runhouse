@@ -1,5 +1,5 @@
-Resource and Secrets Management
-===============================
+Secrets Management
+==================
 
 Saving Secrets
 ~~~~~~~~~~~~~~

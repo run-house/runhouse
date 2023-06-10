@@ -156,10 +156,21 @@ class Cluster(Resource):
         ):
             # Package is installed in editable mode
             local_rh_package_path = local_rh_package_path.parent
-            rh_package = Package.from_string(
-                f"reqs:{local_rh_package_path}", dryrun=True
+            dest_path = f"~/{local_rh_package_path.name}"
+
+            # temp update rsync filters to exclude docs, when syncing over runhouse folder
+            org_rsync_filter = command_runner.RSYNC_FILTER_OPTION
+            command_runner.RSYNC_FILTER_OPTION = (
+                "--filter='dir-merge,- .gitignore,- docs/'"
             )
-            rh_package.to(self)
+            self.rsync(
+                source=str(local_rh_package_path),
+                dest=dest_path,
+                up=True,
+                contents=True,
+            )
+            command_runner.RSYNC_FILTER_OPTION = org_rsync_filter
+
             rh_install_cmd = "pip install ./runhouse"
         # elif local_rh_package_path.parent.name == 'site-packages':
         else:

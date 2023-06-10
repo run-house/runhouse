@@ -1,9 +1,9 @@
-Distributed: HuggingFace Accelerate
-===================================
+Distributed: HF Accelerate
+==========================
 
 .. raw:: html
 
-    <p><a href="https://colab.research.google.com/github/run-house/tutorials/blob/stable/t04_Distributed/x01_colab_accelerate_multigpu.ipynb">
+    <p><a href="https://colab.research.google.com/github/run-house/runhouse/blob/stable/docs/notebooks/examples/distributed.ipynb">
     <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 
