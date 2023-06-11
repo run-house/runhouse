@@ -11,7 +11,7 @@ CLI_RUN_NAME = "my_cli_run"
 
 PATH_TO_CTX_MGR_RUN = f"{rh.Run.LOCAL_RUN_PATH}/{CTX_MGR_RUN}"
 
-FILES_TO_CHECK = (
+RUN_FILES = (
     rh.Run.INPUTS_FILE,
     rh.Run.RESULT_FILE,
     rh.Run.RUN_CONFIG_FILE,
@@ -47,9 +47,8 @@ def test_load_run_result(cpu_cluster, submitted_run):
 def test_get_or_call_from_cache(summer_func, submitted_run):
     """Cached version of synchronous run - if already completed return the result, otherwise run and wait for
     completion before returning the result."""
-    # Note: In this test since we already ran the function, it should immediately return the result
+    # Note: In this test since we already ran the function, it should return the result without re-running
     run_output = summer_func.get_or_call(name_run=submitted_run)
-
     assert run_output == 3
 
 
@@ -67,29 +66,30 @@ def test_get_or_call_no_cache(summer_func):
 @pytest.mark.clustertest
 @pytest.mark.runstest
 def test_invalid_fn_sync_run(summer_func, cpu_cluster):
-    # TODO [JL] failing - Ray is not always raising an exception, sometimes returns None
     """Test error handling for invalid function Run. The function expects to receive integers but
-    does not receive any. No result should be saved down for this Run, and the result returned should be a string
-    containing the error message."""
+    does not receive any. No serialized result should be saved down on the cluster for this Run, and the result
+    of this function call should be a string containing the error message."""
     invalid_run = "invalid_run"
     invalid_run_result = summer_func.get_or_call(name_run=invalid_run)
     assert "TypeError" in invalid_run_result
 
     run_obj = cpu_cluster.get_run(invalid_run)
     assert run_obj._fn_result_path() not in run_obj.folder.ls()
+    assert "TypeError" in run_obj.stderr()
 
 
 @pytest.mark.clustertest
 @pytest.mark.runstest
 def test_invalid_fn_async_run(summer_func):
     """Test error handling for invalid function Run. The function expects to receive integers but
-    does not receive any.
-    No result should be saved down for this Run, and the Run object returned should have a status of `ERROR`."""
+    does not receive any. No result should be saved down on the cluster for this Run, and the Run object returned
+    should have a status of `ERROR`."""
     invalid_async_run = "invalid_async_run"
     run_obj = summer_func.get_or_run(name_run=invalid_async_run)
 
     assert run_obj.refresh().status == rh.RunStatus.ERROR
     assert run_obj._fn_result_path() not in run_obj.folder.ls()
+    assert "TypeError" in run_obj.stderr()
 
 
 @unittest.skip("Not implemented yet.")
@@ -214,7 +214,7 @@ def test_copy_fn_run_from_cluster_to_local(cpu_cluster, submitted_run):
     for f in folder_contents:
         file_extension = Path(f).suffix
         file_name = f.split("/")[-1]
-        assert file_extension in file_name or file_name in FILES_TO_CHECK
+        assert file_extension in file_name or file_name in RUN_FILES
 
 
 @pytest.mark.clustertest
@@ -231,7 +231,7 @@ def test_copy_fn_run_from_system_to_s3(cpu_cluster, runs_s3_bucket, submitted_ru
     for f in folder_contents:
         file_extension = Path(f).suffix
         file_name = f.split("/")[-1]
-        assert file_extension in file_name or file_name in FILES_TO_CHECK
+        assert file_extension in file_name or file_name in RUN_FILES
 
     # Delete the run from s3
     my_run_on_s3.folder.rm()
@@ -395,6 +395,8 @@ def test_create_local_ctx_manager_run(summer_func, cpu_cluster):
 
         cluster = rh.load(name=cpu_cluster.name)
         print(f"Cluster loaded: {cluster.name}")
+
+        summer_func.delete_configs()
 
     r.save(name=CTX_MGR_RUN)
 

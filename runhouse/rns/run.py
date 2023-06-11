@@ -373,7 +373,7 @@ class Run(Resource):
         except FileNotFoundError:
             return None
 
-        files_with_ext = list(filter(lambda x: x.endswith(ext), folder_contents))
+        files_with_ext = self._filter_files_by_ext(folder_contents, ext)
         if not files_with_ext:
             # No .out / .err file already created in the logs folder for this Run
             return None
@@ -396,6 +396,10 @@ class Run(Resource):
     @staticmethod
     def _current_timestamp():
         return str(log_timestamp())
+
+    @staticmethod
+    def _filter_files_by_ext(files: list, ext: str):
+        return list(filter(lambda x: x.endswith(ext), files))
 
     @staticmethod
     def _delete_existing_run(folder_path, folder_system: str):

@@ -123,6 +123,8 @@ def cpu_cluster():
     c = rh.cluster("^rh-cpu")
     c.up_if_not()
     c.install_packages(["pytest"])
+    # Save to RNS - to be loaded in other tests (ex: Runs)
+    c.save()
     return c
 
 

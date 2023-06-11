@@ -29,7 +29,7 @@ def call_fn_by_type(
     kwargs=None,
     serialize_res=True,
 ):
-    from runhouse import Run
+    from runhouse import Run, RunStatus
 
     # **NOTE**: No need to pass in the fn callable here! We should be able to get it from the module_name and fn_name
 
@@ -46,13 +46,22 @@ def call_fn_by_type(
                 )
                 return run_obj, None, run_name
             elif fn_type == "get_or_call":
-                logger.info(
-                    f"Found existing Run with name: {run_name}, returning its result"
-                )
-                fn_result = run_obj._load_blob_from_path(
-                    path=run_obj._fn_result_path()
-                ).fetch()
-                logger.info(f"Function result: {type(fn_result)}")
+                results_path = run_obj._fn_result_path()
+                run_status = run_obj.status
+                logger.info(f"Found existing Run {run_name} with status: {run_status}")
+                try:
+                    fn_result = run_obj._load_blob_from_path(path=results_path).fetch()
+                    logger.info("Loaded result for Run")
+                except FileNotFoundError:
+                    # If no result is saved (ex: Run failed) return the stderr or stdout depending on its status
+                    logger.info(f"No result found in path: {results_path}")
+                    run_output = (
+                        run_obj.stderr()
+                        if run_status == RunStatus.ERROR
+                        else run_obj.stdout()
+                    )
+                    # Note: API expects serialized result, so pickle before returning
+                    fn_result = pickle.dumps(run_output)
                 return fn_result, None, run_name
             else:
                 raise ValueError(
@@ -128,7 +137,7 @@ def call_fn_by_type(
         raise ValueError(f"fn_type {fn_type} not recognized")
 
     if fn_type in ("queue", "remote", "call", "nested"):
-        fn_result = _execute_fn_run(run_obj, run_name, fn_type, fn_name)
+        fn_result = _execute_fn_run(run_obj, run_name, fn_type)
         logger.info(f"Result from function execution: {type(fn_result)}")
         res = fn_result
     else:
@@ -186,10 +195,10 @@ def _stdout_files_for_fn():
     return stdout_files
 
 
-def _execute_fn_with_ray(run_obj, fn_name):
+def _execute_fn_with_ray(run_obj, fn_type):
     from runhouse import RunStatus
 
-    result, run_status = _get_result_from_ray(run_obj.name)
+    result, run_status = _get_result_from_ray(run_obj)
 
     run_obj._register_run_completion(run_status)
 
@@ -198,13 +207,13 @@ def _execute_fn_with_ray(run_obj, fn_name):
         _serialize_and_store_result(result, run_obj)
 
     logger.info(
-        f"Registered completed async run {run_obj.name} for function {fn_name} with status: {run_status}"
+        f"Registered completed async run {run_obj.name} of type {fn_type} with status: {run_status}"
     )
 
     return run_obj
 
 
-def _execute_fn_run(run_obj, run_name, fn_type, fn_name) -> ["Run", Any]:
+def _execute_fn_run(run_obj, run_name, fn_type) -> ["Run", Any]:
     """Execute a function on the cluster. If the ``fn_type`` is ``remote``, then execute asynchronously on another
     thread before returning the Run object. Otherwise execute the function synchronously and return its
     result once completed."""
@@ -217,7 +226,7 @@ def _execute_fn_run(run_obj, run_name, fn_type, fn_name) -> ["Run", Any]:
 
         logger.info("Running remote function asynchronously on a new thread")
 
-        t = threading.Thread(target=_execute_fn_with_ray, args=(run_obj, fn_name))
+        t = threading.Thread(target=_execute_fn_with_ray, args=(run_obj, fn_type))
         t.start()
 
         # Reload the Run object
@@ -225,7 +234,7 @@ def _execute_fn_run(run_obj, run_name, fn_type, fn_name) -> ["Run", Any]:
         return async_run
 
     else:
-        fn_result, run_status = _get_result_from_ray(run_name)
+        fn_result, run_status = _get_result_from_ray(run_obj)
 
         path = run_obj.folder.path
         logger.info(
@@ -286,13 +295,19 @@ def _create_new_run(run_name, fn_name, args, kwargs):
     return new_run
 
 
-def _get_result_from_ray(run_name):
-    from runhouse.rns.run import RunStatus
+def _get_result_from_ray(run_obj):
+    from runhouse import RunStatus
 
     try:
-        result = rh_config.obj_store.get(key=run_name)
+        result = rh_config.obj_store.get(key=run_obj.name)
+        logger.info(
+            f"Successfully got result of type {type(result)} from Ray object store"
+        )
         return result, RunStatus.COMPLETED
     except Exception as e:
+        logger.error(f"Failed to get result from Ray object store: {e}")
+        # Write to stderr file with this traceback
+        run_obj.write(data=str(e).encode(), path=run_obj._stderr_path)
         return str(e), RunStatus.ERROR
 
 
@@ -331,9 +346,8 @@ def create_command_based_run(run_name, commands, cmd_prefix, python_cmd) -> list
     Returns:
         A list of tuples containing: (returncode, stdout, stderr)."""
 
-    from runhouse import Run
+    from runhouse import Run, RunStatus
     from runhouse.rns.obj_store import THIS_CLUSTER
-    from runhouse.rns.run import RunStatus
 
     folder_path = Run._base_cluster_folder_path(run_name)
     folder_path_on_system = resolve_absolute_path(folder_path)
@@ -384,12 +398,10 @@ def create_command_based_run(run_name, commands, cmd_prefix, python_cmd) -> list
 
     config_data = run_obj.config_for_rns
 
-    # Update the "system" stored in the config for this Run from "file" to the current cluster
+    # Update the "system" stored in the config for this Run from "file" to the current cluster before saving down
     config_data["system"] = rh_config.rns_client.resolve_rns_path(THIS_CLUSTER)
     config_data["end_time"] = end_time
     config_data["status"] = run_status
-
-    # Save the updated config for the Run
     run_obj._write_config(config=config_data)
 
     # Write the stdout and stderr of the Run to its dedicated folder
@@ -397,7 +409,7 @@ def create_command_based_run(run_name, commands, cmd_prefix, python_cmd) -> list
     run_obj.write(data=final_stderr.encode(), path=run_obj._stderr_path)
 
     logger.info(
-        f"Finished saving stdout and stderr for the Run to path: {run_obj.folder.path}"
+        f"Finished saving config, stdout and stderr for the Run to path: {run_obj.folder.path}"
     )
 
     return return_codes
