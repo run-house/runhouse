@@ -232,7 +232,8 @@ class Cluster(Resource):
     def get(self, key: str, default: Any = None, stream_logs: bool = False):
         """Get the object at the given key from the cluster's object store."""
         self.check_server()
-        return self.client.get_object(key, stream_logs=stream_logs) or default
+        res = self.client.get_object(key, stream_logs=stream_logs)
+        return res if res is not None else default
 
     def get_run(self, run_name: str, folder_path: str = None):
         self.check_server()

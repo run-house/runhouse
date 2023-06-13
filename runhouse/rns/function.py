@@ -260,14 +260,14 @@ class Function(Resource):
     # ----------------- Function call methods -----------------
 
     def __call__(
-        self, *args, stream_logs=False, name_run: Union[str, bool] = None, **kwargs
+        self, *args, stream_logs=True, name_run: Union[str, bool] = None, **kwargs
     ) -> Any:
         """Call the function on its system
 
         Args:
              *args: Optional args for the Function
              stream_logs (bool): Whether to stream the logs from the Function's execution.
-                Defaults to ``False``.
+                Defaults to ``True``.
              name_run (Union[str, bool]): Name of the Run to create. If ``True``, a Run will be created
                 for this function call, which will be executed synchronously on the cluster before returning its result
              **kwargs: Optional kwargs for the Function
@@ -282,9 +282,8 @@ class Function(Resource):
                 not self.system or self.system.name == rh_config.obj_store.cluster_name
             )
             if not run_locally:
-                run_obj = self.run(name_run, *args, **kwargs)
+                run_obj = self.run(*args, name_run=name_run, **kwargs)
                 return self.system.get(run_obj.name, stream_logs=stream_logs)
-
             else:
                 [relative_path, module_name, fn_name] = self.fn_pointers
                 conda_env = (
@@ -298,7 +297,9 @@ class Function(Resource):
                 # server, so when Ray passes a result back into the server it will may fail to
                 # unpickle. We assume the user's client has the necessary packages to unpickle
                 # their own result.
-                serialize_res = not self.system.on_this_cluster()
+                serialize_res = (
+                    not self.system.on_this_cluster() if self.system else True
+                )
 
                 return call_fn_by_type(
                     fn_type=fn_type,
@@ -389,18 +390,18 @@ class Function(Resource):
                 "Function.enqueue only works with Write or Read access, not Proxy access"
             )
 
-    def remote(self, name_run: Union[str, bool] = None, *args, **kwargs):
+    def remote(self, *args, **kwargs):
         warnings.warn("`remote()` is deprecated, use `run()` instead")
-        run_obj = self.run(name_run, *args, **kwargs)
+        run_obj = self.run(*args, **kwargs)
         return run_obj.name
 
-    def run(self, name_run: Union[str, bool] = None, *args, **kwargs):
+    def run(self, *args, name_run: Union[str, bool] = None, **kwargs):
         """Run async remote call on cluster.
 
         Args:
+            *args: Optional args for the Function
             name_run (Union[str, bool]): Name of the Run to create. If ``True``, a name will automatically
              be generated.
-             *args: Optional args for the Function
              **kwargs: Optional kwargs for the Function
         Returns:
             Run: Run object

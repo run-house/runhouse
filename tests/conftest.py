@@ -131,15 +131,25 @@ def cpu_cluster():
 @pytest.fixture(scope="session")
 def byo_cpu():
     # Spin up a new basic m5.xlarge EC2 instance
+    c = (
+        rh.cluster(
+            instance_type="m5.xlarge",
+            provider="aws",
+            region="us-east-1",
+            image_id="ami-0a313d6098716f372",
+            name="test-byo-cluster",
+        )
+        .up_if_not()
+        .save()
+    )
+
     c = rh.cluster(
-        instance_type="m5.xlarge",
-        provider="aws",
-        region="us-east-1",
-        image_id="ami-0a313d6098716f372",
-        name="test-byo-cluster",
-    ).up_if_not()
-    c = rh.cluster(name="different-cluster", ips=[c.address], ssh_creds=c.ssh_creds())
+        name="different-cluster", ips=[c.address], ssh_creds=c.ssh_creds()
+    ).save()
+
     c.install_packages(["pytest"])
+    c.send_secrets(["ssh"])
+
     return c
 
 

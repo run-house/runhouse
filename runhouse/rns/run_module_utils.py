@@ -13,6 +13,7 @@ from ray import cloudpickle as pickle
 
 from runhouse import rh_config
 from runhouse.rns.api_utils.utils import resolve_absolute_path
+from runhouse.rns.obj_store import THIS_CLUSTER
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +138,7 @@ def call_fn_by_type(
         raise ValueError(f"fn_type {fn_type} not recognized")
 
     if fn_type in ("queue", "remote", "call", "nested"):
-        fn_result = _execute_fn_run(run_obj, run_name, fn_type)
+        fn_result = _populate_run_with_result(run_obj, fn_type, obj_ref)
         logger.info(f"Result from function execution: {type(fn_result)}")
         res = fn_result
     else:
@@ -145,14 +146,6 @@ def call_fn_by_type(
 
     # Note: Results by default are serialized
     return res, obj_ref, run_name
-
-
-def deserialize_args_and_kwargs(args, kwargs):
-    if args:
-        args = pickle.loads(args)
-    if kwargs:
-        kwargs = pickle.loads(kwargs)
-    return args, kwargs
 
 
 def get_fn_from_pointers(fn_pointers, serialize_res, num_gpus, *args, **kwargs):
@@ -195,30 +188,11 @@ def _stdout_files_for_fn():
     return stdout_files
 
 
-def _execute_fn_with_ray(run_obj, fn_type):
-    from runhouse import RunStatus
-
-    result, run_status = _get_result_from_ray(run_obj)
-
-    run_obj._register_run_completion(run_status)
-
-    if run_status == RunStatus.COMPLETED:
-        # Only store result if Run completed successfully
-        _serialize_and_store_result(result, run_obj)
-
-    logger.info(
-        f"Registered completed async run {run_obj.name} of type {fn_type} with status: {run_status}"
-    )
-
-    return run_obj
-
-
-def _execute_fn_run(run_obj, run_name, fn_type) -> ["Run", Any]:
+def _populate_run_with_result(run_obj, fn_type, obj_ref) -> ["Run", Any]:
     """Execute a function on the cluster. If the ``fn_type`` is ``remote``, then execute asynchronously on another
     thread before returning the Run object. Otherwise execute the function synchronously and return its
     result once completed."""
-    from runhouse import Run, RunStatus
-
+    run_name = run_obj.name
     logger.info(f"Starting execution of type {fn_type} for Run with name: {run_name}")
 
     if fn_type == "remote":
@@ -226,55 +200,37 @@ def _execute_fn_run(run_obj, run_name, fn_type) -> ["Run", Any]:
 
         logger.info("Running remote function asynchronously on a new thread")
 
-        t = threading.Thread(target=_execute_fn_with_ray, args=(run_obj, fn_type))
+        t = threading.Thread(target=_get_result_from_ray, args=(run_obj, obj_ref))
         t.start()
 
         # Reload the Run object
         async_run = _load_existing_run_on_cluster(run_name)
         return async_run
-
     else:
-        fn_result, run_status = _get_result_from_ray(run_obj)
-
-        path = run_obj.folder.path
+        fn_result, run_status = _get_result_from_ray(run_obj, obj_ref)
         logger.info(
-            f"Registering completed run with status {run_status} in path: {path}"
+            f"Completed Run for fn type {fn_type} in path: {run_obj.folder.path}"
         )
 
-        run_obj = Run.from_path(path)
-
-        # Update the config data for the completed run
-        run_obj._register_run_completion(run_status)
-
-        if run_status == RunStatus.COMPLETED:
-            # Only store result if Run completed successfully
-            _serialize_and_store_result(fn_result, run_obj)
-
-        logger.info(f"Completed Run for fn type {fn_type} in path: {path}")
-
-        # Result from Ray object store will not be serialized by default
-        return pickle.dumps(fn_result)
+        # Result should be already serialized
+        return fn_result
 
 
 def _create_new_run(run_name, fn_name, args, kwargs):
     """Create a new Run object and save down relevant config data to its dedicated folder on the cluster."""
     from runhouse import Run
-    from runhouse.rns.obj_store import THIS_CLUSTER
-
-    # Path to config file inside the dedicated folder for this particular run
-    run_config_file: str = (
-        f"{Run._base_cluster_folder_path(run_name)}/{Run.RUN_CONFIG_FILE}"
-    )
-
-    config_path = resolve_absolute_path(run_config_file)
 
     inputs = {"args": args, "kwargs": kwargs}
     logger.info(f"Inputs for Run: {inputs}")
 
     if not THIS_CLUSTER:
-        raise ValueError("Failed to get current cluster from config")
-
-    current_cluster: str = rh_config.rns_client.resolve_rns_path(THIS_CLUSTER)
+        logger.info(
+            "No current cluster found from config, setting current cluster to local"
+        )
+        current_cluster = rh_config.rns_client.DEFAULT_FS
+    else:
+        # Update the system field of the Run object to reflect the current cluster
+        current_cluster: str = rh_config.rns_client.resolve_rns_path(THIS_CLUSTER)
 
     # Create a new Run object
     new_run = Run(
@@ -285,30 +241,47 @@ def _create_new_run(run_name, fn_name, args, kwargs):
     new_run._register_new_run()
 
     # Save down pickled inputs to the function for the Run
-    new_run.write(
-        data=pickle.dumps(inputs),
-        path=new_run._fn_inputs_path(),
-    )
+    new_run.write(data=pickle.dumps(inputs), path=new_run._fn_inputs_path())
 
-    logger.info(f"Finished writing inputs for {run_name} to path: {config_path}")
+    logger.info(
+        f"Finished writing inputs for {run_name} to path: {new_run.folder.path}"
+    )
 
     return new_run
 
 
-def _get_result_from_ray(run_obj):
+def _get_result_from_ray(run_obj, obj_ref):
     from runhouse import RunStatus
 
     try:
-        result = rh_config.obj_store.get(key=run_obj.name)
+        # Result will not be serialized by default
+        result = ray.get(obj_ref)
         logger.info(
             f"Successfully got result of type {type(result)} from Ray object store"
         )
-        return result, RunStatus.COMPLETED
-    except Exception as e:
-        logger.error(f"Failed to get result from Ray object store: {e}")
-        # Write to stderr file with this traceback
-        run_obj.write(data=str(e).encode(), path=run_obj._stderr_path)
-        return str(e), RunStatus.ERROR
+
+        run_status = RunStatus.COMPLETED
+
+        if not isinstance(result, bytes):
+            # Serialize before returning
+            result = pickle.dumps(result)
+
+        # Only store result if Run completed successfully
+        _save_run_result(result, run_obj)
+
+    except ray.exceptions.RayTaskError as e:
+        logger.info(f"Failed to get result from Ray object store: {e}")
+        run_status = RunStatus.ERROR
+        result = e
+
+    finally:
+        run_obj._register_run_completion(run_status)
+
+        logger.info(
+            f"Registered completed run {run_obj.name} with status: {run_status}"
+        )
+
+        return result, run_status
 
 
 def _load_existing_run_on_cluster(run_name) -> Union["Run", None]:
@@ -331,13 +304,11 @@ def _load_existing_run_on_cluster(run_name) -> Union["Run", None]:
     return existing_run
 
 
-def _serialize_and_store_result(result, run_obj):
-    """Save the result of the function to the Run's dedicated folder on the cluster"""
-    # NOTE: relying on the ray cluster object store for storing the object ref is a finicky, so for now we
-    # serialize and store the result on the file system
+def _save_run_result(result: bytes, run_obj):
+    """Save the serialized result of the function to the Run's dedicated folder on the cluster"""
     results_path = run_obj._fn_result_path()
     logger.info(f"Writing function result to Run's folder in path: {results_path}")
-    run_obj.write(pickle.dumps(result), path=results_path)
+    run_obj.write(result, path=results_path)
 
 
 def create_command_based_run(run_name, commands, cmd_prefix, python_cmd) -> list:
@@ -347,7 +318,6 @@ def create_command_based_run(run_name, commands, cmd_prefix, python_cmd) -> list
         A list of tuples containing: (returncode, stdout, stderr)."""
 
     from runhouse import Run, RunStatus
-    from runhouse.rns.obj_store import THIS_CLUSTER
 
     folder_path = Run._base_cluster_folder_path(run_name)
     folder_path_on_system = resolve_absolute_path(folder_path)

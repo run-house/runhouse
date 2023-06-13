@@ -86,7 +86,11 @@ class ObjStore:
         obj_ref = self.get(key, resolve=False)
         if not obj_ref:
             raise ValueError(f"Object with key {key} not found in object store.")
-        ray.cancel(obj_ref, force=force, recursive=recursive)
+        if isinstance(obj_ref, list):
+            for ref in obj_ref:
+                ray.cancel(ref, force=force, recursive=recursive)
+        else:
+            ray.cancel(obj_ref, force=force, recursive=recursive)
 
     def get_logfiles(self, key: str, log_type=None):
         # Info on ray logfiles: https://docs.ray.io/en/releases-2.2.0/ray-observability/ray-logging.html#id1

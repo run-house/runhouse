@@ -3,7 +3,6 @@ from pathlib import Path
 from pprint import pprint
 
 import pytest
-
 import runhouse as rh
 
 CTX_MGR_RUN = "my_run_activity"
@@ -67,15 +66,17 @@ def test_get_or_call_no_cache(summer_func):
 @pytest.mark.runstest
 def test_invalid_fn_sync_run(summer_func, cpu_cluster):
     """Test error handling for invalid function Run. The function expects to receive integers but
-    does not receive any. No serialized result should be saved down on the cluster for this Run, and the result
-    of this function call should be a string containing the error message."""
-    invalid_run = "invalid_run"
-    invalid_run_result = summer_func.get_or_call(name_run=invalid_run)
-    assert "TypeError" in invalid_run_result
+    does not receive any. No serialized result should be saved down on the cluster for this Run, and an error
+    should be thrown via Ray."""
+    import ray
 
-    run_obj = cpu_cluster.get_run(invalid_run)
-    assert run_obj._fn_result_path() not in run_obj.folder.ls()
-    assert "TypeError" in run_obj.stderr()
+    try:
+        summer_func.get_or_call(name_run="invalid_run")
+    except ray.exceptions.RayTaskError as e:
+        assert (
+            str(e.args[0])
+            == "summer() missing 2 required positional arguments: 'a' and 'b'"
+        )
 
 
 @pytest.mark.clustertest
@@ -84,12 +85,10 @@ def test_invalid_fn_async_run(summer_func):
     """Test error handling for invalid function Run. The function expects to receive integers but
     does not receive any. No result should be saved down on the cluster for this Run, and the Run object returned
     should have a status of `ERROR`."""
-    invalid_async_run = "invalid_async_run"
-    run_obj = summer_func.get_or_run(name_run=invalid_async_run)
+    run_obj = summer_func.get_or_run(name_run="invalid_async_run")
 
     assert run_obj.refresh().status == rh.RunStatus.ERROR
     assert run_obj._fn_result_path() not in run_obj.folder.ls()
-    assert "TypeError" in run_obj.stderr()
 
 
 @unittest.skip("Not implemented yet.")

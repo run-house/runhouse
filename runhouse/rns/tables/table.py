@@ -313,7 +313,7 @@ class Table(Resource):
             pass
 
         # delete existing contents or they'll just be appended to
-        self.delete_in_system()
+        self.rm()
 
         # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.write_parquet.html
         # data_to_write.repartition(os.cpu_count() * 2).write_parquet(
@@ -338,13 +338,9 @@ class Table(Resource):
             return None
 
     def rm(self, recursive: bool = True):
-        """Remove contents of all subdirectories (ex: partitioned data folders)"""
-        # If file(s) are directories, recursively delete contents and then also remove the directory
+        """Delete table, including its partitioned files where relevant."""
         # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.spec.AbstractFileSystem.rm
-        self._folder.fsspec_fs.rm(recursive=recursive)
-        if self.system == "file" and recursive:
-            self._folder.rm()
-        self._folder.rm()
+        self._folder.rm(recursive=recursive)
 
     def exists_in_system(self):
         """Whether table exists in file system"""

@@ -159,10 +159,18 @@ class HTTPServer:
                 obj_store.put_obj_ref(key=run_key, obj_ref=obj_ref)
 
             result = pickle.dumps(res) if isinstance(res, Run) else res
-            logger.info(f"Result for run: {type(result)}")
 
             HTTPServer.register_activity()
-            if isinstance(result, list):
+            if isinstance(result, ray.exceptions.RayTaskError):
+                # If Ray throws an error when executing the function as part of a Run,
+                # it will be reflected in the result since we catch the exception and do not immediately raise it
+                logger.exception(result)
+                return Response(
+                    error=pickle_b64(result),
+                    traceback=pickle_b64(traceback.format_exc()),
+                    output_type=OutputType.EXCEPTION,
+                )
+            elif isinstance(result, list):
                 return Response(
                     data=[codecs.encode(i, "base64").decode() for i in result],
                     output_type=OutputType.RESULT_LIST,
@@ -313,6 +321,9 @@ class HTTPServer:
                 )
             )
         else:
+            if isinstance(ret_obj, tuple):
+                (res, obj_ref, run_name) = ret_obj
+                ret_obj = res
             if isinstance(ret_obj, bytes):
                 ret_serialized = codecs.encode(ret_obj, "base64").decode()
             else:
@@ -529,7 +540,13 @@ class HTTPServer:
         from runhouse import function
 
         fn = function(name=fn_name, dryrun=True)
-        return fn(*(args.args or []), **(args.kwargs or {}))
+        result = fn(*(args.args or []), **(args.kwargs or {}))
+
+        (fn_res, obj_ref, run_key) = result
+        if isinstance(fn_res, bytes):
+            fn_res = pickle.loads(fn_res)
+
+        return fn_res
 
 
 if __name__ == "__main__":

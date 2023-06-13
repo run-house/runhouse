@@ -1,5 +1,6 @@
 import os
 import shutil
+import unittest
 
 from pathlib import Path
 
@@ -293,3 +294,7 @@ def test_conda_map_fn(cpu_cluster):
     inputs = list(zip(range(5), range(4, 9)))
     results = map_fn.starmap(inputs)
     assert results == [4, 6, 8, 10, 12]
+
+
+if __name__ == "__main__":
+    unittest.main()

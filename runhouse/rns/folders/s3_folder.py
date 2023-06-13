@@ -1,5 +1,6 @@
 import logging
 import subprocess
+from pathlib import Path
 from typing import Optional
 
 from .folder import Folder
@@ -29,9 +30,10 @@ class S3Folder(Folder):
         return S3Folder(**config, dryrun=dryrun)
 
     def rm(self, contents: list = None, recursive: bool = True):
-        """Delete s3 folder along with its contents. Optionally provide a list of folder contents to delete."""
+        """Delete s3 folder along with its contents. Optionally provide a list of folder contents
+        (i.e. file names) to delete."""
         for p in self.s3.ls(self.path):
-            if contents and p not in contents:
+            if contents and Path(p).name not in contents:
                 continue
             self.s3.rm(p)
 
