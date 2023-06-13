@@ -427,17 +427,6 @@ class Run(Resource):
         return f"~/{obj_store.LOGS_DIR}/{name}"
 
     @classmethod
-    def _format_run_name(cls, name_run: Union[str, bool], fn_name: str = None) -> str:
-        """Generate the name for the Run. If a string is provided, use that as its name.
-        Otherwise create one using the name (if provided) and the current timestamp."""
-        if isinstance(name_run, str):
-            return name_run
-        elif name_run is True:
-            return cls._create_new_run_name(fn_name)
-        else:
-            raise TypeError("Invalid name_run type. Must be a string or `True`.")
-
-    @classmethod
     def from_path(
         cls,
         path: str,

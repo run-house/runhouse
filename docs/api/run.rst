@@ -93,9 +93,9 @@ There are three ways to create a Run:
 
 Calling a Function
 ------------------
-We can create a Run when executing a function by providing the :code:`name_run` argument. This can be either a string
-representing the custom name to assign the Run, or a boolean :code:`True` to indicate this Run should be named.
-By default :code:`name_run` is set to :code:`False`.
+We can create a Run when executing a function by providing the :code:`run_name` argument, a string
+representing the custom name to assign the Run.
+By default :code:`run_name` is set to :code:`None`.
 
 .. code-block:: python
 
@@ -110,8 +110,8 @@ By default :code:`name_run` is set to :code:`False`.
     # Create a function object and send it to the cpu cluster
     my_func = rh.function(summer, name="my_test_func").to(cpu)
 
-    # Call the function with its input args, and provide it with a `name_run` argument
-    fn_res = my_func(1, 2, name_run="my_fn_run")
+    # Call the function with its input args, and provide it with a `run_name` argument
+    fn_res = my_func(1, 2, run_name="my_fn_run")
 
 
 When this function :code:`my_func` is called, Runhouse triggers the function execution on the cluster
@@ -133,8 +133,8 @@ To create a Run by executing a CLI command:
 
 .. code-block:: python
 
-    # Run a CLI command on the cluster and provide the `name_run` param to trigger a run
-    return_codes = cpu.run(["python --version"], name_run="my_cli_run")
+    # Run a CLI command on the cluster and provide the `run_name` param to trigger a run
+    return_codes = cpu.run(["python --version"], run_name="my_cli_run")
 
 To create a Run by executing Python commands:
 
@@ -146,7 +146,7 @@ To create a Run by executing Python commands:
             "cpu = rh.cluster('^rh-cpu')",
             "rh.cluster('^rh-cpu').save()",
         ],
-        name_run="my_cli_run",
+        run_name="my_cli_run",
     )
 
 
@@ -199,7 +199,7 @@ will be stored on the local filesystem in the :code:`rh/<run_name>` folder of th
         my_func = rh.Function.from_name("my_existing_run")
         my_func.save("my_new_func")
 
-        my_func(1, 2, name_run="my_new_run")
+        my_func(1, 2, run_name="my_new_run")
 
         current_run = my_func.system.get_run("my_new_run")
         run_res = pickle.loads(current_run.result())
@@ -233,7 +233,7 @@ Synchronous Run
 ---------------
 
 To create a Run which executes a function synchronously without any caching, we call the function and
-provide the :code:`name_run` argument. The function will be executed on the cluster, and will
+provide the :code:`run_name` argument. The function will be executed on the cluster, and will
 return its result once completed.
 
 For a fully synchronous run which also checks for a cached result, we can call the :code:`get_or_call()` method
@@ -246,7 +246,7 @@ the function execution is complete:
     import runhouse as rh
 
     my_func = rh.Function.from_name("my_func")
-    res = my_func.get_or_call(1, 2, name_run="my_fn_run")
+    res = my_func.get_or_call(1, 2, run_name="my_fn_run")
 
 
 Asynchronous Run
@@ -259,7 +259,7 @@ begin executing on the cluster in the background, and in the meantime a :code:`R
     import runhouse as rh
 
     my_func = rh.Function.from_name("my_func")
-    run_obj = my_func.run(1, 2, name_run="my_async_run")
+    run_obj = my_func.run(1, 2, run_name="my_async_run")
 
 
 For a fully asynchronous run which also checks for a cached result, we can call the :code:`get_or_run()` method
@@ -270,7 +270,7 @@ on the function. A :code:`Run` object will be returned whether the result is cac
     import runhouse as rh
 
     my_func = rh.Function.from_name("my_func")
-    run_obj = my_func.get_or_run(1, 2, name_run="my_async_run")
+    run_obj = my_func.get_or_run(1, 2, run_name="my_async_run")
 
 
 

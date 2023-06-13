@@ -259,16 +259,14 @@ class Function(Resource):
 
     # ----------------- Function call methods -----------------
 
-    def __call__(
-        self, *args, stream_logs=True, name_run: Union[str, bool] = None, **kwargs
-    ) -> Any:
+    def __call__(self, *args, stream_logs=True, run_name: str = None, **kwargs) -> Any:
         """Call the function on its system
 
         Args:
              *args: Optional args for the Function
              stream_logs (bool): Whether to stream the logs from the Function's execution.
                 Defaults to ``True``.
-             name_run (Union[str, bool]): Name of the Run to create. If ``True``, a Run will be created
+             run_name (Optional[str]): Name of the Run to create. If provided, a Run will be created
                 for this function call, which will be executed synchronously on the cluster before returning its result
              **kwargs: Optional kwargs for the Function
 
@@ -282,7 +280,7 @@ class Function(Resource):
                 not self.system or self.system.name == rh_config.obj_store.cluster_name
             )
             if not run_locally:
-                run_obj = self.run(*args, name_run=name_run, **kwargs)
+                run_obj = self.run(*args, run_name=run_name, **kwargs)
                 return self.system.get(run_obj.name, stream_logs=stream_logs)
             else:
                 [relative_path, module_name, fn_name] = self.fn_pointers
@@ -308,7 +306,7 @@ class Function(Resource):
                     module_name=module_name,
                     resources=self.resources,
                     conda_env=conda_env,
-                    run_name=name_run,
+                    run_name=run_name,
                     args=args,
                     kwargs=kwargs,
                     serialize_res=serialize_res,
@@ -395,12 +393,12 @@ class Function(Resource):
         run_obj = self.run(*args, **kwargs)
         return run_obj.name
 
-    def run(self, *args, name_run: Union[str, bool] = None, **kwargs):
+    def run(self, *args, run_name: str = None, **kwargs):
         """Run async remote call on cluster.
 
         Args:
             *args: Optional args for the Function
-            name_run (Union[str, bool]): Name of the Run to create. If ``True``, a name will automatically
+            run_name (Optional[str]): Name of the Run to create. If not provided, a name will automatically
              be generated.
              **kwargs: Optional kwargs for the Function
         Returns:
@@ -410,12 +408,8 @@ class Function(Resource):
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             from runhouse import Run
 
-            # Use the name_run if provided, otherwise create a new one using the Function's name
-            run_name = (
-                Run._format_run_name(name_run)
-                if name_run
-                else Run._create_new_run_name(self.name)
-            )
+            # Use the run_name if provided, otherwise create a new one using the Function's name
+            run_name = run_name or Run._create_new_run_name(self.name)
 
             run_obj = self._call_fn_with_ssh_access(
                 fn_type="remote", run_name=run_name, args=args, kwargs=kwargs
@@ -587,13 +581,13 @@ class Function(Resource):
                 kill_jupyter_cmd = f"jupyter notebook stop {port_fwd}"
                 self.system.run(commands=[kill_jupyter_cmd])
 
-    def get_or_call(self, name_run: str = None, *args, **kwargs) -> Any:
+    def get_or_call(self, run_name: str = None, *args, **kwargs) -> Any:
         """Check if Run was already completed, and if so return the result.
         If no cached Run is found on the cluster, create a new one and run it synchronously before
         returning its result.
 
         Args:
-            name_run (Optional[str]): Name of a particular run for this function.
+            run_name (Optional[str]): Name of a particular run for this function.
                 If not provided will use the function's name.
             *args: Arguments to pass to the function for the run (relevant if creating a new run).
             **kwargs: Keyword arguments to pass to the function for the run (relevant if creating a new run).
@@ -602,21 +596,23 @@ class Function(Resource):
             Any: Result of the Run
 
         """
-        name_run = name_run or self.name
+        from runhouse import Run
+
+        run_name = run_name or Run._create_new_run_name(self.name)
 
         res = self._call_fn_with_ssh_access(
-            fn_type="get_or_call", run_name=name_run, args=args, kwargs=kwargs
+            fn_type="get_or_call", run_name=run_name, args=args, kwargs=kwargs
         )
 
         return res
 
-    def get_or_run(self, name_run: str = None, *args, **kwargs) -> "Run":
+    def get_or_run(self, run_name: str = None, *args, **kwargs) -> "Run":
         """Check if Run was already completed. If no cached Run is found on the cluster, create a new one.
 
         Note: If the Run has already completed, will not trigger a new Run.
 
         Args:
-            name_run (Optional[str]): Name of a particular run for this function.
+            run_name (Optional[str]): Name of a particular run for this function.
                 If not provided will use the function's name.
             *args: Arguments to pass to the function for the run (relevant if creating a new run).
             **kwargs: Keyword arguments to pass to the function for the run (relevant if creating a new run).
@@ -627,13 +623,13 @@ class Function(Resource):
         """
         from runhouse import Run
 
-        name_run = name_run or self.name
-        if name_run == "latest":
+        run_name = run_name or Run._create_new_run_name(self.name)
+        if run_name == "latest":
             # TODO [JL]
             raise NotImplementedError("Latest not currently supported")
 
         completed_run: "Run" = self._call_fn_with_ssh_access(
-            fn_type="get_or_run", run_name=name_run, args=args, kwargs=kwargs
+            fn_type="get_or_run", run_name=run_name, args=args, kwargs=kwargs
         )
 
         return completed_run

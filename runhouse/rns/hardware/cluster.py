@@ -13,7 +13,6 @@ import sshtunnel
 from sky.utils import command_runner
 from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
-import runhouse as rh
 from runhouse.rh_config import open_cluster_tunnels, rns_client
 from runhouse.rns.folders.folder import Folder
 from runhouse.rns.packages.package import Package
@@ -553,10 +552,10 @@ class Cluster(Resource):
         stream_logs: bool = True,
         port_forward: Optional[int] = None,
         require_outputs: bool = True,
-        name_run: Optional[Union[str, bool]] = None,
+        run_name: Optional[str] = None,
         python_cmd: bool = False,
     ) -> list:
-        """Run a list of shell commands on the cluster. If `name_run` is provided, the commands will be
+        """Run a list of shell commands on the cluster. If `run_name` is provided, the commands will be
         sent over to the cluster before being executed and a Run object will be created."""
         # TODO [DG] suspect autostop while running?
 
@@ -568,8 +567,7 @@ class Cluster(Resource):
                 env = Env.from_name(env)
             cmd_prefix = env._run_cmd
 
-        if name_run:
-            run_name = rh.Run._format_run_name(name_run)
+        if run_name:
             # Call endpoint for creating the Run and executing the commands
             return_codes = self.run_cmds(run_name, commands, cmd_prefix, python_cmd)
             return return_codes
@@ -609,7 +607,7 @@ class Cluster(Resource):
         env: Union["Env", str] = None,
         stream_logs: bool = True,
         port_forward: Optional[int] = None,
-        name_run: Optional[Union[str, bool]] = None,
+        run_name: Optional[str] = None,
     ):
         """Run a list of python commands on the cluster."""
         cmd_prefix = "python3 -c"
@@ -625,7 +623,7 @@ class Cluster(Resource):
             [f'{cmd_prefix} "{command_str}"'],
             stream_logs=stream_logs,
             port_forward=port_forward,
-            name_run=name_run,
+            run_name=run_name,
             python_cmd=True,
         )
         return return_codes

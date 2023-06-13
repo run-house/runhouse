@@ -47,7 +47,7 @@ def test_get_or_call_from_cache(summer_func, submitted_run):
     """Cached version of synchronous run - if already completed return the result, otherwise run and wait for
     completion before returning the result."""
     # Note: In this test since we already ran the function, it should return the result without re-running
-    run_output = summer_func.get_or_call(name_run=submitted_run)
+    run_output = summer_func.get_or_call(run_name=submitted_run)
     assert run_output == 3
 
 
@@ -58,7 +58,7 @@ def test_get_or_call_no_cache(summer_func):
     completion before returning the result."""
     # Note: In this test since we do not have a run with this name, it should first execute the function
     # before returning its result
-    run_output = summer_func.get_or_call(name_run="another_sync_run", a=1, b=2)
+    run_output = summer_func.get_or_call(run_name="another_sync_run", a=1, b=2)
     assert run_output == 3
 
 
@@ -71,7 +71,7 @@ def test_invalid_fn_sync_run(summer_func, cpu_cluster):
     import ray
 
     try:
-        summer_func.get_or_call(name_run="invalid_run")
+        summer_func.get_or_call(run_name="invalid_run")
     except ray.exceptions.RayTaskError as e:
         assert (
             str(e.args[0])
@@ -85,7 +85,7 @@ def test_invalid_fn_async_run(summer_func):
     """Test error handling for invalid function Run. The function expects to receive integers but
     does not receive any. No result should be saved down on the cluster for this Run, and the Run object returned
     should have a status of `ERROR`."""
-    run_obj = summer_func.get_or_run(name_run="invalid_async_run")
+    run_obj = summer_func.get_or_run(run_name="invalid_async_run")
 
     assert run_obj.refresh().status == rh.RunStatus.ERROR
     assert run_obj._fn_result_path() not in run_obj.folder.ls()
@@ -108,7 +108,7 @@ def test_get_or_call_latest(summer_func):
 @pytest.mark.runstest
 def test_send_run_to_system_on_completion(summer_func, submitted_async_run):
     # Only once the run actually finishes do we send to S3
-    async_run = summer_func.run(name_run=submitted_async_run, a=1, b=2).to(
+    async_run = summer_func.run(run_name=submitted_async_run, a=1, b=2).to(
         "s3", on_completion=True
     )
 
@@ -118,7 +118,7 @@ def test_send_run_to_system_on_completion(summer_func, submitted_async_run):
 @pytest.mark.clustertest
 @pytest.mark.runstest
 def test_run_refresh(slow_func):
-    async_run = slow_func.get_or_run(name_run="async_get_or_run", a=1, b=2)
+    async_run = slow_func.get_or_run(run_name="async_get_or_run", a=1, b=2)
 
     while async_run.refresh().status in [
         rh.RunStatus.RUNNING,
@@ -134,7 +134,7 @@ def test_run_refresh(slow_func):
 @pytest.mark.runstest
 def test_get_async_run_result(summer_func, submitted_async_run):
     """Read the results from an async run."""
-    async_run = summer_func.get_or_run(name_run=submitted_async_run)
+    async_run = summer_func.get_or_run(run_name=submitted_async_run)
     assert isinstance(async_run, rh.Run)
     assert async_run.result() == 3
 
@@ -145,7 +145,7 @@ def test_get_or_run_no_cache(summer_func):
     """Execute function async on the cluster. If a run already exists, do not re-run. Returns a Run object."""
     # Note: In this test since no Run exists with this name, will trigger the function async on the cluster and in the
     # meantime return a Run object.
-    async_run = summer_func.get_or_run(name_run="new_async_run", a=1, b=2)
+    async_run = summer_func.get_or_run(run_name="new_async_run", a=1, b=2)
     assert isinstance(async_run, rh.Run)
 
     run_result = async_run.result()
@@ -158,7 +158,7 @@ def test_get_or_run_no_cache(summer_func):
 def test_get_or_run_latest(summer_func):
     """Execute function async on the cluster. If a run already exists, do not re-run. Returns a Run object."""
     # Note: In this test since we are providing "latest", will return the latest cached version.
-    async_run = summer_func.get_or_run(name_run="latest")
+    async_run = summer_func.get_or_run(run_name="latest")
     assert isinstance(async_run, rh.Run)
 
 
@@ -189,7 +189,7 @@ def test_save_fn_run_to_rns(cpu_cluster, submitted_run):
 def test_create_anon_run_on_cluster(summer_func):
     """Create a new Run without giving it an explicit name."""
     # Note: this will run synchronously and return the result
-    res = summer_func(1, 2, name_run=True)
+    res = summer_func(1, 2)
     assert res == 3
 
 
@@ -270,7 +270,7 @@ def test_delete_fn_run_from_rns(submitted_run):
 @pytest.mark.runstest
 def test_get_fn_status_updates(cpu_cluster, slow_func):
     """Run a function that takes a long time to run, confirming that its status changes as we refresh the Run"""
-    async_run = slow_func.run(name_run="my_slow_async_run", a=1, b=2)
+    async_run = slow_func.run(run_name="my_slow_async_run", a=1, b=2)
 
     assert isinstance(async_run, rh.Run)
 
@@ -299,7 +299,7 @@ def test_create_cli_python_command_run(cpu_cluster):
             "logging.info(f'Blob path: {local_blob.path}')",
             "local_blob.rm()",
         ],
-        name_run=CLI_RUN_NAME,
+        run_name=CLI_RUN_NAME,
     )
     pprint(return_codes)
 
@@ -312,7 +312,7 @@ def test_create_cli_python_command_run(cpu_cluster):
 def test_create_cli_command_run(cpu_cluster):
     """Run CLI command on the specified system.
     Saves the run results to the .rh/logs/<run_name> folder of the system."""
-    return_codes = cpu_cluster.run(["python --version"], name_run=CLI_RUN_NAME)
+    return_codes = cpu_cluster.run(["python --version"], run_name=CLI_RUN_NAME)
 
     assert return_codes[0][0] == 0, "Failed to run CLI command"
     assert return_codes[0][1].strip() == "Python 3.10.6"
@@ -386,7 +386,7 @@ def test_create_local_ctx_manager_run(summer_func, cpu_cluster):
         # (upstream + downstream artifacts)
         summer_func.save(ctx_mgr_func)
 
-        summer_func(1, 2, name_run="my_new_run")
+        summer_func(1, 2, run_name="my_new_run")
 
         current_run = summer_func.system.get_run("my_new_run")
         run_res = current_run.result()
