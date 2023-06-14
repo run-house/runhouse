@@ -157,8 +157,12 @@ class Table(Resource):
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Table {name} not found.")
+
         # We don't need to load the cluster dict here (if system is a cluster) because the table init
-        # goes through the Folder factory method, which does that.
+        # goes through the Folder factory method, which handles that.
+
+        # Add this table's name to the resource artifact registry if part of a run
+        rns_client.add_upstream_resource(name)
 
         # Uses the table subclass associated with the `resource_subtype`
         table_cls = _load_table_subclass(config=config, dryrun=dryrun)
@@ -309,7 +313,7 @@ class Table(Resource):
             pass
 
         # delete existing contents or they'll just be appended to
-        self.delete_in_system()
+        self.rm()
 
         # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.write_parquet.html
         # data_to_write.repartition(os.cpu_count() * 2).write_parquet(
@@ -333,11 +337,10 @@ class Table(Resource):
         except:
             return None
 
-    def delete_in_system(self):
-        """Remove contents of all subdirectories (ex: partitioned data folders)"""
-        # If file(s) are directories, recursively delete contents and then also remove the directory
+    def rm(self, recursive: bool = True):
+        """Delete table, including its partitioned files where relevant."""
         # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.spec.AbstractFileSystem.rm
-        self._folder.delete_in_system()
+        self._folder.rm(recursive=recursive)
 
     def exists_in_system(self):
         """Whether table exists in file system"""
@@ -507,7 +510,7 @@ def table(
             # save to the default bucket
             data_path = f"{Table.DEFAULT_FOLDER_PATH}/{table_name_in_path}"
 
-    config["system"] = _get_cluster_from(config["system"])
+    config["system"] = _get_cluster_from(config["system"], dryrun=dryrun)
     config["name"] = name
     config["path"] = data_path
     config["file_name"] = file_name or config.get("file_name")

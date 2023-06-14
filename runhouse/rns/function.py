@@ -6,13 +6,13 @@ import os
 import re
 import warnings
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import requests
 
 from runhouse import rh_config
 from runhouse.rns.api_utils.resource_access import ResourceAccess
-from runhouse.rns.api_utils.utils import is_jsonable, load_resp_content, read_resp_data
+from runhouse.rns.api_utils.utils import load_resp_content, read_resp_data
 from runhouse.rns.envs import CondaEnv, Env
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.packages import git_package, Package
@@ -259,10 +259,28 @@ class Function(Resource):
 
     # ----------------- Function call methods -----------------
 
-    def __call__(self, *args, stream_logs=False, **kwargs):
+    def __call__(self, *args, stream_logs=True, run_name: str = None, **kwargs) -> Any:
+        """Call the function on its system
+
+        Args:
+             *args: Optional args for the Function
+             stream_logs (bool): Whether to stream the logs from the Function's execution.
+                Defaults to ``True``.
+             run_name (Optional[str]): Name of the Run to create. If provided, a Run will be created
+                for this function call, which will be executed synchronously on the cluster before returning its result
+             **kwargs: Optional kwargs for the Function
+
+        Returns:
+            The Function's return value
+        """
+
         fn_type = "call"
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
-            if not self.system or self.system.on_this_cluster():
+            run_locally = not self.system or self.system.on_this_cluster()
+            if not run_locally:
+                run_obj = self.run(*args, run_name=run_name, **kwargs)
+                return self.system.get(run_obj.name, stream_logs=stream_logs)
+            else:
                 [relative_path, module_name, fn_name] = self.fn_pointers
                 conda_env = (
                     self.env.env_name
@@ -275,7 +293,7 @@ class Function(Resource):
                 # server, so when Ray passes a result back into the server it will may fail to
                 # unpickle. We assume the user's client has the necessary packages to unpickle
                 # their own result.
-                serialize_res = not self.system.on_this_cluster()
+
                 return call_fn_by_type(
                     fn_type=fn_type,
                     fn_name=fn_name,
@@ -283,16 +301,10 @@ class Function(Resource):
                     module_name=module_name,
                     resources=self.resources,
                     conda_env=conda_env,
+                    run_name=run_name,
                     args=args,
                     kwargs=kwargs,
-                    serialize_res=serialize_res,
-                )
-            elif stream_logs:
-                run_key = self.remote(*args, **kwargs)
-                return self.system.get(run_key, stream_logs=True)
-            else:
-                return self._call_fn_with_ssh_access(
-                    fn_type=fn_type, args=args, kwargs=kwargs
+                    serialize_res=False,
                 )
         else:
             # run the function via http path - user only needs Proxy access
@@ -314,8 +326,7 @@ class Function(Resource):
                     f"Failed to run Function endpoint: {load_resp_content(resp)}"
                 )
 
-            res = read_resp_data(resp)
-            return res
+            return read_resp_data(resp)
 
     def repeat(self, num_repeats: int, *args, **kwargs):
         """Repeat the Function call multiple times.
@@ -373,27 +384,34 @@ class Function(Resource):
             )
 
     def remote(self, *args, **kwargs):
-        """Run async remote call on cluster."""
+        warnings.warn("`remote()` is deprecated, use `run()` instead")
+        run_obj = self.run(*args, **kwargs)
+        return run_obj.name
+
+    def run(self, *args, run_name: str = None, **kwargs):
+        """Run async remote call on cluster.
+
+        Args:
+            *args: Optional args for the Function
+            run_name (Optional[str]): Name of the Run to create. If not provided, a name will automatically
+             be generated.
+             **kwargs: Optional kwargs for the Function
+        Returns:
+            Run: Run object
+
+        """
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
-            run_key = self._call_fn_with_ssh_access(
-                fn_type="remote", args=args, kwargs=kwargs
+            from runhouse import Run
+
+            # Use the run_name if provided, otherwise create a new one using the Function's name
+            run_name = run_name or Run._create_new_run_name(self.name)
+
+            run_obj = self._call_fn_with_ssh_access(
+                fn_type="remote", run_name=run_name, args=args, kwargs=kwargs
             )
-            cluster_name = (
-                f'rh.cluster(name="{self.system.rns_address}")'
-                if self.system.name
-                else "<my_cluster>"
-            )
-            # TODO print this nicely
-            logger.info(
-                f"Submitted remote call to cluster. Result or logs can be retrieved"
-                f'\n with run_key "{run_key}", e.g. '
-                f'\n`{cluster_name}.get("{run_key}", stream_logs=True)` in python '
-                f'\n`runhouse logs "{self.system.name}" {run_key}` from the command line.'
-                f"\n or cancelled with "
-                f'\n`{cluster_name}.cancel("{run_key}")` in python or '
-                f'\n`runhouse cancel "{self.system.name}" {run_key}` from the command line.'
-            )
-            return run_key
+
+            logger.info(f"Submitted remote call to cluster for {run_name}")
+            return run_obj
         else:
             raise NotImplementedError(
                 "Function.remote only works with Write or Read access, not Proxy access"
@@ -408,7 +426,9 @@ class Function(Resource):
         """
         return self.system.get(run_key)
 
-    def _call_fn_with_ssh_access(self, fn_type, resources=None, args=None, kwargs=None):
+    def _call_fn_with_ssh_access(
+        self, fn_type, resources=None, run_name=None, args=None, kwargs=None
+    ):
         # https://docs.ray.io/en/latest/ray-core/tasks/patterns/map-reduce.html
         # return ray.get([map.remote(i, map_func) for i in replicas])
         # TODO allow specifying resources per worker for map
@@ -422,6 +442,7 @@ class Function(Resource):
             raise RuntimeError(f"No fn pointers saved for {name}")
 
         [relative_path, module_name, fn_name] = self.fn_pointers
+
         name = self.name or fn_name or "anonymous function"
         logger.info(f"Running {name} via HTTP")
         env_name = (
@@ -434,6 +455,7 @@ class Function(Resource):
             fn_type,
             resources,
             env_name,
+            run_name,
             args,
             kwargs,
         )
@@ -499,7 +521,8 @@ class Function(Resource):
         return config
 
     def _save_sub_resources(self):
-        self.system.save()
+        if isinstance(self.system, Resource):
+            self.system.save()
 
     # TODO maybe reuse these if we starting putting each function in its own container
     # @staticmethod
@@ -523,31 +546,6 @@ class Function(Resource):
         Return the endpoint needed to run the Function on the remote cluster, or provide the curl command if requested.
         """
         raise NotImplementedError("http_url not yet implemented for Function")
-        resource_uri = rh_config.rns_client.resource_uri(name=self.name)
-        uri = f"proxy/{resource_uri}"
-        if curl_command:
-            # NOTE: curl command should include args and kwargs - this will help us generate better API docs
-            if not is_jsonable(args) or not is_jsonable(kwargs):
-                raise Exception(
-                    "Invalid Function func params provided, must be able to convert args and kwargs to json"
-                )
-
-            return (
-                "curl -X 'POST' '{api_server_url}/proxy{resource_uri}/endpoint' "
-                "-H 'accept: application/json' "
-                "-H 'Authorization: Bearer {auth_token}' "
-                "-H 'Content-Type: application/json' "
-                "-d '{data}'".format(
-                    api_server_url=rh_config.rns_client.api_server_url,
-                    resource_uri=uri,
-                    auth_token=rh_config.rns_client.token,
-                    data=json.dumps({"args": args, "kwargs": kwargs}),
-                )
-            )
-
-        # HTTP URL needed to run the Function remotely
-        http_url = f"{rh_config.rns_client.api_server_url}/{uri}/endpoint"
-        return http_url
 
     def notebook(self, persist=False, sync_package_on_close=None, port_forward=8888):
         """Tunnel into and launch notebook from the system."""
@@ -577,6 +575,59 @@ class Function(Resource):
                 tunnel.stop()
                 kill_jupyter_cmd = f"jupyter notebook stop {port_fwd}"
                 self.system.run(commands=[kill_jupyter_cmd])
+
+    def get_or_call(self, run_name: str = None, *args, **kwargs) -> Any:
+        """Check if Run was already completed, and if so return the result.
+        If no cached Run is found on the cluster, create a new one and run it synchronously before
+        returning its result.
+
+        Args:
+            run_name (Optional[str]): Name of a particular run for this function.
+                If not provided will use the function's name.
+            *args: Arguments to pass to the function for the run (relevant if creating a new run).
+            **kwargs: Keyword arguments to pass to the function for the run (relevant if creating a new run).
+
+        Returns:
+            Any: Result of the Run
+
+        """
+        from runhouse import Run
+
+        run_name = run_name or Run._create_new_run_name(self.name)
+
+        res = self._call_fn_with_ssh_access(
+            fn_type="get_or_call", run_name=run_name, args=args, kwargs=kwargs
+        )
+
+        return res
+
+    def get_or_run(self, run_name: str = None, *args, **kwargs) -> "Run":
+        """Check if Run was already completed. If no cached Run is found on the cluster, create a new one.
+
+        Note: If the Run has already completed, will not trigger a new Run.
+
+        Args:
+            run_name (Optional[str]): Name of a particular run for this function.
+                If not provided will use the function's name.
+            *args: Arguments to pass to the function for the run (relevant if creating a new run).
+            **kwargs: Keyword arguments to pass to the function for the run (relevant if creating a new run).
+
+        Returns:
+            Run: Run object
+
+        """
+        from runhouse import Run
+
+        run_name = run_name or Run._create_new_run_name(self.name)
+        if run_name == "latest":
+            # TODO [JL]
+            raise NotImplementedError("Latest not currently supported")
+
+        completed_run: "Run" = self._call_fn_with_ssh_access(
+            fn_type="get_or_run", run_name=run_name, args=args, kwargs=kwargs
+        )
+
+        return completed_run
 
     def keep_warm(
         self,
@@ -675,7 +726,7 @@ def function(
         >>> summer = rh.function(fn=sum).to(cluster, env=['requirements.txt'])
         >>>
         >>> # using the function
-        >>> summer(5, 8)  # returns 13
+        >>> res = summer(5, 8)  # returns 13
     """
 
     config = rh_config.rns_client.load_config(name) if load else {}

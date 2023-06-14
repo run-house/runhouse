@@ -70,7 +70,7 @@ class Env(Resource):
             new_reqs.append(req)
         return new_reqs
 
-    def _setup_env(self, system: Union[str, Cluster]):
+    def _setup_env(self, system: Cluster):
         """Install packages and run setup commands on the cluster."""
         if self.reqs:
             system.install_packages(self.reqs)

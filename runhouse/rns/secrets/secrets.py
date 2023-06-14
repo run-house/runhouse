@@ -99,7 +99,7 @@ class Secrets:
         secrets = read_resp_data(resp)
 
         if providers is not None:
-            secrets = {p: secrets[p] for p in providers}
+            secrets = {p: secrets[p] for p in providers if p in secrets}
 
         if save_locally and secrets:
             cls.save_provider_secrets(secrets, check_enabled=check_enabled)

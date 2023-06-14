@@ -23,7 +23,7 @@ def _current_cluster(key="name"):
         return None
 
 
-def _get_cluster_from(system):
+def _get_cluster_from(system, dryrun=False):
     from runhouse.rns import Resource
 
     if isinstance(system, Resource) and system.RESOURCE_TYPE == "cluster":
@@ -37,9 +37,9 @@ def _get_cluster_from(system):
     from runhouse.rns.hardware import Cluster
 
     if isinstance(system, Dict):
-        return Cluster.from_config(system)
+        return Cluster.from_config(system, dryrun)
     elif isinstance(system, str) and rh_config.rns_client.exists(
         system, resource_type="cluster"
     ):
-        return Cluster.from_name(system)
+        return Cluster.from_name(system, dryrun)
     return system
