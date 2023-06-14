@@ -147,10 +147,7 @@ class Blob(Resource):
 
     def rm(self):
         """Delete the blob and the folder it lives in from the file system."""
-        self._folder.rm(contents=[self._filename])
-        if self.system == "file":
-            # Deleting the blob itself in a local file system will not remove the parent folder by default
-            self._folder.rm()
+        self._folder.rm(contents=[self._filename], recursive=False)
 
     def exists_in_system(self):
         """Check whether the blob exists in the file system"""

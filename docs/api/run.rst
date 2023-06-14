@@ -57,7 +57,7 @@ A Run may contain some (or all) of these core components:
 
 - **Function**: A function to be executed on a cluster.
 
-- **Commands**: Python or CLI commands to be executed on a cluster.
+- **Commands**: A record of Python or CLI commands executed on a cluster.
 
 - **Upstream dependencies**: Runhouse artifacts loaded by the Run.
 
@@ -160,8 +160,9 @@ There are a few ways to load a Run:
 - **From a cluster**: Load a Run that lives on a cluster by using :code:`cluster.get_run()`.
   This method takes a :code:`run_name` argument with the name of the Run to load.
 
-- **From a system via its path**: Load a Run from a specific folder path on system by calling
-  the :code:`Run.from_path()` method. This method takes a :code:`path` argument specifying the path to the Run's folder.
+- **From a system**: Load a Run from any system by using the the :code:`rh.run()` method. This method takes either
+  a :code:`path` argument specifying the path to the Run's folder, or a :code:`name` argument specifying the
+  name of the Run to load.
 
 .. note::
     Each of these methods will return a :ref:`Run` object.
@@ -186,7 +187,8 @@ To load the results of the Run, we can call the :code:`result()` method:
 Accessing and Using Runs
 ~~~~~~~~~~~~~~~~~~~~~~~~
 We can trace activity and capture logs within a block of code using a context manager. By default the Run's config
-will be stored on the local filesystem in the :code:`rh/<run_name>` folder of the current working directory.
+will be stored on the local filesystem in the :code:`rh/<run_name>` folder of the current working directory,
+or the :code:`.rh/logs/<run_name>` folder if running on a cluster.
 
 .. code-block:: python
 
@@ -211,17 +213,17 @@ will be stored on the local filesystem in the :code:`rh/<run_name>` folder of th
 
 
 .. note::
-    We can specify the path to the Run's folder by providing the :code:`path` argument to :code:`Run` object. If we do
-    not specify a path the folder will be created in the :code:`rh` folder of the current working directory.
+    We can specify the path to the Run's folder by providing the :code:`path` argument to the :code:`Run` object.
+    If we do not specify a path the folder will be created in the :code:`rh` folder of the current working directory.
 
 
-We can then load this Run from its system:
+We can then re-load this Run from its system (in this case the local file system):
 
 .. code-block:: python
 
     import runhouse as rh
 
-    ctx_run = rh.Run.from_path(path="~/rh/runs/my_ctx_run")
+    ctx_run = rh.run(path="~/rh/runs/my_ctx_run")
 
 Caching
 ~~~~~~~

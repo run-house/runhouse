@@ -96,7 +96,10 @@ def cancel(
 ):
     """Cancel a run on a cluster."""
     c = cluster(name=cluster_name)
-    c.cancel(run_key, force=force, all=all)
+    if all:
+        c.cancel_all(force=force)
+    else:
+        c.cancel(run_key, force=force)
 
 
 @app.command()

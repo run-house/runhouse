@@ -613,15 +613,26 @@ class Folder(Resource):
             # e.g.: 'ssh:///home/ubuntu/.cache/runhouse/tables/dede71ef83ce45ffa8cb27d746f97ee8'
             return f"{self._fs_str}://{self.path}"
 
-    def ls(self, full_paths: bool = True):
-        """List the contents of the folder"""
+    def ls(self, full_paths: bool = True, sort: bool = False) -> list:
+        """List the contents of the folder.
+
+        Args:
+            full_paths (Optional[bool]): Whether to list the full paths of the folder contents.
+                Defaults to ``True``.
+            sort (Optional[bool]): Whether to sort the folder contents by time modified.
+                Defaults to ``False``.
+        """
         paths = self.fsspec_fs.ls(path=self.path) if self.path else []
+        if sort:
+            paths = sorted(
+                paths, key=lambda f: self.fsspec_fs.info(f)["mtime"], reverse=True
+            )
         if full_paths:
             return paths
         else:
             return [Path(path).name for path in paths]
 
-    def resources(self, full_paths: bool = False, resource_type: str = None):
+    def resources(self, full_paths: bool = False):
         """List the resources in the *RNS* folder."""
         # TODO allow '*' wildcard for listing all resources (and maybe other wildcard things)
         try:
@@ -749,9 +760,9 @@ class Folder(Resource):
 
     def exists_in_system(self):
         """Whether the folder exists in the filesystem."""
-        return self.fsspec_fs.exists(
-            self.fsspec_url
-        ) or rh.rns.top_level_rns_fns.exists(self.path)
+        return self.fsspec_fs.exists(self.path) or rh.rns.top_level_rns_fns.exists(
+            self.path
+        )
 
     def rm(self, contents: list = None, recursive: bool = True):
         """Delete a folder from the file system.
@@ -763,14 +774,14 @@ class Folder(Resource):
         """
         if not contents:
             try:
-                self.fsspec_fs.rm(self.fsspec_url, recursive=recursive)
+                self.fsspec_fs.rm(self.path, recursive=recursive)
             except FileNotFoundError:
                 pass
 
         else:
             for file_name in contents:
                 try:
-                    self.fsspec_fs.rm(f"{self.fsspec_url}/{file_name}")
+                    self.fsspec_fs.rm(f"{self.path}/{file_name}")
                 except FileNotFoundError:
                     pass
 

@@ -238,12 +238,6 @@ class Cluster(Resource):
         self.check_server()
         return self.client.get_run_object(run_name, folder_path)
 
-    def run_cmds(
-        self, run_name: str, commands: list, cmd_prefix: str, python_cmd: bool
-    ):
-        self.check_server()
-        return self.client.run_commands(run_name, commands, cmd_prefix, python_cmd)
-
     def add_secrets(self, provider_secrets: dict):
         """Copy secrets from current environment onto the cluster"""
         self.check_server()
@@ -553,11 +547,11 @@ class Cluster(Resource):
         port_forward: Optional[int] = None,
         require_outputs: bool = True,
         run_name: Optional[str] = None,
-        python_cmd: bool = False,
     ) -> list:
         """Run a list of shell commands on the cluster. If `run_name` is provided, the commands will be
         sent over to the cluster before being executed and a Run object will be created."""
         # TODO [DG] suspect autostop while running?
+        from runhouse import Run
 
         cmd_prefix = ""
         if env:
@@ -567,15 +561,21 @@ class Cluster(Resource):
                 env = Env.from_name(env)
             cmd_prefix = env._run_cmd
 
-        if run_name:
-            # Call endpoint for creating the Run and executing the commands
-            return_codes = self.run_cmds(run_name, commands, cmd_prefix, python_cmd)
-            return return_codes
+        if not run_name:
+            # If not creating a Run then just run the commands via SSH and return
+            return self._run_commands_with_ssh(
+                commands, cmd_prefix, stream_logs, port_forward, require_outputs
+            )
 
-        # Use SSH runner to run the commands
-        return_codes = self._run_commands_with_ssh(
-            commands, cmd_prefix, stream_logs, port_forward, require_outputs
-        )
+        # Create and save the Run locally
+        with Run(name=run_name, cmds=commands, overwrite=True) as r:
+            return_codes = self._run_commands_with_ssh(
+                commands, cmd_prefix, stream_logs, port_forward, require_outputs
+            )
+
+        # Register the completed Run
+        r._register_cmd_run_completion(return_codes)
+        logger.info(f"Saved Run to path: {r.folder.path}")
         return return_codes
 
     def _run_commands_with_ssh(
@@ -624,7 +624,6 @@ class Cluster(Resource):
             stream_logs=stream_logs,
             port_forward=port_forward,
             run_name=run_name,
-            python_cmd=True,
         )
         return return_codes
 

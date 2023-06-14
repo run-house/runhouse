@@ -140,16 +140,6 @@ class HTTPClient:
 
         return run_obj
 
-    def run_commands(self, run_name, commands, cmd_prefix, python_cmd):
-        res = self.request(
-            "run_commands",
-            req_type="post",
-            data=pickle_b64((run_name, commands, cmd_prefix, python_cmd)),
-            err_str=f"Error running commands for Run with name {run_name}",
-        )
-
-        return res
-
     def clear_pins(self, pins=None):
         return self.request(
             "object",

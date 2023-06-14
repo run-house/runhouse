@@ -1,8 +1,8 @@
 import importlib
 import logging
 import os
-import subprocess
 import sys
+import time
 from functools import wraps
 from pathlib import Path
 from typing import Any, Union
@@ -13,7 +13,6 @@ from ray import cloudpickle as pickle
 
 from runhouse import rh_config
 from runhouse.rns.api_utils.utils import resolve_absolute_path
-from runhouse.rns.obj_store import THIS_CLUSTER
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +86,6 @@ def call_fn_by_type(
                     f"Invalid fn_type {fn_type} for a Run that does not exist with name {run_name}"
                 )
 
-    ray.init(ignore_reinit_error=True)
     num_gpus = ray.cluster_resources().get("GPU", 0)
     num_cuda_devices = resources.get("num_gpus") or num_gpus
 
@@ -219,18 +217,20 @@ def _populate_run_with_result(run_obj, fn_type, obj_ref) -> ["Run", Any]:
 def _create_new_run(run_name, fn_name, args, kwargs):
     """Create a new Run object and save down relevant config data to its dedicated folder on the cluster."""
     from runhouse import Run
+    from runhouse.rns import _current_cluster
 
     inputs = {"args": args, "kwargs": kwargs}
     logger.info(f"Inputs for Run: {inputs}")
 
-    if not THIS_CLUSTER:
+    cluster_name = _current_cluster("cluster_name")
+    if not cluster_name:
         logger.info(
             "No current cluster found from config, setting current cluster to local"
         )
         current_cluster = rh_config.rns_client.DEFAULT_FS
     else:
         # Update the system field of the Run object to reflect the current cluster
-        current_cluster: str = rh_config.rns_client.resolve_rns_path(THIS_CLUSTER)
+        current_cluster: str = rh_config.rns_client.resolve_rns_path(cluster_name)
 
     # Create a new Run object
     new_run = Run(
@@ -274,11 +274,17 @@ def _get_result_from_ray(run_obj, obj_ref):
         run_status = RunStatus.ERROR
         result = e
 
+        # write traceback to new error file - this will be loaded as the result of the Run
+        stderr_path = run_obj._stderr_path
+        logger.info(f"Writing error to stderr path: {stderr_path}")
+        time.sleep(1)
+        run_obj.write(data=str(e).encode(), path=stderr_path)
+
     finally:
-        run_obj._register_run_completion(run_status)
+        run_obj._register_fn_run_completion(run_status)
 
         logger.info(
-            f"Registered completed run {run_obj.name} with status: {run_status}"
+            f"Registered completed Run {run_obj.name} with status: {run_status}"
         )
 
         return result, run_status
@@ -286,7 +292,7 @@ def _get_result_from_ray(run_obj, obj_ref):
 
 def _load_existing_run_on_cluster(run_name) -> Union["Run", None]:
     """Load a Run for a given name from the cluster's file system. If the Run is not found returns None."""
-    from runhouse import Run
+    from runhouse import Run, run
 
     if run_name == "latest":
         # TODO [JL]
@@ -299,7 +305,7 @@ def _load_existing_run_on_cluster(run_name) -> Union["Run", None]:
         f"folder path on system for loading run from file: {folder_path_on_system}"
     )
 
-    existing_run = Run.from_path(path=folder_path_on_system)
+    existing_run = run(path=folder_path_on_system)
 
     return existing_run
 
@@ -309,80 +315,6 @@ def _save_run_result(result: bytes, run_obj):
     results_path = run_obj._fn_result_path()
     logger.info(f"Writing function result to Run's folder in path: {results_path}")
     run_obj.write(result, path=results_path)
-
-
-def create_command_based_run(run_name, commands, cmd_prefix, python_cmd) -> list:
-    """Create a Run for a CLI or python command(s).
-
-    Returns:
-        A list of tuples containing: (returncode, stdout, stderr)."""
-
-    from runhouse import Run, RunStatus
-
-    folder_path = Run._base_cluster_folder_path(run_name)
-    folder_path_on_system = resolve_absolute_path(folder_path)
-
-    run_obj = Run(
-        name=run_name, cmds=commands, overwrite=True, path=folder_path_on_system
-    )
-
-    run_obj._register_new_run()
-
-    final_stdout = []
-    final_stderr = []
-    return_codes = []
-
-    run_status = RunStatus.COMPLETED
-
-    for command in commands:
-        command = f"{cmd_prefix} {command}" if cmd_prefix else command
-
-        shell = True
-        if not python_cmd:
-            # CLI command
-            command = command.split()
-            shell = False
-
-        result = subprocess.run(command, shell=shell, capture_output=True, text=True)
-
-        stdout = result.stdout
-        stderr = result.stderr
-
-        if stdout:
-            final_stdout.append(stdout)
-
-        if stderr:
-            final_stderr.append(stderr)
-
-        return_code = result.returncode
-        if return_code != 0:
-            run_status = RunStatus.ERROR
-
-        commands_res = (return_code, stdout, stderr)
-        return_codes.append(commands_res)
-
-    end_time = Run._current_timestamp()
-
-    final_stdout = "\n".join(final_stdout)
-    final_stderr = "\n".join(final_stderr)
-
-    config_data = run_obj.config_for_rns
-
-    # Update the "system" stored in the config for this Run from "file" to the current cluster before saving down
-    config_data["system"] = rh_config.rns_client.resolve_rns_path(THIS_CLUSTER)
-    config_data["end_time"] = end_time
-    config_data["status"] = run_status
-    run_obj._write_config(config=config_data)
-
-    # Write the stdout and stderr of the Run to its dedicated folder
-    run_obj.write(data=final_stdout.encode(), path=run_obj._stdout_path)
-    run_obj.write(data=final_stderr.encode(), path=run_obj._stderr_path)
-
-    logger.info(
-        f"Finished saving config, stdout and stderr for the Run to path: {run_obj.folder.path}"
-    )
-
-    return return_codes
 
 
 RAY_LOGFILE_PATH = Path("/tmp/ray/session_latest/logs")

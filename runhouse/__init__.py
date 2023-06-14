@@ -22,7 +22,7 @@ from .rns.hardware import cluster, Cluster, OnDemandCluster
 from .rns.kvstores.kvstore import KVStore
 from .rns.login import login, logout
 from .rns.packages import git_package, GitPackage, package, Package
-from .rns.run import Run, RunStatus, RunType
+from .rns.run import Run, run, RunStatus, RunType
 from .rns.secrets.secrets import Secrets
 from .rns.tables.table import table, Table
 

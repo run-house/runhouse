@@ -276,9 +276,7 @@ class Function(Resource):
 
         fn_type = "call"
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
-            run_locally = (
-                not self.system or self.system.name == rh_config.obj_store.cluster_name
-            )
+            run_locally = not self.system or self.system.on_this_cluster()
             if not run_locally:
                 run_obj = self.run(*args, run_name=run_name, **kwargs)
                 return self.system.get(run_obj.name, stream_logs=stream_logs)
@@ -295,9 +293,6 @@ class Function(Resource):
                 # server, so when Ray passes a result back into the server it will may fail to
                 # unpickle. We assume the user's client has the necessary packages to unpickle
                 # their own result.
-                serialize_res = (
-                    not self.system.on_this_cluster() if self.system else True
-                )
 
                 return call_fn_by_type(
                     fn_type=fn_type,
@@ -309,7 +304,7 @@ class Function(Resource):
                     run_name=run_name,
                     args=args,
                     kwargs=kwargs,
-                    serialize_res=serialize_res,
+                    serialize_res=False,
                 )
         else:
             # run the function via http path - user only needs Proxy access

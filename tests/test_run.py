@@ -66,8 +66,7 @@ def test_get_or_call_no_cache(summer_func):
 @pytest.mark.runstest
 def test_invalid_fn_sync_run(summer_func, cpu_cluster):
     """Test error handling for invalid function Run. The function expects to receive integers but
-    does not receive any. No serialized result should be saved down on the cluster for this Run, and an error
-    should be thrown via Ray."""
+    does not receive any. An error should be thrown via Ray."""
     import ray
 
     try:
@@ -83,12 +82,12 @@ def test_invalid_fn_sync_run(summer_func, cpu_cluster):
 @pytest.mark.runstest
 def test_invalid_fn_async_run(summer_func):
     """Test error handling for invalid function Run. The function expects to receive integers but
-    does not receive any. No result should be saved down on the cluster for this Run, and the Run object returned
-    should have a status of `ERROR`."""
+    does not receive any. The Run object returned should have a status of `ERROR`, and the
+    result should be its stderr."""
     run_obj = summer_func.get_or_run(run_name="invalid_async_run")
 
     assert run_obj.refresh().status == rh.RunStatus.ERROR
-    assert run_obj._fn_result_path() not in run_obj.folder.ls()
+    assert "summer() missing 2 required positional arguments" in run_obj.result()
 
 
 @unittest.skip("Not implemented yet.")
@@ -250,16 +249,6 @@ def test_read_fn_run_inputs_and_outputs(submitted_run):
 
 @pytest.mark.rnstest
 @pytest.mark.runstest
-def test_read_fn_stdout_from_rns_run(submitted_run):
-    # Read the stdout saved when running the function on the cluster
-    my_run = rh.Run.from_name(name=submitted_run)
-    stdout = my_run.stdout()
-    pprint(stdout)
-    assert stdout
-
-
-@pytest.mark.rnstest
-@pytest.mark.runstest
 def test_delete_fn_run_from_rns(submitted_run):
     func_run = rh.Run.from_name(submitted_run)
     func_run.delete_configs()
@@ -311,11 +300,27 @@ def test_create_cli_python_command_run(cpu_cluster):
 @pytest.mark.runstest
 def test_create_cli_command_run(cpu_cluster):
     """Run CLI command on the specified system.
-    Saves the run results to the .rh/logs/<run_name> folder of the system."""
+    Saves the Run locally to the rh/<run_name> folder of the local file system."""
     return_codes = cpu_cluster.run(["python --version"], run_name=CLI_RUN_NAME)
 
     assert return_codes[0][0] == 0, "Failed to run CLI command"
     assert return_codes[0][1].strip() == "Python 3.10.6"
+
+
+@pytest.mark.clustertest
+@pytest.mark.runstest
+def test_send_cli_run_to_cluster(cpu_cluster):
+    """Send the CLI based Run which was initially saved locally to the cpu cluster."""
+    loaded_run = rh.run(name=CLI_RUN_NAME)
+    assert loaded_run.status == rh.RunStatus.COMPLETED
+    assert loaded_run.stdout() == "Python 3.10.6"
+
+    # Save to default path on the cluster (~/.rh/logs/<run_name>)
+    cluster_run = loaded_run.to(
+        cpu_cluster, path=rh.Run._base_cluster_folder_path(name=CLI_RUN_NAME)
+    )
+    assert cluster_run.folder.exists_in_system()
+    assert isinstance(cluster_run.folder.system, rh.Cluster)
 
 
 @pytest.mark.clustertest
@@ -414,14 +419,14 @@ def test_create_local_ctx_manager_run(summer_func, cpu_cluster):
 @pytest.mark.localtest
 @pytest.mark.runstest
 def test_load_named_ctx_manager_run():
-    ctx_run = rh.Run.from_path(path=PATH_TO_CTX_MGR_RUN)
+    ctx_run = rh.run(path=PATH_TO_CTX_MGR_RUN)
     assert ctx_run.folder.exists_in_system()
 
 
 @pytest.mark.localtest
 @pytest.mark.runstest
 def test_read_stdout_from_ctx_manager_run():
-    ctx_run = rh.Run.from_path(path=PATH_TO_CTX_MGR_RUN)
+    ctx_run = rh.run(path=PATH_TO_CTX_MGR_RUN)
     stdout = ctx_run.stdout()
     pprint(stdout)
     assert stdout
@@ -430,7 +435,7 @@ def test_read_stdout_from_ctx_manager_run():
 @pytest.mark.rnstest
 @pytest.mark.runstest
 def test_save_ctx_run_to_rns():
-    ctx_run = rh.Run.from_path(path=PATH_TO_CTX_MGR_RUN)
+    ctx_run = rh.run(path=PATH_TO_CTX_MGR_RUN)
     ctx_run.save()
     assert rh.exists(name=ctx_run.name, resource_type=rh.Run.RESOURCE_TYPE)
 
@@ -438,7 +443,7 @@ def test_save_ctx_run_to_rns():
 @pytest.mark.clustertest
 @pytest.mark.runstest
 def test_delete_run_from_system():
-    ctx_run = rh.Run.from_path(path=PATH_TO_CTX_MGR_RUN)
+    ctx_run = rh.run(path=PATH_TO_CTX_MGR_RUN)
     ctx_run.folder.rm()
     assert not ctx_run.folder.exists_in_system()
 

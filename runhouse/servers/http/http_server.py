@@ -15,7 +15,7 @@ from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 from runhouse.rh_config import configs, obj_store
 from runhouse.rns.packages.package import Package
-from runhouse.rns.run_module_utils import call_fn_by_type, create_command_based_run
+from runhouse.rns.run_module_utils import call_fn_by_type
 from runhouse.rns.top_level_rns_fns import (
     clear_pinned_memory,
     pinned_keys,
@@ -204,7 +204,7 @@ class HTTPServer:
     @staticmethod
     @app.get("/run_object")
     def get_run_object(message: Message):
-        from runhouse import Run
+        from runhouse import Run, run
         from runhouse.rns.api_utils.utils import resolve_absolute_path
 
         HTTPServer.register_activity()
@@ -218,31 +218,12 @@ class HTTPServer:
 
         try:
             # Load config data for this Run saved locally on the system
-            result = Run.from_path(path=folder_path_on_system)
+            result = run(path=folder_path_on_system)
             return Response(
                 data=pickle_b64(result),
                 output_type=OutputType.RESULT,
             )
 
-        except Exception as e:
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
-
-    @staticmethod
-    @app.post("/run_commands")
-    def run_commands(message: Message):
-        HTTPServer.register_activity()
-        run_name, commands, cmd_prefix, python_cmd = b64_unpickle(message.data)
-        try:
-            HTTPServer.register_activity()
-            ret = create_command_based_run(run_name, commands, cmd_prefix, python_cmd)
-            return Response(
-                data=pickle_b64(ret),
-                output_type=OutputType.RESULT,
-            )
         except Exception as e:
             return Response(
                 error=pickle_b64(e),

@@ -15,7 +15,7 @@ import runhouse.servers.grpc.unary_pb2_grpc as pb2_grpc
 from runhouse.rh_config import configs, obj_store
 from runhouse.rns.api_utils.utils import resolve_absolute_path
 from runhouse.rns.packages.package import Package
-from runhouse.rns.run_module_utils import call_fn_by_type, create_command_based_run
+from runhouse.rns.run_module_utils import call_fn_by_type
 from runhouse.rns.top_level_rns_fns import (
     clear_pinned_memory,
     pinned_keys,
@@ -74,30 +74,18 @@ class UnaryService(pb2_grpc.UnaryServicer):
     def GetRunObject(self, request, context):
         self.register_activity()
         run_name, folder_path = pickle.loads(request.message)
-        from runhouse import Run
+        from runhouse import Run, run
 
         folder_path = folder_path or Run._base_cluster_folder_path(run_name)
         folder_path_on_system = resolve_absolute_path(folder_path)
 
         # Load config data for this Run saved locally on the system
         try:
-            ret = Run.from_path(path=folder_path_on_system)
+            ret = run(path=folder_path_on_system)
             self.register_activity()
         except FileNotFoundError:
             logger.error(f"No config found in local file path: {folder_path_on_system}")
             ret = None
-            self.register_activity()
-
-        return pb2.MessageResponse(message=pickle.dumps(ret), received=True)
-
-    def RunCommands(self, request, context):
-        run_name, commands, cmd_prefix, python_cmd = pickle.loads(request.message)
-        self.register_activity()
-        try:
-            ret = create_command_based_run(run_name, commands, cmd_prefix, python_cmd)
-        except Exception as e:
-            logger.error(f"Failed to run commands on cluster: {e}")
-            ret = str(e)
             self.register_activity()
 
         return pb2.MessageResponse(message=pickle.dumps(ret), received=True)

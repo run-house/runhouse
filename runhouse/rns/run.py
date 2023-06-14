@@ -54,6 +54,9 @@ class Run(Resource):
     ):
         """
         Runhouse Run object
+
+        .. note::
+            To load an existing Run, please use the factory method :func:`run`.
         """
         run_name = name or str(self._current_timestamp())
         super().__init__(name=run_name, dryrun=dryrun)
@@ -67,7 +70,7 @@ class Run(Resource):
         folder_system = kwargs.get("system") or Folder.DEFAULT_FS
 
         folder_path = kwargs.get("path") or (
-            self._base_local_folder_path()
+            self._base_local_folder_path(self.name)
             if folder_system == Folder.DEFAULT_FS
             else self._base_cluster_folder_path(name=run_name)
         )
@@ -119,9 +122,9 @@ class Run(Resource):
         # for function based Runs
         self._write_config()
 
-        if self.run_type == RunType.FUNCTION_RUN:
+        if self.run_type in [RunType.FUNCTION_RUN, RunType.CMD_RUN]:
             # For function based Runs we use the logfiles already generated for the current Ray worker
-            # on the cluster
+            # on the cluster, and for cmd runs we are using the SSH command runner to get the stdout / stderr
             return
 
         stdout = sys.stdout.getvalue()
@@ -236,7 +239,7 @@ class Run(Resource):
 
         if system == "here":
             # Save to default local path if none provided
-            path = path or self._base_local_folder_path()
+            path = path or self._base_local_folder_path(self.name)
 
         new_run.folder = self.folder.to(
             system=system, path=path, data_config=data_config
@@ -257,14 +260,22 @@ class Run(Resource):
         )
 
     def result(self):
-        """Load the function result saved on the system for the Run.
-
-        Note: If the Run has failed there will be no result saved on the system."""
-        results_path = self._fn_result_path()
-        if results_path not in self.folder.ls():
-            raise FileNotFoundError(f"No results file found in path: {results_path}")
-
-        return pickle.loads(self._load_blob_from_path(path=results_path).fetch())
+        """Load the function result saved on the system for the Run. If the Run has failed return the stderr,
+        otherwise return the stdout."""
+        run_status = self.refresh().status
+        if run_status == RunStatus.COMPLETED:
+            results_path = self._fn_result_path()
+            if results_path not in self.folder.ls():
+                raise FileNotFoundError(
+                    f"No results file found in path: {results_path}"
+                )
+            return pickle.loads(self._load_blob_from_path(path=results_path).fetch())
+        elif run_status == RunStatus.ERROR:
+            logger.info("Run failed, returning stderr")
+            return self.stderr()
+        else:
+            logger.info(f"Run status: {self.status}, returning stdout")
+            return self.stdout()
 
     def stdout(self) -> str:
         """Read the stdout saved on the system for the Run."""
@@ -301,13 +312,25 @@ class Run(Resource):
         logger.info("Registering new Run on system")
         self._write_config()
 
-    def _register_run_completion(self, run_status: RunStatus):
-        """Update the Run's config after its finished running on the system."""
+    def _register_fn_run_completion(self, run_status: RunStatus):
+        """Update a function based Run's config after its finished running on the system."""
         self.end_time = self._current_timestamp()
         self.status = run_status
 
-        logger.info(f"Registering a completed Run with status: {run_status}")
+        logger.info(f"Registering a completed fn Run with status: {run_status}")
         self._write_config()
+
+    def _register_cmd_run_completion(self, return_codes: list):
+        """Update a cmd based Run's config and register its stderr and stdout after running on the system."""
+        run_status = RunStatus.ERROR if return_codes[0][0] != 0 else RunStatus.COMPLETED
+        self.status = run_status
+
+        logger.info(f"Registering a completed cmd Run with status: {run_status}")
+        self._write_config()
+
+        # Write the stdout and stderr of the commands Run to the Run's folder
+        self.write(data=return_codes[0][1].encode(), path=self._stdout_path)
+        self.write(data=return_codes[0][2].encode(), path=self._stderr_path)
 
     def _write_config(self, config: dict = None, overwrite: bool = True):
         """Write the Run's config data to the system.
@@ -348,10 +371,6 @@ class Run(Resource):
         path_to_ext = f"{self.folder.path}/{self.name}" + ext
         return path_to_ext
 
-    def _base_local_folder_path(self) -> str:
-        """Path to the base folder for this Run on a local system."""
-        return f"{self.LOCAL_RUN_PATH}/{self.name}"
-
     def _convert_symlink_to_file(self, path: str):
         """If the system is a Cluster and the file path is a symlink, convert it to a regular file.
         This is necessary to allow for copying of the file between systems (ex: cluster --> s3 or cluster --> local)."""
@@ -369,7 +388,7 @@ class Run(Resource):
         """Get the file path by provided extension. Needed when loading the stdout and stderr files associated
         with a particular run."""
         try:
-            folder_contents: list = self.folder.ls()
+            folder_contents: list = self.folder.ls(sort=True)
         except FileNotFoundError:
             return None
 
@@ -378,7 +397,7 @@ class Run(Resource):
             # No .out / .err file already created in the logs folder for this Run
             return None
 
-        # TODO [JL] take the most recent if there are multiple?
+        # Return the most recent file with this extension
         return files_with_ext[0]
 
     def _register_upstream_artifact(self, artifact_name: str):
@@ -422,41 +441,57 @@ class Run(Resource):
         return f"{name}_{timestamp_key}"
 
     @staticmethod
-    def _base_cluster_folder_path(name: str) -> str:
+    def _base_cluster_folder_path(name: str):
         """Path to the base folder for this Run on a cluster."""
-        return f"~/{obj_store.LOGS_DIR}/{name}"
+        return f"{obj_store.LOGS_DIR}/{name}"
 
-    @classmethod
-    def from_path(
-        cls,
-        path: str,
-        system: Union[str, Cluster] = None,
-        data_config: dict = None,
-    ) -> Union["Run", None]:
-        """Load a local Run based on the path to its dedicated folder on a system.
+    @staticmethod
+    def _base_local_folder_path(name: str):
+        """Path to the base folder for this Run on a local system."""
+        return f"{Run.LOCAL_RUN_PATH}/{name}"
 
-        Args:
-            path (str): Path to the Run's dedicated folder on the local file system.
-            system (Optional[str or Cluster]): Name of the system or a cluster object where the Run lives.
-            data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler for the folder.
 
-        Returns:
-            Run: The loaded Run object.
-        """
-        local_folder = folder(
-            path=path,
-            system=system,
-            data_config=data_config,
-            dryrun=True,
+def run(
+    name: str = None,
+    path: str = None,
+    system: Union[str, Cluster] = None,
+    data_config: dict = None,
+) -> Union["Run", None]:
+    """Load a Run based on the path to its dedicated folder on a system.
+
+    Args:
+        name (Optional[str]): Name of the Run to load.
+        path (Optional[str]): Path to the Run's dedicated folder on the system where the Run lives.
+        system (Optional[str or Cluster]): Name of the system or a cluster object where the Run lives.
+        data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler for the folder.
+
+    Returns:
+        Run: The loaded Run object.
+    """
+    if name is not None:
+        path = (
+            Run._base_cluster_folder_path(name=name)
+            if isinstance(system, Cluster)
+            else Run._base_local_folder_path(name=name)
         )
 
-        if not local_folder.exists_in_system():
-            logger.info(f"No Run config found in path: {local_folder.path}")
-            return None
+    if path is None:
+        raise ValueError("Must provide either a name or path to load a Run.")
 
-        # Load config file for this Run
-        run_config = json.loads(local_folder.get(name=cls.RUN_CONFIG_FILE))
+    system_folder = folder(
+        path=path,
+        system=system,
+        data_config=data_config,
+        dryrun=True,
+    )
 
-        # Re-load the Run object
-        logger.info(f"Run config from path: {run_config}")
-        return Run.from_config(run_config, dryrun=True)
+    if not system_folder.exists_in_system():
+        logger.info(f"No Run config found in path: {system_folder.path}")
+        return None
+
+    # Load config file for this Run
+    run_config = json.loads(system_folder.get(name=Run.RUN_CONFIG_FILE))
+
+    # Re-load the Run object
+    logger.info(f"Run config from path: {run_config}")
+    return Run.from_config(run_config, dryrun=True)

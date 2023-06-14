@@ -20,7 +20,16 @@ class GCSFolder(Folder):
         return GCSFolder(**config, dryrun=dryrun)
 
     def rm(self, contents: list = None, recursive: bool = True):
-        """Delete gcs folder along with its contents. Optionally provide a list of folder contents to delete."""
+        """Delete gcs folder along with its contents. Optionally provide a list of folder contents to delete.
+
+        Args:
+            contents (Optional[List]): Specific contents to delete in the folder.
+            recursive (bool): Delete the folder itself (including all its contents).
+                Defaults to ``True``.
+        """
+        if recursive:
+            super().rm(recursive=True)
+
         for p in self.fsspec_fs.ls(self.path):
             if contents and p not in contents:
                 continue
