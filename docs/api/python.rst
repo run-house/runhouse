@@ -46,7 +46,7 @@ and rich debugging and accessibility interfaces built-in.
 .. toctree::
    :maxdepth: 1
 
-   api/run
+   python/run
 
 
 Data Abstractions

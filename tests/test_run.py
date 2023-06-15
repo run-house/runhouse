@@ -178,7 +178,7 @@ def test_save_fn_run_to_rns(cpu_cluster, submitted_run):
     assert func_run
 
     func_run.save(name=submitted_run)
-    loaded_run = rh.Run.from_name(name=submitted_run)
+    loaded_run = rh.run(name=submitted_run)
     assert rh.exists(loaded_run.name, resource_type=rh.Run.RESOURCE_TYPE)
     assert loaded_run.status == rh.RunStatus.COMPLETED
 
@@ -239,7 +239,7 @@ def test_copy_fn_run_from_system_to_s3(cpu_cluster, runs_s3_bucket, submitted_ru
 @pytest.mark.clustertest
 @pytest.mark.runstest
 def test_read_fn_run_inputs_and_outputs(submitted_run):
-    my_run = rh.Run.from_name(name=submitted_run)
+    my_run = rh.run(name=submitted_run)
     inputs = my_run.inputs()
     assert inputs == {"args": [1, 2], "kwargs": {}}
 
@@ -250,7 +250,7 @@ def test_read_fn_run_inputs_and_outputs(submitted_run):
 @pytest.mark.rnstest
 @pytest.mark.runstest
 def test_delete_fn_run_from_rns(submitted_run):
-    func_run = rh.Run.from_name(submitted_run)
+    func_run = rh.run(submitted_run)
     func_run.delete_configs()
     assert not rh.exists(name=func_run.name, resource_type=rh.Run.RESOURCE_TYPE)
 
@@ -338,7 +338,7 @@ def test_save_cli_run_on_cluster_to_rns(cpu_cluster):
     cli_run = cpu_cluster.get_run(CLI_RUN_NAME)
     cli_run.save(name=CLI_RUN_NAME)
 
-    loaded_run_from_rns = rh.Run.from_name(name=CLI_RUN_NAME)
+    loaded_run_from_rns = rh.run(name=CLI_RUN_NAME)
     assert loaded_run_from_rns
 
 
@@ -346,7 +346,7 @@ def test_save_cli_run_on_cluster_to_rns(cpu_cluster):
 @pytest.mark.runstest
 def test_read_cli_command_stdout():
     # Read the stdout from the system the command was run
-    cli_run = rh.Run.from_name(name=CLI_RUN_NAME)
+    cli_run = rh.run(name=CLI_RUN_NAME)
     cli_stdout = cli_run.stdout()
     assert cli_stdout == "Python 3.10.6"
 
@@ -363,14 +363,14 @@ def test_delete_cli_run_from_system(cpu_cluster):
 @pytest.mark.rnstest
 @pytest.mark.runstest
 def test_cli_run_exists_in_rns():
-    cli_run = rh.Run.from_name(name=CLI_RUN_NAME)
+    cli_run = rh.run(name=CLI_RUN_NAME)
     assert rh.exists(cli_run.name, resource_type=rh.Run.RESOURCE_TYPE)
 
 
 @pytest.mark.rnstest
 @pytest.mark.runstest
 def test_delete_cli_run_from_rns():
-    cli_run = rh.Run.from_name(CLI_RUN_NAME)
+    cli_run = rh.run(CLI_RUN_NAME)
     cli_run.delete_configs()
     assert not rh.exists(name=cli_run.name, resource_type=rh.Run.RESOURCE_TYPE)
 
@@ -451,7 +451,7 @@ def test_delete_run_from_system():
 @pytest.mark.rnstest
 @pytest.mark.runstest
 def test_delete_run_from_rns():
-    ctx_run = rh.Run.from_name(CTX_MGR_RUN)
+    ctx_run = rh.run(CTX_MGR_RUN)
     ctx_run.delete_configs()
     assert not rh.exists(name=ctx_run.name, resource_type=rh.Run.RESOURCE_TYPE)
 

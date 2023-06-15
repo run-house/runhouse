@@ -435,7 +435,7 @@ def package(
     if (
         install_method is None
         and install_str is None
-        and url is None
+        and path is None
         and system is None
         and data_config is None
         and not local_mount

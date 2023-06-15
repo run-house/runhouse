@@ -86,7 +86,7 @@ for more detailed instructions.
 
 .. code:: python
 
-    cluster = rh.cluster(
+    cluster = rh.autocluster(
                   name="cpu-cluster",
                   instance_type="CPU:8",
                   provider="cheapest",      # options: "AWS", "GCP", "Azure", "Lambda", or "cheapest"
@@ -169,7 +169,7 @@ optionally terminated) for you.
               )
 
     # Using a Cloud provider
-    cluster = rh.cluster(
+    cluster = rh.autocluster(
                   name="cpu-cluster",
                   instance_type="CPU:8",
                   provider="cheapest",      # options: "AWS", "GCP", "Azure", "Lambda", or "cheapest"

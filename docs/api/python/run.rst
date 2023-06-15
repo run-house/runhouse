@@ -105,7 +105,7 @@ By default :code:`run_name` is set to :code:`None`.
         return a + b
 
     # Initialize the cluster object (and provision the cluster if it does not already exist)
-    cpu = rh.cluster(name="^rh-cpu")
+    cpu = rh.autocluster(name="^rh-cpu")
 
     # Create a function object and send it to the cpu cluster
     my_func = rh.function(summer, name="my_test_func").to(cpu)
@@ -143,8 +143,11 @@ To create a Run by executing Python commands:
      return_codes = cpu.run_python(
         [
             "import runhouse as rh",
-            "cpu = rh.cluster('^rh-cpu')",
-            "rh.cluster('^rh-cpu').save()",
+            "import pickle",
+            "import logging",
+            "local_blob = rh.blob(name='local_blob', data=pickle.dumps(list(range(50))), mkdir=True).write()",
+            "logging.info(f'Blob path: {local_blob.path}')",
+            "local_blob.rm()",
         ],
         run_name="my_cli_run",
     )
@@ -198,7 +201,7 @@ or the :code:`.rh/logs/<run_name>` folder if running on a cluster.
         # Add all Runhouse objects loaded or saved in the context manager to
         # the Run's artifact registry (upstream + downstream artifacts)
 
-        my_func = rh.Function.from_name("my_existing_run")
+        my_func = rh.function("my_existing_run", dryrun=True)
         my_func.save("my_new_func")
 
         my_func(1, 2, run_name="my_new_run")
@@ -247,7 +250,7 @@ the function execution is complete:
 
     import runhouse as rh
 
-    my_func = rh.Function.from_name("my_func")
+    my_func = rh.function("my_func")
     res = my_func.get_or_call(1, 2, run_name="my_fn_run")
 
 
@@ -260,7 +263,7 @@ begin executing on the cluster in the background, and in the meantime a :code:`R
 
     import runhouse as rh
 
-    my_func = rh.Function.from_name("my_func")
+    my_func = rh.function("my_func", dryrun=True)
     run_obj = my_func.run(1, 2, run_name="my_async_run")
 
 
@@ -271,7 +274,7 @@ on the function. A :code:`Run` object will be returned whether the result is cac
 
     import runhouse as rh
 
-    my_func = rh.Function.from_name("my_func")
+    my_func = rh.function("my_func", dryrun=True)
     run_obj = my_func.get_or_run(1, 2, run_name="my_async_run")
 
 

@@ -83,11 +83,10 @@ def test_ls():
 
 
 @pytest.mark.rnstest
-def test_from_name():
+def test_from_name(cpu_cluster):
     f = rh.folder(name="~/tests/bert_ft", dryrun=True)
     assert f.path
-    c = rh.autocluster(name="^rh-cpu", dryrun=True)
-    assert c.instance_type == "CPU:2+"
+    assert cpu_cluster.instance_type == "CPU:2+"
 
 
 if __name__ == "__main__":

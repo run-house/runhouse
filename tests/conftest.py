@@ -132,7 +132,7 @@ def cpu_cluster():
 def byo_cpu():
     # Spin up a new basic m5.xlarge EC2 instance
     c = (
-        rh.cluster(
+        rh.autocluster(
             instance_type="m5.xlarge",
             provider="aws",
             region="us-east-1",
@@ -201,7 +201,7 @@ def summer(a: int, b: int):
 
 
 def save_and_load_artifacts():
-    cpu = rh.cluster("^rh-cpu").save()
+    cpu = rh.autocluster("^rh-cpu").save()
     loaded_cluster = rh.load(name=cpu.name)
     return loaded_cluster.name
 
