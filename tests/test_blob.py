@@ -11,14 +11,7 @@ from ray import cloudpickle as pickle
 
 from runhouse.rh_config import configs
 
-S3_BUCKET = "runhouse-blob"
 TEMP_LOCAL_FOLDER = Path(__file__).parents[1] / "rh-blobs"
-
-
-def setup():
-    from runhouse.rns.api_utils.utils import create_s3_bucket
-
-    create_s3_bucket(S3_BUCKET)
 
 
 @pytest.mark.rnstest
@@ -45,7 +38,7 @@ def test_create_and_reload_local_blob_with_name(blob_data):
     reloaded_blob.delete_configs()
 
     # Delete the blob
-    reloaded_blob.delete_in_system()
+    reloaded_blob.rm()
     assert not reloaded_blob.exists_in_system()
 
 
@@ -75,7 +68,7 @@ def test_create_and_reload_local_blob_with_path(blob_data):
 
     # Delete just the blob itself - since we define a custom path to store the blob, we want to keep the other
     # files stored in that directory
-    reloaded_blob.delete_in_system()
+    reloaded_blob.rm()
     assert not reloaded_blob.exists_in_system()
 
 
@@ -91,7 +84,7 @@ def test_create_and_reload_anom_local_blob(blob_data):
     assert reloaded_data == list(range(50))
 
     # Delete the blob
-    reloaded_blob.delete_in_system()
+    reloaded_blob.rm()
     assert not reloaded_blob.exists_in_system()
 
 
@@ -121,20 +114,20 @@ def test_create_and_reload_rns_blob(blob_data):
     reloaded_blob.delete_configs()
 
     # Delete the blob itself from the filesystem
-    reloaded_blob.delete_in_system()
+    reloaded_blob.rm()
     assert not reloaded_blob.exists_in_system()
 
 
 @pytest.mark.awstest
 @pytest.mark.rnstest
-def test_create_and_reload_rns_blob_with_path(blob_data):
+def test_create_and_reload_rns_blob_with_path(blob_data, blob_s3_bucket):
     name = "@/s3_blob"
     my_blob = (
         rh.blob(
             name=name,
             data=blob_data,
             system="s3",
-            path=f"/{S3_BUCKET}/test_blob.pickle",
+            path=f"/{blob_s3_bucket}/test_blob.pickle",
             mkdir=True,
         )
         .write()
@@ -152,7 +145,7 @@ def test_create_and_reload_rns_blob_with_path(blob_data):
     reloaded_blob.delete_configs()
 
     # Delete the blob itself from the filesystem
-    reloaded_blob.delete_in_system()
+    reloaded_blob.rm()
     assert not reloaded_blob.exists_in_system()
 
 
@@ -263,5 +256,4 @@ def test_save_anom_blob_to_s3(blob_data):
 
 
 if __name__ == "__main__":
-    setup()
     unittest.main()

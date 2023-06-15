@@ -414,13 +414,12 @@ def package(
     Builds an instance of :class:`Package`.
 
     Args:
-        name (str): Name to assign the pacakge.
+        name (str): Name to assign the package resource.
         install_method (str): Method for installing the package. Options: [``pip``, ``conda``, ``reqs``, ``local``]
         install_str (str): Additional arguments to install.
         path (str): URL of the package to install.
-        system (str): File system. Currently this must be one of:
+        system (str): File system or cluster on which the package lives. Currently this must a cluster or one of:
             [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
-            We are working to add additional file system support.
         dryrun (bool): Whether to create the Package if it doesn't exist, or load the Package object as a dryrun.
             (Default: ``False``)
         local_mount (bool): Whether to locally mount the installed package. (Default: ``False``)
@@ -430,10 +429,8 @@ def package(
         Package: The resulting package.
 
     Example:
-        >>> # TODO [CC]
-
-        >>> # Load package
         >>> reloaded_package = rh.package(name="my-package", dryrun=True)
+        >>> local_package = rh.package(path="local/folder/path", install_method="local")
     """
     if (
         install_method is None

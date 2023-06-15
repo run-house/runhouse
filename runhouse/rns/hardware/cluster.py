@@ -158,10 +158,21 @@ class Cluster(Resource):
         ):
             # Package is installed in editable mode
             local_rh_package_path = local_rh_package_path.parent
-            rh_package = Package.from_string(
-                f"reqs:{local_rh_package_path}", dryrun=True
+            dest_path = f"~/{local_rh_package_path.name}"
+
+            # temp update rsync filters to exclude docs, when syncing over runhouse folder
+            org_rsync_filter = command_runner.RSYNC_FILTER_OPTION
+            command_runner.RSYNC_FILTER_OPTION = (
+                "--filter='dir-merge,- .gitignore,- docs/'"
             )
-            rh_package.to(self)
+            self.rsync(
+                source=str(local_rh_package_path),
+                dest=dest_path,
+                up=True,
+                contents=True,
+            )
+            command_runner.RSYNC_FILTER_OPTION = org_rsync_filter
+
             rh_install_cmd = "pip install ./runhouse"
         # elif local_rh_package_path.parent.name == 'site-packages':
         else:
@@ -223,7 +234,12 @@ class Cluster(Resource):
     def get(self, key: str, default: Any = None, stream_logs: bool = False):
         """Get the object at the given key from the cluster's object store."""
         self.check_server()
-        return self.client.get_object(key, stream_logs=stream_logs) or default
+        res = self.client.get_object(key, stream_logs=stream_logs)
+        return res if res is not None else default
+
+    def get_run(self, run_name: str, folder_path: str = None):
+        self.check_server()
+        return self.client.get_run_object(run_name, folder_path)
 
     def add_secrets(self, provider_secrets: dict):
         """Copy secrets from current environment onto the cluster"""
@@ -303,6 +319,9 @@ class Cluster(Resource):
         self.client = HTTPClient(host="127.0.0.1", port=connected_port)
 
     def check_server(self, restart_server=True):
+        if self.name == _current_cluster("name"):
+            return
+
         if not self.address:
             # For OnDemandCluster, this initial check doesn't trigger a sky.status, which is slow.
             # If cluster simply doesn't have an address we likely need to up it.
@@ -450,6 +469,7 @@ class Cluster(Resource):
         fn_type,
         resources,
         conda_env,
+        run_name,
         args,
         kwargs,
     ):
@@ -461,6 +481,7 @@ class Cluster(Resource):
             fn_type,
             resources,
             conda_env,
+            run_name,
             args,
             kwargs,
         )
@@ -528,11 +549,12 @@ class Cluster(Resource):
         stream_logs: bool = True,
         port_forward: Optional[int] = None,
         require_outputs: bool = True,
-    ):
-        """Run a list of shell commands on the cluster."""
+        run_name: Optional[str] = None,
+    ) -> list:
+        """Run a list of shell commands on the cluster. If `run_name` is provided, the commands will be
+        sent over to the cluster before being executed and a Run object will be created."""
         # TODO [DG] suspect autostop while running?
-        runner = command_runner.SSHCommandRunner(self.address, **self.ssh_creds())
-        return_codes = []
+        from runhouse import Run
 
         cmd_prefix = ""
         if env:
@@ -542,6 +564,34 @@ class Cluster(Resource):
                 env = Env.from_name(env)
             cmd_prefix = env._run_cmd
 
+        if not run_name:
+            # If not creating a Run then just run the commands via SSH and return
+            return self._run_commands_with_ssh(
+                commands, cmd_prefix, stream_logs, port_forward, require_outputs
+            )
+
+        # Create and save the Run locally
+        with Run(name=run_name, cmds=commands, overwrite=True) as r:
+            return_codes = self._run_commands_with_ssh(
+                commands, cmd_prefix, stream_logs, port_forward, require_outputs
+            )
+
+        # Register the completed Run
+        r._register_cmd_run_completion(return_codes)
+        logger.info(f"Saved Run to path: {r.folder.path}")
+        return return_codes
+
+    def _run_commands_with_ssh(
+        self,
+        commands: list,
+        cmd_prefix: str,
+        stream_logs: bool,
+        port_forward: int = None,
+        require_outputs: bool = True,
+    ):
+        return_codes = []
+
+        runner = command_runner.SSHCommandRunner(self.address, **self.ssh_creds())
         for command in commands:
             command = f"{cmd_prefix} {command}" if cmd_prefix else command
             logger.info(f"Running command on {self.name}: {command}")
@@ -560,6 +610,7 @@ class Cluster(Resource):
         env: Union["Env", str] = None,
         stream_logs: bool = True,
         port_forward: Optional[int] = None,
+        run_name: Optional[str] = None,
     ):
         """Run a list of python commands on the cluster."""
         cmd_prefix = "python3 -c"
@@ -570,10 +621,12 @@ class Cluster(Resource):
                 env = Env.from_name(env)
             cmd_prefix = f"{env._run_cmd} {cmd_prefix}"
         command_str = "; ".join(commands)
+        # If invoking a run as part of the python commands also return the Run object
         return_codes = self.run(
             [f'{cmd_prefix} "{command_str}"'],
             stream_logs=stream_logs,
             port_forward=port_forward,
+            run_name=run_name,
         )
         return return_codes
 

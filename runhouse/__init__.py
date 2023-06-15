@@ -22,10 +22,11 @@ from .rns.hardware import autocluster, cluster, Cluster, OnDemandCluster
 from .rns.kvstores.kvstore import KVStore
 from .rns.login import login, logout
 from .rns.packages import git_package, GitPackage, package, Package
+from .rns.run import Run, run, RunStatus, RunType
 from .rns.secrets.secrets import Secrets
 from .rns.tables.table import table, Table
 
 # Briefly keep for BC.
 send = function
 
-__version__ = "0.0.5"
+__version__ = "0.0.6"

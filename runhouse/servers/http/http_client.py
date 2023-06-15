@@ -68,6 +68,7 @@ class HTTPClient:
         fn_type,
         resources,
         conda_env,
+        run_name,
         args,
         kwargs,
     ):
@@ -82,6 +83,7 @@ class HTTPClient:
             fn_type,
             resources,
             conda_env,
+            run_name,
             args,
             kwargs,
         ]
@@ -127,6 +129,16 @@ class HTTPClient:
             data=pickle_b64((key, value)),
             err_str=f"Error putting object {key}",
         )
+
+    def get_run_object(self, run_name, folder_path):
+        run_obj = self.request(
+            "run_object",
+            req_type="get",
+            data=pickle_b64((run_name, folder_path)),
+            err_str=f"Error getting Run with name {run_name}",
+        )
+
+        return run_obj
 
     def clear_pins(self, pins=None):
         return self.request(

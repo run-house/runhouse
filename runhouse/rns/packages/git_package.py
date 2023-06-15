@@ -22,10 +22,6 @@ class GitPackage(Package):
     ):
         """
         Runhouse Github Package resource.
-
-        Example:
-            >>> rh.GitPackage(git_url='https://github.com/runhouse/runhouse.git',
-            >>>               install_method='pip', revision='v0.0.1')
         """
         super().__init__(
             name=name,
@@ -77,13 +73,33 @@ class GitPackage(Package):
 
 
 def git_package(
-    name=None,
+    name: str = None,
     git_url: str = None,
     revision: str = None,
     install_method: str = None,
     install_str: str = None,
-    dryrun=False,
+    dryrun: bool = False,
 ):
+    """
+    Builds an instance of :class:`GitPackage`.
+
+    Args:
+        name (str): Name to assign the package resource.
+        git_url (str): The GitHub URL of the package to install.
+        revision (str): Version of the Git package to install.
+        install_method (str): Method for installing the package. If left blank, defaults to local installation.
+        install_str (str): Additional arguments to add to installation command.
+        dryrun (bool): Whether to load the Package object as a dryrun, or create the Package if it doesn't exist.
+            (Default: ``False``)
+
+    Returns:
+        GitPackage: The resulting GitHub Package.
+
+    Example:
+            >>> rh.git_package(git_url='https://github.com/runhouse/runhouse.git',
+            >>>               install_method='pip', revision='v0.0.1')
+
+    """
     config = rh_config.rns_client.load_config(name)
     config["name"] = name or config.get("rns_address", None) or config.get("name")
 
