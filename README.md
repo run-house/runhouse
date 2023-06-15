@@ -18,13 +18,14 @@ for different environments.
 
 ### 🤨 Who is this for?
 
-1) 🦸‍♀️ **OSS maintainers** who want to improve the accessibility, reproducibility, and reach of their code,
+* 🦸‍♀️ **OSS maintainers** who want to improve the accessibility, reproducibility, and reach of their code,
 without having to build support or examples for every cloud or compute system (e.g. Kubernetes) one by one.
-2) 👩‍🔬 **ML Researchers and Data Scientists** who don't want to spend or wait 3-6 months translating and packaging
+   * See this in action in 🤗 Hugging Face ([Transformers](https://github.com/huggingface/transformers/blob/main/examples/README.md#running-the-examples-on-remote-hardware-with-auto-setup), [Accelerate](https://github.com/huggingface/accelerate/blob/main/examples/README.md#simple-multi-gpu-hardware-launcher)) and 🦜🔗 [Langchain](https://python.langchain.com/en/latest/modules/models/llms/integrations/runhouse.html)
+* 👩‍🔬 **ML Researchers and Data Scientists** who don't want to spend or wait 3-6 months translating and packaging
 their work for production.
-3) 👩‍🏭 **ML Engineers** who want to be able to update and improve production services, pipelines, and artifacts with a
+* 👩‍🏭 **ML Engineers** who want to be able to update and improve production services, pipelines, and artifacts with a
 Pythonic, debuggable devX.
-4) 👩‍🔧 **ML Platform teams** who want a versioned, shared, maintainable stack of services and data artifacts that
+* 👩‍🔧 **ML Platform teams** who want a versioned, shared, maintainable stack of services and data artifacts that
 research and production pipelines both depend on.
 
 ### 🦾 How does it work?
