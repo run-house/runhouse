@@ -100,19 +100,15 @@ class Package(Resource):
                 reqs_path = f"{local_path}/requirements.txt"
                 logging.info(f"reqs path: {reqs_path}")
                 if Path(reqs_path).expanduser().exists():
-                    # Ensure each requirement listed in the file contains the full install command for torch packages
-                    reqs_from_file: list = self._format_torch_cmd_in_reqs_file(
-                        path=reqs_path, cuda_version_or_cpu=cuda_version_or_cpu
+                    install_cmd = self._requirements_txt_install_cmd(
+                        path=reqs_path,
+                        cuda_version_or_cpu=cuda_version_or_cpu,
+                        args=install_args,
                     )
-                    logging.info(f"Got reqs from file to install: {reqs_from_file}")
-
-                    # Format URLs for any torch packages listed in the requirements.txt file
                     logging.info(
-                        f"Attempting to install formatted requirements from {reqs_path} "
+                        f"pip installing requirements from {reqs_path} with: {install_cmd}"
                     )
-
-                    self.pip_install(install_cmd=" ".join(reqs_from_file))
-
+                    self.pip_install(install_cmd)
                 else:
                     logging.info(f"{local_path}/requirements.txt not found, skipping")
         else:
@@ -149,22 +145,36 @@ class Package(Resource):
     # ----------------------------------
     # Torch Install Helpers
     # ----------------------------------
-    def _format_torch_cmd_in_reqs_file(self, path, cuda_version_or_cpu):
+    def _requirements_txt_install_cmd(self, path, cuda_version_or_cpu="", args=""):
         """Read requirements from file, append --index-url and --extra-index-url where relevant for torch packages,
         and return list of formatted packages."""
         with open(path) as f:
             reqs = f.readlines()
 
+        # if torch extra index url is already defined by the user or torch isn't a req, directly pip install reqs file
+        if not [req for req in reqs if "torch" in req]:
+            return f"-r {path}" + args
+        for req in reqs:
+            if (
+                "--index-url" in req or "--extra-index-url" in req
+            ) and "pytorch.org" in req:
+                return f"-r {path}" + args
+
         # Leave the file alone, maintain a separate list with the updated commands which we will later pip install
+        # Format URLs for any torch packages listed in the requirements.txt file
         reqs_from_file = []
         for req in reqs:
+            # Ensure each requirement listed in the file contains the full install command for torch packages
             install_cmd = self._install_cmd_for_torch(req.strip(), cuda_version_or_cpu)
-            reqs_from_file.append(install_cmd)
-
-        return reqs_from_file
+            if install_cmd:
+                reqs_from_file.append(install_cmd)
+        return " ".join(reqs_from_file)
 
     def _install_cmd_for_torch(self, install_cmd, cuda_version_or_cpu):
         """Return the correct formatted pip install command for the torch package(s) provided."""
+        if install_cmd.startswith("#"):
+            return None
+
         torch_source_packages = ["torch", "torchvision", "torchaudio"]
         if not any([x in install_cmd for x in torch_source_packages]):
             return install_cmd
