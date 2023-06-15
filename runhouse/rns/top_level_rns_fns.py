@@ -30,6 +30,10 @@ def load(name: str, instantiate: bool = True, dryrun: bool = False):
         raise ValueError(
             f"Could not find constructor for type {config['resource_type']}"
         )
+
+    # Add this resource to the resource artifact registry if part of a run
+    rns_client.add_upstream_resource(name)
+
     return from_config_constructor(config=config, dryrun=dryrun)
 
 

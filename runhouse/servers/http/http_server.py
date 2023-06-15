@@ -127,6 +127,7 @@ class HTTPServer:
             fn_type,
             resources,
             conda_env,
+            run_name,
             args,
             kwargs,
         ] = b64_unpickle(message.data)
@@ -134,6 +135,7 @@ class HTTPServer:
         try:
             args = obj_store.get_obj_refs_list(args)
             kwargs = obj_store.get_obj_refs_dict(kwargs)
+
             result = call_fn_by_type(
                 fn_type=fn_type,
                 fn_name=fn_name,
@@ -141,6 +143,7 @@ class HTTPServer:
                 module_name=module_name,
                 resources=resources,
                 conda_env=conda_env,
+                run_name=run_name,
                 args=args,
                 kwargs=kwargs,
                 serialize_res=True,
@@ -148,13 +151,26 @@ class HTTPServer:
             # We need to pin the run_key in the server's Python context rather than inside the call_fn context,
             # because the call_fn context is a separate process and the pinned object will be lost when Ray
             # garbage collects the call_fn process.
-            if fn_type == "remote":
-                (run_key, obj_ref) = result
+            from runhouse import Run
+
+            (res, obj_ref, run_key) = result
+
+            if obj_ref is not None:
                 obj_store.put_obj_ref(key=run_key, obj_ref=obj_ref)
-                result = pickle.dumps(run_key)
+
+            result = pickle.dumps(res) if isinstance(res, Run) else res
 
             HTTPServer.register_activity()
-            if isinstance(result, list):
+            if isinstance(result, ray.exceptions.RayTaskError):
+                # If Ray throws an error when executing the function as part of a Run,
+                # it will be reflected in the result since we catch the exception and do not immediately raise it
+                logger.exception(result)
+                return Response(
+                    error=pickle_b64(result),
+                    traceback=pickle_b64(traceback.format_exc()),
+                    output_type=OutputType.EXCEPTION,
+                )
+            elif isinstance(result, list):
                 return Response(
                     data=[codecs.encode(i, "base64").decode() for i in result],
                     output_type=OutputType.RESULT_LIST,
@@ -184,6 +200,36 @@ class HTTPServer:
             HTTPServer._get_object_and_logs_generator(key, stream_logs=stream_logs),
             media_type="application/json",
         )
+
+    @staticmethod
+    @app.get("/run_object")
+    def get_run_object(message: Message):
+        from runhouse import Run, run
+        from runhouse.rns.api_utils.utils import resolve_absolute_path
+
+        HTTPServer.register_activity()
+        logger.info(
+            f"Message received from client to get run object: {b64_unpickle(message.data)}"
+        )
+        run_name, folder_path = b64_unpickle(message.data)
+
+        folder_path = folder_path or Run._base_cluster_folder_path(run_name)
+        folder_path_on_system = resolve_absolute_path(folder_path)
+
+        try:
+            # Load config data for this Run saved locally on the system
+            result = run(path=folder_path_on_system)
+            return Response(
+                data=pickle_b64(result),
+                output_type=OutputType.RESULT,
+            )
+
+        except Exception as e:
+            return Response(
+                error=pickle_b64(e),
+                traceback=pickle_b64(traceback.format_exc()),
+                output_type=OutputType.EXCEPTION,
+            )
 
     @staticmethod
     def _get_object_and_logs_generator(key, stream_logs=False):
@@ -256,6 +302,9 @@ class HTTPServer:
                 )
             )
         else:
+            if isinstance(ret_obj, tuple):
+                (res, obj_ref, run_name) = ret_obj
+                ret_obj = res
             if isinstance(ret_obj, bytes):
                 ret_serialized = codecs.encode(ret_obj, "base64").decode()
             else:
@@ -472,7 +521,13 @@ class HTTPServer:
         from runhouse import function
 
         fn = function(name=fn_name, dryrun=True)
-        return fn(*(args.args or []), **(args.kwargs or {}))
+        result = fn(*(args.args or []), **(args.kwargs or {}))
+
+        (fn_res, obj_ref, run_key) = result
+        if isinstance(fn_res, bytes):
+            fn_res = pickle.loads(fn_res)
+
+        return fn_res
 
 
 if __name__ == "__main__":

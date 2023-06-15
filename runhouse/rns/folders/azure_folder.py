@@ -15,8 +15,8 @@ class AzureFolder(Folder):
         """Load config values into the object."""
         return AzureFolder(**config, dryrun=dryrun)
 
-    def delete_in_system(self):
-        """Delete Azure folder along with its contents."""
+    def rm(self, contents: list = None, recursive: bool = True):
+        """Delete Azure folder along with its contents. Optionally provide a list of folder contents to delete."""
         raise NotImplementedError
 
     def delete_bucket(self):

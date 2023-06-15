@@ -82,13 +82,13 @@ def test_cluster_tos(cpu_cluster, tmp_path):
     s3 = tests_folder.to("s3")
     assert "test_folder.py" in s3.ls(full_paths=False)
 
-    s3.delete_in_system()
+    s3.rm()
 
     # to gcs
     gcs = tests_folder.to("gs")
     try:
         assert "test_folder.py" in gcs.ls(full_paths=False)
-        gcs.delete_in_system()
+        gcs.rm()
 
     except:
         bucket_name = gcs.bucket_name_from_path(gcs.path)
@@ -124,7 +124,7 @@ def test_local_and_s3(local_folder, tmp_path):
     assert "sample_file_0.txt" in local_from_s3.ls(full_paths=False)
     assert local_from_s3._fs_str == "file"
 
-    s3_folder.delete_in_system()
+    s3_folder.rm()
 
 
 @pytest.mark.gcptest
@@ -139,7 +139,7 @@ def test_local_and_gcs(local_folder, tmp_path):
     assert "sample_file_0.txt" in local_from_gcs.ls(full_paths=False)
     assert local_from_gcs._fs_str == "file"
 
-    gcs_folder.delete_in_system()
+    gcs_folder.rm()
 
 
 @pytest.mark.awstest
@@ -155,7 +155,7 @@ def test_cluster_and_s3(cpu_cluster, cluster_folder):
     assert "sample_file_0.txt" in cluster_from_s3.ls(full_paths=False)
     assert cluster_from_s3._fs_str == "ssh"
 
-    s3_folder.delete_in_system()
+    s3_folder.rm()
 
 
 @unittest.skip("requires GCS setup")
@@ -178,7 +178,7 @@ def test_cluster_and_gcs(cpu_cluster, cluster_folder):
         assert "sample_file_0.txt" in cluster_from_gcs.ls(full_paths=False)
         assert cluster_from_gcs._fs_str == "ssh"
 
-        gcs_folder.delete_in_system()
+        gcs_folder.rm()
 
     except:
         # TODO [JL] automate gcloud access on the cluster for writing to GCS bucket
@@ -196,7 +196,7 @@ def test_s3_and_s3(local_folder, s3_folder):
     new_s3_folder = s3_folder.to(system="s3")
     assert "sample_file_0.txt" in new_s3_folder.ls(full_paths=False)
 
-    new_s3_folder.delete_in_system()
+    new_s3_folder.rm()
 
 
 @pytest.mark.gcptest
@@ -205,7 +205,7 @@ def test_gcs_and_gcs(gcs_folder):
     new_gcs_folder = gcs_folder.to(system="gs")
     assert "sample_file_0.txt" in new_gcs_folder.ls(full_paths=False)
 
-    new_gcs_folder.delete_in_system()
+    new_gcs_folder.rm()
 
 
 @pytest.mark.gcptest
@@ -218,7 +218,7 @@ def test_s3_and_gcs(s3_folder):
     assert "sample_file_0.txt" in s3_folder_to_gcs.ls(full_paths=False)
     assert s3_folder_to_gcs._fs_str == "gs"
 
-    s3_folder_to_gcs.delete_in_system()
+    s3_folder_to_gcs.rm()
 
 
 @pytest.mark.gcptest
@@ -231,7 +231,7 @@ def test_gcs_and_s3(local_folder, gcs_folder):
     assert "sample_file_0.txt" in gcs_folder_to_s3.ls(full_paths=False)
     assert gcs_folder_to_s3._fs_str == "s3"
 
-    gcs_folder_to_s3.delete_in_system()
+    gcs_folder_to_s3.rm()
 
 
 @pytest.mark.awstest
@@ -254,7 +254,7 @@ def test_s3_folder_uploads_and_downloads(local_folder, tmp_path):
     )
 
     # remove folder in s3
-    s3_folder.delete_in_system()
+    s3_folder.rm()
     assert not s3_folder.exists_in_system()
 
 

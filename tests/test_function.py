@@ -137,12 +137,12 @@ def test_maps(cpu_cluster):
 def test_remotes(cpu_cluster):
     pid_fn = rh.function(getpid, system=cpu_cluster)
 
-    pid_ref = pid_fn.remote()
-    pid_res = pid_fn.get(pid_ref)
+    pid_run = pid_fn.run()
+    pid_res = pid_fn.get(pid_run.name)
     assert pid_res > 0
 
     # Test passing an objectref into a normal call
-    pid_res_from_ref = pid_fn(pid_ref)
+    pid_res_from_ref = pid_fn(pid_run.name)
     assert pid_res_from_ref > pid_res
 
 
@@ -179,11 +179,11 @@ def test_function_git_fn(cpu_cluster):
 def test_list_keys(cpu_cluster):
     pid_fn = rh.function(getpid).to(system=cpu_cluster)
 
-    pid_ref1 = pid_fn.remote()
-    pid_ref2 = pid_fn.remote()
+    pid_obj1 = pid_fn.run()
+    pid_obj2 = pid_fn.run()
 
     current_jobs = cpu_cluster.list_keys()
-    assert set([pid_ref1, pid_ref2]).issubset(current_jobs)
+    assert set([pid_obj1.name, pid_obj2.name]).issubset(current_jobs)
 
 
 def slow_getpid(a=0):
@@ -195,15 +195,16 @@ def slow_getpid(a=0):
 def test_cancel_jobs(cpu_cluster):
     pid_fn = rh.function(slow_getpid).to(cpu_cluster)
 
-    pid_ref1 = pid_fn.remote(2)
+    pid_run1 = pid_fn.run(2)
+
     time.sleep(1)  # So the runkeys are more than 1 second apart
-    pid_ref2 = pid_fn.remote(5)
+    pid_ref2 = pid_fn.run(5)
 
     print("Cancelling jobs")
     cpu_cluster.cancel_all()
 
     with pytest.raises(Exception) as e:
-        print(pid_fn.get(pid_ref1))
+        print(pid_fn.get(pid_run1.name))
         assert isinstance(
             e, (ray.exceptions.TaskCancelledError, ray.exceptions.RayTaskError)
         )
@@ -328,7 +329,7 @@ def test_byo_cluster_maps(byo_cpu):
     assert len(set(pids)) > 1
     assert all(pid > 0 for pid in pids)
 
-    pid_ref = pid_fn.remote()
+    pid_run = pid_fn.run()
 
     pids = pid_fn.repeat(num_repeats=20)
     assert len(set(pids)) > 1
@@ -337,11 +338,11 @@ def test_byo_cluster_maps(byo_cpu):
     pids = [pid_fn.enqueue() for _ in range(10)]
     assert len(pids) == 10
 
-    pid_res = pid_fn.get(pid_ref)
+    pid_res = pid_fn.get(pid_run.name)
     assert pid_res > 0
 
     # Test passing an objectref into a normal call
-    pid_res_from_ref = pid_fn(pid_ref)
+    pid_res_from_ref = pid_fn(pid_run.name)
     assert pid_res_from_ref > pid_res
 
     re_fn = rh.function(summer).to(byo_cpu)
@@ -358,7 +359,6 @@ def test_load_function_in_new_env(cpu_cluster, byo_cpu):
     )  # Needs to be saved to rns, right now has a local name by default
     remote_sum = rh.function(summer).to(cpu_cluster).save(REMOTE_FUNC_NAME)
 
-    byo_cpu.send_secrets(["ssh"])
     remote_python = (
         "import runhouse as rh; "
         f"remote_sum = rh.function(name='{REMOTE_FUNC_NAME}'); "
@@ -383,6 +383,8 @@ def test_nested_diff_clusters(cpu_cluster, byo_cpu):
 
 @pytest.mark.clustertest
 def test_nested_same_cluster(cpu_cluster):
+    # When the system of a function is set to the cluster that the function is being called on, we run the function
+    # locally and not via an RPC call
     summer_cpu = rh.function(fn=summer).to(system=cpu_cluster)
     call_function_cpu = rh.function(fn=call_function).to(system=cpu_cluster)
 
@@ -440,5 +442,4 @@ def test_setup_cmds_backwards_compatible(cpu_cluster):
 
 
 if __name__ == "__main__":
-    setup()
     unittest.main()

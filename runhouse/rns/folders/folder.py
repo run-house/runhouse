@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Callable, Dict, Optional, Union
 
 import fsspec
 
@@ -613,15 +613,26 @@ class Folder(Resource):
             # e.g.: 'ssh:///home/ubuntu/.cache/runhouse/tables/dede71ef83ce45ffa8cb27d746f97ee8'
             return f"{self._fs_str}://{self.path}"
 
-    def ls(self, full_paths: bool = True):
-        """List the contents of the folder"""
+    def ls(self, full_paths: bool = True, sort: bool = False) -> list:
+        """List the contents of the folder.
+
+        Args:
+            full_paths (Optional[bool]): Whether to list the full paths of the folder contents.
+                Defaults to ``True``.
+            sort (Optional[bool]): Whether to sort the folder contents by time modified.
+                Defaults to ``False``.
+        """
         paths = self.fsspec_fs.ls(path=self.path) if self.path else []
+        if sort:
+            paths = sorted(
+                paths, key=lambda f: self.fsspec_fs.info(f)["mtime"], reverse=True
+            )
         if full_paths:
             return paths
         else:
             return [Path(path).name for path in paths]
 
-    def resources(self, full_paths: bool = False, resource_type: str = None):
+    def resources(self, full_paths: bool = False):
         """List the resources in the *RNS* folder."""
         # TODO allow '*' wildcard for listing all resources (and maybe other wildcard things)
         try:
@@ -749,32 +760,45 @@ class Folder(Resource):
 
     def exists_in_system(self):
         """Whether the folder exists in the filesystem."""
-        return self.fsspec_fs.exists(
-            self.fsspec_url
-        ) or rh.rns.top_level_rns_fns.exists(self.path)
+        return self.fsspec_fs.exists(self.path) or rh.rns.top_level_rns_fns.exists(
+            self.path
+        )
 
-    def delete_in_system(self):
-        """Delete all contents in folder from file system."""
-        try:
-            self.fsspec_fs.rm(self.path, recursive=True)
-        except FileNotFoundError:
-            pass
+    def rm(self, contents: list = None, recursive: bool = True):
+        """Delete a folder from the file system.
 
-    def rm(self, name, recursive: bool = True):
-        """Remove a resource from the folder."""
-        try:
-            self.fsspec_fs.rm(self.fsspec_url + "/" + name, recursive=recursive)
-        except FileNotFoundError:
-            pass
+        Args:
+            contents (Optional[List]): Specific contents to delete in the folder.
+            recursive (bool): Delete the folder itself (including all its contents).
+                Defaults to ``True``.
+        """
+        if not contents:
+            try:
+                self.fsspec_fs.rm(self.path, recursive=recursive)
+            except FileNotFoundError:
+                pass
 
-    def put(self, contents, overwrite=False):
-        """Put given contents in folder. Contents must be one of the following:
+        else:
+            for file_name in contents:
+                try:
+                    self.fsspec_fs.rm(f"{self.path}/{file_name}")
+                except FileNotFoundError:
+                    pass
 
-        - Dict with keys being the file names and values being the file-like objects to write
+    def put(
+        self, contents, overwrite=False, mode: str = "wb", write_fn: Callable = None
+    ):
+        """Put given contents in folder.
 
-        - Resource
-
-        - List of Resources.
+        Args:
+            contents (Dict[str, Any] or Resource or List[Resource]): Contents to put in folder.
+                Must be a dict with keys being the file names (without full paths) and values being the file-like
+                objects to write, or a Resource object, or a list of Resources.
+            overwrite (bool): Whether to dump the file contents as json. By default expects data to be encoded.
+                Defaults to ``False``.
+            mode (Optional(str)): Write mode to use for fsspec. Defaults to ``wb``.
+            write_fn (Optional(Callable)): Function to use for writing file contents.
+                Example: ``write_fn = lambda f, data: json.dump(data, f)``
         """
         # TODO create the bucket if it doesn't already exist
         # Handle lists of resources just for convenience
@@ -845,14 +869,17 @@ class Folder(Resource):
         filenames = list(contents)
         fss_files = fsspec.open_files(
             self.fsspec_url + "/*",
-            mode="wb",
+            mode=mode,
             **self.data_config,
             num=len(contents),
             name_function=filenames.__getitem__,
         )
         for (fss_file, raw_file) in zip(fss_files, contents.values()):
             with fss_file as f:
-                f.write(raw_file)
+                if write_fn is not None:
+                    write_fn(raw_file, f)
+                else:
+                    f.write(raw_file)
 
     @staticmethod
     def bucket_name_from_path(path: str) -> str:
@@ -863,7 +890,7 @@ class Folder(Resource):
 def folder(
     name: Optional[str] = None,
     path: Optional[Union[str, Path]] = None,
-    system: Optional[str] = None,
+    system: Optional[Union[str, "Cluster"]] = None,
     dryrun: bool = False,
     local_mount: bool = False,
     data_config: Optional[Dict] = None,
@@ -874,7 +901,7 @@ def folder(
     Args:
         name (Optional[str]): Name to give the folder, to be re-used later on.
         path (Optional[str or Path]): Path (or path) that the folder is located at.
-        system (Optional[str]): File system. Currently this must be one of:
+        system (Optional[str or Cluster]): File system or cluster name. If providing a file system this must be one of:
             [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
             We are working to add additional file system support.
         dryrun (bool): Whether to create the Folder if it doesn't exist, or load a Folder object as a dryrun.
@@ -919,8 +946,8 @@ def folder(
                 f"fsspec file system {file_system} not officially supported. Use at your own risk."
             )
             new_folder = Folder.from_config(config, dryrun=dryrun)
-        elif isinstance(_get_cluster_from(file_system), Resource):
-            config["system"] = _get_cluster_from(file_system)
+        elif isinstance(_get_cluster_from(file_system, dryrun=dryrun), Resource):
+            config["system"] = _get_cluster_from(file_system, dryrun)
         else:
             raise ValueError(
                 f"File system {file_system} not found. Have you installed the "

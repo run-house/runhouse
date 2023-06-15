@@ -9,14 +9,7 @@ import runhouse as rh
 
 from runhouse import Folder
 
-BUCKET_NAME = "runhouse-table"
 NUM_PARTITIONS = 10
-
-
-def setup():
-    from runhouse.rns.api_utils.utils import create_s3_bucket
-
-    create_s3_bucket(BUCKET_NAME)
 
 
 def delete_local_folder(path):
@@ -64,7 +57,7 @@ def test_create_and_reload_file_locally(tmp_path):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
@@ -99,7 +92,7 @@ def test_create_and_reload_pandas_locally(pandas_table, tmp_path):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
@@ -134,7 +127,7 @@ def test_create_and_reload_pyarrow_locally(arrow_table, tmp_path):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
@@ -176,7 +169,7 @@ def test_create_and_reload_ray_locally(ray_table, tmp_path):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
@@ -211,7 +204,7 @@ def test_create_and_reload_huggingface_locally(huggingface_table, tmp_path):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
@@ -245,7 +238,7 @@ def test_create_and_reload_dask_locally(dask_table, tmp_path):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
@@ -254,14 +247,14 @@ def test_create_and_reload_dask_locally(dask_table, tmp_path):
 # --------------------------------------------
 @pytest.mark.awstest
 @pytest.mark.rnstest
-def test_create_and_reload_pyarrow_data_from_s3(arrow_table):
+def test_create_and_reload_pyarrow_data_from_s3(arrow_table, table_s3_bucket):
     name = "@/my_test_pyarrow_table"
 
     my_table = (
         rh.table(
             data=arrow_table,
             name=name,
-            path=f"/{BUCKET_NAME}/pyarrow_df",
+            path=f"/{table_s3_bucket}/pyarrow_df",
             system="s3",
             mkdir=True,
         )
@@ -282,20 +275,20 @@ def test_create_and_reload_pyarrow_data_from_s3(arrow_table):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
 @pytest.mark.awstest
 @pytest.mark.rnstest
-def test_create_and_reload_pandas_data_from_s3(pandas_table):
+def test_create_and_reload_pandas_data_from_s3(pandas_table, table_s3_bucket):
     name = "@/my_test_pandas_table"
 
     my_table = (
         rh.table(
             data=pandas_table,
             name=name,
-            path=f"/{BUCKET_NAME}/pandas_df",
+            path=f"/{table_s3_bucket}/pandas_df",
             system="s3",
             mkdir=True,
         )
@@ -317,20 +310,20 @@ def test_create_and_reload_pandas_data_from_s3(pandas_table):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
 @pytest.mark.awstest
 @pytest.mark.rnstest
-def test_create_and_reload_huggingface_data_from_s3(huggingface_table):
+def test_create_and_reload_huggingface_data_from_s3(huggingface_table, table_s3_bucket):
     name = "@/my_test_hf_table"
 
     my_table = (
         rh.table(
             data=huggingface_table,
             name=name,
-            path=f"/{BUCKET_NAME}/huggingface_data",
+            path=f"/{table_s3_bucket}/huggingface_data",
             system="s3",
             mkdir=True,
         )
@@ -351,20 +344,20 @@ def test_create_and_reload_huggingface_data_from_s3(huggingface_table):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
 @pytest.mark.awstest
 @pytest.mark.rnstest
-def test_create_and_reload_dask_data_from_s3(dask_table):
+def test_create_and_reload_dask_data_from_s3(dask_table, table_s3_bucket):
     name = "@/my_test_dask_table"
 
     my_table = (
         rh.table(
             data=dask_table,
             name=name,
-            path=f"/{BUCKET_NAME}/dask",
+            path=f"/{table_s3_bucket}/dask",
             system="s3",
             mkdir=True,
         )
@@ -386,20 +379,20 @@ def test_create_and_reload_dask_data_from_s3(dask_table):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
 @pytest.mark.awstest
 @pytest.mark.rnstest
-def test_create_and_reload_ray_data_from_s3(ray_table):
+def test_create_and_reload_ray_data_from_s3(ray_table, table_s3_bucket):
     name = "@/my_test_ray_table"
 
     my_table = (
         rh.table(
             data=ray_table,
             name=name,
-            path=f"/{BUCKET_NAME}/ray_data",
+            path=f"/{table_s3_bucket}/ray_data",
             system="s3",
             mkdir=True,
         )
@@ -423,21 +416,21 @@ def test_create_and_reload_ray_data_from_s3(ray_table):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
 # ----------------- Iter -----------------
 @pytest.mark.awstest
 @pytest.mark.rnstest
-def test_load_pandas_data_as_iter(pandas_table):
+def test_load_pandas_data_as_iter(pandas_table, table_s3_bucket):
     name = "@/my_test_pandas_table"
 
     my_table = (
         rh.table(
             data=pandas_table,
             name=name,
-            path=f"/{BUCKET_NAME}/pandas",
+            path=f"/{table_s3_bucket}/pandas",
             system="s3",
             mkdir=True,
         )
@@ -456,20 +449,20 @@ def test_load_pandas_data_as_iter(pandas_table):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
 @pytest.mark.awstest
 @pytest.mark.rnstest
-def test_load_pyarrow_data_as_iter(arrow_table):
+def test_load_pyarrow_data_as_iter(arrow_table, table_s3_bucket):
     name = "@/my_test_pyarrow_table"
 
     my_table = (
         rh.table(
             data=arrow_table,
             name=name,
-            path=f"/{BUCKET_NAME}/pyarrow-data",
+            path=f"/{table_s3_bucket}/pyarrow-data",
             system="s3",
             mkdir=True,
         )
@@ -488,20 +481,20 @@ def test_load_pyarrow_data_as_iter(arrow_table):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
 @pytest.mark.awstest
 @pytest.mark.rnstest
-def test_load_huggingface_data_as_iter(huggingface_table):
+def test_load_huggingface_data_as_iter(huggingface_table, table_s3_bucket):
     name = "@/my_test_huggingface_table"
 
     my_table = (
         rh.table(
             data=huggingface_table,
             name=name,
-            path=f"/{BUCKET_NAME}/huggingface-dataset",
+            path=f"/{table_s3_bucket}/huggingface-dataset",
             system="s3",
             mkdir=True,
         )
@@ -518,21 +511,21 @@ def test_load_huggingface_data_as_iter(huggingface_table):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
 # ----------------- Shuffling -----------------
 @pytest.mark.awstest
 @pytest.mark.rnstest
-def test_shuffling_pyarrow_data_from_s3(arrow_table):
+def test_shuffling_pyarrow_data_from_s3(arrow_table, table_s3_bucket):
     name = "@/my_test_shuffled_pyarrow_table"
 
     my_table = (
         rh.table(
             data=arrow_table,
             name=name,
-            path=f"/{BUCKET_NAME}/pyarrow",
+            path=f"/{table_s3_bucket}/pyarrow",
             system="s3",
             mkdir=True,
         )
@@ -554,7 +547,7 @@ def test_shuffling_pyarrow_data_from_s3(arrow_table):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
@@ -595,7 +588,7 @@ def test_create_and_reload_pandas_data_from_cluster(pandas_table, cpu_cluster):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
@@ -634,7 +627,7 @@ def test_create_and_reload_ray_data_from_cluster(ray_table, cpu_cluster):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
@@ -670,7 +663,7 @@ def test_create_and_reload_pyarrow_data_from_cluster(arrow_table, cpu_cluster):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
@@ -710,7 +703,7 @@ def test_create_and_reload_huggingface_data_from_cluster(
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
@@ -747,7 +740,7 @@ def test_create_and_reload_dask_data_from_cluster(dask_table, cpu_cluster):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
@@ -780,7 +773,7 @@ def test_to_cluster_attr(pandas_table, cpu_cluster, tmp_path):
     del my_table
 
     cluster_table.delete_configs()
-    cluster_table.delete_in_system()
+    cluster_table.rm()
     assert not cluster_table.exists_in_system()
 
 
@@ -789,14 +782,14 @@ def test_to_cluster_attr(pandas_table, cpu_cluster, tmp_path):
 # -------------------------------------------------
 @pytest.mark.awstest
 @pytest.mark.rnstest
-def test_create_and_fetch_pyarrow_data_from_s3(arrow_table):
+def test_create_and_fetch_pyarrow_data_from_s3(arrow_table, table_s3_bucket):
     name = "@/my_test_fetch_pyarrow_table"
 
     my_table = (
         rh.table(
             data=arrow_table,
             name=name,
-            path=f"/{BUCKET_NAME}/pyarrow",
+            path=f"/{table_s3_bucket}/pyarrow",
             system="s3",
             mkdir=True,
         )
@@ -813,20 +806,20 @@ def test_create_and_fetch_pyarrow_data_from_s3(arrow_table):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
 @pytest.mark.awstest
 @pytest.mark.rnstest
-def test_create_and_fetch_pandas_data_from_s3(pandas_table):
+def test_create_and_fetch_pandas_data_from_s3(pandas_table, table_s3_bucket):
     name = "@/my_test_fetch_pandas_table"
 
     my_table = (
         rh.table(
             data=pandas_table,
             name=name,
-            path=f"/{BUCKET_NAME}/pandas",
+            path=f"/{table_s3_bucket}/pandas",
             system="s3",
             mkdir=True,
         )
@@ -843,20 +836,20 @@ def test_create_and_fetch_pandas_data_from_s3(pandas_table):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
 @pytest.mark.awstest
 @pytest.mark.rnstest
-def test_create_and_fetch_huggingface_data_from_s3(huggingface_table):
+def test_create_and_fetch_huggingface_data_from_s3(huggingface_table, table_s3_bucket):
     name = "@/my_test_fetch_huggingface_table"
 
     my_table = (
         rh.table(
             data=huggingface_table,
             name=name,
-            path=f"/{BUCKET_NAME}/huggingface",
+            path=f"/{table_s3_bucket}/huggingface",
             system="s3",
             mkdir=True,
         )
@@ -873,20 +866,20 @@ def test_create_and_fetch_huggingface_data_from_s3(huggingface_table):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
 @pytest.mark.awstest
 @pytest.mark.rnstest
-def test_create_and_fetch_ray_data_from_s3(ray_table):
+def test_create_and_fetch_ray_data_from_s3(ray_table, table_s3_bucket):
     name = "@/my_test_fetch_ray_table"
 
     my_table = (
         rh.table(
             data=ray_table,
             name=name,
-            path=f"/{BUCKET_NAME}/ray",
+            path=f"/{table_s3_bucket}/ray",
             system="s3",
             mkdir=True,
         )
@@ -903,20 +896,20 @@ def test_create_and_fetch_ray_data_from_s3(ray_table):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
 @pytest.mark.awstest
 @pytest.mark.rnstest
-def test_create_and_fetch_dask_data_from_s3(dask_table):
+def test_create_and_fetch_dask_data_from_s3(dask_table, table_s3_bucket):
     name = "@/my_test_fetch_dask_table"
 
     my_table = (
         rh.table(
             data=dask_table,
             name=name,
-            path=f"/{BUCKET_NAME}/dask",
+            path=f"/{table_s3_bucket}/dask",
             system="s3",
             mkdir=True,
         )
@@ -933,7 +926,7 @@ def test_create_and_fetch_dask_data_from_s3(dask_table):
 
     reloaded_table.delete_configs()
 
-    reloaded_table.delete_in_system()
+    reloaded_table.rm()
     assert not reloaded_table.exists_in_system()
 
 
@@ -972,5 +965,4 @@ def test_read_shared_table():
 
 
 if __name__ == "__main__":
-    setup()
     unittest.main()

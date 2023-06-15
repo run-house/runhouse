@@ -17,8 +17,8 @@ class ObjStore:
     # Note, if we turn this into a ray actor we could get it by a string on server restart, which
     # would allow us to persist the store across server restarts. Unclear if this is desirable yet.
     # https://docs.ray.io/en/latest/ray-core/package-ref.html#ray-get-actor
-
-    RH_LOGFILE_PATH = Path.home() / ".rh/logs"
+    LOGS_DIR = ".rh/logs"
+    RH_LOGFILE_PATH = Path.home() / LOGS_DIR
 
     def __init__(self, cluster_name: Optional[str] = None):
         self.cluster_name = cluster_name or THIS_CLUSTER
@@ -86,7 +86,11 @@ class ObjStore:
         obj_ref = self.get(key, resolve=False)
         if not obj_ref:
             raise ValueError(f"Object with key {key} not found in object store.")
-        ray.cancel(obj_ref, force=force, recursive=recursive)
+        if isinstance(obj_ref, list):
+            for ref in obj_ref:
+                ray.cancel(ref, force=force, recursive=recursive)
+        else:
+            ray.cancel(obj_ref, force=force, recursive=recursive)
 
     def get_logfiles(self, key: str, log_type=None):
         # Info on ray logfiles: https://docs.ray.io/en/releases-2.2.0/ray-observability/ray-logging.html#id1
