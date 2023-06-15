@@ -13,21 +13,21 @@
 ## 👵 Welcome Home!
 
 Runhouse is a unified interface into *existing* compute and data systems, built to reclaim
-the 50-75% of ML practitioners' time lost to debugging, adapting, or repackaging code 
+the 50-75% of ML practitioners' time lost to debugging, adapting, or repackaging code
 for different environments.
 
-### Who is this for?
+### 🤨 Who is this for?
 
-1) OSS maintainers who want to improve the accessibility, reproducibility, and reach of their code, 
-without having to build support or examples for every cloud or compute system (e.g. Kubernetes) one by one. 
-2) ML Researchers and Data Scientists who don't want to spend or wait 3-6 months translating and packaging 
+1) 🦸‍♀️ **OSS maintainers** who want to improve the accessibility, reproducibility, and reach of their code,
+without having to build support or examples for every cloud or compute system (e.g. Kubernetes) one by one.
+2) 👩‍🔬 **ML Researchers and Data Scientists** who don't want to spend or wait 3-6 months translating and packaging
 their work for production.
-3) ML Engineers who want to be able to update and improve production services and artifacts with a Pythonic, 
-debuggable devX.
-4) ML Platform teams who want a versioned, shared, maintainable stack of services and data artifacts that 
+3) 👩‍🏭 **ML Engineers** who want to be able to update and improve production services, pipelines, and artifacts with a
+Pythonic, debuggable devX.
+4) 👩‍🔧 **ML Platform teams** who want a versioned, shared, maintainable stack of services and data artifacts that
 research and production pipelines both depend on.
 
-### How does it work?
+### 🦾 How does it work?
 
 **_"Learn once, run anywhere"_**
 
@@ -35,22 +35,20 @@ Runhouse is like PyTorch + Terraform + Google Drive.
 
 1. Just as **PyTorch** lets you send a model or tensor `.to(device)`, Runhouse OSS
 lets you do `my_fn.to('gcp_a100')` or `my_table.to('s3')`: send functions and data to any of your compute or
-data infra, all in Python, and continue to interact with them eagerly (there's no DAG) from your existing code and 
-environment. Think of it as an expansion pack to Python that lets it take detours to remote 
-machines or manipulate remote data. 
-2. Just as **Terraform** is a unified language for creation and destruction of infra, the 
-Runhouse APIs are a unified interface into existing compute and data systems. 
+data infra, all in Python, and continue to interact with them eagerly (there's no DAG) from your existing code and
+environment. Think of it as an expansion pack to Python that lets it take detours to remote
+machines or manipulate remote data.
+2. Just as **Terraform** is a unified language for creation and destruction of infra, the
+Runhouse APIs are a unified interface into existing compute and data systems.
 See what we already support and what's on the roadmap, below.
-3. Runhouse resources can be shared across environments or teams, providing a **Google Drive**-like 
-layer for sharing, visibility, and management across all your infra and providers.
+3. Runhouse resources can be shared across environments or teams, providing a **Google Drive**-like
+layer for accessibility, visibility, and management across all your infra and providers.
 
-This allows you to: 
-* Call your preprocessing, training, and inference all on different hardware from 
+This allows you to:
+* Call your preprocessing, training, and inference each on different hardware from
 inside a single notebook or script
-* Slot that script into a single orchestrator node rather than translate it into an ML pipeline DAG of docker images 
+* Slot that script into a single orchestrator node rather than translate it into an ML pipeline DAG of docker images
 * Share any of those services or data artifacts with your team instantly, and update them over time
-
-By way of a visual,
 
 [//]: # (![img.png]&#40;docs/assets/img.png&#41;)
 [//]: # (![img_1.png]&#40;docs/assets/img_1.png&#41;)
@@ -61,11 +59,11 @@ It wraps industry-standard tooling like Ray and the Cloud SDKs (boto, gsutil, et
 to give you production-quality features like queuing, distributed, async, logging,
 low latency, auto-launching, and auto-termination out of the box.
 
-## Enough chitchat, just show me the code
+## 👩‍💻 Enough chitchat, just show me the code
 
 Here is **all the code you need** to stand up a stable diffusion inference service on
 a fresh cloud GPU.
-(adapted from our first [tutorial](https://github.com/run-house/tutorials/tree/main/t01_Stable_Diffusion)):
+
 
 ```python
 import runhouse as rh
@@ -75,89 +73,44 @@ def sd_generate(prompt):
     model = StableDiffusionPipeline.from_pretrained("stabilityai/stable-diffusion-2-base").to("cuda")
     return model(prompt).images[0]
 
-if __name__ == "__main__":
-    gpu = rh.cluster(name="my-a100", instance_type="A100:1", provider="cheapest")
-    sd_generate = rh.function(sd_generate).to(gpu, reqs=["./", "torch", "diffusers"])
-    sd_generate("An oil painting of Keanu Reeves eating a sandwich.").show()
+gpu = rh.cluster(name="my-a100", instance_type="A100:1").up_if_not()
+env = rh.env(reqs=["torch", "diffusers"])
+fn_gpu = rh.function(sd_generate).to(system=gpu, env=env)
 
-    sd_generate.save(name="sd_generate")
+# the following runs on our remote A100 gpu
+sd_generate("An oil painting of Keanu Reeves eating a sandwich.").show()
+sd_generate.save(name="sd_generate")
 ```
-By saving, I or anyone I share with can load and call into this service with a single line of code, from anywhere
-with a Python interpreter and internet connection (notebook, IDE, CI/CD, orchestrator node, etc.):
+
+On the data side, sync folders, tables, or blobs between local, clusters, and file storage. All
+this is done without bouncing off the laptop.
+
 ```python
 import runhouse as rh
 
+folder_on_gpu = rh.folder(path="./instance_images").to(system=gpu, path="dreambooth/instance_images")
+
+folder_on_s3 = rh.folder(system=gpu, path="dreambooth/instance_images").to("s3", path="dreambooth/instance_images")
+folder_on_s3.save()
+```
+
+Reuse your saved compute and data resources from anywhere, with a single line of Python.
+
+```python
 sd_generate = rh.Function.from_name("sd_generate")
 image = sd_generate("A hot dog made of matcha.")
-```
-There's no magic yaml, DSL, code serialization, or "submitting for execution." We're
-just spinning up the cluster for you (or using an existing cluster), syncing over your code,
-starting an RPC connection, and running your code on the cluster.
-**_Runhouse does things for you that you'd spend time doing yourself, in as obvious a way as possible._**
 
-On the data side, we can do things like:
-
-```python
-# Send a folder up to a cluster (rsync)
-rh.folder(path="./instance_images").to(system=gpu, path="dreambooth/instance_images")
-gpu.run([f"accelerate launch diffusers/examples/dreambooth/train_dreambooth.py"
-         f"--instance_data_dir=dreambooth/instance_images "
-         f"--output_dir=dreambooth/output "])
-
-# This goes directly cluster-> s3, doesn't bounce to local
-outputs_s3 = rh.folder(system=gpu, path="dreambooth/outputs").to("s3", path="runhouse/dreambooth/outputs")
-outputs_s3.save("dreambooth_outputs")
+folder_on_s3 = rh.Folder.from_name("dreambooth_outputs")
+folder_on_local = folder_on_s3.to("here")
 ```
 
-To load down the folder in full later:
-```python
-rh.Folder.from_name("dreambooth_outputs").to("here")
-```
+These APIs work from anywhere with a Python interpreter and an internet connection.
+Notebooks, scripts, pipeline nodes, etc. are all fair game.
 
-We support interactive blob and table primitives too:
-```python
-import runhouse as rh
-from transformers import AutoTokenizer
+## 🚘 Roadmap
 
-def tokenize_dataset(dataset_table):
-    hf_dataset = dataset_table.to("here").convert_to("hf_dataset").fetch()
-    tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
-    tokenized_ds = hf_dataset.map(lambda x: tokenizer(x["text"], truncation=True, padding=True), batched=True)
-    return rh.table(tokenized_ds).write()
-
-if __name__ == "__main__":
-    # Load a table in from anywhere (S3, GCS, Azure, cluster fs, local fs, etc)
-    raw_dataset = rh.table(system="gcs", path="my_bucket/my_data.parquet")
-    tokenize_dataset = rh.function(tokenize_dataset).to("^rh-32-cpu", env=["./", "transformers", "tokenizers"])
-    tokenized_table = tokenize_dataset(raw_dataset).to("gcs", path="my_bucket/preprocessed_data.parquet")
-    tokenized_table.save("preprocessed-dataset")
-```
-And later:
-```python
-import runhouse as rh
-
-def train_model(preprocessed_table):
-    ...
-    preprocessed_table.stream_format = "torch"
-    for batch in preprocessed_table.stream(batch_size=30):
-        ...
-
-    return rh.blob(pickle.dumps(model)).write()
-
-if __name__ == "__main__":
-    preprocessed_table = rh.Table.from_name("preprocessed-dataset")
-    train_model = rh.function(train_model).to("my-a100", env=["./", "torch", "transformers"])
-    trained_model = train_model(preprocessed_table)
-    trained_model.to("s3", path="runhouse/my_bucket").save(name="yelp_fine_tuned_bert")
-```
-
-These APIs work from anywhere with a Python interpreter and an internet connection,
-so notebooks, scripts, pipeline nodes, etc. are all fair game.
-
-## Roadmap
-
-Runhouse is an ambitious project to provide unified API into many paradigms and providers for 
-various types of infra. You can find our currently support systems and high-level roadmap below 
+Runhouse is an ambitious project to provide a unified API into many paradigms and providers for
+various types of infra. You can find our currently support systems and high-level roadmap below.
 Please reach out to contribute or share feedback!
 - Compute
   - On-prem
@@ -189,11 +142,13 @@ Please reach out to contribute or share feedback!
   - RBAC - Planned
   - Monitoring - Planned
 
-## What Runhouse is not
+## 🙅‍♀️ Runhouse is not
 
-Runhouse is not an orchestrator (Airflow, Prefect, Metaflow), a distributed compute DSL (Ray, Spark),
-an ML Platform (Sagemaker, Vertex), a model registry / experiment management tool (MLFlow, WNB), or 
-hosted compute (Modal, Banana).
+* An orchestrator / scheduler (Airflow, Prefect, Metaflow)
+* A distributed compute DSL (Ray, Spark)
+* An ML Platform (Sagemaker, Vertex, Azure ML)
+* A model registry / experiment manager / MLOps framework (MLFlow, WNB, Kubeflow)
+* Hosted compute (Modal, Banana, Replicate)
 
 ## 🚨 This is an Alpha 🚨
 
