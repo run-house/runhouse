@@ -425,7 +425,7 @@ class Cluster(Resource):
         if restart_ray:
             cmds.append("ray stop")
             cmds.append(
-                "ray start --head"
+                "ray start --head --autoscaling-config=~/ray_bootstrap_config.yaml"
             )  # Need to set gpus or Ray will block on cpu-only clusters
         cmds.append(screen_cmd)
 

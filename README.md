@@ -11,23 +11,44 @@
 [//]: # (</p>)
 
 ## 👵 Welcome Home!
-PyTorch lets you send a model or tensor `.to(device)`, so
-why can't you do `my_fn.to('a_gcp_a100')` or `my_table.to('parquet_in_s3')`?
-Runhouse allows just that: send code and data to any of your compute or
-data infra (with your own cloud creds), all in Python, and continue to interact with
-them normally from your existing code and environment. Think of it as an **expansion pack to your Python
-interpreter** that lets it take detours to remote machines or manipulate remote
-data. It wraps industry-standard tooling like Ray and the Cloud SDKs (boto, gsutil, etc. via [SkyPilot](https://github.com/skypilot-org/skypilot/))
-to give you production-quality features like queuing, distributed, async, logging,
-low latency, auto-launching, and auto-termination out of the box.
 
-Runhouse is for ML Researchers, Engineers, and Data Scientists who are tired of:
- - 🚜 manually shuttling code and data around between their local machine, remote instances, and cloud storage,
- - 🐜 debugging over ssh and notebook tunnels,
- - 🧑‍🔧 translating their code into a pipeline DSL just to use multiple hardware types,
- - 🪦 debugging in an orchestrator,
- - 👩‍✈️ missing out on fancy LLM IDE features,
- - 🕵️ and struggling to find or reproduce their teammates' code and data artifacts.
+Runhouse is a unified interface into *existing* compute and data systems, built to reclaim
+the 50-75% of ML practitioners' time lost to debugging, adapting, or repackaging code 
+for different environments.
+
+### Who is this for?
+
+1) OSS maintainers who want to improve the accessibility, reproducibility, and reach of their code, 
+without having to build support or examples for every cloud or compute system (e.g. Kubernetes) one by one. 
+2) ML Researchers and Data Scientists who don't want to spend or wait 3-6 months translating and packaging 
+their work for production.
+3) ML Engineers who want to be able to update and improve production services and artifacts with a Pythonic, 
+debuggable devX.
+4) ML Platform teams who want a versioned, shared, maintainable stack of services and data artifacts that 
+research and production pipelines both depend on.
+
+### How does it work?
+
+**_"Learn once, run anywhere"_**
+
+Runhouse is like PyTorch + Terraform + Google Drive.
+
+1. Just as **PyTorch** lets you send a model or tensor `.to(device)`, Runhouse OSS
+lets you do `my_fn.to('gcp_a100')` or `my_table.to('s3')`: send functions and data to any of your compute or
+data infra, all in Python, and continue to interact with them eagerly (there's no DAG) from your existing code and 
+environment. Think of it as an expansion pack to Python that lets it take detours to remote 
+machines or manipulate remote data. 
+2. Just as **Terraform** is a unified language for creation and destruction of infra, the 
+Runhouse APIs are a unified interface into existing compute and data systems. 
+See what we already support and what's on the roadmap, below.
+3. Runhouse resources can be shared across environments or teams, providing a **Google Drive**-like 
+layer for sharing, visibility, and management across all your infra and providers.
+
+This allows you to: 
+* Call your preprocessing, training, and inference all on different hardware from 
+inside a single notebook or script
+* Slot that script into a single orchestrator node rather than translate it into an ML pipeline DAG of docker images 
+* Share any of those services or data artifacts with your team instantly, and update them over time
 
 By way of a visual,
 
@@ -36,7 +57,15 @@ By way of a visual,
 ![img.png](https://raw.githubusercontent.com/run-house/runhouse/main/docs/assets/img.png)
 ![img_1.png](https://raw.githubusercontent.com/run-house/runhouse/main/docs/assets/img_1.png)
 
-Take a look at this code (adapted from our first [tutorial](https://github.com/run-house/tutorials/tree/main/t01_Stable_Diffusion)):
+It wraps industry-standard tooling like Ray and the Cloud SDKs (boto, gsutil, etc. via [SkyPilot](https://github.com/skypilot-org/skypilot/))
+to give you production-quality features like queuing, distributed, async, logging,
+low latency, auto-launching, and auto-termination out of the box.
+
+## Enough chitchat, just show me the code
+
+Here is **all the code you need** to stand up a stable diffusion inference service on
+a fresh cloud GPU.
+(adapted from our first [tutorial](https://github.com/run-house/tutorials/tree/main/t01_Stable_Diffusion)):
 
 ```python
 import runhouse as rh
@@ -123,9 +152,48 @@ if __name__ == "__main__":
 ```
 
 These APIs work from anywhere with a Python interpreter and an internet connection,
-so notebooks, scripts, pipeline nodes, etc. are all fair game. We currently support AWS,
-GCP, Azure, and Lambda Labs credentials through SkyPilot, as well as BYO cluster (just drop
-in an ip address and ssh key).
+so notebooks, scripts, pipeline nodes, etc. are all fair game.
+
+## Roadmap
+
+Runhouse is an ambitious project to provide unified API into many paradigms and providers for 
+various types of infra. You can find our currently support systems and high-level roadmap below 
+Please reach out to contribute or share feedback!
+- Compute
+  - On-prem
+    - Single instance - **Supported**
+    - Ray cluster - **Supported**
+    - Kubernetes - Planned
+    - Slurm - Exploratory
+  - Cloud VMs
+    - AWS - **Supported**
+    - GCP - **Supported**
+    - Azure - **Supported**
+    - Lambda - **Supported**
+  - Serverless - Planned
+- Data
+  - Blob storage
+    - AWS - **Supported**
+    - GCP - **Supported**
+    - R2 - Planned
+    - Azure - Exploratory
+  - Tables
+    - Arrow-based (Pandas, Hugging Face, PyArrow, Ray.data, Dask, CuDF) - **Supported**
+    - SQL-style - Planned
+    - Lakehouse - Exploratory
+  - KVStores - Exploratory
+- Management
+  - Secrets
+    - Runhouse Den (via Hashicorp Vault) - **Supported**
+    - Custom (Vault, AWS, GCP, Azure) - Planned
+  - RBAC - Planned
+  - Monitoring - Planned
+
+## What Runhouse is not
+
+Runhouse is not an orchestrator (Airflow, Prefect, Metaflow), a distributed compute DSL (Ray, Spark),
+an ML Platform (Sagemaker, Vertex), a model registry / experiment management tool (MLFlow, WNB), or 
+hosted compute (Modal, Banana).
 
 ## 🚨 This is an Alpha 🚨
 
