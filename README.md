@@ -40,7 +40,7 @@ environment. Think of it as an expansion pack to Python that lets it take detour
 machines or manipulate remote data.
 2. Just as **Terraform** is a unified language for creation and destruction of infra, the
 Runhouse APIs are a unified interface into existing compute and data systems.
-See what we already support and what's on the roadmap, below.
+See what we already support and what's on the [roadmap, below](#-roadmap).
 3. Runhouse resources can be shared across environments or teams, providing a **Google Drive**-like
 layer for accessibility, visibility, and management across all your infra and providers.
 
