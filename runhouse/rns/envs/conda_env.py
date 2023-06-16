@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 from typing import Dict, List, Optional, Union
 
@@ -17,6 +18,8 @@ class CondaEnv(Env):
         name: Optional[str] = None,
         reqs: List[Union[str, Package]] = [],
         setup_cmds: List[str] = None,
+        env_vars: Optional[Dict] = {},
+        working_dir: Optional[Union[str, Path]] = "./",
         dryrun: bool = True,
         **kwargs,  # We have this here to ignore extra arguments when calling from_config
     ):
@@ -28,7 +31,14 @@ class CondaEnv(Env):
         """
         self.reqs = reqs
         self.conda_yaml = conda_yaml  # dict representing conda env
-        super().__init__(name=name, reqs=reqs, setup_cmds=setup_cmds, dryrun=dryrun)
+        super().__init__(
+            name=name,
+            reqs=reqs,
+            setup_cmds=setup_cmds,
+            env_vars=env_vars,
+            working_dir=working_dir,
+            dryrun=dryrun,
+        )
 
     @staticmethod
     def from_config(config: dict, dryrun: bool = True):

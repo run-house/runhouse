@@ -24,6 +24,7 @@ def call_fn_by_type(
     module_name,
     resources,
     conda_env=None,
+    env_vars={},
     run_name=None,
     args=None,
     kwargs=None,
@@ -95,7 +96,8 @@ def call_fn_by_type(
     module_path = (
         str((Path.home() / relative_path).resolve()) if relative_path else None
     )
-    runtime_env = {"env_vars": {"PYTHONPATH": module_path or ""}}
+    env_vars["PYTHONPATH"] = module_path or ""
+    runtime_env = {"env_vars": env_vars}
     if conda_env:
         runtime_env["conda"] = conda_env
 

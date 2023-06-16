@@ -1,8 +1,9 @@
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from runhouse.rns.packages import Package
-from runhouse.rns.utils.env import _get_conda_yaml, _process_reqs
+from runhouse.rns.utils.env import _env_vars_from_file, _get_conda_yaml, _process_reqs
 from .conda_env import CondaEnv
 
 from .env import Env
@@ -14,6 +15,8 @@ def env(
     conda_env: Union[str, Dict] = None,
     name: Optional[str] = None,
     setup_cmds: List[str] = None,
+    env_vars: Union[Dict, str] = {},
+    working_dir: Optional[Union[str, Path]] = "./",
     dryrun: bool = True,
 ):
     """Builds an instance of :class:`Env`.
@@ -25,6 +28,10 @@ def env(
         name (Optional[str], optional): Name of the environment resource.
         setup_cmds (Optional[List[str]]): List of CLI commands to run for setup when the environment is
             being set up on a cluster.
+        env_vars (Dict or str): Dictionary of environment variables, or relative path to .env file containing
+            environment variables. (Default: {})
+        working_dir (str or Path): Working directory of the environment, to be loaded onto the system.
+            (Default: "./")
         dryrun (bool, optional): Whether to run in dryrun mode. (Default: ``True``)
 
 
@@ -44,8 +51,12 @@ def env(
         >>> conda_env = rh.env(conda_env="local-conda-env-name")     # from a existing local conda env
         >>> conda_env = rh.env(conda_env="conda_env.yaml", reqs=["pip:/accelerate"])   # with additional reqs
     """
+    if isinstance(env_vars, str):
+        env_vars = Path(env_vars)
+    if isinstance(env_vars, Path):
+        env_vars = _env_vars_from_file(env_vars)
 
-    if name and not any([reqs, conda_env, setup_cmds]):
+    if name and not any([reqs, conda_env, setup_cmds, env_vars]):
         return Env.from_name(name, dryrun)
 
     reqs = _process_reqs(reqs or [])
@@ -56,19 +67,30 @@ def env(
             conda_yaml=conda_yaml,
             reqs=reqs,
             setup_cmds=setup_cmds,
+            env_vars=env_vars,
+            working_dir=working_dir,
             name=name,
             dryrun=dryrun,
         )
 
-    return Env(reqs=reqs, setup_cmds=setup_cmds, name=name, dryrun=dryrun)
+    return Env(
+        reqs=reqs,
+        setup_cmds=setup_cmds,
+        env_vars=env_vars,
+        working_dir=working_dir,
+        name=name,
+        dryrun=dryrun,
+    )
 
 
 # Conda Env factory method
 def conda_env(
     reqs: List[Union[str, Package]] = [],
     conda_env: Union[str, Dict] = None,
-    setup_cmds: List[str] = None,
     name: Optional[str] = None,
+    setup_cmds: List[str] = None,
+    env_vars: Optional[Dict] = {},
+    working_dir: Optional[Union[str, Path]] = "./",
     dryrun: bool = True,
 ):
     """Builds an instance of :class:`CondaEnv`.
@@ -80,6 +102,10 @@ def conda_env(
         name (Optional[str], optional): Name of the environment resource.
         setup_cmds (Optional[List[str]]): List of CLI commands to run for setup when the environment is
             being set up on a cluster.
+        env_vars (Dict or str): Dictionary of environment variables, or relative path to .env file containing
+            environment variables. (Default: {})
+        working_dir (str or Path): Working directory of the environment, to be loaded onto the system.
+            (Default: "./")
         dryrun (bool, optional): Whether to run in dryrun mode. (Default: ``True``)
 
     Returns:
@@ -96,4 +122,12 @@ def conda_env(
         else:
             conda_env = {"name": datetime.now().strftime("%Y%m%d_%H%M%S")}
 
-    return env(reqs, conda_env, name, setup_cmds, dryrun)
+    return env(
+        reqs=reqs,
+        conda_env=conda_env,
+        name=name,
+        setup_cmds=setup_cmds,
+        env_vars=env_vars,
+        working_dir=working_dir,
+        dryrun=dryrun,
+    )

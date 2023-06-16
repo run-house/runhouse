@@ -286,16 +286,21 @@ class Secrets:
             else:
                 # See if we have the provider's path saved in the rh config
                 creds_file_path = configs.get("secrets", {}).get(provider)
-                if creds_file_path is None:
-                    logger.warning(
-                        f"Unable to delete credentials file for {provider}. Please delete the file manually."
-                    )
-                    continue
+                if not Path(creds_file_path).exists():
+                    creds_file_path = None
 
             configs.delete(provider)
 
             # Delete the local creds file
-            cls.delete_secrets_file(creds_file_path)
+            if creds_file_path is None:
+                logger.warning(
+                    f"Unable to delete credentials file for {provider}. Please delete the file manually."
+                )
+            else:
+                logger.info(
+                    f"Deleted {provider} credentials file from path: {creds_file_path}"
+                )
+                cls.delete_secrets_file(creds_file_path)
 
     @classmethod
     def delete_from_vault(cls, providers: Optional[List[str]] = None):

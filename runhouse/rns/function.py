@@ -89,7 +89,7 @@ class Function(Resource):
     def to(
         self,
         system: Union[str, Cluster] = None,
-        env: Union[List[str], Env] = None,
+        env: Union[List[str], Env] = [],
         # Variables below are deprecated
         reqs: Optional[List[str]] = None,
         setup_cmds: Optional[List[str]] = [],
@@ -118,14 +118,8 @@ class Function(Resource):
         elif env and isinstance(env, List):
             env = Env(reqs=env, setup_cmds=setup_cmds)
         else:
-            env = env or self.env
+            env = env or self.env or Env()
             env = _get_env_from(env)
-
-        if self.env:
-            # Note: Here we add the existing reqs in the function’s env into the new env
-            # (otherwise we don’t have a way to add in "./")
-            new_reqs = [req for req in self.env.reqs if req not in env.reqs]
-            env.reqs += new_reqs
 
         if (
             self.dryrun
@@ -293,6 +287,7 @@ class Function(Resource):
                     if self.env and isinstance(self.env, CondaEnv)
                     else None
                 )
+                env_vars = self.env.env_vars
                 # If we're on this cluster, don't pickle the result before passing back.
                 # We need to pickle before passing back in most cases because the env in
                 # which the function executes may have a different set of packages than the
@@ -307,6 +302,7 @@ class Function(Resource):
                     module_name=module_name,
                     resources=self.resources,
                     conda_env=conda_env,
+                    env_vars=env_vars,
                     run_name=run_name,
                     args=args,
                     kwargs=kwargs,
@@ -484,6 +480,7 @@ class Function(Resource):
         env_name = (
             self.env.env_name if (self.env and isinstance(self.env, CondaEnv)) else None
         )
+        env_vars = self.env.env_vars if self.env else None
         res = self.system._run_module(
             relative_path,
             module_name,
@@ -491,6 +488,7 @@ class Function(Resource):
             fn_type,
             resources,
             env_name,
+            env_vars,
             run_name,
             args,
             kwargs,
@@ -803,19 +801,11 @@ def function(
         )
         env = Env(reqs=reqs, setup_cmds=setup_cmds)
     else:
-        env = _get_env_from(env)
+        env = _get_env_from(env) or Env()
 
-    reqs = env.reqs if env else []
     fn_pointers = None
     if callable(fn):
-        if not [
-            req
-            for req in reqs
-            if (isinstance(req, str) and "./" in req)
-            or (isinstance(req, Package) and req.is_local())
-        ]:
-            reqs.append("./")
-        fn_pointers = Function._extract_fn_paths(raw_fn=fn, reqs=reqs)
+        fn_pointers = Function._extract_fn_paths(raw_fn=fn, reqs=env.reqs)
         if fn_pointers[1] == "notebook":
             fn_pointers = Function._handle_nb_fn(
                 fn,
@@ -852,12 +842,7 @@ def function(
             git_url=f"https://github.com/{username}/{repo_name}.git",
             revision=branch_name,
         )
-        reqs.insert(0, repo_package)
-
-    if env:
-        env.reqs = reqs
-    else:
-        env = Env(reqs=reqs, setup_cmds=setup_cmds)
+        env.reqs.insert(0, repo_package)
 
     system = _get_cluster_from(system)
 
