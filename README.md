@@ -51,10 +51,10 @@ inside a single notebook or script
 * Slot that script into a single orchestrator node rather than translate it into an ML pipeline DAG of docker images
 * Share any of those services or data artifacts with your team instantly, and update them over time
 
-[//]: # (![img.png]&#40;docs/assets/img.png&#41;)
-[//]: # (![img_1.png]&#40;docs/assets/img_1.png&#41;)
 ![img.png](https://raw.githubusercontent.com/run-house/runhouse/main/docs/assets/img.png)
-![img_1.png](https://raw.githubusercontent.com/run-house/runhouse/main/docs/assets/img_1.png)
+
+[//]: # (![img_1.png]&#40;https://raw.githubusercontent.com/run-house/runhouse/main/docs/assets/rh_pipeline.png&#41;)
+![img.png](docs/assets/rh_pipeline.png)
 
 It wraps industry-standard tooling like Ray and the Cloud SDKs (boto, gsutil, etc. via [SkyPilot](https://github.com/skypilot-org/skypilot/))
 to give you production-quality features like queuing, distributed, async, logging,
