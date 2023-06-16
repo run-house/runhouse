@@ -129,11 +129,28 @@ sky check
 runhouse login
 ```
 
-## 🚘 Roadmap
+## 🔒 Creating a Runhouse Account for Secrets and Portability
+
+You can unlock some unique portability features by creating an (always free)
+account on [api.run.house](https://api.run.house) and saving your secrets and resource metadata there.
+Log in from anywhere to access all previously saved secrets and resources, ready to be used with with
+no additional setup.
+
+To log in, run `runhouse login` from the command line, or
+`rh.login()` from Python.
+
+> **Note**:
+Secrets are stored in Hashicorp Vault (an industry standard for secrets management), and our APIs simply call Vault's APIs. We only ever store light metadata about your resources
+(e.g. my_folder_name -> [provider, bucket, path]) on our API servers, while all actual data and compute
+stays inside your own cloud account and never hits our servers. We plan to
+add support for BYO secrets management shortly. Let us know if you need it and which system you use.
+
+
+## 🏗️ Supported Infra
 
 Runhouse is an ambitious project to provide a unified API into many paradigms and providers for
 various types of infra. You can find our currently support systems and high-level roadmap below.
-Please reach out to contribute or share feedback!
+Please reach out (first name at run.house) to contribute or share feedback!
 - Compute
   - On-prem
     - Single instance - **Supported**
@@ -163,22 +180,6 @@ Please reach out to contribute or share feedback!
     - Custom (Vault, AWS, GCP, Azure) - Planned
   - RBAC - Planned
   - Telemetry - Planned
-
-## 🔒 Creating a Runhouse Account for Secrets and Portability
-
-You can unlock some unique portability features by creating an (always free)
-account on [api.run.house](https://api.run.house) and saving your secrets and resource metadata there.
-Log in from anywhere to access all previously saved secrets and resources, ready to be used with with
-no additional setup.
-
-To log in, run `runhouse login` from the command line, or
-`rh.login()` from Python.
-
-> **Note**:
-Secrets are stored in Hashicorp Vault (an industry standard for secrets management), and our APIs simply call Vault's APIs. We only ever store light metadata about your resources
-(e.g. my_folder_name -> [provider, bucket, path]) on our API servers, while all actual data and compute
-stays inside your own cloud account and never hits our servers. We plan to
-add support for BYO secrets management shortly. Let us know if you need it and which system you use.
 
 ## 👨‍🏫 Learn More
 
