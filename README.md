@@ -58,9 +58,9 @@ inside a single notebook or script
 
 It wraps industry-standard tooling like Ray and the Cloud SDKs (boto, gsutil, etc. via [SkyPilot](https://github.com/skypilot-org/skypilot/))
 to give you production-quality features like queuing, distributed, async, logging,
-low latency, auto-launching, and auto-termination out of the box.
+low latency, hardware efficiency, auto-launching, and auto-termination out of the box.
 
-## 👩‍💻 Enough chitchat, just show me the code
+### 👩‍💻 Enough chitchat, just show me the code
 
 Here is **all the code you need** to stand up a stable diffusion inference service on
 a fresh cloud GPU.
@@ -75,8 +75,7 @@ def sd_generate(prompt):
     return model(prompt).images[0]
 
 gpu = rh.cluster(name="my-a100", instance_type="A100:1").up_if_not()
-env = rh.env(reqs=["torch", "diffusers"])
-fn_gpu = rh.function(sd_generate).to(system=gpu, env=env)
+sd_generate = rh.function(sd_generate).to(gpu, env=["torch", "diffusers"])
 
 # the following runs on our remote A100 gpu
 sd_generate("An oil painting of Keanu Reeves eating a sandwich.").show()
@@ -89,9 +88,9 @@ this is done without bouncing off the laptop.
 ```python
 import runhouse as rh
 
-folder_on_gpu = rh.folder(path="./instance_images").to(system=gpu, path="dreambooth/instance_images")
+folder_on_gpu = rh.folder(path="./instance_images").to(gpu, path="dreambooth/instance_images")
 
-folder_on_s3 = rh.folder(system=gpu, path="dreambooth/instance_images").to("s3", path="dreambooth/instance_images")
+folder_on_s3 = folder_on_gpu.to("s3", path="dreambooth/instance_images")
 folder_on_s3.save()
 ```
 
@@ -107,6 +106,30 @@ folder_on_local = folder_on_s3.to("here")
 
 These APIs work from anywhere with a Python interpreter and an internet connection.
 Notebooks, scripts, pipeline nodes, etc. are all fair game.
+
+### 🙅‍♀️ Runhouse is not
+
+* An orchestrator / scheduler (Airflow, Prefect, Metaflow)
+* A distributed compute DSL (Ray, Spark, Dask)
+* An ML Platform (Sagemaker, Vertex, Azure ML)
+* A model registry / experiment manager / MLOps framework (MLFlow, WNB, Kubeflow)
+* Hosted compute (Modal, Banana, Replicate)
+
+## 🐣 Getting Started
+
+Please see the [Getting Started guide](https://runhouse-docs.readthedocs-hosted.com/en/latest/installation.html#).
+
+tldr;
+```commandline
+pip install runhouse
+# Or "runhouse[aws]", "runhouse[gcp]", "runhouse[azure]", "runhouse[all]"
+
+# [optional] to set up cloud provider secrets:
+sky check
+
+# [optional] login for portability:
+runhouse login
+```
 
 ## 🚘 Roadmap
 
@@ -141,115 +164,39 @@ Please reach out to contribute or share feedback!
     - Runhouse Den (via Hashicorp Vault) - **Supported**
     - Custom (Vault, AWS, GCP, Azure) - Planned
   - RBAC - Planned
-  - Monitoring - Planned
+  - Telemetry - Planned
 
-## 🙅‍♀️ Runhouse is not
+## 🔒 Creating a Runhouse Account for Secrets and Portability
 
-* An orchestrator / scheduler (Airflow, Prefect, Metaflow)
-* A distributed compute DSL (Ray, Spark)
-* An ML Platform (Sagemaker, Vertex, Azure ML)
-* A model registry / experiment manager / MLOps framework (MLFlow, WNB, Kubeflow)
-* Hosted compute (Modal, Banana, Replicate)
+You can unlock some unique portability features by creating an (always free)
+account on [api.run.house](https://api.run.house) and saving your secrets and resource metadata there.
+Log in from anywhere to access all previously saved secrets and resources, ready to be used with with
+no additional setup.
 
-## 🚨 This is an Alpha 🚨
-
-Runhouse is heavily under development and we expect to iterate
-on the APIs before reaching beta (version 0.1.0).
-
-## 🐣 Getting Started
-
-tldr;
-```commandline
-pip install runhouse
-# Or "runhouse[aws]", "runhouse[gcp]", "runhouse[azure]", "runhouse[all]"
-sky check
-# Optionally, for portability (e.g. Colab):
-runhouse login
-```
-
-### 🔌 Installation
-
-Runhouse can be installed from Pypi with:
-```
-pip install runhouse
-```
-
-Depending on which cloud providers you plan to use, you can also install the following
-additional dependencies (to install the right versions of tools like boto, gsutil, etc.):
-```commandline
-pip install "runhouse[aws]"
-pip install "runhouse[gcp]"
-pip install "runhouse[azure]"
-# Or
-pip install "runhouse[all]"
-```
-
-As this is an alpha, we push feature updates every few weeks as new microversions.
-
-### ✈️ Verifying your Cloud Setup with SkyPilot
-
-Runhouse supports both BYO cluster, where you interact with existing compute via their
-IP address and SSH key, and autoscaled clusters, where we spin up and down cloud instances
-in your own cloud account for you. If you only plan to use BYO clusters, you can
-disregard the following.
-
-Runhouse uses [SkyPilot](https://skypilot.readthedocs.io/en/latest/) for
-much of the heavy lifting with launching and terminating cloud instances.
-We love it and you should [throw them a Github star ⭐️](https://github.com/skypilot-org/skypilot/).
-
-To verify that your cloud credentials are set up correctly for autoscaling, run
-```
-sky check
-```
-in your command line. This will confirm which cloud providers are ready to
-use, and will give detailed instructions if any setup is incomplete. SkyPilot also
-provides an excellent suite of CLI commands for basic instance management operations.
-There are a few that you'll be reaching for frequently when using Runhouse with autoscaling
-that you should familiarize yourself with,
-[here](https://runhouse-docs.readthedocs-hosted.com/en/latest/overview/compute.html#on-demand-clusters).
-
-### 🔒 Creating a Runhouse Account for Secrets and Portability
-
-Using Runhouse with only the OSS Python package is perfectly fine. However,
-you can unlock some unique portability features by creating an (always free)
-account on [api.run.house](https://api.run.house) and saving your secrets and/or
-resource metadata there. For example, you can open a Google Colab, call `runhouse login`,
-and all of your secrets or resources will be ready to use there with no additional setup.
-Think of the OSS-package-only experience as akin to Microsoft Office,
-while creating an account will make your cloud resources sharable and accessible
-from anywhere like Google Docs. You
-can see examples of this portability in the
-[Runhouse Tutorials](https://github.com/run-house/tutorials).
-
-To create an account, visit [api.run.house](https://api.run.house),
-or simply call `runhouse login` from the command line (or
-`rh.login()` from Python).
+To log in, run `runhouse login` from the command line, or
+`rh.login()` from Python.
 
 > **Note**:
-These portability features only ever store light metadata about your resources
-(e.g. my_folder_name -> [provider, bucket, path]) on our API servers. All the actual data and compute
-stays inside your own cloud account and never hits our servers. The Secrets service stores
-your secrets in Hashicorp Vault (an industry standard for secrets management), and our secrets
-APIs simply call Vault's APIs. We never store secrets on our API servers. We plan to add
-support for BYO secrets management shortly. Let us know if you need it and which system you use.
+Secrets are stored in Hashicorp Vault (an industry standard for secrets management), and our APIs simply call Vault's APIs. We only ever store light metadata about your resources
+(e.g. my_folder_name -> [provider, bucket, path]) on our API servers, while all actual data and compute
+stays inside your own cloud account and never hits our servers. We plan to
+add support for BYO secrets management shortly. Let us know if you need it and which system you use.
 
-## 👨‍🏫 Tutorials / API Walkthrough / Docs
+## 👨‍🏫 Learn More
 
-[Tutorials can be found here](https://github.com/run-house/tutorials). They have been structured to provide a
-comprehensive walkthrough of the APIs.
+[**Docs**](https://runhouse-docs.readthedocs-hosted.com/en/latest/index.html):
+High-level overviews of the architecture, detailed API references, and basic API examples.
 
-[Docs can be found here](https://runhouse-docs.readthedocs-hosted.com/en/latest/index.html).
-They include both high-level overviews of the architecture and detailed API references.
+[**Tutorials Repo**](https://github.com/run-house/tutorials): A comprehensive walkthrough of Runhouse APIs through some popular ML examples, think Stable Diffusion, Dreambooth, BERT.
 
-## 🎪 Funhouse
-
-Check out [Funhouse](https://github.com/run-house/funhouse) for running fun applications using Runhouse --
+[**Funhouse Repo**](https://github.com/run-house/funhouse): Standalone Runhouse apps to try out fun ML ideas,
 think the latest Stable Diffusion models, text generation models, launching Gradio spaces, and even more!
+
+[**Comparisons Repo**](https://github.com/run-house/comparisons): Comparisons of Runhouse with other ML solutions, with working code examples.
 
 ## 🙋‍♂️ Getting Help
 
-Please join our [discord server here](https://discord.gg/RnhB6589Hs)
-to message us, or email us (first name at run.house), or create an issue.
+Message us on [Discord](https://discord.gg/RnhB6589Hs), email us (first name at run.house), or create an issue.
 
 ## 👷‍♀️ Contributing
 
