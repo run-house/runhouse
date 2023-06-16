@@ -30,9 +30,9 @@ research and production pipelines both depend on.
 
 ### 🦾 How does it work?
 
-**_"Learn once, run anywhere"_**
+_"Learn once, run anywhere"_
 
-Runhouse is like PyTorch + Terraform + Google Drive.
+Runhouse is like **PyTorch + Terraform + Google Drive.**
 
 1. Just as **PyTorch** lets you send a model or tensor `.to(device)`, Runhouse OSS
 lets you do `my_fn.to('gcp_a100')` or `my_table.to('s3')`: send functions and data to any of your compute or
