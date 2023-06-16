@@ -160,15 +160,10 @@ class Package(Resource):
             ) and "pytorch.org" in req:
                 return f"-r {path}" + args
 
-        # Leave the file alone, maintain a separate list with the updated commands which we will later pip install
-        # Format URLs for any torch packages listed in the requirements.txt file
-        reqs_from_file = []
-        for req in reqs:
-            # Ensure each requirement listed in the file contains the full install command for torch packages
-            install_cmd = self._install_cmd_for_torch(req.strip(), cuda_version_or_cpu)
-            if install_cmd:
-                reqs_from_file.append(install_cmd)
-        return " ".join(reqs_from_file)
+        # add extra-index-url for torch if not found
+        return (
+            f"-r {path} --extra-index-url {self.torch_index_url(cuda_version_or_cpu)}"
+        )
 
     def _install_cmd_for_torch(self, install_cmd, cuda_version_or_cpu):
         """Return the correct formatted pip install command for the torch package(s) provided."""

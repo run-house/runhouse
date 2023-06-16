@@ -154,9 +154,29 @@ def test_basic_command_generator_from_reqs(reqs_lines):
 
 
 @pytest.mark.localtest
+def test_command_generator_from_reqs():
+    reqs_lines = ["torch", "accelerate"]
+    test_reqs_file = Path(__file__).parent / "requirements.txt"
+    with open(test_reqs_file, "w") as f:
+        f.writelines([line + "\n" for line in reqs_lines])
+
+    dummy_pkg = rh.Package.from_string(specifier="pip:dummy_package")
+    install_cmd = dummy_pkg._requirements_txt_install_cmd(
+        test_reqs_file, cuda_version_or_cpu="11.6"
+    )
+
+    assert (
+        install_cmd
+        == f"-r {test_reqs_file} --extra-index-url https://download.pytorch.org/whl/cu116"
+    )
+
+    test_reqs_file.unlink()
+    assert True
+
+
+@pytest.mark.localtest
 def test_torch_install_command_generator_from_reqs():
-    """For a given list of packages as listed in a requirements.txt file, modify them to include the full
-    install commands (without running on the actual cluster)"""
+    """Test correctly generating full install commands for torch-related packages."""
     test_cuda_version = "11.6"
 
     # [Required as listed in reqs.txt, expected formatted install cmd]
