@@ -228,8 +228,8 @@ class Cluster(Resource):
         )
         self.client.install(to_install, env)
 
-    def get(self, key: str, default: Any = None, stream_logs: bool = False):
-        """Get the object at the given key from the cluster's object store."""
+    def get(self, key: str, default: Any = None, stream_logs: bool = True):
+        """Get the result for a given key from the cluster's object store."""
         self.check_server()
         res = self.client.get_object(key, stream_logs=stream_logs)
         return res if res is not None else default
