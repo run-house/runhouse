@@ -132,7 +132,7 @@ runhouse login
 ## 🔒 Creating a Runhouse Account for Secrets and Portability
 
 You can unlock some unique portability features by creating an (always free)
-account on [api.run.house](https://api.run.house) and saving your secrets and resource metadata there.
+[account](https://www.run.house) and saving your secrets and resource metadata there.
 Log in from anywhere to access all previously saved secrets and resources, ready to be used with with
 no additional setup.
 

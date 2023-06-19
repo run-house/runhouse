@@ -53,10 +53,11 @@ def login(
         /_/ |_|\__,_/_/ /_/_/ /_/\____/\__,_/____/\___/   | || |||__|||   ||
         """
         )
+        account_url = "https://www.run.house/account"
         link = (
-            f'[link={configs.get("api_server_url")}/dashboard/?option=token]https://api.run.house/dashboard/?option=token[/link]'
+            f"[link={account_url}]{account_url}[/link]"
             if is_interactive()
-            else f'{configs.get("api_server_url")}/dashboard/?option=token'
+            else account_url
         )
         if not token:
             console.print(
