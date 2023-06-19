@@ -7,6 +7,11 @@ Quick Start Guide
     <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 
+This tutorials walks through Runhouse setup (installation, hardware
+setup, and optional login) and goes through an example that demonstrates
+how to user Runhouse to bridge the gap between local and remote compute,
+and create Resources that can be saved, reused, and shared.
+
 Installation
 ------------
 
@@ -34,18 +39,13 @@ To import runhouse:
 
     import runhouse as rh
 
-.. code:: python
-
-    # Optional: to sync over secrets from your Runhouse account
-    # !runhouse login
-
 Cluster Setup
 -------------
 
-Runhouse provides APIs to make it easy to interact with your clusters.
-This can be either an existing, on-prem cluster you have access to, or
-cloud instances that Runhouse spins up/down for you (through your own
-cloud account).
+Runhouse provides APIs and Secrets management to make it easy to
+interact with your clusters. This can be either an existing, on-prem
+cluster you have access to, or cloud instances that Runhouse spins
+up/down for you (through your own cloud account).
 
 **Note that Runhouse is NOT managed compute. Everything runs inside your
 own compute and storage, using your credentials.**
@@ -73,16 +73,51 @@ LambdaLabs), Runhouse uses
 `SkyPilot <https://github.com/skypilot-org/skypilot>`__ for much of the
 heavy lifting with launching and terminating cloud instances.
 
-To check which cloud providers are setup, as well as detailed
-instructions for setting up other cloud providers, run the following
-CLI, or check out SkyPilot’s `cloud account
-setup <https://skypilot.readthedocs.io/en/latest/getting-started/installation.html#cloud-account-setup>`__
-for more detailed instructions.
+To set up your cloud credentials locally to be able to use on-demand
+cloud clusters, you can either:
+
+1. Use SkyPilot’s CLI command ``!sky check``, which provides
+   instructions on logging in or setting up your local config file,
+   depending on the provider (further SkyPilot instructions
+   `here <https://skypilot.readthedocs.io/en/latest/getting-started/installation.html#cloud-account-setup>`__)
+
+2. Use Runhouse’s Secrets API to sync your secrets down into the
+   appropriate local config.
+
+.. code:: python
+
+    # SkyPilot CLI
+    !sky check
+
+
+.. code:: python
+
+    # Runhouse Secrets
+    # Lambda Labs:
+    rh.Secrets.save_provider_secrets(secrets={"lambda": {"api_key": "*******"}})
+
+    # AWS:
+    rh.Secrets.save_provider_secrets(secrets={"aws": {"access_key": "******", "secret_key": "*******"}})
+
+    # GCP:
+    !gcloud init
+    !gcloud auth application-default login
+    !cp -r /content/.config/* ~/.config/gcloud
+
+    # Azure
+    !az login
+    !az account set -s <subscription_id>
+
+To check that the provider credentials are properly configured locally,
+run ``sky check`` to confirm that the cloud provider is enabled
 
 .. code:: python
 
     !sky check
 
+To create a cluster instance, use the ``rh.cluster()`` factory function.
+We go more in depth about how to launch the cluster, and run a function
+on it later in this tutorial.
 
 .. code:: python
 
@@ -97,30 +132,43 @@ Secrets and Portability
 
 Using Runhouse with only the OSS Python package is perfectly fine, but
 you can unlock some unique portability features by creating an (always
-free) `account <https://api.run.house/>`__ and securely saving down
-your secrets and/or resource metadata there.
+free) `account <https://api.run.house/>`__ and saving down your secrets
+and/or resource metadata there.
 
 Think of the OSS-package-only experience as akin to Microsoft Office,
 while creating an account will make your cloud resources sharable and
 accessible from anywhere like Google Docs.
 
-Some notes on security
+For instance, if you previously set up cloud provider credentials in
+order for launching on-demand clusters, simply call ``runhouse login``
+or ``rh.login()`` and choose which of your secrets you want to sync into
+your Runhouse account. Then, from any other environment, you can
+download those secrets and use them immediately, without needing to set
+up your local credentials again. To delete any local credentials or
+remove secrets from Runhouse, you can call ``runhouse logout`` or
+``rh.logout()``.
 
-* Our API servers only ever store light metadata about your resources
-  (e.g. folder name, cloud provider, storage bucket, path). All actual
-  data and compute stays inside your own cloud account and never hits our
-  servers.
+Some notes on security \* Our API servers only ever store light metadata
+about your resources (e.g. folder name, cloud provider, storage bucket,
+path). All actual data and compute stays inside your own cloud account
+and never hits our servers. \* Secrets are stored in `Hashicorp
+Vault <https://www.vaultproject.io/>`__ (an industry standard for
+secrets management), never on our API servers, and our APIs simply call
+into Vault’s APIs.
 
-* Secrets are stored in `Hashicorp Vault <https://www.vaultproject.io/>`__
-  (an industry standard for secrets management), never on our API servers,
-  and our APIs simply call into Vault’s APIs.
+.. code:: python
+
+    !runhouse login
+    # or
+    rh.login()
 
 Getting Started Example
 -----------------------
 
-In the following example, we demonstrate how you can use Runhouse to
-bridge the gap between local and remote compute, and create Resources
-that can be saved, reused, and shared.
+In the following example, we demonstrate Runhouse’s simple but powerful
+compute APIs to run locally defined functions on a remote cluster
+launched through Runhouse, bridging the gap between local and remote.
+Additionally, save, reuse, and share any of your Runhouse Resources.
 
 Please first make sure that you have successfully followed the
 Installation and Cluster Setup sections above prior to running this
@@ -309,14 +357,6 @@ To terminate the cluster, you can run:
 .. code:: python
 
     cluster.teardown()
-
-
-
-.. raw:: html
-
-    <pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace"><span style="color: #008000; text-decoration-color: #008000">⠇</span> <span style="color: #008080; text-decoration-color: #008080; font-weight: bold">Terminating </span><span style="color: #008000; text-decoration-color: #008000; font-weight: bold">cpu-cluster</span>
-    </pre>
-
 
 
 Summary
