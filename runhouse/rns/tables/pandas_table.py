@@ -1,6 +1,5 @@
 import logging
 
-from .. import OnDemandCluster
 from ..api_utils.utils import generate_uuid
 
 from .table import Table
@@ -21,15 +20,6 @@ class PandasTable(Table):
         for block in self.stream(batch_size=self.DEFAULT_BATCH_SIZE):
             for idx, row in block.iterrows():
                 yield row
-
-    @staticmethod
-    def from_config(config: dict, dryrun=False):
-        """Load config values into the object."""
-        if isinstance(config["system"], dict):
-            config["system"] = OnDemandCluster.from_config(
-                config["system"], dryrun=dryrun
-            )
-        return PandasTable(**config, dryrun=dryrun)
 
     def write(self):
         if self._cached_data is not None:

@@ -11,6 +11,7 @@ import pyarrow.parquet as pq
 import ray
 import ray.data
 
+from runhouse import Folder
 from runhouse.rh_config import rns_client
 
 from runhouse.rns.folders import folder
@@ -70,7 +71,7 @@ class Table(Resource):
     def from_config(config: dict, dryrun=False):
         if isinstance(config["system"], dict):
             config["system"] = _get_cluster_from(config["system"], dryrun=dryrun)
-        return Table(**config, dryrun=dryrun)
+        return _load_table_subclass(config, dryrun=dryrun)
 
     @property
     def config_for_rns(self):
@@ -148,22 +149,22 @@ class Table(Resource):
     def data_config(self, new_data_config):
         self._folder.data_config = new_data_config
 
-    @classmethod
-    def from_name(cls, name, dryrun=False):
-        """Load existing Table via its name."""
-        config = rns_client.load_config(name=name)
-        if not config:
-            raise ValueError(f"Table {name} not found.")
-
-        # We don't need to load the cluster dict here (if system is a cluster) because the table init
-        # goes through the Folder factory method, which handles that.
-
-        # Add this table's name to the resource artifact registry if part of a run
-        rns_client.add_upstream_resource(name)
-
-        # Uses the table subclass associated with the `resource_subtype`
-        table_cls = _load_table_subclass(config=config, dryrun=dryrun)
-        return table_cls.from_config(config=config, dryrun=dryrun)
+    # @classmethod
+    # def from_name(cls, name, dryrun=False):
+    #     """Load existing Table via its name."""
+    #     config = rns_client.load_config(name=name)
+    #     if not config:
+    #         raise ValueError(f"Table {name} not found.")
+    #
+    #     # We don't need to load the cluster dict here (if system is a cluster) because the table init
+    #     # goes through the Folder factory method, which handles that.
+    #
+    #     # Add this table's name to the resource artifact registry if part of a run
+    #     rns_client.add_upstream_resource(name)
+    #
+    #     # Uses the table subclass associated with the `resource_subtype`
+    #     table_cls = _load_table_subclass(config=config, dryrun=dryrun)
+    #     return table_cls.from_config(config=config, dryrun=dryrun)
 
     def to(self, system, path=None, data_config=None):
         """Copy and return the table on the given filesystem and path."""
@@ -357,7 +358,7 @@ def _load_table_subclass(config: dict, dryrun: bool, data=None):
         if resource_subtype == "HuggingFaceTable" or isinstance(data, datasets.Dataset):
             from .huggingface_table import HuggingFaceTable
 
-            return HuggingFaceTable.from_config(config, dryrun=dryrun)
+            return HuggingFaceTable(**config, dryrun=dryrun)
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -367,7 +368,7 @@ def _load_table_subclass(config: dict, dryrun: bool, data=None):
         if resource_subtype == "PandasTable" or isinstance(data, pd.DataFrame):
             from .pandas_table import PandasTable
 
-            return PandasTable.from_config(config, dryrun=dryrun)
+            return PandasTable(**config, dryrun=dryrun)
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -379,7 +380,7 @@ def _load_table_subclass(config: dict, dryrun: bool, data=None):
         if resource_subtype == "DaskTable" or isinstance(data, dd.DataFrame):
             from .dask_table import DaskTable
 
-            return DaskTable.from_config(config, dryrun=dryrun)
+            return DaskTable(**config, dryrun=dryrun)
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -391,7 +392,7 @@ def _load_table_subclass(config: dict, dryrun: bool, data=None):
         if resource_subtype == "RayTable" or isinstance(data, ray.data.Dataset):
             from .ray_table import RayTable
 
-            return RayTable.from_config(config, dryrun=dryrun)
+            return RayTable(**config, dryrun=dryrun)
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -408,7 +409,7 @@ def _load_table_subclass(config: dict, dryrun: bool, data=None):
         raise e
 
     if resource_subtype == "Table" or isinstance(data, pa.Table):
-        new_table = Table.from_config(config, dryrun)
+        new_table = Table(**config, dryrun=dryrun)
         return new_table
     else:
         raise TypeError(
@@ -459,83 +460,52 @@ def table(
         >>>    path="table_tests/test_pandas_table.parquet",
         >>>    system="file",
         >>>    mkdir=True,
-        >>> )
+        >>> ).save()
         >>>
         >>> # Load table from above
-        >>> reloaded_table = rh.table(name="~/my_test_pandas_table", dryrun=True)
+        >>> reloaded_table = rh.table(name="~/my_test_pandas_table")
     """
-    if (
-        all(
-            param is None
-            for param in (
-                data,
-                path,
-                system,
-                data_config,
-                partition_cols,
-                stream_format,
-                metadata,
-            )
-        )
-        and not mkdir
-    ):
+    if name and not any([data is not None, path, system, data_config, partition_cols, stream_format, metadata]):
         # Try reloading existing table
         return Table.from_name(name, dryrun)
 
-    config = rns_client.load_config(name)
-
-    config["system"] = (
+    system = _get_cluster_from(
         system
-        or config.get("system")
         or _current_cluster(key="config")
-        or rns_client.DEFAULT_FS
+        or Folder.DEFAULT_FS,
+        dryrun=dryrun
     )
 
-    name = name or config.get("rns_address") or config.get("name")
-
-    data_path = path or config.get("path")
     file_name = None
-    if data_path:
+    if path:
         # Extract the file name from the path if provided
-        full_path = Path(data_path)
+        full_path = Path(path)
         file_suffix = full_path.suffix
         if file_suffix:
-            data_path = str(full_path.parent)
+            path = str(full_path.parent)
             file_name = full_path.name
 
-    if data_path is None:
+    if path is None:
         # If no path is provided we need to create one based on the name of the table
         table_name_in_path = rns_client.resolve_rns_data_resource_name(name)
         if (
-            config["system"] == rns_client.DEFAULT_FS
-            or config["system"] == _current_cluster()
-            or (
-                isinstance(config["system"], dict)
-                and config["system"]["name"] == _current_cluster()
-            )
+                system == rns_client.DEFAULT_FS
+                or (
+                isinstance(system, Resource)
+                and system.on_this_cluster())
         ):
             # create random path to store in .cache folder of local filesystem
-            data_path = str(
+            path = str(
                 Path(
                     f"~/{Table.DEFAULT_CACHE_FOLDER}/{table_name_in_path}"
                 ).expanduser()
             )
         else:
             # save to the default bucket
-            data_path = f"{Table.DEFAULT_FOLDER_PATH}/{table_name_in_path}"
+            path = f"{Table.DEFAULT_FOLDER_PATH}/{table_name_in_path}"
 
-    config["system"] = _get_cluster_from(config["system"], dryrun=dryrun)
-    config["name"] = name
-    config["path"] = data_path
-    config["file_name"] = file_name or config.get("file_name")
-    config["data_config"] = data_config or config.get("data_config")
-    config["partition_cols"] = partition_cols or config.get("partition_cols")
-    config["stream_format"] = stream_format or config.get("stream_format")
-    config["metadata"] = metadata or config.get("metadata")
-
-    if mkdir:
-        # create the remote folder for the table
-        folder(path=data_path, system=config["system"], dryrun=True).mkdir()
+    config = {"system": system, "name": name, "path": path, "file_name": file_name, "data_config": data_config,
+              "partition_cols": partition_cols, "stream_format": stream_format, "metadata": metadata}
 
     new_table = _load_table_subclass(config=config, dryrun=dryrun, data=data)
     if data is not None:

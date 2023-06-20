@@ -1,7 +1,5 @@
 import logging
 
-from .. import OnDemandCluster
-
 from .table import Table
 
 logger = logging.getLogger(__name__)
@@ -12,15 +10,6 @@ class RayTable(Table):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-    @staticmethod
-    def from_config(config: dict, dryrun=False):
-        """Load config values into the object."""
-        if isinstance(config["system"], dict):
-            config["system"] = OnDemandCluster.from_config(
-                config["system"], dryrun=dryrun
-            )
-        return RayTable(**config, dryrun=dryrun)
 
     def write(self):
         if self._cached_data is not None:
