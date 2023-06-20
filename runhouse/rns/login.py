@@ -53,7 +53,7 @@ def login(
         /_/ |_|\__,_/_/ /_/_/ /_/\____/\__,_/____/\___/   | || |||__|||   ||
         """
         )
-        account_url = "https://www.run.house/account#token"
+        account_url = f"{configs.get('dashboard_url')}/account#token"
         link = (
             f"[link={account_url}]{account_url}[/link]"
             if is_interactive()

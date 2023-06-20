@@ -6,8 +6,9 @@ import pkg_resources
 import typer
 from rich.console import Console
 
-from runhouse import cluster, configs
 import runhouse.rns.login
+
+from runhouse import cluster, configs
 
 # create an explicit Typer application
 app = typer.Typer(add_completion=False)
@@ -40,9 +41,7 @@ def login(
     )
 
     if valid_token:
-        webbrowser.open(
-            f"{configs.get('api_server_url')}/dashboard?token={valid_token}"
-        )
+        webbrowser.open(f"{configs.get('dashboard_url')}/dashboard?token={valid_token}")
         raise typer.Exit()
     else:
         raise typer.Exit(code=1)
