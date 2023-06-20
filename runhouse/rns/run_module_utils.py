@@ -216,8 +216,8 @@ def _populate_run_with_result(run_obj, fn_type, obj_ref) -> ["Run", Any]:
 
 def _create_new_run(run_name, fn_name, args, kwargs):
     """Create a new Run object and save down relevant config data to its dedicated folder on the cluster."""
-    from runhouse import Run
-    from runhouse.rns import _current_cluster
+    from runhouse.rns.run import Run
+    from runhouse.rns.utils.hardware import _current_cluster
 
     inputs = {"args": args, "kwargs": kwargs}
     logger.info(f"Inputs for Run: {inputs}")

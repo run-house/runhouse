@@ -4,9 +4,9 @@ from typing import List, Optional, Union
 from runhouse.rns.folders.folder import Folder
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.packages import Package
-
-from runhouse.rns.packages.package import _get_cluster_from
 from runhouse.rns.resource import Resource
+
+from runhouse.rns.utils.hardware import _get_cluster_from
 
 
 class Env(Resource):

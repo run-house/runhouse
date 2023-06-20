@@ -7,7 +7,7 @@ import typer
 from rich.console import Console
 
 from runhouse import autocluster, configs
-from runhouse.rns import (  # Need to rename it because it conflicts with the login command
+from runhouse.rns.login import (  # Need to rename it because it conflicts with the login command
     login as login_module,
 )
 

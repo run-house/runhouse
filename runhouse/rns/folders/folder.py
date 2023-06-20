@@ -11,10 +11,10 @@ import fsspec
 
 import sshfs
 
-import runhouse as rh
 from runhouse.rh_config import rns_client
 from runhouse.rns.api_utils.utils import generate_uuid
 from runhouse.rns.resource import Resource
+from runhouse.rns.top_level_rns_fns import exists
 from runhouse.rns.utils.hardware import (
     _current_cluster,
     _get_cluster_from,
@@ -299,7 +299,7 @@ class Folder(Resource):
         system_str = getattr(
             system, "name", system
         )  # Use system.name if available, i.e. system is a cluster
-        logging.info(
+        logger.info(
             f"Copying folder from {self.fsspec_url} to: {system_str}, with path: {path}"
         )
 
@@ -430,7 +430,7 @@ class Folder(Resource):
         if Path(os.path.basename(folder_path)).suffix != "":
             folder_path = str(Path(folder_path).parent)
 
-        logging.info(
+        logger.info(
             f"Creating new {self._fs_str} folder if it does not already exist in path: {folder_path}"
         )
         self.fsspec_fs.mkdirs(folder_path, exist_ok=True)
@@ -760,12 +760,10 @@ class Folder(Resource):
 
     def exists_in_system(self):
         """Whether the folder exists in the filesystem."""
-        return self.fsspec_fs.exists(self.path) or rh.rns.top_level_rns_fns.exists(
-            self.path
-        )
+        return self.fsspec_fs.exists(self.path) or exists(self.path)
 
     def rm(self, contents: list = None, recursive: bool = True):
-        """Delete a folder from the file system.
+        """Delete a folder from the file system. Optionally provide a list of folder contents to delete.
 
         Args:
             contents (Optional[List]): Specific contents to delete in the folder.
@@ -885,85 +883,3 @@ class Folder(Resource):
     def bucket_name_from_path(path: str) -> str:
         """Extract the bucket name from a path (e.g. '/my-bucket/my-folder/my-file.txt' -> 'my-bucket')"""
         return Path(path).parts[1]
-
-
-def folder(
-    name: Optional[str] = None,
-    path: Optional[Union[str, Path]] = None,
-    system: Optional[Union[str, "Cluster"]] = None,
-    dryrun: bool = False,
-    local_mount: bool = False,
-    data_config: Optional[Dict] = None,
-) -> Folder:
-    """Creates a Runhouse folder object, which can be used to interact with the folder at the given path.
-
-    Args:
-        name (Optional[str]): Name to give the folder, to be re-used later on.
-        path (Optional[str or Path]): Path (or path) that the folder is located at.
-        system (Optional[str or Cluster]): File system or cluster name. If providing a file system this must be one of:
-            [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
-            We are working to add additional file system support.
-        dryrun (bool): Whether to create the Folder if it doesn't exist, or load a Folder object as a dryrun.
-            (Default: ``False``)
-        local_mount (bool): Whether or not to mount the folder locally. (Default: ``False``)
-        data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
-
-    Returns:
-        Folder: The resulting folder.
-
-    Example:
-        >>> rh.folder(name='training_imgs', path='remote_directory/images', system='s3')
-
-        >>> # Load folder from above
-        >>> reloaded_folder = rh.folder(name="training_imgs", dryrun=True)
-    """
-    # TODO [DG] Include loud warning that relative paths are relative to the git root / working directory!
-
-    if path is None and system is None and local_mount is None and data_config is None:
-        # If only the name is provided
-        return Folder.from_name(name, dryrun)
-
-    config = rns_client.load_config(name)
-    config["name"] = name or config.get("rns_address", None) or config.get("name")
-    config["path"] = path or config.get("path")
-    config["local_mount"] = local_mount or config.get("local_mount")
-    config["data_config"] = data_config or config.get("data_config")
-
-    file_system = system or config.get("system") or Folder.DEFAULT_FS
-    config["system"] = file_system
-    if isinstance(file_system, str):
-        if file_system in ["file", "github", "sftp", "ssh"]:
-            new_folder = Folder.from_config(config, dryrun=dryrun)
-        elif file_system == "s3":
-            from .s3_folder import S3Folder
-
-            new_folder = S3Folder.from_config(config, dryrun=dryrun)
-        elif file_system == "gs":
-            from .gcs_folder import GCSFolder
-
-            new_folder = GCSFolder.from_config(config, dryrun=dryrun)
-        elif file_system == "azure":
-            from .azure_folder import AzureFolder
-
-            new_folder = AzureFolder.from_config(config, dryrun=dryrun)
-        elif file_system in fsspec.available_protocols():
-            logger.warning(
-                f"fsspec file system {file_system} not officially supported. Use at your own risk."
-            )
-            new_folder = Folder.from_config(config, dryrun=dryrun)
-        elif isinstance(_get_cluster_from(file_system, dryrun=dryrun), Resource):
-            config["system"] = _get_cluster_from(file_system, dryrun)
-        else:
-            raise ValueError(
-                f"File system {file_system} not found. Have you installed the "
-                f"necessary packages for this fsspec protocol? (e.g. s3fs for s3). If the file system "
-                f"is a cluster (ex: /my-user/rh-cpu), make sure the cluster config has been saved."
-            )
-
-    # If cluster is passed as the system.
-    if isinstance(config["system"], dict) or isinstance(
-        config["system"], Resource
-    ):  # if system is a cluster
-        new_folder = Folder.from_config(config, dryrun=dryrun)
-
-    return new_folder

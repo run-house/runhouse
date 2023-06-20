@@ -52,16 +52,15 @@ def env(
     conda_yaml = _get_conda_yaml(conda_env)
 
     if conda_yaml:
-        return CondaEnv(conda_yaml=conda_yaml,
-                        reqs=reqs,
-                        setup_cmds=setup_cmds,
-                        name=name,
-                        dryrun=dryrun)
+        return CondaEnv(
+            conda_yaml=conda_yaml,
+            reqs=reqs,
+            setup_cmds=setup_cmds,
+            name=name,
+            dryrun=dryrun,
+        )
 
-    return Env(reqs=reqs,
-               setup_cmds=setup_cmds,
-               name=name,
-               dryrun=dryrun)
+    return Env(reqs=reqs, setup_cmds=setup_cmds, name=name, dryrun=dryrun)
 
 
 # Conda Env factory method

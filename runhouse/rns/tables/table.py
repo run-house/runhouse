@@ -11,12 +11,11 @@ import pyarrow.parquet as pq
 import ray
 import ray.data
 
-import runhouse as rh
 from runhouse.rh_config import rns_client
-from runhouse.rns.folders.folder import folder
-from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
 
-from .. import OnDemandCluster, Resource
+from runhouse.rns.folders import folder
+from runhouse.rns.resource import Resource
+from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
 
 PREFETCH_KWARG = "prefetch_batches" if ray.__version__ >= "2.4.0" else "prefetch_blocks"
 
@@ -70,9 +69,7 @@ class Table(Resource):
     @staticmethod
     def from_config(config: dict, dryrun=False):
         if isinstance(config["system"], dict):
-            config["system"] = OnDemandCluster.from_config(
-                config["system"], dryrun=dryrun
-            )
+            config["system"] = _get_cluster_from(config["system"], dryrun=dryrun)
         return Table(**config, dryrun=dryrun)
 
     @property
@@ -454,6 +451,7 @@ def table(
         Table: The resulting Table object.
 
     Example:
+        >>> import runhouse as rh
         >>> # Create and save (pandas) table
         >>> rh.table(
         >>>    data=data,
@@ -537,7 +535,7 @@ def table(
 
     if mkdir:
         # create the remote folder for the table
-        rh.folder(path=data_path, system=config["system"], dryrun=True).mkdir()
+        folder(path=data_path, system=config["system"], dryrun=True).mkdir()
 
     new_table = _load_table_subclass(config=config, dryrun=dryrun, data=data)
     if data is not None:

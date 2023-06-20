@@ -12,7 +12,7 @@ from ray import cloudpickle as pickle
 from runhouse import blob
 from runhouse.rh_config import obj_store, rns_client
 from runhouse.rns.api_utils.utils import log_timestamp
-from runhouse.rns.folders.folder import Folder, folder
+from runhouse.rns.folders import Folder, folder
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.resource import Resource
 from runhouse.rns.top_level_rns_fns import resolve_rns_path

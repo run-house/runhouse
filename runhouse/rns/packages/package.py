@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, Optional, Union
 
 from runhouse import rh_config
-from runhouse.rns.folders.folder import Folder, folder
+from runhouse.rns.folders import Folder, folder
 from runhouse.rns.resource import Resource
 from runhouse.rns.utils.hardware import _get_cluster_from
 

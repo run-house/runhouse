@@ -3,10 +3,9 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional
 
-import runhouse as rh
 from runhouse.rh_config import rns_client
 from runhouse.rns.api_utils.utils import generate_uuid
-from runhouse.rns.folders.folder import Folder, folder
+from runhouse.rns.folders import Folder, folder
 from runhouse.rns.resource import Resource
 from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
 
@@ -189,6 +188,8 @@ def blob(
         Blob: The resulting blob.
 
     Example:
+        >>> import runhouse as rh
+        >>> import json
         >>> data = json.dumps(list(range(50))
         >>>
         >>> # Remote blob with name and no path (saved to bucket called runhouse/blobs/my-blob)
@@ -264,7 +265,7 @@ def blob(
     if mkdir:
         # create the remote folder for the blob
         folder_path = str(Path(data_path).parent)
-        rh.folder(name=folder_path, system=system, dryrun=True).mkdir()
+        folder(name=folder_path, system=system, dryrun=True).mkdir()
 
     new_blob = Blob.from_config(config, dryrun=dryrun)
     new_blob.data = data

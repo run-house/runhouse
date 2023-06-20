@@ -84,7 +84,7 @@ def test_ls():
 
 @pytest.mark.rnstest
 def test_from_name(cpu_cluster):
-    f = rh.folder(name="~/tests/bert_ft", dryrun=True)
+    f = rh.folder(name="~/tests/bert_ft")
     assert f.path
     assert cpu_cluster.instance_type == "CPU:2+"
 
