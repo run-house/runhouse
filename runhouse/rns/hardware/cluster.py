@@ -353,7 +353,9 @@ class Cluster(Resource):
                     logger.info(f"Server {self.name} is down.")
                     self.up_if_not()
                 elif restart_server:
-                    logger.info(f"Server {self.name} is up, but the HTTP server may not be up.")
+                    logger.info(
+                        f"Server {self.name} is up, but the HTTP server may not be up."
+                    )
                     self.restart_server(resync_rh=False)
                     logger.info(f"Checking server {self.name} again.")
                     self.client.check_server(cluster_config=cluster_config)
