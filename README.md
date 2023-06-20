@@ -89,16 +89,16 @@ import runhouse as rh
 folder_on_gpu = rh.folder(path="./instance_images").to(gpu, path="dreambooth/instance_images")
 
 folder_on_s3 = folder_on_gpu.to("s3", path="dreambooth/instance_images")
-folder_on_s3.save()
+folder_on_s3.save("dreambooth_outputs")
 ```
 
 Reuse your saved compute and data resources from anywhere, with a single line of Python.
 
 ```python
-sd_generate = rh.Function.from_name("sd_generate")
+sd_generate = rh.function(name="sd_generate")
 image = sd_generate("A hot dog made of matcha.")
 
-folder_on_s3 = rh.Folder.from_name("dreambooth_outputs")
+folder_on_s3 = rh.folder(name="dreambooth_outputs")
 folder_on_local = folder_on_s3.to("here")
 ```
 
