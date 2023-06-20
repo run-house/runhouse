@@ -47,7 +47,7 @@ class GitPackage(Package):
             return f"GitPackage: {self.name}"
         return f"GitPackage: {self.git_url}@{self.revision}"
 
-    def install(self, env: Union[str, "Env"] = None):
+    def _install(self, env: Union[str, "Env"] = None):
         # Clone down the repo
         if not Path(self.install_target).exists():
             logging.info(f"Cloning: git clone {self.git_url}")
@@ -64,7 +64,7 @@ class GitPackage(Package):
                 ["git", "-C", self.install_target, "checkout", self.revision]
             )
         # Use super to install the package
-        super().install(env)
+        super()._install(env)
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
@@ -95,9 +95,8 @@ def git_package(
         GitPackage: The resulting GitHub Package.
 
     Example:
-            >>> import runhouse as rh
-            >>> rh.git_package(git_url='https://github.com/runhouse/runhouse.git',
-            >>>               install_method='pip', revision='v0.0.1')
+        >>> rh.git_package(git_url='https://github.com/runhouse/runhouse.git',
+        >>>               install_method='pip', revision='v0.0.1')
 
     """
     if name and not any([install_method, install_str, git_url, revision]):

@@ -71,7 +71,7 @@ class Package(Resource):
             return f"Package: {self.install_target.path}"
         return f"Package: {self.install_target}"
 
-    def install(self, env: Union[str, "Env"] = None):
+    def _install(self, env: Union[str, "Env"] = None):
         """Install package.
 
         Args:
@@ -83,7 +83,7 @@ class Package(Resource):
         )
         install_cmd = ""
         install_args = f" {self.install_args}" if self.install_args else ""
-        cuda_version_or_cpu = self.detect_cuda_version_or_cpu()
+        cuda_version_or_cpu = self._detect_cuda_version_or_cpu()
 
         if isinstance(self.install_target, Folder):
             local_path = self.install_target.local_path
@@ -108,7 +108,7 @@ class Package(Resource):
                     logging.info(
                         f"pip installing requirements from {reqs_path} with: {install_cmd}"
                     )
-                    self.pip_install(install_cmd)
+                    self._pip_install(install_cmd)
                 else:
                     logging.info(f"{local_path}/requirements.txt not found, skipping")
         else:
@@ -119,9 +119,9 @@ class Package(Resource):
             if not install_cmd:
                 raise ValueError("Invalid install command")
 
-            self.pip_install(install_cmd, env)
+            self._pip_install(install_cmd, env)
         elif self.install_method == "conda":
-            self.conda_install(install_cmd, env)
+            self._conda_install(install_cmd, env)
         elif self.install_method in ["local", "reqs"]:
             if isinstance(self.install_target, Folder):
                 sys.path.append(local_path)
@@ -138,8 +138,7 @@ class Package(Resource):
         #         sys.modules[self.name] = pickle.load(f)
         else:
             raise ValueError(
-                f"Unknown install_method {self.install_method}. Try using cluster.run() or "
-                f"function.run_setup() to install instead."
+                f"Unknown install_method {self.install_method}. Try using cluster.run() or to install instead."
             )
 
     # ----------------------------------
@@ -162,7 +161,7 @@ class Package(Resource):
 
         # add extra-index-url for torch if not found
         return (
-            f"-r {path} --extra-index-url {self.torch_index_url(cuda_version_or_cpu)}"
+            f"-r {path} --extra-index-url {self._torch_index_url(cuda_version_or_cpu)}"
         )
 
     def _install_cmd_for_torch(self, install_cmd, cuda_version_or_cpu):
@@ -193,7 +192,7 @@ class Package(Resource):
             # If installing a range of versions format the string to make it compatible with `pip_install` method
             install_cmd = install_cmd.replace(" ", "")
 
-        index_url = self.torch_index_url(cuda_version_or_cpu)
+        index_url = self._torch_index_url(cuda_version_or_cpu)
         if index_url and not any(
             specifier in install_cmd for specifier in ["--index-url ", "-i "]
         ):
@@ -204,11 +203,11 @@ class Package(Resource):
 
         return install_cmd
 
-    def torch_index_url(self, cuda_version_or_cpu: str):
+    def _torch_index_url(self, cuda_version_or_cpu: str):
         return self.TORCH_INDEX_URLS.get(cuda_version_or_cpu)
 
     @staticmethod
-    def detect_cuda_version_or_cpu():
+    def _detect_cuda_version_or_cpu():
         """Return the CUDA version on the cluster. If we are on a CPU-only cluster return 'cpu'.
 
         Note: A cpu-only machine may have the CUDA toolkit installed, which means nvcc will still return
@@ -246,7 +245,7 @@ class Package(Resource):
     # ----------------------------------
 
     @staticmethod
-    def pip_install(install_cmd: str, env: Union[str, "Env"] = ""):
+    def _pip_install(install_cmd: str, env: Union[str, "Env"] = ""):
         """Run pip install."""
         if env:
             if isinstance(env, str):
@@ -261,7 +260,7 @@ class Package(Resource):
         subprocess.check_call(cmd.split(" "))
 
     @staticmethod
-    def conda_install(install_cmd: str, env: Union[str, "Env"] = ""):
+    def _conda_install(install_cmd: str, env: Union[str, "Env"] = ""):
         """Run conda install."""
         cmd = f"conda install -y {install_cmd}"
         if env:

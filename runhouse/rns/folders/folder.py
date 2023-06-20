@@ -204,7 +204,7 @@ class Folder(Resource):
                 return self._data_config
 
             if not self.system.address:
-                self.system.update_from_sky_status(dryrun=False)
+                self.system._update_from_sky_status(dryrun=False)
                 if not self.system.address:
                     raise ValueError(
                         "Cluster must be started before copying data from it."
@@ -253,6 +253,7 @@ class Folder(Resource):
             return None
 
     def is_writable(self):
+        """Whether the folder is writable."""
         # If the filesystem hasn't overridden mkdirs, it's a no-op and the filesystem is probably readonly
         # (e.g. https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/implementations/github.html).
         # In that case, we should just create a new folder in the default
@@ -262,7 +263,13 @@ class Folder(Resource):
     def mv(
         self, system, path: Optional[str] = None, data_config: Optional[dict] = None
     ) -> None:
-        """Move the folder to a new filesystem."""
+        """Move the folder to a new filesystem or cluster.
+
+        Example:
+            >>> folder = rh.folder(path="local/path")
+            >>> folder.mv(my_cluster)
+            >>> folder.mv("s3", "s3_bucket/path")
+        """
         # TODO [DG] create get_default_path for system method to be shared
         if path is None:
             path = "rh/" + self.rns_address
@@ -465,7 +472,9 @@ class Folder(Resource):
         dest_folder.system = dest_cluster
 
         if self._fs_str == "file":  # Includes case where we're on the cluster
-            dest_cluster.rsync(source=self.path, dest=dest_path, up=True, contents=True)
+            dest_cluster._rsync(
+                source=self.path, dest=dest_path, up=True, contents=True
+            )
 
         elif isinstance(self.system, Resource):
             if self.system.rns_address == dest_cluster.rns_address:
@@ -518,7 +527,7 @@ class Folder(Resource):
         if not cluster.address:
             raise ValueError("Cluster must be started before copying data from it.")
         Path(dest_path).expanduser().mkdir(parents=True, exist_ok=True)
-        cluster.rsync(
+        cluster._rsync(
             source=self.path,
             dest=str(Path(dest_path).expanduser()),
             up=False,
@@ -555,7 +564,7 @@ class Folder(Resource):
         run_upload_cli(
             command=sync_dir_command,
             access_denied_message=access_denied_message,
-            bucket_name=self.bucket_name_from_path(self.path),
+            bucket_name=self._bucket_name_from_path(self.path),
         )
 
     def _download(self, dest):
@@ -880,6 +889,6 @@ class Folder(Resource):
                     f.write(raw_file)
 
     @staticmethod
-    def bucket_name_from_path(path: str) -> str:
+    def _bucket_name_from_path(path: str) -> str:
         """Extract the bucket name from a path (e.g. '/my-bucket/my-folder/my-file.txt' -> 'my-bucket')"""
         return Path(path).parts[1]

@@ -34,7 +34,7 @@ class S3Folder(Folder):
             from sky.data.storage import S3Store
 
             S3Store(
-                name=self.bucket_name_from_path(self.path), source=self._fsspec_fs
+                name=self._bucket_name_from_path(self.path), source=self._fsspec_fs
             ).delete()
         except Exception as e:
             raise e
@@ -45,7 +45,7 @@ class S3Folder(Folder):
 
         # Initialize the S3Store object which creates the bucket if it does not exist
         s3_store = S3Store(
-            name=self.bucket_name_from_path(self.path), source=src, region=region
+            name=self._bucket_name_from_path(self.path), source=src, region=region
         )
 
         sync_dir_command = self._upload_command(src=src, dest=self.path)
@@ -120,9 +120,9 @@ class S3Folder(Folder):
             logger.warning(
                 "Transfer from S3 to GCS currently supported for buckets only, not specific directories."
             )
-            data_store_path = self.bucket_name_from_path(data_store_path)
+            data_store_path = self._bucket_name_from_path(data_store_path)
             data_transfer.s3_to_gcs(
-                s3_bucket_name=self.bucket_name_from_path(self.path),
+                s3_bucket_name=self._bucket_name_from_path(self.path),
                 gs_bucket_name=data_store_path,
             )
         elif system == "azure":

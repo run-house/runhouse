@@ -147,7 +147,7 @@ def test_add_github_secrets():
 def test_sending_secrets_to_cluster(cpu_cluster):
     enabled_providers: list = rh.Secrets.enabled_providers()
 
-    cpu_cluster.send_secrets(providers=enabled_providers)
+    cpu_cluster.sync_secrets(providers=enabled_providers)
 
     # Confirm the secrets now exist on the cluster
     for provider_cls in enabled_providers:

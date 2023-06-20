@@ -101,14 +101,27 @@ class Blob(Resource):
         return self._folder.fsspec_url + "/" + self._filename
 
     def open(self, mode: str = "rb"):
-        """Get a file-like (OpenFile container object) of the blob data. User must close the file, or use this
-        method inside of a with statement (e.g. `with my_blob.open() as f:`)."""
+        """Get a file-like (OpenFile container object) of the blob data.
+        User must close the file, or use this method inside of a with statement.
+
+        Example:
+            >>> with my_blob.open(mode="wb") as f:
+            >>>     f.write(data)
+            >>>
+            >>> obj = my_blob.open()
+        """
         return self._folder.open(self._filename, mode=mode)
 
     def to(
         self, system, path: Optional[str] = None, data_config: Optional[dict] = None
     ):
-        """Return a copy of the blob on the destination system and path."""
+        """Return a copy of the blob on the destination system and path.
+
+        Example:
+            >>> local_blob = rh.blob(data)
+            >>> s3_blob = blob.to("s3")
+            >>> cluster_blob = blob.to(my_cluster)
+        """
         new_blob = copy.copy(self)
         new_blob._folder = self._folder.to(
             system=system, path=path, data_config=data_config
@@ -116,7 +129,11 @@ class Blob(Resource):
         return new_blob
 
     def fetch(self):
-        """Return the data for the user to deserialize"""
+        """Return the data for the user to deserialize.
+
+        Example:
+            >>> serialized_data = blob.fetch()
+        """
         self._cached_data = self._folder.get(self._filename)
         return self._cached_data
 
@@ -125,7 +142,11 @@ class Blob(Resource):
             self.system.save()
 
     def write(self):
-        """Save the underlying blob to its specified fsspec URL."""
+        """Save the underlying blob to its specified fsspec URL.
+
+        Example:
+            >>> rh.blob(serialized_data, path="path/to/save").write()
+        """
         # TODO figure out default behavior for not overwriting but still saving
         # if not overwrite:
         #     TODO check if data_url is already in use
@@ -146,20 +167,35 @@ class Blob(Resource):
         return self
 
     def rm(self):
-        """Delete the blob and the folder it lives in from the file system."""
+        """Delete the blob and the folder it lives in from the file system.
+
+        Example:
+            >>> blob = rh.blob(serialized_data, path="saved/path")
+            >>> blob.rm()
+        """
         self._folder.rm(contents=[self._filename], recursive=False)
 
     def exists_in_system(self):
-        """Check whether the blob exists in the file system"""
+        """Check whether the blob exists in the file system
+
+        Example:
+            >>> blob = rh.blob(serialized_data, path="saved/path")
+            >>> blob.exists_in_system()
+        """
         return self._folder.fsspec_fs.exists(self.fsspec_url)
 
     # TODO [DG] get rid of this in favor of just "sync_down(path, system)" ?
     def sync_from_cluster(self, cluster, path: Optional[str] = None):
-        """Efficiently rsync down a blob from a cluster, into the path of the current Blob object."""
+        """Efficiently rsync down a blob from a cluster, into the path of the current Blob object.
+
+        Example:
+            >>> remote_blob = rh.blob(serialized_data, system=my_cluster)
+            >>> remote_blob.sync_from_cluster()
+        """
         if not cluster.address:
             raise ValueError("Cluster must be started before copying data to it.")
 
-        cluster.rsync(source=self.path, dest=path, up=False)
+        cluster._rsync(source=self.path, dest=path, up=False)
 
 
 def blob(

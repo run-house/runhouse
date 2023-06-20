@@ -148,6 +148,7 @@ def call_fn_by_type(
 
 def get_fn_from_pointers(fn_pointers, serialize_res, num_gpus, *args, **kwargs):
     (module_path, module_name, fn_name) = fn_pointers
+
     if module_name == "notebook":
         fn = fn_name  # already unpickled
     else:

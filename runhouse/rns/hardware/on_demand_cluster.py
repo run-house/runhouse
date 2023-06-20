@@ -68,7 +68,7 @@ class OnDemandCluster(Cluster):
 
         if not self.address and not dryrun:
             # Cluster status is set to INIT in the Sky DB right after starting, so we need to refresh once
-            self.update_from_sky_status(dryrun=False)
+            self._update_from_sky_status(dryrun=False)
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
@@ -124,7 +124,7 @@ class OnDemandCluster(Cluster):
     def _copy_sky_yaml_from_cluster(self, abs_yaml_path: str):
         if not Path(abs_yaml_path).exists():
             Path(abs_yaml_path).parent.mkdir(parents=True, exist_ok=True)
-            self.rsync("~/.sky/sky_ray.yml", abs_yaml_path, up=False)
+            self._rsync("~/.sky/sky_ray.yml", abs_yaml_path, up=False)
 
             # Save SSH info to the ~/.ssh/config
             ray_yaml = yaml.safe_load(open(abs_yaml_path, "r"))
@@ -151,7 +151,7 @@ class OnDemandCluster(Cluster):
             self._ssh_creds = self.sky_state["ssh_creds"]
 
             try:
-                self.ping(timeout=self.RECONNECT_TIMEOUT)
+                self._ping(timeout=self.RECONNECT_TIMEOUT)
             except TimeoutError:
                 self.address = None
                 self._ssh_creds = None
@@ -190,11 +190,11 @@ class OnDemandCluster(Cluster):
                 self._copy_sky_yaml_from_cluster(abs_yaml_path)
             else:
                 # We still should check if the cluster is up, since the status/yaml file could be stale
-                self.ping(timeout=self.RECONNECT_TIMEOUT)
+                self._ping(timeout=self.RECONNECT_TIMEOUT)
         except Exception:
             # Refresh the cluster status before saving the ssh info so SkyPilot has a chance to wipe the .ssh/config if
             # the cluster went down
-            self.update_from_sky_status(dryrun=self.dryrun)
+            self._update_from_sky_status(dryrun=self.dryrun)
 
     def __getstate__(self):
         """Make sure sky_state is loaded in before pickling."""
@@ -210,8 +210,12 @@ class OnDemandCluster(Cluster):
     # ----------------- Launch/Lifecycle Methods -----------------
 
     def is_up(self) -> bool:
-        """Whether the cluster is up."""
-        self.update_from_sky_status(dryrun=False)
+        """Whether the cluster is up.
+
+        Example:
+            >>> rh.cluster("rh-cpu").is_up()
+        """
+        self._update_from_sky_status(dryrun=False)
         return self.address is not None
 
     def status(self, refresh: bool = True):
@@ -238,6 +242,9 @@ class OnDemandCluster(Cluster):
 
         .. note::
             For more information see SkyPilot's :code:`ResourceHandle` `class <https://github.com/skypilot-org/skypilot/blob/0c2b291b03abe486b521b40a3069195e56b62324/sky/backends/cloud_vm_ray_backend.py#L1457>`_.
+
+        Example:
+            >>> status = rh.cluster("rh-cpu").status()
         """  # noqa
         # return backend_utils._refresh_cluster_record(
         #     self.name, force_refresh=refresh, acquire_per_cluster_status_lock=False
@@ -261,13 +268,17 @@ class OnDemandCluster(Cluster):
             self.address = None
             self._ssh_creds = None
 
-    def update_from_sky_status(self, dryrun: bool = False):
+    def _update_from_sky_status(self, dryrun: bool = False):
         # Try to get the cluster status from SkyDB
         cluster_dict = self.status(refresh=not dryrun)
         self._populate_connection_from_status_dict(cluster_dict)
 
     def up(self):
-        """Up the cluster."""
+        """Up the cluster.
+
+        Example:
+            >>> rh.cluster("rh-cpu").up()
+        """
         if self.provider in ["aws", "gcp", "azure", "lambda", "cheapest"]:
             task = sky.Task(
                 num_nodes=self.num_instances
@@ -323,28 +334,46 @@ class OnDemandCluster(Cluster):
         else:
             raise ValueError(f"Cluster provider {self.provider} not supported.")
 
-        self.update_from_sky_status()
+        self._update_from_sky_status()
         self.restart_server(restart_ray=True)
 
     def keep_warm(self, autostop_mins: int = -1):
-        """Keep the cluster warm for given number of minutes after inactivity. If `autostop_mins` is set
-        to -1, keep cluster warm indefinitely."""
+        """Keep the cluster warm for given number of minutes after inactivity.
+
+        Args:
+            autostop_mins (int): Amount of time (in min) to keep the cluster warm after inactivity.
+            If set to -1, keep cluster warm indefinitely. (Default: `-1`)
+        """
         sky.autostop(self.name, autostop_mins, down=True)
         self.autostop_mins = autostop_mins
 
     def teardown(self):
-        """Teardown cluster."""
+        """Teardown cluster.
+
+        Example:
+            >>> rh.cluster("rh-cpu").teardown()
+        """
         # Stream logs
         sky.down(self.name)
         self.address = None
 
     def teardown_and_delete(self):
-        """Teardown cluster and delete it from configs."""
+        """Teardown cluster and delete it from configs.
+
+        Example:
+            >>> rh.cluster("rh-cpu").teardown_and_delete()
+        """
         self.teardown()
         rns_client.delete_configs()
 
     @contextlib.contextmanager
     def pause_autostop(self):
+        """Context manager to temporarily pause autostop.
+
+        Example:
+            >>> with cluster.pause_autostop():
+            >>>     cluster.run(["python train.py"])
+        """
         sky.autostop(self.name, idle_minutes=-1)
         yield
         sky.autostop(self.name, idle_minutes=self.autostop_mins)
@@ -353,7 +382,11 @@ class OnDemandCluster(Cluster):
 
     @staticmethod
     def cluster_ssh_key(path_to_file):
-        """Retrieve SSH key for the cluster."""
+        """Retrieve SSH key for the cluster.
+
+        Example:
+            >>> ssh_priv_key = rh.cluster("rh-cpu").cluster_ssh_key("~/.ssh/id_rsa")
+        """
         try:
             f = open(path_to_file, "r")
             private_key = f.read()
@@ -362,6 +395,11 @@ class OnDemandCluster(Cluster):
             raise Exception(f"File with ssh key not found in: {path_to_file}")
 
     def ssh_creds(self):
+        """Retrieve SSH creds for the cluster.
+
+        Example:
+            >>> credentials = rh.cluster("rh-cpu").ssh_creds()
+        """
         if self._ssh_creds:
             return self._ssh_creds
 
@@ -371,10 +409,14 @@ class OnDemandCluster(Cluster):
             self._save_sky_state()
         else:
             # To avoid calling this twice (once in save_sky_data)
-            self.update_from_sky_status(dryrun=True)
+            self._update_from_sky_status(dryrun=True)
 
         return self._ssh_creds
 
     def ssh(self):
-        """SSH into the cluster."""
+        """SSH into the cluster.
+
+        Example:
+            >>> rh.cluster("rh-cpu").ssh()
+        """
         subprocess.run(["ssh", f"{self.name}"])

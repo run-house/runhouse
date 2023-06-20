@@ -98,6 +98,10 @@ class Function(Resource):
         Set up a Function and Env on the given system.
 
         See the args of the factory method :func:`function` for more information.
+
+        Example:
+            >>> rh.function(fn=local_fn).to(gpu_cluster)
+            >>> rh.function(fn=local_fn).to(system=gpu_cluster, env=my_conda_env)
         """
         if setup_cmds:
             warnings.warn(
@@ -154,10 +158,6 @@ class Function(Resource):
         new_function.env = new_env
 
         return new_function
-
-    def run_setup(self, cmds: List[str]):
-        """Run the given setup commands on the system."""
-        self.system.run(cmds)
 
     @staticmethod
     def _extract_fn_paths(raw_fn: Callable, reqs: List[str]):
@@ -341,6 +341,10 @@ class Function(Resource):
             num_repeats (int): Number of times to repeat the Function call.
             *args: Positional arguments to pass to the Function
             **kwargs: Keyword arguments to pass to the Function
+
+        Example:
+            >>> remote_fn = rh.function(local_fn).to(gpu)
+            >>> remote_fn.repeat(num_repeats=5)
         """
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             return self._call_fn_with_ssh_access(
@@ -352,7 +356,13 @@ class Function(Resource):
             )
 
     def map(self, arg_list, **kwargs):
-        """Map a function over a list of arguments."""
+        """Map a function over a list of arguments.
+
+        Example:
+            >>> args = [1, 2, 3]
+            >>> remote_fn = rh.function(local_fn).to(gpu)
+            >>> remote_fn.map(arg_list=args)
+        """
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             return self._call_fn_with_ssh_access(
                 fn_type="map", args=arg_list, kwargs=kwargs
@@ -364,7 +374,13 @@ class Function(Resource):
 
     def starmap(self, args_lists, **kwargs):
         """Like :func:`map` except that the elements of the iterable are expected to be iterables
-        that are unpacked as arguments. An iterable of [(1,2), (3, 4)] results in [func(1,2), func(3,4)]."""
+        that are unpacked as arguments. An iterable of [(1,2), (3, 4)] results in [func(1,2), func(3,4)].
+
+        Example:
+            >>> arg_list = [(1,2), (3, 4)]
+            >>> # runs the function twice, once with args (1, 2) and once with args (3, 4)
+            >>> remote_fn.starmap(arg_list)
+        """
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             return self._call_fn_with_ssh_access(
                 fn_type="starmap", args=args_lists, kwargs=kwargs
@@ -375,7 +391,14 @@ class Function(Resource):
             )
 
     def enqueue(self, resources: Optional[Dict] = None, *args, **kwargs):
-        """Enqueue a Function call to be run later."""
+        """
+        Enqueue a Function call to be run later. This ensures a function call doesn’t run simultaneously with other
+        calls, but will wait until the execution completes.
+
+        Example:
+            >>> # This will run the functions sequentially
+            >>> [remote_fn.enqueue() for _ in range(3)]
+        """
         # Add resources one-off without setting as a Function param
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             return self._call_fn_with_ssh_access(
@@ -404,7 +427,9 @@ class Function(Resource):
              **kwargs: Optional kwargs for the Function
         Returns:
             Run: Run object
-
+        Example:
+            >>> remote_fn = rh.function(local_fn).to(gpu)
+            >>> remote_fn.run(arg1, arg2, run_name="my_async_run")
         """
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             from runhouse import Run
@@ -429,6 +454,11 @@ class Function(Resource):
         Args:
             run_key: A single or list of runhouse run_key strings returned by a Function.remote() call. The ObjectRefs
                 must be from the cluster that this Function is running on.
+
+        Example:
+            >>> remote_fn = rh.function(local_fn).to(gpu)
+            >>> remote_fn_run = remote_fn.run()
+            >>> remote_fn.get(remote_fn_run.name)
         """
         return self.system.get(run_key)
 
@@ -454,7 +484,7 @@ class Function(Resource):
         env_name = (
             self.env.env_name if (self.env and isinstance(self.env, CondaEnv)) else None
         )
-        res = self.system.run_module(
+        res = self.system._run_module(
             relative_path,
             module_name,
             fn_name,
@@ -538,14 +568,24 @@ class Function(Resource):
     #                    f"{ssh_user}@{address} docker exec -it ray_container /bin/bash -c {cmd}".split(' '))
 
     def ssh(self):
-        """SSH into the system."""
+        """SSH into the system associated with the function.
+
+        Example:
+            >>> remote_fn = rh.function(local_fn).to(gpu)
+            >>> # SSH into gpu
+            >>> remote_fn.ssh()
+        """
         if self.system is None:
             raise RuntimeError("System must be specified and up to ssh into a Function")
         self.system.ssh()
 
     def send_secrets(self, providers: Optional[List[str]] = None):
-        """Send secrets to the system."""
-        self.system.send_secrets(providers=providers)
+        """Send secrets to the system.
+
+        Example:
+            >>> remote_fn.send_secrets(providers=["aws", "lambda"])
+        """
+        self.system.sync_secrets(providers=providers)
 
     def http_url(self, curl_command=False, *args, **kwargs) -> str:
         """
@@ -576,7 +616,9 @@ class Function(Resource):
                 if sync_package_on_close == "./":
                     sync_package_on_close = rh_config.rns_client.locate_working_dir()
                 pkg = Package.from_string("local:" + sync_package_on_close)
-                self.system.rsync(source=f"~/{pkg.name}", dest=pkg.local_path, up=False)
+                self.system._rsync(
+                    source=f"~/{pkg.name}", dest=pkg.local_path, up=False
+                )
             if not persist:
                 tunnel.stop()
                 kill_jupyter_cmd = f"jupyter notebook stop {port_fwd}"
@@ -596,6 +638,9 @@ class Function(Resource):
         Returns:
             Any: Result of the Run
 
+        Example:
+            >>> # previously, remote_fn.run(arg1, arg2, run_name="my_async_run")
+            >>> remote_fn.get_or_call()
         """
         from runhouse import Run
 
@@ -621,6 +666,9 @@ class Function(Resource):
         Returns:
             Run: Run object
 
+        Example:
+            >>> # previously, remote_fn.run(arg1, arg2, run_name="my_async_run")
+            >>> remote_fn.get_or_call()
         """
         from runhouse import Run
 
@@ -642,7 +690,13 @@ class Function(Resource):
         # TODO min_replicas: List[int] = None,
         # TODO max_replicas: List[int] = None
     ):
-        """Keep the system warm for autostop_mins. If autostop_mins is ``None`` or -1, keep warm indefinitely."""
+        """Keep the system warm for autostop_mins. If autostop_mins is ``None`` or -1, keep warm indefinitely.
+
+        Example:
+            >>> # keep gpu warm for 30 mins
+            >>> remote_fn = rh.function(local_fn).to(gpu)
+            >>> remote_fn.keep_warm(autostop_mins=30)
+        """
         if autostop_mins is None:
             logger.info(f"Keeping {self.name} indefinitely warm")
             # keep indefinitely warm if user doesn't specify

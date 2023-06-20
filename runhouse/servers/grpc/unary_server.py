@@ -54,13 +54,13 @@ class UnaryService(pb2_grpc.UnaryServicer):
             for package in packages:
                 if isinstance(package, str):
                     pkg = Package.from_string(package)
-                elif hasattr(package, "install"):
+                elif hasattr(package, "_install"):
                     pkg = package
                 else:
                     raise ValueError(f"package {package} not recognized")
 
                 logger.info(f"Installing package: {str(pkg)}")
-                pkg.install(env)
+                pkg._install(env)
 
             self.register_activity()
             message = [None, None, None]

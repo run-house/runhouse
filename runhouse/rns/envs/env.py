@@ -22,6 +22,7 @@ class Env(Resource):
     ):
         """
         Runhouse Env object.
+
         .. note::
             To create an Env, please use the factory method :func:`env`.
         """
@@ -87,7 +88,12 @@ class Env(Resource):
     def to(self, system: Union[str, Cluster], path=None, mount=False):
         """
         Send environment to the system (Cluster or file system).
-        This includes installing packages and running setup commands if system is a cluster
+        This includes installing packages and running setup commands if system is a cluster.
+
+        Example:
+            >>> env = rh.env(reqs=["numpy", "pip"])
+            >>> cluster_env = env.to(my_cluster)
+            >>> s3_env = env.to("s3", path="s3_bucket/my_env")
         """
         system = _get_cluster_from(system)
         new_env = copy.deepcopy(self)
