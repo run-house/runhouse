@@ -6,7 +6,7 @@ import pkg_resources
 import typer
 from rich.console import Console
 
-from runhouse import autocluster, configs
+from runhouse import cluster, configs
 from runhouse.rns.login import (  # Need to rename it because it conflicts with the login command
     login as login_module,
 )
@@ -62,7 +62,7 @@ def notebook(
     cluster_name: str, up: bool = typer.Option(False, help="Start the cluster")
 ):
     """Open a Jupyter notebook on a cluster."""
-    c = autocluster(name=cluster_name)
+    c = cluster(name=cluster_name)
     if up:
         c.up_if_not()
     if not c.is_up():
@@ -76,7 +76,7 @@ def notebook(
 @app.command()
 def ssh(cluster_name: str, up: bool = typer.Option(False, help="Start the cluster")):
     """SSH into a cluster created elsewhere (so `ssh cluster` doesn't work out of the box) or not yet up."""
-    c = autocluster(name=cluster_name)
+    c = cluster(name=cluster_name)
     if up:
         c.up_if_not()
     if not c.is_up():
@@ -95,7 +95,7 @@ def cancel(
     all: Optional[bool] = typer.Option(False, help="Cancel all jobs"),
 ):
     """Cancel a run on a cluster."""
-    c = autocluster(name=cluster_name)
+    c = cluster(name=cluster_name)
     if all:
         c.cancel_all(force=force)
     else:
@@ -109,7 +109,7 @@ def logs(
     print_results: Optional[bool] = typer.Option(False, help="Print results"),
 ):
     """Get logs from a run on a cluster."""
-    c = autocluster(name=cluster_name)
+    c = cluster(name=cluster_name)
     res = c.get(run_key, stream_logs=True)
     if print_results:
         console.print(res)
@@ -117,7 +117,7 @@ def logs(
 
 def load_cluster(cluster_name: str):
     """Load a cluster from RNS into the local environment, e.g. to be able to ssh."""
-    c = autocluster(name=cluster_name)
+    c = cluster(name=cluster_name)
     if not c.address:
         c.update_from_sky_status(dryrun=True)
 
@@ -148,7 +148,7 @@ def restart_server(
     resync_rh: bool = typer.Option(False, help="Resync the Runhouse package"),
 ):
     """Restart the gRPC server on a cluster."""
-    c = autocluster(name=cluster_name)
+    c = cluster(name=cluster_name)
     c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray)
 
 

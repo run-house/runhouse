@@ -50,10 +50,10 @@ Setup <https://runhouse-docs.readthedocs-hosted.com/en/stable/rh_primitives/clus
 .. code:: python
 
     # single V100 GPU
-    # gpu = rh.autocluster(name="rh-v100", instance_type="V100:1").up_if_not()
+    # gpu = rh.ondemand_cluster(name="rh-v100", instance_type="V100:1").up_if_not()
 
     # multigpu: 4 V100s
-    gpu = rh.autocluster(name="rh-4-v100", instance_type="V100:4").up_if_not()
+    gpu = rh.ondemand_cluster(name="rh-4-v100", instance_type="V100:4").up_if_not()
 
     # Set GPU to autostop after 60 min of inactivity (default is 30 min)
     gpu.keep_warm(60)  # or -1 to keep up indefinitely

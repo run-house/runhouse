@@ -120,7 +120,7 @@ def cluster(request):
 
 @pytest.fixture(scope="session")
 def cpu_cluster():
-    c = rh.autocluster("^rh-cpu")
+    c = rh.cluster("^rh-cpu")
     c.up_if_not()
     c.install_packages(["pytest"])
     # Save to RNS - to be loaded in other tests (ex: Runs)
@@ -132,7 +132,7 @@ def cpu_cluster():
 def byo_cpu():
     # Spin up a new basic m5.xlarge EC2 instance
     c = (
-        rh.autocluster(
+        rh.ondemand_cluster(
             instance_type="m5.xlarge",
             provider="aws",
             region="us-east-1",
@@ -155,19 +155,19 @@ def byo_cpu():
 
 @pytest.fixture(scope="session")
 def v100_gpu_cluster():
-    return rh.autocluster("^rh-v100", provider="aws").up_if_not()
+    return rh.cluster("^rh-v100").up_if_not()
 
 
 @pytest.fixture(scope="session")
 def k80_gpu_cluster():
-    return rh.autocluster(
+    return rh.ondemand_cluster(
         name="rh-k80", instance_type="K80:1", provider="aws"
     ).up_if_not()
 
 
 @pytest.fixture(scope="session")
 def a10g_gpu_cluster():
-    return rh.autocluster(
+    return rh.ondemand_cluster(
         name="rh-a10x", instance_type="g5.2xlarge", provider="aws"
     ).up_if_not()
 
@@ -201,7 +201,7 @@ def summer(a: int, b: int):
 
 
 def save_and_load_artifacts():
-    cpu = rh.autocluster("^rh-cpu").save()
+    cpu = rh.cluster("^rh-cpu").save()
     loaded_cluster = rh.load(name=cpu.name)
     return loaded_cluster.name
 

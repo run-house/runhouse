@@ -283,7 +283,9 @@ class Function(Resource):
                 run_obj = self.run(*args, run_name=run_name, **kwargs)
                 res = self.system.get(run_obj.name, stream_logs=stream_logs)
                 end = time.time()
-                logging.info(f"Time to call remote function: {round(end - start, 2)} seconds")
+                logging.info(
+                    f"Time to call remote function: {round(end - start, 2)} seconds"
+                )
                 return res
             else:
                 [relative_path, module_name, fn_name] = self.fn_pointers

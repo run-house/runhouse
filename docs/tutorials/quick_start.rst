@@ -121,7 +121,7 @@ on it later in this tutorial.
 
 .. code:: python
 
-    cluster = rh.autocluster(
+    cluster = rh.ondemand_cluster(
                   name="cpu-cluster",
                   instance_type="CPU:8",
                   provider="cheapest",      # options: "AWS", "GCP", "Azure", "Lambda", or "cheapest"
@@ -217,7 +217,7 @@ optionally terminated) for you.
               )
 
     # Using a Cloud provider
-    cluster = rh.autocluster(
+    cluster = rh.ondemand_cluster(
                   name="cpu-cluster",
                   instance_type="CPU:8",
                   provider="cheapest",      # options: "AWS", "GCP", "Azure", "Lambda", or "cheapest"

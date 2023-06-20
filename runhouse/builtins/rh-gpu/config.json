@@ -1,6 +1,7 @@
 {
     "resource_type": "cluster",
     "name": "/builtins/rh-gpu",
+    "resource_subtype": "OnDemandCluster",
     "rns_address": "/builtins/rh-gpu",
     "instance_type": "K80:1",
     "num_instances": null,

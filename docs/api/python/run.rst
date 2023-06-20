@@ -105,7 +105,7 @@ By default :code:`run_name` is set to :code:`None`.
         return a + b
 
     # Initialize the cluster object (and provision the cluster if it does not already exist)
-    cpu = rh.autocluster(name="^rh-cpu")
+    cpu = rh.cluster(name="^rh-cpu")
 
     # Create a function object and send it to the cpu cluster
     my_func = rh.function(summer, name="my_test_func").to(cpu)

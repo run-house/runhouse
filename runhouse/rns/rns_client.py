@@ -348,7 +348,7 @@ class RNSClient:
         resource_dir.mkdir(parents=True, exist_ok=True)
         config_path = resource_dir / "config.json"
         with open(config_path, "w") as f:
-            json.dump(config, f)
+            json.dump(config, f, indent=4)
         logger.info(f"Saving config for {rns_address} to: {config_path}")
 
     def _save_config_in_rns(self, config, resource_name):

@@ -41,7 +41,7 @@ def test_create_function_from_name_local(cpu_cluster):
     local_sum = rh.function(summer).to(cpu_cluster).save(local_name)
     del local_sum
 
-    remote_sum = rh.function(name="local_function", dryrun=True)
+    remote_sum = rh.function(name=local_name)
     res = remote_sum(1, 5)
     assert res == 6
 
@@ -54,7 +54,7 @@ def test_create_function_from_name_local(cpu_cluster):
 @pytest.mark.clustertest
 def test_running_function_as_proxy(cpu_cluster):
     # reload the function from RNS
-    remote_sum = rh.function(name=REMOTE_FUNC_NAME, dryrun=True)
+    remote_sum = rh.function(name=REMOTE_FUNC_NAME)
     remote_sum.access = ResourceAccess.PROXY
     res = remote_sum(1, 5)
     assert res == 6

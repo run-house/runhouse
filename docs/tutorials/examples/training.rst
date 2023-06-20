@@ -62,7 +62,7 @@ for a more introductory and in-depth walkthrough.
 .. code:: python
 
     # sample on-demand cluster, launched through Runhouse/SkyPilot
-    gpu = rh.autocluster(name='rh-a10x', instance_type='g5.2xlarge', provider='aws').up_if_not()
+    gpu = rh.ondemand_cluster(name='rh-a10x', instance_type='g5.2xlarge', provider='aws').up_if_not()
 
     # or for your own dedicated cluster
     # gpu = rh.cluster(

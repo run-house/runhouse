@@ -427,7 +427,7 @@ class Secrets:
     def save_to_json_file(data: dict, file_path: str):
         Path(file_path).parent.mkdir(parents=True, exist_ok=True)
         with open(file_path, "w+") as f:
-            json.dump(data, f)
+            json.dump(data, f, indent=4)
 
     @staticmethod
     def read_json_file(file_path: str) -> Dict:

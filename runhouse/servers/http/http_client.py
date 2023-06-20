@@ -97,7 +97,9 @@ class HTTPClient:
         end = time.time()
         if fn_type not in ["remote", "get_or_run"]:
             # Printing call time for async runs is not useful
-            logging.info(f"Time to call remote function: {round(end - start, 2)} seconds")
+            logging.info(
+                f"Time to call remote function: {round(end - start, 2)} seconds"
+            )
         return res
 
     # TODO [DG]: maybe just merge cancel into this so we can get log streaming back as we cancel a job (ditto others)
