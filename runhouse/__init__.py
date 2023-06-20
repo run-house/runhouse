@@ -29,4 +29,7 @@ from .rns.tables.table import table, Table
 # Briefly keep for BC.
 send = function
 
+# Syntactic sugar
+fn = function
+
 __version__ = "0.0.6"

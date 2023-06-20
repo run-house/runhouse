@@ -142,7 +142,6 @@ To create a Run by executing Python commands:
 
      return_codes = cpu.run_python(
         [
-            "import runhouse as rh",
             "import pickle",
             "import logging",
             "local_blob = rh.blob(name='local_blob', data=pickle.dumps(list(range(50))), mkdir=True).write()",

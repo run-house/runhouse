@@ -475,7 +475,7 @@ resource and send it over to the cluster.
 
 .. code:: python
 
-    # rh.folder(path="local_folder_path", dest_path="remote_folder_path").to(gpu)
+    rh.folder(path="local_folder_path", dest_path="remote_folder_path").to(gpu)
 
 Alternatively, if the script lives inside a GitHub repo, you could also
 directly clone and install the GitHub repo remotely with the GitPackage

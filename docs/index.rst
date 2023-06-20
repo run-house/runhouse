@@ -64,7 +64,7 @@ Table of Contents
    data_collection
    Source Code <https://github.com/run-house/runhouse>
    REST API Guide <https://api.run.house/docs>
-   Dashboard <https://api.run.house>
+   Dashboard <https://www.run.house/dashboard>
    Funhouse <https://github.com/run-house/funhouse>
 
 

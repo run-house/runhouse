@@ -66,4 +66,4 @@ To delete secrets from Vault for a list of providers:
 
 
 You can also delete your secrets stored in Vault directly from the
-Management UI `Account & Secrets page <https://api.run.house/dashboard/?option=account/>`_.
+Management UI `Secrets page <www.run.house/user/secrets/>`_.

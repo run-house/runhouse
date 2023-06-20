@@ -123,6 +123,25 @@ def load_cluster(cluster_name: str):
 
 
 @app.command()
+def start(
+    restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
+    screen: bool = typer.Option(False, help="Start the server in a screen"),
+):
+    http_server_cmd = "python -m runhouse.servers.http.http_server"
+    kill_proc_cmd = ["pkill", "-f", f"{http_server_cmd}"]
+    subprocess.run(kill_proc_cmd)
+
+    if restart_ray:
+        subprocess.run(["ray", "stop"])
+        subprocess.run(["ray", "start", "--head"])
+
+    start_server_cmd = http_server_cmd.split()
+    if screen:
+        start_server_cmd = ["screen", "-dm", "bash", "-c"] + start_server_cmd
+    subprocess.run(start_server_cmd)
+
+
+@app.command()
 def restart_server(
     cluster_name: str,
     restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),

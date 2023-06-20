@@ -131,10 +131,53 @@ def test_package_file_system_to_cluster(cpu_cluster, s3_package):
 
 
 @pytest.mark.localtest
-def test_torch_install_command_generator_from_reqs():
-    """For a given list of packages as listed in a requirements.txt file, modify them to include the full
-    install commands (without running on the actual cluster)"""
+@pytest.mark.parametrize(
+    "reqs_lines",
+    [
+        [cuda_116_url, "", "torch"],
+        ["diffusers", "accelerate"],
+        [f"torch {cuda_116_url}"],
+    ],
+)
+def test_basic_command_generator_from_reqs(reqs_lines):
     test_reqs_file = Path(__file__).parent / "requirements.txt"
+    with open(test_reqs_file, "w") as f:
+        f.writelines([line + "\n" for line in reqs_lines])
+
+    dummy_pkg = rh.Package.from_string(specifier="pip:dummy_package")
+    install_cmd = dummy_pkg._requirements_txt_install_cmd(test_reqs_file)
+
+    assert install_cmd == f"-r {test_reqs_file}"
+
+    test_reqs_file.unlink()
+    assert True
+
+
+@pytest.mark.localtest
+def test_command_generator_from_reqs():
+    reqs_lines = ["torch", "accelerate"]
+    test_reqs_file = Path(__file__).parent / "requirements.txt"
+    with open(test_reqs_file, "w") as f:
+        f.writelines([line + "\n" for line in reqs_lines])
+
+    dummy_pkg = rh.Package.from_string(specifier="pip:dummy_package")
+    install_cmd = dummy_pkg._requirements_txt_install_cmd(
+        test_reqs_file, cuda_version_or_cpu="11.6"
+    )
+
+    assert (
+        install_cmd
+        == f"-r {test_reqs_file} --extra-index-url https://download.pytorch.org/whl/cu116"
+    )
+
+    test_reqs_file.unlink()
+    assert True
+
+
+@pytest.mark.localtest
+def test_torch_install_command_generator_from_reqs():
+    """Test correctly generating full install commands for torch-related packages."""
+    test_cuda_version = "11.6"
 
     # [Required as listed in reqs.txt, expected formatted install cmd]
     packages_to_install = [
@@ -152,23 +195,14 @@ def test_torch_install_command_generator_from_reqs():
         ],
     ]
 
-    # Write these packages to a temp reqs file, then call the function which creates the full install command
-    package_names = [p[0] for p in packages_to_install]
-    with open(test_reqs_file, "w") as f:
-        f.writelines([line + "\n" for line in package_names])
-
     dummy_pkg = rh.Package.from_string(specifier="pip:dummy_package")
+    reformatted_packaged_to_install = [
+        dummy_pkg._install_cmd_for_torch(p[0], test_cuda_version)
+        for p in packages_to_install
+    ]
 
-    reqs_from_file: list = dummy_pkg._format_torch_cmd_in_reqs_file(
-        path=test_reqs_file, cuda_version_or_cpu="11.6"
-    )
-
-    for idx, install_cmd in enumerate(reqs_from_file):
+    for idx, install_cmd in enumerate(reformatted_packaged_to_install):
         assert install_cmd == packages_to_install[idx][1]
-
-    test_reqs_file.unlink()
-
-    assert True
 
 
 @pytest.mark.localtest

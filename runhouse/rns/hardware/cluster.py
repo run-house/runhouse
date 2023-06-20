@@ -231,8 +231,8 @@ class Cluster(Resource):
         )
         self.client.install(to_install, env)
 
-    def get(self, key: str, default: Any = None, stream_logs: bool = False):
-        """Get the object at the given key from the cluster's object store."""
+    def get(self, key: str, default: Any = None, stream_logs: bool = True):
+        """Get the result for a given key from the cluster's object store."""
         self.check_server()
         res = self.client.get_object(key, stream_logs=stream_logs)
         return res if res is not None else default
@@ -431,9 +431,16 @@ class Cluster(Resource):
         )
         cmds = [kill_proc_cmd]
         if restart_ray:
+            if self.ips and len(self.ips) > 1:
+                raise NotImplementedError(
+                    "Starting Ray on a cluster with multiple nodes is not yet supported."
+                    "In the meantime, you can simply start the Ray cluster via the following instructions, "
+                    "and pass *only* the head node ip to the cluster constructor: \n"
+                    "https://docs.ray.io/en/latest/cluster/vms/user-guides/launching-clusters/on-premises.html#manually-set-up-a-ray-cluster"
+                )
             cmds.append("ray stop")
             cmds.append(
-                "ray start --head"
+                "ray start --head --autoscaling-config=~/ray_bootstrap_config.yaml"
             )  # Need to set gpus or Ray will block on cpu-only clusters
         cmds.append(screen_cmd)
 

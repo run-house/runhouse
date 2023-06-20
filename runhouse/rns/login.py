@@ -53,10 +53,11 @@ def login(
         /_/ |_|\__,_/_/ /_/_/ /_/\____/\__,_/____/\___/   | || |||__|||   ||
         """
         )
+        account_url = "https://www.run.house/account"
         link = (
-            f'[link={configs.get("api_server_url")}/dashboard/?option=token]https://api.run.house/dashboard/?option=token[/link]'
+            f"[link={account_url}]{account_url}[/link]"
             if is_interactive()
-            else f'{configs.get("api_server_url")}/dashboard/?option=token'
+            else account_url
         )
         if not token:
             console.print(
@@ -141,24 +142,34 @@ def logout(
     interactive_session: bool = (
         interactive if interactive is not None else is_interactive()
     )
-    for (provider_name, secret) in configs.get("secrets", {}).items():
-        provider = Secrets.builtin_provider_class_from_name(provider_name)
+
+    for (provider_name, _) in configs.get("secrets", {}).items():
         if provider_name == "ssh":
             continue
-        provider_creds_path: Union[str, tuple] = provider.default_credentials_path()
+
+        provider = Secrets.builtin_provider_class_from_name(provider_name)
 
         if interactive_session:
             delete_loaded_secrets = typer.confirm(
                 f"Delete credentials file for {provider_name}?"
             )
 
-        configs.delete(provider_name)
+        if provider:
+            provider_creds_path: Union[str, tuple] = provider.default_credentials_path()
 
-        if delete_loaded_secrets:
-            provider.delete_secrets_file(provider_creds_path)
-            logger.info(
-                f"Deleted {provider_name} credentials file from path: {provider_creds_path}"
-            )
+            configs.delete(provider_name)
+
+            if delete_loaded_secrets:
+                provider.delete_secrets_file(provider_creds_path)
+                logger.info(
+                    f"Deleted {provider_name} credentials file from path: {provider_creds_path}"
+                )
+        else:
+            if delete_loaded_secrets:
+                logger.warning(
+                    f"Unable to delete credentials file for custom provider {provider_name}. "
+                    "Please delete the file manually."
+                )
 
     # Delete token from rh config file
     configs.delete(key="token")

@@ -7,7 +7,7 @@ Runhouse Resources
 ~~~~~~~~~~~~~~~~~~
 
 Resources are the Runhouse primitive for objects that can be saved, shared, and reused. This can be split
-into compute resources (clusters, functions, and environments) and data resources (folder, table, blob, etc).
+into compute resources (clusters, functions, environments, and runs) and data resources (folder, table, blob, etc).
 
 Compute
 -------
@@ -75,6 +75,6 @@ Runhouse provides tools for visibility and management of resources as long-livin
   permissions, default behaviors (e.g. default storage locations, compute providers, instance autotermination, etc.),
   project delineation, or staging (e.g. dev vs. prod).
 
-* **`Management UI <https://api.run.house/>`_**: provides an individual or admin view of all resources, secrets,
+* `Management UI <https://www.run.house/dashboard>`__: provides an individual or admin view of all resources, secrets,
   groups, and sharing. Resource metadata is automatically versioned in RNS, allowing teams to maintain single-sources
   of truth for assets with zero downtime to update or roll back, and trace exact lineage for any existing resource.
