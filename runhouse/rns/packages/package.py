@@ -29,13 +29,13 @@ class Package(Resource):
     }
 
     def __init__(
-        self,
-        name: str = None,
-        install_method: str = None,
-        install_target: Union[str, Folder] = None,
-        install_args: str = None,
-        dryrun: bool = False,
-        **kwargs,  # We have this here to ignore extra arguments when calling from from_config
+            self,
+            name: str = None,
+            install_method: str = None,
+            install_target: Union[str, Folder] = None,
+            install_args: str = None,
+            dryrun: bool = False,
+            **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
         Runhouse Package resource.
@@ -156,7 +156,7 @@ class Package(Resource):
             return f"-r {path}" + args
         for req in reqs:
             if (
-                "--index-url" in req or "--extra-index-url" in req
+                    "--index-url" in req or "--extra-index-url" in req
             ) and "pytorch.org" in req:
                 return f"-r {path}" + args
 
@@ -195,7 +195,7 @@ class Package(Resource):
 
         index_url = self.torch_index_url(cuda_version_or_cpu)
         if index_url and not any(
-            specifier in install_cmd for specifier in ["--index-url ", "-i "]
+                specifier in install_cmd for specifier in ["--index-url ", "-i "]
         ):
             install_cmd = f"{install_cmd} --index-url {index_url}"
 
@@ -291,10 +291,10 @@ class Package(Resource):
                 )
 
     def to(
-        self,
-        system: Union[str, Dict, "Cluster"],
-        path: Optional[str] = None,
-        mount: bool = False,
+            self,
+            system: Union[str, Dict, "Cluster"],
+            path: Optional[str] = None,
+            mount: bool = False,
     ):
         """Copy the package onto filesystem or cluster, and return the new Package object."""
         if not isinstance(self.install_target, Folder):
@@ -327,6 +327,9 @@ class Package(Resource):
 
     @staticmethod
     def from_string(specifier: str, dryrun=False):
+        if specifier == "requirements.txt":
+            specifier = "reqs:./"
+
         # Use regex to check if specifier matches '<method>:https://github.com/<path>' or 'https://github.com/<path>'
         match = re.search(
             r"^(?:(?P<method>[^:]+):)?(?P<path>https://github.com/.+)", specifier
@@ -406,14 +409,14 @@ class Package(Resource):
 
 
 def package(
-    name: str = None,
-    install_method: str = None,
-    install_str: str = None,
-    path: str = None,
-    system: str = None,
-    dryrun: bool = False,
-    local_mount: bool = False,
-    data_config: Optional[Dict] = None,
+        name: str = None,
+        install_method: str = None,
+        install_str: str = None,
+        path: str = None,
+        system: str = None,
+        dryrun: bool = False,
+        local_mount: bool = False,
+        data_config: Optional[Dict] = None,
 ) -> Package:
     """
     Builds an instance of :class:`Package`.
@@ -434,35 +437,27 @@ def package(
         Package: The resulting package.
 
     Example:
-        >>> reloaded_package = rh.package(name="my-package", dryrun=True)
+        >>> import runhouse as rh
+        >>> reloaded_package = rh.package(name="my-package")
         >>> local_package = rh.package(path="local/folder/path", install_method="local")
     """
-    if (
-        install_method is None
-        and install_str is None
-        and path is None
-        and system is None
-        and data_config is None
-        and not local_mount
-    ):
+    if name and not any([install_method, install_str, path, system, data_config, local_mount]):
         # If only the name is provided and dryrun is set to True
         return Package.from_name(name, dryrun)
 
-    config = rh_config.rns_client.load_config(name)
-    config["name"] = name or config.get("rns_address", None) or config.get("name")
-
-    config["install_method"] = install_method or config.get("install_method")
+    install_target = None
+    install_args = None
     if path is not None:
-        system = config.get("system") or system or Folder.DEFAULT_FS
-        config["install_target"] = folder(
+        system = system or Folder.DEFAULT_FS
+        install_target = folder(
             path=path, system=system, local_mount=local_mount, data_config=data_config
         )
-        config["install_args"] = install_str
+        install_args = install_str
     elif install_str is not None:
-        config["install_target"], config["install_args"] = install_str.split(" ", 1)
-    elif "install_target" in config and isinstance(config["install_target"], dict):
-        config["install_target"] = Folder.from_config(config["install_target"])
+        install_target, install_args = install_str.split(" ", 1)
 
-    new_package = Package.from_config(config, dryrun=dryrun)
-
-    return new_package
+    return Package(install_method=install_method,
+                   install_target=install_target,
+                   install_args=install_args,
+                   name=name,
+                   dryrun=dryrun)
