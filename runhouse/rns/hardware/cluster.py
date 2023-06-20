@@ -567,7 +567,7 @@ class Cluster(Resource):
         """Run a list of shell commands on the cluster. If `run_name` is provided, the commands will be
         sent over to the cluster before being executed and a Run object will be created."""
         # TODO [DG] suspect autostop while running?
-        from runhouse import Run
+        from runhouse import run
 
         cmd_prefix = ""
         if env:
@@ -584,7 +584,7 @@ class Cluster(Resource):
             )
 
         # Create and save the Run locally
-        with Run(name=run_name, cmds=commands, overwrite=True) as r:
+        with run(name=run_name, cmds=commands, overwrite=True) as r:
             return_codes = self._run_commands_with_ssh(
                 commands, cmd_prefix, stream_logs, port_forward, require_outputs
             )

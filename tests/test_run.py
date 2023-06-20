@@ -19,13 +19,6 @@ RUN_FILES = (
 )
 
 
-def load_run_from_rns(run_name):
-    run_config = rh.load(name=run_name, instantiate=False)
-    assert run_config, f"No config saved in RNS for {run_name}"
-
-    return rh.Run.from_config(config=run_config, dryrun=True)
-
-
 # ------------------------- FUNCTION RUN ----------------------------------
 
 
@@ -190,7 +183,7 @@ def test_save_fn_run_to_rns(cpu_cluster, submitted_run):
     func_run.save(name=submitted_run)
 
     # Load from RNS
-    loaded_run = load_run_from_rns(submitted_run)
+    loaded_run = rh.run(submitted_run)
     assert rh.exists(loaded_run.name, resource_type=rh.Run.RESOURCE_TYPE)
 
 
@@ -249,12 +242,13 @@ def test_copy_fn_run_from_system_to_s3(cpu_cluster, runs_s3_bucket, submitted_ru
 
 @pytest.mark.clustertest
 @pytest.mark.runstest
-def test_read_fn_run_inputs_and_outputs(submitted_run, cpu_cluster):
+def test_read_fn_run_inputs_and_result(submitted_run, cpu_cluster):
     # Load directly from the cluster
-    my_run = rh.run(name=submitted_run, system=cpu_cluster)
+    my_run = cpu_cluster.get_run(submitted_run)
     inputs = my_run.inputs()
     assert inputs == {"args": [1, 2], "kwargs": {}}
 
+    assert my_run.refresh().status == rh.RunStatus.COMPLETED
     output = my_run.result()
     assert output == 3
 
@@ -262,8 +256,8 @@ def test_read_fn_run_inputs_and_outputs(submitted_run, cpu_cluster):
 @pytest.mark.rnstest
 @pytest.mark.runstest
 def test_delete_fn_run_from_rns(submitted_run):
-    # Load directly from the cluster
-    loaded_run = load_run_from_rns(submitted_run)
+    # Load directly from RNS
+    loaded_run = rh.run(name=submitted_run)
 
     loaded_run.delete_configs()
     assert not rh.exists(name=loaded_run.name, resource_type=rh.Run.RESOURCE_TYPE)
@@ -326,8 +320,10 @@ def test_create_cli_command_run(cpu_cluster):
 def test_send_cli_run_to_cluster(cpu_cluster):
     """Send the CLI based Run which was initially saved on the local file system to the cpu cluster."""
     # Load the run from the local file system
-    loaded_run = rh.run(name=CLI_RUN_NAME)
-    assert loaded_run.status == rh.RunStatus.COMPLETED
+    loaded_run = rh.run(
+        name=CLI_RUN_NAME, path=f"{rh.Run.LOCAL_RUN_PATH}/{CLI_RUN_NAME}"
+    )
+    assert loaded_run.refresh().status == rh.RunStatus.COMPLETED
     assert loaded_run.stdout() == "Python 3.10.6"
 
     # Save to default path on the cluster (~/.rh/logs/<run_name>)
@@ -358,7 +354,7 @@ def test_save_cli_run_to_rns(cpu_cluster):
     cli_run.save(name=CLI_RUN_NAME)
 
     # Confirm Run now lives in RNS
-    loaded_run = load_run_from_rns(CLI_RUN_NAME)
+    loaded_run = rh.run(CLI_RUN_NAME)
     assert loaded_run
 
 
@@ -397,11 +393,6 @@ def test_delete_cli_run_from_cluster(cpu_cluster):
     cli_run.folder.rm()
     assert not cli_run.folder.exists_in_system()
 
-
-@pytest.mark.clustertest
-@pytest.mark.rnstest
-@pytest.mark.runstest
-def test_cli_run_not_on_cluster(cpu_cluster):
     cli_run = cpu_cluster.get_run(CLI_RUN_NAME)
     assert cli_run is None, f"Failed to delete {cli_run} on cluster"
 
@@ -409,7 +400,7 @@ def test_cli_run_not_on_cluster(cpu_cluster):
 @pytest.mark.rnstest
 @pytest.mark.runstest
 def test_delete_cli_run_from_rns():
-    loaded_run = load_run_from_rns(CLI_RUN_NAME)
+    loaded_run = rh.run(CLI_RUN_NAME)
     loaded_run.delete_configs()
     assert not rh.exists(name=loaded_run.name, resource_type=rh.Run.RESOURCE_TYPE)
 
@@ -425,7 +416,7 @@ def test_create_local_ctx_manager_run(summer_func, cpu_cluster):
 
     ctx_mgr_func = "my_ctx_mgr_func"
 
-    with rh.Run(path=PATH_TO_CTX_MGR_RUN) as r:
+    with rh.run(path=PATH_TO_CTX_MGR_RUN) as r:
         # Add all Runhouse objects loaded or saved in the context manager to the Run's artifact registry
         # (upstream + downstream artifacts)
         summer_func.save(ctx_mgr_func)
@@ -486,7 +477,7 @@ def test_save_ctx_run_to_rns():
 @pytest.mark.rnstest
 @pytest.mark.runstest
 def test_delete_ctx_run_from_rns():
-    loaded_run = load_run_from_rns(CTX_MGR_RUN)
+    loaded_run = rh.run(CTX_MGR_RUN)
     loaded_run.delete_configs()
 
     assert not rh.exists(name=loaded_run.name, resource_type=rh.Run.RESOURCE_TYPE)

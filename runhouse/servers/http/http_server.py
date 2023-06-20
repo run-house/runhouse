@@ -204,7 +204,7 @@ class HTTPServer:
     @staticmethod
     @app.get("/run_object")
     def get_run_object(message: Message):
-        from runhouse import Run, run
+        from runhouse import folder, Run, run
         from runhouse.rns.api_utils.utils import resolve_absolute_path
 
         HTTPServer.register_activity()
@@ -216,9 +216,21 @@ class HTTPServer:
         folder_path = folder_path or Run._base_cluster_folder_path(run_name)
         folder_path_on_system = resolve_absolute_path(folder_path)
 
+        # TODO [JL] Get rid of this
+        system_folder = folder(path=folder_path_on_system, dryrun=True)
         try:
-            # Load config data for this Run saved locally on the system
-            result = run(path=folder_path_on_system)
+            result = None
+            try:
+                # Load config data for this Run saved locally on the system
+                run_config = Run._load_run_config(folder=system_folder)
+                if run_config:
+                    # Re-construct the Run object from the Run config data (and RNS data where relevant)
+                    result = run(name=run_name, path=folder_path_on_system)
+            except FileNotFoundError:
+                logger.info(
+                    f"No config for Run {run_name} found in path: {folder_path_on_system}"
+                )
+
             return Response(
                 data=pickle_b64(result),
                 output_type=OutputType.RESULT,
