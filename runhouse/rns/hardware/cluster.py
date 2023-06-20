@@ -428,6 +428,13 @@ class Cluster(Resource):
         )
         cmds = [kill_proc_cmd]
         if restart_ray:
+            if self.ips and len(self.ips) > 1:
+                raise NotImplementedError(
+                    "Starting Ray on a cluster with multiple nodes is not yet supported."
+                    "In the meantime, you can simply start the Ray cluster via the following instructions, "
+                    "and pass *only* the head node ip to the cluster constructor: \n"
+                    "https://docs.ray.io/en/latest/cluster/vms/user-guides/launching-clusters/on-premises.html#manually-set-up-a-ray-cluster"
+                )
             cmds.append("ray stop")
             cmds.append(
                 "ray start --head --autoscaling-config=~/ray_bootstrap_config.yaml"

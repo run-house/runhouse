@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import time
 import warnings
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -278,8 +279,12 @@ class Function(Resource):
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             run_locally = not self.system or self.system.on_this_cluster()
             if not run_locally:
+                start = time.time()
                 run_obj = self.run(*args, run_name=run_name, **kwargs)
-                return self.system.get(run_obj.name, stream_logs=stream_logs)
+                res = self.system.get(run_obj.name, stream_logs=stream_logs)
+                end = time.time()
+                logging.info(f"Time to call remote function: {round(end - start, 2)} seconds")
+                return res
             else:
                 [relative_path, module_name, fn_name] = self.fn_pointers
                 conda_env = (
