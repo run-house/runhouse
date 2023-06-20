@@ -341,18 +341,22 @@ class Cluster(Resource):
                 if "sky_state" in cluster_config.keys():
                     # a bunch of setup commands that mess up json dump
                     del cluster_config["sky_state"]
+                logger.info(f"Checking server {self.name}")
                 self.client.check_server(cluster_config=cluster_config)
+                logger.info(f"Server {self.name} is up.")
             except (
                 requests.exceptions.ConnectionError,
                 sshtunnel.BaseSSHTunnelForwarderError,
             ):
                 # It's possible that the cluster went down while we were trying to install packages.
                 if not self.is_up():
+                    logger.info(f"Server {self.name} is down.")
                     self.up_if_not()
                 elif restart_server:
+                    logger.info(f"Server {self.name} is up, but the HTTP server may not be up.")
                     self.restart_server(resync_rh=False)
-                    # Try again
-                    self.check_server(restart_server=False)
+                    logger.info(f"Checking server {self.name} again.")
+                    self.client.check_server(cluster_config=cluster_config)
                 else:
                     raise ValueError(f"Could not connect to cluster <{self.name}>")
         return
@@ -418,6 +422,7 @@ class Cluster(Resource):
         restart_ray: bool = False,
     ):
         """Restart the RPC server."""
+        logger.info(f"Restarting RPC HTTP server on {self.name}.")
         # TODO how do we capture errors if this fails?
         if resync_rh:
             self.sync_runhouse_to_cluster(_install_url=_rh_install_url)
@@ -458,7 +463,7 @@ class Cluster(Resource):
             stream_logs=True,
         )
         # As of 2023-15-May still seems we need this.
-        time.sleep(3)
+        time.sleep(5)
         return status_codes
 
     @contextlib.contextmanager

@@ -85,7 +85,7 @@ def test_share_git_package():
 
 @pytest.mark.rnstest
 def test_load_shared_git_package():
-    git_package = rh.package(name="@/shared_git_package", dryrun=True)
+    git_package = rh.package(name="@/shared_git_package")
     assert git_package.config_for_rns
 
 
