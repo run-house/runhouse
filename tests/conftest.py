@@ -155,7 +155,7 @@ def byo_cpu():
 
 @pytest.fixture(scope="session")
 def v100_gpu_cluster():
-    return rh.cluster("^rh-v100").up_if_not()
+    return rh.ondemand_cluster(name="rh-v100", instance_type="V100:1", provider="aws").up_if_not()
 
 
 @pytest.fixture(scope="session")

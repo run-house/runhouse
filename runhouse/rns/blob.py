@@ -133,6 +133,7 @@ class Blob(Resource):
         #     self.data_url = self.data_url + time or time
 
         # TODO check if self._cached_data is None, and if so, don't just download it to then save it again?
+        self._folder.mkdir()
         with self.open(mode="wb") as f:
             if not isinstance(self.data, bytes):
                 # Avoid TypeError: a bytes-like object is required
@@ -167,7 +168,6 @@ def blob(
     path: Optional[str] = None,
     system: Optional[str] = None,
     data_config: Optional[Dict] = None,
-    mkdir: bool = False,
     dryrun: bool = False,
 ):
     """Returns a Blob object, which can be used to interact with the resource at the given path
@@ -176,11 +176,10 @@ def blob(
         data: Blob data. This should be provided as a serialized object.
         name (Optional[str]): Name to give the blob object, to be reused later on.
         path (Optional[str]): Path (or path) of the blob object.
-        system (Optional[str]): File system. Currently this must be one of:
-           [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
+        system (Optional[str or Cluster]): File system or cluster name. If providing a file system this must be one of:
+            [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
             We are working to add additional file system support.
         data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
-        mkdir (bool): Whether to create a remote folder for the blob. (Default: ``False``)
         dryrun (bool): Whether to create the Blob if it doesn't exist, or load a Blob object as a dryrun.
             (Default: ``False``)
 
@@ -193,81 +192,57 @@ def blob(
         >>> data = json.dumps(list(range(50))
         >>>
         >>> # Remote blob with name and no path (saved to bucket called runhouse/blobs/my-blob)
-        >>> rh.blob(name="@/my-blob", data=data, system='s3')
+        >>> rh.blob(name="@/my-blob", data=data, system='s3').write()
         >>>
         >>> # Remote blob with name and path
-        >>> rh.blob(name='@/my-blob', path='/runhouse-tests/my_blob.pickle', data=data, system='s3')
+        >>> rh.blob(name='@/my-blob', path='/runhouse-tests/my_blob.pickle', system='s3').save()
         >>>
         >>> # Local blob with name and path, save to local filesystem
-        >>> rh.blob(name=name, data=data, path=str(Path.cwd() / "my_blob.pickle"))
+        >>> rh.blob(data=data, path=str(Path.cwd() / "my_blob.pickle")).write()
         >>>
         >>> # Local blob with name and no path (saved to ~/.cache/blobs/my-blob)
-        >>> rh.blob(name="~/my-blob", data=data)
+        >>> rh.blob(name="~/my-blob", data=data).write().save()
 
         >>> # Loading a blob
-        >>> my_local_blob = rh.blob(name="~/my_blob", dryrun=True)
-        >>> my_s3_blob = rh.blob(name="@/my_blob", dryrun=True)
+        >>> my_local_blob = rh.blob(name="~/my_blob")
+        >>> my_s3_blob = rh.blob(name="@/my_blob")
     """
-    if (
-        all(
-            param is None
-            for param in (
-                data,
-                path,
-                system,
-                data_config,
-            )
-        )
-        and not mkdir
-    ):
+    if name and not any([data, path, system, data_config]):
         # Try reloading existing blob
         return Blob.from_name(name, dryrun)
 
-    config = rns_client.load_config(name)
-
-    system = (
+    system = _get_cluster_from(
         system
-        or config.get("system")
         or _current_cluster(key="config")
-        or Folder.DEFAULT_FS
+        or Folder.DEFAULT_FS,
+        dryrun=dryrun
     )
-    config["system"] = system
 
-    name = name or config.get("rns_address") or config.get("name")
-
-    data_path = path or config.get("path")
-    if data_path is None:
+    if path is None:
         blob_name_in_path = (
             f"{generate_uuid()}/{rns_client.resolve_rns_data_resource_name(name)}"
         )
 
         if (
             system == rns_client.DEFAULT_FS
-            or config["system"] == _current_cluster()
             or (
-                isinstance(config["system"], dict)
-                and config["system"]["name"] == _current_cluster()
+                isinstance(system, Resource)
+                and system.on_this_cluster()
             )
         ):
             # create random path to store in .cache folder of local filesystem
-            data_path = str(
+            path = str(
                 Path(f"~/{Blob.DEFAULT_CACHE_FOLDER}/{blob_name_in_path}").expanduser()
             )
         else:
             # save to the default bucket
-            data_path = f"{Blob.DEFAULT_FOLDER_PATH}/{blob_name_in_path}"
+            path = f"{Blob.DEFAULT_FOLDER_PATH}/{blob_name_in_path}"
 
-    config["name"] = name
-    config["path"] = data_path
-    config["data_config"] = data_config or config.get("data_config")
-    config["system"] = _get_cluster_from(config["system"], dryrun=dryrun)
-
-    if mkdir:
-        # create the remote folder for the blob
-        folder_path = str(Path(data_path).parent)
-        folder(name=folder_path, system=system, dryrun=True).mkdir()
-
-    new_blob = Blob.from_config(config, dryrun=dryrun)
+    new_blob = Blob(path=path,
+                    system=system,
+                    data_config=data_config,
+                    name=name,
+                    dryrun=dryrun)
     new_blob.data = data
 
     return new_blob
