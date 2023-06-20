@@ -465,15 +465,22 @@ def table(
         >>> # Load table from above
         >>> reloaded_table = rh.table(name="~/my_test_pandas_table")
     """
-    if name and not any([data is not None, path, system, data_config, partition_cols, stream_format, metadata]):
+    if name and not any(
+        [
+            data is not None,
+            path,
+            system,
+            data_config,
+            partition_cols,
+            stream_format,
+            metadata,
+        ]
+    ):
         # Try reloading existing table
         return Table.from_name(name, dryrun)
 
     system = _get_cluster_from(
-        system
-        or _current_cluster(key="config")
-        or Folder.DEFAULT_FS,
-        dryrun=dryrun
+        system or _current_cluster(key="config") or Folder.DEFAULT_FS, dryrun=dryrun
     )
 
     file_name = None
@@ -488,11 +495,8 @@ def table(
     if path is None:
         # If no path is provided we need to create one based on the name of the table
         table_name_in_path = rns_client.resolve_rns_data_resource_name(name)
-        if (
-                system == rns_client.DEFAULT_FS
-                or (
-                isinstance(system, Resource)
-                and system.on_this_cluster())
+        if system == rns_client.DEFAULT_FS or (
+            isinstance(system, Resource) and system.on_this_cluster()
         ):
             # create random path to store in .cache folder of local filesystem
             path = str(
@@ -504,8 +508,16 @@ def table(
             # save to the default bucket
             path = f"{Table.DEFAULT_FOLDER_PATH}/{table_name_in_path}"
 
-    config = {"system": system, "name": name, "path": path, "file_name": file_name, "data_config": data_config,
-              "partition_cols": partition_cols, "stream_format": stream_format, "metadata": metadata}
+    config = {
+        "system": system,
+        "name": name,
+        "path": path,
+        "file_name": file_name,
+        "data_config": data_config,
+        "partition_cols": partition_cols,
+        "stream_format": stream_format,
+        "metadata": metadata,
+    }
 
     new_table = _load_table_subclass(config=config, dryrun=dryrun, data=data)
     if data is not None:

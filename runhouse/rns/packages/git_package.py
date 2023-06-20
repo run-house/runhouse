@@ -3,7 +3,6 @@ import subprocess
 from pathlib import Path
 from typing import Union
 
-from runhouse import rh_config
 from .package import Package
 
 
@@ -110,8 +109,10 @@ def git_package(
         if not git_url.endswith(".git"):
             git_url += ".git"
 
-    return GitPackage(git_url=git_url,
-                      revision=revision,
-                      install_method=install_method,
-                      install_args=install_str,
-                      dryrun=dryrun)
+    return GitPackage(
+        git_url=git_url,
+        revision=revision,
+        install_method=install_method,
+        install_args=install_str,
+        dryrun=dryrun,
+    )

@@ -283,7 +283,7 @@ def test_share_function(cpu_cluster):
 
 @pytest.mark.rnstest
 def test_load_shared_function():
-    my_function = rh.function(name=REMOTE_FUNC_NAME, dryrun=True)
+    my_function = rh.function(name=REMOTE_FUNC_NAME)
     res = my_function(1, 2)
     assert res == 3
 

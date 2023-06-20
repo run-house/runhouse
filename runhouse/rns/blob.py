@@ -212,10 +212,7 @@ def blob(
         return Blob.from_name(name, dryrun)
 
     system = _get_cluster_from(
-        system
-        or _current_cluster(key="config")
-        or Folder.DEFAULT_FS,
-        dryrun=dryrun
+        system or _current_cluster(key="config") or Folder.DEFAULT_FS, dryrun=dryrun
     )
 
     if path is None:
@@ -223,12 +220,8 @@ def blob(
             f"{generate_uuid()}/{rns_client.resolve_rns_data_resource_name(name)}"
         )
 
-        if (
-            system == rns_client.DEFAULT_FS
-            or (
-                isinstance(system, Resource)
-                and system.on_this_cluster()
-            )
+        if system == rns_client.DEFAULT_FS or (
+            isinstance(system, Resource) and system.on_this_cluster()
         ):
             # create random path to store in .cache folder of local filesystem
             path = str(
@@ -238,11 +231,9 @@ def blob(
             # save to the default bucket
             path = f"{Blob.DEFAULT_FOLDER_PATH}/{blob_name_in_path}"
 
-    new_blob = Blob(path=path,
-                    system=system,
-                    data_config=data_config,
-                    name=name,
-                    dryrun=dryrun)
+    new_blob = Blob(
+        path=path, system=system, data_config=data_config, name=name, dryrun=dryrun
+    )
     new_blob.data = data
 
     return new_blob

@@ -29,13 +29,13 @@ class Package(Resource):
     }
 
     def __init__(
-            self,
-            name: str = None,
-            install_method: str = None,
-            install_target: Union[str, Folder] = None,
-            install_args: str = None,
-            dryrun: bool = False,
-            **kwargs,  # We have this here to ignore extra arguments when calling from from_config
+        self,
+        name: str = None,
+        install_method: str = None,
+        install_target: Union[str, Folder] = None,
+        install_args: str = None,
+        dryrun: bool = False,
+        **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
         Runhouse Package resource.
@@ -156,7 +156,7 @@ class Package(Resource):
             return f"-r {path}" + args
         for req in reqs:
             if (
-                    "--index-url" in req or "--extra-index-url" in req
+                "--index-url" in req or "--extra-index-url" in req
             ) and "pytorch.org" in req:
                 return f"-r {path}" + args
 
@@ -195,7 +195,7 @@ class Package(Resource):
 
         index_url = self.torch_index_url(cuda_version_or_cpu)
         if index_url and not any(
-                specifier in install_cmd for specifier in ["--index-url ", "-i "]
+            specifier in install_cmd for specifier in ["--index-url ", "-i "]
         ):
             install_cmd = f"{install_cmd} --index-url {index_url}"
 
@@ -291,10 +291,10 @@ class Package(Resource):
                 )
 
     def to(
-            self,
-            system: Union[str, Dict, "Cluster"],
-            path: Optional[str] = None,
-            mount: bool = False,
+        self,
+        system: Union[str, Dict, "Cluster"],
+        path: Optional[str] = None,
+        mount: bool = False,
     ):
         """Copy the package onto filesystem or cluster, and return the new Package object."""
         if not isinstance(self.install_target, Folder):
@@ -409,14 +409,14 @@ class Package(Resource):
 
 
 def package(
-        name: str = None,
-        install_method: str = None,
-        install_str: str = None,
-        path: str = None,
-        system: str = None,
-        dryrun: bool = False,
-        local_mount: bool = False,
-        data_config: Optional[Dict] = None,
+    name: str = None,
+    install_method: str = None,
+    install_str: str = None,
+    path: str = None,
+    system: str = None,
+    dryrun: bool = False,
+    local_mount: bool = False,
+    data_config: Optional[Dict] = None,
 ) -> Package:
     """
     Builds an instance of :class:`Package`.
@@ -441,7 +441,9 @@ def package(
         >>> reloaded_package = rh.package(name="my-package")
         >>> local_package = rh.package(path="local/folder/path", install_method="local")
     """
-    if name and not any([install_method, install_str, path, system, data_config, local_mount]):
+    if name and not any(
+        [install_method, install_str, path, system, data_config, local_mount]
+    ):
         # If only the name is provided and dryrun is set to True
         return Package.from_name(name, dryrun)
 
@@ -456,8 +458,10 @@ def package(
     elif install_str is not None:
         install_target, install_args = install_str.split(" ", 1)
 
-    return Package(install_method=install_method,
-                   install_target=install_target,
-                   install_args=install_args,
-                   name=name,
-                   dryrun=dryrun)
+    return Package(
+        install_method=install_method,
+        install_target=install_target,
+        install_args=install_args,
+        name=name,
+        dryrun=dryrun,
+    )
