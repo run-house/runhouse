@@ -78,7 +78,7 @@ class Cluster(Resource):
     @staticmethod
     def from_config(config: dict, dryrun=False):
         resource_subtype = config.get("resource_subtype")
-        if resource_subtype == "cluster":
+        if resource_subtype == "Cluster":
             return Cluster(**config, dryrun=dryrun)
         elif resource_subtype == "OnDemandCluster":
             from runhouse.rns.hardware import OnDemandCluster
@@ -711,9 +711,9 @@ def cluster(
         >>>                  name='rh-a10x')
 
         >>> # Load cluster from above
-        >>> reloaded_cluster = rh.cluster(name="rh-a10x", dryrun=True)
+        >>> reloaded_cluster = rh.cluster(name="rh-a10x")
     """
-    if ips is None and ssh_creds is None:
+    if name and ips is None and ssh_creds is None and not kwargs:
         # If only the name is provided and dryrun is set to True
         return Cluster.from_name(name, dryrun)
 
@@ -726,11 +726,4 @@ def cluster(
 
         return autocluster(name=name, **kwargs)
 
-    config = rns_client.load_config(name)
-    config["name"] = name or config.get("rns_address", None) or config.get("name")
-    config["ips"] = ips or config.get("ips", None)
-
-    # ssh creds should only be in Secrets management, not in config
-    config["ssh_creds"] = ssh_creds or config.get("ssh_creds", None)
-
-    return Cluster.from_config(config, dryrun=dryrun)
+    return Cluster(ips=ips, ssh_creds=ssh_creds, name=name, dryrun=dryrun)

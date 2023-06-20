@@ -1,7 +1,6 @@
 from datetime import datetime
 from typing import Dict, List, Optional, Union
 
-from runhouse.rh_config import rns_client
 from runhouse.rns.packages import Package
 from runhouse.rns.utils.env import _get_conda_yaml, _process_reqs
 from .conda_env import CondaEnv
@@ -46,26 +45,23 @@ def env(
         >>> conda_env = rh.env(conda_env="conda_env.yaml", reqs=["pip:/accelerate"])   # with additional reqs
     """
 
-    if not reqs and conda_env is None and setup_cmds is None and name and dryrun:
-        # If only the name is provided and dryrun is set to True
+    if name and not any([reqs, conda_env, setup_cmds]):
         return Env.from_name(name, dryrun)
 
-    config = rns_client.load_config(name)
-    config["name"] = name or config.get("rns_address", None) or config.get("name")
-
-    reqs = reqs if reqs else config.get("reqs", [])
-    config["reqs"] = _process_reqs(reqs)
-
-    config["setup_cmds"] = (
-        setup_cmds if setup_cmds is not None else config.get("setup_cmds")
-    )
-    conda_yaml = _get_conda_yaml(conda_env) or config.get("conda_yaml")
+    reqs = _process_reqs(reqs or [])
+    conda_yaml = _get_conda_yaml(conda_env)
 
     if conda_yaml:
-        config["conda_yaml"] = conda_yaml
-        return CondaEnv.from_config(config, dryrun=dryrun)
+        return CondaEnv(conda_yaml=conda_yaml,
+                        reqs=reqs,
+                        setup_cmds=setup_cmds,
+                        name=name,
+                        dryrun=dryrun)
 
-    return Env.from_config(config, dryrun=dryrun)
+    return Env(reqs=reqs,
+               setup_cmds=setup_cmds,
+               name=name,
+               dryrun=dryrun)
 
 
 # Conda Env factory method
