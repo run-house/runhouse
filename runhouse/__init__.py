@@ -16,9 +16,9 @@ from .rh_config import configs, obj_store, rns_client
 from .rns.blob import blob, Blob
 from .rns.defaults import Defaults
 from .rns.envs import conda_env, CondaEnv, env, Env
-from .rns.folders.folder import folder, Folder
+from .rns.folders import Folder, folder, GCSFolder, S3Folder
 from .rns.function import function, Function
-from .rns.hardware import cluster, Cluster, OnDemandCluster
+from .rns.hardware import cluster, Cluster, ondemand_cluster, OnDemandCluster
 from .rns.kvstores.kvstore import KVStore
 from .rns.login import login, logout
 from .rns.packages import git_package, GitPackage, package, Package

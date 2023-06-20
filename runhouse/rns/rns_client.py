@@ -348,7 +348,7 @@ class RNSClient:
         resource_dir.mkdir(parents=True, exist_ok=True)
         config_path = resource_dir / "config.json"
         with open(config_path, "w") as f:
-            json.dump(config, f)
+            json.dump(config, f, indent=4)
         logger.info(f"Saving config for {rns_address} to: {config_path}")
 
     def _save_config_in_rns(self, config, resource_name):
@@ -500,7 +500,7 @@ class RNSClient:
         return None
 
     def set_folder(self, path: str, create=False):
-        from runhouse.rns.folders.folder import Folder, folder
+        from runhouse.rns.folders import Folder, folder
 
         if isinstance(path, Folder):
             abs_path = path.rns_address
@@ -524,7 +524,7 @@ class RNSClient:
         self.current_folder = self._prev_folders.pop(-1)
 
     def contents(self, name_or_path, full_paths):
-        from runhouse.rns.folders.folder import folder
+        from runhouse.rns.folders import folder
 
         folder_url = self.locate(name_or_path)
         return folder(name=name_or_path, path=folder_url).resources(

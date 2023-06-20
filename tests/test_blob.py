@@ -30,7 +30,7 @@ def test_create_and_reload_local_blob_with_name(blob_data):
     del blob_data
     del my_blob
 
-    reloaded_blob = rh.Blob.from_name(name)
+    reloaded_blob = rh.blob(name=name)
     reloaded_data = pickle.loads(reloaded_blob.data)
     assert reloaded_data == list(range(50))
 
@@ -59,7 +59,7 @@ def test_create_and_reload_local_blob_with_path(blob_data):
     del blob_data
     del my_blob
 
-    reloaded_blob = rh.Blob.from_name(name)
+    reloaded_blob = rh.blob(name=name)
     reloaded_data = pickle.loads(reloaded_blob.data)
     assert reloaded_data == list(range(50))
 
@@ -79,7 +79,7 @@ def test_create_and_reload_anom_local_blob(blob_data):
         system="file",
     ).write()
 
-    reloaded_blob = rh.blob(path=my_blob.path, dryrun=True)
+    reloaded_blob = rh.blob(path=my_blob.path)
     reloaded_data = pickle.loads(reloaded_blob.data)
     assert reloaded_data == list(range(50))
 
@@ -97,7 +97,6 @@ def test_create_and_reload_rns_blob(blob_data):
             name=name,
             data=blob_data,
             system="s3",
-            mkdir=True,
         )
         .write()
         .save()
@@ -106,7 +105,7 @@ def test_create_and_reload_rns_blob(blob_data):
     del blob_data
     del my_blob
 
-    reloaded_blob = rh.Blob.from_name(name)
+    reloaded_blob = rh.blob(name=name)
     reloaded_data = pickle.loads(reloaded_blob.data)
     assert reloaded_data == list(range(50))
 
@@ -128,7 +127,6 @@ def test_create_and_reload_rns_blob_with_path(blob_data, blob_s3_bucket):
             data=blob_data,
             system="s3",
             path=f"/{blob_s3_bucket}/test_blob.pickle",
-            mkdir=True,
         )
         .write()
         .save()
@@ -137,7 +135,7 @@ def test_create_and_reload_rns_blob_with_path(blob_data, blob_s3_bucket):
     del blob_data
     del my_blob
 
-    reloaded_blob = rh.Blob.from_name(name)
+    reloaded_blob = rh.blob(name=name)
     reloaded_data = pickle.loads(reloaded_blob.data)
     assert reloaded_data == list(range(50))
 
@@ -218,7 +216,6 @@ def test_sharing_blob(blob_data):
             data=blob_data,
             name=name,
             system="s3",
-            mkdir=True,
         )
         .write()
         .save()
@@ -236,7 +233,7 @@ def test_sharing_blob(blob_data):
 
 @pytest.mark.rnstest
 def test_load_shared_blob():
-    my_blob = rh.Blob.from_name(name="@/shared_blob")
+    my_blob = rh.blob(name="@/shared_blob")
     assert my_blob.exists_in_system()
 
     raw_data = my_blob.fetch()

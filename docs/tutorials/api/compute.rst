@@ -65,7 +65,7 @@ There are two types of supported cluster types:
               )
 
     # Using a Cloud provider
-    cluster = rh.cluster(
+    cluster = rh.ondemand_cluster(
                   name="cpu-cluster",
                   instance_type="CPU:8",
                   provider="cheapest",       # "AWS", "GCP", "Azure", "Lambda", or "cheapest" (default)

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, Optional, Union
 
 from runhouse import rh_config
-from runhouse.rns.folders.folder import Folder, folder
+from runhouse.rns.folders import Folder, folder
 from runhouse.rns.resource import Resource
 from runhouse.rns.utils.hardware import _get_cluster_from
 
@@ -327,6 +327,9 @@ class Package(Resource):
 
     @staticmethod
     def from_string(specifier: str, dryrun=False):
+        if specifier == "requirements.txt":
+            specifier = "reqs:./"
+
         # Use regex to check if specifier matches '<method>:https://github.com/<path>' or 'https://github.com/<path>'
         match = re.search(
             r"^(?:(?P<method>[^:]+):)?(?P<path>https://github.com/.+)", specifier
@@ -410,11 +413,10 @@ def package(
     install_method: str = None,
     install_str: str = None,
     path: str = None,
-    system: str = Folder.DEFAULT_FS,
+    system: str = None,
     dryrun: bool = False,
     local_mount: bool = False,
     data_config: Optional[Dict] = None,
-    load: bool = True,
 ) -> Package:
     """
     Builds an instance of :class:`Package`.
@@ -430,29 +432,36 @@ def package(
             (Default: ``False``)
         local_mount (bool): Whether to locally mount the installed package. (Default: ``False``)
         data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
-        load (bool): Whether to load an existing config for the Package. (Default: ``True``)
 
     Returns:
         Package: The resulting package.
 
     Example:
-        >>> reloaded_package = rh.package(name="my-package", dryrun=True)
+        >>> import runhouse as rh
+        >>> reloaded_package = rh.package(name="my-package")
         >>> local_package = rh.package(path="local/folder/path", install_method="local")
     """
-    config = rh_config.rns_client.load_config(name) if load else {}
-    config["name"] = name or config.get("rns_address", None) or config.get("name")
+    if name and not any(
+        [install_method, install_str, path, system, data_config, local_mount]
+    ):
+        # If only the name is provided and dryrun is set to True
+        return Package.from_name(name, dryrun)
 
-    config["install_method"] = install_method or config.get("install_method")
+    install_target = None
+    install_args = None
     if path is not None:
-        config["install_target"] = folder(
+        system = system or Folder.DEFAULT_FS
+        install_target = folder(
             path=path, system=system, local_mount=local_mount, data_config=data_config
         )
-        config["install_args"] = install_str
+        install_args = install_str
     elif install_str is not None:
-        config["install_target"], config["install_args"] = install_str.split(" ", 1)
-    elif "install_target" in config and isinstance(config["install_target"], dict):
-        config["install_target"] = Folder.from_config(config["install_target"])
+        install_target, install_args = install_str.split(" ", 1)
 
-    new_package = Package.from_config(config, dryrun=dryrun)
-
-    return new_package
+    return Package(
+        install_method=install_method,
+        install_target=install_target,
+        install_args=install_args,
+        name=name,
+        dryrun=dryrun,
+    )

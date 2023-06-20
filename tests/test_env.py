@@ -118,7 +118,7 @@ def test_env_git_reqs(cpu_cluster):
 # -------- CONDA ENV TESTS ----------- #
 
 
-def _get_conda_env(name="rh-test", python_version="3.10.9", pip_reqs=[]):
+def _get_conda_env(name="rh-test", python_version="3.10.9"):
     conda_env = {
         "name": name,
         "channels": ["defaults"],
@@ -143,7 +143,7 @@ def test_conda_env_from_name_local():
     local_env = rh.env(name=env_name, conda_env=conda_env).save()
     del local_env
 
-    remote_env = rh.env(name=env_name)
+    remote_env = rh.env(name=env_name, dryrun=True)
     assert remote_env.conda_yaml == conda_env
     assert remote_env.env_name == conda_env["name"]
 
@@ -279,8 +279,8 @@ def np_summer(a, b):
 
 @pytest.mark.clustertest
 def test_conda_call_fn(cpu_cluster):
-    conda_dict = _get_conda_env(name="c", pip_reqs=["numpy"])
-    conda_env = rh.env(conda_env=conda_dict, reqs=["pytest"])
+    conda_dict = _get_conda_env(name="c")
+    conda_env = rh.env(conda_env=conda_dict, reqs=["pytest", "numpy"])
     fn = rh.function(np_summer).to(system=cpu_cluster, env=conda_env)
     result = fn(1, 4)
     assert result == 5
@@ -288,8 +288,8 @@ def test_conda_call_fn(cpu_cluster):
 
 @pytest.mark.clustertest
 def test_conda_map_fn(cpu_cluster):
-    conda_dict = _get_conda_env(name="test-map-fn", pip_reqs=["numpy"])
-    conda_env = rh.env(conda_env=conda_dict, reqs=["pytest"])
+    conda_dict = _get_conda_env(name="test-map-fn")
+    conda_env = rh.env(conda_env=conda_dict, reqs=["pytest", "numpy"])
     map_fn = rh.function(np_summer, system=cpu_cluster, env=conda_env)
     inputs = list(zip(range(5), range(4, 9)))
     results = map_fn.starmap(inputs)

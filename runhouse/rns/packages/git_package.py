@@ -3,7 +3,6 @@ import subprocess
 from pathlib import Path
 from typing import Union
 
-from runhouse import rh_config
 from .package import Package
 
 
@@ -96,21 +95,24 @@ def git_package(
         GitPackage: The resulting GitHub Package.
 
     Example:
+            >>> import runhouse as rh
             >>> rh.git_package(git_url='https://github.com/runhouse/runhouse.git',
             >>>               install_method='pip', revision='v0.0.1')
 
     """
-    config = rh_config.rns_client.load_config(name)
-    config["name"] = name or config.get("rns_address", None) or config.get("name")
+    if name and not any([install_method, install_str, git_url, revision]):
+        # If only the name is provided and dryrun is set to True
+        return Package.from_name(name, dryrun)
 
-    config["install_method"] = install_method or config.get("install_method", "local")
-    config["install_args"] = install_str or config.get("install_args")
-    config["revision"] = revision or config.get("revision")
+    install_method = install_method or "local"
     if git_url is not None:
         if not git_url.endswith(".git"):
             git_url += ".git"
-        config["git_url"] = git_url
 
-    new_package = GitPackage.from_config(config, dryrun=dryrun)
-
-    return new_package
+    return GitPackage(
+        git_url=git_url,
+        revision=revision,
+        install_method=install_method,
+        install_args=install_str,
+        dryrun=dryrun,
+    )

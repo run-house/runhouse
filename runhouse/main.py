@@ -7,7 +7,7 @@ import typer
 from rich.console import Console
 
 from runhouse import cluster, configs
-from runhouse.rns import (  # Need to rename it because it conflicts with the login command
+from runhouse.rns.login import (  # Need to rename it because it conflicts with the login command
     login as login_module,
 )
 
@@ -147,7 +147,7 @@ def restart_server(
     restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
     resync_rh: bool = typer.Option(False, help="Resync the Runhouse package"),
 ):
-    """Restart the RPC server on a cluster."""
+    """Restart the gRPC server on a cluster."""
     c = cluster(name=cluster_name)
     c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray)
 

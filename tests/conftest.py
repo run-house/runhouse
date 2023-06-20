@@ -132,7 +132,7 @@ def cpu_cluster():
 def byo_cpu():
     # Spin up a new basic m5.xlarge EC2 instance
     c = (
-        rh.cluster(
+        rh.ondemand_cluster(
             instance_type="m5.xlarge",
             provider="aws",
             region="us-east-1",
@@ -155,17 +155,21 @@ def byo_cpu():
 
 @pytest.fixture(scope="session")
 def v100_gpu_cluster():
-    return rh.cluster("^rh-v100", provider="aws").up_if_not()
+    return rh.ondemand_cluster(
+        name="rh-v100", instance_type="V100:1", provider="aws"
+    ).up_if_not()
 
 
 @pytest.fixture(scope="session")
 def k80_gpu_cluster():
-    return rh.cluster(name="rh-k80", instance_type="K80:1", provider="aws").up_if_not()
+    return rh.ondemand_cluster(
+        name="rh-k80", instance_type="K80:1", provider="aws"
+    ).up_if_not()
 
 
 @pytest.fixture(scope="session")
 def a10g_gpu_cluster():
-    return rh.cluster(
+    return rh.ondemand_cluster(
         name="rh-a10x", instance_type="g5.2xlarge", provider="aws"
     ).up_if_not()
 

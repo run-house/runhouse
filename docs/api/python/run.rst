@@ -200,7 +200,7 @@ or the :code:`.rh/logs/<run_name>` folder if running on a cluster.
         # Add all Runhouse objects loaded or saved in the context manager to
         # the Run's artifact registry (upstream + downstream artifacts)
 
-        my_func = rh.Function.from_name("my_existing_run")
+        my_func = rh.function(name="my_existing_run")
         my_func.save("my_new_func")
 
         my_func(1, 2, run_name="my_new_run")
@@ -249,7 +249,7 @@ the function execution is complete:
 
     import runhouse as rh
 
-    my_func = rh.Function.from_name("my_func")
+    my_func = rh.function(name="my_func")
     res = my_func.get_or_call(1, 2, run_name="my_fn_run")
 
 
@@ -262,7 +262,7 @@ begin executing on the cluster in the background, and in the meantime a :code:`R
 
     import runhouse as rh
 
-    my_func = rh.Function.from_name("my_func")
+    my_func = rh.function(name="my_func")
     run_obj = my_func.run(1, 2, run_name="my_async_run")
 
 
@@ -273,7 +273,7 @@ on the function. A :code:`Run` object will be returned whether the result is cac
 
     import runhouse as rh
 
-    my_func = rh.Function.from_name("my_func")
+    my_func = rh.function(name="my_func")
     run_obj = my_func.get_or_run(1, 2, run_name="my_async_run")
 
 

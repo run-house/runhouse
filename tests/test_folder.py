@@ -292,7 +292,7 @@ def test_s3_sharing(s3_folder):
         headers=headers,
     )
 
-    my_folder = rh.Folder.from_name("@/my-s3-shared-folder")
+    my_folder = rh.folder(name="@/my-s3-shared-folder")
     assert my_folder.ls() == s3_folder.ls()
 
 

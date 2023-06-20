@@ -12,7 +12,9 @@ from ray import cloudpickle as pickle
 from runhouse import blob
 from runhouse.rh_config import obj_store, rns_client
 from runhouse.rns.api_utils.utils import log_timestamp
-from runhouse.rns.folders.folder import Folder, folder
+
+# Need to alias so it doesn't conflict with the folder property
+from runhouse.rns.folders import Folder, folder as folder_factory
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.resource import Resource
 from runhouse.rns.top_level_rns_fns import resolve_rns_path
@@ -80,7 +82,7 @@ class Run(Resource):
 
         # Create new folder which lives on the system and contains all the Run's data:
         # (run config, stdout, stderr, inputs, result)
-        self.folder = folder(
+        self.folder = folder_factory(
             path=folder_path,
             system=folder_system,
             data_config=data_config,
@@ -138,7 +140,7 @@ class Run(Resource):
         return False
 
     @staticmethod
-    def from_config(config: dict, dryrun=True):
+    def from_config(config: dict, dryrun=False):
         return Run(**config, dryrun=dryrun)
 
     @property
@@ -423,10 +425,9 @@ class Run(Resource):
     @staticmethod
     def _delete_existing_run(folder_path, folder_system: str):
         """Delete existing Run on the system before a new one is created."""
-        existing_folder = folder(
+        existing_folder = folder_factory(
             path=folder_path,
             system=folder_system,
-            dryrun=True,
         )
 
         existing_folder.rm()
@@ -478,11 +479,10 @@ def run(
     if path is None:
         raise ValueError("Must provide either a name or path to load a Run.")
 
-    system_folder = folder(
+    system_folder = folder_factory(
         path=path,
         system=system,
         data_config=data_config,
-        dryrun=True,
     )
 
     if not system_folder.exists_in_system():
@@ -494,4 +494,4 @@ def run(
 
     # Re-load the Run object
     logger.info(f"Run config from path: {run_config}")
-    return Run.from_config(run_config, dryrun=True)
+    return Run.from_config(run_config)

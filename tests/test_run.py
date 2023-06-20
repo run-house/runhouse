@@ -19,6 +19,13 @@ RUN_FILES = (
 )
 
 
+def load_run_from_rns(run_name):
+    run_config = rh.load(name=run_name, instantiate=False)
+    assert run_config, f"No config saved in RNS for {run_name}"
+
+    return rh.Run.from_config(config=run_config, dryrun=True)
+
+
 # ------------------------- FUNCTION RUN ----------------------------------
 
 
@@ -164,6 +171,7 @@ def test_get_or_run_latest(summer_func):
 @pytest.mark.clustertest
 @pytest.mark.runstest
 def test_delete_async_run_from_system(cpu_cluster, submitted_async_run):
+    # Load the run from the cluster and delete its dedicated folder
     async_run = cpu_cluster.get_run(submitted_async_run)
     async_run.folder.rm()
     assert not async_run.folder.exists_in_system()
@@ -174,13 +182,16 @@ def test_delete_async_run_from_system(cpu_cluster, submitted_async_run):
 @pytest.mark.runstest
 def test_save_fn_run_to_rns(cpu_cluster, submitted_run):
     """Saves run config to RNS"""
+    # Load run that lives on the cluster
     func_run = cpu_cluster.get_run(submitted_run)
     assert func_run
 
+    # Save to RNS
     func_run.save(name=submitted_run)
-    loaded_run = rh.Run.from_name(name=submitted_run)
+
+    # Load from RNS
+    loaded_run = load_run_from_rns(submitted_run)
     assert rh.exists(loaded_run.name, resource_type=rh.Run.RESOURCE_TYPE)
-    assert loaded_run.status == rh.RunStatus.COMPLETED
 
 
 @pytest.mark.clustertest
@@ -238,8 +249,9 @@ def test_copy_fn_run_from_system_to_s3(cpu_cluster, runs_s3_bucket, submitted_ru
 
 @pytest.mark.clustertest
 @pytest.mark.runstest
-def test_read_fn_run_inputs_and_outputs(submitted_run):
-    my_run = rh.Run.from_name(name=submitted_run)
+def test_read_fn_run_inputs_and_outputs(submitted_run, cpu_cluster):
+    # Load directly from the cluster
+    my_run = rh.run(name=submitted_run, system=cpu_cluster)
     inputs = my_run.inputs()
     assert inputs == {"args": [1, 2], "kwargs": {}}
 
@@ -250,9 +262,11 @@ def test_read_fn_run_inputs_and_outputs(submitted_run):
 @pytest.mark.rnstest
 @pytest.mark.runstest
 def test_delete_fn_run_from_rns(submitted_run):
-    func_run = rh.Run.from_name(submitted_run)
-    func_run.delete_configs()
-    assert not rh.exists(name=func_run.name, resource_type=rh.Run.RESOURCE_TYPE)
+    # Load directly from the cluster
+    loaded_run = load_run_from_rns(submitted_run)
+
+    loaded_run.delete_configs()
+    assert not rh.exists(name=loaded_run.name, resource_type=rh.Run.RESOURCE_TYPE)
 
 
 @pytest.mark.clustertest
@@ -284,7 +298,7 @@ def test_create_cli_python_command_run(cpu_cluster):
             "import runhouse as rh",
             "import pickle",
             "import logging",
-            "local_blob = rh.blob(name='local_blob', data=pickle.dumps(list(range(50))), mkdir=True).write()",
+            "local_blob = rh.blob(name='local_blob', data=pickle.dumps(list(range(50)))).write()",
             "logging.info(f'Blob path: {local_blob.path}')",
             "local_blob.rm()",
         ],
@@ -310,7 +324,8 @@ def test_create_cli_command_run(cpu_cluster):
 @pytest.mark.clustertest
 @pytest.mark.runstest
 def test_send_cli_run_to_cluster(cpu_cluster):
-    """Send the CLI based Run which was initially saved locally to the cpu cluster."""
+    """Send the CLI based Run which was initially saved on the local file system to the cpu cluster."""
+    # Load the run from the local file system
     loaded_run = rh.run(name=CLI_RUN_NAME)
     assert loaded_run.status == rh.RunStatus.COMPLETED
     assert loaded_run.stdout() == "Python 3.10.6"
@@ -319,6 +334,7 @@ def test_send_cli_run_to_cluster(cpu_cluster):
     cluster_run = loaded_run.to(
         cpu_cluster, path=rh.Run._base_cluster_folder_path(name=CLI_RUN_NAME)
     )
+
     assert cluster_run.folder.exists_in_system()
     assert isinstance(cluster_run.folder.system, rh.Cluster)
 
@@ -326,7 +342,7 @@ def test_send_cli_run_to_cluster(cpu_cluster):
 @pytest.mark.clustertest
 @pytest.mark.runstest
 def test_load_cli_command_run_from_cluster(cpu_cluster):
-    # Run only exists on the cluster (hasn't yet been saved to RNS).
+    # At this point the Run exists locally and on the cluster (hasn't yet been saved to RNS).
     cli_run = cpu_cluster.get_run(CLI_RUN_NAME)
     assert isinstance(cli_run, rh.Run)
 
@@ -334,45 +350,68 @@ def test_load_cli_command_run_from_cluster(cpu_cluster):
 @pytest.mark.clustertest
 @pytest.mark.rnstest
 @pytest.mark.runstest
-def test_save_cli_run_on_cluster_to_rns(cpu_cluster):
+def test_save_cli_run_to_rns(cpu_cluster):
+    # Load the run from the cluster
     cli_run = cpu_cluster.get_run(CLI_RUN_NAME)
+
+    # Save to RNS
     cli_run.save(name=CLI_RUN_NAME)
 
-    loaded_run_from_rns = rh.Run.from_name(name=CLI_RUN_NAME)
-    assert loaded_run_from_rns
+    # Confirm Run now lives in RNS
+    loaded_run = load_run_from_rns(CLI_RUN_NAME)
+    assert loaded_run
 
 
+@pytest.mark.clustertest
 @pytest.mark.rnstest
 @pytest.mark.runstest
-def test_read_cli_command_stdout():
-    # Read the stdout from the system the command was run
-    cli_run = rh.Run.from_name(name=CLI_RUN_NAME)
+def test_read_cli_command_stdout(cpu_cluster):
+    # Read the stdout from the cluster
+    cli_run = cpu_cluster.get_run(CLI_RUN_NAME)
     cli_stdout = cli_run.stdout()
     assert cli_stdout == "Python 3.10.6"
 
 
 @pytest.mark.clustertest
 @pytest.mark.runstest
-def test_delete_cli_run_from_system(cpu_cluster):
-    cli_run = cpu_cluster.get_run(CLI_RUN_NAME)
+def test_delete_cli_run_from_local_filesystem():
+    """Delete the config where it was initially saved (in the local ``rh`` folder of the working directory)"""
+    # Load the run from the locla file system
+    cli_run = rh.run(CLI_RUN_NAME)
     cli_run.folder.rm()
 
     assert not cli_run.folder.exists_in_system()
 
 
+@pytest.mark.clustertest
+@pytest.mark.runstest
+def test_delete_cli_run_from_cluster(cpu_cluster):
+    """Delete the config where it was copied to (in the ``~/.rh/logs/<run_name>`` folder of the cluster)"""
+    cli_run = cpu_cluster.get_run(CLI_RUN_NAME)
+
+    # Update the Run's folder to point to the cluster instead of the local file system
+    cli_run.folder.system = cpu_cluster
+    cli_run.folder.path = rh.Run._base_cluster_folder_path(name=CLI_RUN_NAME)
+    assert cli_run.folder.exists_in_system()
+
+    cli_run.folder.rm()
+    assert not cli_run.folder.exists_in_system()
+
+
+@pytest.mark.clustertest
 @pytest.mark.rnstest
 @pytest.mark.runstest
-def test_cli_run_exists_in_rns():
-    cli_run = rh.Run.from_name(name=CLI_RUN_NAME)
-    assert rh.exists(cli_run.name, resource_type=rh.Run.RESOURCE_TYPE)
+def test_cli_run_not_on_cluster(cpu_cluster):
+    cli_run = cpu_cluster.get_run(CLI_RUN_NAME)
+    assert cli_run is None, f"Failed to delete {cli_run} on cluster"
 
 
 @pytest.mark.rnstest
 @pytest.mark.runstest
 def test_delete_cli_run_from_rns():
-    cli_run = rh.Run.from_name(CLI_RUN_NAME)
-    cli_run.delete_configs()
-    assert not rh.exists(name=cli_run.name, resource_type=rh.Run.RESOURCE_TYPE)
+    loaded_run = load_run_from_rns(CLI_RUN_NAME)
+    loaded_run.delete_configs()
+    assert not rh.exists(name=loaded_run.name, resource_type=rh.Run.RESOURCE_TYPE)
 
 
 # ------------------------- CTX MANAGER RUN ----------------------------------
@@ -397,7 +436,8 @@ def test_create_local_ctx_manager_run(summer_func, cpu_cluster):
         run_res = current_run.result()
         print(f"Run result: {run_res}")
 
-        cluster = rh.load(name=cpu_cluster.name)
+        cluster_config = rh.load(name=cpu_cluster.name, instantiate=False)
+        cluster = rh.Cluster.from_config(config=cluster_config, dryrun=True)
         print(f"Cluster loaded: {cluster.name}")
 
         summer_func.delete_configs()
@@ -419,6 +459,7 @@ def test_create_local_ctx_manager_run(summer_func, cpu_cluster):
 @pytest.mark.localtest
 @pytest.mark.runstest
 def test_load_named_ctx_manager_run():
+    # Load from local file system
     ctx_run = rh.run(path=PATH_TO_CTX_MGR_RUN)
     assert ctx_run.folder.exists_in_system()
 
@@ -426,6 +467,7 @@ def test_load_named_ctx_manager_run():
 @pytest.mark.localtest
 @pytest.mark.runstest
 def test_read_stdout_from_ctx_manager_run():
+    # Load from local file system
     ctx_run = rh.run(path=PATH_TO_CTX_MGR_RUN)
     stdout = ctx_run.stdout()
     pprint(stdout)
@@ -435,25 +477,28 @@ def test_read_stdout_from_ctx_manager_run():
 @pytest.mark.rnstest
 @pytest.mark.runstest
 def test_save_ctx_run_to_rns():
+    # Load from local file system
     ctx_run = rh.run(path=PATH_TO_CTX_MGR_RUN)
     ctx_run.save()
     assert rh.exists(name=ctx_run.name, resource_type=rh.Run.RESOURCE_TYPE)
 
 
+@pytest.mark.rnstest
+@pytest.mark.runstest
+def test_delete_ctx_run_from_rns():
+    loaded_run = load_run_from_rns(CTX_MGR_RUN)
+    loaded_run.delete_configs()
+
+    assert not rh.exists(name=loaded_run.name, resource_type=rh.Run.RESOURCE_TYPE)
+
+
 @pytest.mark.clustertest
 @pytest.mark.runstest
-def test_delete_run_from_system():
+def test_delete_ctx_run_from_local_filesystem():
+    # Load from local file system
     ctx_run = rh.run(path=PATH_TO_CTX_MGR_RUN)
     ctx_run.folder.rm()
     assert not ctx_run.folder.exists_in_system()
-
-
-@pytest.mark.rnstest
-@pytest.mark.runstest
-def test_delete_run_from_rns():
-    ctx_run = rh.Run.from_name(CTX_MGR_RUN)
-    ctx_run.delete_configs()
-    assert not rh.exists(name=ctx_run.name, resource_type=rh.Run.RESOURCE_TYPE)
 
 
 if __name__ == "__main__":

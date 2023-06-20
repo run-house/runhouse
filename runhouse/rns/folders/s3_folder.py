@@ -1,6 +1,5 @@
 import logging
 import subprocess
-from pathlib import Path
 from typing import Optional
 
 from .folder import Folder
@@ -25,25 +24,9 @@ class S3Folder(Folder):
         super().__init__(dryrun=dryrun, **kwargs)
 
     @staticmethod
-    def from_config(config: dict, dryrun=True):
+    def from_config(config: dict, dryrun=False):
         """Load config values into the object."""
         return S3Folder(**config, dryrun=dryrun)
-
-    def rm(self, contents: list = None, recursive: bool = True):
-        """Delete s3 folder along with its contents.
-
-        Args:
-            contents (Optional[List]): Specific contents to delete in the folder.
-            recursive (bool): Delete the folder itself (including all its contents).
-                Defaults to ``True``.
-        """
-        if recursive:
-            return super().rm(recursive=True)
-
-        for p in self.s3.ls(self.path):
-            if contents and Path(p).name not in contents:
-                continue
-            self.s3.rm(p)
 
     def delete_bucket(self):
         """Delete the s3 bucket."""

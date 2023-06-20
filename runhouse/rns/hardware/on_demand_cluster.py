@@ -26,7 +26,7 @@ class OnDemandCluster(Cluster):
         instance_type: str = None,
         num_instances: int = None,
         provider: str = None,
-        dryrun=True,
+        dryrun=False,
         autostop_mins=None,
         use_spot=False,
         image_id=None,

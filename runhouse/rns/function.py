@@ -22,6 +22,7 @@ from runhouse.rns.resource import Resource
 from runhouse.rns.run_module_utils import call_fn_by_type
 
 from runhouse.rns.utils.env import _get_env_from
+from runhouse.rns.utils.hardware import _get_cluster_from
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,6 @@ class Function(Resource):
         system: Optional[Cluster] = None,
         name: Optional[str] = None,
         env: Optional[Env] = None,
-        serialize_notebook_fn=False,
         dryrun: bool = False,
         access: Optional[str] = None,
         resources: Optional[dict] = None,
@@ -52,7 +52,6 @@ class Function(Resource):
         self.fn_pointers = fn_pointers
         self.system = system
         self.env = env
-        self.serialize_notebook_fn = serialize_notebook_fn
         self.access = access or self.DEFAULT_ACCESS
         self.dryrun = dryrun
         self.resources = resources or {}
@@ -64,7 +63,7 @@ class Function(Resource):
     # ----------------- Constructor helper methods -----------------
 
     @staticmethod
-    def from_config(config: dict, dryrun: bool = True):
+    def from_config(config: dict, dryrun: bool = False):
         """Create a Function object from a config dictionary."""
         if isinstance(config["system"], dict):
             config["system"] = Cluster.from_config(config["system"], dryrun=dryrun)
@@ -283,7 +282,9 @@ class Function(Resource):
                 run_obj = self.run(*args, run_name=run_name, **kwargs)
                 res = self.system.get(run_obj.name, stream_logs=stream_logs)
                 end = time.time()
-                logging.info(f"Time to call remote function: {round(end - start, 2)} seconds")
+                logging.info(
+                    f"Time to call remote function: {round(end - start, 2)} seconds"
+                )
                 return res
             else:
                 [relative_path, module_name, fn_name] = self.fn_pointers
@@ -687,13 +688,11 @@ def function(
     fn: Optional[Union[str, Callable]] = None,
     name: Optional[str] = None,
     system: Optional[Union[str, Cluster]] = None,
-    env: Union[Optional[List[str]], Env] = None,
+    env: Optional[Union[List[str], Env, str]] = None,
     resources: Optional[dict] = None,
-    # TODO image: Optional[str] = None,
     dryrun: bool = False,
     load_secrets: bool = False,
     serialize_notebook_fn: bool = False,
-    load: bool = True,
     # args below are deprecated
     reqs: Optional[List[str]] = None,
     setup_cmds: Optional[List[str]] = None,
@@ -706,8 +705,8 @@ def function(
             This can be either from a local config or from the RNS.
         system (Optional[str or Cluster]): Hardware (cluster) on which to execute the Function.
             This can be either the string name of a Cluster object, or a Cluster object.
-        env (Optional[List[str]]): List of requirements to install on the remote cluster, or path to the
-            requirements.txt file.
+        env (Optional[List[str] or Env or str]): List of requirements to install on the remote cluster, or path to the
+            requirements.txt file, or Env object or string name of an Env object.
         resources (Optional[dict]): Optional number (int) of resources needed to run the Function on the Cluster.
             Keys must be ``num_cpus`` and ``num_gpus``.
         dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
@@ -716,32 +715,28 @@ def function(
             (Default: ``False``)
         serialize_notebook_fn (bool): If function is of a notebook setting, whether or not to serialized the function.
             (Default: ``False``)
-        load (bool): Whether to load an existing config for the Function. (Default: ``True``)
 
     Returns:
         Function: The resulting Function object.
 
     Example:
+        >>> import runhouse as rh
+
+        >>> cluster = rh.cluster(name="my_cluster")
         >>> def sum(a, b):
         >>>    return a + b
-        >>>
-        >>> # creating the function
-        >>> summer = rh.function(fn=sum, system=cluster, env=['requirements.txt'])
-        >>> # or, equivalently
-        >>> summer = rh.function(fn=sum).to(cluster, env=['requirements.txt'])
-        >>>
+
+        >>> summer = rh.function(fn=sum, name="my_func").to(cluster, env=['requirements.txt']).save()
+
         >>> # using the function
         >>> res = summer(5, 8)  # returns 13
-    """
 
-    config = rh_config.rns_client.load_config(name) if load else {}
-    config["name"] = name or config.get("rns_address", None) or config.get("name")
-    config["resources"] = (
-        resources if resources is not None else config.get("resources")
-    )
-    config["serialize_notebook_fn"] = serialize_notebook_fn or config.get(
-        "serialize_notebook_fn"
-    )
+        >>> # Load function from above
+        >>> reloaded_function = rh.function(name="my_func")
+    """
+    if name and not any([fn, system, env, resources]):
+        # Try reloading existing function
+        return Function.from_name(name, dryrun)
 
     if setup_cmds:
         warnings.warn(
@@ -754,10 +749,10 @@ def function(
         )
         env = Env(reqs=reqs, setup_cmds=setup_cmds)
     else:
-        env = env or config.get("env")
         env = _get_env_from(env)
 
     reqs = env.reqs if env else []
+    fn_pointers = None
     if callable(fn):
         if not [
             req
@@ -772,9 +767,8 @@ def function(
                 fn,
                 fn_pointers=fn_pointers,
                 serialize_notebook_fn=serialize_notebook_fn,
-                name=fn_pointers[2] or config["name"],
+                name=fn_pointers[2] or name,
             )
-        config["fn_pointers"] = fn_pointers
     elif isinstance(fn, str):
         # Url must match a regex of the form
         # 'https://github.com/username/repo_name/blob/branch_name/path/to/file.py:func_name'
@@ -798,7 +792,7 @@ def function(
             )
         module_name = Path(path).stem
         relative_path = str(repo_name / Path(path).parent)
-        config["fn_pointers"] = (relative_path, module_name, func_name)
+        fn_pointers = (relative_path, module_name, func_name)
         # TODO [DG] check if the user already added this in their reqs
         repo_package = git_package(
             git_url=f"https://github.com/{username}/{repo_name}.git",
@@ -811,20 +805,17 @@ def function(
     else:
         env = Env(reqs=reqs, setup_cmds=setup_cmds)
 
-    config["env"] = env
-    config["system"] = system or config.get("system")
-    if isinstance(config["system"], str):
-        hw_dict = rh_config.rns_client.load_config(config["system"])
-        if not hw_dict:
-            raise RuntimeError(
-                f'Cluster {rh_config.rns_client.resolve_rns_path(config["system"])} '
-                f"not found locally or in RNS."
-            )
-        config["system"] = hw_dict
+    system = _get_cluster_from(system)
 
-    config["access_level"] = config.get("access_level", Function.DEFAULT_ACCESS)
-
-    new_function = Function.from_config(config, dryrun=dryrun)
+    new_function = Function(
+        fn_pointers=fn_pointers,
+        system=system,
+        env=env,
+        resources=resources,
+        access=Function.DEFAULT_ACCESS,
+        name=name,
+        dryrun=dryrun,
+    )
 
     if load_secrets and not dryrun:
         new_function.send_secrets()
