@@ -7,9 +7,7 @@ import typer
 from rich.console import Console
 
 from runhouse import cluster, configs
-from runhouse.rns.login import (  # Need to rename it because it conflicts with the login command
-    login as login_module,
-)
+import runhouse.rns.login
 
 # create an explicit Typer application
 app = typer.Typer(add_completion=False)
@@ -30,7 +28,7 @@ def login(
     local environment and Runhouse / Vault.
     """
     valid_token: str = (
-        login_module.login(
+        runhouse.rns.login.login(
             token=token,
             download_config=True,
             upload_config=True,
@@ -38,7 +36,7 @@ def login(
             upload_secrets=True,
         )
         if yes
-        else login_module.login(token=token, interactive=True, ret_token=True)
+        else runhouse.rns.login.login(token=token, interactive=True, ret_token=True)
     )
 
     if valid_token:
@@ -53,7 +51,7 @@ def login(
 @app.command()
 def logout():
     """Logout of Runhouse. Provides options to delete locally configured secrets and local Runhouse configs"""
-    login_module.logout(interactive=True)
+    runhouse.rns.login.logout(interactive=True)
     raise typer.Exit()
 
 
