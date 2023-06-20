@@ -140,7 +140,7 @@ class Run(Resource):
         return False
 
     @staticmethod
-    def from_config(config: dict, dryrun=True):
+    def from_config(config: dict, dryrun=False):
         return Run(**config, dryrun=dryrun)
 
     @property
@@ -428,7 +428,6 @@ class Run(Resource):
         existing_folder = folder_factory(
             path=folder_path,
             system=folder_system,
-            dryrun=True,
         )
 
         existing_folder.rm()
@@ -484,7 +483,6 @@ def run(
         path=path,
         system=system,
         data_config=data_config,
-        dryrun=True,
     )
 
     if not system_folder.exists_in_system():
@@ -496,4 +494,4 @@ def run(
 
     # Re-load the Run object
     logger.info(f"Run config from path: {run_config}")
-    return Run.from_config(run_config, dryrun=True)
+    return Run.from_config(run_config)

@@ -122,7 +122,7 @@ class Folder(Resource):
 
     # ----------------------------------
     @staticmethod
-    def from_config(config: dict, dryrun=True, _resolve_children=True):
+    def from_config(config: dict, dryrun=False, _resolve_children=True):
         if _resolve_children:
             config = Folder._check_for_child_configs(config)
 

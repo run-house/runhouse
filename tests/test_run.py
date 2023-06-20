@@ -284,7 +284,7 @@ def test_create_cli_python_command_run(cpu_cluster):
             "import runhouse as rh",
             "import pickle",
             "import logging",
-            "local_blob = rh.blob(name='local_blob', data=pickle.dumps(list(range(50))), mkdir=True).write()",
+            "local_blob = rh.blob(name='local_blob', data=pickle.dumps(list(range(50)))).write()",
             "logging.info(f'Blob path: {local_blob.path}')",
             "local_blob.rm()",
         ],

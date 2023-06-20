@@ -29,7 +29,7 @@ def _process_reqs(reqs):
             # if package refers to a local path package
             package = Package.from_string(package)
         elif isinstance(package, dict):
-            package = Package.from_config(package, dryrun=True)
+            package = Package.from_config(package)
         preprocessed_reqs.append(package)
     return preprocessed_reqs
 

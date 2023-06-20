@@ -11,7 +11,7 @@ class AzureFolder(Folder):
         super().__init__(dryrun=dryrun, **kwargs)
 
     @staticmethod
-    def from_config(config: dict, dryrun=True):
+    def from_config(config: dict, dryrun=False):
         """Load config values into the object."""
         return AzureFolder(**config, dryrun=dryrun)
 

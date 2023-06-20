@@ -33,7 +33,7 @@ class Cluster(Resource):
         name,
         ips: List[str] = None,
         ssh_creds: Dict = None,
-        dryrun=True,
+        dryrun=False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
