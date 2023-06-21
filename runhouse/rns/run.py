@@ -11,13 +11,14 @@ from ray import cloudpickle as pickle
 
 from runhouse import blob
 from runhouse.rh_config import obj_store, rns_client
-from runhouse.rns.api_utils.utils import log_timestamp
+from runhouse.rns.api_utils.utils import log_timestamp, resolve_absolute_path
 
 # Need to alias so it doesn't conflict with the folder property
 from runhouse.rns.folders import Folder, folder as folder_factory
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.resource import Resource
 from runhouse.rns.top_level_rns_fns import resolve_rns_path
+from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ class Run(Resource):
 
     LOCAL_RUN_PATH = f"{rns_client.rh_directory}/runs"
 
-    RUN_CONFIG_FILE = "config_for_rns.json"
+    RUN_CONFIG_FILE = "config_for_run.json"
     RESULT_FILE = "result.pkl"
     INPUTS_FILE = "inputs.pkl"
 
@@ -49,9 +50,11 @@ class Run(Resource):
         name: str = None,
         fn_name: str = None,
         cmds: list = None,
-        dryrun: bool = False,
-        overwrite: bool = False,
+        path: str = None,
+        system: Union[str, Cluster] = None,
         data_config: dict = None,
+        overwrite: bool = False,
+        dryrun: bool = False,
         **kwargs,
     ):
         """
@@ -63,21 +66,19 @@ class Run(Resource):
         run_name = name or str(self._current_timestamp())
         super().__init__(name=run_name, dryrun=dryrun)
 
-        self.cmds = cmds
-
-        self.status = kwargs.get("status") or RunStatus.NOT_STARTED
-        self.start_time = kwargs.get("start_time")
-        self.end_time = kwargs.get("end_time")
-
-        folder_system = kwargs.get("system") or Folder.DEFAULT_FS
-
-        folder_path = kwargs.get("path") or (
-            self._base_local_folder_path(self.name)
-            if folder_system == Folder.DEFAULT_FS
-            else self._base_cluster_folder_path(name=run_name)
+        folder_system = system or Folder.DEFAULT_FS
+        folder_path = (
+            resolve_absolute_path(path)
+            if path
+            else (
+                self._base_local_folder_path(self.name)
+                if folder_system == Folder.DEFAULT_FS
+                else self._base_cluster_folder_path(name=run_name)
+            )
         )
 
         if overwrite:
+            # Delete the Run from the system if one already exists
             self._delete_existing_run(folder_path, folder_system)
 
         # Create new folder which lives on the system and contains all the Run's data:
@@ -89,14 +90,17 @@ class Run(Resource):
             dryrun=dryrun,
         )
 
-        self.fn_name = fn_name or kwargs.get("fn_name")
-        self.run_type = kwargs.get("run_type") or self._detect_run_type()
+        # Use the config for this run saved on the system if it exists
+        run_config: dict = self._load_run_config(folder=self.folder)
 
-        # Artifacts loaded by the Run (i.e. upstream dependencies)
-        self.upstream_artifacts: list = kwargs.get("upstream_artifacts", [])
-
-        # Artifacts saved by the Run (i.e. downstream dependencies)
-        self.downstream_artifacts: list = kwargs.get("downstream_artifacts", [])
+        self.status = run_config.get("status", RunStatus.NOT_STARTED)
+        self.start_time = run_config.get("start_time", None)
+        self.end_time = run_config.get("end_time", None)
+        self.upstream_artifacts = run_config.get("upstream_artifacts", [])
+        self.downstream_artifacts = run_config.get("downstream_artifacts", [])
+        self.fn_name = run_config.get("fn_name", fn_name)
+        self.cmds = run_config.get("cmds", cmds)
+        self.run_type = run_config.get("run_type", self._detect_run_type())
 
         self._stdout_path = self._path_to_file_by_ext(ext=".out")
         self._stderr_path = self._path_to_file_by_ext(ext=".err")
@@ -145,45 +149,34 @@ class Run(Resource):
 
     @property
     def config_for_rns(self):
+        """Metadata to store in RNS for the Run."""
         config = super().config_for_rns
         base_config = {
             "path": self.folder.path,
-            "start_time": self.start_time,
-            "end_time": self.end_time,
-            "resource_type": self.RESOURCE_TYPE,
             "system": self._resource_string_for_subconfig(self.folder.system),
-            "status": self.status,
-            # NOTE: artifacts are currently only tracked in context manager based runs
-            "upstream_artifacts": self.upstream_artifacts,
-            "downstream_artifacts": self.downstream_artifacts,
+            "run_type": self.run_type,
         }
-        config.update({**base_config, **self.run_config})
+        config.update(base_config)
         return config
 
     @property
     def run_config(self):
-        if self.run_type == RunType.FUNCTION_RUN:
-            # Function based run
-            return {
-                "fn_name": self.fn_name,
-                "run_type": RunType.FUNCTION_RUN,
-            }
-
-        elif self.run_type == RunType.CMD_RUN:
-            # CLI command based run
-            return {
-                "cmds": self.cmds,
-                "run_type": RunType.CMD_RUN,
-            }
-
-        elif self.run_type == RunType.CTX_MANAGER:
-            # Context manager based run
-            return {
-                "run_type": RunType.CTX_MANAGER,
-            }
-
-        else:
-            raise TypeError(f"Unknown run type {self.run_type}")
+        """Config to save in the Run's dedicated folder on the system.
+        Note: this is different from the config saved in RNS, which is the metadata for the Run.
+        """
+        config = {
+            "name": self.name,
+            "status": self.status,
+            "start_time": self.start_time,
+            "end_time": self.end_time,
+            "run_type": self.run_type,
+            "fn_name": self.fn_name,
+            "cmds": self.cmds,
+            # NOTE: artifacts are currently only tracked in context manager based runs
+            "upstream_artifacts": self.upstream_artifacts,
+            "downstream_artifacts": self.downstream_artifacts,
+        }
+        return config
 
     def save(
         self,
@@ -192,11 +185,11 @@ class Run(Resource):
     ):
         """If the Run name is being overwritten (ex: initially created with auto-generated name),
         update the Run config stored on the system before saving to RNS."""
-        run_config = self.config_for_rns
+        config_for_rns = self.config_for_rns
         config_path = self._path_to_config()
-        if not run_config["name"] or name:
-            run_config["name"] = resolve_rns_path(name or self.name)
-            self._write_config(config=run_config)
+        if not config_for_rns["name"] or name:
+            config_for_rns["name"] = resolve_rns_path(name or self.name)
+            self._write_config(config=config_for_rns)
             logger.info(f"Updated Run config name in path: {config_path}")
 
         return super().save(name, overwrite)
@@ -252,8 +245,10 @@ class Run(Resource):
     def refresh(self) -> "Run":
         """Reload the Run object from the system. This is useful for checking the status of a Run.
         For example: ``my_run.refresh().status``"""
-        run_config = json.loads(self.folder.get(name=self.RUN_CONFIG_FILE))
-        return Run.from_config(run_config, dryrun=True)
+        run_config = self._load_run_config(folder=self.folder)
+        # Need the metadata from RNS and the Run specific data in order to re-load the Run object
+        config = {**self.config_for_rns, **run_config}
+        return Run.from_config(config, dryrun=True)
 
     def inputs(self) -> bytes:
         """Load the pickled function inputs saved on the system for the Run."""
@@ -311,7 +306,7 @@ class Run(Resource):
         self.status = RunStatus.RUNNING
 
         # Write config data for the Run to its config file on the system
-        logger.info("Registering new Run on system")
+        logger.info(f"Registering new Run on system in path: {self.folder.path}")
         self._write_config()
 
     def _register_fn_run_completion(self, run_status: RunStatus):
@@ -341,7 +336,7 @@ class Run(Resource):
             config (Optional[Dict]): Config to write. If none is provided, the Run's config for RNS will be used.
             overwrite (Optional[bool]): Overwrite the config if one is already saved down. Defaults to ``True``.
         """
-        config_to_write = config or self.config_for_rns
+        config_to_write = config or self.run_config
         logger.info(f"Config to save on system: {config_to_write}")
         self.folder.put(
             {self.RUN_CONFIG_FILE: config_to_write},
@@ -442,6 +437,14 @@ class Run(Resource):
         return f"{name}_{timestamp_key}"
 
     @staticmethod
+    def _load_run_config(folder: Folder) -> dict:
+        """Load the Run config file saved for the Run in its dedicated folder on the system ."""
+        try:
+            return json.loads(folder.get(Run.RUN_CONFIG_FILE))
+        except FileNotFoundError:
+            return {}
+
+    @staticmethod
     def _base_cluster_folder_path(name: str):
         """Path to the base folder for this Run on a cluster."""
         return f"{obj_store.LOGS_DIR}/{name}"
@@ -457,41 +460,48 @@ def run(
     path: str = None,
     system: Union[str, Cluster] = None,
     data_config: dict = None,
+    dryrun: bool = False,
+    **kwargs,
 ) -> Union["Run", None]:
-    """Load a Run based on the path to its dedicated folder on a system.
+    """Constructs a Run object.
 
     Args:
         name (Optional[str]): Name of the Run to load.
         path (Optional[str]): Path to the Run's dedicated folder on the system where the Run lives.
-        system (Optional[str or Cluster]): Name of the system or a cluster object where the Run lives.
+        system (Optional[str or Cluster]): File system or cluster name where the Run lives.
+            If providing a file system this must be one of:
+            [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
+            We are working to add additional file system support.
         data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler for the folder.
+        dryrun (bool): Whether to create the Blob if it doesn't exist, or load a Blob object as a dryrun.
+            (Default: ``False``)
+        **kwargs: Optional kwargs for the Run.
 
     Returns:
         Run: The loaded Run object.
     """
-    if name is not None:
+    if name and not any([path, system, data_config, kwargs]):
+        # Try reloading existing Run from RNS
+        return Run.from_name(name, dryrun=dryrun)
+
+    if name and path is None:
         path = (
             Run._base_cluster_folder_path(name=name)
             if isinstance(system, Cluster)
             else Run._base_local_folder_path(name=name)
         )
 
-    if path is None:
-        raise ValueError("Must provide either a name or path to load a Run.")
+    system = _get_cluster_from(
+        system or _current_cluster(key="config") or Folder.DEFAULT_FS, dryrun=dryrun
+    )
 
-    system_folder = folder_factory(
+    run_obj = Run(
+        name=name,
         path=path,
         system=system,
         data_config=data_config,
+        dryrun=dryrun,
+        **kwargs,
     )
 
-    if not system_folder.exists_in_system():
-        logger.info(f"No Run config found in path: {system_folder.path}")
-        return None
-
-    # Load config file for this Run
-    run_config = json.loads(system_folder.get(name=Run.RUN_CONFIG_FILE))
-
-    # Re-load the Run object
-    logger.info(f"Run config from path: {run_config}")
-    return Run.from_config(run_config)
+    return run_obj

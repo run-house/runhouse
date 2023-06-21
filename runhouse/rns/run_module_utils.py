@@ -218,25 +218,24 @@ def _populate_run_with_result(run_obj, fn_type, obj_ref) -> ["Run", Any]:
 def _create_new_run(run_name, fn_name, args, kwargs):
     """Create a new Run object and save down relevant config data to its dedicated folder on the cluster."""
     from runhouse.rns.run import Run
-    from runhouse.rns.utils.hardware import _current_cluster
 
     inputs = {"args": args, "kwargs": kwargs}
     logger.info(f"Inputs for Run: {inputs}")
 
-    cluster_name = _current_cluster("cluster_name")
-    if not cluster_name:
-        logger.info(
-            "No current cluster found from config, setting current cluster to local"
-        )
-        current_cluster = rh_config.rns_client.DEFAULT_FS
-    else:
-        # Update the system field of the Run object to reflect the current cluster
-        current_cluster: str = rh_config.rns_client.resolve_rns_path(cluster_name)
+    system = _get_current_system()
+    path_to_run = Run._base_cluster_folder_path(run_name)
 
+    logger.info(f"Path to new run: {path_to_run}")
     # Create a new Run object
     new_run = Run(
-        name=run_name, fn_name=fn_name, system=current_cluster, overwrite=True
+        name=run_name,
+        fn_name=fn_name,
+        system=system,
+        overwrite=True,
+        path=path_to_run,
     )
+
+    logger.info(f"Created new run object from factory: {new_run.run_config}")
 
     # Save down config for new Run
     new_run._register_new_run()
@@ -249,6 +248,16 @@ def _create_new_run(run_name, fn_name, args, kwargs):
     )
 
     return new_run
+
+
+def _get_current_system():
+    from runhouse import Folder
+    from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
+
+    system = _get_cluster_from(
+        _current_cluster(key="config") or Folder.DEFAULT_FS, dryrun=True
+    )
+    return system
 
 
 def _get_result_from_ray(run_obj, obj_ref):
@@ -293,7 +302,8 @@ def _get_result_from_ray(run_obj, obj_ref):
 
 def _load_existing_run_on_cluster(run_name) -> Union["Run", None]:
     """Load a Run for a given name from the cluster's file system. If the Run is not found returns None."""
-    from runhouse import Run, run
+    from runhouse import Run, RunType
+    from runhouse.rns.folders import folder as folder_factory
 
     if run_name == "latest":
         # TODO [JL]
@@ -306,9 +316,34 @@ def _load_existing_run_on_cluster(run_name) -> Union["Run", None]:
         f"folder path on system for loading run from file: {folder_path_on_system}"
     )
 
-    existing_run = run(path=folder_path_on_system)
+    system = _get_current_system()
+    system_folder = folder_factory(
+        path=folder_path_on_system, system=system, dryrun=True
+    )
 
-    return existing_run
+    # Try loading Run from the file system
+    run_config = Run._load_run_config(system_folder)
+    if not run_config:
+        return None
+
+    try:
+        # Load the RNS data for this Run - needed to reload the Run object
+        rns_config = Run.from_name(run_name, dryrun=True)
+        logger.info("Loaded Run metadata from RNS")
+    except:
+        # No RNS metadata saved for this Run
+        logger.info("No RNS metadata found for this Run")
+        rns_config = {
+            "resource_type": Run.RESOURCE_TYPE,
+            "resource_subtype": Run.RESOURCE_TYPE,
+            "path": folder_path_on_system,
+            "system": system,
+            "run_type": RunType.FUNCTION_RUN,
+        }
+
+    config = {**run_config, **rns_config}
+
+    return Run.from_config(config, dryrun=True)
 
 
 def _save_run_result(result: bytes, run_obj):

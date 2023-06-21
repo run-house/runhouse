@@ -72,7 +72,11 @@ Run Data
 ~~~~~~~~
 When a Run is completed it stores the following information in its dedicated folder on the system:
 
-- **Config**: A JSON of the Run's metadata. This is also the data that will be stored on Runhouse servers if the Run is saved.
+- **Config**: A JSON of the Run's core data. This includes fields such as: :code:`name`, :code:`status`,
+  :code:`start_time`, :code:`end_time`, :code:`run_type`, :code:`fn_name`, :code:`cmds`, :code:`upstream_artifacts`,
+  and :code:`downstream_artifacts`.
+  Note: When saving the Run to Runhouse Den (RNS) (via the :code:`save()` method), the Run's metadata that will be
+  stored.
 
 - **Function inputs**: The pickled inputs to the function that triggered the Run (where relevant).
 
@@ -196,7 +200,7 @@ or the :code:`.rh/logs/<run_name>` folder if running on a cluster.
 
     import runhouse as rh
 
-    with rh.Run(path="~/rh/runs/my_ctx_run") as r:
+    with rh.run(name="ctx_run") as r:
         # Add all Runhouse objects loaded or saved in the context manager to
         # the Run's artifact registry (upstream + downstream artifacts)
 
@@ -209,7 +213,7 @@ or the :code:`.rh/logs/<run_name>` folder if running on a cluster.
         run_res = pickle.loads(current_run.result())
         print(f"Run result: {run_res}")
 
-    r.save(name="my_ctx_mgr_run")
+    r.save()
 
     print(f"Saved Run to path: {r.path}")
 

@@ -605,7 +605,7 @@ class Cluster(Resource):
             >>> cpu.run(["python script.py"], run_name="my_exp")
         """
         # TODO [DG] suspect autostop while running?
-        from runhouse import Run
+        from runhouse import run
 
         cmd_prefix = ""
         if env:
@@ -622,7 +622,7 @@ class Cluster(Resource):
             )
 
         # Create and save the Run locally
-        with Run(name=run_name, cmds=commands, overwrite=True) as r:
+        with run(name=run_name, cmds=commands, overwrite=True) as r:
             return_codes = self._run_commands_with_ssh(
                 commands, cmd_prefix, stream_logs, port_forward, require_outputs
             )
