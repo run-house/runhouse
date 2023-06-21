@@ -50,8 +50,8 @@ class Run(Resource):
         name: str = None,
         fn_name: str = None,
         cmds: list = None,
-        system: Union[str, Cluster] = None,
         path: str = None,
+        system: Union[str, Cluster] = None,
         data_config: dict = None,
         overwrite: bool = False,
         dryrun: bool = False,
@@ -90,7 +90,7 @@ class Run(Resource):
             dryrun=dryrun,
         )
 
-        # Load the Run config from the Run's system if it exists
+        # Use the config for this run saved on the system if it exists
         run_config: dict = self._load_run_config(folder=self.folder)
 
         self.status = run_config.get("status", RunStatus.NOT_STARTED)
@@ -438,7 +438,7 @@ class Run(Resource):
 
     @staticmethod
     def _load_run_config(folder: Folder) -> dict:
-        """Load the RUn config file saved for the Run on the system."""
+        """Load the Run config file saved for the Run in its dedicated folder on the system ."""
         try:
             return json.loads(folder.get(Run.RUN_CONFIG_FILE))
         except FileNotFoundError:
@@ -481,8 +481,7 @@ def run(
         Run: The loaded Run object.
     """
     if name and not any([path, system, data_config, kwargs]):
-        # Try reloading existing run from RNS
-        logger.info(f"Loading Run from name: {name}")
+        # Try reloading existing Run from RNS
         return Run.from_name(name, dryrun=dryrun)
 
     if name and path is None:
