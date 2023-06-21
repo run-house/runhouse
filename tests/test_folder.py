@@ -91,7 +91,7 @@ def test_cluster_tos(cpu_cluster, tmp_path):
         gcs.rm()
 
     except:
-        bucket_name = gcs.bucket_name_from_path(gcs.path)
+        bucket_name = gcs._bucket_name_from_path(gcs.path)
         print(
             f"Permissions to gs bucket ({bucket_name}) may not be fully enabled "
             f"on the cluster {cpu_cluster.name}. For now please manually enable them directly on the cluster. "
@@ -182,7 +182,7 @@ def test_cluster_and_gcs(cpu_cluster, cluster_folder):
 
     except:
         # TODO [JL] automate gcloud access on the cluster for writing to GCS bucket
-        bucket_name = gcs_folder.bucket_name_from_path(gcs_folder.path)
+        bucket_name = gcs_folder._bucket_name_from_path(gcs_folder.path)
         raise PermissionError(
             f"Permissions to gs bucket ({bucket_name}) may not be fully enabled "
             f"on the cluster {cpu_cluster.name}. For now please manually enable them directly on the cluster. "
@@ -261,7 +261,7 @@ def test_s3_folder_uploads_and_downloads(local_folder, tmp_path):
 @pytest.mark.clustertest
 def test_cluster_and_cluster(cpu_cluster, byo_cpu, local_folder):
     # Upload sky secrets to cluster - required when syncing over the folder from c1 to c2
-    cpu_cluster.send_secrets(providers=["sky"])
+    cpu_cluster.sync_secrets(providers=["sky"])
 
     cluster_folder_1 = local_folder.to(system=cpu_cluster)
     assert "sample_file_0.txt" in cluster_folder_1.ls(full_paths=False)

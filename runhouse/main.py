@@ -116,7 +116,7 @@ def load_cluster(cluster_name: str):
     """Load a cluster from RNS into the local environment, e.g. to be able to ssh."""
     c = cluster(name=cluster_name)
     if not c.address:
-        c.update_from_sky_status(dryrun=True)
+        c._update_from_sky_status(dryrun=True)
 
 
 @app.command()

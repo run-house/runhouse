@@ -95,11 +95,20 @@ class Cluster(Resource):
         return config
 
     def is_up(self) -> bool:
-        """Check if the cluster is up."""
+        """Check if the cluster is up.
+
+        Example:
+            >>> rh.cluster("rh-cpu").is_up()
+        """
         return self.address is not None
 
     def up_if_not(self):
-        """Bring up the cluster if it is not up. No-op if cluster is already up."""
+        """Bring up the cluster if it is not up. No-op if cluster is already up.
+        This only applies to on-demand clusters, and has no effect on self-managed clusters.
+
+        Example:
+            >>> rh.cluster("rh-cpu").up_if_not()
+        """
         if not self.is_up():
             if not hasattr(self, "up"):
                 raise NotImplementedError(
@@ -114,6 +123,11 @@ class Cluster(Resource):
         )
 
     def start_ray(self):
+        """Start Ray on the cluster.
+
+        Example:
+            >>> rh.cluster("rh-cpu").start_ray()
+        """
         if self.is_up():
             res = self.run(["ray start --head"], stream_logs=False)
             if res[0] == 0:
@@ -144,7 +158,7 @@ class Cluster(Resource):
             packages = [p.split("==")[0] for p in packages]
         return packages
 
-    def sync_runhouse_to_cluster(self, _install_url=None, env=None):
+    def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
         if not self.address:
             raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
         local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
@@ -164,7 +178,7 @@ class Cluster(Resource):
             command_runner.RSYNC_FILTER_OPTION = (
                 "--filter='dir-merge,- .gitignore,- docs/'"
             )
-            self.rsync(
+            self._rsync(
                 source=str(local_rh_package_path),
                 dest=dest_path,
                 up=True,
@@ -423,11 +437,20 @@ class Cluster(Resource):
         resync_rh: bool = True,
         restart_ray: bool = False,
     ):
-        """Restart the RPC server."""
-        logger.info(f"Restarting RPC HTTP server on {self.name}.")
+        """Restart the RPC server.
+
+        Args:
+            resync_rh (bool): Whether to resync runhouse. (Default: True)
+            restart_ray (bool): Whether to restart Ray. (Default: False)
+
+        Example:
+            >>> rh.cluster("rh-cpu").restart_server()
+        """
+        logger.info(f"Restarting HTTP server on {self.name}.")
+
         # TODO how do we capture errors if this fails?
         if resync_rh:
-            self.sync_runhouse_to_cluster(_install_url=_rh_install_url)
+            self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
         logfile = f"cluster_server_{self.name}.log"
         http_server_cmd = "python -m runhouse.servers.http.http_server"
         kill_proc_cmd = f'pkill -f "{http_server_cmd}"'
@@ -474,7 +497,7 @@ class Cluster(Resource):
         there is no autostop."""
         pass
 
-    def run_module(
+    def _run_module(
         self,
         relative_path,
         module_name,
@@ -500,9 +523,11 @@ class Cluster(Resource):
         )
 
     def is_connected(self):
+        """Whether the RPC tunnel is up."""
         return self.client is not None
 
     def disconnect(self):
+        """Disconnect the RPC tunnel."""
         if self._rpc_tunnel:
             self._rpc_tunnel.stop()
         # if self.client:
@@ -518,15 +543,17 @@ class Cluster(Resource):
     # ----------------- SSH Methods ----------------- #
 
     def ssh_creds(self):
+        """Retrieve SSH credentials."""
         return self._ssh_creds
 
-    def rsync(self, source: str, dest: str, up: bool, contents: bool = False):
+    def _rsync(self, source: str, dest: str, up: bool, contents: bool = False):
         """
         Sync the contents of the source directory into the destination.
 
         .. note:
             Ending `source` with a slash will copy the contents of the directory into dest,
-            while omitting it will copy the directory itself (adding a directory layer)."""
+            while omitting it will copy the directory itself (adding a directory layer).
+        """
         # FYI, could be useful: https://github.com/gchamon/sysrsync
         if contents:
             source = source + "/" if not source.endswith("/") else source
@@ -540,6 +567,11 @@ class Cluster(Resource):
         runner.rsync(source, dest, up=up, stream_logs=False)
 
     def ssh(self):
+        """SSH into the cluster
+
+        Example:
+            >>> rh.cluster("rh-cpu").ssh()
+        """
         creds = self.ssh_creds()
         subprocess.run(
             f"ssh {creds['ssh_user']}:{self.address} -i {creds['ssh_private_key']}".split(
@@ -547,7 +579,7 @@ class Cluster(Resource):
             )
         )
 
-    def ping(self, timeout=5):
+    def _ping(self, timeout=5):
         ssh_call = threading.Thread(target=lambda: self.run(['echo "hello"']))
         ssh_call.start()
         ssh_call.join(timeout=timeout)
@@ -565,7 +597,13 @@ class Cluster(Resource):
         run_name: Optional[str] = None,
     ) -> list:
         """Run a list of shell commands on the cluster. If `run_name` is provided, the commands will be
-        sent over to the cluster before being executed and a Run object will be created."""
+        sent over to the cluster before being executed and a Run object will be created.
+
+        Example:
+            >>> cpu.run(["pip install numpy"])
+            >>> cpu.run(["pip install numpy", env="my_conda_env"])
+            >>> cpu.run(["python script.py"], run_name="my_exp")
+        """
         # TODO [DG] suspect autostop while running?
         from runhouse import Run
 
@@ -625,7 +663,11 @@ class Cluster(Resource):
         port_forward: Optional[int] = None,
         run_name: Optional[str] = None,
     ):
-        """Run a list of python commands on the cluster."""
+        """Run a list of python commands on the cluster.
+
+        Example:
+            >>> cpu.run_python(['import numpy', 'print(numpy.__version__)'])([""])
+        """
         cmd_prefix = "python3 -c"
         if env:
             if isinstance(env, str):
@@ -643,12 +685,19 @@ class Cluster(Resource):
         )
         return return_codes
 
-    def send_secrets(self, providers: Optional[List[str]] = None):
-        """Send secrets for the given providers. If none provided will send secrets for providers that have been
-        configured in the environment."""
+    def sync_secrets(self, providers: Optional[List[str]] = None):
+        """Send secrets for the given providers.
+
+        Args:
+            providers(List[str] or None): List of providers to send secrets for.
+                If `None`, all providers configured in the environment will by sent.
+
+        Example:
+            >>> cpu.sync_secrets(providers=["aws", "lambda"])
+        """
         from runhouse import Secrets
 
-        Secrets.to(hardware=self, providers=providers)
+        Secrets.to(system=self, providers=providers)
 
     def ipython(self):
         # TODO tunnel into python interpreter in cluster
@@ -660,7 +709,11 @@ class Cluster(Resource):
         sync_package_on_close: Optional[str] = None,
         port_forward: int = 8888,
     ):
-        """Tunnel into and launch notebook from the cluster."""
+        """Tunnel into and launch notebook from the cluster.
+
+        Example:
+            >>> rh.cluster("test-cluster").notebook()
+        """
         tunnel, port_fwd = self.ssh_tunnel(local_port=port_forward, num_ports_to_try=10)
         try:
             install_cmd = "pip install jupyterlab"
@@ -673,7 +726,7 @@ class Cluster(Resource):
                 if sync_package_on_close == "./":
                     sync_package_on_close = rns_client.locate_working_dir()
                 pkg = Package.from_string("local:" + sync_package_on_close)
-                self.rsync(source=f"~/{pkg.name}", dest=pkg.local_path, up=False)
+                self._rsync(source=f"~/{pkg.name}", dest=pkg.local_path, up=False)
             if not persist:
                 tunnel.stop()
                 kill_jupyter_cmd = f"jupyter notebook stop {port_fwd}"
@@ -683,6 +736,10 @@ class Cluster(Resource):
         self,
         env: Union[str, "CondaEnv"],
     ):
-        """Remove conda env from the cluster."""
+        """Remove conda env from the cluster.
+
+        Example:
+            >>> rh.cluster("rh-cpu").remove_conda_env("my_conda_env")
+        """
         env_name = env if isinstance(env, str) else env.env_name
         self.run([f"conda env remove -n {env_name}"])

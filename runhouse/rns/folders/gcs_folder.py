@@ -25,7 +25,7 @@ class GCSFolder(Folder):
             from sky.data.storage import GcsStore
 
             GcsStore(
-                name=self.bucket_name_from_path(self.path), source=self._fsspec_fs
+                name=self._bucket_name_from_path(self.path), source=self._fsspec_fs
             ).delete()
         except Exception as e:
             raise e
@@ -39,7 +39,7 @@ class GCSFolder(Folder):
 
         # Initialize the GcsStore object which creates the bucket if it does not exist
         gcs_store = GcsStore(
-            name=self.bucket_name_from_path(self.path), source=src, region=region
+            name=self._bucket_name_from_path(self.path), source=src, region=region
         )
 
         sync_dir_command = self._upload_command(src=src, dest=self.path)
@@ -108,8 +108,8 @@ class GCSFolder(Folder):
                 "Transfer from GCS to S3 currently supported for buckets only, not specific directories."
             )
             data_transfer.gcs_to_s3(
-                gs_bucket_name=self.bucket_name_from_path(self.path),
-                s3_bucket_name=self.bucket_name_from_path(data_store_path),
+                gs_bucket_name=self._bucket_name_from_path(self.path),
+                s3_bucket_name=self._bucket_name_from_path(data_store_path),
             )
         elif system == "azure":
             raise NotImplementedError("Azure not yet supported")

@@ -102,7 +102,7 @@ class Table(Resource):
         """
         if self._cached_data is not None:
             return self._cached_data
-        return self.read_ray_dataset()
+        return self._read_ray_dataset()
 
     @data.setter
     def data(self, new_data):
@@ -167,7 +167,13 @@ class Table(Resource):
     #     return table_cls.from_config(config=config, dryrun=dryrun)
 
     def to(self, system, path=None, data_config=None):
-        """Copy and return the table on the given filesystem and path."""
+        """Copy and return the table on the given filesystem and path.
+
+        Example:
+            >>> local_table = rh.table(data, path="local/path")
+            >>> s3_table = local_table.to("s3")
+            >>> cluster_table = local_table.to(my_cluster)
+        """
         new_table = copy.copy(self)
         new_table._folder = self._folder.to(
             system=system, path=path, data_config=data_config
@@ -179,7 +185,11 @@ class Table(Resource):
             self.system.save()
 
     def write(self):
-        """Write underlying table data to fsspec URL."""
+        """Write underlying table data to fsspec URL.
+
+        Example:
+            >>> rh.table(data, path="path/to/write").write()
+        """
         if self._cached_data is not None:
             data_to_write = self.data
 
@@ -198,7 +208,12 @@ class Table(Resource):
         return self
 
     def fetch(self, columns: Optional[list] = None) -> pa.Table:
-        """Returns the complete table contents."""
+        """Returns the complete table contents.
+
+        Example:
+            >>> table = rh.table(data)
+            >>> fomratted_data = table.fetch()
+        """
         # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
         self._cached_data = self.read_table_from_file(columns)
         if self._cached_data is not None:
@@ -259,7 +274,14 @@ class Table(Resource):
         shuffle_buffer_size: Optional[int] = None,
         prefetch_batches: Optional[int] = None,
     ):
-        """Return a local batched iterator over the ray dataset."""
+        """Return a local batched iterator over the ray dataset.
+
+        Example:
+            >>> table = rh.table(data)
+            >>> batches = table.stream(batch_size=4)
+            >>> for _, batch in batches:
+            >>>     print(batch)
+        """
         ray_data = self.data
 
         if self.stream_format == "torch":
@@ -295,8 +317,8 @@ class Table(Resource):
                 **{PREFETCH_KWARG: prefetch_batches or self.DEFAULT_PREFETCH_BATCHES},
             )
 
-    def read_ray_dataset(self, columns: Optional[List[str]] = None):
-        """Read parquet data as a ray dataset object"""
+    def _read_ray_dataset(self, columns: Optional[List[str]] = None):
+        """Read parquet data as a ray dataset object."""
         # https://docs.ray.io/en/latest/data/api/input_output.html#parquet
         dataset = ray.data.read_parquet(
             self.fsspec_url, columns=columns, filesystem=self._folder.fsspec_fs
@@ -328,6 +350,12 @@ class Table(Resource):
         return ray.data.from_pandas(data)
 
     def read_table_from_file(self, columns: Optional[list] = None):
+        """Read a table from it's path.
+
+        Example:
+            >>> table = rh.table(path="path/to/table")
+            >>> table_data = table.read_table_from_file()
+        """
         try:
             with fsspec.open(self.fsspec_url, mode="rb", **self.data_config) as t:
                 table_data = pq.read_table(t.full_name, columns=columns)
@@ -336,12 +364,21 @@ class Table(Resource):
             return None
 
     def rm(self, recursive: bool = True):
-        """Delete table, including its partitioned files where relevant."""
+        """Delete table, including its partitioned files where relevant.
+
+        Example:
+            >>> table = rh.table(path="path/to/table")
+            >>> table.rm()
+        """
         # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.spec.AbstractFileSystem.rm
         self._folder.rm(recursive=recursive)
 
     def exists_in_system(self):
-        """Whether table exists in file system"""
+        """Whether the table exists in file system.
+
+        Example:
+            >>> table.exists_in_system()
+        """
         return (
             self._folder.exists_in_system()
             and len(self._folder.ls(self.fsspec_url)) >= 1
