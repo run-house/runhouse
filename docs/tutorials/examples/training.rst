@@ -87,12 +87,15 @@ for a more introductory and in-depth walkthrough.
 Dataloading and Preprocessing
 -----------------------------
 
-Here, we briefly demonstrate how to
+Here, we briefly demonstrate data loading and preprocessing on our remote hardware.
 
-Steps: - take our preprocessing code, wrap it in a function called
-load_and_preprocess - create a runhouse function, send it along w/
-dependencies to the cluster, auto set up is handled - call the function
-(which runs remotely on the cluster!)
+Steps:
+
+- take our preprocessing code, wrap it in a function called load_and_preprocess
+
+- create a runhouse function, send it along w/ dependencies to the cluster, auto set up is handled
+
+- call the function (which runs remotely on the cluster!)
 
 Note that all the code inside the function runs on our gpu cluster,
 which means there’s no need to install anything locally either.
