@@ -343,8 +343,9 @@ class Secrets:
 
         try:
             import huggingface_hub  # noqa
+            from .huggingface_secrets import HuggingFaceSecrets
 
-            if configs.get("huggingface"):
+            if HuggingFaceSecrets.read_secrets():
                 cloud_names.append("huggingface")
         except ModuleNotFoundError:
             pass

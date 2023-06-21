@@ -38,29 +38,17 @@ def test_from_string():
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_share_package(cpu_cluster):
-    import shutil
+def test_share_package(cpu_cluster, local_package):
+    local_package.to(system=cpu_cluster)
+    local_package.save("package_to_share")  # shareable resource requires a name
 
-    # Create a local temp folder to install for the package
-    tmp_path = Path.cwd().parent / "tmp_package"
-    tmp_path.mkdir(parents=True, exist_ok=True)
-    for i in range(3):
-        output_file = Path(f"{tmp_path}/sample_file_{i}.txt")
-        output_file.write_text(f"file{i}")
-
-    p = rh.Package.from_string("local:./tmp_package")
-    p.name = "package_to_share"  # shareable resource requires a name
-
-    p.to(system=cpu_cluster)
-
-    p.share(
+    local_package.share(
         users=["josh@run.house", "donny@run.house"],
         access_type="write",
         notify_users=False,
     )
 
-    shutil.rmtree(tmp_path)
-
+    # TODO test loading from a different account for real
     # Confirm the package's folder is now on the cluster
     status_codes = cpu_cluster.run(commands=["ls tmp_package"])
     assert "sample_file_0.txt" in status_codes[0][1]
