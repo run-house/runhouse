@@ -134,16 +134,24 @@ def load_all_clusters():
 
 
 # -----------------  Pinning objects to cluster memory  -----------------
-# TODO is this a bad idea?
-
+import ray
 from runhouse import rh_config
 
 
 def pin_to_memory(key: str, value):
+    # Put the obj_ref in Ray obj store here so it doesn't need to be deserialized inside the ObjStoreActor's process
+    # which may not have the necessary modules installed or gpu access
+    # obj_ref = ray.put(value)
+    # rh_config.obj_store.put_obj_ref(key, obj_ref)
     rh_config.obj_store.put(key, value)
 
 
 def get_pinned_object(key: str, default=None):
+    # ref = rh_config.obj_store.get_obj_ref(key)
+    # if ref is None:
+    #     return default
+    # else:
+    #     return ray.get(ref)
     return rh_config.obj_store.get(key, default=default)
 
 

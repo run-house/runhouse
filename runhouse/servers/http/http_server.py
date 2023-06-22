@@ -1,3 +1,4 @@
+import argparse
 import codecs
 import json
 import logging
@@ -42,8 +43,13 @@ class HTTPServer:
     LOGGING_WAIT_TIME = 1.0
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
 
-    def __init__(self, *args, **kwargs):
-        ray.init(address="auto", ignore_reinit_error=True)
+    def __init__(self, conda_env=None, *args, **kwargs):
+        if not ray.is_initialized():
+            ray.init(
+                ignore_reinit_error=True,
+                runtime_env={"conda": conda_env} if conda_env else {},
+                namespace="runhouse_server",
+            )
 
         try:
             # Collect metadata for the cluster immediately on init
@@ -542,7 +548,17 @@ class HTTPServer:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--port", type=int, default=DEFAULT_SERVER_PORT, help="Port to run server on"
+    )
+    parser.add_argument(
+        "--conda_env", type=str, default=None, help="Conda env to run server in"
+    )
+    args = parser.parse_args()
+    port = args.port
+    conda_name = args.conda_env
     import uvicorn
 
-    HTTPServer()
-    uvicorn.run(app, host="127.0.0.1", port=DEFAULT_SERVER_PORT)
+    HTTPServer(conda_env=conda_name)
+    uvicorn.run(app, host="127.0.0.1", port=port)

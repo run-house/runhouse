@@ -47,7 +47,7 @@ def cluster(
             f"{RESERVED_SYSTEM_NAMES}."
         )
 
-    if {"instance_type", "num_instances", "provider"} <= kwargs.keys():
+    if kwargs.keys() <= {"instance_type", "num_instances", "provider"}:
         # Commenting out for now. If two creation paths creates confusion let's push people to use
         # ondemand_cluster() instead.
         # warnings.warn(

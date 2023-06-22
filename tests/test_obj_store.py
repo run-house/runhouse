@@ -2,6 +2,7 @@ import logging
 import time
 import unittest
 
+import torch
 import pytest
 
 import runhouse as rh
@@ -50,6 +51,81 @@ def test_put_and_get_on_cluster(cpu_cluster):
     cpu_cluster.put("my_list", test_list)
     ret = cpu_cluster.get("my_list")
     assert all(a == b for (a, b) in zip(ret, test_list))
+
+
+def pinning_helper(key=None):
+    if not isinstance(key, str):
+        return key + ["Found in args!"]
+
+    # Future API:
+    # from_obj_store = rh.blob(name="my_list").fetch()
+
+    # Need to change the key so it doesn't get replaced as arg before being passed in
+    from_obj_store = rh.get_pinned_object(key=key + "_inside")
+    if from_obj_store:
+        return "Found in obj store!"
+
+    rh.pin_to_memory(key=key + "_inside", value=["put within fn"] * 5)
+    return ["fn result"] * 3
+
+
+@pytest.mark.clustertest
+def test_pinning_and_arg_replacement(cpu_cluster):
+    cpu_cluster.clear_pins()
+    pin_fn = rh.function(pinning_helper).to(cpu_cluster)
+
+    # First run should pin "run_pin" and "run_pin_inside"
+    pin_fn.run(key="run_pin", run_name="pinning_test")
+    print(cpu_cluster.list_keys())
+    assert cpu_cluster.get("pinning_test") == ["fn result"] * 3
+    assert cpu_cluster.get("run_pin_inside") == ["put within fn"] * 5
+
+    # Subsequent runs should find replaced values in args
+    assert pin_fn("pinning_test") == ["fn result"] * 3 + ["Found in args!"]
+    assert pin_fn("run_pin_inside") == ["put within fn"] * 5 + ["Found in args!"]
+
+    # When we just ran with the arg "run_pin", we put a new pin called "pinning_test_inside"
+    # from within the fn. Running again should return it.
+    assert pin_fn("run_pin") == "Found in obj store!"
+
+    put_pin_value = ["put_pin_value"] * 4
+    cpu_cluster.put("put_pin_inside", put_pin_value)
+    assert pin_fn("put_pin") == "Found in obj store!"
+    cpu_cluster.put("put_pin_outside", put_pin_value)
+    assert pin_fn("put_pin_outside") == put_pin_value + ["Found in args!"]
+
+
+@pytest.mark.clustertest
+def test_fault_tolerance(cpu_cluster):
+    cpu_cluster.clear_pins()
+    cpu_cluster.put("my_list", list(range(5, 50, 2)) + ["a string"])
+    cpu_cluster.restart_server(restart_ray=False, resync_rh=False)
+    ret = cpu_cluster.get("my_list")
+    assert all(a == b for (a, b) in zip(ret, list(range(5, 50, 2)) + ["a string"]))
+
+
+def serialization_helper_1():
+    tensor = torch.zeros(100).cuda()
+    rh.pin_to_memory("torch_tensor", tensor)
+
+
+def serialization_helper_2():
+    tensor = rh.get_pinned_object("torch_tensor")
+    return tensor.device()  # Should succeed if array hasn't been serialized
+
+
+@pytest.mark.clustertest
+@pytest.mark.gputest
+def test_pinning_to_gpu(k80_gpu_cluster):
+    # Based on the following quirk having to do with Numpy objects becoming immutable if they're serialized:
+    # https://docs.ray.io/en/latest/ray-core/objects/serialization.html#fixing-assignment-destination-is-read-only
+    k80_gpu_cluster.clear_pins()
+    fn_1 = rh.function(serialization_helper_1).to(k80_gpu_cluster)
+    fn_2 = rh.function(serialization_helper_2).to(k80_gpu_cluster)
+    fn_1()
+    fn_2()
+
+
 
 
 @pytest.mark.clustertest

@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -7,7 +8,55 @@ import ray.cloudpickle as pickle
 from runhouse.rns.utils.hardware import _current_cluster
 
 
-THIS_CLUSTER = _current_cluster("cluster_name")
+@ray.remote
+class ObjStoreActor:
+    """Ray actor to handle object storage for Runhouse. Wrapping this in an actor allows us to access it across
+    Ray processes and nodes, and even keep some things pinned to Python memory."""
+
+    def __init__(self):
+        num_gpus = ray.cluster_resources().get("GPU", 0)
+        cuda_visible_devices = list(range(int(num_gpus)))
+        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
+        self._kv = {}
+
+    def put(self, key: str, value: Any):
+        self._kv[key] = value
+
+    def get(self, key: str, default=None):
+        return self._kv.get(key, default)
+
+    def pop(self, key: str, default=None):
+        return self._kv.pop(key, default)
+
+    def keys(self):
+        return list(self._kv.keys())
+
+    def values(self):
+        return list(self._kv.values())
+
+    def items(self):
+        return list(self._kv.items())
+
+    def clear(self):
+        self._kv = {}
+
+    def __len__(self):
+        return len(self._kv)
+
+    def __contains__(self, key: str):
+        return key in self._kv
+
+    def __getitem__(self, key: str):
+        return self._kv[key]
+
+    def __setitem__(self, key: str, value: Any):
+        self._kv[key] = value
+
+    def __delitem__(self, key: str):
+        del self._kv[key]
+
+    def __repr__(self):
+        return repr(self._kv)
 
 
 class ObjStore:
@@ -21,24 +70,37 @@ class ObjStore:
     RH_LOGFILE_PATH = Path.home() / LOGS_DIR
 
     def __init__(self, cluster_name: Optional[str] = None):
-        self.cluster_name = cluster_name or THIS_CLUSTER
-        self._obj_store_cache = {}
+        if not ray.is_initialized():
+            ray.init(
+                ignore_reinit_error=True,
+                namespace="runhouse_server",
+            )
+
+        self.cluster_name = cluster_name or _current_cluster("cluster_name")
+        num_gpus = ray.cluster_resources().get("GPU", 0)
+        cuda_visible_devices = list(range(int(num_gpus)))
+        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
+        self._kv_actor = ObjStoreActor.options(
+            name="obj_store_kv",
+            get_if_exists=True,
+            lifetime="detached",
+            namespace="runhouse_server",
+        ).remote()
         self.imported_modules = {}
 
-    @property
-    def obj_store_cache(self):
-        return self._obj_store_cache
-
-    @obj_store_cache.setter
-    def obj_store_cache(self, value: Dict):
-        self._obj_store_cache = value
-
     def put(self, key: str, value: Any):
-        obj_ref = ray.put(value)
-        self.obj_store_cache[key] = obj_ref
+        if not isinstance(value, ray.ObjectRef):
+            ray.get(self._kv_actor.put.remote(key, value))
+            value = ray.put(value)
+        self.put_obj_ref(key, value)
 
     def put_obj_ref(self, key, obj_ref):
-        self.obj_store_cache[key] = obj_ref
+        # Need to wrap the obj_ref in a dict so ray doesn't dereference it
+        # FYI: https://docs.ray.io/en/latest/ray-core/objects.html#closure-capture-of-objects
+        ray.get(self._kv_actor.put.remote(key + "_ref", [obj_ref]))
+
+    def get_obj_ref(self, key):
+        return ray.get(self._kv_actor.get.remote(key + "_ref", [None]))[0]
 
     def get(
         self,
@@ -47,11 +109,20 @@ class ObjStore:
         timeout: Optional[float] = None,
         resolve: bool = True,
     ):
-        obj_ref = self.obj_store_cache.get(key, None)
+        # First check if it's in the Python kv store
+        val = ray.get(self._kv_actor.get.remote(key))
+        if val is not None:
+            return val
+
+        # Next check if it's in the Ray Obj store
+        obj_ref = self.get_obj_ref(key)
+
         if not obj_ref:
             return default
+
         if not resolve:
             return obj_ref
+
         obj = ray.get(obj_ref, timeout=timeout)
         if isinstance(obj, bytes):
             return pickle.loads(obj)
@@ -71,31 +142,31 @@ class ObjStore:
         }
 
     def keys(self):
-        return list(self.obj_store_cache.keys())
+        return list(ray.get(self._kv_actor.keys.remote()))
 
     def delete(self, key: str):
-        self.obj_store_cache.pop(key, None)
+        ray.get(self._kv_actor.pop.remote(key, None))
 
     def pop(self, key: str, default: Optional[Any] = None):
-        return self.obj_store_cache.pop(key, default)
+        val = ray.get(self._kv_actor.pop.remote(key, default))
+        ref = ray.get(self._kv_actor.pop.remote(key + "_ref", [None])[0])
+        return val or ref or default
 
     def clear(self):
-        self.obj_store_cache = {}
+        ray.get(self._kv_actor.clear.remote())
 
     def cancel(self, key: str, force: bool = False, recursive: bool = True):
-        obj_ref = self.get(key, resolve=False)
+        obj_ref = self.get_obj_ref(key)
         if not obj_ref:
             raise ValueError(f"Object with key {key} not found in object store.")
-        if isinstance(obj_ref, list):
-            for ref in obj_ref:
-                ray.cancel(ref, force=force, recursive=recursive)
         else:
             ray.cancel(obj_ref, force=force, recursive=recursive)
 
     def get_logfiles(self, key: str, log_type=None):
         # Info on ray logfiles: https://docs.ray.io/en/releases-2.2.0/ray-observability/ray-logging.html#id1
-        obj_ref = self.obj_store_cache.get(key, None)
-        if obj_ref:
+        if ray.get(self._kv_actor.__contains__.remote(key + "_ref")) or ray.get(
+            self._kv_actor.__contains__.remote(key)
+        ):
             # Logs are like worker-[worker_id]-[job_id]-[pid].[out|err]
             key_logs_path = Path(self.RH_LOGFILE_PATH) / key
             # stdout_files = ray_logs_path.glob(f'worker-*-{obj_ref.job_id().hex()}-*.out')
@@ -111,7 +182,7 @@ class ObjStore:
             return None
 
     def __repr__(self):
-        return f"ObjStore({self.obj_store_cache})"
+        return f"ObjStore({ray.get(self._kv_actor.__repr__.remote())})"
 
     def __str__(self):
-        return f"ObjStore({self.obj_store_cache})"
+        return f"ObjStore({ray.get(self._kv_actor.__repr__.remote())})"
