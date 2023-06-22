@@ -23,18 +23,22 @@ def load(name: str, instantiate: bool = True, dryrun: bool = False):
     config = rns_client.load_config(name=name)
     if not instantiate:
         return config
-    from_config_constructor = getattr(
-        sys.modules["runhouse.rns"], config["resource_type"].capitalize(), None
-    ).from_config
-    if not from_config_constructor:
+    resource_class = getattr(
+        sys.modules["runhouse"], config["resource_type"].capitalize(), None
+    )
+    if not resource_class:
+        raise TypeError(
+            f"Could not find module associated with {config['resource_type']}"
+        )
+
+    try:
+        loaded = resource_class.from_config(config=config, dryrun=dryrun)
+        rns_client.add_upstream_resource(name)
+        return loaded
+    except:
         raise ValueError(
             f"Could not find constructor for type {config['resource_type']}"
         )
-
-    # Add this resource to the resource artifact registry if part of a run
-    rns_client.add_upstream_resource(name)
-
-    return from_config_constructor(config=config, dryrun=dryrun)
 
 
 def load_from_path(
