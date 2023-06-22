@@ -15,24 +15,27 @@ TEMP_LOCAL_FOLDER = Path(__file__).parents[1] / "rh-blobs"
 
 
 @pytest.mark.rnstest
-def test_create_and_reload_local_blob_with_name(blob_data):
-    name = "~/my_local_blob"
-    my_blob = (
-        rh.blob(
-            data=blob_data,
-            name=name,
-            system="file",
-        )
-        .write()
-        .save()
-    )
+def test_save_local_blob_fails(local_blob, blob_data):
+    with pytest.raises(ValueError):
+        local_blob.save(name="my_local_blob")
 
-    del blob_data
-    del my_blob
+
+@pytest.mark.rnstest
+@pytest.mark.awstest
+@pytest.mark.gcptest
+@pytest.mark.clustertest
+@pytest.mark.parametrize(
+    "blob", ["local_file", "s3_blob", "gcs_blob", "cluster_blob"], indirect=True
+)
+def test_reload_file_with_name(blob):
+    name = "my_blob"
+    blob.save(name)
+
+    del blob
 
     reloaded_blob = rh.blob(name=name)
-    reloaded_data = pickle.loads(reloaded_blob.data)
-    assert reloaded_data == list(range(50))
+    reloaded_data = reloaded_blob.fetch()
+    assert reloaded_data[1] == "test"
 
     # Delete metadata saved locally and / or the database for the blob
     reloaded_blob.delete_configs()
@@ -43,106 +46,18 @@ def test_create_and_reload_local_blob_with_name(blob_data):
 
 
 @pytest.mark.rnstest
-def test_create_and_reload_local_blob_with_path(blob_data):
-    name = "~/my_local_blob"
-    my_blob = (
-        rh.blob(
-            data=blob_data,
-            name=name,
-            path=str(TEMP_LOCAL_FOLDER / "my_blob.pickle"),
-            system="file",
-        )
-        .write()
-        .save()
-    )
-
-    del blob_data
-    del my_blob
-
-    reloaded_blob = rh.blob(name=name)
-    reloaded_data = pickle.loads(reloaded_blob.data)
-    assert reloaded_data == list(range(50))
-
-    # Delete metadata saved locally and / or the database for the blob
-    reloaded_blob.delete_configs()
-
-    # Delete just the blob itself - since we define a custom path to store the blob, we want to keep the other
-    # files stored in that directory
-    reloaded_blob.rm()
-    assert not reloaded_blob.exists_in_system()
-
-
-@pytest.mark.localtest
-def test_create_and_reload_anom_local_blob(blob_data):
-    my_blob = rh.blob(
-        data=blob_data,
-        system="file",
-    ).write()
-
-    reloaded_blob = rh.blob(path=my_blob.path)
-    reloaded_data = pickle.loads(reloaded_blob.data)
-    assert reloaded_data == list(range(50))
+@pytest.mark.awstest
+@pytest.mark.gcptest
+@pytest.mark.clustertest
+@pytest.mark.parametrize(
+    "blob", ["local_file", "s3_blob", "gcs_blob", "cluster_blob"], indirect=True
+)
+def test_reload_file_with_path(blob):
+    reloaded_blob = rh.blob(path=blob.path, system=blob.system)
+    reloaded_data = reloaded_blob.fetch()
+    assert reloaded_data[1] == "test"
 
     # Delete the blob
-    reloaded_blob.rm()
-    assert not reloaded_blob.exists_in_system()
-
-
-@pytest.mark.awstest
-@pytest.mark.rnstest
-def test_create_and_reload_rns_blob(blob_data):
-    name = "@/s3_blob"
-    my_blob = (
-        rh.blob(
-            name=name,
-            data=blob_data,
-            system="s3",
-        )
-        .write()
-        .save()
-    )
-
-    del blob_data
-    del my_blob
-
-    reloaded_blob = rh.blob(name=name)
-    reloaded_data = pickle.loads(reloaded_blob.data)
-    assert reloaded_data == list(range(50))
-
-    # Delete metadata saved locally and / or the database for the blob and its associated folder
-    reloaded_blob.delete_configs()
-
-    # Delete the blob itself from the filesystem
-    reloaded_blob.rm()
-    assert not reloaded_blob.exists_in_system()
-
-
-@pytest.mark.awstest
-@pytest.mark.rnstest
-def test_create_and_reload_rns_blob_with_path(blob_data, blob_s3_bucket):
-    name = "@/s3_blob"
-    my_blob = (
-        rh.blob(
-            name=name,
-            data=blob_data,
-            system="s3",
-            path=f"/{blob_s3_bucket}/test_blob.pickle",
-        )
-        .write()
-        .save()
-    )
-
-    del blob_data
-    del my_blob
-
-    reloaded_blob = rh.blob(name=name)
-    reloaded_data = pickle.loads(reloaded_blob.data)
-    assert reloaded_data == list(range(50))
-
-    # Delete metadata saved locally and / or the database for the blob and its associated folder
-    reloaded_blob.delete_configs()
-
-    # Delete the blob itself from the filesystem
     reloaded_blob.rm()
     assert not reloaded_blob.exists_in_system()
 

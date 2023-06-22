@@ -19,9 +19,10 @@ open_cluster_tunnels = {}
 
 rns_client = RNSClient(configs=configs)
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             obj_store = None
+obj_store = None
 try:
-    import ray
+    import ray  # noqa: F401
+
     obj_store = ObjStore()
-except Exception as e:
+except Exception:
     pass

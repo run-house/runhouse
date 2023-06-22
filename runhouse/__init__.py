@@ -13,7 +13,7 @@ from runhouse.rns.top_level_rns_fns import (
 
 # Note these are global variables that are instantiated within rh_config.py:
 from .rh_config import configs, obj_store, rns_client
-from .rns.blob import blob, Blob
+from .rns.blobs import blob, Blob, file, File
 from .rns.defaults import Defaults
 from .rns.envs import conda_env, CondaEnv, env, Env
 from .rns.folders import Folder, folder, GCSFolder, S3Folder

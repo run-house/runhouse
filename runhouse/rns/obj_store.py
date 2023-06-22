@@ -162,11 +162,14 @@ class ObjStore:
         else:
             ray.cancel(obj_ref, force=force, recursive=recursive)
 
+    def contains(self, key: str):
+        return ray.get(self._kv_actor.__contains__.remote(key + "_ref")) or ray.get(
+            self._kv_actor.__contains__.remote(key)
+        )
+
     def get_logfiles(self, key: str, log_type=None):
         # Info on ray logfiles: https://docs.ray.io/en/releases-2.2.0/ray-observability/ray-logging.html#id1
-        if ray.get(self._kv_actor.__contains__.remote(key + "_ref")) or ray.get(
-            self._kv_actor.__contains__.remote(key)
-        ):
+        if self.contains(key):
             # Logs are like worker-[worker_id]-[job_id]-[pid].[out|err]
             key_logs_path = Path(self.RH_LOGFILE_PATH) / key
             # stdout_files = ray_logs_path.glob(f'worker-*-{obj_ref.job_id().hex()}-*.out')

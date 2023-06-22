@@ -134,7 +134,6 @@ def load_all_clusters():
 
 
 # -----------------  Pinning objects to cluster memory  -----------------
-import ray
 from runhouse import rh_config
 
 

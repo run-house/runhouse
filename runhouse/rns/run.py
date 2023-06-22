@@ -196,7 +196,7 @@ class Run(Resource):
 
     def write(self, data: Any, path: str):
         """Write data (ex: function inputs or result, stdout, stderr) to the Run's dedicated folder on the system."""
-        blob(data=data, system=self.folder.system, path=path).write()
+        blob(data=data, system=self.folder.system, path=path)
 
     def to(
         self,

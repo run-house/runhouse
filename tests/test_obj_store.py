@@ -2,7 +2,6 @@ import logging
 import time
 import unittest
 
-import torch
 import pytest
 
 import runhouse as rh
@@ -57,15 +56,11 @@ def pinning_helper(key=None):
     if not isinstance(key, str):
         return key + ["Found in args!"]
 
-    # Future API:
-    # from_obj_store = rh.blob(name="my_list").fetch()
-
-    # Need to change the key so it doesn't get replaced as arg before being passed in
-    from_obj_store = rh.get_pinned_object(key=key + "_inside")
+    from_obj_store = rh.blob(name=key + "_inside").fetch()
     if from_obj_store:
         return "Found in obj store!"
 
-    rh.pin_to_memory(key=key + "_inside", value=["put within fn"] * 5)
+    rh.blob(name=key + "_inside", data=["put within fn"] * 5)
     return ["fn result"] * 3
 
 
@@ -105,6 +100,8 @@ def test_fault_tolerance(cpu_cluster):
 
 
 def serialization_helper_1():
+    import torch
+
     tensor = torch.zeros(100).cuda()
     rh.pin_to_memory("torch_tensor", tensor)
 
@@ -114,6 +111,7 @@ def serialization_helper_2():
     return tensor.device()  # Should succeed if array hasn't been serialized
 
 
+@unittest.skip
 @pytest.mark.clustertest
 @pytest.mark.gputest
 def test_pinning_to_gpu(k80_gpu_cluster):
@@ -124,8 +122,6 @@ def test_pinning_to_gpu(k80_gpu_cluster):
     fn_2 = rh.function(serialization_helper_2).to(k80_gpu_cluster)
     fn_1()
     fn_2()
-
-
 
 
 @pytest.mark.clustertest

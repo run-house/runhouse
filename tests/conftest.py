@@ -1,19 +1,68 @@
-import pickle
+import numpy as np
 
 import pandas as pd
 
 import pytest
 
 import runhouse as rh
-from runhouse.rns.api_utils.utils import create_s3_bucket
+from runhouse.rns.api_utils.utils import create_gcs_bucket, create_s3_bucket
 
 
 # https://docs.pytest.org/en/6.2.x/fixture.html#conftest-py-sharing-fixtures-across-multiple-files
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def blob_data():
-    return pickle.dumps(list(range(50)))
+    return [np.arange(50), "test", {"a": 1, "b": 2}]
+
+
+@pytest.fixture
+def local_file(blob_data, tmp_path):
+    return rh.blob(
+        data=blob_data,
+        system="file",
+        path=tmp_path / "test_blob.pickle",
+    )
+
+
+@pytest.fixture
+def local_blob(blob_data):
+    return rh.blob(
+        data=blob_data,
+    )
+
+
+@pytest.fixture
+def s3_blob(blob_data, blob_s3_bucket):
+    return rh.blob(
+        data=blob_data,
+        system="s3",
+        path=f"/{blob_s3_bucket}/test_blob.pickle",
+    )
+
+
+@pytest.fixture
+def gcs_blob(blob_data, blob_gcs_bucket):
+    return rh.blob(
+        data=blob_data,
+        system="gs",
+        path=f"/{blob_gcs_bucket}/test_blob.pickle",
+    )
+
+
+@pytest.fixture
+def cluster_blob(blob_data, cpu_cluster):
+    return rh.blob(
+        data=blob_data,
+        system=cpu_cluster,
+        path="test_blob.pickle",
+    )
+
+
+@pytest.fixture
+def blob(request):
+    """Parametrize over multiple blobs - useful for running the same test on multiple storage types."""
+    return request.getfixturevalue(request.param)
 
 
 # ----------------- Folders -----------------
@@ -250,6 +299,21 @@ def blob_s3_bucket():
 @pytest.fixture(scope="session")
 def table_s3_bucket():
     table_bucket = create_s3_bucket("runhouse-table")
+    return table_bucket.name
+
+
+# ----------------- GCP -----------------
+
+
+@pytest.fixture(scope="session")
+def blob_gcs_bucket():
+    blob_bucket = create_gcs_bucket("runhouse-blob")
+    return blob_bucket.name
+
+
+@pytest.fixture(scope="session")
+def table_gcs_bucket():
+    table_bucket = create_gcs_bucket("runhouse-table")
     return table_bucket.name
 
 

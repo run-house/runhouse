@@ -1,22 +1,20 @@
 import copy
 import logging
+import pickle
 from pathlib import Path
 from typing import Dict, Optional
 
 from runhouse.rh_config import rns_client
 from runhouse.rns.api_utils.utils import generate_uuid
+from runhouse.rns.blobs.blob import Blob
 from runhouse.rns.folders import Folder, folder
-from runhouse.rns.resource import Resource
+from runhouse.rns.hardware.cluster import Cluster
 from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
 
 logger = logging.getLogger(__name__)
 
 
-class Blob(Resource):
-    RESOURCE_TYPE = "blob"
-    DEFAULT_FOLDER_PATH = "/runhouse-blob"
-    DEFAULT_CACHE_FOLDER = ".cache/runhouse/blobs"
-
+class File(Blob):
     def __init__(
         self,
         path: Optional[str] = None,
@@ -32,7 +30,7 @@ class Blob(Resource):
         .. note::
                 To build a Blob, please use the factory method :func:`blob`.
         """
-        super().__init__(name=name, dryrun=dryrun)
+        super().__init__(name=name, dryrun=dryrun, system=system)
         self._filename = str(Path(path).name) if path else self.name
         # Use factory method so correct subclass for system is returned
         self._folder = folder(
@@ -48,8 +46,7 @@ class Blob(Resource):
         config = super().config_for_rns
         blob_config = {
             "path": self.path,  # pair with data source to create the physical URL
-            "resource_type": self.RESOURCE_TYPE,
-            "system": self._resource_string_for_subconfig(self.system),
+            "data_config": self.data_config,
         }
         config.update(blob_config)
         return config
@@ -57,19 +54,6 @@ class Blob(Resource):
     @staticmethod
     def from_config(config: dict, dryrun=False):
         return Blob(**config, dryrun=dryrun)
-
-    @property
-    def data(self):
-        """Get the blob data."""
-        if self._cached_data is not None:
-            return self._cached_data
-        data = self.fetch()
-        return data
-
-    @data.setter
-    def data(self, new_data):
-        """Update the data blob to new data."""
-        self._cached_data = new_data
 
     @property
     def system(self):
@@ -122,48 +106,64 @@ class Blob(Resource):
             >>> s3_blob = blob.to("s3")
             >>> cluster_blob = blob.to(my_cluster)
         """
+        if system == "here":
+            if self.system.on_this_cluster():
+                return Blob(name=self.name, system=self.system).write(self.fetch())
+
+            current_cluster_config = _current_cluster(key="config")
+            if current_cluster_config:
+                system = Cluster.from_config(current_cluster_config)
+                obj_store.put(self.name, self.fetch())
+                return Blob(name=self.name, system=system)
+
+            if path:
+                system = "file"
+            else:
+                # Default local path
+                path = str(Path.cwd() / self.name)
+
+        system = _get_cluster_from(system)
+        if isinstance(system, Cluster) and not path:
+            system.put(self.name, self.fetch())
+            return Blob(name=self.name, system=system)
+
         new_blob = copy.copy(self)
         new_blob._folder = self._folder.to(
             system=system, path=path, data_config=data_config
         )
         return new_blob
 
-    def fetch(self):
+    def fetch(self, deserialize: bool = True):
         """Return the data for the user to deserialize.
 
         Example:
-            >>> serialized_data = blob.fetch()
+            >>> data = blob.fetch()
         """
         self._cached_data = self._folder.get(self._filename)
+        if deserialize:
+            self._cached_data = pickle.loads(self._cached_data)
         return self._cached_data
 
     def _save_sub_resources(self):
-        if isinstance(self.system, Resource):
+        if isinstance(self.system, Cluster):
             self.system.save()
 
-    def write(self):
+    def write(self, data, serialize: bool = True):
         """Save the underlying blob to its specified fsspec URL.
 
         Example:
-            >>> rh.blob(serialized_data, path="path/to/save").write()
+            >>> rh.file(system="s3", path="path/to/save").write(data)
         """
-        # TODO figure out default behavior for not overwriting but still saving
-        # if not overwrite:
-        #     TODO check if data_url is already in use
-        #     time = datetime.today().strftime('%Y-%m-%d_%H:%M:%S')
-        #     self.data_url = self.data_url + time or time
-
-        # TODO check if self._cached_data is None, and if so, don't just download it to then save it again?
         self._folder.mkdir()
+        if serialize:
+            data = pickle.dumps(data)
+        elif not isinstance(data, bytes):
+            # Avoid TypeError: a bytes-like object is required
+            raise TypeError(
+                f"Cannot save blob with data of type {type(data)}, data must be serialized or set serialize=True"
+            )
         with self.open(mode="wb") as f:
-            if not isinstance(self.data, bytes):
-                # Avoid TypeError: a bytes-like object is required
-                raise TypeError(
-                    f"Cannot save blob with data of type {type(self.data)}, data must be serialized"
-                )
-
-            f.write(self.data)
-
+            f.write(data)
         return self
 
     def rm(self):
@@ -184,21 +184,8 @@ class Blob(Resource):
         """
         return self._folder.fsspec_fs.exists(self.fsspec_url)
 
-    # TODO [DG] get rid of this in favor of just "sync_down(path, system)" ?
-    def sync_from_cluster(self, cluster, path: Optional[str] = None):
-        """Efficiently rsync down a blob from a cluster, into the path of the current Blob object.
 
-        Example:
-            >>> remote_blob = rh.blob(serialized_data, system=my_cluster)
-            >>> remote_blob.sync_from_cluster()
-        """
-        if not cluster.address:
-            raise ValueError("Cluster must be started before copying data to it.")
-
-        cluster._rsync(source=self.path, dest=path, up=False)
-
-
-def blob(
+def file(
     data=None,
     name: Optional[str] = None,
     path: Optional[str] = None,
@@ -243,6 +230,8 @@ def blob(
         >>> my_local_blob = rh.blob(name="~/my_blob")
         >>> my_s3_blob = rh.blob(name="@/my_blob")
     """
+    return
+
     if name and not any([data, path, system, data_config]):
         # Try reloading existing blob
         return Blob.from_name(name, dryrun)
@@ -257,7 +246,7 @@ def blob(
         )
 
         if system == rns_client.DEFAULT_FS or (
-            isinstance(system, Resource) and system.on_this_cluster()
+            isinstance(system, Cluster) and system.on_this_cluster()
         ):
             # create random path to store in .cache folder of local filesystem
             path = str(
