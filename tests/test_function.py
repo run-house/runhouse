@@ -132,6 +132,10 @@ def test_maps(cpu_cluster):
     res = re_fn.starmap(summands)
     assert res == [4, 6, 8, 10, 12]
 
+    alist, blist = range(5), range(4, 9)
+    res = re_fn.map(alist, blist)
+    assert res == [4, 6, 8, 10, 12]
+
 
 @pytest.mark.clustertest
 def test_remotes(cpu_cluster):

@@ -355,17 +355,22 @@ class Function(Resource):
                 "Function.repeat only works with Write or Read access, not Proxy access"
             )
 
-    def map(self, arg_list, **kwargs):
+    def map(self, *args, **kwargs):
         """Map a function over a list of arguments.
 
         Example:
-            >>> args = [1, 2, 3]
+            >>> def local_sum(arg1, arg2, arg3):
+            >>>     return arg1 + arg2 + arg3
+            >>>
             >>> remote_fn = rh.function(local_fn).to(gpu)
-            >>> remote_fn.map(arg_list=args)
+            >>> remote_fn.map([1, 2], [1, 4], [2, 3])
+            >>> # output: [4, 9]
+
         """
+        arg_list = zip(*args)
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             return self._call_fn_with_ssh_access(
-                fn_type="map", args=arg_list, kwargs=kwargs
+                fn_type="starmap", args=arg_list, kwargs=kwargs
             )
         else:
             raise NotImplementedError(

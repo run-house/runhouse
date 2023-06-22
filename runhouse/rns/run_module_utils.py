@@ -106,17 +106,12 @@ def call_fn_by_type(
     ray_fn = ray.remote(
         num_cpus=resources.get("num_cpus") or 0.0001,
         num_gpus=resources.get("num_gpus") or 0.0001 if num_gpus > 0 else None,
-        max_calls=len(args) if fn_type in ["map", "starmap"] else 1,
+        max_calls=len(args) if fn_type in ["starmap"] else 1,
         runtime_env=runtime_env,
     )(logging_wrapped_fn)
 
     # TODO other possible fn_types: 'batch', 'streaming'
-    if fn_type == "map":
-        obj_ref = [
-            ray_fn.remote(fn_pointers, serialize_res, num_cuda_devices, arg, **kwargs)
-            for arg in args
-        ]
-    elif fn_type == "starmap":
+    if fn_type == "starmap":
         obj_ref = [
             ray_fn.remote(fn_pointers, serialize_res, num_cuda_devices, *arg, **kwargs)
             for arg in args
