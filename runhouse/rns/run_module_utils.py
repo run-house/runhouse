@@ -12,7 +12,8 @@ import ray
 from ray import cloudpickle as pickle
 
 from runhouse import rh_config
-from runhouse.rns.api_utils.utils import resolve_absolute_path
+from runhouse.rns.utils.api import resolve_absolute_path
+from runhouse.rns.utils.names import _generate_default_name
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +30,11 @@ def call_fn_by_type(
     kwargs=None,
     serialize_res=True,
 ):
-    from runhouse import Run, RunStatus
+    from runhouse import RunStatus
 
     # **NOTE**: No need to pass in the fn callable here! We should be able to get it from the module_name and fn_name
 
-    run_name = run_name if run_name else Run._create_new_run_name(fn_name)
+    run_name = run_name if run_name else _generate_default_name(prefix=fn_name)
 
     if fn_type.startswith("get_or"):
         # If Run already exists with this run key return the Run object

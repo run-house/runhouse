@@ -12,9 +12,9 @@ import fsspec
 import sshfs
 
 from runhouse.rh_config import rns_client
-from runhouse.rns.api_utils.utils import generate_uuid
 from runhouse.rns.resource import Resource
 from runhouse.rns.top_level_rns_fns import exists
+from runhouse.rns.utils.api import generate_uuid
 from runhouse.rns.utils.hardware import (
     _current_cluster,
     _get_cluster_from,
@@ -270,7 +270,7 @@ class Folder(Resource):
             >>> folder.mv(my_cluster)
             >>> folder.mv("s3", "s3_bucket/path")
         """
-        # TODO [DG] create get_default_path for system method to be shared
+        # TODO [DG] use _generate_default_path
         if path is None:
             path = "rh/" + self.rns_address
         data_config = data_config or {}

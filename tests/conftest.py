@@ -5,7 +5,6 @@ import pandas as pd
 import pytest
 
 import runhouse as rh
-from runhouse.rns.api_utils.utils import create_gcs_bucket, create_s3_bucket
 
 
 # https://docs.pytest.org/en/6.2.x/fixture.html#conftest-py-sharing-fixtures-across-multiple-files
@@ -55,6 +54,14 @@ def cluster_blob(blob_data, cpu_cluster):
     return rh.blob(
         data=blob_data,
         system=cpu_cluster,
+    )
+
+
+@pytest.fixture
+def cluster_file(blob_data, cpu_cluster):
+    return rh.blob(
+        data=blob_data,
+        system=cpu_cluster,
         path="test_blob.pickle",
     )
 
@@ -62,6 +69,12 @@ def cluster_blob(blob_data, cpu_cluster):
 @pytest.fixture
 def blob(request):
     """Parametrize over multiple blobs - useful for running the same test on multiple storage types."""
+    return request.getfixturevalue(request.param)
+
+
+@pytest.fixture
+def file(request):
+    """Parametrize over multiple files - useful for running the same test on multiple storage types."""
     return request.getfixturevalue(request.param)
 
 
@@ -96,6 +109,12 @@ def gcs_folder(local_folder):
 
     # Delete files from GCS
     gcs_folder.rm()
+
+
+@pytest.fixture
+def folder(request):
+    """Parametrize over multiple folders - useful for running the same test on multiple storage types."""
+    return request.getfixturevalue(request.param)
 
 
 # ----------------- Tables -----------------
@@ -337,3 +356,19 @@ def submitted_async_run(summer_func):
 
     assert isinstance(async_run, rh.Run)
     return run_name
+
+
+def create_s3_bucket(bucket_name: str):
+    """Create bucket in S3 if it does not already exist."""
+    from sky.data.storage import S3Store
+
+    s3_store = S3Store(name=bucket_name, source="")
+    return s3_store
+
+
+def create_gcs_bucket(bucket_name: str):
+    """Create bucket in GS if it does not already exist."""
+    from sky.data.storage import GcsStore
+
+    gcs_store = GcsStore(name=bucket_name, source="")
+    return gcs_store

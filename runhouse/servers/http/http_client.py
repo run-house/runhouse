@@ -129,9 +129,17 @@ class HTTPClient:
     def put_object(self, key, value):
         self.request(
             "object",
-            req_type="put",
+            req_type="post",
             data=pickle_b64((key, value)),
             err_str=f"Error putting object {key}",
+        )
+
+    def rename_object(self, old_key, new_key):
+        self.request(
+            "object",
+            req_type="put",
+            data=pickle_b64((old_key, new_key)),
+            err_str=f"Error renaming object {old_key}",
         )
 
     def get_run_object(self, run_name, folder_path):
@@ -144,12 +152,12 @@ class HTTPClient:
 
         return run_obj
 
-    def clear_pins(self, pins=None):
+    def delete_keys(self, keys=None):
         return self.request(
             "object",
             req_type="delete",
-            data=pickle_b64((pins or [])),
-            err_str=f"Error clearing pins {pins}",
+            data=pickle_b64((keys or [])),
+            err_str=f"Error deleting keys {keys}",
         )
 
     def cancel_runs(self, keys, force=False):

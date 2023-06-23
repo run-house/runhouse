@@ -66,7 +66,7 @@ def pinning_helper(key=None):
 
 @pytest.mark.clustertest
 def test_pinning_and_arg_replacement(cpu_cluster):
-    cpu_cluster.clear_pins()
+    cpu_cluster.delete_keys()
     pin_fn = rh.function(pinning_helper).to(cpu_cluster)
 
     # First run should pin "run_pin" and "run_pin_inside"
@@ -92,7 +92,7 @@ def test_pinning_and_arg_replacement(cpu_cluster):
 
 @pytest.mark.clustertest
 def test_fault_tolerance(cpu_cluster):
-    cpu_cluster.clear_pins()
+    cpu_cluster.delete_keys()
     cpu_cluster.put("my_list", list(range(5, 50, 2)) + ["a string"])
     cpu_cluster.restart_server(restart_ray=False, resync_rh=False)
     ret = cpu_cluster.get("my_list")
@@ -117,7 +117,7 @@ def serialization_helper_2():
 def test_pinning_to_gpu(k80_gpu_cluster):
     # Based on the following quirk having to do with Numpy objects becoming immutable if they're serialized:
     # https://docs.ray.io/en/latest/ray-core/objects/serialization.html#fixing-assignment-destination-is-read-only
-    k80_gpu_cluster.clear_pins()
+    k80_gpu_cluster.delete_keys()
     fn_1 = rh.function(serialization_helper_1).to(k80_gpu_cluster)
     fn_2 = rh.function(serialization_helper_2).to(k80_gpu_cluster)
     fn_1()

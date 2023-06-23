@@ -264,6 +264,11 @@ class Cluster(Resource):
         self.check_server()
         return self.client.put_object(key, obj)
 
+    def rename(self, old_key: str, new_key: str):
+        """Rename a key in the cluster's object store."""
+        self.check_server()
+        return self.client.rename_object(old_key, new_key)
+
     def list_keys(self):
         """List all keys in the cluster's object store."""
         self.check_server()
@@ -280,12 +285,12 @@ class Cluster(Resource):
         self.check_server()
         return self.client.cancel_runs("all", force=force)
 
-    def clear_pins(self, pins: Optional[List[str]] = None):
-        """Remove the given pinned items from the cluster. If `pins` is set to ``None``, then
-        all pinned objects will be cleared."""
+    def delete_keys(self, keys: Union[None, str, List[str]] = None):
+        """Delete the given keys from the cluster's object store."""
         self.check_server()
-        self.client.clear_pins(pins)
-        logger.info(f'Clearing pins on cluster {pins or ""}')
+        if isinstance(keys, str):
+            keys = [keys]
+        return self.client.delete_keys(keys)
 
     def on_this_cluster(self):
         """Whether this function is being called on the same cluster."""

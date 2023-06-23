@@ -25,8 +25,10 @@ class ObjStoreActor:
     def get(self, key: str, default=None):
         return self._kv.get(key, default)
 
-    def pop(self, key: str, default=None):
-        return self._kv.pop(key, default)
+    def pop(self, key: str, *args):
+        # We accept *args here to match the signature of dict.pop (throw an error if key is not found,
+        # unless another arg is provided as a default)
+        return self._kv.pop(key, *args)
 
     def keys(self):
         return list(self._kv.keys())
@@ -39,6 +41,11 @@ class ObjStoreActor:
 
     def clear(self):
         self._kv = {}
+
+    def rename(self, old_key, new_key, *args):
+        # We accept *args here to match the signature of dict.pop (throw an error if key is not found,
+        # unless another arg is provided as a default)
+        self._kv[new_key] = self._kv.pop(old_key, *args)
 
     def __len__(self):
         return len(self._kv)
@@ -98,6 +105,13 @@ class ObjStore:
         # Need to wrap the obj_ref in a dict so ray doesn't dereference it
         # FYI: https://docs.ray.io/en/latest/ray-core/objects.html#closure-capture-of-objects
         ray.get(self._kv_actor.put.remote(key + "_ref", [obj_ref]))
+
+    def rename(self, old_key, new_key, default=None):
+        # By passing default, we don't throw an error if the key is not found
+        ray.get(self._kv_actor.rename.remote(old_key, new_key, default))
+        ray.get(
+            self._kv_actor.rename.remote(old_key + "_ref", new_key + "_ref", default)
+        )
 
     def get_obj_ref(self, key):
         return ray.get(self._kv_actor.get.remote(key + "_ref", [None]))[0]

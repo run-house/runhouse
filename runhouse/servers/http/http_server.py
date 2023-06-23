@@ -17,11 +17,6 @@ from sky.skylet.autostop_lib import set_last_active_time_to_now
 from runhouse.rh_config import configs, obj_store
 from runhouse.rns.packages.package import Package
 from runhouse.rns.run_module_utils import call_fn_by_type
-from runhouse.rns.top_level_rns_fns import (
-    clear_pinned_memory,
-    pinned_keys,
-    remove_pinned_object,
-)
 from runhouse.servers.http.http_utils import (
     Args,
     b64_unpickle,
@@ -211,7 +206,7 @@ class HTTPServer:
     @app.get("/run_object")
     def get_run_object(message: Message):
         from runhouse import folder, Run, run
-        from runhouse.rns.api_utils.utils import resolve_absolute_path
+        from runhouse.rns.utils.api import resolve_absolute_path
 
         HTTPServer.register_activity()
         logger.info(
@@ -336,7 +331,7 @@ class HTTPServer:
             )
 
     @staticmethod
-    @app.put("/object")
+    @app.post("/object")
     def put_object(message: Message):
         HTTPServer.register_activity()
         # We may not want to deserialize the object here in case the object requires dependencies
@@ -356,23 +351,43 @@ class HTTPServer:
             )
 
     @staticmethod
+    @app.put("/object")
+    def rename_object(message: Message):
+        HTTPServer.register_activity()
+        # We may not want to deserialize the object here in case the object requires dependencies
+        # (to be used inside an env) which aren't present in the BaseEnv.
+        old_key, new_key = b64_unpickle(message.data)
+        logger.info(
+            f"Message received from client to rename object {old_key} to {new_key}"
+        )
+        try:
+            obj_store.rename(old_key, new_key)
+            return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            logger.exception(e)
+            HTTPServer.register_activity()
+            return Response(
+                error=pickle_b64(e),
+                traceback=pickle_b64(traceback.format_exc()),
+                output_type=OutputType.EXCEPTION,
+            )
+
+    @staticmethod
     @app.delete("/object")
     def delete_obj(message: Message):
         HTTPServer.register_activity()
-        pins_to_clear = b64_unpickle(message.data)
-        logger.info(
-            f"Message received from client to clear pins: {pins_to_clear or 'all'}"
-        )
+        keys = b64_unpickle(message.data)
+        logger.info(f"Message received from client to delete keys: {keys or 'all'}")
         try:
             cleared = []
-            if pins_to_clear:
-                for pin in pins_to_clear:
-                    remove_pinned_object(pin)
+            if keys:
+                for pin in keys:
+                    obj_store.delete(pin)
                     cleared.append(pin)
             else:
-                cleared = list(pinned_keys())
-                clear_pinned_memory()
-                return Response(data=pickle_b64(cleared), output_type=OutputType.RESULT)
+                cleared = list(obj_store.keys())
+                obj_store.clear()
+            return Response(data=pickle_b64(cleared), output_type=OutputType.RESULT)
         except Exception as e:
             logger.exception(e)
             HTTPServer.register_activity()
@@ -509,7 +524,7 @@ class HTTPServer:
 
     @staticmethod
     def _log_cluster_data(data: dict, labels: dict):
-        from runhouse.rns.api_utils.utils import log_timestamp
+        from runhouse.rns.utils.api import log_timestamp
 
         payload = {
             "streams": [

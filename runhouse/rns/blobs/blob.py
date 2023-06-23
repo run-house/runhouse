@@ -1,12 +1,11 @@
 import logging
-from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-from runhouse.rh_config import obj_store, rns_client
-from runhouse.rns.api_utils.utils import generate_uuid
+from runhouse.rh_config import obj_store
 from runhouse.rns.hardware.cluster import Cluster
 from runhouse.rns.resource import Resource
 from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
+from runhouse.rns.utils.names import _generate_default_name, _generate_default_path
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +57,14 @@ class Blob(Resource):
             return File(**config, dryrun=dryrun)
         return Blob(**config, dryrun=dryrun)
 
+    @classmethod
+    def _check_for_child_configs(cls, config):
+        """Overload by child resources to load any resources they hold internally."""
+        system = config["system"]
+        if isinstance(system, str):
+            config["system"] = _get_cluster_from(system)
+        return config
+
     @property
     def system(self):
         return self._system
@@ -80,32 +87,27 @@ class Blob(Resource):
             >>> cluster_blob = blob.to(my_cluster)
         """
         if system == "here":
-            if not self.system or self.system.on_this_cluster():
-                return self
-
-            current_cluster_config = _current_cluster(key="config")
-            if current_cluster_config:
-                system = Cluster.from_config(current_cluster_config)
-                obj_store.put(self.name, self.fetch())
-                return Blob(name=self.name, system=system)
-
-            if path:
-                system = "file"
+            if not path:
+                current_cluster_config = _current_cluster(key="config")
+                if current_cluster_config:
+                    system = Cluster.from_config(current_cluster_config)
+                else:
+                    system = None
             else:
-                # Default local path
-                path = str(Path.cwd() / self.name)
+                system = "file"
 
         system = _get_cluster_from(system)
-        if isinstance(system, Cluster) and not path:
-            return self._to_cluster(system)
+        if (not system or isinstance(system, Cluster)) and not path:
+            name = self.name or _generate_default_name(prefix="blob")
+            return Blob(name=name, system=system).write(self.fetch())
 
         path = str(
             path or self.default_path(self.rns_address, system)
         )  # Make sure it's a string and not a Path
 
-        from runhouse.rns.blobs.file import file
+        from runhouse.rns.blobs.file import File
 
-        new_blob = file(path=path, system=system, data_config=data_config)
+        new_blob = File(path=path, system=system, data_config=data_config)
         new_blob.write(self.fetch())
         return new_blob
 
@@ -125,6 +127,42 @@ class Blob(Resource):
         if isinstance(self.system, Resource):
             self.system.save()
 
+    def rename(self, name: str):
+        """Rename the blob.
+
+        Example:
+            >>> blob = rh.blob(data)
+            >>> blob.rename("new_name")
+        """
+        if self.name == name:
+            return
+        old_name = self.name
+        self.name = name  # Goes through Resource setter to parse name properly (e.g. if rns path)
+        # Also check that this is a Blob and not a File
+        if isinstance(self.system, Cluster) and self.__class__.__name__ == "Blob":
+            if self.system.on_this_cluster():
+                obj_store.rename(old_key=old_name, new_key=self.name)
+            else:
+                self.system.rename(old_key=old_name, new_key=self.name)
+
+    def save(
+        self,
+        name: str = None,
+        overwrite: bool = True,
+    ):
+        # Need to override Resource's save to handle key changes in the obj store
+        # Also check that this is a Blob and not a File
+        if name and not self.name == name and self.__class__.__name__ == "Blob":
+            if overwrite:
+                self.rename(name)
+            else:
+                if isinstance(self.system, Cluster):
+                    if self.system.on_this_cluster():
+                        obj_store.put(self.name, self.fetch())
+                    else:
+                        self.system.put(name, self.fetch())
+        super().save(name=name, overwrite=overwrite)
+
     def write(self, data):
         """Save the underlying blob to its cluster's store.
 
@@ -140,13 +178,18 @@ class Blob(Resource):
         return self
 
     def rm(self):
-        """Delete the blob and the folder it lives in from the file system.
+        """Delete the blob from wherever it's stored.
 
         Example:
             >>> blob = rh.blob(data)
             >>> blob.rm()
         """
-        obj_store.delete(self.name)
+        if self.system is None:
+            self._data = None
+        if self.system.on_this_cluster():
+            obj_store.delete(self.name)
+        else:
+            self.system.delete(self.name)
 
     def exists_in_system(self):
         """Check whether the blob exists in the file system
@@ -155,7 +198,11 @@ class Blob(Resource):
             >>> blob = rh.blob(data)
             >>> blob.exists_in_system()
         """
-        return obj_store.contains(self.name)
+        if self.system is None:
+            return True
+        if self.system.on_this_cluster():
+            return obj_store.exists(self.name)
+        return self.name in self.system.list_keys()
 
 
 def blob(
@@ -224,27 +271,15 @@ def blob(
 
     system = _get_cluster_from(system or _current_cluster(key="config"), dryrun=dryrun)
 
-    if (not system or isinstance(system, Cluster)) and not path:
+    if (not system or isinstance(system, Cluster)) and not path and data_config is None:
+        # Blobs must be named, or we don't have a key for the kv store
+        name = name or _generate_default_name(prefix="blob")
         new_blob = Blob(name=name, system=system, dryrun=dryrun)
         if data:
             new_blob.write(data)
         return new_blob
 
-    blob_name_in_path = None
-    if path is None:
-        blob_name_in_path = (
-            f"{generate_uuid()}/{rns_client.resolve_rns_data_resource_name(name)}"
-        )
-
-    system = system or rns_client.DEFAULT_FS
-    if system == rns_client.DEFAULT_FS or isinstance(system, Resource):
-        # create random path to store in .cache folder of local filesystem
-        path = str(
-            Path(f"{Blob.DEFAULT_CACHE_FOLDER}/{blob_name_in_path}").expanduser()
-        )
-    else:
-        # save to the default bucket
-        path = f"{Blob.DEFAULT_FOLDER_PATH}/{blob_name_in_path}"
+    path = str(path or _generate_default_path(Blob, name, system))
 
     from runhouse.rns.blobs.file import File
 

@@ -2,7 +2,6 @@ import copy
 import json
 import logging
 import sys
-from datetime import datetime
 from enum import Enum
 from io import StringIO
 from typing import Any, Optional, Union
@@ -11,13 +10,13 @@ from ray import cloudpickle as pickle
 
 from runhouse import blob
 from runhouse.rh_config import obj_store, rns_client
-from runhouse.rns.api_utils.utils import log_timestamp, resolve_absolute_path
 
 # Need to alias so it doesn't conflict with the folder property
 from runhouse.rns.folders import Folder, folder as folder_factory
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.resource import Resource
 from runhouse.rns.top_level_rns_fns import resolve_rns_path
+from runhouse.rns.utils.api import log_timestamp, resolve_absolute_path
 from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
 
 logger = logging.getLogger(__name__)
@@ -426,15 +425,6 @@ class Run(Resource):
         )
 
         existing_folder.rm()
-
-    @staticmethod
-    def _create_new_run_name(name: str = None) -> str:
-        """Name of the Run's parent folder which contains the Run's data (config, stdout, stderr, etc).
-        If a name is provided, prepend that to the current timestamp to complete the folder name."""
-        timestamp_key = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        if name is None:
-            return timestamp_key
-        return f"{name}_{timestamp_key}"
 
     @staticmethod
     def _load_run_config(folder: Folder) -> dict:

@@ -7,8 +7,7 @@ import pytest
 import ray.exceptions
 import requests
 import runhouse as rh
-from runhouse.rns.api_utils.resource_access import ResourceAccess
-from runhouse.rns.api_utils.utils import load_resp_content
+from runhouse.rns.utils.api import load_resp_content, ResourceAccess
 
 REMOTE_FUNC_NAME = "@/remote_function"
 

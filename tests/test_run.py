@@ -292,18 +292,18 @@ def test_create_cli_python_command_run(cpu_cluster):
     return_codes = cpu_cluster.run_python(
         [
             "import runhouse as rh",
-            "import pickle",
             "import logging",
-            "local_blob = rh.blob(name='local_blob', data=pickle.dumps(list(range(50)))).write()",
-            "logging.info(f'Blob path: {local_blob.path}')",
+            "local_blob = rh.file(name='local_blob', data=list(range(50)))",
+            "logging.info(f'File path: {local_blob.path}')",
             "local_blob.rm()",
         ],
         run_name=CLI_RUN_NAME,
+        stream_logs=True
     )
     pprint(return_codes)
 
     assert return_codes[0][0] == 0, "Failed to run python commands"
-    assert "Blob path" in return_codes[0][1].strip()
+    assert "File path" in return_codes[0][1].strip()
 
 
 @pytest.mark.clustertest

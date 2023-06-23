@@ -7,13 +7,12 @@ from typing import Dict, List, Optional, Tuple, Union
 import requests
 
 from runhouse.rh_config import rns_client
-from runhouse.rns.api_utils.resource_access import ResourceAccess
-from runhouse.rns.api_utils.utils import load_resp_content, read_resp_data
 from runhouse.rns.top_level_rns_fns import (
     resolve_rns_path,
     save,
     split_rns_name_and_path,
 )
+from runhouse.rns.utils.api import load_resp_content, read_resp_data, ResourceAccess
 
 logger = logging.getLogger(__name__)
 

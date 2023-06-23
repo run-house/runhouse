@@ -12,17 +12,17 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import requests
 
 from runhouse import rh_config
-from runhouse.rns.api_utils.resource_access import ResourceAccess
-from runhouse.rns.api_utils.utils import load_resp_content, read_resp_data
 from runhouse.rns.envs import CondaEnv, Env
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.packages import git_package, Package
 
 from runhouse.rns.resource import Resource
 from runhouse.rns.run_module_utils import call_fn_by_type
+from runhouse.rns.utils.api import load_resp_content, read_resp_data, ResourceAccess
 
 from runhouse.rns.utils.env import _get_env_from
 from runhouse.rns.utils.hardware import _get_cluster_from
+from runhouse.rns.utils.names import _generate_default_name
 
 logger = logging.getLogger(__name__)
 
@@ -437,10 +437,8 @@ class Function(Resource):
             >>> remote_fn.run(arg1, arg2, run_name="my_async_run")
         """
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
-            from runhouse import Run
-
             # Use the run_name if provided, otherwise create a new one using the Function's name
-            run_name = run_name or Run._create_new_run_name(self.name)
+            run_name = run_name or _generate_default_name(prefix=self.name)
 
             run_obj = self._call_fn_with_ssh_access(
                 fn_type="remote", run_name=run_name, args=args, kwargs=kwargs
@@ -647,9 +645,8 @@ class Function(Resource):
             >>> # previously, remote_fn.run(arg1, arg2, run_name="my_async_run")
             >>> remote_fn.get_or_call()
         """
-        from runhouse import Run
 
-        run_name = run_name or Run._create_new_run_name(self.name)
+        run_name = run_name or _generate_default_name(prefix=self.name)
 
         res = self._call_fn_with_ssh_access(
             fn_type="get_or_call", run_name=run_name, args=args, kwargs=kwargs
@@ -677,7 +674,7 @@ class Function(Resource):
         """
         from runhouse import Run
 
-        run_name = run_name or Run._create_new_run_name(self.name)
+        run_name = run_name or _generate_default_name(prefix=self.name)
         if run_name == "latest":
             # TODO [JL]
             raise NotImplementedError("Latest not currently supported")
