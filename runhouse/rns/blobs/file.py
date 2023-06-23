@@ -8,7 +8,7 @@ from runhouse.rns.blobs.blob import Blob, blob
 from runhouse.rns.folders import Folder, folder
 from runhouse.rns.hardware.cluster import Cluster
 from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
-from runhouse.rns.utils.names import _generate_default_name, _generate_default_path
+from runhouse.rns.utils.names import _generate_default_name
 
 logger = logging.getLogger(__name__)
 

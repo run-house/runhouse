@@ -298,7 +298,7 @@ def test_create_cli_python_command_run(cpu_cluster):
             "local_blob.rm()",
         ],
         run_name=CLI_RUN_NAME,
-        stream_logs=True
+        stream_logs=True,
     )
     pprint(return_codes)
 

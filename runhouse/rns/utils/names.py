@@ -2,7 +2,7 @@ from datetime import datetime
 from pathlib import Path
 
 from runhouse.rh_config import configs, rns_client
-from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
+from runhouse.rns.utils.hardware import _get_cluster_from
 
 DEFAULT_LOCAL_FOLDER = f"{Path.cwd()}/"
 DEFAULT_CLUSTER_FS_FOLDER = (
@@ -30,6 +30,7 @@ def _generate_default_path(cls, name, system):
     """
 
     from runhouse.rns.hardware import Cluster
+
     system = _get_cluster_from(system)
 
     name = name or _generate_default_name(prefix=cls.RESOURCE_TYPE)
