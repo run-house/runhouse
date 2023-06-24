@@ -47,6 +47,9 @@ def b64_unpickle(b64_pickled):
 
 
 def handle_response(response_data, output_type, err_str):
+    from runhouse.logger import ColoredFormatter
+
+    text_color = ColoredFormatter.remote_system_color()
     if output_type == OutputType.RESULT:
         return b64_unpickle(response_data["data"])
     elif output_type == OutputType.RESULT_LIST:
@@ -68,9 +71,9 @@ def handle_response(response_data, output_type, err_str):
             if tqdm_regex.match(line):
                 # tqdm lines are always preceded by a \n, so we can use \x1b[1A to move the cursor up one line
                 # For some reason, doesn't work in PyCharm's console, but works in the terminal
-                print("\x1b[1A\r" + line, end="", flush=True)
+                print(text_color + "\x1b[1A\r" + line, end="", flush=True)
             else:
-                print(line, end="", flush=True)
+                print(text_color + line, end="", flush=True)
     elif output_type == OutputType.STDERR:
         res = response_data["data"]
-        print(res, file=sys.stderr)
+        print(text_color + res, file=sys.stderr)

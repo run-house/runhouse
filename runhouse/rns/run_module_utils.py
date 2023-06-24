@@ -13,6 +13,7 @@ from ray import cloudpickle as pickle
 
 from runhouse import rh_config
 from runhouse.rns.api_utils.utils import resolve_absolute_path
+from runhouse.rns.resource import Resource
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,8 @@ def call_fn_by_type(
     # **NOTE**: No need to pass in the fn callable here! We should be able to get it from the module_name and fn_name
 
     run_name = run_name if run_name else Run._create_new_run_name(fn_name)
+
+    logger.info("inside run_module_utils")
 
     if fn_type.startswith("get_or"):
         # If Run already exists with this run key return the Run object
@@ -149,7 +152,6 @@ def get_fn_from_pointers(fn_pointers, serialize_res, num_gpus, *args, **kwargs):
     else:
         if module_path:
             sys.path.append(module_path)
-            logger.info(f"Appending {module_path} to sys.path")
 
         if module_name in rh_config.obj_store.imported_modules:
             importlib.invalidate_caches()
@@ -367,3 +369,22 @@ def enable_logging_fn_wrapper(fn, run_name):
         return fn(*inner_args, **inner_kwargs)
 
     return wrapped_fn
+
+
+def format_logs_from_remote_system(system_name=None):
+    """Indicate which system subsequent logs will be printed or streamed from."""
+    from runhouse.logger import ColoredFormatter
+
+    if system_name is None:
+        system = _get_current_system()
+        if isinstance(system, Resource):
+            system_name = system.name
+
+    if system_name is None:
+        return
+
+    text_color = ColoredFormatter.remote_system_color()
+
+    print(text_color + "---------------------------")
+    print(text_color + f"System: {system_name}")
+    print(text_color + "---------------------------")

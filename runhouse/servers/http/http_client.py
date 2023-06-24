@@ -103,10 +103,12 @@ class HTTPClient:
         return res
 
     # TODO [DG]: maybe just merge cancel into this so we can get log streaming back as we cancel a job (ditto others)
-    def get_object(self, key, stream_logs=False):
+    def get_object(self, key, system_name: str, stream_logs=False):
         """
         Get a value from the server
         """
+        from runhouse.rns.run_module_utils import format_logs_from_remote_system
+
         res = requests.get(
             f"http://{self.host}:{self.port}/object/",
             json={"data": pickle_b64((key, stream_logs))},
@@ -116,12 +118,18 @@ class HTTPClient:
             raise ValueError(
                 f"Error getting key {key} from server: {res.content.decode()}"
             )
+
+        # Indicate which cluster the logs are being streamed from
+        format_logs_from_remote_system(system_name=system_name)
+
         for responses_json in res.iter_content(chunk_size=None):
             for resp in responses_json.decode().split('{"data":')[1:]:
                 resp = json.loads('{"data":' + resp)
                 output_type = resp["output_type"]
                 result = handle_response(
-                    resp, output_type, f"Error running or getting key {key}"
+                    resp,
+                    output_type,
+                    f"Error running or getting key {key}",
                 )
                 if output_type not in [OutputType.STDOUT, OutputType.STDERR]:
                     return result

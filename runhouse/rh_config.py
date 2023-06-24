@@ -7,10 +7,6 @@ from runhouse.rns.defaults import Defaults
 from runhouse.rns.obj_store import ObjStore
 from runhouse.rns.rns_client import RNSClient
 
-# Configure the logger once
-# TODO commenting out for now because this duplicates the logging config in the root logger
-# logging.config.dictConfig(LOGGING_CONFIG)
-
 logger = logging.getLogger(__name__)
 
 configs = Defaults()

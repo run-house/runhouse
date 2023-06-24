@@ -272,13 +272,11 @@ class RNSClient:
 
         if rns_address.startswith("/"):
             resource_uri = self.resource_uri(name)
-            logger.info(f"Attempting to load config for {rns_address} from RNS.")
             uri = "resource/" + resource_uri
             resp = requests.get(
                 f"{self.api_server_url}/{uri}", headers=self.request_headers
             )
             if resp.status_code != 200:
-                logger.info(f"No config found in RNS: {load_resp_content(resp)}")
                 # No config found, so return empty config
                 return {}
 
@@ -300,7 +298,6 @@ class RNSClient:
         if not config_path.exists():
             return None
 
-        logger.info(f"Loading config from local file {config_path}")
         with open(config_path, "r") as f:
             try:
                 config = json.load(f)

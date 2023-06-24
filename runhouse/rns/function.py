@@ -485,7 +485,6 @@ class Function(Resource):
         [relative_path, module_name, fn_name] = self.fn_pointers
 
         name = self.name or fn_name or "anonymous function"
-        logger.info(f"Running {name} via HTTP")
         env_name = (
             self.env.env_name if (self.env and isinstance(self.env, CondaEnv)) else None
         )

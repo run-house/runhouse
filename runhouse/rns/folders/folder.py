@@ -437,9 +437,6 @@ class Folder(Resource):
         if Path(os.path.basename(folder_path)).suffix != "":
             folder_path = str(Path(folder_path).parent)
 
-        logger.info(
-            f"Creating new {self._fs_str} folder if it does not already exist in path: {folder_path}"
-        )
         self.fsspec_fs.mkdirs(folder_path, exist_ok=True)
 
     def mount(self, path: Optional[str] = None, tmp: bool = False) -> str:

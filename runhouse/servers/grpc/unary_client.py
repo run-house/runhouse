@@ -84,11 +84,19 @@ class UnaryClient(object):
         return pickle.loads(res.message)
 
     # TODO [DG]: maybe just merge cancel into this so we can get log streaming back as we cancel a job
-    def get_object(self, key, stream_logs=False):
+    def get_object(self, key, system_name: str, stream_logs=False):
         """
         Get a value from the server
         """
+        from runhouse.logger import ColoredFormatter
+        from runhouse.rns.run_module_utils import format_logs_from_remote_system
+
         message = pb2.Message(message=pickle.dumps((key, stream_logs)))
+
+        # Indicate which cluster the logs are being streamed from
+        format_logs_from_remote_system(system_name=system_name)
+        text_color = ColoredFormatter.remote_system_color()
+
         for resp in self.stub.GetObject(message):
             output_type = resp.output_type
             server_res = pickle.loads(resp.message)
@@ -99,12 +107,12 @@ class UnaryClient(object):
                     if tqdm_regex.match(line):
                         # tqdm lines are always preceded by a \n, so we can use \x1b[1A to move the cursor up one line
                         # For some reason, doesn't work in PyCharm's console, but works in the terminal
-                        print("\x1b[1A\r" + line, end="", flush=True)
+                        print(text_color + "\x1b[1A\r" + line, end="", flush=True)
                     else:
-                        print(line, end="", flush=True)
+                        print(text_color + line, end="", flush=True)
             elif output_type == OutputType.STDERR:
                 for line in server_res:
-                    print(line, file=sys.stderr)
+                    print(text_color + line, file=sys.stderr)
             else:
                 [res, fn_exception, fn_traceback] = server_res
                 if fn_exception is not None:
