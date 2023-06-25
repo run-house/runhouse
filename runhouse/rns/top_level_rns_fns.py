@@ -2,6 +2,7 @@ import sys
 from typing import List
 
 from runhouse.rh_config import rns_client
+from runhouse.rns.utils.hardware import _get_cluster_from
 
 
 def resolve_rns_path(path: str):
@@ -155,19 +156,10 @@ def get_pinned_object(key: str, default=None):
 
 
 def get(key: str, cluster=None, default=None):
-    from runhouse.rns.hardware.on_demand_cluster import OnDemandCluster
-
-    if isinstance(cluster, str):
-        if cluster == rh_config.obj_store.cluster_name:
-            # We're currently on cluster, so just get the object from local rh_config.obj_store
-            return rh_config.obj_store.get(key, default=default)
-        else:
-            cluster = OnDemandCluster.from_name(cluster)
-
-    if cluster.name == rh_config.obj_store.cluster_name:
-        return rh_config.obj_store.get(key, default=default)
-    else:
-        return cluster.get(key, default=default)
+    system = _get_cluster_from(cluster)
+    if system:
+        return system.get(key, default=default)
+    return rh_config.obj_store.get(key, default=default)
 
 
 def remove_pinned_object(key: str):

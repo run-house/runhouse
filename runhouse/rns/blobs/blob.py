@@ -71,7 +71,7 @@ class Blob(Resource):
 
     @system.setter
     def system(self, new_system):
-        self._system = new_system
+        self._system = _get_cluster_from(new_system)
 
     def to(
         self,

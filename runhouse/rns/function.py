@@ -418,7 +418,6 @@ class Function(Resource):
             )
 
     def remote(self, *args, **kwargs):
-        warnings.warn("`remote()` is deprecated, use `run()` instead")
         run_obj = self.run(*args, **kwargs)
         return run_obj.name
 
