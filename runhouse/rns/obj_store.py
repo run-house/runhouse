@@ -91,7 +91,7 @@ class ObjStore:
             name="obj_store_kv",
             get_if_exists=True,
             lifetime="detached",
-            namespace="runhouse_server",
+            namespace="runhouse",
         ).remote()
         self.imported_modules = {}
 

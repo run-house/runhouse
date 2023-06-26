@@ -15,6 +15,8 @@ DEFAULT_SERVER_PORT = 50052
 
 class Message(BaseModel):
     data: str
+    env: str = None
+    key: Optional[str] = None
 
 
 class Args(BaseModel):

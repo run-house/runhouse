@@ -26,3 +26,5 @@ try:
     obj_store = ObjStore()
 except Exception:
     pass
+
+env_servlets = {}
