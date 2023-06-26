@@ -128,9 +128,8 @@ class Run(Resource):
         # for function based Runs
         self._write_config()
 
-        if self.run_type in [RunType.FUNCTION_RUN, RunType.CMD_RUN]:
-            # For function based Runs we use the logfiles already generated for the current Ray worker
-            # on the cluster, and for cmd runs we are using the SSH command runner to get the stdout / stderr
+        if self.run_type == RunType.CMD_RUN:
+            # For cmd runs we are using the SSH command runner to get the stdout / stderr
             return
 
         stdout = sys.stdout.getvalue()
