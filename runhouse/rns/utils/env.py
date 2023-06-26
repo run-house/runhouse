@@ -95,6 +95,7 @@ def _get_conda_yaml(conda_env=None):
 
 
 def _env_vars_from_file(env_file):
+    env_file = Path(env_file) if isinstance(env_file, str) else env_file
     if not env_file.exists():
         raise FileNotFoundError(f"Can not find provided env file: {env_file}")
 

@@ -120,14 +120,12 @@ def test_function_env_vars(cpu_cluster):
 @pytest.mark.clustertest
 def test_function_env_vars_file(cpu_cluster):
     env_file = ".env"
-    vars_dict = {"ENV_VAR1": "value", "ENV_VAR2": "val2"}
     contents = ["# comment", "", "ENV_VAR1=value", "# comment with =", "ENV_VAR2 =val2"]
     with open(env_file, "w") as f:
         for line in contents:
             f.write(line + "\n")
 
     test_env = rh.env(name="test-env", env_vars=env_file)
-    assert test_env.env_vars == vars_dict
 
     get_env_var_cpu = rh.function(_get_env_var_value).to(cpu_cluster, test_env)
     assert get_env_var_cpu("ENV_VAR1") == "value"

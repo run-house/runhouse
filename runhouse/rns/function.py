@@ -21,7 +21,7 @@ from runhouse.rns.packages import git_package, Package
 from runhouse.rns.resource import Resource
 from runhouse.rns.run_module_utils import call_fn_by_type
 
-from runhouse.rns.utils.env import _get_env_from
+from runhouse.rns.utils.env import _env_vars_from_file, _get_env_from
 from runhouse.rns.utils.hardware import _get_cluster_from
 
 logger = logging.getLogger(__name__)
@@ -480,7 +480,10 @@ class Function(Resource):
         env_name = (
             self.env.env_name if (self.env and isinstance(self.env, CondaEnv)) else None
         )
-        env_vars = self.env.env_vars if self.env else None
+        env_vars = self.env.env_vars if self.env else {}
+        if not isinstance(env_vars, dict):
+            env_vars = _env_vars_from_file(env_vars)
+
         res = self.system._run_module(
             relative_path,
             module_name,

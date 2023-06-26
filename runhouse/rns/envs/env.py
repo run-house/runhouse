@@ -2,7 +2,7 @@ import copy
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-from runhouse.rns.folders.folder import Folder
+from runhouse.rns.folders import Folder
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.packages import Package
 from runhouse.rns.resource import Resource
@@ -18,7 +18,7 @@ class Env(Resource):
         name: Optional[str] = None,
         reqs: List[Union[str, Package]] = [],
         setup_cmds: List[str] = None,
-        env_vars: Optional[Dict] = {},
+        env_vars: Union[Dict, str] = {},
         working_dir: Optional[Union[str, Path]] = "./",
         dryrun: bool = True,
         **kwargs,  # We have this here to ignore extra arguments when calling from_config

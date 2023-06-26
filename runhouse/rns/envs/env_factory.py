@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from runhouse.rns.packages import Package
-from runhouse.rns.utils.env import _env_vars_from_file, _get_conda_yaml, _process_reqs
+from runhouse.rns.utils.env import _get_conda_yaml, _process_reqs
 from .conda_env import CondaEnv
 
 from .env import Env
@@ -51,11 +51,6 @@ def env(
         >>> conda_env = rh.env(conda_env="local-conda-env-name")     # from a existing local conda env
         >>> conda_env = rh.env(conda_env="conda_env.yaml", reqs=["pip:/accelerate"])   # with additional reqs
     """
-    if isinstance(env_vars, str):
-        env_vars = Path(env_vars)
-    if isinstance(env_vars, Path):
-        env_vars = _env_vars_from_file(env_vars)
-
     if name and not any([reqs, conda_env, setup_cmds, env_vars]):
         return Env.from_name(name, dryrun)
 
