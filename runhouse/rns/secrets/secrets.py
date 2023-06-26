@@ -383,6 +383,9 @@ class Secrets:
     def enabled_providers(cls, as_str: bool = False) -> List:
         """Returns a list of cloud provider classes which Runhouse supports out of the box.
         If as_str is True, return the names of the providers as strings.
+
+        Example:
+            >>> rh.Secrets.enabled_providers(as_str=True)
         """
         sky.check.check(quiet=True)
         clouds = sky.global_user_state.get_enabled_clouds()

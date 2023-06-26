@@ -1,5 +1,5 @@
-Data Tutorial
-=============
+Data: Folders, Tables, & Blobs
+==============================
 
 .. raw:: html
 
