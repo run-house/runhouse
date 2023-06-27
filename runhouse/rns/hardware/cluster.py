@@ -558,13 +558,31 @@ class Cluster(Resource):
         if contents:
             source = source + "/" if not source.endswith("/") else source
             dest = dest + "/" if not dest.endswith("/") else dest
+
         ssh_credentials = self.ssh_creds()
-        runner = command_runner.SSHCommandRunner(self.address, **ssh_credentials)
-        if up:
-            runner.run(["mkdir", "-p", dest], stream_logs=False)
+        if not ssh_credentials or ssh_credentials.get("ssh_private_key"):
+            ssh_credentials["ssh_private_key"] = ssh_credentials["ssh_private_key"] or None
+            runner = command_runner.SSHCommandRunner(self.address, **ssh_credentials)
+            if up:
+                runner.run(["mkdir", "-p", dest], stream_logs=False)
+            else:
+                Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
+            runner.rsync(source, dest, up=up, stream_logs=False)
+
         else:
-            Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
-        runner.rsync(source, dest, up=up, stream_logs=False)
+            from runhouse.rns.folders import folder
+            f = folder(system=self, path="", dryrun=True)
+            fs = f.fsspec_fs
+            fs.mkdir(dest, exist_ok=True)
+
+            # ls into source / ".gitignore" to get all files to ignore
+            ignore_list = (Path(source) / ".gitignore").read_text().splitlines()
+
+            # iterate over all files in source and put them on the cluster unless they're in the ignore list
+            for file in Path(source).glob("**/*"):
+                if file.name not in ignore_list:
+                    dest_path = Path(dest) / file.relative_to(source)
+                    fs.put(file, dest_path, recursive=True, create_dir=True)
 
     def ssh(self):
         """SSH into the cluster
@@ -642,17 +660,47 @@ class Cluster(Resource):
     ):
         return_codes = []
 
-        runner = command_runner.SSHCommandRunner(self.address, **self.ssh_creds())
-        for command in commands:
-            command = f"{cmd_prefix} {command}" if cmd_prefix else command
-            logger.info(f"Running command on {self.name}: {command}")
-            ret_code = runner.run(
-                command,
-                require_outputs=require_outputs,
-                stream_logs=stream_logs,
-                port_forward=port_forward,
-            )
-            return_codes.append(ret_code)
+        ssh_credentials = self.ssh_creds()
+        if not ssh_credentials or ssh_credentials.get("ssh_private_key"):
+            ssh_credentials["ssh_private_key"] = ssh_credentials["ssh_private_key"] or None
+            runner = command_runner.SSHCommandRunner(self.address, **ssh_credentials)
+            for command in commands:
+                command = f"{cmd_prefix} {command}" if cmd_prefix else command
+                logger.info(f"Running command on {self.name}: {command}")
+                ret_code = runner.run(
+                    command,
+                    require_outputs=require_outputs,
+                    stream_logs=stream_logs,
+                    port_forward=port_forward,
+                )
+                return_codes.append(ret_code)
+        else:
+            import paramiko
+            with paramiko.SSHClient() as ssh:
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                ssh.connect(self.address,
+                            username=self.ssh_creds()["ssh_user"],
+                            key_filename=str(Path(self.ssh_creds()["ssh_private_key"]).expanduser()),
+                            )
+                for command in commands:
+                    command = f"{cmd_prefix} {command}" if cmd_prefix else command
+                    logger.info(f"Running command on {self.name}: {command}")
+                    stdin, stdout, stderr = ssh.exec_command(command)
+
+                    def line_buffered(f):
+                        line_buf = ""
+                        for line in f:
+                            yield line
+                        while not f.channel.exit_status_ready():
+                            line_buf += str(f.read(1))
+                            if line_buf.endswith('\n'):
+                                yield line_buf
+                                line_buf = ''
+
+                    for l in line_buffered(stdout):
+                        print(l.strip('\n'))
+
+                    return_codes.append(stdout.channel.recv_exit_status())
         return return_codes
 
     def run_python(
