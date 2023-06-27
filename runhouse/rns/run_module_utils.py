@@ -13,6 +13,7 @@ from ray import cloudpickle as pickle
 
 from runhouse import rh_config
 from runhouse.rns.api_utils.utils import resolve_absolute_path
+from runhouse.rns.utils.env import _env_vars_from_file
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ def call_fn_by_type(
     module_name,
     resources,
     conda_env=None,
+    env_vars=None,
     run_name=None,
     args=None,
     kwargs=None,
@@ -95,7 +97,14 @@ def call_fn_by_type(
     module_path = (
         str((Path.home() / relative_path).resolve()) if relative_path else None
     )
-    runtime_env = {"env_vars": {"PYTHONPATH": module_path or ""}}
+
+    if isinstance(env_vars, str):
+        env_vars = _env_vars_from_file(env_vars)
+    elif env_vars is None:
+        env_vars = {}
+
+    env_vars["PYTHONPATH"] = module_path or ""
+    runtime_env = {"env_vars": env_vars}
     if conda_env:
         runtime_env["conda"] = conda_env
 

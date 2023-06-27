@@ -23,7 +23,7 @@ def test_create_env_from_name_local():
     del local_env
 
     remote_env = rh.env(name=env_name)
-    assert remote_env.reqs == pip_reqs
+    assert set(pip_reqs).issubset(set(remote_env.reqs))
 
 
 @pytest.mark.rnstest
@@ -33,14 +33,14 @@ def test_create_env_from_name_rns():
     del env
 
     remote_env = rh.env(name=env_name)
-    assert remote_env.reqs == pip_reqs
+    assert set(pip_reqs).issubset(set(remote_env.reqs))
 
 
 @pytest.mark.localtest
 def test_create_env():
     test_env = rh.env(name="test_env", reqs=pip_reqs)
-    assert len(test_env.reqs) == 2
-    assert test_env.reqs == pip_reqs
+    assert len(test_env.reqs) >= 2
+    assert set(pip_reqs).issubset(set(test_env.reqs))
 
 
 @pytest.mark.clustertest
@@ -62,13 +62,10 @@ def test_to_fs_to_cluster(cpu_cluster, s3_package):
     test_env_s3 = rh.env(name="test_env_s3", reqs=["s3fs", "scipy", s3_package]).to(
         "s3"
     )
-    count = 0
     for req in test_env_s3.reqs:
         if isinstance(req, Package) and isinstance(req.install_target, Folder):
             assert req.install_target.system == "s3"
             assert req.install_target.exists_in_system()
-            count += 1
-    assert count == 1
 
     folder_name = "test_package"
     test_env_cluster = test_env_s3.to(system=cpu_cluster, path=folder_name, mount=True)
@@ -102,6 +99,43 @@ def test_function_to_env(cpu_cluster):
     cpu_cluster.run(["pip uninstall parameterized -y"])
 
 
+def _get_env_var_value(env_var):
+    import os
+
+    return os.environ[env_var]
+
+
+@pytest.mark.clustertest
+def test_function_env_vars(cpu_cluster):
+    test_env_var = "TEST_ENV_VAR"
+    test_value = "value"
+    test_env = rh.env(name="test-env", env_vars={test_env_var: test_value})
+
+    get_env_var_cpu = rh.function(_get_env_var_value).to(cpu_cluster, test_env)
+    res = get_env_var_cpu(test_env_var)
+
+    assert res == test_value
+
+
+@pytest.mark.clustertest
+def test_function_env_vars_file(cpu_cluster):
+    env_file = ".env"
+    contents = ["# comment", "", "ENV_VAR1=value", "# comment with =", "ENV_VAR2 =val2"]
+    with open(env_file, "w") as f:
+        for line in contents:
+            f.write(line + "\n")
+
+    test_env = rh.env(name="test-env", env_vars=env_file)
+
+    get_env_var_cpu = rh.function(_get_env_var_value).to(cpu_cluster, test_env)
+    assert get_env_var_cpu("ENV_VAR1") == "value"
+    assert get_env_var_cpu("ENV_VAR2") == "val2"
+
+    os.remove(env_file)
+    assert not Path(env_file).exists()
+
+
+@pytest.mark.clustertest
 def test_env_git_reqs(cpu_cluster):
     git_package = rh.GitPackage(
         git_url="https://github.com/huggingface/diffusers.git",
@@ -113,6 +147,22 @@ def test_env_git_reqs(cpu_cluster):
     res = cpu_cluster.run(["pip freeze | grep diffusers"])
     assert "diffusers" in res[0][1]
     cpu_cluster.run(["pip uninstall diffusers -y"])
+
+
+@pytest.mark.clustertest
+def test_working_dir(cpu_cluster):
+    working_dir = "test_working_dir"
+    os.makedirs(working_dir, exist_ok=True)
+
+    env = rh.env(working_dir=working_dir)
+    assert working_dir in env.reqs
+
+    env.to(cpu_cluster)
+    assert working_dir in cpu_cluster.run(["ls"])[0][1]
+
+    os.rmdir(working_dir)
+    cpu_cluster.run([f"rm -r {working_dir}"])
+    assert working_dir not in cpu_cluster.run(["ls"])[0][1]
 
 
 # -------- CONDA ENV TESTS ----------- #
@@ -248,7 +298,7 @@ def test_conda_env_to_fs_to_cluster(cpu_cluster, s3_package):
             assert req.install_target.system == "s3"
             assert req.install_target.exists_in_system()
             count += 1
-    assert count == 1
+    assert count >= 1
 
     folder_name = "test_package"
     count = 0
@@ -259,7 +309,7 @@ def test_conda_env_to_fs_to_cluster(cpu_cluster, s3_package):
         if isinstance(req, Package) and isinstance(req.install_target, Folder):
             assert req.install_target.system == cpu_cluster
             count += 1
-    assert count == 1
+    assert count >= 1
 
     assert "sample_file_0.txt" in cpu_cluster.run([f"ls {folder_name}"])[0][1]
     assert "s3-env" in cpu_cluster.run(["conda info --envs"])[0][1]

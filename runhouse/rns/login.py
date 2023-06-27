@@ -1,5 +1,4 @@
 import logging
-from typing import Union
 
 import typer
 
@@ -145,31 +144,21 @@ def logout(
 
     for (provider_name, _) in configs.get("secrets", {}).items():
         if provider_name == "ssh":
+            logger.info(
+                "Automatic deletion for local SSH credentials file is not supported. "
+                "Please manually delete it if you would like to remove it"
+            )
             continue
-
-        provider = Secrets.builtin_provider_class_from_name(provider_name)
 
         if interactive_session:
             delete_loaded_secrets = typer.confirm(
                 f"Delete credentials file for {provider_name}?"
             )
 
-        if provider:
-            provider_creds_path: Union[str, tuple] = provider.default_credentials_path()
-
-            configs.delete(provider_name)
-
-            if delete_loaded_secrets:
-                provider.delete_secrets_file(provider_creds_path)
-                logger.info(
-                    f"Deleted {provider_name} credentials file from path: {provider_creds_path}"
-                )
+        if delete_loaded_secrets:
+            Secrets.delete_from_local_env(providers=[provider_name])
         else:
-            if delete_loaded_secrets:
-                logger.warning(
-                    f"Unable to delete credentials file for custom provider {provider_name}. "
-                    "Please delete the file manually."
-                )
+            configs.delete(provider_name)
 
     # Delete token from rh config file
     configs.delete(key="token")
