@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from typing import List
 
 
@@ -20,16 +21,35 @@ class FunctionLogHandler(logging.Handler):
         return "\n".join(captured_logs)
 
 
+class UTCFormatter(logging.Formatter):
+    """Ensure logs are always in UTC time"""
+
+    @staticmethod
+    def converter(timestamp):
+        return datetime.fromtimestamp(timestamp, tz=timezone.utc)
+
+    def formatTime(self, record, datefmt=None):
+        dt = self.converter(record.created)
+        if datefmt:
+            return dt.strftime(datefmt)
+        else:
+            return dt.isoformat(timespec="milliseconds")
+
+
 LOGGING_CONFIG = {
     "version": 1,
     "disable_existing_loggers": True,
     "formatters": {
-        "standard": {"format": "%(levelname)s | %(asctime)s | %(message)s"},
+        "utc_formatter": {
+            "()": UTCFormatter,
+            "format": "%(levelname)s | %(asctime)s | %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S.%f",
+        },
     },
     "handlers": {
         "default": {
             "level": "INFO",
-            "formatter": "standard",
+            "formatter": "utc_formatter",
             "class": "logging.StreamHandler",
             "stream": "ext://sys.stderr",  # Default is stderr
         },
