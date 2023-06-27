@@ -41,7 +41,7 @@ environment. Think of it as an expansion pack to Python that lets it take detour
 machines or manipulate remote data.
 2. Just as **Terraform** is a unified language for creation and destruction of infra, the
 Runhouse APIs are a unified interface into existing compute and data systems.
-See what we already support and what's on the [roadmap, below](#-roadmap).
+See what we already support and what's on the [roadmap, below](#supported-infra).
 3. Runhouse resources can be shared across environments or teams, providing a **Google Drive**-like
 layer for accessibility, visibility, and management across all your infra and providers.
 
@@ -146,7 +146,7 @@ stays inside your own cloud account and never hits our servers. We plan to
 add support for BYO secrets management shortly. Let us know if you need it and which system you use.
 
 
-## 🏗️ Supported Infra
+## <h2 id="supported-infra"> 🏗️ Supported Infra </h2>
 
 Runhouse is an ambitious project to provide a unified API into many paradigms and providers for
 various types of infra. You can find our currently support systems and high-level roadmap below.
