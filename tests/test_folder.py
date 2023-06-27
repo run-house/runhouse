@@ -21,8 +21,7 @@ def fs_str_rh_fn(folder):
 
 @pytest.mark.clustertest
 def test_from_cluster(cpu_cluster):
-    cpu_cluster.run(['echo "Hello from the cluster!"'])
-    f = rh.folder(path=str(Path.cwd())).to(cpu_cluster, path="~/my_new_tests_folder")
+    rh.folder(path=str(Path.cwd())).to(cpu_cluster, path="~/my_new_tests_folder")
     tests_folder = rh.folder(system=cpu_cluster, path="~/my_new_tests_folder")
     assert "my_new_tests_folder/test_folder.py" in tests_folder.ls()
 

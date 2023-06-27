@@ -7,7 +7,6 @@ from typing import Any, Dict
 import sky
 import yaml
 from sky.backends import backend_utils, CloudVmRayBackend
-from sky.utils import command_runner
 
 from runhouse.rh_config import configs, rns_client
 
