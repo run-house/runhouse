@@ -139,10 +139,10 @@ class Run(Resource):
             # For cmd runs we are using the SSH command runner to get the stdout / stderr
             return
 
-        captured_stdout_logs = self._function_log_handler.log_records
-        stdout = self._function_log_handler.log_records_to_stdout(captured_stdout_logs)
+        captured_logs = self._function_log_handler.log_records
+        stdout = self._function_log_handler.log_records_to_stdout(captured_logs)
 
-        stderr = sys.stderr.getvalue()
+        stderr = f"{type(exc_value).__name__}: {str(exc_value)}" if exc_value else ""
 
         # save stdout and stderr to their respective log files
         self.write(data=stdout.encode(), path=self._stdout_path)

@@ -146,7 +146,7 @@ stays inside your own cloud account and never hits our servers. We plan to
 add support for BYO secrets management shortly. Let us know if you need it and which system you use.
 
 
-<h2 id="supported-infra"> 🏗️ Supported Infra </h2>
+## <h2 id="supported-infra"> 🏗️ Supported Infra </h2>
 
 Runhouse is an ambitious project to provide a unified API into many paradigms and providers for
 various types of infra. You can find our currently support systems and high-level roadmap below.

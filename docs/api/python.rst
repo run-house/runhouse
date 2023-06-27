@@ -6,8 +6,8 @@ Runhouse offers a programmatic API in Python to manage your account and resource
 Resources
 ------------------------------------
 Resources are the Runhouse abstraction for objects that can be saved, shared, and reused.
-This includes both compute abstractions (clusters, functions, packages) and data abstractions
-(blobs, folders, tables).
+This includes both compute abstractions (clusters, functions, packages, environments) and
+data abstractions (blobs, folders, tables).
 
 .. toctree::
    :maxdepth: 1
