@@ -100,7 +100,7 @@ def test_add_ssh_secrets():
     assert vault_secrets
 
     # Delete from Vault & local configs
-    rh.configs.delete(provider)
+    rh.configs.delete_provider(provider)
     rh.Secrets.delete_from_vault([provider])
     for f_name, _ in sample_ssh_keys.items():
         ssh_key_path = f"{SSHSecrets.default_credentials_path()}/{f_name}"

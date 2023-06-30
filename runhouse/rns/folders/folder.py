@@ -253,7 +253,12 @@ class Folder(Resource):
             return None
 
     def is_writable(self):
-        """Whether the folder is writable."""
+        """Whether the folder is writable.
+
+        Example:
+            >>> if my_folder.is_writable():
+            >>>     ....
+        """
         # If the filesystem hasn't overridden mkdirs, it's a no-op and the filesystem is probably readonly
         # (e.g. https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/implementations/github.html).
         # In that case, we should just create a new folder in the default
@@ -443,7 +448,12 @@ class Folder(Resource):
         self.fsspec_fs.mkdirs(folder_path, exist_ok=True)
 
     def mount(self, path: Optional[str] = None, tmp: bool = False) -> str:
-        """Mount the folder locally."""
+        """Mount the folder locally.
+
+        Example:
+            remote_folder = rh.folder("folder/path", system="s3")
+            local_mount = remote_folder.mount()
+        """
         # TODO check that fusepy and FUSE are installed
         if tmp:
             self._local_mount_path = tempfile.mkdtemp()
@@ -541,7 +551,11 @@ class Folder(Resource):
         return new_folder
 
     def is_local(self):
-        """Whether the folder is on the local filesystem."""
+        """Whether the folder is on the local filesystem.
+
+        Example:
+            >>> is_local = my_folder.is_local()
+        """
         return (
             self._fs_str == "file"
             and self.path is not None
@@ -642,7 +656,11 @@ class Folder(Resource):
             return [Path(path).name for path in paths]
 
     def resources(self, full_paths: bool = False):
-        """List the resources in the *RNS* folder."""
+        """List the resources in the *RNS* folder.
+
+        Example:
+            >>> resources = my_folder.resources()
+        """
         # TODO allow '*' wildcard for listing all resources (and maybe other wildcard things)
         try:
             resources = [
@@ -695,12 +713,22 @@ class Folder(Resource):
             return base_folder_path + "/" + relative_path
 
     def contains(self, name_or_path) -> bool:
-        """Whether path of a Folder exists locally."""
-        path, system = self.locate(name_or_path)
+        """Whether path of a Folder exists locally.
+
+        Example:
+            >>> my_folder = rh.folder("local/folder/path")
+            >>> in_folder = my_folder.contains("filename")
+        """
+        path, _ = self.locate(name_or_path)
         return path is not None
 
     def locate(self, name_or_path) -> (str, str):
-        """Locate the local path of a Folder given an rns path."""
+        """Locate the local path of a Folder given an rns path.
+
+        Example:
+            >>> my_folder = rh.folder("local/folder/path")
+            >>> local_path = my_folder.locate("file_name")
+        """
         # Note: Keep in mind we're using both _rns_ path and physical path logic below. Be careful!
 
         # If the path is already given relative to the current folder:
@@ -757,7 +785,11 @@ class Folder(Resource):
         return self.fsspec_fs.open(self.path + "/" + name, mode=mode, encoding=encoding)
 
     def get(self, name, mode="rb", encoding=None):
-        """Returns the contents of a file as a string or bytes."""
+        """Returns the contents of a file as a string or bytes.
+
+        Example:
+            >>> contents = my_folder.get(file_name)
+        """
         with self.open(name, mode=mode, encoding=encoding) as f:
             return f.read()
 
@@ -768,7 +800,11 @@ class Folder(Resource):
         return fsspec.open_files(self.fsspec_url, mode="rb", **self.data_config)
 
     def exists_in_system(self):
-        """Whether the folder exists in the filesystem."""
+        """Whether the folder exists in the filesystem.
+
+        Example:
+            >>> exists_on_system = my_folder.exists_in_system()
+        """
         return self.fsspec_fs.exists(self.path) or exists(self.path)
 
     def rm(self, contents: list = None, recursive: bool = True):
@@ -778,6 +814,9 @@ class Folder(Resource):
             contents (Optional[List]): Specific contents to delete in the folder.
             recursive (bool): Delete the folder itself (including all its contents).
                 Defaults to ``True``.
+
+        Example:
+            >>> my_folder.rm()
         """
         if not contents:
             try:
@@ -805,7 +844,10 @@ class Folder(Resource):
                 Defaults to ``False``.
             mode (Optional(str)): Write mode to use for fsspec. Defaults to ``wb``.
             write_fn (Optional(Callable)): Function to use for writing file contents.
-                Example: ``write_fn = lambda f, data: json.dump(data, f)``
+                Example: ``write_fn = lambda f, data: json.dump(data, f)
+
+        Example:
+            >>> my_folder.put(contents={"filename.txt": data})
         """
         # TODO create the bucket if it doesn't already exist
         # Handle lists of resources just for convenience

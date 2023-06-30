@@ -216,6 +216,10 @@ class Cluster(Resource):
             reqs (List[Package or str): List of packages to install on cluster and env
             env (Env or str): Environment to install package on. If left empty, defaults to base environment.
                 (Default: ``None``)
+
+        Example:
+            >>> cluster.install_packages(reqs=["accelerate", "diffusers"])
+            >>> cluster.install_packages(reqs=["accelerate", "diffusers"], env="my_conda_env")
         """
         self.check_server()
         to_install = []
@@ -510,6 +514,7 @@ class Cluster(Resource):
         fn_type,
         resources,
         conda_env,
+        env_vars,
         run_name,
         args,
         kwargs,
@@ -522,17 +527,26 @@ class Cluster(Resource):
             fn_type,
             resources,
             conda_env,
+            env_vars,
             run_name,
             args,
             kwargs,
         )
 
     def is_connected(self):
-        """Whether the RPC tunnel is up."""
+        """Whether the RPC tunnel is up.
+
+        Example:
+            >>> connected = cluster.is_connected()
+        """
         return self.client is not None
 
     def disconnect(self):
-        """Disconnect the RPC tunnel."""
+        """Disconnect the RPC tunnel.
+
+        Example:
+            >>> cluster.disconnect()
+        """
         if self._rpc_tunnel:
             self._rpc_tunnel.stop()
         # if self.client:

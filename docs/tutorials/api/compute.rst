@@ -1,5 +1,5 @@
-Compute Tutorial
-================
+Compute: Clusters, Functions, Packages, & Envs
+==============================================
 
 .. raw:: html
 
@@ -49,6 +49,7 @@ There are two types of supported cluster types:
 1. Bring-your-own (BYO) Cluster: these are existing clusters that you
    already have up, and access through an IP address and SSH
    credentials.
+
 2. On-demand Cluster associated with your cloud account (AWS, GCP,
    Azure, LambdaLabs). There are additional features for these clusters,
    such as cluster (auto) stop. Please refer to
@@ -74,9 +75,66 @@ There are two types of supported cluster types:
     # Launch the cluster, only supported for on-demand clusters
     cluster.up()
 
-The ``name`` parameter provided is used for saving down or loading
-previous saved clusters. It is also used for various CLI commands for
-the cluster.
+You can set default configs for future cluster constructions. These
+defaults are associated with either only your local environment (if you
+don’t login to Runhouse), or can be reused across devices (if they are
+saved to your Runhouse account).
+
+.. code:: python
+
+    rh.configs.set('use_spot', False)
+    rh.configs.set('default_autostop', 30)
+
+    rh.configs.upload_defaults()
+
+
+.. parsed-literal::
+
+    INFO | 2023-05-18 12:48:20,821 | Uploaded defaults for user to rns.
+
+
+Useful Cluster APIs
+~~~~~~~~~~~~~~~~~~~
+
+To run CLI or Python commands on the cluster:
+
+.. code:: python
+
+    cluster.run(['pip install numpy && pip freeze | grep numpy'])
+
+
+.. parsed-literal::
+
+    INFO | 2023-05-18 13:59:54,417 | Running command on cpu-cluster: pip install numpy && pip freeze | grep numpy
+    Requirement already satisfied: numpy in /opt/conda/lib/python3.10/site-packages (1.24.3)
+    numpy==1.24.3
+
+
+.. parsed-literal::
+
+    [(0,
+      'Requirement already satisfied: numpy in /opt/conda/lib/python3.10/site-packages (1.24.3)\nnumpy==1.24.3\n',
+      '')]
+
+
+
+.. code:: python
+
+    cluster.run_python(['import numpy', 'print(numpy.__version__)'])
+
+
+.. parsed-literal::
+
+    INFO | 2023-05-18 14:00:01,581 | Running command on cpu-cluster: python3 -c "import numpy; print(numpy.__version__)"
+    1.24.3
+
+
+
+.. parsed-literal::
+
+    [(0, '1.24.3\n', '')]
+
+
 
 To ssh into the cluster:
 
@@ -98,57 +156,20 @@ To tunnel a JupyterLab server into your local browser:
     # CLI
     !runhouse notebook cpu-cluster
 
-To run CLI or Python commands on the cluster:
+To open a port, if you want to run an application on the cluster that
+requires a port to be open, e.g. Tensorboard, Gradio:
 
 .. code:: python
 
-    cluster.run(['pip install numpy && pip freeze | grep numpy'])
-
-
-.. parsed-literal::
-
-    INFO | 2023-05-06 20:52:13,632 | Running command on cpu-cluster: pip install numpy && pip freeze | grep numpy
-
-
-.. parsed-literal::
-
-    Requirement already satisfied: numpy in /opt/conda/lib/python3.10/site-packages (1.24.3)
-    numpy==1.24.3
-
-
-.. parsed-literal::
-
-    [(0,
-      'Requirement already satisfied: numpy in /opt/conda/lib/python3.10/site-packages (1.24.3)\nnumpy==1.24.3\n',
-      "Warning: Permanently added '3.95.164.76' (ECDSA) to the list of known hosts.\r\n")]
-
-
-
-.. code:: python
-
-    cluster.run_python(['import numpy', 'print(numpy.__version__)'])
-
-
-.. parsed-literal::
-
-    INFO | 2023-05-06 20:52:27,945 | Running command on cpu-cluster: python3 -c "import numpy; print(numpy.__version__)"
-    1.24.3
-
-
-
-.. parsed-literal::
-
-    [(0, '1.24.3\n', '')]
-
-
+    cluster.ssh_tunnel(local_port=7860, remote_port=7860)
 
 Function
 --------
 
 Runhouse’s Function API lets you define functions to be run on remote
-hardware. Simply pass in a local (or a GitHub) function, the intended
-remote hardware, and any dependencies; Runhouse will handle the rest for
-you.
+hardware (your cluster above!). Simply pass in a local (or a GitHub)
+function, the intended remote hardware, and any dependencies; Runhouse
+will handle the rest for you.
 
 Basic Functions
 ~~~~~~~~~~~~~~~
@@ -170,18 +191,17 @@ two ways of doing so:
 .. code:: python
 
     # Remote Function
-    getpid_remote = rh.function(fn=getpid, system=cluster)
-    # or, equivalently
     getpid_remote = rh.function(fn=getpid).to(system=cluster)
 
 
 .. parsed-literal::
 
-    INFO | 2023-05-06 20:52:47,822 | Writing out function function to /content/getpid_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
-    INFO | 2023-05-06 20:52:47,825 | Setting up Function on cluster.
-    INFO | 2023-05-06 20:52:47,829 | Copying local package content to cluster <cpu-cluster>
-    INFO | 2023-05-06 20:52:49,316 | Installing packages on cluster cpu-cluster: ['./']
-    INFO | 2023-05-06 20:52:49,474 | Function setup complete.
+    INFO | 2023-06-26 13:40:45,990 | Writing out function function to /Users/caroline/Documents/runhouse/runhouse/docs/notebooks/basics/getpid_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
+    INFO | 2023-06-26 13:40:45,993 | Setting up Function on cluster.
+    INFO | 2023-06-26 13:40:57,014 | Checking server test-cluster
+    INFO | 2023-06-26 13:40:57,989 | Server test-cluster is up.
+    INFO | 2023-06-26 13:40:59,299 | Installing packages on cluster test-cluster: ['Package: runhouse']
+    INFO | 2023-06-26 13:41:00,872 | Function setup complete.
 
 
 To run the function, simply call it just as you would a local function,
@@ -189,16 +209,24 @@ and the function automatically runs on your specified hardware!
 
 .. code:: python
 
-    print(f"local: {getpid()}")
-    print(f"remote: {getpid_remote()}")
+    print(f"local function result: {getpid()}")
+    print(f"remote function result: {getpid_remote()}")
 
 
 .. parsed-literal::
 
-    local: 163
-    INFO | 2023-05-06 20:53:20,020 | Running getpid via gRPC
-    INFO | 2023-05-06 20:53:20,152 | Time to send message: 0.12 seconds
-    remote: 24056
+    local function result: 73128
+    INFO | 2023-06-26 13:41:05,026 | Running getpid via HTTP
+    INFO | 2023-06-26 13:41:05,290 | Submitted remote call to cluster for 20230626_134105
+    :job_id:17000000
+    :task_name:get_fn_from_pointers
+    :job_id:17000000
+    INFO | 2023-06-26 17:41:05,959 | Loaded Runhouse config from /home/ubuntu/.rh/config.yaml
+    :task_name:get_fn_from_pointers
+    INFO | 2023-06-26 17:41:06,566 | Appending /home/ubuntu/runhouse/docs/notebooks/basics to sys.path
+    INFO | 2023-06-26 17:41:06,566 | Importing module getpid_fn
+    INFO | 2023-06-26 13:41:06,446 | Time to call remote function: 1.42 seconds
+    remote function result: 183873
 
 
 Git Functions
@@ -227,17 +255,32 @@ to clone the repo ourselves or reimplement the function locally.
 
 .. parsed-literal::
 
-    INFO | 2023-05-06 20:53:34,652 | Setting up Function on cluster.
-    INFO | 2023-05-06 20:53:34,671 | Installing packages on cluster cpu-cluster: ['GitPackage: https://github.com/huggingface/diffusers.git@v0.11.1', 'torch==1.12.1', 'torchvision==0.13.1', 'transformers', 'datasets', 'evaluate', 'accelerate', 'pip:./diffusers']
-    INFO | 2023-05-06 20:54:21,841 | Function setup complete.
+    INFO | 2023-05-18 14:00:56,859 | Setting up Function on cluster.
+    INFO | 2023-05-18 14:00:56,863 | Installing packages on cluster cpu-cluster: ['GitPackage: https://github.com/run-house/runhouse.git@v0.0.4']
+    INFO | 2023-05-18 14:00:59,540 | Function setup complete.
 
 
 .. code:: python
 
     pid_git_remote()
 
-Additional Function Call Types and Utils
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. parsed-literal::
+
+    INFO | 2023-05-18 14:01:01,496 | Running getpid via gRPC
+    INFO | 2023-05-18 14:01:01,867 | Time to send message: 0.37 seconds
+
+
+
+
+.. parsed-literal::
+
+    24065
+
+
+
+Additional Function Call Types
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 In addition to the usual function call, Runhouse also supports the
 following function types: ``remote``, ``get``, ``repeat``, ``enqueue``,
@@ -263,15 +306,11 @@ up the kernel.
 
 .. parsed-literal::
 
-    INFO | 2023-05-06 21:03:17,494 | Running getpid via gRPC
-    INFO | 2023-05-06 21:03:17,622 | Time to send message: 0.12 seconds
-    INFO | 2023-05-06 21:03:17,624 | Submitted remote call to cluster. Result or logs can be retrieved
-     with run_key "getpid_20230506_210317", e.g.
-    `rh.cluster(name="/carolineechen/cpu-cluster").get("getpid_20230506_210317", stream_logs=True)` in python
-    `runhouse logs "cpu-cluster" getpid_20230506_210317` from the command line.
-     or cancelled with
-    `rh.cluster(name="/carolineechen/cpu-cluster").cancel("getpid_20230506_210317")` in python or
-    `runhouse cancel "cpu-cluster" getpid_20230506_210317` from the command line.
+    WARNING | 2023-06-26 13:41:14,945 | /Users/caroline/Documents/runhouse/runhouse/runhouse/rns/function.py:421: UserWarning: `remote()` is deprecated, use `run()` instead
+      warnings.warn("`remote()` is deprecated, use `run()` instead")
+
+    INFO | 2023-06-26 13:41:14,946 | Running getpid via HTTP
+    INFO | 2023-06-26 13:41:15,199 | Submitted remote call to cluster for 20230626_134114
 
 
 You can use ``.get`` to retrive the value of a reference.
@@ -283,15 +322,20 @@ You can use ``.get`` to retrive the value of a reference.
 
 .. parsed-literal::
 
-    INFO | 2023-05-06 21:03:23,068 | Running getpid via gRPC
-    INFO | 2023-05-06 21:03:23,194 | Time to send message: 0.12 seconds
+    :job_id:17000000
+    INFO | 2023-06-26 17:41:15,889 | Loaded Runhouse config from /home/ubuntu/.rh/config.yaml
+    :task_name:get_fn_from_pointers
+    INFO | 2023-06-26 17:41:16,491 | Appending /home/ubuntu/runhouse/docs/notebooks/basics to sys.path
+    INFO | 2023-06-26 17:41:16,491 | Importing module getpid_fn
+    :job_id:17000000
+    :task_name:get_fn_from_pointers
 
 
 
 
 .. parsed-literal::
 
-    26948
+    183941
 
 
 
@@ -305,15 +349,23 @@ be automatically dereferenced once on the cluster.
 
 .. parsed-literal::
 
-    INFO | 2023-05-06 21:03:20,388 | Running getpid via gRPC
-    INFO | 2023-05-06 21:03:20,513 | Time to send message: 0.12 seconds
+    INFO | 2023-06-26 13:41:28,636 | Running getpid via HTTP
+    INFO | 2023-06-26 13:41:28,900 | Submitted remote call to cluster for 20230626_134128
+    :job_id:17000000
+    INFO | 2023-06-26 17:41:29,561 | Loaded Runhouse config from /home/ubuntu/.rh/config.yaml
+    :task_name:get_fn_from_pointers
+    INFO | 2023-06-26 17:41:30,161 | Appending /home/ubuntu/runhouse/docs/notebooks/basics to sys.path
+    INFO | 2023-06-26 17:41:30,161 | Importing module getpid_fn
+    :job_id:17000000
+    :task_name:get_fn_from_pointers
+    INFO | 2023-06-26 13:41:29,998 | Time to call remote function: 1.36 seconds
 
 
 
 
 .. parsed-literal::
 
-    51004
+    367951
 
 
 
@@ -332,15 +384,24 @@ process IDs being returned.
 
 .. parsed-literal::
 
-    INFO | 2023-05-06 20:59:13,495 | Running getpid via gRPC
-    INFO | 2023-05-06 20:59:15,381 | Time to send message: 1.88 seconds
+    INFO | 2023-06-26 13:41:39,838 | Running getpid via HTTP
+    INFO | 2023-06-26 13:41:42,960 | Time to call remote function: 3.12 seconds
 
 
 
 
 .. parsed-literal::
 
-    [26201, 26196, 26200, 26198, 26203, 26202, 26199, 26197, 26346, 26375]
+    [184080,
+     184084,
+     184085,
+     184082,
+     184078,
+     184081,
+     184083,
+     184079,
+     184190,
+     184285]
 
 
 
@@ -358,19 +419,19 @@ the execution completes.
 
 .. parsed-literal::
 
-    INFO | 2023-05-06 21:00:02,004 | Running getpid via gRPC
-    INFO | 2023-05-06 21:00:02,772 | Time to send message: 0.77 seconds
-    INFO | 2023-05-06 21:00:02,774 | Running getpid via gRPC
-    INFO | 2023-05-06 21:00:03,583 | Time to send message: 0.81 seconds
-    INFO | 2023-05-06 21:00:03,585 | Running getpid via gRPC
-    INFO | 2023-05-06 21:00:04,339 | Time to send message: 0.75 seconds
+    INFO | 2023-06-26 13:41:45,818 | Running getpid via HTTP
+    INFO | 2023-06-26 13:41:47,255 | Time to call remote function: 1.43 seconds
+    INFO | 2023-06-26 13:41:47,256 | Running getpid via HTTP
+    INFO | 2023-06-26 13:41:48,676 | Time to call remote function: 1.42 seconds
+    INFO | 2023-06-26 13:41:48,677 | Running getpid via HTTP
+    INFO | 2023-06-26 13:41:50,102 | Time to call remote function: 1.42 seconds
 
 
 
 
 .. parsed-literal::
 
-    [26786, 26815, 26845]
+    [184727, 184791, 184857]
 
 
 
@@ -385,20 +446,20 @@ iterable while mapping.
 
     a_map = [1, 2]
     b_map = [2, 5]
-    getpid_remote.map(a=a_map, b=b_map)
+    getpid_remote.map(a_map, b_map)
 
 
 .. parsed-literal::
 
-    INFO | 2023-05-06 21:06:05,078 | Running getpid via gRPC
-    INFO | 2023-05-06 21:06:06,310 | Time to send message: 1.22 seconds
+    INFO | 2023-06-26 13:41:53,812 | Running getpid via HTTP
+    INFO | 2023-06-26 13:41:55,238 | Time to call remote function: 1.42 seconds
 
 
 
 
 .. parsed-literal::
 
-    [27024, 27023, 27021, 27019, 27020, 27022, 27023, 27023, 27023, 27023]
+    [184927, 184932]
 
 
 
@@ -407,10 +468,29 @@ iterable while mapping.
     starmap_args = [[1, 2], [1, 3], [1, 4]]
     getpid_remote.starmap(starmap_args)
 
+
+.. parsed-literal::
+
+    INFO | 2023-06-26 13:41:57,452 | Running getpid via HTTP
+    INFO | 2023-06-26 13:41:57,597 | Time to call remote function: 0.14 seconds
+
+
+
+
+.. parsed-literal::
+
+    [184928, 184928, 184930]
+
+
+
+Function Logging
+~~~~~~~~~~~~~~~~
+
 ``stream_logs``
 ^^^^^^^^^^^^^^^
 
-To stream logs, pass in ``stream_logs=True`` to the function call.
+To stream logs to local during the remote function call, pass in
+``stream_logs=True`` to the function call.
 
 .. code:: python
 
@@ -419,26 +499,30 @@ To stream logs, pass in ``stream_logs=True`` to the function call.
 
 .. parsed-literal::
 
-    INFO | 2023-05-06 21:06:29,351 | Running getpid via gRPC
-    INFO | 2023-05-06 21:06:29,477 | Time to send message: 0.12 seconds
-    INFO | 2023-05-06 21:06:29,483 | Submitted remote call to cluster. Result or logs can be retrieved
-     with run_key "getpid_20230506_210629", e.g.
-    `rh.cluster(name="/carolineechen/cpu-cluster").get("getpid_20230506_210629", stream_logs=True)` in python
-    `runhouse logs "cpu-cluster" getpid_20230506_210629` from the command line.
-     or cancelled with
-    `rh.cluster(name="/carolineechen/cpu-cluster").cancel("getpid_20230506_210629")` in python or
-    `runhouse cancel "cpu-cluster" getpid_20230506_210629` from the command line.
-    :task_name:getpid
-    :task_name:getpid
+    INFO | 2023-06-26 13:42:02,197 | Running getpid via HTTP
+    INFO | 2023-06-26 13:42:02,444 | Submitted remote call to cluster for 20230626_134202
+    :job_id:17000000
+    INFO | 2023-06-26 17:42:02,530 | Loaded Runhouse config from /home/ubuntu/.rh/config.yaml
+    :task_name:get_fn_from_pointers
+    INFO | 2023-06-26 17:42:03,133 | Appending /home/ubuntu/runhouse/docs/notebooks/basics to sys.path
+    INFO | 2023-06-26 17:42:03,133 | Importing module getpid_fn
+    :job_id:17000000
+    :task_name:get_fn_from_pointers
+    INFO | 2023-06-26 13:42:03,014 | Time to call remote function: 0.82 seconds
 
 
 
 
 .. parsed-literal::
 
-    27165
+    185046
 
 
+
+Function logs are also automatically output onto a log file on cluster
+it is run on. You can refer to `Runhouse Logging
+Docs <https://runhouse-docs.readthedocs-hosted.com/en/latest/debugging_logging.html>`__
+for more information on accessing these logs.
 
 Env + Packages
 --------------
@@ -467,8 +551,8 @@ and installation for you.
     conda_package = rh.Package.from_string("conda:torch")
     reqs_package = rh.Package.from_string("reqs:./")
     git_package = rh.GitPackage(git_url='https://github.com/huggingface/diffusers.git',
-                      install_method='pip',
-                      revision='v0.11.1')
+                                install_method='pip',
+                                revision='v0.11.1')
 
 You can also send packages between local, remote, and file storage.
 
@@ -486,12 +570,17 @@ Envs, or environments, keep track of your package installs and
 corresponding versions. This allows for reproducible dev environments,
 and convenient dependency isolation and management.
 
-The basic environment just consists of a list of Packages, or strings
-that represent the packages.
+Base Env
+^^^^^^^^
+
+The basic Env resource just consists of a list of Packages, or strings
+that represent the packages. You can additionally add any environment
+variables by providing a Dict or ``.env`` local file path, and also set
+the working directory to be synced over (defaults to base GitHub repo).
 
 .. code:: python
 
-    env = rh.env(reqs=["numpy", reqs_package, git_package])
+    env = rh.env(reqs=["numpy", reqs_package, git_package], env_vars={"USER": "*****"})
 
 When you send an environment object to a cluster, the environment is
 automatically set up (packages are installed) on the cluster.
@@ -499,6 +588,58 @@ automatically set up (packages are installed) on the cluster.
 .. code:: python
 
     env_on_cluster = env.to(system=cluster)
+
+Conda Env
+^^^^^^^^^
+
+The CondaEnv resource represents a Conda environment that can be used to
+set up reproducible Conda envs across clusters.
+
+There are several ways to construct a Runhouse CondaEnv object using
+``rh.conda_env``, by passing in any of the following into the
+``conda_env`` parameter:
+
+1. A yaml file corresponding to a conda environment config
+2. A dict corresponding to a conda environment config
+3. Name of an existing conda env on your local machine
+4. Leaving the argument empty. In this case, we’ll construct a new Conda
+   environment for you, using the list you pass into ``reqs``.
+
+Beyond the conda config, you can also add any additional requirements
+you’d like to install in the environment by adding
+``reqs = List[packages]``.
+
+.. code:: python
+
+    # 1. config yaml file
+    conda_env = rh.conda_env(conda_env="conda_env.yml", reqs=["numpy", "diffusers"], name="yaml_env")
+    # 2. config dict
+    conda_dict = {"name": "conda_env", "channels": ["conda-forge"], "dependencies": ["python=3.10.0"]}
+    conda_env = rh.env(conda_env=conda_dict, name="dict_env")
+    # 3. local conda env
+    conda_env = rh.conda_env(conda_env="local_conda_env", name="from_local_env")
+    # 4. empty, construct from reqs
+    conda_env = rh.conda_env(reqs=["numpy", "diffusers"], name="new_env")
+
+As with the base env, we can set up a conda env on the cluster with:
+
+.. code:: python
+
+    conda_env_on_cluster = conda_env.to(system=cluster)
+
+Previously in the cluster section, we mentioned several cluster APIs
+such as running CLI or Python commands. These all run on the base
+environment in the examples above, but now that we’ve defined a Conda
+env, let’s demonstrate how we can accomplish this inside a Conda env on
+the cluster:
+
+.. code:: python
+
+    # run Python command within the conda env
+    cluster.run_python("import diffusers", 'print(diffusers.__version__)', env=conda_env)
+
+    # install additional package on given env
+    cluster.install_packages(["pandas"], env=conda_env)
 
 Putting it all together – Cluster, Function, Env
 ------------------------------------------------
@@ -528,6 +669,11 @@ but can be outside the function if being used in a Python script.
     list_a = [1, 2, 3]
     list_b = [2, 3, 4]
     add_lists_remote(list_a, list_b)
+
+Now that you understand the basics, feel free to play around with more
+complicated scenarios! You can also check out our additional API and
+example usage tutorials on our `docs
+site <https://runhouse-docs.readthedocs-hosted.com/en/latest/index.html>`__.
 
 Cluster Termination
 -------------------

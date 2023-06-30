@@ -48,7 +48,7 @@ tools for visibility and management of these resources as long-living assets sha
 Accessibility
 -------------
 
-The Runhouse RNS (Resource Naming System) provides a convenient way to name, presist, and recall resources
+The Runhouse RNS (Resource Naming System) provides a convenient way to name, persist, and recall resources
 acoss environments. Meanwhile, the Secrets APIs provide a simple interface for storing and retrieving secrets
 from your secure Runhouse account.
 

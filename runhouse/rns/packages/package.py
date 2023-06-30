@@ -13,6 +13,8 @@ from runhouse.rns.utils.hardware import _get_cluster_from
 
 INSTALL_METHODS = {"local", "reqs", "pip", "conda"}
 
+logger = logging.getLogger(__name__)
+
 
 class Package(Resource):
     RESOURCE_TYPE = "package"
@@ -300,12 +302,14 @@ class Package(Resource):
             raise TypeError(
                 "`install_target` must be a Folder in order to copy the package to a system."
             )
-
         system = _get_cluster_from(system)
         if self.install_target.system == system:
             return self
 
         if isinstance(system, Resource):
+            logger.info(
+                f"Copying folder from {self.install_target.fsspec_url} to: {getattr(system, 'name', system)}"
+            )
             new_folder = self.install_target._to_cluster(system, path=path, mount=mount)
         else:  # to fs
             new_folder = self.install_target.to(system, path=path)

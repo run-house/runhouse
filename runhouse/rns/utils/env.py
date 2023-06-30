@@ -1,3 +1,4 @@
+import re
 import subprocess
 
 from pathlib import Path
@@ -91,3 +92,19 @@ def _get_conda_yaml(conda_env=None):
                 dep["pip"].append("ray<=2.4.0,>=2.2.0")
                 continue
     return conda_yaml
+
+
+def _env_vars_from_file(env_file):
+    env_file = Path(env_file) if isinstance(env_file, str) else env_file
+    if not env_file.exists():
+        raise FileNotFoundError(f"Can not find provided env file: {env_file}")
+
+    env_vars_dict = {}
+    with open(env_file) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, value = re.split("\s*=\s*", line, maxsplit=1)
+                env_vars_dict[key] = value
+
+    return env_vars_dict

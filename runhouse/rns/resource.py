@@ -34,6 +34,7 @@ class Resource:
             - Cluster :py:class:`.hardware.cluster.Cluster`
             - Function :py:class:`.function.Function`
             - Package :py:class:`.packages.package.Package`
+            - Env: :py:class:`.envs.env.Env`
 
 
         - Data Abstractions

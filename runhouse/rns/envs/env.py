@@ -1,7 +1,8 @@
 import copy
-from typing import List, Optional, Union
+from pathlib import Path
+from typing import Dict, List, Optional, Union
 
-from runhouse.rns.folders.folder import Folder
+from runhouse.rns.folders import Folder
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.packages import Package
 from runhouse.rns.resource import Resource
@@ -17,6 +18,8 @@ class Env(Resource):
         name: Optional[str] = None,
         reqs: List[Union[str, Package]] = [],
         setup_cmds: List[str] = None,
+        env_vars: Union[Dict, str] = {},
+        working_dir: Optional[Union[str, Path]] = "./",
         dryrun: bool = True,
         **kwargs,  # We have this here to ignore extra arguments when calling from_config
     ):
@@ -28,7 +31,11 @@ class Env(Resource):
         """
         super().__init__(name=name, dryrun=dryrun)
         self.reqs = reqs
+        if working_dir is not None:
+            self.reqs.append(working_dir)
         self.setup_cmds = setup_cmds
+        self.env_vars = env_vars
+        self.working_dir = working_dir
 
     @staticmethod
     def from_config(config: dict, dryrun: bool = True):
@@ -56,6 +63,8 @@ class Env(Resource):
                     for package in self.reqs
                 ],
                 "setup_cmds": self.setup_cmds,
+                "env_vars": self.env_vars,
+                "workding_dir": self.working_dir,
             }
         )
         return config
