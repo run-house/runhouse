@@ -20,7 +20,7 @@ from runhouse.rns.resource import Resource
 from runhouse.rns.top_level_rns_fns import resolve_rns_path
 from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
 
-# Load the root logger
+# Load the root logger to access the StreamHandler
 logger = logging.getLogger("")
 
 
@@ -107,8 +107,6 @@ class Run(Resource):
         self._stderr_path = self._path_to_file_by_ext(ext=".err")
 
     def __enter__(self):
-        from runhouse.logger import FunctionLogHandler
-
         self.status = RunStatus.RUNNING
         self.start_time = self._current_timestamp()
 
@@ -117,10 +115,6 @@ class Run(Resource):
 
         sys.stdout = StringIO()
         sys.stderr = StringIO()
-
-        # Create a custom logging handler and attach it to the logger used within that function
-        self._function_log_handler = FunctionLogHandler()
-        logger.addHandler(self._function_log_handler)
 
         return self
 
@@ -139,17 +133,22 @@ class Run(Resource):
             # For cmd runs we are using the SSH command runner to get the stdout / stderr
             return
 
-        captured_logs = self._function_log_handler.log_records
-        stdout = self._function_log_handler.log_records_to_stdout(captured_logs)
+        # Retrieve logs from the StreamHandler
+        stdout_handler = next(
+            (
+                handler
+                for handler in logger.handlers
+                if isinstance(handler, logging.StreamHandler)
+            ),
+            None,
+        )
+        stdout = stdout_handler.stream.getvalue()
 
         stderr = f"{type(exc_value).__name__}: {str(exc_value)}" if exc_value else ""
 
         # save stdout and stderr to their respective log files
         self.write(data=stdout.encode(), path=self._stdout_path)
         self.write(data=stderr.encode(), path=self._stderr_path)
-
-        # Remove the FunctionLogHandler from the logger
-        logger.removeHandler(self._function_log_handler)
 
         # return False to propagate any exception that occurred inside the with block
         return False
