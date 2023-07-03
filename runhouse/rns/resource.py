@@ -1,6 +1,7 @@
 import logging
 
 import pprint
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -157,6 +158,27 @@ class Resource:
 
         # Uses child class's from_config
         return cls.from_config(config=config, dryrun=dryrun)
+
+    @staticmethod
+    def from_config(config, dryrun=False):
+        resource_class = getattr(
+            sys.modules["runhouse"], config["resource_type"].capitalize(), None
+        )
+        config = resource_class._check_for_child_configs(config)
+        if not resource_class:
+            raise TypeError(
+                f"Could not find module associated with {config['resource_type']}"
+            )
+
+        try:
+            loaded = resource_class.from_config(config=config, dryrun=dryrun)
+            if loaded.name:
+                rns_client.add_upstream_resource(loaded.name)
+            return loaded
+        except:
+            raise ValueError(
+                f"Could not find constructor for type {config['resource_type']}"
+            )
 
     def unname(self):
         """Remove the name of the resource. This changes the resource name to anonymous and deletes any local

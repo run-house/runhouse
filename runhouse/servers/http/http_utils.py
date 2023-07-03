@@ -14,9 +14,11 @@ DEFAULT_SERVER_PORT = 50052
 
 
 class Message(BaseModel):
-    data: str
+    data: str = None
     env: str = None
     key: Optional[str] = None
+    stream_logs: Optional[bool] = True
+    save: Optional[bool] = False
 
 
 class Args(BaseModel):
@@ -38,6 +40,7 @@ class OutputType:
     SUCCESS = "success"  # No output
     RESULT = "result"
     RESULT_LIST = "result_list"
+    RESULT_STREAM = "result_stream"
 
 
 def pickle_b64(picklable):
@@ -49,7 +52,7 @@ def b64_unpickle(b64_pickled):
 
 
 def handle_response(response_data, output_type, err_str):
-    if output_type == OutputType.RESULT:
+    if output_type in [OutputType.RESULT, OutputType.RESULT_STREAM]:
         return b64_unpickle(response_data["data"])
     elif output_type == OutputType.RESULT_LIST:
         # Map, starmap, and repeat return lists of results

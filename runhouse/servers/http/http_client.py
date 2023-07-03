@@ -22,7 +22,18 @@ class HTTPClient:
         self.host = host
         self.port = port
 
-    def request(self, endpoint, req_type="post", data=None, err_str=None, timeout=None):
+    def request(
+        self,
+        endpoint,
+        req_type="post",
+        data=None,
+        env=None,
+        stream_logs=True,
+        save=False,
+        key=None,
+        err_str=None,
+        timeout=None,
+    ):
         req_fn = (
             requests.get
             if req_type == "get"
@@ -34,7 +45,13 @@ class HTTPClient:
         )
         response = req_fn(
             f"http://{self.host}:{self.port}/{endpoint}/",
-            json={"data": data},
+            json={
+                "data": data,
+                "env": env,
+                "stream_logs": stream_logs,
+                "save": save,
+                "key": key,
+            },
             timeout=timeout,
         )
         if response.status_code != 200:
@@ -104,6 +121,68 @@ class HTTPClient:
             )
         return res
 
+    def call_module_method(
+        self,
+        module_name,
+        method_name,
+        env=None,
+        stream_logs=True,
+        save=False,
+        run_name=None,
+        args=None,
+        kwargs=None,
+    ):
+        """
+        Client function to call the rpc for run_module
+        """
+        # Measure the time it takes to send the message
+        start = time.time()
+        res = requests.post(
+            f"http://{self.host}:{self.port}/{module_name}/{method_name}/",
+            json={
+                "data": pickle_b64([args, kwargs]),
+                "env": env,
+                "stream_logs": stream_logs,
+                "save": save,
+                "key": run_name,
+            },
+            stream=True,
+        )
+        end = time.time()
+        logging.info(f"Time to call method: {round(end - start, 2)} seconds")
+        if res.status_code != 200:
+            raise ValueError(
+                f"Error calling {method_name} on server: {res.content.decode()}"
+            )
+        # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single result,
+        # maybe a stream of results), so we need to separate these out.
+        non_generator_result = None
+        error_str = f"Error calling {method_name} on {module_name} on server"
+        res_iter = iter(res.iter_content(chunk_size=None))
+        for responses_json in res_iter:
+            resp = json.loads(responses_json)
+            output_type = resp["output_type"]
+            result = handle_response(resp, output_type, error_str)
+            if output_type == OutputType.RESULT_STREAM:
+                # First time we encounter a stream result, we know the rest of the results will be a stream, so return
+                # a generator
+                def results_generator():
+                    yield result
+                    for responses_json_inner in res_iter:
+                        resp_inner = json.loads(responses_json_inner)
+                        output_type_inner = resp_inner["output_type"]
+                        result_inner = handle_response(
+                            resp_inner, output_type_inner, error_str
+                        )
+                        if output_type == OutputType.RESULT_STREAM:
+                            yield result_inner
+
+                return results_generator
+            else:
+                # Finish iterating over logs before returning single result
+                non_generator_result = result
+        return non_generator_result
+
     # TODO [DG]: maybe just merge cancel into this so we can get log streaming back as we cancel a job (ditto others)
     def get_object(self, key, stream_logs=False):
         """
@@ -128,11 +207,12 @@ class HTTPClient:
                 if output_type not in [OutputType.STDOUT, OutputType.STDERR]:
                     return result
 
-    def put_object(self, key, value):
+    def put_object(self, key, value, env=None):
         self.request(
             "object",
             req_type="post",
             data=pickle_b64((key, value)),
+            env=env,
             err_str=f"Error putting object {key}",
         )
 
@@ -154,11 +234,12 @@ class HTTPClient:
 
         return run_obj
 
-    def delete_keys(self, keys=None):
+    def delete_keys(self, keys=None, env=None):
         return self.request(
             "object",
             req_type="delete",
             data=pickle_b64((keys or [])),
+            env=env,
             err_str=f"Error deleting keys {keys}",
         )
 
@@ -171,8 +252,8 @@ class HTTPClient:
             err_str=f"Error cancelling runs {keys}",
         )
 
-    def list_keys(self):
-        return self.request("keys", req_type="get")
+    def list_keys(self, env=None):
+        return self.request(f"keys/{env}" if env else "keys", req_type="get")
 
     def add_secrets(self, secrets):
         failed_providers = self.request(

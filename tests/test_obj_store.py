@@ -1,3 +1,4 @@
+import inspect
 import logging
 import time
 import unittest
@@ -5,6 +6,7 @@ import unittest
 import pytest
 
 import runhouse as rh
+from runhouse import Package
 
 from tests.test_function import multiproc_torch_sum
 
@@ -50,6 +52,37 @@ def test_put_and_get_on_cluster(cpu_cluster):
     cpu_cluster.put("my_list", test_list)
     ret = cpu_cluster.get("my_list")
     assert all(a == b for (a, b) in zip(ret, test_list))
+
+
+@pytest.mark.clustertest
+@pytest.mark.parametrize("env", [None, "base", "pytorch"])
+def test_call_module_method(cpu_cluster, env):
+    cpu_cluster.put("numpy_pkg", Package.from_string("numpy"), env=env)
+
+    # Test for method
+    res = cpu_cluster.call_module_method(
+        "numpy_pkg", "_detect_cuda_version_or_cpu", stream_logs=True
+    )
+    assert res == "cpu"
+
+    # Test for property
+    res = cpu_cluster.call_module_method(
+        "numpy_pkg", "config_for_rns", stream_logs=True
+    )
+    numpy_config = Package.from_string("numpy").config_for_rns
+    assert res
+    assert isinstance(res, dict)
+    assert res == numpy_config
+
+    # Test iterator
+    cpu_cluster.put("config_dict", list(numpy_config.keys()), env=env)
+    res = cpu_cluster.call_module_method("config_dict", "__iter__", stream_logs=True)
+    # Checks that all the keys in numpy_config were returned
+    inspect.isgenerator(res)
+    for key in res:
+        assert key
+        numpy_config.pop(key)
+    assert not numpy_config
 
 
 def pinning_helper(key=None):

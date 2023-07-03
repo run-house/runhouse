@@ -20,10 +20,13 @@ open_cluster_tunnels = {}
 rns_client = RNSClient(configs=configs)
 
 obj_store = None
+env_obj_store = None
 try:
     import ray  # noqa: F401
 
-    obj_store = ObjStore()
+    # Rename "cluster_obj_store"
+    obj_store = ObjStore(name="cluster_obj_store")
+    env_for_key = ObjStore(name="env_for_key")
 except Exception:
     pass
 

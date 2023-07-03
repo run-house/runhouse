@@ -263,20 +263,20 @@ class Cluster(Resource):
         self.check_server()
         return self.client.add_secrets(provider_secrets)
 
-    def put(self, key: str, obj: Any):
+    def put(self, key: str, obj: Any, env=None):
         """Put the given object on the cluster's object store at the given key."""
         self.check_server()
-        return self.client.put_object(key, obj)
+        return self.client.put_object(key, obj, env=env)
 
     def rename(self, old_key: str, new_key: str):
         """Rename a key in the cluster's object store."""
         self.check_server()
         return self.client.rename_object(old_key, new_key)
 
-    def list_keys(self):
+    def list_keys(self, env=None):
         """List all keys in the cluster's object store."""
         self.check_server()
-        res = self.client.list_keys()
+        res = self.client.list_keys(env=env)
         return res
 
     def cancel(self, key: str, force=False):
@@ -531,6 +531,31 @@ class Cluster(Resource):
             run_name,
             args,
             kwargs,
+        )
+
+    def call_module_method(
+        self, module_name, method_name, stream_logs=True, run_name=None, *args, **kwargs
+    ):
+        """Call a method on a module that is installed on the cluster.
+
+        Args:
+            module_name (str): Name of the module saved on system.
+            method_name (str): Name of the method.
+            *args: Positional arguments to pass to the method.
+            **kwargs: Keyword arguments to pass to the method.
+
+        Example:
+            >>> cluster.call_module_method("my_module", "my_method", arg1, arg2, kwarg1=kwarg1)
+        """
+        self.check_server()
+        # Note: might be single value, might be a generator!
+        return self.client.call_module_method(
+            module_name,
+            method_name,
+            stream_logs=stream_logs,
+            run_name=run_name,
+            args=args,
+            kwargs=kwargs,
         )
 
     def is_connected(self):

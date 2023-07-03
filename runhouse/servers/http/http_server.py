@@ -4,6 +4,7 @@ import logging
 import subprocess
 import traceback
 from pathlib import Path
+from typing import Optional
 
 import ray
 import requests
@@ -12,7 +13,8 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-from runhouse.rh_config import configs, env_servlets, rns_client
+from runhouse.rh_config import configs, env_for_key, env_servlets, rns_client
+from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.http_utils import (
     Args,
     b64_unpickle,
@@ -49,7 +51,13 @@ class HTTPServer:
         except Exception as e:
             logger.error(f"Failed to collect cluster stats: {str(e)}")
 
-        env_servlets["base"] = EnvServlet(env_name="base")
+        if conda_env:
+            base_env = self.get_env_servlet(
+                env_name="base", create=True, runtime_env={"conda": conda_env}
+            )
+        else:
+            base_env = EnvServlet(env_name="base")
+        env_servlets["base"] = base_env
 
         HTTPServer.register_activity()
 
@@ -86,7 +94,7 @@ class HTTPServer:
             )
 
     @staticmethod
-    def get_env_servlet(env_name, create=False):
+    def get_env_servlet(env_name, create=False, runtime_env=None):
         if env_name in env_servlets.keys():
             return env_servlets[env_name]
 
@@ -96,6 +104,7 @@ class HTTPServer:
                 .options(
                     name=env_name,
                     get_if_exists=True,
+                    runtime_env=runtime_env,
                     lifetime="detached",
                     namespace="runhouse",
                 )
@@ -110,15 +119,21 @@ class HTTPServer:
             )
 
     @staticmethod
-    def call_servlet_method(servlet, method, args):
+    def call_servlet_method(servlet, method, args, generator=False):
+        options = {"num_returns": "dynamic"} if generator else {}
         if isinstance(servlet, ray.actor.ActorHandle):
-            return ray.get(getattr(servlet, method).remote(*args))
+            return ray.get(getattr(servlet, method).options(**options).remote(*args))
         else:
             return getattr(servlet, method)(*args)
 
     @staticmethod
     def call_in_env_servlet(
-        method, args=None, env=None, create=False, lookup_env_for_name=None
+        method,
+        args=None,
+        env=None,
+        create=False,
+        lookup_env_for_name=None,
+        generator=False,
     ):
         HTTPServer.register_activity()
         try:
@@ -126,7 +141,9 @@ class HTTPServer:
                 env = env or HTTPServer.lookup_env_for_name(lookup_env_for_name)
             servlet = HTTPServer.get_env_servlet(env or "base", create=create)
             # If servlet is a RayActor, call with .remote
-            return HTTPServer.call_servlet_method(servlet, method, args)
+            return HTTPServer.call_servlet_method(
+                servlet, method, args, generator=generator
+            )
         except Exception as e:
             logger.exception(e)
             HTTPServer.register_activity()
@@ -137,13 +154,16 @@ class HTTPServer:
             )
 
     @staticmethod
-    def lookup_env_for_name(name):
-        # Load the resource config from rns and see if it has an "env" field
-        resource_config = rns_client.load_config(name)
-        if resource_config and "env" in resource_config:
-            return resource_config["env"]
+    def lookup_env_for_name(name, check_rns=False):
+        env = env_for_key.get(name, None)
+        if env:
+            return env
 
-        # TODO If not, check if the name is in the cluster-wide env_for_name kvstore
+        # Load the resource config from rns and see if it has an "env" field
+        if check_rns:
+            resource_config = rns_client.load_config(name)
+            if resource_config and "env" in resource_config:
+                return resource_config["env"]
 
         return None
 
@@ -157,6 +177,106 @@ class HTTPServer:
             create=True,
             lookup_env_for_name=message.key,
         )
+
+    @staticmethod
+    @app.post("/resource")
+    def put_resource(message: Message):
+        return HTTPServer.call_in_env_servlet(
+            "put_resource",
+            [message],
+            env=message.env,
+            create=True,
+            lookup_env_for_name=message.key,
+        )
+
+    @staticmethod
+    @app.post("/{module}/{method}")
+    def call_module_method(module, method, message: Message):
+        # Stream the logs and result (e.g. if it's a generator)
+        HTTPServer.register_activity()
+        try:
+            if message.stream_logs or message.save:
+                message.key = message.key or _generate_default_name(
+                    prefix=f"{module}_{method}"
+                )
+            env = message.env or HTTPServer.lookup_env_for_name(module)
+            generator = HTTPServer.call_in_env_servlet(
+                "call_module_method",
+                [module, method, message],
+                env=message.env,
+                create=True,
+                lookup_env_for_name=module,
+                generator=True,
+            )
+            logfiles = (
+                HTTPServer.call_in_env_servlet(
+                    method="get_logfiles",
+                    args=[message.key],
+                    env=env,
+                    create=False,
+                    lookup_env_for_name=module,
+                )
+                if message.stream_logs
+                else None
+            )
+            return StreamingResponse(
+                HTTPServer._get_results_and_logs_generator(
+                    generator, logfiles=logfiles
+                ),
+                media_type="application/json",
+            )
+        except Exception as e:
+            logger.exception(e)
+            HTTPServer.register_activity()
+            return Response(
+                error=pickle_b64(e),
+                traceback=pickle_b64(traceback.format_exc()),
+                output_type=OutputType.EXCEPTION,
+            )
+
+    @staticmethod
+    def _get_results_and_logs_generator(generator, logfiles=None):
+        try:
+            open_files = [open(i, "r") for i in (logfiles or [])] if logfiles else []
+            if open_files:
+                logger.info(f"Streaming logs from {logfiles}")
+            for res in generator:
+                if isinstance(res, Response):
+                    yield json.dumps(jsonable_encoder(res))
+                elif isinstance(res, ray.ObjectRef):
+                    yield json.dumps(jsonable_encoder(ray.get(res)))
+                else:
+                    raise Exception(f"Unexpected result type {type(res)}")
+
+                    # Grab all the lines written to all the log files since the last time we checked
+                ret_lines = []
+                for i, f in enumerate(open_files):
+                    file_lines = f.readlines()
+                    if file_lines:
+                        # TODO [DG] handle .out vs .err, and multiple workers
+                        # if len(logfiles) > 1:
+                        #     ret_lines.append(f"Process {i}:")
+                        ret_lines += file_lines
+                if ret_lines:
+                    yield json.dumps(
+                        jsonable_encoder(
+                            Response(
+                                data=ret_lines,
+                                output_type=OutputType.STDOUT,
+                            )
+                        )
+                    )
+        except Exception as e:
+            logger.exception(e)
+            yield json.dumps(
+                jsonable_encoder(
+                    Response(
+                        error=pickle_b64(e),
+                        traceback=pickle_b64(traceback.format_exc()),
+                        output_type=OutputType.EXCEPTION,
+                    )
+                )
+            )
 
     @staticmethod
     @app.post("/run")
@@ -255,7 +375,7 @@ class HTTPServer:
     @app.put("/object")
     def rename_object(message: Message):
         return HTTPServer.call_in_env_servlet(
-            "rename_object", [message], env=message.env, lookup_env_for_name=message.key
+            "rename_object", [message], env=message.env
         )
 
     @staticmethod
@@ -284,9 +404,12 @@ class HTTPServer:
 
     @staticmethod
     @app.get("/keys")
-    def get_keys():
-        # TODO return keys across all envs?
-        return HTTPServer.call_in_env_servlet("get_keys", [], env="base")
+    def get_keys(env: Optional[str] = None):
+        if not env:
+            return Response(
+                output_type=OutputType.RESULT, data=pickle_b64(env_for_key.keys())
+            )
+        return HTTPServer.call_in_env_servlet("get_keys", [], env=env)
 
     @staticmethod
     @app.post("/secrets")
@@ -388,9 +511,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--conda_env", type=str, default=None, help="Conda env to run server in"
     )
-    args = parser.parse_args()
-    port = args.port
-    conda_name = args.conda_env
+    parse_args = parser.parse_args()
+    port = parse_args.port
+    conda_name = parse_args.conda_env
     import uvicorn
 
     HTTPServer(conda_env=conda_name)

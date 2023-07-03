@@ -1,4 +1,5 @@
 import codecs
+import inspect
 import logging
 import traceback
 from pathlib import Path
@@ -7,9 +8,12 @@ import ray
 import ray.cloudpickle as pickle
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-from runhouse.rh_config import configs, obj_store
+from runhouse.rh_config import configs, env_for_key, obj_store
+from runhouse.rns.blobs import blob
 from runhouse.rns.packages.package import Package
+from runhouse.rns.resource import Resource
 from runhouse.rns.run_module_utils import call_fn_by_type
+from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.http_utils import (
     b64_unpickle,
     Message,
@@ -57,6 +61,91 @@ class EnvServlet:
             logger.exception(e)
             self.register_activity()
             return Response(
+                error=pickle_b64(e),
+                traceback=pickle_b64(traceback.format_exc()),
+                output_type=OutputType.EXCEPTION,
+            )
+
+    def put_resource(self, message: Message):
+        self.register_activity()
+        try:
+            resource_config, dryrun = b64_unpickle(message.data)
+            # Resolve any sub-resources which are string references to resources already sent to this cluster
+            resource_config = obj_store.get_obj_refs_dict(resource_config)
+            logger.info(
+                f"Message received from client to construct resource: {resource_config}"
+            )
+            resource = Resource.from_config(config=resource_config, dryrun=dryrun)
+            name = resource.name or _generate_default_name(
+                prefix=resource.RESOURCE_TYPE
+            )
+            obj_store.put(name, resource)
+            env_for_key.put(name, self.env_name)
+            self.register_activity()
+            return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            logger.exception(e)
+            self.register_activity()
+            return Response(
+                error=pickle_b64(e),
+                traceback=pickle_b64(traceback.format_exc()),
+                output_type=OutputType.EXCEPTION,
+            )
+
+    def call_module_method(self, module_name, method_name, message: Message):
+        self.register_activity()
+        try:
+            args, kwargs = b64_unpickle(message.data)
+            logger.info(
+                f"Message received from client to call method {method_name} on resource {module_name}"
+            )
+            resource = obj_store.get(module_name, None)
+            if not resource:
+                raise ValueError(f"Resource {module_name} not found")
+            method = getattr(resource, method_name, None)
+            if not method:
+                raise ValueError(
+                    f"Method {method_name} not found on resource {module_name}"
+                )
+
+            if inspect.isgenerator(method):
+                # Stream back the results of the generator
+                saved = False
+                for result in method(*args, **kwargs):
+                    self.register_activity()
+                    if not saved and message.save:
+                        blob(data=[]).save(message.key)
+                        saved = True
+                    if message.save:
+                        prior_results = blob(name=message.key).fetch()
+                        blob(data=prior_results + [result]).write(message.key)
+                    yield Response(
+                        output_type=OutputType.RESULT_STREAM, data=pickle_b64(result)
+                    )
+            else:
+                if hasattr(method, "__call__"):
+                    # If method is callable, call it and return the result
+                    logger.info(
+                        f"{self.env_name} servlet: Calling method {method_name} on resource {module_name}"
+                    )
+                    result = method(*args, **kwargs)
+                else:
+                    # Method is a property, return the value
+                    logger.info(
+                        f"Env {self.env_name} servlet: Getting property {method_name} on resource {module_name}"
+                    )
+                    result = method
+                if message.save:
+                    if isinstance(result, Resource):
+                        result.save(message.key)
+                    else:
+                        blob(name=message.key, data=result).save()
+                self.register_activity()
+                yield Response(output_type=OutputType.RESULT, data=pickle_b64(result))
+        except Exception as e:
+            logger.exception(e)
+            self.register_activity()
+            yield Response(
                 error=pickle_b64(e),
                 traceback=pickle_b64(traceback.format_exc()),
                 output_type=OutputType.EXCEPTION,
@@ -185,6 +274,7 @@ class EnvServlet:
         logger.info(f"Message received from client to get object: {key}")
         try:
             obj_store.put(key, obj)
+            env_for_key.put(key, self.env_name)
             return Response(output_type=OutputType.SUCCESS)
         except Exception as e:
             logger.exception(e)
@@ -301,7 +391,7 @@ class EnvServlet:
 
     def get_keys(self):
         self.register_activity()
-        keys: list = obj_store.keys()
+        keys: list = list(obj_store.keys())
         return Response(data=pickle_b64(keys), output_type=OutputType.RESULT)
 
     def add_secrets(self, message: Message):

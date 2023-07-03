@@ -13,8 +13,8 @@ from ray import cloudpickle as pickle
 
 from runhouse import rh_config
 from runhouse.rns.utils.api import resolve_absolute_path
-from runhouse.rns.utils.names import _generate_default_name
 from runhouse.rns.utils.env import _env_vars_from_file
+from runhouse.rns.utils.names import _generate_default_name
 
 logger = logging.getLogger(__name__)
 

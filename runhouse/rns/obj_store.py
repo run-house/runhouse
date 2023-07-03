@@ -76,7 +76,7 @@ class ObjStore:
     LOGS_DIR = ".rh/logs"
     RH_LOGFILE_PATH = Path.home() / LOGS_DIR
 
-    def __init__(self, cluster_name: Optional[str] = None):
+    def __init__(self, name=None, cluster_name: Optional[str] = None):
         if not ray.is_initialized():
             ray.init(
                 ignore_reinit_error=True,
@@ -88,7 +88,7 @@ class ObjStore:
         cuda_visible_devices = list(range(int(num_gpus)))
         os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
         self._kv_actor = ObjStoreActor.options(
-            name="obj_store_kv",
+            name=name,
             get_if_exists=True,
             lifetime="detached",
             namespace="runhouse",
