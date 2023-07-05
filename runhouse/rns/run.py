@@ -19,7 +19,8 @@ from runhouse.rns.top_level_rns_fns import resolve_rns_path
 from runhouse.rns.utils.api import log_timestamp, resolve_absolute_path
 from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
 
-logger = logging.getLogger(__name__)
+# Load the root logger
+logger = logging.getLogger("")
 
 
 class RunStatus(str, Enum):
@@ -105,6 +106,8 @@ class Run(Resource):
         self._stderr_path = self._path_to_file_by_ext(ext=".err")
 
     def __enter__(self):
+        from runhouse.logger import FunctionLogHandler
+
         self.status = RunStatus.RUNNING
         self.start_time = self._current_timestamp()
 
@@ -113,6 +116,10 @@ class Run(Resource):
 
         sys.stdout = StringIO()
         sys.stderr = StringIO()
+
+        # Create a custom logging handler and attach it to the logger used within that function
+        self._function_log_handler = FunctionLogHandler()
+        logger.addHandler(self._function_log_handler)
 
         return self
 
@@ -127,17 +134,21 @@ class Run(Resource):
         # for function based Runs
         self._write_config()
 
-        if self.run_type in [RunType.FUNCTION_RUN, RunType.CMD_RUN]:
-            # For function based Runs we use the logfiles already generated for the current Ray worker
-            # on the cluster, and for cmd runs we are using the SSH command runner to get the stdout / stderr
+        if self.run_type == RunType.CMD_RUN:
+            # For cmd runs we are using the SSH command runner to get the stdout / stderr
             return
 
-        stdout = sys.stdout.getvalue()
-        stderr = sys.stderr.getvalue()
+        captured_logs = self._function_log_handler.log_records
+        stdout = self._function_log_handler.log_records_to_stdout(captured_logs)
+
+        stderr = f"{type(exc_value).__name__}: {str(exc_value)}" if exc_value else ""
 
         # save stdout and stderr to their respective log files
         self.write(data=stdout.encode(), path=self._stdout_path)
         self.write(data=stderr.encode(), path=self._stderr_path)
+
+        # Remove the FunctionLogHandler from the logger
+        logger.removeHandler(self._function_log_handler)
 
         # return False to propagate any exception that occurred inside the with block
         return False

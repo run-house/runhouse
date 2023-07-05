@@ -184,17 +184,16 @@ class ObjStore:
     def get_logfiles(self, key: str, log_type=None):
         # Info on ray logfiles: https://docs.ray.io/en/releases-2.2.0/ray-observability/ray-logging.html#id1
         if self.contains(key):
-            # Logs are like worker-[worker_id]-[job_id]-[pid].[out|err]
+            # Logs are like: `.rh/logs/key.[out|err]`
             key_logs_path = Path(self.RH_LOGFILE_PATH) / key
-            # stdout_files = ray_logs_path.glob(f'worker-*-{obj_ref.job_id().hex()}-*.out')
-            suffix = (
-                ".out"
+            glob_pattern = (
+                "*.out"
                 if log_type == "stdout"
-                else ".err"
+                else "*.err"
                 if log_type == "stderr"
-                else ""
+                else "*.[oe][ur][tr]"
             )
-            return [str(f.absolute()) for f in key_logs_path.glob(f"worker*{suffix}")]
+            return [str(f.absolute()) for f in key_logs_path.glob(glob_pattern)]
         else:
             return None
 

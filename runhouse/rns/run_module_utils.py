@@ -2,7 +2,6 @@ import importlib
 import logging
 import os
 import sys
-import time
 from functools import wraps
 from pathlib import Path
 from typing import Any, Union
@@ -111,7 +110,9 @@ def call_fn_by_type(
 
     fn_pointers = (module_path, module_name, fn_name)
 
-    logging_wrapped_fn = enable_logging_fn_wrapper(get_fn_from_pointers, run_name)
+    run_obj = _create_new_run(run_name, fn_name, args, kwargs)
+
+    logging_wrapped_fn = enable_logging_fn_wrapper(get_fn_from_pointers, run_obj)
 
     ray_fn = ray.remote(
         num_cpus=resources.get("num_cpus") or 0.0001,
@@ -127,7 +128,6 @@ def call_fn_by_type(
             for arg in args
         ]
     elif fn_type in ("queue", "remote", "call", "nested"):
-        run_obj = _create_new_run(run_name, fn_name, args, kwargs)
         obj_ref = ray_fn.remote(
             fn_pointers, serialize_res, num_cuda_devices, *args, **kwargs
         )
@@ -153,6 +153,7 @@ def call_fn_by_type(
 
 def get_fn_from_pointers(fn_pointers, serialize_res, num_gpus, *args, **kwargs):
     (module_path, module_name, fn_name) = fn_pointers
+    run_obj = kwargs.pop("run_obj")
 
     if module_name == "notebook":
         fn = fn_name  # already unpickled
@@ -177,19 +178,21 @@ def get_fn_from_pointers(fn_pointers, serialize_res, num_gpus, *args, **kwargs):
     cuda_visible_devices = list(range(int(num_gpus)))
     os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
 
-    result = fn(*args, **kwargs)
+    with run_obj:
+        try:
+            result = fn(*args, **kwargs)
+        except Exception as e:
+            result = e
+            logger.error(f"Error executing function: {e}")
+
+            # write traceback to the Run's .err file
+            stderr_path = run_obj._stderr_path
+            logger.info(f"Writing stderr to path: {stderr_path}")
+            run_obj.write(data=str(e).encode(), path=stderr_path)
+
     if serialize_res:
         return pickle.dumps(result)
     return result
-
-
-def _stdout_files_for_fn():
-    worker_id = ray._private.worker.global_worker.worker_id.hex()
-
-    ray_logs_path = RAY_LOGFILE_PATH
-    stdout_files = list(ray_logs_path.glob(f"worker-{worker_id}-*"))
-
-    return stdout_files
 
 
 def _populate_run_with_result(run_obj, fn_type, obj_ref) -> ["Run", Any]:
@@ -292,7 +295,6 @@ def _get_result_from_ray(run_obj, obj_ref):
         # write traceback to new error file - this will be loaded as the result of the Run
         stderr_path = run_obj._stderr_path
         logger.info(f"Writing error to stderr path: {stderr_path}")
-        time.sleep(1)
         run_obj.write(data=str(e).encode(), path=stderr_path)
 
     finally:
@@ -361,19 +363,14 @@ def _save_run_result(result: bytes, run_obj):
 RAY_LOGFILE_PATH = Path("/tmp/ray/session_latest/logs")
 
 
-def enable_logging_fn_wrapper(fn, run_name):
+def enable_logging_fn_wrapper(fn, run_obj):
     @wraps(fn)
     def wrapped_fn(*inner_args, **inner_kwargs):
         """Sets the logfiles for a function to be the logfiles for the current ray worker.
         This is used to stream logs from the worker to the client."""
-        logdir = Path.home() / ".rh/logs" / run_name
+        logdir = Path.home() / ".rh/logs" / run_obj.name
         logdir.mkdir(exist_ok=True, parents=True)
-        # Create simlinks to the ray log files in the run directory
-        stdout_files: list = _stdout_files_for_fn()
-        for f in stdout_files:
-            symlink = logdir / f.name
-            if not symlink.exists():
-                symlink.symlink_to(f)
-        return fn(*inner_args, **inner_kwargs)
+
+        return fn(run_obj=run_obj, *inner_args, **inner_kwargs)
 
     return wrapped_fn
