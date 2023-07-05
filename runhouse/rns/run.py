@@ -8,11 +8,11 @@ from typing import Any, Optional, Union
 
 from ray import cloudpickle as pickle
 
-from runhouse import blob
 from runhouse.rh_config import obj_store, rns_client
 
 # Need to alias so it doesn't conflict with the folder property
 from runhouse.rns.folders import Folder, folder as folder_factory
+from runhouse.rns.blobs import file
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.resource import Resource
 from runhouse.rns.top_level_rns_fns import resolve_rns_path
@@ -206,7 +206,7 @@ class Run(Resource):
 
     def write(self, data: Any, path: str):
         """Write data (ex: function inputs or result, stdout, stderr) to the Run's dedicated folder on the system."""
-        blob(data=data, system=self.folder.system, path=path)
+        file(system=self.folder.system, path=path).write(data, serialize=False)
 
     def to(
         self,
@@ -308,7 +308,7 @@ class Run(Resource):
 
     def _load_blob_from_path(self, path: str):
         """Load a blob from the Run's folder in the specified path. (ex: function inputs, result, stdout, stderr)."""
-        return blob(path=path, system=self.folder.system)
+        return file(path=path, system=self.folder.system)
 
     def _register_new_run(self):
         """Log a Run once it's been triggered on the system."""
