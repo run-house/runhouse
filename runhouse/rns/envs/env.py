@@ -1,5 +1,8 @@
 import copy
+import logging
+import subprocess
 from pathlib import Path
+import shlex
 from typing import Dict, List, Optional, Union
 
 from runhouse.rns.folders import Folder
@@ -8,6 +11,9 @@ from runhouse.rns.packages import Package
 from runhouse.rns.resource import Resource
 
 from runhouse.rns.utils.hardware import _get_cluster_from
+
+
+logger = logging.getLogger(__name__)
 
 
 class Env(Resource):
@@ -42,6 +48,9 @@ class Env(Resource):
             Package.from_config(req) if isinstance(req, dict) else req
             for req in config.get("reqs", [])
         ]
+        config["working_dir"] = Package.from_config(config["working_dir"]) \
+            if isinstance(config["working_dir"], dict) \
+            else config["working_dir"]
 
         resource_subtype = config.get("resource_subtype")
         if resource_subtype == "CondaEnv":
@@ -62,14 +71,14 @@ class Env(Resource):
                 ],
                 "setup_cmds": self.setup_cmds,
                 "env_vars": self.env_vars,
-                "working_dir": self.working_dir,
+                "working_dir": self._resource_string_for_subconfig(self.working_dir),
             }
         )
         return config
 
     @property
     def reqs(self):
-        return (self._reqs or []) + [self.working_dir]
+        return (self._reqs or []) + ([self.working_dir] if self.working_dir else [])
 
     @reqs.setter
     def reqs(self, reqs):
@@ -91,7 +100,9 @@ class Env(Resource):
                     else req.to(system, path=path)
                 )
             new_reqs.append(req)
-        return new_reqs
+        if self.working_dir:
+            return new_reqs[:-1], new_reqs[-1]
+        return new_reqs, None
 
     def _setup_env(self, system: Cluster):
         """Install packages and run setup commands on the cluster."""
@@ -99,6 +110,34 @@ class Env(Resource):
             system.install_packages(self.reqs)
         if self.setup_cmds:
             system.run(self.setup_cmds)
+
+    def install(self):
+        """Locally install packages and run setup commands."""
+        for package in self.reqs:
+            if isinstance(package, str):
+                pkg = Package.from_string(package)
+            elif hasattr(package, "_install"):
+                pkg = package
+            else:
+                raise ValueError(f"package {package} not recognized")
+
+            logger.info(f"Installing package: {str(pkg)}")
+            pkg._install(self)
+        return self.run(self.setup_cmds) if self.setup_cmds else None
+
+    def run(self, cmds: List[str]):
+        """Run command locally inside the environment"""
+        ret_codes = []
+        for cmd in cmds:
+            if self._run_cmd:
+                cmd = f"{self._run_cmd} {cmd}"
+            logging.info(f"Running: {cmd}")
+            ret_code = subprocess.call(shlex.split(cmd),
+                                       env=self.env_vars or None,
+                                       # cwd=self.working_dir,  # Should we do this?
+                                       shell=False)
+            ret_codes.append(ret_code)
+        return ret_codes
 
     def to(self, system: Union[str, Cluster], path=None, mount=False):
         """
@@ -112,11 +151,11 @@ class Env(Resource):
         """
         system = _get_cluster_from(system)
         new_env = copy.deepcopy(self)
-        new_env.reqs = self._reqs_to(system, path, mount)
+        new_env.reqs, new_env.working_dir = self._reqs_to(system, path, mount)
 
         if isinstance(system, Cluster):
-            system.check_server()
-            new_env._setup_env(system)
+            key = system.put_resource(new_env)
+            system.call_module_method(key, "install")
 
         return new_env
 

@@ -249,17 +249,15 @@ class Package(Resource):
     @staticmethod
     def _pip_install(install_cmd: str, env: Union[str, "Env"] = ""):
         """Run pip install."""
+        pip_cmd = f"pip install {install_cmd}"
         if env:
-            if isinstance(env, str):
-                from runhouse.rns.envs import Env
-
-                env = Env.from_name(env)
-            cmd_prefix = env._run_cmd
+            from runhouse.rns.utils.env import _get_env_from
+            env = _get_env_from(env)
+            env.run([pip_cmd])
         else:
-            cmd_prefix = f"{sys.executable} -m"
-        cmd = f"{cmd_prefix} pip install {install_cmd}"
-        logging.info(f"Running: {cmd}")
-        subprocess.check_call(cmd.split(" "))
+            cmd = f"{sys.executable} -m {pip_cmd}"
+            logging.info(f"Running: {cmd}")
+            subprocess.check_call(cmd.split(" "))
 
     @staticmethod
     def _conda_install(install_cmd: str, env: Union[str, "Env"] = ""):

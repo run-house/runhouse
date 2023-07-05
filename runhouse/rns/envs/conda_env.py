@@ -97,6 +97,9 @@ class CondaEnv(Env):
             cmd = f"{self._activate_cmd} && {self.setup_cmds.join(' && ')}"
             system.run([cmd])
 
+    def install(self):
+        pass  # TODO [CC]
+
     @property
     def _run_cmd(self):
         """Command prefix to run on Conda Env."""

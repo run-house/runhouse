@@ -221,7 +221,7 @@ class HTTPClient:
         if env and not isinstance(env, str):
             env = _get_env_from(env)
             env = env.name
-        self.request(
+        return self.request(
             "resource",
             req_type="post",
             data=pickle_b64((resource.config_for_rns, resource.dryrun)),

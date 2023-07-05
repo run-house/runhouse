@@ -804,8 +804,9 @@ def function(
             "``reqs`` argument has been deprecated. Please use ``env`` instead."
         )
         env = Env(reqs=reqs, setup_cmds=setup_cmds)
-    else:
+    elif not isinstance(env, Env):
         env = _get_env_from(env) or Env()
+        env.working_dir = env.working_dir or "./"
 
     fn_pointers = None
     if callable(fn):

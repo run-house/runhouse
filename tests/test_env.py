@@ -44,8 +44,9 @@ def test_create_env():
 
 
 @pytest.mark.clustertest
-def test_to_cluster(cpu_cluster):
-    test_env = rh.env(name="test_env", reqs=["transformers"])
+@pytest.mark.parametrize("env_name", ["base", "test_env"])
+def test_to_cluster(cpu_cluster, env_name):
+    test_env = rh.env(name=env_name, reqs=["transformers"])
 
     test_env.to(cpu_cluster)
     res = cpu_cluster.run_python(["import transformers"])
@@ -150,19 +151,18 @@ def test_env_git_reqs(cpu_cluster):
 
 
 @pytest.mark.clustertest
-def test_working_dir(cpu_cluster):
-    working_dir = "test_working_dir"
-    os.makedirs(working_dir, exist_ok=True)
+def test_working_dir(cpu_cluster, tmp_path):
+    working_dir = tmp_path / "test_working_dir"
+    working_dir.mkdir(exist_ok=True)
 
-    env = rh.env(working_dir=working_dir)
-    assert working_dir in env.reqs
+    env = rh.env(working_dir=str(working_dir))
+    assert str(working_dir) in env.reqs
 
     env.to(cpu_cluster)
-    assert working_dir in cpu_cluster.run(["ls"])[0][1]
+    assert working_dir.name in cpu_cluster.run(["ls"])[0][1]
 
-    os.rmdir(working_dir)
-    cpu_cluster.run([f"rm -r {working_dir}"])
-    assert working_dir not in cpu_cluster.run(["ls"])[0][1]
+    cpu_cluster.run([f"rm -r {working_dir.name}"])
+    assert working_dir.name not in cpu_cluster.run(["ls"])[0][1]
 
 
 # -------- CONDA ENV TESTS ----------- #
@@ -211,10 +211,10 @@ def test_conda_env_from_name_rns():
 
 
 @pytest.mark.clustertest
-def test_conda_env_path_to_system(cpu_cluster):
+def test_conda_env_path_to_system(cpu_cluster, tmp_path):
     env_name = "from_path"
     python_version = "3.9.16"
-    tmp_path = Path.cwd() / "test-env"
+    tmp_path = tmp_path / "test-env"
     file_path = f"{tmp_path}/{env_name}.yml"
     tmp_path.mkdir(exist_ok=True)
     yaml.dump(

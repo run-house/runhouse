@@ -84,7 +84,8 @@ class EnvServlet:
             obj_store.put(name, resource)
             env_for_key.put(name, self.env_name)
             self.register_activity()
-            return Response(output_type=OutputType.SUCCESS)
+            # Return the name in case we had to set it
+            return Response(output_type=OutputType.RESULT, data=pickle_b64(name))
         except Exception as e:
             logger.exception(e)
             self.register_activity()

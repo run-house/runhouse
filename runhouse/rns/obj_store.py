@@ -80,7 +80,7 @@ class ObjStore:
         if not ray.is_initialized():
             ray.init(
                 ignore_reinit_error=True,
-                namespace="runhouse_server",
+                namespace="runhouse",
             )
 
         self.cluster_name = cluster_name or _current_cluster("cluster_name")
