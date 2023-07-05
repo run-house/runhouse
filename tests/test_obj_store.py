@@ -39,7 +39,7 @@ def do_tqdm_printing_and_logging(steps=6):
 @pytest.mark.clustertest
 def test_get_from_cluster(cpu_cluster):
     print_fn = rh.function(fn=do_printing_and_logging, system=cpu_cluster)
-    run_obj = print_fn.run(run_name="my_run")
+    run_obj = print_fn.run()
     assert isinstance(run_obj, rh.Run)
 
     res = cpu_cluster.get(run_obj.name, stream_logs=True)

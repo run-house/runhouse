@@ -3,7 +3,6 @@ import json
 import logging
 import sys
 from enum import Enum
-from io import StringIO
 from typing import Any, Optional, Union
 
 from ray import cloudpickle as pickle
@@ -114,12 +113,14 @@ class Run(Resource):
         # Begin tracking the Run in the rns_client - this adds the current Run to the stack of active Runs
         rns_client.start_run(self)
 
-        sys.stdout = StringIO()
-        sys.stderr = StringIO()
+        # TODO [DG->JL] Why do we need these?
+        # sys.stdout = StringIO()
+        # sys.stderr = StringIO()
 
-        # Create a custom logging handler and attach it to the logger used within that function
-        self._function_log_handler = FunctionLogHandler()
-        logger.addHandler(self._function_log_handler)
+        self._stdout_handler = logging.StreamHandler(sys.stdout)
+        logger.addHandler(self._stdout_handler)
+        self._outfile_handler = logging.FileHandler(self._stdout_path)
+        logger.addHandler(self._outfile_handler)
 
         return self
 
@@ -130,25 +131,26 @@ class Run(Resource):
         # Pop the current Run from the stack of active Runs
         rns_client.stop_run()
 
-        # Save Run config to its folder on the system - this will already happen on the cluster
-        # for function based Runs
-        self._write_config()
-
         if self.run_type == RunType.CMD_RUN:
+            # Save Run config to its folder on the system - this will already happen on the cluster
+            # for function based Runs
+            self._write_config()
+
             # For cmd runs we are using the SSH command runner to get the stdout / stderr
             return
 
-        captured_logs = self._function_log_handler.log_records
-        stdout = self._function_log_handler.log_records_to_stdout(captured_logs)
-
-        stderr = f"{type(exc_value).__name__}: {str(exc_value)}" if exc_value else ""
-
-        # save stdout and stderr to their respective log files
-        self.write(data=stdout.encode(), path=self._stdout_path)
-        self.write(data=stderr.encode(), path=self._stderr_path)
+        # TODO [DG->JL] Do we still need this?
+        # stderr = f"{type(exc_value).__name__}: {str(exc_value)}" if exc_value else ""
+        # self.write(data=stderr.encode(), path=self._stderr_path)
 
         # Remove the FunctionLogHandler from the logger
-        logger.removeHandler(self._function_log_handler)
+        # logger.removeHandler(self._function_log_handler)
+        logger.removeHandler(self._stdout_handler)
+        logger.removeHandler(self._outfile_handler)
+
+        # Save Run config to its folder on the system - this will already happen on the cluster
+        # for function based Runs
+        self._write_config()
 
         # return False to propagate any exception that occurred inside the with block
         return False
