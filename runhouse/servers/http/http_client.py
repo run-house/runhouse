@@ -18,9 +18,10 @@ class HTTPClient:
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     CHECK_TIMEOUT_SEC = 5
 
-    def __init__(self, host, port=DEFAULT_PORT):
+    def __init__(self, host, port=DEFAULT_PORT, auth=None):
         self.host = host
         self.port = port
+        self.auth = auth
 
     def request(self, endpoint, req_type="post", data=None, err_str=None, timeout=None):
         req_fn = (
@@ -36,6 +37,7 @@ class HTTPClient:
             f"http://{self.host}:{self.port}/{endpoint}/",
             json={"data": data},
             timeout=timeout,
+            auth=self.auth,
         )
         if response.status_code != 200:
             raise ValueError(

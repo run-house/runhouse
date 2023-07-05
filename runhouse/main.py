@@ -81,7 +81,7 @@ def ssh(cluster_name: str, up: bool = typer.Option(False, help="Start the cluste
             f"Cluster {cluster_name} is not up. Please run `runhouse ssh {cluster_name} --up`."
         )
         raise typer.Exit(1)
-    subprocess.call(f"ssh {c.name}", shell=True)
+    c.ssh()
 
 
 @app.command()

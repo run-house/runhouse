@@ -200,13 +200,19 @@ class Folder(Resource):
                         "Cluster must be started before copying data from it."
                     )
             creds = self.system.ssh_creds()
+
+            client_keys = (
+                [str(Path(creds["ssh_private_key"]).expanduser())]
+                if creds.get("ssh_private_key")
+                else []
+            )
+            password = creds.get("password", None)
             config_creds = {
                 "host": self.system.address,
                 "username": creds["ssh_user"],
                 # 'key_filename': str(Path(creds['ssh_private_key']).expanduser())}  # For SFTP
-                "client_keys": [
-                    str(Path(creds["ssh_private_key"]).expanduser())
-                ],  # For SSHFS
+                "client_keys": client_keys,  # For SSHFS
+                "password": password,
                 "connect_timeout": "3s",
             }
             ret_config = self._data_config.copy()
@@ -498,6 +504,7 @@ class Folder(Resource):
         return dest_folder
 
     def _cluster_to_cluster(self, dest_cluster, dest_path):
+        # TODO [CC] this part also needs to support password, using fsspec
         src_path = self.path
 
         cluster_creds = self.system.ssh_creds()

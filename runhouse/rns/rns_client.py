@@ -353,7 +353,13 @@ class RNSClient:
 
     def _save_config_in_rns(self, config, resource_name):
         """Update or create resource config in database"""
-        logger.info(f"Saving config to RNS: {config}")
+        # if config.get("ssh_creds"):
+        #     temp_config = config.copy()
+        #     for cred in temp_config["ssh_creds"]:
+        #         temp_config["ssh_creds"][cred] = "***"
+        #     logger.info(f"Saving config to RNS: {temp_config}")
+        if not config.get("ssh_creds"):
+            logger.info(f"Saving config to RNS: {config}")
 
         resource_uri = self.resource_uri(resource_name)
         uri = f"resource/{resource_uri}"
