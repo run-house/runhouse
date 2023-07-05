@@ -252,6 +252,7 @@ class Package(Resource):
         pip_cmd = f"pip install {install_cmd}"
         if env:
             from runhouse.rns.utils.env import _get_env_from
+
             env = _get_env_from(env)
             env.run([pip_cmd])
         else:

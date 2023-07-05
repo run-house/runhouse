@@ -3,6 +3,8 @@ import logging
 import time
 import unittest
 
+import numpy as np
+
 import pytest
 
 import runhouse as rh
@@ -129,8 +131,14 @@ def test_put_resource(cpu_cluster, test_env):
     cpu_cluster.put_resource(test_env)
     assert cpu_cluster.get("test_env").config_for_rns == test_env.config_for_rns
 
-    assert cpu_cluster.call_module_method("test_env", "config_for_rns", stream_logs=True) == test_env.config_for_rns
-    assert cpu_cluster.call_module_method("test_env", "name", stream_logs=True) == "test_env"
+    assert (
+        cpu_cluster.call_module_method("test_env", "config_for_rns", stream_logs=True)
+        == test_env.config_for_rns
+    )
+    assert (
+        cpu_cluster.call_module_method("test_env", "name", stream_logs=True)
+        == "test_env"
+    )
 
 
 @pytest.mark.clustertest
@@ -163,6 +171,27 @@ def test_pinning_to_gpu(k80_gpu_cluster):
     k80_gpu_cluster.delete_keys()
     fn_1 = rh.function(serialization_helper_1).to(k80_gpu_cluster)
     fn_2 = rh.function(serialization_helper_2).to(k80_gpu_cluster)
+    fn_1()
+    fn_2()
+
+
+def np_serialization_helper_1():
+    rh.blob(data=np.zeros(100), name="np_arr")
+
+
+def np_serialization_helper_2():
+    arr = rh.blob(name="np_arr").fetch()
+    arr[0] = 1
+    return arr
+
+
+@pytest.mark.clustertest
+def test_pinning_in_memory(cpu_cluster):
+    # Based on the following quirk having to do with Numpy objects becoming immutable if they're serialized:
+    # https://docs.ray.io/en/latest/ray-core/objects/serialization.html#fixing-assignment-destination-is-read-only
+    cpu_cluster.delete_keys()
+    fn_1 = rh.function(np_serialization_helper_1).to(cpu_cluster)
+    fn_2 = rh.function(np_serialization_helper_2).to(cpu_cluster)
     fn_1()
     fn_2()
 

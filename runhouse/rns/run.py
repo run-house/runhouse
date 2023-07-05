@@ -8,10 +8,10 @@ from typing import Any, Optional, Union
 from ray import cloudpickle as pickle
 
 from runhouse.rh_config import obj_store, rns_client
+from runhouse.rns.blobs import file
 
 # Need to alias so it doesn't conflict with the folder property
 from runhouse.rns.folders import Folder, folder as folder_factory
-from runhouse.rns.blobs import file
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.resource import Resource
 from runhouse.rns.top_level_rns_fns import resolve_rns_path
@@ -105,8 +105,6 @@ class Run(Resource):
         self._stderr_path = self._path_to_file_by_ext(ext=".err")
 
     def __enter__(self):
-        from runhouse.logger import FunctionLogHandler
-
         self.status = RunStatus.RUNNING
         self.start_time = self._current_timestamp()
 
@@ -143,8 +141,6 @@ class Run(Resource):
         # stderr = f"{type(exc_value).__name__}: {str(exc_value)}" if exc_value else ""
         # self.write(data=stderr.encode(), path=self._stderr_path)
 
-        # Remove the FunctionLogHandler from the logger
-        # logger.removeHandler(self._function_log_handler)
         logger.removeHandler(self._stdout_handler)
         logger.removeHandler(self._outfile_handler)
 

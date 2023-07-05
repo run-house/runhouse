@@ -121,7 +121,7 @@ class Blob(Resource):
             return self._data
         if self.system.on_this_cluster():
             return obj_store.get(self.name)
-        return self.system.get(self.name)
+        return self.system.get(self.name, stream_logs=False)
 
     def _save_sub_resources(self):
         if isinstance(self.system, Resource):
@@ -259,7 +259,7 @@ def blob(
         >>> my_local_blob = rh.blob(name="~/my_blob")
         >>> my_s3_blob = rh.blob(name="@/my_blob")
     """
-    if name and not any([data, path, system, data_config]):
+    if name and not any([data is not None, path, system, data_config]):
         # Try reloading existing blob
         try:
             return Blob.from_name(name, dryrun)
@@ -275,7 +275,7 @@ def blob(
         # Blobs must be named, or we don't have a key for the kv store
         name = name or _generate_default_name(prefix="blob")
         new_blob = Blob(name=name, system=system, dryrun=dryrun)
-        if data:
+        if data is not None:
             new_blob.write(data)
         return new_blob
 
@@ -286,6 +286,6 @@ def blob(
     new_blob = File(
         name=name, path=path, system=system, data_config=data_config, dryrun=dryrun
     )
-    if data:
+    if data is not None:
         new_blob.write(data)
     return new_blob

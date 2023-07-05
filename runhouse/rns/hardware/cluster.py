@@ -271,9 +271,13 @@ class Cluster(Resource):
     def put_resource(self, resource: Resource):
         """Put the given resource on the cluster's object store. Returns the key (important if name is not set)."""
         self.check_server()
-        env = resource.env if hasattr(resource, "env") \
-            else resource.name if resource.RESOURCE_TYPE == "env" \
+        env = (
+            resource.env
+            if hasattr(resource, "env")
+            else resource.name
+            if resource.RESOURCE_TYPE == "env"
             else None
+        )
         return self.client.put_resource(resource, env=env)
 
     def rename(self, old_key: str, new_key: str):

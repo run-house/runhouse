@@ -179,16 +179,15 @@ def get_fn_from_pointers(fn_pointers, serialize_res, num_gpus, *args, **kwargs):
     os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
 
     with run_obj:
-        try:
-            result = fn(*args, **kwargs)
-        except Exception as e:
-            result = e
-            logger.error(f"Error executing function: {e}")
-
-            # write traceback to the Run's .err file
-            stderr_path = run_obj._stderr_path
-            logger.info(f"Writing stderr to path: {stderr_path}")
-            run_obj.write(data=str(e).encode(), path=stderr_path)
+        result = fn(*args, **kwargs)
+        # except Exception as e:
+        # result = e
+        # logger.error(f"Error executing function: {e}")
+        #
+        # # write traceback to the Run's .err file
+        # stderr_path = run_obj._stderr_path
+        # logger.info(f"Writing stderr to path: {stderr_path}")
+        # run_obj.write(data=str(e).encode(), path=stderr_path)
 
     if serialize_res:
         return pickle.dumps(result)

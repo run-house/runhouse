@@ -1,8 +1,8 @@
 import copy
 import logging
+import shlex
 import subprocess
 from pathlib import Path
-import shlex
 from typing import Dict, List, Optional, Union
 
 from runhouse.rns.folders import Folder
@@ -48,9 +48,11 @@ class Env(Resource):
             Package.from_config(req) if isinstance(req, dict) else req
             for req in config.get("reqs", [])
         ]
-        config["working_dir"] = Package.from_config(config["working_dir"]) \
-            if isinstance(config["working_dir"], dict) \
+        config["working_dir"] = (
+            Package.from_config(config["working_dir"])
+            if isinstance(config["working_dir"], dict)
             else config["working_dir"]
+        )
 
         resource_subtype = config.get("resource_subtype")
         if resource_subtype == "CondaEnv":
@@ -132,10 +134,12 @@ class Env(Resource):
             if self._run_cmd:
                 cmd = f"{self._run_cmd} {cmd}"
             logging.info(f"Running: {cmd}")
-            ret_code = subprocess.call(shlex.split(cmd),
-                                       env=self.env_vars or None,
-                                       # cwd=self.working_dir,  # Should we do this?
-                                       shell=False)
+            ret_code = subprocess.call(
+                shlex.split(cmd),
+                env=self.env_vars or None,
+                # cwd=self.working_dir,  # Should we do this?
+                shell=False,
+            )
             ret_codes.append(ret_code)
         return ret_codes
 
