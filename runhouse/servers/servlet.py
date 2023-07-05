@@ -76,6 +76,8 @@ class EnvServlet:
                 f"Message received from client to construct resource: {resource_config}"
             )
             resource = Resource.from_config(config=resource_config, dryrun=dryrun)
+            if not resource.name and message.key:
+                resource.name = message.key
             name = resource.name or _generate_default_name(
                 prefix=resource.RESOURCE_TYPE
             )

@@ -124,6 +124,16 @@ def test_pinning_and_arg_replacement(cpu_cluster):
 
 
 @pytest.mark.clustertest
+def test_put_resource(cpu_cluster, test_env):
+    test_env.name = "test_env"
+    cpu_cluster.put_resource(test_env)
+    assert cpu_cluster.get("test_env").config_for_rns == test_env.config_for_rns
+
+    assert cpu_cluster.call_module_method("test_env", "config_for_rns", stream_logs=True) == test_env.config_for_rns
+    assert cpu_cluster.call_module_method("test_env", "name", stream_logs=True) == "test_env"
+
+
+@pytest.mark.clustertest
 def test_fault_tolerance(cpu_cluster):
     cpu_cluster.delete_keys()
     cpu_cluster.put("my_list", list(range(5, 50, 2)) + ["a string"])

@@ -4,6 +4,7 @@ import time
 
 import requests
 
+from runhouse.rns.utils.env import _get_env_from
 from runhouse.servers.http.http_utils import handle_response, OutputType, pickle_b64
 
 logger = logging.getLogger(__name__)
@@ -214,6 +215,18 @@ class HTTPClient:
             data=pickle_b64((key, value)),
             env=env,
             err_str=f"Error putting object {key}",
+        )
+
+    def put_resource(self, resource, env=None):
+        if env and not isinstance(env, str):
+            env = _get_env_from(env)
+            env = env.name
+        self.request(
+            "resource",
+            req_type="post",
+            data=pickle_b64((resource.config_for_rns, resource.dryrun)),
+            env=env,
+            err_str=f"Error putting resource {resource.name or type(resource)}",
         )
 
     def rename_object(self, old_key, new_key):

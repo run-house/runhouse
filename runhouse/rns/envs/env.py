@@ -19,7 +19,7 @@ class Env(Resource):
         reqs: List[Union[str, Package]] = [],
         setup_cmds: List[str] = None,
         env_vars: Union[Dict, str] = {},
-        working_dir: Optional[Union[str, Path]] = "./",
+        working_dir: Optional[Union[str, Path]] = None,
         dryrun: bool = True,
         **kwargs,  # We have this here to ignore extra arguments when calling from_config
     ):
@@ -30,9 +30,7 @@ class Env(Resource):
             To create an Env, please use the factory method :func:`env`.
         """
         super().__init__(name=name, dryrun=dryrun)
-        self.reqs = reqs
-        if working_dir is not None:
-            self.reqs.append(working_dir)
+        self._reqs = reqs
         self.setup_cmds = setup_cmds
         self.env_vars = env_vars
         self.working_dir = working_dir
@@ -60,14 +58,22 @@ class Env(Resource):
             {
                 "reqs": [
                     self._resource_string_for_subconfig(package)
-                    for package in self.reqs
+                    for package in self._reqs
                 ],
                 "setup_cmds": self.setup_cmds,
                 "env_vars": self.env_vars,
-                "workding_dir": self.working_dir,
+                "working_dir": self.working_dir,
             }
         )
         return config
+
+    @property
+    def reqs(self):
+        return (self._reqs or []) + [self.working_dir]
+
+    @reqs.setter
+    def reqs(self, reqs):
+        self._reqs = reqs
 
     def _reqs_to(self, system: Union[str, Cluster], path=None, mount=False):
         """Send self.reqs to the system (cluster or file system)"""
