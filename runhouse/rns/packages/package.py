@@ -7,11 +7,13 @@ from pathlib import Path
 from typing import Dict, Optional, Union
 
 from runhouse import rh_config
-from runhouse.rns.folders.folder import Folder
+from runhouse.rns.folders import Folder, folder
 from runhouse.rns.resource import Resource
 from runhouse.rns.utils.hardware import _get_cluster_from
 
 INSTALL_METHODS = {"local", "reqs", "pip", "conda"}
+
+logger = logging.getLogger(__name__)
 
 
 class Package(Resource):
@@ -71,7 +73,7 @@ class Package(Resource):
             return f"Package: {self.install_target.path}"
         return f"Package: {self.install_target}"
 
-    def install(self, env: Union[str, "Env"] = None):
+    def _install(self, env: Union[str, "Env"] = None):
         """Install package.
 
         Args:
@@ -83,12 +85,12 @@ class Package(Resource):
         )
         install_cmd = ""
         install_args = f" {self.install_args}" if self.install_args else ""
-        cuda_version_or_cpu = self.detect_cuda_version_or_cpu()
+        cuda_version_or_cpu = self._detect_cuda_version_or_cpu()
 
         if isinstance(self.install_target, Folder):
             local_path = self.install_target.local_path
             if self.install_method == "pip":
-                # TODO [DG] Revisit: Would be nice if we could use -e by default, but importlib on the grpc server
+                # TODO [DG] Revisit: Would be nice if we could use -e by default, but importlib on the rpc server
                 #  isn't finding the package right after its installed.
                 # if (Path(local_path) / 'setup.py').exists():
                 #     install_cmd = f'-e {local_path}' + install_args
@@ -100,32 +102,28 @@ class Package(Resource):
                 reqs_path = f"{local_path}/requirements.txt"
                 logging.info(f"reqs path: {reqs_path}")
                 if Path(reqs_path).expanduser().exists():
-                    # Ensure each requirement listed in the file contains the full install command for torch packages
-                    reqs_from_file: list = self.format_torch_cmd_in_reqs_file(
-                        path=reqs_path, cuda_version_or_cpu=cuda_version_or_cpu
+                    install_cmd = self._requirements_txt_install_cmd(
+                        path=reqs_path,
+                        cuda_version_or_cpu=cuda_version_or_cpu,
+                        args=install_args,
                     )
-                    logging.info(f"Got reqs from file to install: {reqs_from_file}")
-
-                    # Format URLs for any torch packages listed in the requirements.txt file
                     logging.info(
-                        f"Attempting to install formatted requirements from {reqs_path} "
+                        f"pip installing requirements from {reqs_path} with: {install_cmd}"
                     )
-
-                    self.pip_install(install_cmd=" ".join(reqs_from_file))
-
+                    self._pip_install(install_cmd)
                 else:
                     logging.info(f"{local_path}/requirements.txt not found, skipping")
         else:
             install_cmd = self.install_target + install_args
 
         if self.install_method == "pip":
-            install_cmd = self.install_cmd_for_torch(install_cmd, cuda_version_or_cpu)
+            install_cmd = self._install_cmd_for_torch(install_cmd, cuda_version_or_cpu)
             if not install_cmd:
                 raise ValueError("Invalid install command")
 
-            self.pip_install(install_cmd, env)
+            self._pip_install(install_cmd, env)
         elif self.install_method == "conda":
-            self.conda_install(install_cmd, env)
+            self._conda_install(install_cmd, env)
         elif self.install_method in ["local", "reqs"]:
             if isinstance(self.install_target, Folder):
                 sys.path.append(local_path)
@@ -142,34 +140,42 @@ class Package(Resource):
         #         sys.modules[self.name] = pickle.load(f)
         else:
             raise ValueError(
-                f"Unknown install_method {self.install_method}. Try using cluster.run() or "
-                f"function.run_setup() to install instead."
+                f"Unknown install_method {self.install_method}. Try using cluster.run() or to install instead."
             )
 
     # ----------------------------------
     # Torch Install Helpers
     # ----------------------------------
-    def format_torch_cmd_in_reqs_file(self, path, cuda_version_or_cpu):
+    def _requirements_txt_install_cmd(self, path, cuda_version_or_cpu="", args=""):
         """Read requirements from file, append --index-url and --extra-index-url where relevant for torch packages,
         and return list of formatted packages."""
         with open(path) as f:
             reqs = f.readlines()
 
-        # Leave the file alone, maintain a separate list with the updated commands which we will later pip install
-        reqs_from_file = []
+        # if torch extra index url is already defined by the user or torch isn't a req, directly pip install reqs file
+        if not [req for req in reqs if "torch" in req]:
+            return f"-r {path}" + args
         for req in reqs:
-            install_cmd = self.install_cmd_for_torch(req.strip(), cuda_version_or_cpu)
-            reqs_from_file.append(install_cmd)
+            if (
+                "--index-url" in req or "--extra-index-url" in req
+            ) and "pytorch.org" in req:
+                return f"-r {path}" + args
 
-        return reqs_from_file
+        # add extra-index-url for torch if not found
+        return (
+            f"-r {path} --extra-index-url {self._torch_index_url(cuda_version_or_cpu)}"
+        )
 
-    def install_cmd_for_torch(self, install_cmd, cuda_version_or_cpu):
+    def _install_cmd_for_torch(self, install_cmd, cuda_version_or_cpu):
         """Return the correct formatted pip install command for the torch package(s) provided."""
+        if install_cmd.startswith("#"):
+            return None
+
         torch_source_packages = ["torch", "torchvision", "torchaudio"]
         if not any([x in install_cmd for x in torch_source_packages]):
             return install_cmd
 
-        packages_to_install: list = self.packages_to_install_from_cmd(install_cmd)
+        packages_to_install: list = self._packages_to_install_from_cmd(install_cmd)
         final_install_cmd = ""
         for package_install_cmd in packages_to_install:
             formatted_cmd = self._install_url_for_torch_package(
@@ -188,7 +194,7 @@ class Package(Resource):
             # If installing a range of versions format the string to make it compatible with `pip_install` method
             install_cmd = install_cmd.replace(" ", "")
 
-        index_url = self.torch_index_url(cuda_version_or_cpu)
+        index_url = self._torch_index_url(cuda_version_or_cpu)
         if index_url and not any(
             specifier in install_cmd for specifier in ["--index-url ", "-i "]
         ):
@@ -199,11 +205,11 @@ class Package(Resource):
 
         return install_cmd
 
-    def torch_index_url(self, cuda_version_or_cpu: str):
+    def _torch_index_url(self, cuda_version_or_cpu: str):
         return self.TORCH_INDEX_URLS.get(cuda_version_or_cpu)
 
     @staticmethod
-    def detect_cuda_version_or_cpu():
+    def _detect_cuda_version_or_cpu():
         """Return the CUDA version on the cluster. If we are on a CPU-only cluster return 'cpu'.
 
         Note: A cpu-only machine may have the CUDA toolkit installed, which means nvcc will still return
@@ -223,7 +229,7 @@ class Package(Resource):
             return "cpu"
 
     @staticmethod
-    def packages_to_install_from_cmd(install_cmd: str):
+    def _packages_to_install_from_cmd(install_cmd: str):
         """Split a string of command(s) into a list of separate commands"""
         # Remove any --extra-index-url flags from the install command (to be added later by default)
         install_cmd = re.sub(r"--extra-index-url\s+\S+", "", install_cmd)
@@ -241,7 +247,7 @@ class Package(Resource):
     # ----------------------------------
 
     @staticmethod
-    def pip_install(install_cmd: str, env: Union[str, "Env"] = ""):
+    def _pip_install(install_cmd: str, env: Union[str, "Env"] = ""):
         """Run pip install."""
         if env:
             if isinstance(env, str):
@@ -256,7 +262,7 @@ class Package(Resource):
         subprocess.check_call(cmd.split(" "))
 
     @staticmethod
-    def conda_install(install_cmd: str, env: Union[str, "Env"] = ""):
+    def _conda_install(install_cmd: str, env: Union[str, "Env"] = ""):
         """Run conda install."""
         cmd = f"conda install -y {install_cmd}"
         if env:
@@ -296,13 +302,15 @@ class Package(Resource):
             raise TypeError(
                 "`install_target` must be a Folder in order to copy the package to a system."
             )
-
         system = _get_cluster_from(system)
         if self.install_target.system == system:
             return self
 
         if isinstance(system, Resource):
-            new_folder = self.install_target.to_cluster(system, path=path, mount=mount)
+            logger.info(
+                f"Copying folder from {self.install_target.fsspec_url} to: {getattr(system, 'name', system)}"
+            )
+            new_folder = self.install_target._to_cluster(system, path=path, mount=mount)
         else:  # to fs
             new_folder = self.install_target.to(system, path=path)
         new_folder.system = system
@@ -322,6 +330,9 @@ class Package(Resource):
 
     @staticmethod
     def from_string(specifier: str, dryrun=False):
+        if specifier == "requirements.txt":
+            specifier = "reqs:./"
+
         # Use regex to check if specifier matches '<method>:https://github.com/<path>' or 'https://github.com/<path>'
         match = re.search(
             r"^(?:(?P<method>[^:]+):)?(?P<path>https://github.com/.+)", specifier
@@ -404,47 +415,56 @@ def package(
     name: str = None,
     install_method: str = None,
     install_str: str = None,
-    url: str = None,
-    system: str = Folder.DEFAULT_FS,
+    path: str = None,
+    system: str = None,
     dryrun: bool = False,
     local_mount: bool = False,
     data_config: Optional[Dict] = None,
-    load: bool = True,
 ) -> Package:
     """
     Builds an instance of :class:`Package`.
 
     Args:
-        name (str): Name to assign the pacakge.
+        name (str): Name to assign the package resource.
         install_method (str): Method for installing the package. Options: [``pip``, ``conda``, ``reqs``, ``local``]
         install_str (str): Additional arguments to install.
-        url (str): URL of the package to install.
-        system (str): File system. Currently this must be one of:
+        path (str): URL of the package to install.
+        system (str): File system or cluster on which the package lives. Currently this must a cluster or one of:
             [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
-            We are working to add additional file system support.
         dryrun (bool): Whether to create the Package if it doesn't exist, or load the Package object as a dryrun.
             (Default: ``False``)
         local_mount (bool): Whether to locally mount the installed package. (Default: ``False``)
         data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
-        load (bool): Whether to load an existing config for the Package. (Default: ``True``)
 
     Returns:
         Package: The resulting package.
+
+    Example:
+        >>> import runhouse as rh
+        >>> reloaded_package = rh.package(name="my-package")
+        >>> local_package = rh.package(path="local/folder/path", install_method="local")
     """
-    config = rh_config.rns_client.load_config(name) if load else {}
-    config["name"] = name or config.get("rns_address", None) or config.get("name")
+    if name and not any(
+        [install_method, install_str, path, system, data_config, local_mount]
+    ):
+        # If only the name is provided and dryrun is set to True
+        return Package.from_name(name, dryrun)
 
-    config["install_method"] = install_method or config.get("install_method")
-    if url is not None:
-        config["install_target"] = Folder(
-            path=url, system=system, local_mount=local_mount, data_config=data_config
+    install_target = None
+    install_args = None
+    if path is not None:
+        system = system or Folder.DEFAULT_FS
+        install_target = folder(
+            path=path, system=system, local_mount=local_mount, data_config=data_config
         )
-        config["install_args"] = install_str
+        install_args = install_str
     elif install_str is not None:
-        config["install_target"], config["install_args"] = install_str.split(" ", 1)
-    elif "install_target" in config and isinstance(config["install_target"], dict):
-        config["install_target"] = Folder.from_config(config["install_target"])
+        install_target, install_args = install_str.split(" ", 1)
 
-    new_package = Package.from_config(config, dryrun=dryrun)
-
-    return new_package
+    return Package(
+        install_method=install_method,
+        install_target=install_target,
+        install_args=install_args,
+        name=name,
+        dryrun=dryrun,
+    )

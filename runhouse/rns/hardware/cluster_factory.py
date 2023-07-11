@@ -1,6 +1,6 @@
 from typing import List, Optional, Union
 
-from runhouse.rh_config import rns_client
+from ..utils.hardware import RESERVED_SYSTEM_NAMES
 
 from .cluster import Cluster
 from .on_demand_cluster import OnDemandCluster
@@ -10,6 +10,59 @@ from .slurm_cluster import SlurmCluster
 # Cluster factory method
 def cluster(
     name: str,
+    ips: List[str] = None,
+    ssh_creds: Optional[dict] = None,
+    dryrun: bool = False,
+    **kwargs,
+) -> Union[Cluster, OnDemandCluster]:
+    """
+    Builds an instance of :class:`Cluster`.
+
+    Args:
+        name (str): Name for the cluster, to re-use later on.
+        ips (List[str], optional): List of IP addresses for the BYO cluster.
+        ssh_creds (dict, optional): Dictionary mapping SSH credentials.
+            Example: ``ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'}``
+        dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
+            (Default: ``False``)
+
+    Returns:
+        Union[Cluster, OnDemandCluster]: The resulting cluster.
+
+    Example:
+        >>> import runhouse as rh
+        >>> gpu = rh.cluster(ips=['<ip of the cluster>'],
+        >>>                  ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'},
+        >>>                  name='rh-a10x').save()
+
+        >>> # Load cluster from above
+        >>> reloaded_cluster = rh.cluster(name="rh-a10x")
+    """
+    if name and ips is None and ssh_creds is None and not kwargs:
+        # If only the name is provided and dryrun is set to True
+        return Cluster.from_name(name, dryrun)
+
+    if name in RESERVED_SYSTEM_NAMES:
+        raise ValueError(
+            f"Cluster name {name} is a reserved name. Please use a different name which is not one of "
+            f"{RESERVED_SYSTEM_NAMES}."
+        )
+
+    if "instance_type" in kwargs.keys():
+        # Commenting out for now. If two creation paths creates confusion let's push people to use
+        # ondemand_cluster() instead.
+        # warnings.warn(
+        #     "The `cluster` factory is intended to be used for static clusters. "
+        #     "If you would like to create an on-demand cluster, please use `rh.ondemand_cluster()` instead."
+        # )
+        return ondemand_cluster(name=name, **kwargs)
+
+    return Cluster(ips=ips, ssh_creds=ssh_creds, name=name, dryrun=dryrun)
+
+
+# OnDemandCluster factory method
+def ondemand_cluster(
+    name: str,
     instance_type: Optional[str] = None,
     num_instances: Optional[int] = None,
     provider: Optional[str] = None,
@@ -17,14 +70,10 @@ def cluster(
     use_spot: bool = False,
     image_id: Optional[str] = None,
     region: Optional[str] = None,
-    ips: List[str] = None,
-    ssh_creds: Optional[dict] = None,
     dryrun: bool = False,
-    load: bool = True,
-    **kwargs
-) -> Union[Cluster, OnDemandCluster]:
+) -> OnDemandCluster:
     """
-    Builds an instance of :class:`Cluster`.
+    Builds an instance of :class:`OnDemandCluster`.
 
     Args:
         name (str): Name for the cluster, to re-use later on.
@@ -37,26 +86,16 @@ def cluster(
         use_spot (bool, optional): Whether or not to use spot instance.
         image_id (str, optional): Custom image ID for the cluster.
         region (str, optional): The region to use for the cluster.
-        ips (List[str], optional): List of IP addresses for the BYO or Slurm cluster.
-        ssh_creds (dict, optional): Dictionary mapping SSH credentials.
-            Example: ``ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'}``
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
-        load (bool): Whether to load an existing config for the Cluster. (Default: ``True``)
-        kwargs (dict): Extra arguments to pass. Relevant when initializing a SlurmCluster.
-            (Default: ``{}``)
 
     Returns:
-        Cluster, OnDemandCluster, or SlurmCluster: The resulting cluster.
+        OnDemandCluster: The resulting cluster.
 
     Example:
-        >>> # BYO Cluster
-        >>> gpu = rh.cluster(ips=['<ip of the cluster>'],
-        >>>                  ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'},
-        >>>                  name='rh-a10x')
-
+        >>> import runhouse as rh
         >>> # On-Demand SkyPilot Cluster (OnDemandCluster)
-        >>> gpu = rh.cluster(name='rh-4-a100s',
+        >>> gpu = rh.ondemand_cluster(name='rh-4-a100s',
         >>>                  instance_type='A100:4',
         >>>                  provider='gcp',
         >>>                  autostop_mins=-1,
@@ -76,39 +115,29 @@ def cluster(
         >>>                  ips=["3.91.***.***", "3.237.**.**"],
         >>>                  partition="rhcluster",
         >>>                  log_folder="slurm_logs"
-    )
+    ).save()
+
+        >>> # Load cluster from above
+        >>> reloaded_cluster = rh.cluster(name="rh-4-a100s")
     """
-    config = rns_client.load_config(name) if load else {}
-    config["name"] = name or config.get("rns_address", None) or config.get("name")
-    config["ips"] = ips or config.get("ips", None)
-    # ssh creds should only be in Secrets management, not in config
-    config["ssh_creds"] = ssh_creds or config.get("ssh_creds", None)
+    if name and not any([instance_type, num_instances, provider, image_id, region]):
+        # If only the name is provided and dryrun is set to True
+        return Cluster.from_name(name, dryrun)
 
-    kwarg_params = set(list(kwargs))
-    if kwarg_params and kwarg_params.issubset(
-        ["api_url", "api_auth_user", "api_jwt_token", "partition", "log_folder"]
-    ):
-        return SlurmCluster.from_config(config, dryrun, **kwargs)
+    if name in RESERVED_SYSTEM_NAMES:
+        raise ValueError(
+            f"Cluster name {name} is a reserved name. Please use a different name which is not one of "
+            f"{RESERVED_SYSTEM_NAMES}."
+        )
 
-    if config["ips"]:
-        return Cluster.from_config(config, dryrun=dryrun)
-
-    config["instance_type"] = instance_type or config.get("instance_type", None)
-    config["num_instances"] = num_instances or config.get("num_instances", None)
-    config["provider"] = provider or config.get("provider", None)
-    config["autostop_mins"] = (
-        autostop_mins
-        if autostop_mins is not None
-        else config.get("autostop_mins", None)
+    return OnDemandCluster(
+        instance_type=instance_type,
+        provider=provider,
+        num_instances=num_instances,
+        autostop_mins=autostop_mins,
+        use_spot=use_spot,
+        image_id=image_id,
+        region=region,
+        name=name,
+        dryrun=dryrun,
     )
-    config["use_spot"] = (
-        use_spot if use_spot is not None else config.get("use_spot", None)
-    )
-    config["image_id"] = (
-        image_id if image_id is not None else config.get("image_id", None)
-    )
-    config["region"] = region if region is not None else config.get("region", None)
-
-    new_cluster = OnDemandCluster.from_config(config, dryrun=dryrun)
-
-    return new_cluster

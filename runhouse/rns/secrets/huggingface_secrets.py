@@ -8,7 +8,7 @@ from runhouse import Secrets
 
 class HuggingFaceSecrets(Secrets):
     PROVIDER_NAME = "huggingface"
-    CREDENTIALS_FILE = os.path.expanduser("~/.huggingface/token")
+    CREDENTIALS_FILE = os.path.expanduser("~/.cache/huggingface/token")
 
     @classmethod
     def read_secrets(cls, from_env: bool = False, file_path: Optional[str] = None):
@@ -18,6 +18,8 @@ class HuggingFaceSecrets(Secrets):
             )
         else:
             creds_path = file_path or cls.default_credentials_path()
+            if not Path(creds_path).expanduser().exists():
+                return None
             token = Path(creds_path).read_text()
 
         return {"token": token}
@@ -32,9 +34,9 @@ class HuggingFaceSecrets(Secrets):
             import huggingface_hub
 
         dest_path = cls.default_credentials_path()
-        cls.check_secrets_for_mismatches(
+        cls._check_secrets_for_mismatches(
             secrets_to_save=secrets, secrets_path=dest_path, overwrite=overwrite
         )
 
         huggingface_hub.login(token=secrets["token"])
-        cls.add_provider_to_rh_config()
+        cls._add_provider_to_rh_config()

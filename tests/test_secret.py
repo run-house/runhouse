@@ -100,7 +100,7 @@ def test_add_ssh_secrets():
     assert vault_secrets
 
     # Delete from Vault & local configs
-    rh.configs.delete(provider)
+    rh.configs.delete_provider(provider)
     rh.Secrets.delete_from_vault([provider])
     for f_name, _ in sample_ssh_keys.items():
         ssh_key_path = f"{SSHSecrets.default_credentials_path()}/{f_name}"
@@ -147,7 +147,7 @@ def test_add_github_secrets():
 def test_sending_secrets_to_cluster(cpu_cluster):
     enabled_providers: list = rh.Secrets.enabled_providers()
 
-    cpu_cluster.send_secrets(providers=enabled_providers)
+    cpu_cluster.sync_secrets(providers=enabled_providers)
 
     # Confirm the secrets now exist on the cluster
     for provider_cls in enabled_providers:
@@ -216,6 +216,7 @@ def test_login():
     assert rh.rns_client.default_folder == "/..."
 
 
+@unittest.skip("This test deletes local secrets")
 @pytest.mark.rnstest
 def test_logout():
     enabled_providers = rh.Secrets.enabled_providers(as_str=True)

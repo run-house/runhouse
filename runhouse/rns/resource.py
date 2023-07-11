@@ -35,6 +35,7 @@ class Resource:
             - Cluster :py:class:`.hardware.cluster.Cluster`
             - Function :py:class:`.function.Function`
             - Package :py:class:`.packages.package.Package`
+            - Env: :py:class:`.envs.env.Env`
 
 
         - Data Abstractions
@@ -116,6 +117,9 @@ class Resource:
         """Register the resource, saving it to local working_dir config and RNS config store. Uses the resource's
         `self.config_for_rns` to generate the dict to save."""
 
+        # add this resource this run's downstream artifact registry if it's being saved as part of a run
+        rns_client.add_downstream_resource(name or self.name)
+
         self._save_sub_resources()
         # TODO deal with logic of saving anonymous folder for the first time after naming, i.e.
         # Path(tempfile.gettempdir()).relative_to(self.path) ...
@@ -141,13 +145,17 @@ class Resource:
         return config
 
     @classmethod
-    def from_name(cls, name, dryrun=True):
+    def from_name(cls, name, dryrun=False):
         """Load existing Resource via its name."""
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Resource {name} not found.")
         config["name"] = name
         config = cls._check_for_child_configs(config)
+
+        # Add this resource's name to the resource artifact registry if part of a run
+        rns_client.add_upstream_resource(name)
+
         # Uses child class's from_config
         return cls.from_config(config=config, dryrun=dryrun)
 
@@ -157,19 +165,17 @@ class Resource:
         self.delete_configs()
         self._name = None
 
-    @staticmethod
-    def history(name: str) -> List[Dict]:
+    def history(self, num_entries: int = None) -> List[Dict]:
         """Return the history of the resource, including specific config fields (e.g. blob path) and which runs
         have overwritten it."""
-        resource_uri = rns_client.resource_uri(name)
-        resp = requests.get(
-            f"{rns_client.api_server_url}/resource/history/{resource_uri}",
-            headers=rns_client.request_headers,
-        )
+        resource_uri = rns_client.resource_uri(self.rns_address)
+        base_uri = f"{rns_client.api_server_url}/resource/history/{resource_uri}"
+        uri = f"{base_uri}?num_entries={num_entries}" if num_entries else base_uri
+
+        resp = requests.get(uri, headers=rns_client.request_headers)
         if resp.status_code != 200:
-            raise Exception(
-                f"Failed to load resource history: {load_resp_content(resp)}"
-            )
+            logger.warning(f"No resource history found: {load_resp_content(resp)}")
+            return []
 
         resource_history = read_resp_data(resp)
         return resource_history
@@ -200,7 +206,7 @@ class Resource:
         self,
         users: list,
         access_type: Union[ResourceAccess, str] = ResourceAccess.READ,
-        notify_users: bool = False,
+        notify_users: bool = True,
         headers: Optional[Dict] = None,
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
         """Grant access to the resource for the list of users. If a user has a Runhouse account they

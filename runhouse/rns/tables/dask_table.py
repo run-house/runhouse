@@ -1,7 +1,5 @@
 import logging
 
-from .. import OnDemandCluster
-
 from .table import Table
 
 logger = logging.getLogger(__name__)
@@ -12,15 +10,6 @@ class DaskTable(Table):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-    @staticmethod
-    def from_config(config: dict, dryrun=True):
-        """Load config values into the object."""
-        if isinstance(config["system"], dict):
-            config["system"] = OnDemandCluster.from_config(
-                config["system"], dryrun=dryrun
-            )
-        return DaskTable(**config)
 
     def write(self, write_index: bool = False):
         # https://docs.dask.org/en/stable/how-to/connect-to-remote-data.html

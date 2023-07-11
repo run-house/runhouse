@@ -1,3 +1,4 @@
+import re
 import subprocess
 
 from pathlib import Path
@@ -29,7 +30,7 @@ def _process_reqs(reqs):
             # if package refers to a local path package
             package = Package.from_string(package)
         elif isinstance(package, dict):
-            package = Package.from_config(package, dryrun=True)
+            package = Package.from_config(package)
         preprocessed_reqs.append(package)
     return preprocessed_reqs
 
@@ -80,7 +81,7 @@ def _get_conda_yaml(conda_env=None):
         for dep in conda_yaml["dependencies"]
         if isinstance(dep, Dict) and "pip" in dep
     ]:
-        conda_yaml["dependencies"].append({"pip": ["ray==2.0.1"]})
+        conda_yaml["dependencies"].append({"pip": ["ray<=2.4.0,>=2.2.0"]})
     else:
         for dep in conda_yaml["dependencies"]:
             if (
@@ -88,6 +89,22 @@ def _get_conda_yaml(conda_env=None):
                 and "pip" in dep
                 and not [pip for pip in dep["pip"] if "ray" in pip]
             ):
-                dep["pip"].append("ray==2.0.1")
+                dep["pip"].append("ray<=2.4.0,>=2.2.0")
                 continue
     return conda_yaml
+
+
+def _env_vars_from_file(env_file):
+    env_file = Path(env_file) if isinstance(env_file, str) else env_file
+    if not env_file.exists():
+        raise FileNotFoundError(f"Can not find provided env file: {env_file}")
+
+    env_vars_dict = {}
+    with open(env_file) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, value = re.split("\s*=\s*", line, maxsplit=1)
+                env_vars_dict[key] = value
+
+    return env_vars_dict

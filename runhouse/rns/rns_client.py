@@ -15,6 +15,7 @@ from runhouse.rns.api_utils.utils import (
     read_resp_data,
     remove_null_values_from_dict,
 )
+from runhouse.rns.utils.hardware import _current_cluster
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ class RNSClient:
     DEFAULT_FS = "file"
 
     def __init__(self, configs) -> None:
+        self.run_stack = []
         self._configs = configs
         self._prev_folders = []
 
@@ -80,13 +82,24 @@ class RNSClient:
             )
 
     @classmethod
-    def find_parent_with_file(cls, dir_path, file):
+    def find_parent_with_file(cls, dir_path, file, searched_dirs=None):
         if Path(dir_path) == Path.home() or dir_path == Path("/"):
             return None
         if Path(dir_path, file).exists():
             return str(dir_path)
         else:
-            return cls.find_parent_with_file(Path(dir_path).parent, file)
+            if searched_dirs is None:
+                searched_dirs = {
+                    dir_path,
+                }
+            else:
+                searched_dirs.add(dir_path)
+            parent_path = Path(dir_path).parent
+            if parent_path in searched_dirs:
+                return None
+            return cls.find_parent_with_file(
+                parent_path, file, searched_dirs=searched_dirs
+            )
 
     @classmethod
     def locate_working_dir(cls, cwd=os.getcwd()):
@@ -180,6 +193,36 @@ class RNSClient:
         payload["data"] = data
         return payload
 
+    # Run Stack
+    # ---------------------
+
+    def start_run(self, run_obj: "Run"):
+        self.run_stack.append(run_obj)
+
+    def stop_run(self):
+        return self.run_stack.pop()
+
+    def current_run(self):
+        if not self.run_stack:
+            return None
+        return self.run_stack[-1]
+
+    def add_upstream_resource(self, name: str):
+        """Add a resource's name to the current run's upstream artifact registry if it's being loaded"""
+        current_run = self.current_run()
+        if current_run:
+            artifact_name = self.resolve_rns_path(name)
+            current_run._register_upstream_artifact(artifact_name)
+
+    def add_downstream_resource(self, name: str):
+        """Add a resource's name to the current run's downstream artifact registry if it's being saved"""
+        current_run = self.current_run()
+        if current_run:
+            artifact_name = self.resolve_rns_path(name)
+            current_run._register_downstream_artifact(artifact_name)
+
+    # ---------------------
+
     def grant_resource_access(
         self,
         rns_address: str,
@@ -218,6 +261,9 @@ class RNSClient:
             return {}
 
         rns_address = self.resolve_rns_path(name)
+
+        if rns_address == _current_cluster("name"):
+            return _current_cluster("config")
 
         if rns_address[0] in ["~", "^"]:
             config = self._load_config_from_local(rns_address)
@@ -454,7 +500,7 @@ class RNSClient:
         return None
 
     def set_folder(self, path: str, create=False):
-        from runhouse.rns.folders.folder import Folder, folder
+        from runhouse.rns.folders import Folder, folder
 
         if isinstance(path, Folder):
             abs_path = path.rns_address
@@ -478,7 +524,7 @@ class RNSClient:
         self.current_folder = self._prev_folders.pop(-1)
 
     def contents(self, name_or_path, full_paths):
-        from runhouse.rns.folders.folder import folder
+        from runhouse.rns.folders import folder
 
         folder_url = self.locate(name_or_path)
         return folder(name=name_or_path, path=folder_url).resources(

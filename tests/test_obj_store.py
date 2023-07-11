@@ -37,9 +37,10 @@ def do_tqdm_printing_and_logging(steps=6):
 @pytest.mark.clustertest
 def test_get_from_cluster(cpu_cluster):
     print_fn = rh.function(fn=do_printing_and_logging, system=cpu_cluster)
-    key = print_fn.remote()
-    assert isinstance(key, str)
-    res = cpu_cluster.get(key, stream_logs=True)
+    run_obj = print_fn.run()
+    assert isinstance(run_obj, rh.Run)
+
+    res = cpu_cluster.get(run_obj.name, stream_logs=True)
     assert res == list(range(50))
 
 
@@ -81,14 +82,17 @@ def test_tqdm_streaming(cpu_cluster):
 @pytest.mark.clustertest
 def test_cancel_run(cpu_cluster):
     print_fn = rh.function(fn=do_printing_and_logging, system=cpu_cluster)
-    key = print_fn.remote()
-    assert isinstance(key, str)
-    res = cpu_cluster.cancel(key)
-    assert res == "Cancelled"
-    try:
+    run_obj = print_fn.run()
+    assert isinstance(run_obj, rh.Run)
+
+    key = run_obj.name
+    cpu_cluster.cancel(key)
+    with pytest.raises(Exception) as e:
         cpu_cluster.get(key, stream_logs=True)
-    except Exception as e:
-        assert "This task or its dependency was cancelled by" in str(e)
+    # NOTE [DG]: For some reason the exception randomly returns in different formats
+    assert "ray.exceptions.TaskCancelledError" in str(
+        e.value
+    ) or "This task or its dependency was cancelled by" in str(e.value)
 
 
 if __name__ == "__main__":

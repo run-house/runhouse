@@ -5,37 +5,9 @@ from pathlib import Path
 import pytest
 
 import runhouse as rh
-from runhouse import rh_config
 
 extra_index_url = "--extra-index-url https://pypi.python.org/simple/"
 cuda_116_url = "--index-url https://download.pytorch.org/whl/cu116"
-
-
-def _create_s3_package():
-    import shutil
-
-    from runhouse.rns.api_utils.utils import create_s3_bucket
-
-    s3_bucket_path = "runhouse-folder"
-    folder_name = "tmp_s3_package"
-
-    create_s3_bucket(s3_bucket_path)
-    # Create a local temp folder to install for the package
-    tmp_path = Path(rh_config.rns_client.locate_working_dir()) / folder_name
-    tmp_path.mkdir(parents=True, exist_ok=True)
-    for i in range(3):
-        output_file = Path(f"{tmp_path}/sample_file_{i}.txt")
-        output_file.write_text(f"file{i}")
-
-    pkg = rh.Package.from_string(f"local:./{folder_name}")
-    s3_pkg = pkg.to(system="s3", path=f"/{s3_bucket_path}/package-tests")
-
-    shutil.rmtree(tmp_path)
-    return s3_pkg, folder_name
-
-
-def setup():
-    pass
 
 
 def summer(a, b):
@@ -66,29 +38,17 @@ def test_from_string():
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_share_package(cpu_cluster):
-    import shutil
+def test_share_package(cpu_cluster, local_package):
+    local_package.to(system=cpu_cluster)
+    local_package.save("package_to_share")  # shareable resource requires a name
 
-    # Create a local temp folder to install for the package
-    tmp_path = Path.cwd().parent / "tmp_package"
-    tmp_path.mkdir(parents=True, exist_ok=True)
-    for i in range(3):
-        output_file = Path(f"{tmp_path}/sample_file_{i}.txt")
-        output_file.write_text(f"file{i}")
-
-    p = rh.Package.from_string("local:./tmp_package")
-    p.name = "package_to_share"  # shareable resource requires a name
-
-    p.to(system=cpu_cluster)
-
-    p.share(
+    local_package.share(
         users=["josh@run.house", "donny@run.house"],
         access_type="write",
         notify_users=False,
     )
 
-    shutil.rmtree(tmp_path)
-
+    # TODO test loading from a different account for real
     # Confirm the package's folder is now on the cluster
     status_codes = cpu_cluster.run(commands=["ls tmp_package"])
     assert "sample_file_0.txt" in status_codes[0][1]
@@ -113,7 +73,7 @@ def test_share_git_package():
 
 @pytest.mark.rnstest
 def test_load_shared_git_package():
-    git_package = rh.Package.from_name(name="@/shared_git_package")
+    git_package = rh.package(name="@/shared_git_package")
     assert git_package.config_for_rns
 
 
@@ -147,23 +107,65 @@ def test_mount_local_package_to_cluster(cpu_cluster):
 
 @pytest.mark.clustertest
 @pytest.mark.awstest
-def test_package_file_system_to_cluster(cpu_cluster):
-    s3_pkg, folder_name = _create_s3_package()
+def test_package_file_system_to_cluster(cpu_cluster, s3_package):
+    assert s3_package.install_target.system == "s3"
+    assert s3_package.install_target.exists_in_system()
 
-    assert s3_pkg.install_target.system == "s3"
-    assert s3_pkg.install_target.exists_in_system()
-
-    s3_pkg.to(system=cpu_cluster, mount=True, path=folder_name)
+    folder_name = Path(s3_package.install_target.path).stem
+    s3_package.to(system=cpu_cluster, mount=True, path=folder_name)
 
     # Confirm the package's folder is now on the cluster
     assert "sample_file_0.txt" in cpu_cluster.run([f"ls {folder_name}"])[0][1]
 
 
 @pytest.mark.localtest
-def test_torch_install_command_generator_from_reqs():
-    """For a given list of packages as listed in a requirements.txt file, modify them to include the full
-    install commands (without running on the actual cluster)"""
+@pytest.mark.parametrize(
+    "reqs_lines",
+    [
+        [cuda_116_url, "", "torch"],
+        ["diffusers", "accelerate"],
+        [f"torch {cuda_116_url}"],
+    ],
+)
+def test_basic_command_generator_from_reqs(reqs_lines):
     test_reqs_file = Path(__file__).parent / "requirements.txt"
+    with open(test_reqs_file, "w") as f:
+        f.writelines([line + "\n" for line in reqs_lines])
+
+    dummy_pkg = rh.Package.from_string(specifier="pip:dummy_package")
+    install_cmd = dummy_pkg._requirements_txt_install_cmd(test_reqs_file)
+
+    assert install_cmd == f"-r {test_reqs_file}"
+
+    test_reqs_file.unlink()
+    assert True
+
+
+@pytest.mark.localtest
+def test_command_generator_from_reqs():
+    reqs_lines = ["torch", "accelerate"]
+    test_reqs_file = Path(__file__).parent / "requirements.txt"
+    with open(test_reqs_file, "w") as f:
+        f.writelines([line + "\n" for line in reqs_lines])
+
+    dummy_pkg = rh.Package.from_string(specifier="pip:dummy_package")
+    install_cmd = dummy_pkg._requirements_txt_install_cmd(
+        test_reqs_file, cuda_version_or_cpu="11.6"
+    )
+
+    assert (
+        install_cmd
+        == f"-r {test_reqs_file} --extra-index-url https://download.pytorch.org/whl/cu116"
+    )
+
+    test_reqs_file.unlink()
+    assert True
+
+
+@pytest.mark.localtest
+def test_torch_install_command_generator_from_reqs():
+    """Test correctly generating full install commands for torch-related packages."""
+    test_cuda_version = "11.6"
 
     # [Required as listed in reqs.txt, expected formatted install cmd]
     packages_to_install = [
@@ -181,23 +183,14 @@ def test_torch_install_command_generator_from_reqs():
         ],
     ]
 
-    # Write these packages to a temp reqs file, then call the function which creates the full install command
-    package_names = [p[0] for p in packages_to_install]
-    with open(test_reqs_file, "w") as f:
-        f.writelines([line + "\n" for line in package_names])
-
     dummy_pkg = rh.Package.from_string(specifier="pip:dummy_package")
+    reformatted_packaged_to_install = [
+        dummy_pkg._install_cmd_for_torch(p[0], test_cuda_version)
+        for p in packages_to_install
+    ]
 
-    reqs_from_file: list = dummy_pkg.format_torch_cmd_in_reqs_file(
-        path=test_reqs_file, cuda_version_or_cpu="11.6"
-    )
-
-    for idx, install_cmd in enumerate(reqs_from_file):
+    for idx, install_cmd in enumerate(reformatted_packaged_to_install):
         assert install_cmd == packages_to_install[idx][1]
-
-    test_reqs_file.unlink()
-
-    assert True
 
 
 @pytest.mark.localtest
@@ -268,7 +261,7 @@ def test_torch_install_command_generator():
     for cmds in packages_to_install:
         torch_version, cuda_version, expected_install_cmd = cmds
         dummy_pkg = rh.Package.from_string(specifier=f"pip:{torch_version}")
-        formatted_install_cmd = dummy_pkg.install_cmd_for_torch(
+        formatted_install_cmd = dummy_pkg._install_cmd_for_torch(
             torch_version, cuda_version
         )
 
@@ -286,7 +279,7 @@ def test_torch_install_command_generator():
 def test_getting_cuda_version_on_clusters(request, cluster):
     """Gets the cuda version on the cluster and asserts it is the expected version"""
     return_codes: list = cluster.run_python(
-        ["import runhouse as rh", "print(rh.Package.detect_cuda_version_or_cpu())"]
+        ["import runhouse as rh", "print(rh.Package._detect_cuda_version_or_cpu())"]
     )
     cuda_version_or_cpu = return_codes[0][1].strip().split("\n")[-1]
     print(f"{cluster.name}: {cuda_version_or_cpu}")
@@ -351,5 +344,4 @@ def test_install_cmd_for_torch_on_cluster(request, cluster):
 
 
 if __name__ == "__main__":
-    setup()
     unittest.main()

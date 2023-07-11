@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import ray
+import ray.cloudpickle as pickle
 
 from runhouse.rns.utils.hardware import _current_cluster
 
@@ -16,8 +17,8 @@ class ObjStore:
     # Note, if we turn this into a ray actor we could get it by a string on server restart, which
     # would allow us to persist the store across server restarts. Unclear if this is desirable yet.
     # https://docs.ray.io/en/latest/ray-core/package-ref.html#ray-get-actor
-
-    RH_LOGFILE_PATH = Path.home() / ".rh/logs"
+    LOGS_DIR = ".rh/logs"
+    RH_LOGFILE_PATH = Path.home() / LOGS_DIR
 
     def __init__(self, cluster_name: Optional[str] = None):
         self.cluster_name = cluster_name or THIS_CLUSTER
@@ -40,23 +41,32 @@ class ObjStore:
         self.obj_store_cache[key] = obj_ref
 
     def get(
-        self, key: str, default: Optional[Any] = None, timeout: Optional[float] = None
+        self,
+        key: str,
+        default: Optional[Any] = None,
+        timeout: Optional[float] = None,
+        resolve: bool = True,
     ):
         obj_ref = self.obj_store_cache.get(key, None)
-        if obj_ref:
-            return ray.get(obj_ref, timeout=timeout)
-        else:
+        if not obj_ref:
             return default
+        if not resolve:
+            return obj_ref
+        obj = ray.get(obj_ref, timeout=timeout)
+        if isinstance(obj, bytes):
+            return pickle.loads(obj)
+        else:
+            return obj
 
-    def get_obj_refs_list(self, keys: List):
+    def get_obj_refs_list(self, keys: List, resolve=True):
         return [
-            self.obj_store_cache.get(key, key) if isinstance(key, str) else key
+            self.get(key, default=key, resolve=resolve) if isinstance(key, str) else key
             for key in keys
         ]
 
-    def get_obj_refs_dict(self, d: Dict):
+    def get_obj_refs_dict(self, d: Dict, resolve=True):
         return {
-            k: self.obj_store_cache.get(v, v) if isinstance(v, str) else v
+            k: self.get(v, default=v, resolve=resolve) if isinstance(v, str) else v
             for k, v in d.items()
         }
 
@@ -73,8 +83,13 @@ class ObjStore:
         self.obj_store_cache = {}
 
     def cancel(self, key: str, force: bool = False, recursive: bool = True):
-        obj_ref = self.obj_store_cache.get(key, None)
-        if obj_ref:
+        obj_ref = self.get(key, resolve=False)
+        if not obj_ref:
+            raise ValueError(f"Object with key {key} not found in object store.")
+        if isinstance(obj_ref, list):
+            for ref in obj_ref:
+                ray.cancel(ref, force=force, recursive=recursive)
+        else:
             ray.cancel(obj_ref, force=force, recursive=recursive)
 
     def get_logfiles(self, key: str, log_type=None):

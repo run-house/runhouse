@@ -39,6 +39,7 @@ def test_set_folder(tmp_path):
     assert rh.current_folder() == "~/tests"
     assert (Path(rh.rh_config.rns_client.rh_directory) / "tests/bert_ft").exists()
     assert rh.exists("~/tests/bert_ft")
+    rh.set_folder("@")
 
 
 @pytest.mark.rnstest
@@ -78,14 +79,14 @@ def test_ls():
     rh.set_folder("~")
     assert "bert_ft" in rh.folder("tests").resources()
     assert "bert_ft" in rh.resources("tests")
+    rh.set_folder("@")
 
 
 @pytest.mark.rnstest
-def test_from_name():
-    f = rh.Folder.from_name("~/tests/bert_ft", dryrun=True)
+def test_from_name(cpu_cluster):
+    f = rh.folder(name="~/tests/bert_ft")
     assert f.path
-    c = rh.OnDemandCluster.from_name("^rh-cpu", dryrun=True)
-    assert c.instance_type == "CPU:2+"
+    assert cpu_cluster.instance_type == "CPU:2+"
 
 
 if __name__ == "__main__":

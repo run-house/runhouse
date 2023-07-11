@@ -6,10 +6,9 @@ import pkg_resources
 import typer
 from rich.console import Console
 
+import runhouse.rns.login
+
 from runhouse import cluster, configs
-from runhouse.rns import (  # Need to rename it because it conflicts with the login command
-    login as login_module,
-)
 
 # create an explicit Typer application
 app = typer.Typer(add_completion=False)
@@ -30,7 +29,7 @@ def login(
     local environment and Runhouse / Vault.
     """
     valid_token: str = (
-        login_module.login(
+        runhouse.rns.login.login(
             token=token,
             download_config=True,
             upload_config=True,
@@ -38,13 +37,11 @@ def login(
             upload_secrets=True,
         )
         if yes
-        else login_module.login(token=token, interactive=True, ret_token=True)
+        else runhouse.rns.login.login(token=token, interactive=True, ret_token=True)
     )
 
     if valid_token:
-        webbrowser.open(
-            f"{configs.get('api_server_url')}/dashboard?token={valid_token}"
-        )
+        webbrowser.open(f"{configs.get('dashboard_url')}/dashboard?token={valid_token}")
         raise typer.Exit()
     else:
         raise typer.Exit(code=1)
@@ -53,7 +50,7 @@ def login(
 @app.command()
 def logout():
     """Logout of Runhouse. Provides options to delete locally configured secrets and local Runhouse configs"""
-    login_module.logout(interactive=True)
+    runhouse.rns.login.logout(interactive=True)
     raise typer.Exit()
 
 
@@ -96,7 +93,10 @@ def cancel(
 ):
     """Cancel a run on a cluster."""
     c = cluster(name=cluster_name)
-    c.cancel(run_key, force=force, all=all)
+    if all:
+        c.cancel_all(force=force)
+    else:
+        c.cancel(run_key, force=force)
 
 
 @app.command()
@@ -116,18 +116,37 @@ def load_cluster(cluster_name: str):
     """Load a cluster from RNS into the local environment, e.g. to be able to ssh."""
     c = cluster(name=cluster_name)
     if not c.address:
-        c.update_from_sky_status(dryrun=True)
+        c._update_from_sky_status(dryrun=True)
 
 
 @app.command()
-def restart_grpc(
+def start(
+    restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
+    screen: bool = typer.Option(False, help="Start the server in a screen"),
+):
+    http_server_cmd = "python -m runhouse.servers.http.http_server"
+    kill_proc_cmd = ["pkill", "-f", f"{http_server_cmd}"]
+    subprocess.run(kill_proc_cmd)
+
+    if restart_ray:
+        subprocess.run(["ray", "stop"])
+        subprocess.run(["ray", "start", "--head"])
+
+    start_server_cmd = http_server_cmd.split()
+    if screen:
+        start_server_cmd = ["screen", "-dm", "bash", "-c"] + start_server_cmd
+    subprocess.run(start_server_cmd)
+
+
+@app.command()
+def restart_server(
     cluster_name: str,
     restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
     resync_rh: bool = typer.Option(False, help="Resync the Runhouse package"),
 ):
     """Restart the gRPC server on a cluster."""
     c = cluster(name=cluster_name)
-    c.restart_grpc_server(resync_rh=resync_rh, restart_ray=restart_ray)
+    c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray)
 
 
 @app.callback()

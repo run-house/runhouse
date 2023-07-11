@@ -11,9 +11,9 @@ import requests
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 import runhouse.servers.grpc.unary_pb2 as pb2
-
 import runhouse.servers.grpc.unary_pb2_grpc as pb2_grpc
 from runhouse.rh_config import configs, obj_store
+from runhouse.rns.api_utils.utils import resolve_absolute_path
 from runhouse.rns.packages.package import Package
 from runhouse.rns.run_module_utils import call_fn_by_type
 from runhouse.rns.top_level_rns_fns import (
@@ -35,8 +35,11 @@ class UnaryService(pb2_grpc.UnaryServicer):
     def __init__(self, *args, **kwargs):
         ray.init(address="auto")
 
-        # Collect metadata for the cluster immediately on init
-        self._collect_cluster_stats()
+        try:
+            # Collect metadata for the cluster immediately on init
+            self._collect_cluster_stats()
+        except Exception as e:
+            logger.error(f"Failed to collect cluster stats: {str(e)}")
 
         self.register_activity()
 
@@ -51,13 +54,13 @@ class UnaryService(pb2_grpc.UnaryServicer):
             for package in packages:
                 if isinstance(package, str):
                     pkg = Package.from_string(package)
-                elif hasattr(package, "install"):
+                elif hasattr(package, "_install"):
                     pkg = package
                 else:
                     raise ValueError(f"package {package} not recognized")
 
                 logger.info(f"Installing package: {str(pkg)}")
-                pkg.install(env)
+                pkg._install(env)
 
             self.register_activity()
             message = [None, None, None]
@@ -67,6 +70,25 @@ class UnaryService(pb2_grpc.UnaryServicer):
             self.register_activity()
 
         return pb2.MessageResponse(message=pickle.dumps(message), received=False)
+
+    def GetRunObject(self, request, context):
+        self.register_activity()
+        run_name, folder_path = pickle.loads(request.message)
+        from runhouse import Run, run
+
+        folder_path = folder_path or Run._base_cluster_folder_path(run_name)
+        folder_path_on_system = resolve_absolute_path(folder_path)
+
+        # Load config data for this Run saved locally on the system
+        try:
+            ret = run(path=folder_path_on_system)
+            self.register_activity()
+        except FileNotFoundError:
+            logger.error(f"No config found in local file path: {folder_path_on_system}")
+            ret = None
+            self.register_activity()
+
+        return pb2.MessageResponse(message=pickle.dumps(ret), received=True)
 
     def GetObject(self, request, context):
         self.register_activity()
@@ -94,6 +116,9 @@ class UnaryService(pb2_grpc.UnaryServicer):
             if stream_logs:
                 if not logfiles:
                     logfiles = obj_store.get_logfiles(key)
+                    if not logfiles:
+                        logger.info(f"No log files found for {key}")
+                        continue
                     open_files = [open(i, "r") for i in logfiles]
                     logger.info(f"Streaming logs for {key} from {logfiles}")
 
@@ -117,7 +142,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
             # We got the object back from the object store, so we're done (but we went through the loop once
             # more to get any remaining log lines)
             [f.close() for f in open_files]
-        yield pb2.MessageResponse(
+        return pb2.MessageResponse(
             message=pickle.dumps(ret_obj), received=True, output_type=OutputType.RESULT
         )
 
@@ -189,6 +214,8 @@ class UnaryService(pb2_grpc.UnaryServicer):
             fn_type,
             resources,
             conda_env,
+            env_vars,
+            run_name,
             args,
             kwargs,
         ] = pickle.loads(request.message)
@@ -201,6 +228,8 @@ class UnaryService(pb2_grpc.UnaryServicer):
                 module_name=module_name,
                 resources=resources,
                 conda_env=conda_env,
+                env_vars=env_vars,
+                run_name=run_name,
                 args=args,
                 kwargs=kwargs,
             )

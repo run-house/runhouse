@@ -23,9 +23,13 @@ copyright = "2023, Runhouse Inc"
 author = "the Runhouse team 🏃‍♀️🏠"
 
 # The full version, including alpha/beta/rc tags
-release = "0.0.2"
+import runhouse
+
+release = runhouse.__version__
 
 # -- General configuration ---------------------------------------------------
+
+needs_sphinx = "4.5.0"
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
@@ -40,6 +44,8 @@ extensions = [
     "sphinx_thebe",
     "sphinx_copybutton",
 ]
+
+autodoc_typehints_format = "short"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]

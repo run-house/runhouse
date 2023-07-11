@@ -69,7 +69,9 @@ install_requires = [
     "sshtunnel>=0.3.0",
     "sshfs",
     "typer",
-    "skypilot==0.2.5",
+    "skypilot==0.3.1",
+    "fastapi",
+    "uvicorn",
 ]
 
 # NOTE: Change the templates/spot-controller.yaml.j2 file if any of the following

@@ -34,6 +34,7 @@ class Defaults:
         "disable_data_collection": False,
         "use_rns": False,
         "api_server_url": "https://api.run.house",
+        "dashboard_url": "https://run.house",
     }
 
     def __init__(self):
@@ -78,6 +79,7 @@ class Defaults:
         # We don't need to save these
         to_upload.pop("token", None)
         to_upload.pop("username", None)
+        to_upload.pop("secrets", None)
 
         endpoint = (
             self.USER_ENDPOINT
@@ -169,6 +171,11 @@ class Defaults:
     def delete(self, key: str):
         """Remove a specific key from the config"""
         self.defaults_cache.pop(key, None)
+        self.save_defaults()
+
+    def delete_provider(self, provider: str):
+        """Remove a specific provider from the config secrets."""
+        self.defaults_cache.get("secrets", {}).pop(provider, None)
         self.save_defaults()
 
     def delete_defaults(self, config_path: Optional[str] = None):

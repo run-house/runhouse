@@ -1,5 +1,4 @@
 import logging
-from typing import Union
 
 import typer
 
@@ -53,10 +52,11 @@ def login(
         /_/ |_|\__,_/_/ /_/_/ /_/\____/\__,_/____/\___/   | || |||__|||   ||
         """
         )
+        account_url = f"{configs.get('dashboard_url')}/account#token"
         link = (
-            f'[link={configs.get("api_server_url")}/dashboard/?option=token]https://api.run.house/dashboard/?option=token[/link]'
+            f"[link={account_url}]{account_url}[/link]"
             if is_interactive()
-            else f'{configs.get("api_server_url")}/dashboard/?option=token'
+            else account_url
         )
         if not token:
             console.print(
@@ -99,6 +99,7 @@ def login(
         # We need to fresh the RNSClient to use the newly loaded configs
         rns_client.refresh_defaults()
     elif upload_config:
+        configs.load_defaults_from_file()
         configs.upload_defaults(defaults=configs.defaults_cache)
     else:
         # If we are not downloading or uploading config, we still want to make sure the token is valid
@@ -140,24 +141,24 @@ def logout(
     interactive_session: bool = (
         interactive if interactive is not None else is_interactive()
     )
-    for provider in Secrets.enabled_providers():
-        provider_name: str = provider.PROVIDER_NAME
+
+    for (provider_name, _) in configs.get("secrets", {}).items():
         if provider_name == "ssh":
+            logger.info(
+                "Automatic deletion for local SSH credentials file is not supported. "
+                "Please manually delete it if you would like to remove it"
+            )
             continue
-        provider_creds_path: Union[str, tuple] = provider.default_credentials_path()
 
         if interactive_session:
             delete_loaded_secrets = typer.confirm(
                 f"Delete credentials file for {provider_name}?"
             )
 
-        configs.delete(provider_name)
-
         if delete_loaded_secrets:
-            provider.delete_secrets_file(provider_creds_path)
-            logger.info(
-                f"Deleted {provider_name} credentials file from path: {provider_creds_path}"
-            )
+            Secrets.delete_from_local_env(providers=[provider_name])
+        else:
+            configs.delete(provider_name)
 
     # Delete token from rh config file
     configs.delete(key="token")

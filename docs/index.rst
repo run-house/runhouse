@@ -1,7 +1,7 @@
 .. runhouse documentation master file, created by
 
-Runhouse 🏃‍♀️🏠
-===================
+🏃‍♀️Runhouse Overview🏠
+====================
 
 .. raw:: html
 
@@ -17,35 +17,37 @@ Runhouse 🏃‍♀️🏠
    <a class="github-button" href="https://github.com/run-house/runhouse/fork" data-icon="octicon-repo-forked" data-size="large" aria-label="Fork run-house/runhouse on GitHub">Fork</a>
    </p>
 
-PyTorch lets you send a model or tensor :code:`.to(device)`, so why can't you do :code:`my_fn.to('a_gcp_a100')`,
-or :code:`my_table.to('parquet_in_s3')`?
-Runhouse allows just that: send code and data to any of your compute or data infra (with your own cloud creds),
-all in Python, and continue to use them eagerly exactly as they were.
+Runhouse is a unified interface into *existing* compute and data systems, built to reclaim
+the 50-75% of ML practitioners' time lost to debugging, adapting, or repackaging code
+for different environments.
 
-Runhouse has four top-level objectives:
+Runhouse lets you:
 
+* Send functions and data to any of your compute or data infra, all in Python, and continue to
+  interact with them eagerly (there's no DAG) from your existing code and environment.
+* Share live and versioned resources across environments or teams, providing a unified layer for
+  accessibility, visibility, and management across all your infra and providers.
 
-* Allowing users to natively program across compute resources
-* Allowing users to command data between storage and compute
-* Making resources accessible across environments and users
-* Allowing resources to be shared among teams as living assets
+It wraps industry-standard tooling like Ray and the Cloud SDKs (boto, gsutil, etc. via `SkyPilot <https://github.com/skypilot-org/skypilot/>`_
+to give you production-quality features like queuing, distributed, async, logging, low latency, hardware efficiency, auto-launching, and auto-termination out of the box.
 
-Keep reading on to see how Runhouse achieves this, or explore our
-:ref:`Architecture Section <Runhouse Architecture>`, :ref:`Python API`, and `Tutorials <https://github.com/run-house/tutorials>`_.
+Who is this for?
+----------------
 
-.. warning::
-    **This is an Alpha:**
-    Runhouse is heavily under development and we expect to iterate on the APIs before reaching beta (version 0.1.0).
+* 🦸‍♀️ **OSS maintainers** who want to improve the accessibility, reproducibility, and reach of their code,
+  without having to build support or examples for every cloud or compute system (e.g. Kubernetes) one by one.
+  See this in action in 🤗 Hugging Face `Transformers <https://github.com/huggingface/transformers/blob/main/examples/README.md#running-the-examples-on-remote-hardware-with-auto-setup>`_,
+  `Accelerate <https://github.com/huggingface/accelerate/blob/main/examples/README.md#simple-multi-gpu-hardware-launcher>`_
+  and 🦜🔗 `Langchain <https://python.langchain.com/en/latest/modules/models/llms/integrations/runhouse.html>`_.
 
+* 👩‍🔬 **ML Researchers and Data Scientists** who don't want to spend or wait 3-6 months translating and packaging
+  their work for production.
 
-Getting Started 🐣
-------------------
-.. code-block:: console
+* 👩‍🏭 **ML Engineers** who want to be able to update and improve production services, pipelines, and artifacts with a
+  Pythonic, debuggable devX.
 
-    $ pip install runhouse
-    # Or "runhouse[aws]", "runhouse[gcp]", "runhouse[azure]", "runhouse[all]"
-
-Please check out the :ref:`Installation and Setup Guide` for more detailed instructions.
+* 👩‍🔧 **ML Platform teams** who want a versioned, shared, maintainable stack of services and data artifacts that
+  research and production pipelines both depend on.
 
 
 Table of Contents
@@ -54,58 +56,39 @@ Table of Contents
    :maxdepth: 1
    :caption: Getting Started
 
-   installation
-   getting_started
+   tutorials/quick_start
+   architecture
+   api_tutorials
 
 .. toctree::
    :maxdepth: 1
-   :caption: Runhouse API
+   :caption: API Reference
 
-   cli/cli
-   main
-
-.. toctree::
-    :maxdepth: 1
-    :caption: API Tutorials
-
-    tutorials/resource
-    tutorials/compute
-    tutorials/data
-    tutorials/secrets_management
+   api/python
+   api/cli
 
 .. toctree::
    :maxdepth: 1
    :caption: Usage Examples
 
-   Inference: Stable Diffusion and FLAN T-5 <https://github.com/run-house/tutorials/tree/main/t01_Stable_Diffusion>
-   Training: Dreambooth <https://github.com/run-house/tutorials/tree/main/t02_Dreambooth>
-   Pipelining: BERT <https://github.com/run-house/tutorials/tree/main/t05_BERT_pipeline>
-   Distributed: HF Accelerate <https://github.com/run-house/tutorials/tree/stable/t04_Distributed>
-   Runhouse in Colab: DALLE img2img2 <https://github.com/run-house/tutorials/tree/main/t03_DALLE_SD_pipeline>
+   tutorials/examples/inference
+   tutorials/examples/training
+   tutorials/examples/distributed
+   Pipelining: BERT <https://github.com/run-house/tutorials/tree/stable/t05_BERT_pipeline>
 
 .. toctree::
    :maxdepth: 1
-   :caption: Security
+   :caption: Additional Resources
 
-   secrets/secrets
-   secrets/vault_secrets
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Appendix
-
-   architecture
-   data_collection
    debugging_logging
+   data_collection
+   Source Code <https://github.com/run-house/runhouse>
    REST API Guide <https://api.run.house/docs>
-   Dashboard <https://api.run.house>
+   Dashboard <https://www.run.house/dashboard>
    Funhouse <https://github.com/run-house/funhouse>
-
 
 
 Contributing and Community
 --------------------------
 - `Issue Tracker <https://github.com/run-house/runhouse/issues/>`_
 - `Contributing <https://github.com/run-house/runhouse/blob/main/CONTRIBUTING.md>`_
-- `Discord <https://discord.gg/RnhB6589Hs/>`_
-- `Twitter <https://twitter.com/runhouse_/>`_

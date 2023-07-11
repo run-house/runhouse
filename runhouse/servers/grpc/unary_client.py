@@ -78,6 +78,11 @@ class UnaryClient(object):
         res = self.stub.ListKeys(pb2.Message())
         return pickle.loads(res.message)
 
+    def get_run_object(self, run_name, folder_path):
+        message = pb2.Message(message=pickle.dumps((run_name, folder_path)))
+        res = self.stub.GetRunObject(message)
+        return pickle.loads(res.message)
+
     # TODO [DG]: maybe just merge cancel into this so we can get log streaming back as we cancel a job
     def get_object(self, key, stream_logs=False):
         """
@@ -135,6 +140,8 @@ class UnaryClient(object):
         fn_type,
         resources,
         conda_env,
+        env_vars,
+        run_name,
         args,
         kwargs,
     ):
@@ -150,6 +157,8 @@ class UnaryClient(object):
                 fn_type,
                 resources,
                 conda_env,
+                env_vars,
+                run_name,
                 args,
                 kwargs,
             ]
@@ -158,7 +167,7 @@ class UnaryClient(object):
         message = pb2.Message(message=serialized_module)
         server_res = self.stub.RunModule(message)
         end = time.time()
-        logging.info(f"Time to send message: {round(end - start, 2)} seconds")
+        logging.info(f"Time to call remote function: {round(end - start, 2)} seconds")
         if server_res.result != b"":
             res = pickle.loads(server_res.result)
             return res

@@ -3,7 +3,7 @@ from typing import Dict
 
 import yaml
 
-from runhouse import rh_config
+RESERVED_SYSTEM_NAMES = ["file", "s3", "gs", "azure", "here", "ssh", "sftp"]
 
 
 def _current_cluster(key="name"):
@@ -21,21 +21,22 @@ def _current_cluster(key="name"):
         return None
 
 
-def _get_cluster_from(system):
-    from runhouse.rns import Resource
-
-    if isinstance(system, Resource) or (
-        isinstance(system, str)
-        and not rh_config.rns_client.exists(system, resource_type="cluster")
-    ):
-        return system
-
+def _get_cluster_from(system, dryrun=False):
     from runhouse.rns.hardware import Cluster
 
+    if isinstance(system, Cluster):
+        return system
+    if system in RESERVED_SYSTEM_NAMES:
+        return system
+
     if isinstance(system, Dict):
-        return Cluster.from_config(system)
-    elif isinstance(system, str) and rh_config.rns_client.exists(
-        system, resource_type="cluster"
-    ):
-        return Cluster.from_name(system)
+        return Cluster.from_config(system, dryrun)
+
+    if isinstance(system, str):
+        try:
+            system = Cluster.from_name(name=system, dryrun=dryrun)
+        except ValueError:
+            # Name not found in RNS. Doing the lookup this way saves us a hop to RNS
+            pass
+
     return system

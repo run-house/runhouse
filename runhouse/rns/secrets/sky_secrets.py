@@ -53,7 +53,7 @@ class SkySecrets(Secrets):
         else:
             public_key_path = private_key_path + ".pub"
 
-        cls.check_secrets_for_mismatches(
+        cls._check_secrets_for_mismatches(
             secrets_to_save=secrets, secrets_path=public_key_path, overwrite=overwrite
         )
 
@@ -66,4 +66,4 @@ class SkySecrets(Secrets):
         # TODO do we need to register the keys with cloud providers? Probably not, sky does this for us later.
         # backend_utils._add_auth_to_cluster_config(sky.clouds.CLOUD_REGISTRY.from_str(self.provider),
         #                                                   Path(yaml_path).expanduser())
-        cls.add_provider_to_rh_config()
+        cls._add_provider_to_rh_config()

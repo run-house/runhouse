@@ -3,7 +3,6 @@ import subprocess
 from pathlib import Path
 from typing import Union
 
-from runhouse import rh_config
 from .package import Package
 
 
@@ -22,10 +21,6 @@ class GitPackage(Package):
     ):
         """
         Runhouse Github Package resource.
-
-        Example:
-            >>> rh.GitPackage(git_url='https://github.com/runhouse/runhouse.git',
-            >>>               install_method='pip', revision='v0.0.1')
         """
         super().__init__(
             name=name,
@@ -52,7 +47,7 @@ class GitPackage(Package):
             return f"GitPackage: {self.name}"
         return f"GitPackage: {self.git_url}@{self.revision}"
 
-    def install(self, env: Union[str, "Env"] = None):
+    def _install(self, env: Union[str, "Env"] = None):
         # Clone down the repo
         if not Path(self.install_target).exists():
             logging.info(f"Cloning: git clone {self.git_url}")
@@ -69,7 +64,7 @@ class GitPackage(Package):
                 ["git", "-C", self.install_target, "checkout", self.revision]
             )
         # Use super to install the package
-        super().install(env)
+        super()._install(env)
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
@@ -77,24 +72,46 @@ class GitPackage(Package):
 
 
 def git_package(
-    name=None,
+    name: str = None,
     git_url: str = None,
     revision: str = None,
     install_method: str = None,
     install_str: str = None,
-    dryrun=False,
+    dryrun: bool = False,
 ):
-    config = rh_config.rns_client.load_config(name)
-    config["name"] = name or config.get("rns_address", None) or config.get("name")
+    """
+    Builds an instance of :class:`GitPackage`.
 
-    config["install_method"] = install_method or config.get("install_method", "local")
-    config["install_args"] = install_str or config.get("install_args")
-    config["revision"] = revision or config.get("revision")
+    Args:
+        name (str): Name to assign the package resource.
+        git_url (str): The GitHub URL of the package to install.
+        revision (str): Version of the Git package to install.
+        install_method (str): Method for installing the package. If left blank, defaults to local installation.
+        install_str (str): Additional arguments to add to installation command.
+        dryrun (bool): Whether to load the Package object as a dryrun, or create the Package if it doesn't exist.
+            (Default: ``False``)
+
+    Returns:
+        GitPackage: The resulting GitHub Package.
+
+    Example:
+        >>> rh.git_package(git_url='https://github.com/runhouse/runhouse.git',
+        >>>               install_method='pip', revision='v0.0.1')
+
+    """
+    if name and not any([install_method, install_str, git_url, revision]):
+        # If only the name is provided and dryrun is set to True
+        return Package.from_name(name, dryrun)
+
+    install_method = install_method or "local"
     if git_url is not None:
         if not git_url.endswith(".git"):
             git_url += ".git"
-        config["git_url"] = git_url
 
-    new_package = GitPackage.from_config(config, dryrun=dryrun)
-
-    return new_package
+    return GitPackage(
+        git_url=git_url,
+        revision=revision,
+        install_method=install_method,
+        install_args=install_str,
+        dryrun=dryrun,
+    )

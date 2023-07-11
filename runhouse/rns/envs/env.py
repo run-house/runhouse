@@ -1,12 +1,13 @@
 import copy
-from typing import List, Optional, Union
+from pathlib import Path
+from typing import Dict, List, Optional, Union
 
-from runhouse.rns.folders.folder import Folder
+from runhouse.rns.folders import Folder
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.packages import Package
-
-from runhouse.rns.packages.package import _get_cluster_from
 from runhouse.rns.resource import Resource
+
+from runhouse.rns.utils.hardware import _get_cluster_from
 
 
 class Env(Resource):
@@ -17,21 +18,39 @@ class Env(Resource):
         name: Optional[str] = None,
         reqs: List[Union[str, Package]] = [],
         setup_cmds: List[str] = None,
+        env_vars: Union[Dict, str] = {},
+        working_dir: Optional[Union[str, Path]] = "./",
         dryrun: bool = True,
         **kwargs,  # We have this here to ignore extra arguments when calling from_config
     ):
         """
         Runhouse Env object.
+
         .. note::
             To create an Env, please use the factory method :func:`env`.
         """
         super().__init__(name=name, dryrun=dryrun)
         self.reqs = reqs
+        if working_dir is not None:
+            self.reqs.append(working_dir)
         self.setup_cmds = setup_cmds
+        self.env_vars = env_vars
+        self.working_dir = working_dir
 
     @staticmethod
     def from_config(config: dict, dryrun: bool = True):
         """Create an Env object from a config dict"""
+        config["reqs"] = [
+            Package.from_config(req) if isinstance(req, dict) else req
+            for req in config.get("reqs", [])
+        ]
+
+        resource_subtype = config.get("resource_subtype")
+        if resource_subtype == "CondaEnv":
+            from runhouse import CondaEnv
+
+            return CondaEnv(**config, dryrun=dryrun)
+
         return Env(**config, dryrun=dryrun)
 
     @property
@@ -44,6 +63,8 @@ class Env(Resource):
                     for package in self.reqs
                 ],
                 "setup_cmds": self.setup_cmds,
+                "env_vars": self.env_vars,
+                "workding_dir": self.working_dir,
             }
         )
         return config
@@ -66,7 +87,7 @@ class Env(Resource):
             new_reqs.append(req)
         return new_reqs
 
-    def _setup_env(self, system: Union[str, Cluster]):
+    def _setup_env(self, system: Cluster):
         """Install packages and run setup commands on the cluster."""
         if self.reqs:
             system.install_packages(self.reqs)
@@ -76,14 +97,19 @@ class Env(Resource):
     def to(self, system: Union[str, Cluster], path=None, mount=False):
         """
         Send environment to the system (Cluster or file system).
-        This includes installing packages and running setup commands if system is a cluster
+        This includes installing packages and running setup commands if system is a cluster.
+
+        Example:
+            >>> env = rh.env(reqs=["numpy", "pip"])
+            >>> cluster_env = env.to(my_cluster)
+            >>> s3_env = env.to("s3", path="s3_bucket/my_env")
         """
         system = _get_cluster_from(system)
         new_env = copy.deepcopy(self)
         new_env.reqs = self._reqs_to(system, path, mount)
 
         if isinstance(system, Cluster):
-            system.check_grpc()
+            system.check_server()
             new_env._setup_env(system)
 
         return new_env

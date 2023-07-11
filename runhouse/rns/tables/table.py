@@ -1,6 +1,5 @@
 import copy
 import logging
-import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -8,14 +7,18 @@ import fsspec
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+
+import ray
 import ray.data
 
-import runhouse as rh
+from runhouse import Folder
 from runhouse.rh_config import rns_client
-from runhouse.rns.folders.folder import folder
+
+from runhouse.rns.folders import folder
+from runhouse.rns.resource import Resource
 from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
 
-from .. import OnDemandCluster, Resource
+PREFETCH_KWARG = "prefetch_batches" if ray.__version__ >= "2.4.0" else "prefetch_blocks"
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +29,7 @@ class Table(Resource):
     DEFAULT_CACHE_FOLDER = ".cache/runhouse/tables"
     DEFAULT_STREAM_FORMAT = "pyarrow"
     DEFAULT_BATCH_SIZE = 256
-    DEFAULT_PREFETCH_BLOCKS = 1
+    DEFAULT_PREFETCH_BATCHES = 1
 
     def __init__(
         self,
@@ -65,12 +68,10 @@ class Table(Resource):
         self.metadata = metadata or {}
 
     @staticmethod
-    def from_config(config: dict, dryrun=True):
+    def from_config(config: dict, dryrun=False):
         if isinstance(config["system"], dict):
-            config["system"] = OnDemandCluster.from_config(
-                config["system"], dryrun=dryrun
-            )
-        return Table(**config, dryrun=dryrun)
+            config["system"] = _get_cluster_from(config["system"], dryrun=dryrun)
+        return _load_table_subclass(config, dryrun=dryrun)
 
     @property
     def config_for_rns(self):
@@ -101,7 +102,7 @@ class Table(Resource):
         """
         if self._cached_data is not None:
             return self._cached_data
-        return self.read_ray_dataset()
+        return self._read_ray_dataset()
 
     @data.setter
     def data(self, new_data):
@@ -148,21 +149,31 @@ class Table(Resource):
     def data_config(self, new_data_config):
         self._folder.data_config = new_data_config
 
-    @classmethod
-    def from_name(cls, name, dryrun=True):
-        """Load existing Table via its name."""
-        config = rns_client.load_config(name=name)
-        if not config:
-            raise ValueError(f"Table {name} not found.")
-        # We don't need to load the cluster dict here (if system is a cluster) because the table init
-        # goes through the Folder factory method, which does that.
-
-        # Uses the table subclass associated with the `resource_subtype`
-        table_cls = _load_table_subclass(config=config, dryrun=dryrun)
-        return table_cls.from_config(config=config, dryrun=dryrun)
+    # @classmethod
+    # def from_name(cls, name, dryrun=False):
+    #     """Load existing Table via its name."""
+    #     config = rns_client.load_config(name=name)
+    #     if not config:
+    #         raise ValueError(f"Table {name} not found.")
+    #
+    #     # We don't need to load the cluster dict here (if system is a cluster) because the table init
+    #     # goes through the Folder factory method, which handles that.
+    #
+    #     # Add this table's name to the resource artifact registry if part of a run
+    #     rns_client.add_upstream_resource(name)
+    #
+    #     # Uses the table subclass associated with the `resource_subtype`
+    #     table_cls = _load_table_subclass(config=config, dryrun=dryrun)
+    #     return table_cls.from_config(config=config, dryrun=dryrun)
 
     def to(self, system, path=None, data_config=None):
-        """Copy and return the table on the given filesystem and path."""
+        """Copy and return the table on the given filesystem and path.
+
+        Example:
+            >>> local_table = rh.table(data, path="local/path")
+            >>> s3_table = local_table.to("s3")
+            >>> cluster_table = local_table.to(my_cluster)
+        """
         new_table = copy.copy(self)
         new_table._folder = self._folder.to(
             system=system, path=path, data_config=data_config
@@ -174,26 +185,35 @@ class Table(Resource):
             self.system.save()
 
     def write(self):
-        """Write underlying table data to fsspec URL."""
+        """Write underlying table data to fsspec URL.
+
+        Example:
+            >>> rh.table(data, path="path/to/write").write()
+        """
         if self._cached_data is not None:
             data_to_write = self.data
 
             if isinstance(data_to_write, pd.DataFrame):
-                data_to_write = self.ray_dataset_from_pandas(data_to_write)
+                data_to_write = self._ray_dataset_from_pandas(data_to_write)
 
             if isinstance(data_to_write, pa.Table):
-                data_to_write = self.ray_dataset_from_arrow(data_to_write)
+                data_to_write = self._ray_dataset_from_arrow(data_to_write)
 
             if not isinstance(data_to_write, ray.data.Dataset):
                 raise TypeError(f"Invalid Table format {type(data_to_write)}")
 
-            self.write_ray_dataset(data_to_write)
+            self._write_ray_dataset(data_to_write)
             logger.info(f"Saved {str(self)} to: {self.fsspec_url}")
 
         return self
 
     def fetch(self, columns: Optional[list] = None) -> pa.Table:
-        """Returns the complete table contents."""
+        """Returns the complete table contents.
+
+        Example:
+            >>> table = rh.table(data)
+            >>> fomratted_data = table.fetch()
+        """
         # https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
         self._cached_data = self.read_table_from_file(columns)
         if self._cached_data is not None:
@@ -252,72 +272,90 @@ class Table(Resource):
         drop_last: bool = False,
         shuffle_seed: Optional[int] = None,
         shuffle_buffer_size: Optional[int] = None,
-        prefetch_blocks: Optional[int] = None,
+        prefetch_batches: Optional[int] = None,
     ):
-        """Return a local batched iterator over the ray dataset."""
+        """Return a local batched iterator over the ray dataset.
+
+        Example:
+            >>> table = rh.table(data)
+            >>> batches = table.stream(batch_size=4)
+            >>> for _, batch in batches:
+            >>>     print(batch)
+        """
         ray_data = self.data
 
         if self.stream_format == "torch":
             # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.iter_torch_batches.html#ray.data.Dataset.iter_torch_batches
             return ray_data.iter_torch_batches(
                 batch_size=batch_size,
-                prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
                 drop_last=drop_last,
                 local_shuffle_buffer_size=shuffle_buffer_size,
                 local_shuffle_seed=shuffle_seed,
+                # We need to do this to handle the name change of the prefetch_batches argument in ray 2.4.0
+                **{PREFETCH_KWARG: prefetch_batches or self.DEFAULT_PREFETCH_BATCHES},
             )
 
         elif self.stream_format == "tf":
             # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.iter_tf_batches.html
             return ray_data.iter_tf_batches(
                 batch_size=batch_size,
-                prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
                 drop_last=drop_last,
                 local_shuffle_buffer_size=shuffle_buffer_size,
                 local_shuffle_seed=shuffle_seed,
+                # We need to do this to handle the name change of the prefetch_batches argument in ray 2.4.0
+                **{PREFETCH_KWARG: prefetch_batches or self.DEFAULT_PREFETCH_BATCHES},
             )
         else:
             # https://docs.ray.io/en/latest/data/api/dataset.html#ray.data.Dataset.iter_batches
             return ray_data.iter_batches(
                 batch_size=batch_size,
-                prefetch_blocks=prefetch_blocks or self.DEFAULT_PREFETCH_BLOCKS,
                 batch_format=self.stream_format,
                 drop_last=drop_last,
                 local_shuffle_buffer_size=shuffle_buffer_size,
                 local_shuffle_seed=shuffle_seed,
+                # We need to do this to handle the name change of the prefetch_batches argument in ray 2.4.0
+                **{PREFETCH_KWARG: prefetch_batches or self.DEFAULT_PREFETCH_BATCHES},
             )
 
-    def read_ray_dataset(self, columns: Optional[List[str]] = None):
-        """Read parquet data as a ray dataset object"""
+    def _read_ray_dataset(self, columns: Optional[List[str]] = None):
+        """Read parquet data as a ray dataset object."""
         # https://docs.ray.io/en/latest/data/api/input_output.html#parquet
         dataset = ray.data.read_parquet(
             self.fsspec_url, columns=columns, filesystem=self._folder.fsspec_fs
         )
         return dataset
 
-    def write_ray_dataset(self, data_to_write: ray.data.Dataset):
+    def _write_ray_dataset(self, data_to_write: ray.data.Dataset):
         """Write a ray dataset to a fsspec filesystem"""
         if self.partition_cols:
             # TODO [JL]: https://arrow.apache.org/docs/python/generated/pyarrow.parquet.write_to_dataset.html
             logger.warning("Partitioning by column not currently supported.")
             pass
 
+        # delete existing contents or they'll just be appended to
+        self.rm()
+
         # https://docs.ray.io/en/master/data/api/doc/ray.data.Dataset.write_parquet.html
-        data_to_write.repartition(os.cpu_count() * 2).write_parquet(
-            self.fsspec_url, filesystem=self._folder.fsspec_fs
-        )
+        # data_to_write.repartition(os.cpu_count() * 2).write_parquet(
+        data_to_write.write_parquet(self.fsspec_url, filesystem=self._folder.fsspec_fs)
 
     @staticmethod
-    def ray_dataset_from_arrow(data: pa.Table):
+    def _ray_dataset_from_arrow(data: pa.Table):
         """Convert an Arrow Table to a Ray Dataset"""
         return ray.data.from_arrow(data)
 
     @staticmethod
-    def ray_dataset_from_pandas(data: pd.DataFrame):
+    def _ray_dataset_from_pandas(data: pd.DataFrame):
         """Convert an Pandas DataFrame to a Ray Dataset"""
         return ray.data.from_pandas(data)
 
     def read_table_from_file(self, columns: Optional[list] = None):
+        """Read a table from it's path.
+
+        Example:
+            >>> table = rh.table(path="path/to/table")
+            >>> table_data = table.read_table_from_file()
+        """
         try:
             with fsspec.open(self.fsspec_url, mode="rb", **self.data_config) as t:
                 table_data = pq.read_table(t.full_name, columns=columns)
@@ -325,16 +363,22 @@ class Table(Resource):
         except:
             return None
 
-    def delete_in_system(self, recursive: bool = True):
-        """Remove contents of all subdirectories (ex: partitioned data folders)"""
-        # If file(s) are directories, recursively delete contents and then also remove the directory
+    def rm(self, recursive: bool = True):
+        """Delete table, including its partitioned files where relevant.
+
+        Example:
+            >>> table = rh.table(path="path/to/table")
+            >>> table.rm()
+        """
         # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.spec.AbstractFileSystem.rm
-        self._folder.fsspec_fs.rm(self.path, recursive=recursive)
-        if self.system == "file" and recursive:
-            self._folder.delete_in_system()
+        self._folder.rm(recursive=recursive)
 
     def exists_in_system(self):
-        """Whether table exists in file system"""
+        """Whether the table exists in file system.
+
+        Example:
+            >>> table.exists_in_system()
+        """
         return (
             self._folder.exists_in_system()
             and len(self._folder.ls(self.fsspec_url)) >= 1
@@ -351,7 +395,7 @@ def _load_table_subclass(config: dict, dryrun: bool, data=None):
         if resource_subtype == "HuggingFaceTable" or isinstance(data, datasets.Dataset):
             from .huggingface_table import HuggingFaceTable
 
-            return HuggingFaceTable.from_config(config, dryrun=dryrun)
+            return HuggingFaceTable(**config, dryrun=dryrun)
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -361,7 +405,7 @@ def _load_table_subclass(config: dict, dryrun: bool, data=None):
         if resource_subtype == "PandasTable" or isinstance(data, pd.DataFrame):
             from .pandas_table import PandasTable
 
-            return PandasTable.from_config(config, dryrun=dryrun)
+            return PandasTable(**config, dryrun=dryrun)
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -373,7 +417,7 @@ def _load_table_subclass(config: dict, dryrun: bool, data=None):
         if resource_subtype == "DaskTable" or isinstance(data, dd.DataFrame):
             from .dask_table import DaskTable
 
-            return DaskTable.from_config(config, dryrun=dryrun)
+            return DaskTable(**config, dryrun=dryrun)
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -385,7 +429,7 @@ def _load_table_subclass(config: dict, dryrun: bool, data=None):
         if resource_subtype == "RayTable" or isinstance(data, ray.data.Dataset):
             from .ray_table import RayTable
 
-            return RayTable.from_config(config, dryrun=dryrun)
+            return RayTable(**config, dryrun=dryrun)
     except ModuleNotFoundError:
         pass
     except Exception as e:
@@ -402,7 +446,7 @@ def _load_table_subclass(config: dict, dryrun: bool, data=None):
         raise e
 
     if resource_subtype == "Table" or isinstance(data, pa.Table):
-        new_table = Table.from_config(config, dryrun)
+        new_table = Table(**config, dryrun=dryrun)
         return new_table
     else:
         raise TypeError(
@@ -423,7 +467,6 @@ def table(
     dryrun: bool = False,
     stream_format: Optional[str] = None,
     metadata: Optional[dict] = None,
-    load: bool = True,
 ) -> Table:
     """Constructs a Table object, which can be used to interact with the table at the given path.
 
@@ -441,12 +484,12 @@ def table(
         stream_format (Optional[str]): Format to stream the Table as.
             Currently this must be one of: [``pyarrow``, ``torch``, ``tf``, ``pandas``]
         metadata (Optional[dict]): Metadata to store for the table.
-        load (bool): Whether to load an existing config for the Table. (Default: ``True``)
 
     Returns:
         Table: The resulting Table object.
 
     Example:
+        >>> import runhouse as rh
         >>> # Create and save (pandas) table
         >>> rh.table(
         >>>    data=data,
@@ -454,65 +497,64 @@ def table(
         >>>    path="table_tests/test_pandas_table.parquet",
         >>>    system="file",
         >>>    mkdir=True,
-        >>> )
+        >>> ).save()
         >>>
         >>> # Load table from above
         >>> reloaded_table = rh.table(name="~/my_test_pandas_table")
     """
-    config = rns_client.load_config(name) if load else {}
+    if name and not any(
+        [
+            data is not None,
+            path,
+            system,
+            data_config,
+            partition_cols,
+            stream_format,
+            metadata,
+        ]
+    ):
+        # Try reloading existing table
+        return Table.from_name(name, dryrun)
 
-    config["system"] = (
-        system
-        or config.get("system")
-        or _current_cluster(key="config")
-        or rns_client.DEFAULT_FS
+    system = _get_cluster_from(
+        system or _current_cluster(key="config") or Folder.DEFAULT_FS, dryrun=dryrun
     )
 
-    name = name or config.get("rns_address") or config.get("name")
-
-    data_path = path or config.get("path")
     file_name = None
-    if data_path:
+    if path:
         # Extract the file name from the path if provided
-        full_path = Path(data_path)
+        full_path = Path(path)
         file_suffix = full_path.suffix
         if file_suffix:
-            data_path = str(full_path.parent)
+            path = str(full_path.parent)
             file_name = full_path.name
 
-    if data_path is None:
+    if path is None:
         # If no path is provided we need to create one based on the name of the table
         table_name_in_path = rns_client.resolve_rns_data_resource_name(name)
-        if (
-            config["system"] == rns_client.DEFAULT_FS
-            or config["system"] == _current_cluster()
-            or (
-                isinstance(config["system"], dict)
-                and config["system"]["name"] == _current_cluster()
-            )
+        if system == rns_client.DEFAULT_FS or (
+            isinstance(system, Resource) and system.on_this_cluster()
         ):
             # create random path to store in .cache folder of local filesystem
-            data_path = str(
+            path = str(
                 Path(
                     f"~/{Table.DEFAULT_CACHE_FOLDER}/{table_name_in_path}"
                 ).expanduser()
             )
         else:
             # save to the default bucket
-            data_path = f"{Table.DEFAULT_FOLDER_PATH}/{table_name_in_path}"
+            path = f"{Table.DEFAULT_FOLDER_PATH}/{table_name_in_path}"
 
-    config["system"] = _get_cluster_from(config["system"])
-    config["name"] = name
-    config["path"] = data_path
-    config["file_name"] = file_name or config.get("file_name")
-    config["data_config"] = data_config or config.get("data_config")
-    config["partition_cols"] = partition_cols or config.get("partition_cols")
-    config["stream_format"] = stream_format or config.get("stream_format")
-    config["metadata"] = metadata or config.get("metadata")
-
-    if mkdir:
-        # create the remote folder for the table
-        rh.folder(path=data_path, system=config["system"], dryrun=True).mkdir()
+    config = {
+        "system": system,
+        "name": name,
+        "path": path,
+        "file_name": file_name,
+        "data_config": data_config,
+        "partition_cols": partition_cols,
+        "stream_format": stream_format,
+        "metadata": metadata,
+    }
 
     new_table = _load_table_subclass(config=config, dryrun=dryrun, data=data)
     if data is not None:
