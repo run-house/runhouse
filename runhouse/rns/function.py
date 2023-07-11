@@ -84,6 +84,7 @@ class Function(Resource):
 
             # set the cluster config as the system
             config["system"] = cluster_config
+        config["env"] = _get_env_from(config["env"])
         return config
 
     def to(
@@ -807,9 +808,10 @@ def function(
         warnings.warn(
             "``reqs`` argument has been deprecated. Please use ``env`` instead."
         )
-        env = Env(reqs=reqs, setup_cmds=setup_cmds)
-    else:
+        env = Env(reqs=reqs, setup_cmds=setup_cmds, working_dir="./")
+    elif not isinstance(env, Env):
         env = _get_env_from(env) or Env()
+        env.working_dir = env.working_dir or "./"
 
     fn_pointers = None
     if callable(fn):

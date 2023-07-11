@@ -464,6 +464,10 @@ class Cluster(Resource):
         )
         cmds = [kill_proc_cmd]
         if restart_ray:
+            ray_start_cmd = "ray start --head --port 6379 --autoscaling-config=~/ray_bootstrap_config.yaml"
+            # We need to use this instead of ray stop to make sure we don't stop the SkyPilot ray server,
+            # which runs on other ports but is required to preserve autostop and correct cluster status.
+            kill_ray_cmd = f'pkill -f ".*ray.*6379.*"'
             if self.ips and len(self.ips) > 1:
                 raise NotImplementedError(
                     "Starting Ray on a cluster with multiple nodes is not yet supported."
@@ -471,10 +475,8 @@ class Cluster(Resource):
                     "and pass *only* the head node ip to the cluster constructor: \n"
                     "https://docs.ray.io/en/latest/cluster/vms/user-guides/launching-clusters/on-premises.html#manually-set-up-a-ray-cluster"
                 )
-            cmds.append("ray stop")
-            cmds.append(
-                "ray start --head --autoscaling-config=~/ray_bootstrap_config.yaml"
-            )  # Need to set gpus or Ray will block on cpu-only clusters
+            cmds.append(kill_ray_cmd)
+            cmds.append(ray_start_cmd)
         cmds.append(screen_cmd)
 
         # If we need different commands for debian or ubuntu, we can use this:

@@ -72,6 +72,7 @@ install_requires = [
     "skypilot==0.3.1",
     "fastapi<=0.99.0",
     "uvicorn",
+    "pyOpenSSL>=21.1.0",
 ]
 
 # NOTE: Change the templates/spot-controller.yaml.j2 file if any of the following

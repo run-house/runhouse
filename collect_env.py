@@ -30,6 +30,7 @@ pip_pkgs = "\n".join(
             "skypilot",
             "fastapi",
             "uvicorn",
+            "pyOpenSSL"
             # aws
             "awscli",
             "boto3",
