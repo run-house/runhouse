@@ -28,6 +28,8 @@ pip_pkgs = "\n".join(
             "sshfs",
             "typer",
             "skypilot",
+            "fastapi",
+            "uvicorn",
             # aws
             "awscli",
             "boto3",

@@ -70,7 +70,7 @@ install_requires = [
     "sshfs",
     "typer",
     "skypilot==0.3.1",
-    "fastapi",
+    "fastapi<=0.99.0",
     "uvicorn",
 ]
 
