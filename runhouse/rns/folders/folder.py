@@ -149,18 +149,8 @@ class Folder(Resource):
     def _check_for_child_configs(cls, config):
         """Overload by child resources to load any resources they hold internally."""
         system = config["system"]
-        if (
-            isinstance(system, str)
-            and system not in RESERVED_SYSTEM_NAMES
-            and rns_client.exists(system)
-        ):
-            # if the system is set to a cluster
-            cluster_config: dict = rns_client.load_config(name=system)
-            if not cluster_config:
-                raise Exception(f"No cluster config saved for {system}")
-
-            # set the cluster config as the system
-            config["system"] = cluster_config
+        if isinstance(system, str) and system not in RESERVED_SYSTEM_NAMES:
+            config["system"] = rns_client.load_config(name=system) or system
         return config
 
     @property

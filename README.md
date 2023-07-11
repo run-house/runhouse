@@ -115,7 +115,7 @@ Notebooks, scripts, pipeline nodes, etc. are all fair game.
 
 ## 🐣 Getting Started
 
-Please see the [Getting Started guide](https://runhouse-docs.readthedocs-hosted.com/en/latest/installation.html#).
+Please see the [Getting Started guide](https://runhouse-docs.readthedocs-hosted.com/en/latest/tutorials/quick_start.html).
 
 tldr;
 ```commandline

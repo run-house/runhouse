@@ -76,14 +76,12 @@ class Function(Resource):
         """Overload by child resources to load any resources they hold internally."""
         # TODO: Replace with _get_cluster_from?
         system = config["system"]
-        if isinstance(system, str) and rh_config.rns_client.exists(system):
+        if isinstance(system, str):
+            config["system"] = rh_config.rns_client.load_config(name=system)
             # if the system is set to a cluster
-            cluster_config: dict = rh_config.rns_client.load_config(name=system)
-            if not cluster_config:
+            if not config["system"]:
                 raise Exception(f"No cluster config saved for {system}")
 
-            # set the cluster config as the system
-            config["system"] = cluster_config
         config["env"] = _get_env_from(config["env"])
         return config
 
@@ -809,7 +807,7 @@ def function(
         warnings.warn(
             "``reqs`` argument has been deprecated. Please use ``env`` instead."
         )
-        env = Env(reqs=reqs, setup_cmds=setup_cmds)
+        env = Env(reqs=reqs, setup_cmds=setup_cmds, working_dir="./")
     elif not isinstance(env, Env):
         env = _get_env_from(env) or Env()
         env.working_dir = env.working_dir or "./"
