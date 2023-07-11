@@ -13,9 +13,10 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-from runhouse.rh_config import configs, env_for_key, env_servlets, rns_client
+from runhouse.rh_config import configs, env_servlets, rns_client
+from runhouse.rns.servlet import EnvServlet
 from runhouse.rns.utils.names import _generate_default_name
-from runhouse.servers.http.http_utils import (
+from ..http.http_utils import (
     Args,
     b64_unpickle,
     DEFAULT_SERVER_PORT,
@@ -24,7 +25,6 @@ from runhouse.servers.http.http_utils import (
     pickle_b64,
     Response,
 )
-from runhouse.servers.servlet import EnvServlet
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +155,9 @@ class HTTPServer:
 
     @staticmethod
     def lookup_env_for_name(name, check_rns=False):
-        env = env_for_key.get(name, None)
+        from runhouse.rh_config import obj_store
+
+        env = obj_store.get_env(name)
         if env:
             return env
 
@@ -405,9 +407,11 @@ class HTTPServer:
     @staticmethod
     @app.get("/keys")
     def get_keys(env: Optional[str] = None):
+        from runhouse.rh_config import obj_store
+
         if not env:
             return Response(
-                output_type=OutputType.RESULT, data=pickle_b64(env_for_key.keys())
+                output_type=OutputType.RESULT, data=pickle_b64(obj_store.keys())
             )
         return HTTPServer.call_in_env_servlet("get_keys", [], env=env)
 

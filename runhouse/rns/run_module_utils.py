@@ -121,16 +121,23 @@ def call_fn_by_type(
         runtime_env=runtime_env,
     )(logging_wrapped_fn)
 
+    res = None
+    obj_ref = None
     # TODO other possible fn_types: 'batch', 'streaming'
     if fn_type == "starmap":
         obj_ref = [
             ray_fn.remote(fn_pointers, serialize_res, num_cuda_devices, *arg, **kwargs)
             for arg in args
         ]
-    elif fn_type in ("queue", "remote", "call", "nested"):
+    elif fn_type in ("queue", "remote", "call"):
         obj_ref = ray_fn.remote(
             fn_pointers, serialize_res, num_cuda_devices, *args, **kwargs
         )
+    elif fn_type == "nested":
+        res = logging_wrapped_fn(
+            fn_pointers, serialize_res, num_cuda_devices, *args, **kwargs
+        )
+        return res
     elif fn_type == "repeat":
         [num_repeats, args] = args
         obj_ref = [
@@ -140,7 +147,7 @@ def call_fn_by_type(
     else:
         raise ValueError(f"fn_type {fn_type} not recognized")
 
-    if fn_type in ("queue", "remote", "call", "nested"):
+    if fn_type in ("queue", "remote", "call"):
         fn_result = _populate_run_with_result(run_obj, fn_type, obj_ref)
         logger.info(f"Result from function execution: {type(fn_result)}")
         res = fn_result

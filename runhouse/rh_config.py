@@ -19,15 +19,7 @@ open_cluster_tunnels = {}
 
 rns_client = RNSClient(configs=configs)
 
-obj_store = None
-env_obj_store = None
-try:
-    import ray  # noqa: F401
-
-    # Rename "cluster_obj_store"
-    obj_store = ObjStore(name="cluster_obj_store")
-    env_for_key = ObjStore(name="env_for_key")
-except Exception:
-    pass
-
+# Note: this initalizes a dummy global object. The obj_store must
+# be properly initialized by a servlet via set_name.
+obj_store = ObjStore()
 env_servlets = {}

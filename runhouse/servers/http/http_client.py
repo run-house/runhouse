@@ -149,8 +149,6 @@ class HTTPClient:
             },
             stream=True,
         )
-        end = time.time()
-        logging.info(f"Time to call method: {round(end - start, 2)} seconds")
         if res.status_code != 200:
             raise ValueError(
                 f"Error calling {method_name} on server: {res.content.decode()}"
@@ -182,6 +180,10 @@ class HTTPClient:
             else:
                 # Finish iterating over logs before returning single result
                 non_generator_result = result
+        end = time.time()
+        logging.info(
+            f"Time to call {module_name}.{method_name}: {round(end - start, 2)} seconds"
+        )
         return non_generator_result
 
     # TODO [DG]: maybe just merge cancel into this so we can get log streaming back as we cancel a job (ditto others)
@@ -217,14 +219,16 @@ class HTTPClient:
             err_str=f"Error putting object {key}",
         )
 
-    def put_resource(self, resource, env=None):
+    def put_resource(self, resource, env=None, dryrun=False):
         if env and not isinstance(env, str):
             env = _get_env_from(env)
             env = env.name
         return self.request(
             "resource",
             req_type="post",
+            # TODO wire up dryrun properly
             data=pickle_b64((resource.config_for_rns, resource.dryrun)),
+            # data=pickle_b64((resource.config_for_rns, dryrun)),
             env=env,
             err_str=f"Error putting resource {resource.name or type(resource)}",
         )

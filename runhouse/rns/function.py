@@ -4,7 +4,6 @@ import json
 import logging
 import os
 import re
-import time
 import warnings
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -75,6 +74,7 @@ class Function(Resource):
     @classmethod
     def _check_for_child_configs(cls, config):
         """Overload by child resources to load any resources they hold internally."""
+        # TODO: Replace with _get_cluster_from?
         system = config["system"]
         if isinstance(system, str) and rh_config.rns_client.exists(system):
             # if the system is set to a cluster
@@ -84,6 +84,7 @@ class Function(Resource):
 
             # set the cluster config as the system
             config["system"] = cluster_config
+        config["env"] = _get_env_from(config["env"])
         return config
 
     def to(
@@ -137,19 +138,22 @@ class Function(Resource):
         new_function = copy.deepcopy(self)
         self.system = hw_backup
 
-        if system:
-            if isinstance(system, str):
-                system = Cluster.from_name(system, dryrun=self.dryrun)
-            new_function.system = system
-        else:
-            new_function.system = self.system
+        new_function.system = (
+            _get_cluster_from(system, dryrun=self.dryrun) if system else self.system
+        )
 
         logging.info("Setting up Function on cluster.")
         # To up cluster in case it's not yet up
         new_function.system.check_server()
+        new_function.name = new_function.name or self.fn_pointers[2]
+        # TODO
+        # env.name = env.name or (new_function.name + "_env")
         new_env = env.to(new_function.system)
-        logging.info("Function setup complete.")
         new_function.env = new_env
+
+        new_function.dryrun = True
+        system.put_resource(new_function, dryrun=True)
+        logging.info("Function setup complete.")
 
         return new_function
 
@@ -268,17 +272,19 @@ class Function(Resource):
             The Function's return value
         """
 
-        fn_type = "call"
         if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
             run_locally = not self.system or self.system.on_this_cluster()
             if not run_locally:
-                start = time.time()
-                run_obj = self.run(*args, run_name=run_name, **kwargs)
-                res = self.system.get(run_obj.name, stream_logs=stream_logs)
-                end = time.time()
-                logging.info(
-                    f"Time to call remote function: {round(end - start, 2)} seconds"
+                res = self.system.call_module_method(
+                    self.name,
+                    "__call__",
+                    *args,
+                    stream_logs=stream_logs,
+                    run_name=run_name,
+                    **kwargs,
                 )
+                # run_obj = self.run(*args, run_name=run_name, **kwargs)
+                # res = self.system.get(run_obj.name, stream_logs=stream_logs)
                 return res
             else:
                 [relative_path, module_name, fn_name] = self.fn_pointers
@@ -296,7 +302,7 @@ class Function(Resource):
                 # their own result.
 
                 return call_fn_by_type(
-                    fn_type=fn_type,
+                    fn_type="nested",
                     fn_name=fn_name,
                     relative_path=relative_path,
                     module_name=module_name,

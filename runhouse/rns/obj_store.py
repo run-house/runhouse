@@ -1,17 +1,16 @@
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import ray
-import ray.cloudpickle as pickle
 
-from runhouse.rns.utils.hardware import _current_cluster
+logger = logging.getLogger(__name__)
 
 
-@ray.remote
-class ObjStoreActor:
-    """Ray actor to handle object storage for Runhouse. Wrapping this in an actor allows us to access it across
-    Ray processes and nodes, and even keep some things pinned to Python memory."""
+class KVStore:
+    """Simple dict wrapper to act as key-value/object storage. Wrapping this in an actor allows us to
+    access it across Ray processes and nodes, and even keep some things pinned to Python memory."""
 
     def __init__(self):
         num_gpus = ray.cluster_resources().get("GPU", 0)
@@ -50,6 +49,9 @@ class ObjStoreActor:
     def __len__(self):
         return len(self._kv)
 
+    def contains(self, key: str):
+        return key in self
+
     def __contains__(self, key: str):
         return key in self._kv
 
@@ -76,72 +78,135 @@ class ObjStore:
     LOGS_DIR = ".rh/logs"
     RH_LOGFILE_PATH = Path.home() / LOGS_DIR
 
-    def __init__(self, name=None, cluster_name: Optional[str] = None):
-        if not ray.is_initialized():
-            ray.init(
-                ignore_reinit_error=True,
-                namespace="runhouse",
-            )
+    def __init__(self):
+        self.servlet_name = None
+        self._kv_store = None
+        self._env_for_key = None
+        self.imported_modules = {}
+        self.installed_envs = {}
 
-        self.cluster_name = cluster_name or _current_cluster("cluster_name")
+    def set_name(self, servlet_name: str):
+        # This needs to be in a separate method so the HTTPServer actually
+        # initalizes the obj_store, and it doesn't get created and destroyed when
+        # nginx runs http_server.py as a module.
+        self.servlet_name = servlet_name or "base"
         num_gpus = ray.cluster_resources().get("GPU", 0)
         cuda_visible_devices = list(range(int(num_gpus)))
         os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
-        self._kv_actor = ObjStoreActor.options(
-            name=name,
-            get_if_exists=True,
-            lifetime="detached",
-            namespace="runhouse",
-        ).remote()
-        self.imported_modules = {}
+        self._kv_store = KVStore()
+        self._env_for_key = (
+            ray.remote(KVStore)
+            .options(
+                name="env_for_key",
+                get_if_exists=True,
+                lifetime="detached",
+                namespace="runhouse",
+            )
+            .remote()
+        )
+
+    @staticmethod
+    def call_kv_method(store, method, *args, **kwargs):
+        if store is None:
+            raise ValueError(
+                "Object store not initialized, may be running inside process without a servlet."
+            )
+        if isinstance(store, ray.actor.ActorHandle):
+            return ray.get(getattr(store, method).remote(*args, **kwargs))
+        else:
+            return getattr(store, method)(*args, **kwargs)
+
+    def keys(self):
+        # Return keys across the cluster, not only in this process
+        return self.call_kv_method(self._env_for_key, "keys")
+
+    def get_env(self, key):
+        return self.call_kv_method(self._env_for_key, "get", key, None)
+
+    def put_env(self, key, value):
+        return self.call_kv_method(self._env_for_key, "put", key, value)
 
     def put(self, key: str, value: Any):
-        if not isinstance(value, ray.ObjectRef):
-            ray.get(self._kv_actor.put.remote(key, value))
-            value = ray.put(value)
-        self.put_obj_ref(key, value)
+        # First check if it's in the Python kv store
+        self.call_kv_method(self._kv_store, "put", key, value)
+        self.put_env(key, self.servlet_name)
 
     def put_obj_ref(self, key, obj_ref):
         # Need to wrap the obj_ref in a dict so ray doesn't dereference it
         # FYI: https://docs.ray.io/en/latest/ray-core/objects.html#closure-capture-of-objects
-        ray.get(self._kv_actor.put.remote(key + "_ref", [obj_ref]))
+        self.call_kv_method(self._kv_store, "put", key + "_ref", [obj_ref])
+        self.put_env(key, self.servlet_name)
 
     def rename(self, old_key, new_key, default=None):
         # By passing default, we don't throw an error if the key is not found
-        ray.get(self._kv_actor.rename.remote(old_key, new_key, default))
-        ray.get(
-            self._kv_actor.rename.remote(old_key + "_ref", new_key + "_ref", default)
-        )
+        self.call_kv_method(self._kv_store, "rename", old_key, new_key, default)
+        self.call_kv_method(self._env_for_key, "rename", old_key, new_key, default)
 
     def get_obj_ref(self, key):
-        return ray.get(self._kv_actor.get.remote(key + "_ref", [None]))[0]
+        return self.call_kv_method(self._kv_store, "get", key + "_ref", [None])[0]
+
+    @staticmethod
+    def get_env_servlet(env_name):
+        from runhouse.rh_config import env_servlets
+
+        if env_name in env_servlets.keys():
+            return env_servlets[env_name]
+
+        actor = ray.get_actor(env_name, namespace="runhouse")
+        if actor is not None:
+            env_servlets[env_name] = actor
+            return actor
+        return None
 
     def get(
         self,
         key: str,
         default: Optional[Any] = None,
         timeout: Optional[float] = None,
+        check_other_envs: bool = True,
         resolve: bool = True,
     ):
         # First check if it's in the Python kv store
-        val = ray.get(self._kv_actor.get.remote(key))
+        val = self.call_kv_method(self._kv_store, "get", key, None)
         if val is not None:
             return val
-
-        # Next check if it's in the Ray Obj store
-        obj_ref = self.get_obj_ref(key)
-
-        if not obj_ref:
+        elif self.call_kv_method(self._kv_store, "contains", key):
+            # If it's in the kv store but None, return None
+            return None
+        elif not check_other_envs:
             return default
 
-        if not resolve:
-            return obj_ref
+        # If not, check if it's in another env's servlet
+        servlet_name = self.get_env(key)
+        if servlet_name is not None:
+            logger.info(f"Getting {key} from servlet {servlet_name}")
+            servlet = self.get_env_servlet(servlet_name)
+            if servlet is not None:
+                if isinstance(servlet, ray.actor.ActorHandle):
+                    val = ray.get(servlet.get.remote(key, _intra_cluster=True))
+                else:
+                    val = servlet.get(key, _intra_cluster=True, timeout=None)
 
-        obj = ray.get(obj_ref, timeout=timeout)
-        if isinstance(obj, bytes):
-            return pickle.loads(obj)
-        else:
-            return obj
+                if val is not None:
+                    return val
+
+            # Try requesting the object through localhost in case it's not in a Ray Actor servlet
+            # try:
+            #     from runhouse.servers.http.http_client import HTTPClient
+            #     client = HTTPClient("localhost")
+            #     val = client.get_object(key, stream_logs=False)
+            #     if val:
+            #         return val
+            # except Exception as e:
+            #     print(f"Error getting object {key} from localhost: {e}")
+
+        return default
+
+    def get_list(self, keys: List[str], default: Optional[Any] = None):
+        return [self.get(key, default=default or key) for key in keys]
+
+    def get_dict(self, d: Dict[str, Any], default: Optional[Any] = None):
+        return {k: self.get(v, default=default or v) for k, v in d.items()}
 
     def get_obj_refs_list(self, keys: List, resolve=True):
         return [
@@ -155,19 +220,22 @@ class ObjStore:
             for k, v in d.items()
         }
 
-    def keys(self):
-        return list(ray.get(self._kv_actor.keys.remote()))
+    def delete_env(self, key):
+        self.call_kv_method(self._env_for_key, "pop", key)
 
     def delete(self, key: str):
-        ray.get(self._kv_actor.pop.remote(key, None))
+        self.call_kv_method(self._kv_store, "pop", key)
+        self.delete_env(key)
 
     def pop(self, key: str, default: Optional[Any] = None):
-        val = ray.get(self._kv_actor.pop.remote(key, default))
-        ref = ray.get(self._kv_actor.pop.remote(key + "_ref", [None])[0])
-        return val or ref or default
+        return self.call_kv_method(self._kv_store, "pop", key, default)
+
+    def clear_env(self):
+        self.call_kv_method(self._env_for_key, "clear")
 
     def clear(self):
-        ray.get(self._kv_actor.clear.remote())
+        self.call_kv_method(self._kv_store, "clear")
+        self.clear_env()
 
     def cancel(self, key: str, force: bool = False, recursive: bool = True):
         obj_ref = self.get_obj_ref(key)
@@ -177,9 +245,7 @@ class ObjStore:
             ray.cancel(obj_ref, force=force, recursive=recursive)
 
     def contains(self, key: str):
-        return ray.get(self._kv_actor.__contains__.remote(key + "_ref")) or ray.get(
-            self._kv_actor.__contains__.remote(key)
-        )
+        return self.call_kv_method(self._kv_store, "contains", key)
 
     def get_logfiles(self, key: str, log_type=None):
         # Info on ray logfiles: https://docs.ray.io/en/releases-2.2.0/ray-observability/ray-logging.html#id1
@@ -198,7 +264,7 @@ class ObjStore:
             return None
 
     def __repr__(self):
-        return f"ObjStore({ray.get(self._kv_actor.__repr__.remote())})"
+        return f"ObjStore({self.call_kv_method(self._kv_store, '__repr__')})"
 
     def __str__(self):
-        return f"ObjStore({ray.get(self._kv_actor.__repr__.remote())})"
+        return f"ObjStore({self.call_kv_method(self._kv_store, '__str__')})"

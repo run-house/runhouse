@@ -99,6 +99,8 @@ class Blob(Resource):
         system = _get_cluster_from(system)
         if (not system or isinstance(system, Cluster)) and not path:
             name = self.name or _generate_default_name(prefix="blob")
+            # TODO [DG] if system is the same, bounces off the laptop for no reason. Change to write through a
+            #  call_module_method rpc (and same for similar file cases)
             return Blob(name=name, system=system).write(self.fetch())
 
         path = str(

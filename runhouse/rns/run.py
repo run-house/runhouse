@@ -5,8 +5,6 @@ import sys
 from enum import Enum
 from typing import Any, Optional, Union
 
-from ray import cloudpickle as pickle
-
 from runhouse.rh_config import obj_store, rns_client
 from runhouse.rns.blobs import file
 
@@ -260,9 +258,7 @@ class Run(Resource):
 
     def inputs(self) -> bytes:
         """Load the pickled function inputs saved on the system for the Run."""
-        return pickle.loads(
-            self._load_blob_from_path(path=self._fn_inputs_path()).fetch()
-        )
+        return self._load_blob_from_path(path=self._fn_inputs_path()).fetch()
 
     def result(self):
         """Load the function result saved on the system for the Run. If the Run has failed return the stderr,
@@ -274,7 +270,7 @@ class Run(Resource):
                 raise FileNotFoundError(
                     f"No results file found in path: {results_path}"
                 )
-            return pickle.loads(self._load_blob_from_path(path=results_path).fetch())
+            return self._load_blob_from_path(path=results_path).fetch()
         elif run_status == RunStatus.ERROR:
             logger.info("Run failed, returning stderr")
             return self.stderr()
@@ -287,14 +283,24 @@ class Run(Resource):
         stdout_path = self._stdout_path
         logger.info(f"Reading stdout from path: {stdout_path}")
 
-        return self._load_blob_from_path(path=stdout_path).fetch().decode().strip()
+        return (
+            self._load_blob_from_path(path=stdout_path)
+            .fetch(deserialize=False)
+            .decode()
+            .strip()
+        )
 
     def stderr(self) -> str:
         """Read the stderr saved on the system for the Run."""
         stderr_path = self._stderr_path
         logger.info(f"Reading stderr from path: {stderr_path}")
 
-        return self._load_blob_from_path(stderr_path).fetch().decode().strip()
+        return (
+            self._load_blob_from_path(stderr_path)
+            .fetch(deserialize=False)
+            .decode()
+            .strip()
+        )
 
     def _fn_inputs_path(self) -> str:
         """Path to the pickled inputs used for the function which are saved on the system."""

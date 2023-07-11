@@ -87,6 +87,32 @@ def test_call_module_method(cpu_cluster, env):
     assert not numpy_config
 
 
+class slow_numpy_array:
+    def __init__(self, size=5):
+        self.size = size
+        self.arr = np.zeros(self.size)
+
+    def slow_get_array(self):
+        for i in range(self.size):
+            time.sleep(1)
+            self.arr[i] = i
+            yield f"Hello from the cluster! {self.arr}"
+
+
+@pytest.mark.clustertest
+@unittest.skip("Not working yet")
+@pytest.mark.parametrize("env", [None])
+def test_stateful_generator(cpu_cluster, env):
+    cpu_cluster.put("slow_numpy_array", slow_numpy_array(), env=env)
+    vals = cpu_cluster.call_module_method(
+        "slow_numpy_array", "slow_get_array", stream_logs=True
+    )
+    inspect.isgenerator(res)
+    for val in vals:
+        assert val
+        print(val)
+
+
 def pinning_helper(key=None):
     if not isinstance(key, str):
         return key + ["Found in args!"]
@@ -191,9 +217,11 @@ def test_pinning_in_memory(cpu_cluster):
     # https://docs.ray.io/en/latest/ray-core/objects/serialization.html#fixing-assignment-destination-is-read-only
     cpu_cluster.delete_keys()
     fn_1 = rh.function(np_serialization_helper_1).to(cpu_cluster)
-    fn_2 = rh.function(np_serialization_helper_2).to(cpu_cluster)
     fn_1()
-    fn_2()
+    fn_2 = rh.function(np_serialization_helper_2).to(cpu_cluster)
+    res = fn_2()
+    assert res[0] == 1
+    assert res[1] == 0
 
 
 @pytest.mark.clustertest

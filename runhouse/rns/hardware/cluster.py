@@ -268,7 +268,7 @@ class Cluster(Resource):
         self.check_server()
         return self.client.put_object(key, obj, env=env)
 
-    def put_resource(self, resource: Resource):
+    def put_resource(self, resource: Resource, dryrun=False):
         """Put the given resource on the cluster's object store. Returns the key (important if name is not set)."""
         self.check_server()
         env = (
@@ -278,7 +278,7 @@ class Cluster(Resource):
             if resource.RESOURCE_TYPE == "env"
             else None
         )
-        return self.client.put_resource(resource, env=env)
+        return self.client.put_resource(resource, env=env, dryrun=dryrun)
 
     def rename(self, old_key: str, new_key: str):
         """Rename a key in the cluster's object store."""
@@ -546,13 +546,15 @@ class Cluster(Resource):
         )
 
     def call_module_method(
-        self, module_name, method_name, stream_logs=True, run_name=None, *args, **kwargs
+        self, module_name, method_name, *args, stream_logs=True, run_name=None, **kwargs
     ):
         """Call a method on a module that is installed on the cluster.
 
         Args:
             module_name (str): Name of the module saved on system.
             method_name (str): Name of the method.
+            stream_logs (bool): Whether to stream logs from the method call.
+            run_name (str): Name for the run.
             *args: Positional arguments to pass to the method.
             **kwargs: Keyword arguments to pass to the method.
 

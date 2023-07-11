@@ -8,7 +8,8 @@ import ray
 import ray.cloudpickle as pickle
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-from runhouse.rh_config import configs, env_for_key, obj_store
+from runhouse.rh_config import configs, obj_store
+
 from runhouse.rns.blobs import blob
 from runhouse.rns.packages.package import Package
 from runhouse.rns.resource import Resource
@@ -33,6 +34,8 @@ class EnvServlet:
 
     def __init__(self, env_name, *args, **kwargs):
         self.env_name = env_name
+
+        obj_store.set_name(self.env_name)
 
     @staticmethod
     def register_activity():
@@ -82,7 +85,6 @@ class EnvServlet:
                 prefix=resource.RESOURCE_TYPE
             )
             obj_store.put(name, resource)
-            env_for_key.put(name, self.env_name)
             self.register_activity()
             # Return the name in case we had to set it
             return Response(output_type=OutputType.RESULT, data=pickle_b64(name))
@@ -228,11 +230,18 @@ class EnvServlet:
                 output_type=OutputType.EXCEPTION,
             )
 
-    def get(self, key, timeout=None):
+    def get(self, key, timeout=None, _intra_cluster=False):
         self.register_activity()
         try:
-            ret_obj = obj_store.get(key, timeout=timeout)
-            logger.info(f"Got object of type {type(ret_obj)} back from object store")
+            ret_obj = obj_store.get(
+                key, timeout=timeout, check_other_envs=not _intra_cluster
+            )
+            logger.info(
+                f"Servlet {self.env_name} got object of type "
+                f"{type(ret_obj)} back from object store for key {key}"
+            )
+            if _intra_cluster:
+                return ret_obj
             # Case 1: ...
             if isinstance(ret_obj, tuple):
                 (res, obj_ref, run_name) = ret_obj
@@ -277,7 +286,6 @@ class EnvServlet:
         logger.info(f"Message received from client to get object: {key}")
         try:
             obj_store.put(key, obj)
-            env_for_key.put(key, self.env_name)
             return Response(output_type=OutputType.SUCCESS)
         except Exception as e:
             logger.exception(e)

@@ -5,6 +5,8 @@ import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
+from runhouse.rh_config import obj_store
+
 from runhouse.rns.folders import Folder
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.packages import Package
@@ -113,8 +115,16 @@ class Env(Resource):
         if self.setup_cmds:
             system.run(self.setup_cmds)
 
-    def install(self):
+    def install(self, force=False):
         """Locally install packages and run setup commands."""
+        # Hash the config_for_rns to check if we need to install
+        install_hash = hash(str(self.config_for_rns))
+        # Check the existing hash
+        if install_hash in obj_store.installed_envs and not force:
+            logger.info("Env already installed, skipping")
+            return
+        obj_store.installed_envs[install_hash] = self.name
+
         for package in self.reqs:
             if isinstance(package, str):
                 pkg = Package.from_string(package)
@@ -143,7 +153,9 @@ class Env(Resource):
             ret_codes.append(ret_code)
         return ret_codes
 
-    def to(self, system: Union[str, Cluster], path=None, mount=False):
+    def to(
+        self, system: Union[str, Cluster], path=None, mount=False, force_install=False
+    ):
         """
         Send environment to the system (Cluster or file system).
         This includes installing packages and running setup commands if system is a cluster.
@@ -155,11 +167,12 @@ class Env(Resource):
         """
         system = _get_cluster_from(system)
         new_env = copy.deepcopy(self)
+        # new_env.name = new_env.name or "base"
         new_env.reqs, new_env.working_dir = self._reqs_to(system, path, mount)
 
         if isinstance(system, Cluster):
             key = system.put_resource(new_env)
-            system.call_module_method(key, "install")
+            system.call_module_method(key, "install", force=force_install)
 
         return new_env
 

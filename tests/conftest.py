@@ -268,6 +268,7 @@ def s3_package(s3_folder):
 
 # ----------------- Functions -----------------
 def summer(a: int, b: int):
+    print("Running summer function")
     return a + b
 
 
