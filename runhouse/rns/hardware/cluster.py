@@ -467,7 +467,7 @@ class Cluster(Resource):
             ray_start_cmd = "ray start --head --port 6379 --autoscaling-config=~/ray_bootstrap_config.yaml"
             # We need to use this instead of ray stop to make sure we don't stop the SkyPilot ray server,
             # which runs on other ports but is required to preserve autostop and correct cluster status.
-            kill_ray_cmd = f'pkill -f ".*ray.*6379.*"'
+            kill_ray_cmd = 'pkill -f ".*ray.*6379.*"'
             if self.ips and len(self.ips) > 1:
                 raise NotImplementedError(
                     "Starting Ray on a cluster with multiple nodes is not yet supported."
