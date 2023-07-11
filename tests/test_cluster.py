@@ -84,96 +84,46 @@ def test_on_diff_cluster(cpu_cluster, byo_cpu):
     assert not func_hw(byo_cpu)
 
 
+@pytest.mark.clustertest
 @pytest.mark.slurmtest
-def test_submit_job_to_slurm_via_rest(slurm_api_cluster, request):
-    # Initialize Slurm cluster with REST API attributes
-    job_payload = {
-        "job": {
-            "name": "test",
-            "ntasks": 1,
-            "nodes": 1,
-            "current_working_directory": "/home/ubuntu/tests",
-            "standard_input": "/dev/null",
-            "standard_output": "/home/ubuntu/tests/%j.out",
-            "standard_error": "/home/ubuntu/tests/%j.out",
-            "environment": {
-                "PATH": "/bin:/usr/bin/:/usr/local/bin/",
-                "LD_LIBRARY_PATH": "/lib/:/lib64/:/usr/local/lib",
-            },
-        },
-        "script": "#!/bin/bash\necho 'Hello world, I am running on node' $HOSTNAME\nsleep 10\ndate",
-    }
+def test_submit_job_to_slurm(slurm_cluster, request):
+    job_id = slurm_cluster.submit_job(summer, a=1, b=2)
 
-    job_id = slurm_api_cluster.submit_job(payload=job_payload)
+    # Temporarily store job_id in pytest cache to reference this job id in subsequent tests
     request.config.cache.set("job_id", job_id)
 
     assert isinstance(job_id, int)
 
 
+@pytest.mark.clustertest
 @pytest.mark.slurmtest
-def test_get_slurm_job_result_via_rest(slurm_api_cluster, request):
+def test_get_slurm_job_result(slurm_cluster, request):
     job_id = request.config.cache.get("job_id", None)
-    res = slurm_api_cluster.result(job_id)
+    res = slurm_cluster.result(job_id)
     assert int(res) == 3
 
 
+@pytest.mark.clustertest
 @pytest.mark.slurmtest
-def test_get_slurm_job_status_via_rest(slurm_api_cluster, request):
+def test_get_slurm_stdout(slurm_cluster, request):
     job_id = request.config.cache.get("job_id", None)
-    res = slurm_api_cluster.status(job_id)
-    assert int(res) == 3
-
-
-@pytest.mark.slurmtest
-def test_get_slurm_stdout_via_rest(slurm_api_cluster, request):
-    job_id = request.config.cache.get("job_id", None)
-    stdout = slurm_api_cluster.stdout(job_id)
+    stdout = slurm_cluster.stdout(job_id)
     assert "3" in stdout
 
 
+@pytest.mark.clustertest
 @pytest.mark.slurmtest
-def test_get_slurm_stderr_via_rest(slurm_api_cluster, request):
+def test_get_slurm_stderr(slurm_cluster, request):
     job_id = request.config.cache.get("job_id", None)
-    stderr = slurm_api_cluster.stderr(job_id)
-    assert stderr == ""
-
-
-@pytest.mark.slurmtest
-def test_submit_job_to_slurm_via_ssh(slurm_ssh_cluster, request):
-    # Initialize Slurm cluster with SSH attributes
-    job_id = slurm_ssh_cluster.submit_job(summer, a=1, b=2)
-
-    request.config.cache.set("job_id", job_id)
-
-    assert isinstance(job_id, int)
-
-
-@pytest.mark.slurmtest
-def test_get_slurm_job_result_via_ssh(slurm_ssh_cluster, request):
-    job_id = request.config.cache.get("job_id", None)
-    res = slurm_ssh_cluster.result(job_id)
-    assert int(res) == 3
-
-
-@pytest.mark.slurmtest
-def test_get_slurm_stdout_via_ssh(slurm_ssh_cluster, request):
-    job_id = request.config.cache.get("job_id", None)
-    stdout = slurm_ssh_cluster.stdout(job_id)
-    assert "3" in stdout
-
-
-@pytest.mark.slurmtest
-def test_get_slurm_stderr_via_ssh(slurm_ssh_cluster, request):
-    job_id = request.config.cache.get("job_id", None)
-    stderr = slurm_ssh_cluster.stderr(job_id)
+    stderr = slurm_cluster.stderr(job_id)
     assert stderr == ""
 
 
 @pytest.mark.rnstest
 @pytest.mark.slurmtest
-def test_reload_ssh_slurmcluster_from_rns():
+def test_reload_ssh_slurm_cluster_from_rns():
     sc = rh.SlurmCluster.from_name("ssh_slurm_cluster")
-    assert sc._use_rest_api is False
+    assert isinstance(sc, rh.SlurmCluster)
 
 
 if __name__ == "__main__":

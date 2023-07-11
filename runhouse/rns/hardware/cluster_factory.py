@@ -141,3 +141,63 @@ def ondemand_cluster(
         name=name,
         dryrun=dryrun,
     )
+
+
+def slurm_cluster(
+    name: str,
+    partition: str = None,
+    log_folder: str = None,
+    ssh_creds: dict = None,
+    ips: List[str] = None,
+    cluster_params: dict = None,
+    proxy_command: str = None,
+) -> SlurmCluster:
+    """
+    Builds an instance of :class:`SlurmCluster`.
+
+    Args:
+        name (str): Name for the Cluster, to re-use later on within Runhouse.
+        partition (str, optional): Name of specific partition for the Slurm scheduler to use.
+        log_folder (str, optional): Name of folder to store logs for the jobs. Used to dump job information, logs and
+            result when finished. Defaults to ``~/.rh/logs/<job_id>``.
+        ssh_creds (dict, optional): Required for submitting a job via SSH and for accessing the
+            node(s) running the job.
+        ips: (str, optional): List of IP addresses for the nodes on the cluster.
+        cluster_params (dict, optional): Optonal params to pass to the job submission executor.
+            Params include: ``timeout_min: str``, ``mem_gb: str``, ``nodes: str``, ``cpus_per_task: str``,
+            ``gpus_per_node: str``, ``tasks_per_node: str``
+        proxy_command (str, optional): Proxy command to use for SSH connections to the cluster.
+                Useful for communicating with clusters without public IPs (ex: sending
+                jobs to a jump server responsible for submitting jobs to the requested compute)
+
+    Returns:
+        SlurmCluster: The resulting cluster.
+
+    Example:
+        >>> import runhouse as rh
+        >>> cluster = rh.slurm_cluster(ips=['<ip of the cluster>'],
+        >>>                  ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'},
+        >>>                  name='slurm_cluster').save()
+
+        >>> # Load cluster from above
+        >>> reloaded_cluster = rh.slurm_cluster(name="rh-a10x")
+    """
+    if name and not any([partition, log_folder, ssh_creds, ips, cluster_params]):
+        # If only the name is provided
+        return SlurmCluster.from_name(name, dryrun=True)
+
+    if name in RESERVED_SYSTEM_NAMES:
+        raise ValueError(
+            f"Cluster name {name} is a reserved name. Please use a different name which is not one of "
+            f"{RESERVED_SYSTEM_NAMES}."
+        )
+
+    return SlurmCluster(
+        ips=ips,
+        ssh_creds=ssh_creds,
+        name=name,
+        partition=partition,
+        log_folder=log_folder,
+        cluster_params=cluster_params,
+        proxy_command=proxy_command,
+    )

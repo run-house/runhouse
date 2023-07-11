@@ -31,6 +31,21 @@ various cluster properties.
 
     .. automethod:: __init__
 
+SlurmCluster Class
+~~~~~~~~~~~~~~~~~~~~~
+A SlurmCluster is a cluster that interfaces into an existing Slurm cluster.
+
+.. autoclass:: runhouse.SlurmCluster
+   :members:
+   :exclude-members:
+
+    .. automethod:: __init__
+
+SlurmCluster Factory Method
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autofunction:: runhouse.slurm_cluster
+
 Hardware Setup
 ~~~~~~~~~~~~~~
 For BYO Clusters, no additional setup is required. You will just need to have the IP address for the cluster

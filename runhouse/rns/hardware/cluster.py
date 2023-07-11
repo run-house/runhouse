@@ -610,6 +610,7 @@ class Cluster(Resource):
         stream_logs: bool = True,
         port_forward: Optional[int] = None,
         require_outputs: bool = True,
+        ssh_proxy_command: str = None,
         run_name: Optional[str] = None,
     ) -> list:
         """Run a list of shell commands on the cluster. If `run_name` is provided, the commands will be
@@ -634,13 +635,23 @@ class Cluster(Resource):
         if not run_name:
             # If not creating a Run then just run the commands via SSH and return
             return self._run_commands_with_ssh(
-                commands, cmd_prefix, stream_logs, port_forward, require_outputs
+                commands,
+                cmd_prefix,
+                stream_logs,
+                port_forward,
+                require_outputs,
+                ssh_proxy_command,
             )
 
         # Create and save the Run locally
         with run(name=run_name, cmds=commands, overwrite=True) as r:
             return_codes = self._run_commands_with_ssh(
-                commands, cmd_prefix, stream_logs, port_forward, require_outputs
+                commands,
+                cmd_prefix,
+                stream_logs,
+                port_forward,
+                require_outputs,
+                ssh_proxy_command,
             )
 
         # Register the completed Run
@@ -655,10 +666,13 @@ class Cluster(Resource):
         stream_logs: bool,
         port_forward: int = None,
         require_outputs: bool = True,
+        ssh_proxy_command: str = None,
     ):
         return_codes = []
 
-        runner = command_runner.SSHCommandRunner(self.address, **self.ssh_creds())
+        runner = command_runner.SSHCommandRunner(
+            ip=self.address, ssh_proxy_command=ssh_proxy_command, **self.ssh_creds()
+        )
         for command in commands:
             command = f"{cmd_prefix} {command}" if cmd_prefix else command
             logger.info(f"Running command on {self.name}: {command}")
@@ -677,6 +691,7 @@ class Cluster(Resource):
         env: Union["Env", str] = None,
         stream_logs: bool = True,
         port_forward: Optional[int] = None,
+        ssh_proxy_command: str = None,
         run_name: Optional[str] = None,
     ):
         """Run a list of python commands on the cluster.
@@ -697,6 +712,7 @@ class Cluster(Resource):
             [f'{cmd_prefix} "{command_str}"'],
             stream_logs=stream_logs,
             port_forward=port_forward,
+            ssh_proxy_command=ssh_proxy_command,
             run_name=run_name,
         )
         return return_codes
