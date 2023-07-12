@@ -56,8 +56,8 @@ class Function(Resource):
         self.resources = resources or {}
         super().__init__(name=name, dryrun=dryrun)
 
-        if not self.dryrun:
-            self = self.to(self.system, env=self.env)
+        # if not self.dryrun:
+        #     self = self.to(self.system, env=self.env)
 
     # ----------------- Constructor helper methods -----------------
 
@@ -857,13 +857,11 @@ def function(
 
     new_function = Function(
         fn_pointers=fn_pointers,
-        system=system,
-        env=env,
         resources=resources,
         access=Function.DEFAULT_ACCESS,
         name=name,
         dryrun=dryrun,
-    )
+    ).to(system=system, env=env)
 
     if load_secrets and not dryrun:
         new_function.send_secrets()
