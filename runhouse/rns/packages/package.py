@@ -299,6 +299,7 @@ class Package(Resource):
             raise TypeError(
                 "`install_target` must be a Folder in order to copy the package to a system."
             )
+    
         system = _get_cluster_from(system)
         if self.install_target.system == system:
             return self

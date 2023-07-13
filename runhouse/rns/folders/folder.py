@@ -206,12 +206,13 @@ class Folder(Resource):
             )
             password = creds.get("password", None)
             config_creds = {
-                "host": self.system.address,
-                "username": creds["ssh_user"],
+                "host": creds.get("ssh_host") or self.system.address,
+                "username": creds.get("ssh_user"),
                 # 'key_filename': str(Path(creds['ssh_private_key']).expanduser())}  # For SFTP
                 "client_keys": client_keys,  # For SSHFS
                 "password": password,
                 "connect_timeout": "3s",
+                "proxy_command": creds.get("ssh_proxy_command"),
             }
             ret_config = self._data_config.copy()
             ret_config.update(config_creds)
