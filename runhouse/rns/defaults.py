@@ -8,12 +8,7 @@ from typing import Any, Dict, Optional
 import requests
 import yaml
 
-from runhouse.logger import LOGGING_CONFIG
-
 from runhouse.rns.api_utils.utils import read_resp_data, to_bool
-
-# Configure the logger once
-logging.config.dictConfig(LOGGING_CONFIG)
 
 logger = logging.getLogger(__name__)
 

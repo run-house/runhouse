@@ -1,9 +1,9 @@
+import logging
 import os
 import unittest
 from pathlib import Path
 
 import pytest
-
 import runhouse as rh
 import yaml
 
@@ -12,6 +12,8 @@ from ray import cloudpickle as pickle
 from runhouse.rh_config import configs
 
 TEMP_LOCAL_FOLDER = Path(__file__).parents[1] / "rh-blobs"
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.mark.rnstest

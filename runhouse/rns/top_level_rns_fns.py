@@ -1,7 +1,25 @@
+import logging
 import sys
 from typing import List
 
-from runhouse.rh_config import rns_client
+from runhouse.logger import LOGGING_CONFIG
+from runhouse.rh_config import configs, rns_client
+
+# Configure the logger once
+logging.config.dictConfig(LOGGING_CONFIG)
+
+disable_data_collection = configs.get("disable_data_collection", False)
+if not disable_data_collection:
+    import sentry_sdk
+
+    sentry_sdk.init(
+        dsn="https://93f64f9efc194d5bb66edc0693fde714@o4505521613307904.ingest.sentry.io/4505522385911808",
+        environment="production",
+        # Set traces_sample_rate to 1.0 to capture 100%
+        # of transactions for performance monitoring.
+        # We recommend adjusting this value in production,
+        traces_sample_rate=1.0,
+    )
 
 
 def resolve_rns_path(path: str):
