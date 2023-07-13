@@ -6,10 +6,10 @@ import pandas as pd
 import pytest
 
 import runhouse as rh
-from runhouse.rns.api_utils.utils import create_s3_bucket
-
 
 # https://docs.pytest.org/en/6.2.x/fixture.html#conftest-py-sharing-fixtures-across-multiple-files
+
+from runhouse.rns.api_utils.utils import create_s3_bucket
 
 
 @pytest.fixture
@@ -133,9 +133,9 @@ def cpu_cluster():
 def slurm_cluster():
     c = rh.slurm_cluster(
         name="slurm_cluster",
-        ips=[os.getenv("SLURM_NODE_IP")],
+        ip=os.getenv("SLURM_JUMPBOX_IP"),
         partition="rhcluster",
-        cluster_params={"timeout_min": 1},
+        job_params={"timeout_min": 1},
         ssh_creds={"ssh_user": "ubuntu", "ssh_private_key": "~/.ssh/runhouse-auth.pem"},
     )
     c.save()

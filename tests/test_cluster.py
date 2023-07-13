@@ -84,18 +84,19 @@ def test_on_diff_cluster(cpu_cluster, byo_cpu):
     assert not func_hw(byo_cpu)
 
 
-@pytest.mark.clustertest
 @pytest.mark.slurmtest
 def test_submit_job_to_slurm(slurm_cluster, request):
-    job_id = slurm_cluster.submit_job(summer, a=1, b=2)
+    submitted_job = slurm_cluster.submit_job(summer, a=1, b=2)
+    assert type(submitted_job).__name__ == "SlurmJob"
+
+    job_id: str = submitted_job.job_id
 
     # Temporarily store job_id in pytest cache to reference this job id in subsequent tests
     request.config.cache.set("job_id", job_id)
 
-    assert isinstance(job_id, int)
+    assert isinstance(job_id, str)
 
 
-@pytest.mark.clustertest
 @pytest.mark.slurmtest
 def test_get_slurm_job_result(slurm_cluster, request):
     job_id = request.config.cache.get("job_id", None)
@@ -103,7 +104,6 @@ def test_get_slurm_job_result(slurm_cluster, request):
     assert int(res) == 3
 
 
-@pytest.mark.clustertest
 @pytest.mark.slurmtest
 def test_get_slurm_stdout(slurm_cluster, request):
     job_id = request.config.cache.get("job_id", None)
@@ -111,7 +111,6 @@ def test_get_slurm_stdout(slurm_cluster, request):
     assert "3" in stdout
 
 
-@pytest.mark.clustertest
 @pytest.mark.slurmtest
 def test_get_slurm_stderr(slurm_cluster, request):
     job_id = request.config.cache.get("job_id", None)
