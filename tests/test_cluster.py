@@ -4,8 +4,9 @@ import unittest
 import pytest
 
 import runhouse as rh
-
 from runhouse.rns.hardware import OnDemandCluster
+
+from .conftest import parametrize_cpu_clusters
 
 
 def is_on_cluster(cluster):
@@ -37,8 +38,9 @@ def test_read_shared_cluster(cpu_cluster):
 
 
 @pytest.mark.clustertest
-def test_install(cpu_cluster):
-    cpu_cluster.install_packages(
+@parametrize_cpu_clusters
+def test_install(cluster):
+    cluster.install_packages(
         [
             "./",
             "torch==1.12.1",
@@ -49,34 +51,36 @@ def test_install(cpu_cluster):
 
 
 @pytest.mark.clustertest
-def test_basic_run(cpu_cluster):
+@parametrize_cpu_clusters
+def test_basic_run(cluster):
     # Create temp file where fn's will be stored
     test_cmd = "echo hi"
-    cpu_cluster.up_if_not()
-    res = cpu_cluster.run(commands=[test_cmd])
+    res = cluster.run(commands=[test_cmd])
     assert "hi" in res[0][1]
 
 
 @pytest.mark.clustertest
-def test_restart_server(cpu_cluster):
-    cpu_cluster.up_if_not()
-    codes = cpu_cluster.restart_server(resync_rh=False)
+@parametrize_cpu_clusters
+def test_restart_server(cluster):
+    cluster.up_if_not()
+    codes = cluster.restart_server(resync_rh=False)
     assert codes
 
 
 @pytest.mark.clustertest
-def test_on_same_cluster(cpu_cluster):
-    hw_copy = copy.copy(cpu_cluster)
-    cpu_cluster.up_if_not()
+@parametrize_cpu_clusters
+def test_on_same_cluster(cluster):
+    hw_copy = copy.copy(cluster)
 
-    func_hw = rh.function(is_on_cluster).to(cpu_cluster)
-    assert func_hw(cpu_cluster)
+    func_hw = rh.function(is_on_cluster).to(cluster)
+    assert func_hw(cluster)
     assert func_hw(hw_copy)
 
 
 @pytest.mark.clustertest
-def test_on_diff_cluster(cpu_cluster, byo_cpu):
-    func_hw = rh.function(is_on_cluster).to(cpu_cluster)
+@parametrize_cpu_clusters
+def test_on_diff_cluster(cluster, byo_cpu):
+    func_hw = rh.function(is_on_cluster).to(cluster)
     assert not func_hw(byo_cpu)
 
 

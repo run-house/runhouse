@@ -86,8 +86,10 @@ class CondaEnv(Env):
 
         if f"\n{self.env_name} " not in system.run(["conda info --envs"])[0][1]:
             system.run([f"conda env create -f {path}/{self.env_name}.yml"])
-        # TODO [CC]: throw an error if environment is not constructed correctly
         system.run(['eval "$(conda shell.bash hook)"'])
+        if f"\n{self.env_name} " not in system.run(["conda info --envs"])[0][1]:
+            raise RuntimeError(f"conda env {self.env_name} not created properly.")
+
         system._sync_runhouse_to_cluster(env=self)
 
         if self.reqs:

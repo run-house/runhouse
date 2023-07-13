@@ -9,6 +9,8 @@ import runhouse as rh
 
 from runhouse import Folder
 
+from .conftest import parametrize_cpu_clusters
+
 NUM_PARTITIONS = 10
 
 
@@ -556,10 +558,11 @@ def test_shuffling_pyarrow_data_from_s3(arrow_table, table_s3_bucket):
 # -------------------------------------------------
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_create_and_reload_pandas_data_from_cluster(pandas_table, cpu_cluster):
+@parametrize_cpu_clusters
+def test_create_and_reload_pandas_data_from_cluster(pandas_table, cluster):
     # Make sure the destination folder for the data exists on the cluster
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/pandas-data"
-    cpu_cluster.run([f"mkdir -p {data_path_on_cluster}"])
+    cluster.run([f"mkdir -p {data_path_on_cluster}"])
 
     name = "@/my_test_pandas_table"
     my_table = (
@@ -567,7 +570,7 @@ def test_create_and_reload_pandas_data_from_cluster(pandas_table, cpu_cluster):
             data=pandas_table,
             name=name,
             path=data_path_on_cluster,
-            system=cpu_cluster,
+            system=cluster,
         )
         .write()
         .save()
@@ -594,9 +597,10 @@ def test_create_and_reload_pandas_data_from_cluster(pandas_table, cpu_cluster):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_create_and_reload_ray_data_from_cluster(ray_table, cpu_cluster):
+@parametrize_cpu_clusters
+def test_create_and_reload_ray_data_from_cluster(ray_table, cluster):
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/ray-data"
-    cpu_cluster.run([f"mkdir -p {data_path_on_cluster}"])
+    cluster.run([f"mkdir -p {data_path_on_cluster}"])
 
     name = "@/my_test_ray_cluster_table"
 
@@ -605,7 +609,7 @@ def test_create_and_reload_ray_data_from_cluster(ray_table, cpu_cluster):
             data=ray_table,
             name=name,
             path=data_path_on_cluster,
-            system=cpu_cluster,
+            system=cluster,
         )
         .write()
         .save()
@@ -633,9 +637,10 @@ def test_create_and_reload_ray_data_from_cluster(ray_table, cpu_cluster):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_create_and_reload_pyarrow_data_from_cluster(arrow_table, cpu_cluster):
+@parametrize_cpu_clusters
+def test_create_and_reload_pyarrow_data_from_cluster(arrow_table, cluster):
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/pyarrow-data"
-    cpu_cluster.run([f"mkdir -p {data_path_on_cluster}"])
+    cluster.run([f"mkdir -p {data_path_on_cluster}"])
 
     name = "@/my_test_pyarrow_cluster_table"
 
@@ -644,7 +649,7 @@ def test_create_and_reload_pyarrow_data_from_cluster(arrow_table, cpu_cluster):
             data=arrow_table,
             name=name,
             path=data_path_on_cluster,
-            system=cpu_cluster,
+            system=cluster,
         )
         .write()
         .save()
@@ -669,11 +674,10 @@ def test_create_and_reload_pyarrow_data_from_cluster(arrow_table, cpu_cluster):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_create_and_reload_huggingface_data_from_cluster(
-    huggingface_table, cpu_cluster
-):
+@parametrize_cpu_clusters
+def test_create_and_reload_huggingface_data_from_cluster(huggingface_table, cluster):
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/hf-data"
-    cpu_cluster.run([f"mkdir -p {data_path_on_cluster}"])
+    cluster.run([f"mkdir -p {data_path_on_cluster}"])
 
     name = "@/my_test_hf_cluster_table"
 
@@ -682,7 +686,7 @@ def test_create_and_reload_huggingface_data_from_cluster(
             data=huggingface_table,
             name=name,
             path=data_path_on_cluster,
-            system=cpu_cluster,
+            system=cluster,
         )
         .write()
         .save()
@@ -709,9 +713,10 @@ def test_create_and_reload_huggingface_data_from_cluster(
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_create_and_reload_dask_data_from_cluster(dask_table, cpu_cluster):
+@parametrize_cpu_clusters
+def test_create_and_reload_dask_data_from_cluster(dask_table, cluster):
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/dask-data"
-    cpu_cluster.run([f"mkdir -p {data_path_on_cluster}"])
+    cluster.run([f"mkdir -p {data_path_on_cluster}"])
 
     name = "@/my_test_dask_cluster_table"
 
@@ -720,7 +725,7 @@ def test_create_and_reload_dask_data_from_cluster(dask_table, cpu_cluster):
             data=dask_table,
             name=name,
             path=data_path_on_cluster,
-            system=cpu_cluster,
+            system=cluster,
         )
         .write()
         .save()
@@ -746,7 +751,8 @@ def test_create_and_reload_dask_data_from_cluster(dask_table, cpu_cluster):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_to_cluster_attr(pandas_table, cpu_cluster, tmp_path):
+@parametrize_cpu_clusters
+def test_to_cluster_attr(pandas_table, cluster, tmp_path):
     local_path = tmp_path / "table_tests/local_test_table"
     name = "~/my_local_test_table"
 
@@ -761,7 +767,7 @@ def test_to_cluster_attr(pandas_table, cpu_cluster, tmp_path):
         .save()
     )
 
-    cluster_table = my_table.to(system=cpu_cluster)
+    cluster_table = my_table.to(system=cluster)
 
     assert isinstance(cluster_table.system, rh.Cluster)
     assert cluster_table._folder._fs_str == "ssh"

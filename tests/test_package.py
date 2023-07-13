@@ -6,6 +6,8 @@ import pytest
 
 import runhouse as rh
 
+from .conftest import parametrize_cpu_clusters
+
 extra_index_url = "--extra-index-url https://pypi.python.org/simple/"
 cuda_116_url = "--index-url https://download.pytorch.org/whl/cu116"
 
@@ -78,44 +80,48 @@ def test_load_shared_git_package():
 
 
 @pytest.mark.clustertest
-def test_local_package_function(cpu_cluster):
-    function = rh.function(fn=summer).to(cpu_cluster, env=["./"])
+@parametrize_cpu_clusters
+def test_local_package_function(cluster):
+    function = rh.function(fn=summer).to(cluster, env=["./"])
 
     req = function.env.reqs[0]
     assert isinstance(req, rh.Package)
     assert isinstance(req.install_target, rh.Folder)
-    assert req.install_target.system == cpu_cluster
+    assert req.install_target.system == cluster
 
 
 @pytest.mark.clustertest
-def test_local_package_to_cluster(cpu_cluster):
-    package = rh.Package.from_string("./").to(cpu_cluster)
+@parametrize_cpu_clusters
+def test_local_package_to_cluster(cluster):
+    package = rh.Package.from_string("./").to(cluster)
 
     assert isinstance(package.install_target, rh.Folder)
-    assert package.install_target.system == cpu_cluster
+    assert package.install_target.system == cluster
 
 
 @pytest.mark.clustertest
-def test_mount_local_package_to_cluster(cpu_cluster):
+@parametrize_cpu_clusters
+def test_mount_local_package_to_cluster(cluster):
     mount_path = "package_mount"
-    package = rh.Package.from_string("./").to(cpu_cluster, path=mount_path, mount=True)
+    package = rh.Package.from_string("./").to(cluster, path=mount_path, mount=True)
 
     assert isinstance(package.install_target, rh.Folder)
-    assert package.install_target.system == cpu_cluster
-    assert mount_path in cpu_cluster.run(["ls"])[0][1]
+    assert package.install_target.system == cluster
+    assert mount_path in cluster.run(["ls"])[0][1]
 
 
 @pytest.mark.clustertest
 @pytest.mark.awstest
-def test_package_file_system_to_cluster(cpu_cluster, s3_package):
+@parametrize_cpu_clusters
+def test_package_file_system_to_cluster(cluster, s3_package):
     assert s3_package.install_target.system == "s3"
     assert s3_package.install_target.exists_in_system()
 
     folder_name = Path(s3_package.install_target.path).stem
-    s3_package.to(system=cpu_cluster, mount=True, path=folder_name)
+    s3_package.to(system=cluster, mount=True, path=folder_name)
 
     # Confirm the package's folder is now on the cluster
-    assert "sample_file_0.txt" in cpu_cluster.run([f"ls {folder_name}"])[0][1]
+    assert "sample_file_0.txt" in cluster.run([f"ls {folder_name}"])[0][1]
 
 
 @pytest.mark.localtest

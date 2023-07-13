@@ -49,9 +49,9 @@ class Cluster(Resource):
 
         super().__init__(name=name, dryrun=dryrun)
 
+        # TODO [CC]: replace "ips" with "host"/"hostname"
         self.address = ips[0] if ips else None
         self._ssh_creds = ssh_creds
-        self._sky_creds = None
         self.ips = ips
         self._rpc_tunnel = None
         self.client = None
@@ -386,9 +386,7 @@ class Cluster(Resource):
                         f"Server {self.name} is up, but the HTTP server may not be up."
                     )
                     self.restart_server()
-                    logger.info(
-                        f"Checking server {self.name} again."
-                    )  # NOTE: this line fails
+                    logger.info(f"Checking server {self.name} again.")
                     self.client.check_server(cluster_config=cluster_config)
                 else:
                     raise ValueError(f"Could not connect to cluster <{self.name}>")
@@ -403,8 +401,6 @@ class Cluster(Resource):
         # kill -9 <pid>
 
         creds: dict = self.ssh_creds()
-        remote_bind_address = "127.0.0.1"
-
         connected = False
         ssh_tunnel = None
         while not connected:
@@ -421,7 +417,7 @@ class Cluster(Resource):
                     ssh_password=creds.get("password"),
                     local_bind_address=("", local_port),
                     remote_bind_address=(
-                        remote_bind_address,
+                        "127.0.0.1",
                         remote_port or local_port,
                     ),
                     set_keepalive=1,
@@ -497,9 +493,6 @@ class Cluster(Resource):
             cmds.append(kill_ray_cmd)
             cmds.append(ray_start_cmd)
         cmds.append(screen_cmd)
-
-        # TODO [CC]: need to possibly add something along the lines of the following for byo on base env
-        # cmds = ["conda run -n base " + cmd for cmd in cmds]
 
         # If we need different commands for debian or ubuntu, we can use this:
         # Need to get actual provider in case provider == 'cheapest'
@@ -584,17 +577,45 @@ class Cluster(Resource):
         """Retrieve SSH credentials."""
         return self._ssh_creds
 
-    def _ssh_creds_sky(self):
-        # if not self._sky_creds:
-        #     sky_creds = {}
-        #     sky_creds["ssh_user"] = self._ssh_creds.get("username")
-        #     sky_creds["ssh_private_key"] = self._ssh_creds("key_filename")
-        #     self._sky_creds = sky_creds
-        # return self._sky_creds
-        return self.ssh_creds()
+    def _fsspec_sync(self, source: str, dest: str, up: bool):
+        from runhouse.rns.folders import folder
 
-    # def _get_hostname(self):
-    #     pass
+        logger.info(f"syncing files from {source} to {dest} using fsspec")
+
+        f = folder(system=self, path="", dryrun=True)
+        fs = f.fsspec_fs
+
+        if up:  # local to cluster
+            if (Path(source) / ".gitignore").exists():
+                files = (
+                    subprocess.check_output(
+                        "git ls-files --cached --exclude-standard".split()
+                    )
+                    .decode("utf-8")
+                    .split()
+                )
+                # TODO [CC]: this is a temp hack to remove rh docs
+                files = [file for file in files if "docs/" not in file]
+                fs.put(files, dest, recursive=True, create_dir=True)
+            else:
+                # Note: if dir exists, then it creates and copies into a subdir
+                # if it does not exist, then it simply creates the dir and moves files into that dir
+                fs.put(source, dest, recursive=True, create_dir=True)
+        else:  # cluster to local
+            if fs.exists(str(Path(source) / ".gitignore")):
+                files = self.run(
+                    [f"cd {source} && git ls-files --cached --exclude-standard"]
+                )[0][1]
+
+                files = files.split()
+                fs.get(files, dest, recursive=True, create_dir=True)
+            else:
+                # the following errors {source} is a directory so currently working around by extracting files
+                # fs.get(source, dest, recursive=True, create_dir=True)
+
+                files = fs.find(source)
+                files = [file for file in files]
+                fs.get(files, dest, recursive=True, create_dir=True)
 
     def _rsync(self, source: str, dest: str, up: bool, contents: bool = False):
         """
@@ -604,8 +625,6 @@ class Cluster(Resource):
             Ending `source` with a slash will copy the contents of the directory into dest,
             while omitting it will copy the directory itself (adding a directory layer).
         """
-        # TODO [CC]: add flags for exclude, such as docs/ from runhouse sync
-
         # FYI, could be useful: https://github.com/gchamon/sysrsync
         if contents:
             source = source + "/" if not source.endswith("/") else source
@@ -623,38 +642,10 @@ class Cluster(Resource):
                 Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
             runner.rsync(source, dest, up=up, stream_logs=False)
         else:
-            from runhouse.rns.folders import folder
-
             if dest.startswith("~/"):
                 dest = dest[2:]
 
-            f = folder(system=self, path="", dryrun=True)
-            fs = f.fsspec_fs
-
-            if up:  # local to cluster
-                fs.mkdir(dest, exist_ok=True)
-            else:
-                Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
-
-            logger.info(f"syncing files from {source} to {dest} using fsspec")
-
-            if (Path(source) / ".gitignore").exists():
-                files = (
-                    subprocess.check_output(
-                        "git ls-files --cached --exclude-standard".split()
-                    )
-                    .decode("utf-8")
-                    .split()
-                )
-                # TODO [CC]: this is a temp hack to remove rh docs
-                files = [file for file in files if "docs/" not in file]
-            else:
-                files = Path(source).glob("**/*")
-                files = [os.path.relpath(f, source) for f in files]
-
-            # TODO [CC]: up/down direction?
-
-            fs.put(files, dest, recursive=True, create_dir=True)
+            self._fsspec_sync(source, dest, up)
 
     def ssh(self):
         """SSH into the cluster
@@ -792,9 +783,6 @@ class Cluster(Resource):
 
                     channel.close()
 
-                    # stdin, stdout, stderr = ssh.exec_command(command)
-                    # exit_code = stdout.channel.recv_exit_status()
-
                     if require_outputs:
                         return_codes.append((exit_code, stdout, stderr))
                     else:
@@ -824,6 +812,8 @@ class Cluster(Resource):
             cmd_prefix = f"{env._run_cmd} {cmd_prefix}"
         command_str = "; ".join(commands)
         # If invoking a run as part of the python commands also return the Run object
+
+        # TODO [CC]: does not work for byo password -- quotes or cmd prefix?
         return_codes = self.run(
             [f'{cmd_prefix} "{command_str}"'],
             stream_logs=stream_logs,
