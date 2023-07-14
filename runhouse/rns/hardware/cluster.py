@@ -688,9 +688,9 @@ class Cluster(Resource):
         if contents:
             source = source + "/" if not source.endswith("/") else source
             dest = dest + "/" if not dest.endswith("/") else dest
-        
+
         ssh_credentials = copy.copy(self.ssh_creds())
-        host = ssh_credentials.pop("ssh_host", self.address)
+        ssh_credentials.pop("ssh_host", self.address)
 
         if not ssh_credentials.get("password"):
             # Use SkyPilot command runner

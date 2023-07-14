@@ -1,9 +1,10 @@
 import logging
 import os
+import shlex
 import subprocess
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple, Union
 
 import sky.utils.command_runner as cr
 
@@ -70,7 +71,10 @@ class SkySSHRunner(SSHCommandRunner):
         self._tunnel_procs = []
 
     def _ssh_base_command(
-        self, *, ssh_mode: SshMode, port_forward: Optional[List[int]]
+        self,
+        *,
+        ssh_mode: SshMode,
+        port_forward: Union[None, List[int], List[Tuple[int, int]]],
     ) -> List[str]:
         ssh = ["ssh"]
         if ssh_mode == SshMode.NON_INTERACTIVE:
@@ -100,10 +104,10 @@ class SkySSHRunner(SSHCommandRunner):
 
     def tunnel(self, local_port, remote_port):
         base_cmd = self._ssh_base_command(
-            ssh_mode=SshMode.NON_INTERACTIVE, port_forward=[local_port, remote_port]
+            ssh_mode=SshMode.NON_INTERACTIVE, port_forward=[(local_port, remote_port)]
         )
-        command = base_cmd + ["tail -f /dev/null"]
-        proc = subprocess.Popen(command)
+        command = " ".join(base_cmd + ["tail"])
+        proc = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE)
 
         time.sleep(3)
         self._tunnel_procs.append(proc)

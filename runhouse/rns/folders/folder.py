@@ -1,6 +1,7 @@
 import copy
 import logging
 import os
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -427,10 +428,10 @@ class Folder(Resource):
         src_str = local
         if not up:
             src_str, dest_str = dest_str, src_str
-        subprocess.check_call(
-            f"rsync {src_str} {dest_str} "
-            f'--password_file {data_config["key_filename"]}'
+        cmd = (
+            f'rsync {src_str} {dest_str} --password_file {data_config["key_filename"]}'
         )
+        subprocess.check_call(shlex.split(cmd))
 
     def mkdir(self):
         """Create the folder in specified file system if it doesn't already exist."""

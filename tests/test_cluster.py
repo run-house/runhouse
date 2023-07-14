@@ -6,8 +6,7 @@ import pytest
 import runhouse as rh
 from runhouse.rns.hardware import OnDemandCluster
 
-from .conftest import cpu_clusters
-from .conftest import summer
+from .conftest import cpu_clusters, summer
 
 
 def is_on_cluster(cluster):
@@ -79,9 +78,8 @@ def test_on_same_cluster(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
-def test_on_diff_cluster(cluster, byo_cpu):
-    func_hw = rh.function(is_on_cluster).to(cluster)
+def test_on_diff_cluster(ondemand_cpu_cluster, byo_cpu):
+    func_hw = rh.function(is_on_cluster).to(ondemand_cpu_cluster)
     assert not func_hw(byo_cpu)
 
 
