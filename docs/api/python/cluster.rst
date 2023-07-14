@@ -31,6 +31,11 @@ various cluster properties.
 
     .. automethod:: __init__
 
+SlurmCluster Factory Method
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autofunction:: runhouse.slurm_cluster
+
 SlurmCluster Class
 ~~~~~~~~~~~~~~~~~~~~~
 A SlurmCluster is a cluster that interfaces into an existing Slurm cluster.
@@ -40,11 +45,6 @@ A SlurmCluster is a cluster that interfaces into an existing Slurm cluster.
    :exclude-members:
 
     .. automethod:: __init__
-
-SlurmCluster Factory Method
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autofunction:: runhouse.slurm_cluster
 
 Hardware Setup
 ~~~~~~~~~~~~~~

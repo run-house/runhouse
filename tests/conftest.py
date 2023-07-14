@@ -134,8 +134,6 @@ def slurm_cluster():
     c = rh.slurm_cluster(
         name="slurm_cluster",
         ip=os.getenv("SLURM_JUMPBOX_IP"),
-        partition="rhcluster",
-        job_params={"timeout_min": 1},
         ssh_creds={"ssh_user": "ubuntu", "ssh_private_key": "~/.ssh/runhouse-auth.pem"},
     )
     c.save()

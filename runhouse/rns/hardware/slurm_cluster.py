@@ -1,114 +1,171 @@
-import ast
-import inspect
 import logging
-import pickle
-from typing import Callable
+import re
+from typing import List, Tuple, Union
 
+import paramiko
 from sky.utils import command_runner
 
-from runhouse.rh_config import obj_store
+from runhouse.rns.api_utils.utils import resolve_absolute_path
 from runhouse.rns.hardware.cluster import Cluster
 
 logger = logging.getLogger(__name__)
 
 
+class SlurmConnectionManager:
+    def __init__(
+        self,
+        jumpbox_client: paramiko.SSHClient,
+        jumpbox_transport: paramiko.Transport,
+        target_client: paramiko.SSHClient,
+    ):
+        self.jumpbox_client = jumpbox_client
+        self.jumpbox_transport = jumpbox_transport
+        self.target_client = target_client
+
+    def close(self):
+        self.target_client.close()
+        self.jumpbox_transport.close()
+        self.jumpbox_client.close()
+
+
 class SlurmCluster(Cluster):
     RESOURCE_TYPE = "cluster"
-    DEFAULT_TIMEOUT_MIN = 1
+    DEFAULT_PORT = 22
 
     def __init__(
         self,
         name: str,
         ip: str,
-        partition: str = None,
-        log_folder: str = None,
         ssh_creds: dict = None,
-        job_params: dict = None,
+        port: int = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
         .. note::
             To build a slurm cluster, please use the factory method :func:`slurm_cluster`.
         """
-        self.partition = partition
-        self.job_params = job_params or {}
+        self.port = port or self.DEFAULT_PORT
+        self.scm = None
 
-        # %j is replaced by the Job ID at runtime
-        self.log_folder = log_folder or f"{obj_store.LOGS_DIR}/%j"
-
-        # Note: dryrun is ignored here, since we don't want to start a ray instance on the cluster
+        # Note: dryrun is ignored here, since we don't want to start a ray instance on the slurm cluster
         super().__init__(name=name, dryrun=True, ips=[ip], ssh_creds=ssh_creds)
-
-    @property
-    def config_for_rns(self):
-        config = super().config_for_rns
-        config.update(
-            {
-                "partition": self.partition,
-                "log_folder": self.log_folder,
-                **self.job_params,
-            }
-        )
-        return config
 
     @staticmethod
     def from_config(config: dict, dryrun=True, **kwargs):
         cluster_config = {**config, **kwargs}
         return SlurmCluster(**cluster_config)
 
-    def submit_job(self, fn: Callable, *args, **kwargs) -> "submitit.Job":
-        """Main API for submitting a job. This will submit a job via SSH.
+    def submit_job(self, job_name: str, commands: list) -> List[str]:
+        """Run the submit command on the cluster. Return the IP(s) of the worker(s)
+        running the job. If the submitted job name is not found, return None.
 
         Args:
-            fn (Callable): Function to submit to the cluster.
-            *args: Optional args for the function.
-            **kwargs: Optional kwargs for the function.
+            job_name (str): Name of the job. To be used later for retrieving the job id.
+            commands (list): Commands to run on the cluser to submit the job (ex: srun / sbatch).
 
         Returns:
-            Submitted Job object.
+            List of IP addresses of the worker nodes running the job.
         """
-        return self._submit_via_ssh(fn, *args, **kwargs)
 
-    def create_ssh_tunnel(
+        # TODO [JL] can we reliably get the worker nodes from these commands, or also run an squeue command below?
+        ret = self.run(commands=commands)
+
+        resp_code = ret[0][0]
+        if resp_code != 0:
+            raise Exception(f"Failed to submit job: {ret}")
+
+        logger.info(f"Ran command on cluster with IP: {self.address}")
+
+        # TODO [JL] can also filter by partition, user, etc. - make this more dynamic?
+        ret = self.run([f"squeue --name={job_name} -o %i"])
+        if ret[0][0] != 0:
+            raise Exception(
+                f"Failed to get job id for submitted job with name: {job_name}"
+            )
+
+        job_ids = self.format_cmd_output(ret)
+
+        # Take the most recent job id if there are multiple jobs with the same name
+        job_id = job_ids.split("\n")[-1]
+        worker_ips = self._get_worker_node_ips(job_id)
+
+        return worker_ips
+
+    def ssh_tunnel_to_target_host(
         self,
-        local_port: int,
-        remote_port: int = None,
-        node_ip: str = None,
-        ssh_proxy_command: str = None,
-    ):
-        """Create an SSH tunnel to a node on the cluster.
-        If no node IP is specified, will create a tunnel to the ip specified to the SlurmCluster object (presumably the
-        jump server or login node).
-
-        Returns the tunnel and the local port.
+        target_host: str,
+        target_port: int = 22,
+        target_username: str = "ubuntu",
+        local_port: int = 9000,
+    ) -> None:
+        """
+        Create an SSH tunnel to a target host (i.e. worker node) via the jumpbox server / login node.
 
         Args:
-            local_port (int): Local port to use for the tunnel.
-            remote_port (int, optional): Remote port to use for the tunnel.
-            node_ip (str, optional): IP of the node to create the tunnel.
-                If not provided, will create a tunnel to the jump server / login node.
-            ssh_proxy_command (str, optional): Proxy command to use for SSH connections to the cluster.
-                Useful for communicating with clusters without public IPs (ex: sending
-                jobs to a jump server responsible for submitting jobs to the node associated with the requested compute)
+            target_host (str, optional): IP of the target host.
+            target_port (int, optional): Port to connect to on the target host. Defaults to 22.
+            target_username (str, optional): Username to connect to target host. Defaults to ``ubuntu``.
+            local_port (int, optional): Local port to bind the tunnel. Defaults to 9000.
         """
-        if node_ip:
-            # TODO [JL] use proxy to create tunnel with the node IP
-            logger.info(f"Creating SSH tunnel cluster node with IP: {node_ip}")
-        else:
-            logger.info(
-                f"Creating SSH tunnel to jump server or login node with IP: {self.address}"
-            )
-            ssh_tunnel, local_port = self.ssh_tunnel(
-                local_port=local_port, remote_port=remote_port
-            )
-        if ssh_tunnel is None:
-            raise ValueError("Failed to create SSH tunnel")
+        # Connect to the jumpbox server / login node
+        ssh_creds = self.ssh_creds()
+        key_filename = ssh_creds.get("ssh_private_key")
+        if key_filename is None:
+            raise ValueError("ssh_private_key must be specified in ssh_creds")
+        key_filename = resolve_absolute_path(key_filename)
 
-        logger.info(f"Created SSH tunnel with IP: {self.address}")
-        return ssh_tunnel, local_port
+        jumpbox_client = paramiko.SSHClient()
+        jumpbox_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        jumpbox_client.load_system_host_keys()
+        jumpbox_client.connect(
+            self.address,
+            port=self.port,
+            username=ssh_creds.get("ssh_user"),
+            key_filename=key_filename,
+        )
 
-    def sync_data_to_cluster(self, source: str, target: str):
-        """Sync data from local machine to the cluster.
+        # Create a transport channel through the jumpbox server
+        jumpbox_transport = jumpbox_client.get_transport()
+
+        # Open a new SSH session to the target server via the jumpbox
+        target_channel = jumpbox_transport.open_channel(
+            "direct-tcpip", (target_host, target_port), ("localhost", local_port)
+        )
+
+        # Connect to the target server through the tunnel
+        target_client = paramiko.SSHClient()
+        target_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        target_client.connect(
+            "localhost",
+            port=local_port,
+            username=target_username,
+            sock=target_channel,
+            key_filename=key_filename,
+        )
+
+        self.scm = SlurmConnectionManager(
+            jumpbox_client=jumpbox_client,
+            jumpbox_transport=jumpbox_transport,
+            target_client=target_client,
+        )
+
+        logger.info(f"Successfully created SSH tunnel to {target_host}:{target_port}")
+
+    def run_commands_on_target_host(self, commands: list) -> Tuple[str, str]:
+        """Execute commands on the target worker node via SSH. Return the stdout and stderr."""
+        if self.scm is None:
+            raise ValueError(
+                "No SSH connection to worker host has been established. "
+                "Please call `ssh_tunnel_to_target()` to create one."
+            )
+        stdin, stdout, stderr = self.scm.target_client.exec_command("\n".join(commands))
+
+        self.scm.close()
+
+        return self._decode_streams(stdout), self._decode_streams(stderr)
+
+    def sync_data_to_cluster(self, source: str, target: str) -> None:
+        """Sync data from local machine to the jumpbox or login node.
         Note: We assume data stored on the jump server will be automatically synced with the requested resources'
         node where the job will be run.
         """
@@ -117,109 +174,63 @@ class SlurmCluster(Cluster):
         # Up: indicates that we are syncing from local to the cluster
         runner.rsync(source=source, target=target, up=True)
 
+    # TODO [JL] - add these back in
     def status(self, job_id: int) -> str:
         """Get the status of a job."""
-        return self._get_job_output(job_id, output_type="job_state")
+        raise NotImplementedError
 
     def result(self, job_id: int) -> str:
         """Get the result of a job. Returns the result as a string."""
-        return self._get_job_output(job_id, output_type="result")
+        raise NotImplementedError
 
     def stderr(self, job_id: int) -> str:
         """Get the stderr of a job."""
-        return self._get_job_output(job_id, output_type="stderr")
+        raise NotImplementedError
 
     def stdout(self, job_id: int) -> str:
         """Get the stdout of a job."""
-        return self._get_job_output(job_id, output_type="stdout")
+        raise NotImplementedError
 
     # -------------------------------------
-
-    def _get_job_output(self, job_id: int, output_type: str):
-        try:
-            job_cmd = [
-                "import submitit",
-                f"job = submitit.Job(folder='{self.log_folder}', job_id='{job_id}')",
-            ]
-
-            ret = self.run_python(job_cmd + [f"print(job.{output_type}())"])
-
-            resp = ret[0][1]
-            if ret[0][0] != 0:
-                raise Exception(f"Failed to get job {output_type}: {resp}")
-
-            return resp.strip()
-
-        except Exception as e:
-            raise e
-
-    def _submit_via_ssh(self, fn, *args, **kwargs):
-        """Send the submitit code to the cluster, to be run via SSH. Return the job ID."""
-        # TODO [JL] support running commands in addition to functions (submitit.helpers.CommandFunction)
-        # https://github.com/facebookincubator/submitit/blob/main/docs/examples.md#working-with-commands
-
-        if not self.ssh_creds() and not self.ips:
-            raise ValueError(
-                "When using SSH must provide values for: `ssh_creds` and `ips`."
-            )
-
-        job_params = {**self.job_params, **{"slurm_partition": self.partition}}
-        executor_params_cmd = (
-            f"executor.update_parameters(**{job_params})"
-            if self.partition
-            else "executor.update_parameters()"
-        )
-
-        func_name, func_params, func_return = self._inspect_fn(fn)
-        ret = self.run_python(
-            [
-                "import submitit",
-                "import pickle",
-                f"executor = submitit.AutoExecutor(folder='{self.log_folder}')",
-                executor_params_cmd,
-                f"{func_name} = lambda {func_params}: {func_return}",
-                f"job = executor.submit({func_name}, *{args}, **{kwargs})",
-                "print(pickle.dumps(job))",
-            ]
-        )
-
-        resp = ret[0][1]
-        if ret[0][0] != 0:
-            raise Exception(f"Failed to submit job: {ret[0]}")
-
-        job = pickle.loads(ast.literal_eval(resp))
-
-        logger.info(
-            f"Submitted job (id={job.job_id}) to Slurm. Logs saved on server {self.address} "
-            f"to folder: {obj_store.LOGS_DIR}/{job.job_id}"
-        )
-
-        return job
+    @staticmethod
+    def _decode_streams(stream):
+        return stream.read().decode("utf-8")
 
     @staticmethod
-    def _inspect_fn(fn: Callable):
-        """Grab the function's name, params, and return str repr. This is necessary since we are using submitit to
-        run the function via SSH, and we need to define the function to run as part of the job that we submit inside
-        the SSH command."""
-        # Get function name
-        func_name = fn.__name__
+    def format_cmd_output(output):
+        return output[0][1].strip("\n")
 
-        # Get function parameters
-        sig = inspect.signature(fn)
-        func_params = ", ".join([str(p) for p in sig.parameters.values()])
+    def _get_worker_node_ips(self, job_id: Union[str, int]) -> list:
+        """Get the worker node(s) where a specified job is running."""
+        ret = self.run(commands=[f"scontrol show jobid -dd {job_id} | grep NodeList"])
+        if ret[0][0] != 0:
+            raise Exception(f"Failed to get info on job: {ret}")
 
-        # Get function source code
-        source_lines, _ = inspect.getsourcelines(fn)
-        source = "".join(source_lines).strip()
+        # Extract the value(s) of NodeList (i.e. the nodes where the job is running)
+        node_data = ret[0][1]
+        reg_exp = re.search(r"NodeList=([^ ]+)", str(node_data))
+        node_list = reg_exp.group(1).strip()
 
-        # Parse source code to extract return value
-        tree = ast.parse(source)
-        return_expr = None
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Return):
-                return_expr = node.value
-                break
+        if node_list == "(null)":
+            raise Exception(f"No node list found: {node_list}")
 
-        func_return = ast.unparse(return_expr) if return_expr else None
+        worker_ips = []
+        for ip_or_name in node_list:
+            resp = self.run_python(
+                ["import socket", f"print(socket.inet_aton('{ip_or_name}'))"]
+            )
+            if resp[0][0] == 0:
+                worker_ips.append(self.format_cmd_output(resp))
+                continue
 
-        return func_name, func_params, func_return
+            resp = self.run_python(
+                ["import socket", f"print(socket.gethostbyname('{ip_or_name}'))"]
+            )
+            if resp[0][0] != 0:
+                raise Exception(f"Failed to get IP address for {ip_or_name}: {resp}")
+            worker_ips.append(self.format_cmd_output(resp))
+
+        if not worker_ips:
+            raise Exception(f"Failed to get IP address from node list")
+
+        return worker_ips

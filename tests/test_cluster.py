@@ -85,18 +85,22 @@ def test_on_diff_cluster(cpu_cluster, byo_cpu):
 
 
 @pytest.mark.slurmtest
-def test_submit_job_to_slurm(slurm_cluster, request):
-    submitted_job = slurm_cluster.submit_job(summer, a=1, b=2)
-    assert type(submitted_job).__name__ == "SlurmJob"
+def test_submit_job_to_slurm(slurm_cluster):
+    # Run a slurm command on the jumpbox to submit a job
+    job_name = "test_job"
+    sample_command = f"""srun --job-name={job_name} bash -c "echo Hello, world!" && hostname && sleep 10"""
+    worker_ips = slurm_cluster.submit_job(job_name=job_name, commands=[sample_command])
+    assert worker_ips
 
-    job_id: str = submitted_job.job_id
+    print(f"Submitted job, running on worker nodes with IPs: {', '.join(worker_ips)}")
 
-    # Temporarily store job_id in pytest cache to reference this job id in subsequent tests
-    request.config.cache.set("job_id", job_id)
+    slurm_cluster.ssh_tunnel_to_target_host(target_host=worker_ips[0])
 
-    assert isinstance(job_id, str)
+    stdout, stderr = slurm_cluster.run_commands_on_target_host(["ls -l"])
+    assert stdout
 
 
+@unittest.skip("Not implemented yet")
 @pytest.mark.slurmtest
 def test_get_slurm_job_result(slurm_cluster, request):
     job_id = request.config.cache.get("job_id", None)
@@ -104,6 +108,7 @@ def test_get_slurm_job_result(slurm_cluster, request):
     assert int(res) == 3
 
 
+@unittest.skip("Not implemented yet")
 @pytest.mark.slurmtest
 def test_get_slurm_stdout(slurm_cluster, request):
     job_id = request.config.cache.get("job_id", None)
@@ -111,6 +116,7 @@ def test_get_slurm_stdout(slurm_cluster, request):
     assert "3" in stdout
 
 
+@unittest.skip("Not implemented yet")
 @pytest.mark.slurmtest
 def test_get_slurm_stderr(slurm_cluster, request):
     job_id = request.config.cache.get("job_id", None)

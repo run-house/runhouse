@@ -147,9 +147,7 @@ def slurm_cluster(
     name: str,
     ip: str,
     ssh_creds: dict = None,
-    job_params: dict = None,
-    partition: str = None,
-    log_folder: str = None,
+    port: int = None,
 ) -> SlurmCluster:
     """
     Builds an instance of :class:`SlurmCluster`.
@@ -158,28 +156,23 @@ def slurm_cluster(
         name (str): Name for the Cluster, to re-use later on within Runhouse.
         ip: (str): IP address for the cluster. Could be either a jump server or login node used
             for requesting compute and submitting jobs.
-        partition (str, optional): Name of specific partition for the Slurm scheduler to use.
-        log_folder (str, optional): Name of folder to store logs for the jobs on the cluster.
-            Used to dump job information, logs and result when finished. Defaults to ``~/.rh/logs/<job_id>``.
         ssh_creds (dict, optional): Required for submitting a job via SSH and for accessing the
             node(s) running the job.
-        job_params (dict, optional): Optonal params to pass to the job submission executor.
-            Params include: ``timeout_min: str``, ``mem_gb: str``, ``nodes: str``, ``cpus_per_task: str``,
-            ``gpus_per_node: str``, ``tasks_per_node: str``
+        port (str, optional): Port to connect to on the target host. Defaults to ``22``.
 
     Returns:
         SlurmCluster: The resulting cluster.
 
     Example:
         >>> import runhouse as rh
-        >>> cluster = rh.slurm_cluster(ips=['<ip of the cluster>'],
+        >>> cluster = rh.slurm_cluster(ip='<ip of the jump server or login node>',
         >>>                  ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'},
         >>>                  name='slurm_cluster').save()
 
         >>> # Load cluster from above
-        >>> reloaded_cluster = rh.slurm_cluster(name="rh-a10x")
+        >>> reloaded_cluster = rh.slurm_cluster(name="slurm_cluster")
     """
-    if name and not any([partition, log_folder, ssh_creds, ip, job_params]):
+    if name and not any([ssh_creds, ip, port]):
         # Try reloading existing cluster
         return SlurmCluster.from_name(name, dryrun=True)
 
@@ -189,11 +182,4 @@ def slurm_cluster(
             f"{RESERVED_SYSTEM_NAMES}."
         )
 
-    return SlurmCluster(
-        ip=ip,
-        ssh_creds=ssh_creds,
-        name=name,
-        partition=partition,
-        log_folder=log_folder,
-        job_params=job_params,
-    )
+    return SlurmCluster(ip=ip, ssh_creds=ssh_creds, name=name, port=port)
