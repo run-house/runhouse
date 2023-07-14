@@ -508,7 +508,9 @@ class Folder(Resource):
 
         cluster_creds = self.system.ssh_creds()
 
-        if not cluster_creds.get("password"):
+        if not cluster_creds.get("password") and not dest_cluster.ssh_creds().get(
+            "password"
+        ):
             creds_file = cluster_creds.get("ssh_private_key")
             creds_cmd = f"-i '{creds_file}' " if creds_file else ""
 
@@ -528,7 +530,7 @@ class Folder(Resource):
                     f"For example: `rh.Secrets.to({self.system.name}, providers=['aws'])`"
                 )
         else:
-            # TODO [CC]: look into fsspec copy
+            # TODO: fsspec copy function might be able to do this as well
             local_folder = self._cluster_to_local(self.system, self.path)
             local_folder._to_cluster(dest_cluster, dest_path)
 

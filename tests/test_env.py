@@ -255,7 +255,7 @@ def test_conda_env_dict_to_system(cluster):
     assert "3.9.16" in _get_conda_python_version(test_env, cluster)
 
     # ray installed successfully
-    res = cluster.run([f"{test_env._run_cmd} python -c 'import ray'"])
+    res = cluster.run([f'{test_env._run_cmd} python -c "import ray"'])
     assert res[0][0] == 0
 
 
@@ -278,7 +278,7 @@ def test_conda_additional_reqs(cluster):
     new_conda_env = _get_conda_env(name="test-add-reqs")
     new_conda_env = rh.env(name="conda_env", reqs=["scipy"], conda_env=new_conda_env)
     new_conda_env.to(cluster)
-    res = cluster.run([f"{new_conda_env._run_cmd} python -c 'import scipy'"])
+    res = cluster.run([f'{new_conda_env._run_cmd} python -c "import scipy"'])
     assert res[0][0] == 0  # reqs successfully installed
     cluster.run([f"{new_conda_env._run_cmd} pip uninstall scipy"])
 

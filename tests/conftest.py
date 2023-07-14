@@ -174,52 +174,34 @@ def a10g_gpu_cluster():
     ).up_if_not()
 
 
-# @pytest.fixture(scope="session")
-# def byo_cpu_no_pkey():
-#     sky_cluster = rh.cluster("temp-cluster", instance_type="CPU:4").up_if_not().save()
-
-#     sky_cluster.install_packages(["pytest"])
-#     sky_cluster.send_secrets(["ssh"])
-#     sky_cluster.run(["pip uninstall skypilot -y", "pip uninstall runhouse -y"])
-
-#     sky_cluster = rh.cluster(
-#         name="no-pkey-cluster",
-#         ips=[sky_cluster.name],
-#         ssh_creds={"ssh_user": sky_cluster.ssh_creds().get("ssh_user")},
-#     ).save()
-
-#     return c
-
-
 @pytest.fixture(scope="session")
 def password_cluster():
-    sky_cluster = (
-        rh.cluster("temp-rh-password", instance_type="CPU:4").up_if_not().save()
-    )
+    sky_cluster = rh.cluster("temp-rh-password", instance_type="CPU:4").save()
+    if not sky_cluster.is_up():
+        sky_cluster.up()
 
-    # set up password on remote
-    sky_cluster.run(
-        [
+        # set up password on remote
+        sky_cluster.run(
             [
-                'sudo sed -i "/^[^#]*PasswordAuthentication[[:space:]]no/c\PasswordAuthentication yes" '
-                "/etc/ssh/sshd_config"
+                [
+                    'sudo sed -i "/^[^#]*PasswordAuthentication[[:space:]]no/c\PasswordAuthentication yes" '
+                    "/etc/ssh/sshd_config"
+                ]
             ]
-        ]
-    )
-    sky_cluster.run(["sudo /etc/init.d/ssh force-reload"])
-    sky_cluster.run(["sudo /etc/init.d/ssh restart"])
-    sky_cluster.run(
-        ["(echo 'cluster-pass' && echo 'cluster-pass') | sudo passwd ubuntu"]
-    )
+        )
+        sky_cluster.run(["sudo /etc/init.d/ssh force-reload"])
+        sky_cluster.run(["sudo /etc/init.d/ssh restart"])
+        sky_cluster.run(
+            ["(echo 'cluster-pass' && echo 'cluster-pass') | sudo passwd ubuntu"]
+        )
+        sky_cluster.run(["pip uninstall skypilot runhouse -y", "pip install pytest"])
+        sky_cluster.run(["rm -rf runhouse/"])
 
     # instantiate byo cluster with password
     ssh_creds = {"ssh_user": "ubuntu", "password": "cluster-pass"}
     cluster = rh.cluster(
         name="rh-password", ips=[sky_cluster.address], ssh_creds=ssh_creds
     ).save()
-
-    cluster.send_secrets(["ssh"])
-    cluster.run(["pip uninstall skypilot runhouse -y", "pip install pytest"])
 
     return cluster
 

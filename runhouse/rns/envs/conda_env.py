@@ -80,7 +80,7 @@ class CondaEnv(Env):
                 "import yaml",
                 "from pathlib import Path",
                 f"path = Path('{path}').expanduser()",
-                f"yaml.dump({self.conda_yaml}, open(path/'{self.env_name}.yml', 'w'))",
+                f"yaml.dump({self.conda_yaml}, open(path / '{self.env_name}.yml', 'w'))",
             ]
         )
 

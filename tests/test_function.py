@@ -101,9 +101,10 @@ def multiproc_torch_sum(inputs):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_remote_function_with_multiprocessing(cpu_cluster):
+@parametrize_cpu_clusters
+def test_remote_function_with_multiprocessing(cluster):
     re_fn = rh.function(multiproc_torch_sum, name="test_function").to(
-        cpu_cluster, env=["torch==1.12.1"]
+        cluster, env=["torch==1.12.1"]
     )
 
     summands = list(zip(range(5), range(4, 9)))
@@ -262,18 +263,18 @@ def test_function_external_fn(cpu_cluster):
     assert int(res) == 10
 
 
-# @unittest.skip("Runs indefinitely.")
-# @pytest.mark.clustertest
-# def test_notebook(cpu_cluster):
-#     nb_sum = lambda x: multiproc_torch_sum(x)
-#     re_fn = rh.function(nb_sum).to(cpu_cluster, env=["torch==1.12.1"])
+@unittest.skip("Runs indefinitely.")
+@pytest.mark.clustertest
+def test_notebook(cpu_cluster):
+    nb_sum = lambda x: multiproc_torch_sum(x)
+    re_fn = rh.function(nb_sum).to(cpu_cluster, env=["torch==1.12.1"])
 
-#     re_fn.notebook()
-#     summands = list(zip(range(5), range(4, 9)))
-#     res = re_fn(summands)
+    re_fn.notebook()
+    summands = list(zip(range(5), range(4, 9)))
+    res = re_fn(summands)
 
-#     assert res == [4, 6, 8, 10, 12]
-#     re_fn.delete_configs()
+    assert res == [4, 6, 8, 10, 12]
+    re_fn.delete_configs()
 
 
 @unittest.skip("Runs indefinitely.")
@@ -324,17 +325,17 @@ def delete_function_from_rns(s):
         raise Exception(f"Failed to teardown the cluster: {e}")
 
 
-# @pytest.mark.clustertest
-# @pytest.mark.rnstest
-# def test_byo_cluster_function(byo_cpu):
-#     re_fn = rh.function(multiproc_torch_sum).to(
-#         byo_cpu, env=["torch==1.12.1", "pytest"]
-#     )
+@pytest.mark.clustertest
+@pytest.mark.rnstest
+def test_byo_cluster_function(byo_cpu):
+    re_fn = rh.function(multiproc_torch_sum).to(
+        byo_cpu, env=["torch==1.12.1", "pytest"]
+    )
 
-#     summands = list(zip(range(5), range(4, 9)))
-#     res = re_fn(summands)
+    summands = list(zip(range(5), range(4, 9)))
+    res = re_fn(summands)
 
-#     assert res == [4, 6, 8, 10, 12]
+    assert res == [4, 6, 8, 10, 12]
 
 
 @pytest.mark.clustertest
@@ -415,12 +416,20 @@ def test_nested_same_cluster(cluster):
 def test_http_url(cluster):
     rh.function(summer).to(cluster).save("@/remote_function")
     tun, port = cluster.ssh_tunnel(80, 50052)
+    ssh_creds = cluster.ssh_creds()
+    auth = (
+        (ssh_creds.get("ssh_user"), ssh_creds.get("password"))
+        if ssh_creds.get("password")
+        else None
+    )
     sum1 = requests.post(
-        "http://127.0.0.1:80/call/remote_function/", json={"args": [1, 2]}
+        "http://127.0.0.1:80/call/remote_function/", json={"args": [1, 2]}, auth=auth
     ).json()
     assert sum1 == 3
     sum2 = requests.post(
-        "http://127.0.0.1:80/call/remote_function/", json={"kwargs": {"a": 1, "b": 2}}
+        "http://127.0.0.1:80/call/remote_function/",
+        json={"kwargs": {"a": 1, "b": 2}},
+        auth=auth,
     ).json()
     assert sum2 == 3
 

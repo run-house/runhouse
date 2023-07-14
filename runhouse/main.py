@@ -1,3 +1,4 @@
+import shlex
 import subprocess
 import webbrowser
 from typing import Optional
@@ -132,10 +133,10 @@ def start(
         subprocess.run(["ray", "stop"])
         subprocess.run(["ray", "start", "--head"])
 
-    start_server_cmd = http_server_cmd.split()
-    if screen:
-        start_server_cmd = ["screen", "-dm", "bash", "-c"] + start_server_cmd
-    subprocess.run(start_server_cmd)
+    start_server_cmd = (
+        f'screen -dm bash -c "{http_server_cmd}"' if screen else http_server_cmd
+    )
+    subprocess.run(shlex.split(start_server_cmd))
 
 
 @app.command()

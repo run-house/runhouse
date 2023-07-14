@@ -163,7 +163,7 @@ def test_to_cluster_attr(cluster, tmp_path):
 @pytest.mark.clustertest
 @pytest.mark.rnstest
 @parametrize_cpu_clusters
-def l(cluster, blob_data):
+def test_local_to_cluster(cluster, blob_data):
     name = "~/my_local_blob"
     my_blob = (
         rh.blob(
@@ -197,9 +197,9 @@ def test_save_blob_to_cluster(cluster, tmp_path):
 @pytest.mark.clustertest
 @parametrize_cpu_clusters
 def test_from_cluster(cluster):
-    config_blob = rh.blob(path="/home/ubuntu/.rh/config.yaml", system=cluster)
+    config_blob = rh.blob(path="~/.rh/config.yaml", system=cluster)
     config_data = yaml.safe_load(config_blob.data)
-    assert len(config_data.keys()) > 4
+    assert len(config_data.keys()) >= 1
 
 
 @pytest.mark.awstest

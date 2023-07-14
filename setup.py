@@ -64,7 +64,7 @@ def parse_readme(readme: str) -> str:
 install_requires = [
     "wheel",
     "rich",
-    "fsspec",
+    "fsspec<=2023.5.0",
     "pyarrow",
     "sshtunnel>=0.3.0",
     "sshfs",

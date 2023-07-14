@@ -201,9 +201,7 @@ class Cluster(Resource):
                 _install_url = f"runhouse=={runhouse.__version__}"
             rh_install_cmd = f"pip install {_install_url}"
 
-        install_cmd = (
-            f"{env._activate_cmd} && {rh_install_cmd}" if env else rh_install_cmd
-        )
+        install_cmd = f"{env._run_cmd} {rh_install_cmd}" if env else rh_install_cmd
 
         status_codes = self.run([install_cmd], stream_logs=True)
 
@@ -316,14 +314,16 @@ class Cluster(Resource):
         # if not self.check_port(self.address, UnaryClient.DEFAULT_PORT):
 
         tunnel_refcount = 0
+        ssh_tunnel = None
         if self.address in open_cluster_tunnels:
             ssh_tunnel, connected_port, tunnel_refcount = open_cluster_tunnels[
                 self.address
             ]
-            ssh_tunnel.check_tunnels()
-            if ssh_tunnel.tunnel_is_up[ssh_tunnel.local_bind_address]:
-                self._rpc_tunnel = ssh_tunnel
-        else:
+            if ssh_tunnel:
+                ssh_tunnel.check_tunnels()
+                if ssh_tunnel.tunnel_is_up[ssh_tunnel.local_bind_address]:
+                    self._rpc_tunnel = ssh_tunnel
+        if not ssh_tunnel:
             self._rpc_tunnel, connected_port = self.ssh_tunnel(
                 HTTPClient.DEFAULT_PORT,
                 remote_port=DEFAULT_SERVER_PORT,
@@ -587,19 +587,34 @@ class Cluster(Resource):
 
         if up:  # local to cluster
             if (Path(source) / ".gitignore").exists():
-                files = (
+                tracked_files = (
                     subprocess.check_output(
-                        "git ls-files --cached --exclude-standard".split()
+                        "git ls-files --cached --exclude-standard",
+                        cwd=source,
+                        shell=True,
                     )
                     .decode("utf-8")
                     .split()
                 )
-                # TODO [CC]: this is a temp hack to remove rh docs
-                files = [file for file in files if "docs/" not in file]
+                # exclude docs/ when syncing over runhouse
+                if Path(source).name == "runhouse":
+                    tracked_files = [
+                        file for file in tracked_files if "docs/" not in file
+                    ]
+                untracked_files = (
+                    subprocess.check_output(
+                        "git ls-files --other --exclude-standard",
+                        cwd=source,
+                        shell=True,
+                    )
+                    .decode("utf-8")
+                    .split()
+                )
+                files = [
+                    Path(source) / file for file in tracked_files + untracked_files
+                ]
                 fs.put(files, dest, recursive=True, create_dir=True)
             else:
-                # Note: if dir exists, then it creates and copies into a subdir
-                # if it does not exist, then it simply creates the dir and moves files into that dir
                 fs.put(source, dest, recursive=True, create_dir=True)
         else:  # cluster to local
             if fs.exists(str(Path(source) / ".gitignore")):
@@ -758,20 +773,27 @@ class Cluster(Resource):
                     password=ssh_credentials.get("password"),
                 )
 
+                # bash warnings to remove from stderr
+                skip_err = [
+                    "bash: cannot set terminal process group",
+                    "bash: no job control in this shell",
+                ]
+
                 for command in commands:
                     logger.info(f"Running command on {self.name}: {command}")
-
-                    # adapted from skypilot's ssh command runner
-                    command = (
-                        "bash --login -c -i 'true && source ~/.bashrc && export OMP_NUM_THREADS=1 PYTHONWARNINGS=ignore"
-                        f" && ({cmd_prefix} {command})'"
-                    )
 
                     if stream_logs:
                         command += f"| tee {log_path} "
                         command += "; exit ${PIPESTATUS[0]}"
                     else:
                         command += f"> {log_path}"
+
+                    # adapted from skypilot's ssh command runner
+                    command = (
+                        "bash --login -c -i $'true && source ~/.bashrc"
+                        "&& export OMP_NUM_THREADS=1 PYTHONWARNINGS=ignore"
+                        f" && ({cmd_prefix} {command})'"
+                    )
 
                     transport = ssh.get_transport()
                     channel = transport.open_session()
@@ -780,6 +802,14 @@ class Cluster(Resource):
                     stdout = channel.recv(-1).decode()
                     exit_code = channel.recv_exit_status()
                     stderr = channel.recv_stderr(-1).decode()
+
+                    stderr = stderr.split("\n")
+                    stderr = [
+                        err
+                        for err in stderr
+                        if not any(skip in err for skip in skip_err)
+                    ]
+                    stderr = "\n".join(stderr)
 
                     channel.close()
 
@@ -811,15 +841,21 @@ class Cluster(Resource):
                 env = Env.from_name(env)
             cmd_prefix = f"{env._run_cmd} {cmd_prefix}"
         command_str = "; ".join(commands)
-        # If invoking a run as part of the python commands also return the Run object
+        command_str_repr = (
+            repr(repr(command_str))[2:-2]
+            if self.ssh_creds().get("password")
+            else command_str
+        )
+        formatted_command = f'{cmd_prefix} "{command_str_repr}"'
 
-        # TODO [CC]: does not work for byo password -- quotes or cmd prefix?
+        # If invoking a run as part of the python commands also return the Run object
         return_codes = self.run(
-            [f'{cmd_prefix} "{command_str}"'],
+            [formatted_command],
             stream_logs=stream_logs,
             port_forward=port_forward,
             run_name=run_name,
         )
+
         return return_codes
 
     def sync_secrets(self, providers: Optional[List[str]] = None):

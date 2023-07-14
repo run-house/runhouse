@@ -1,6 +1,6 @@
 wheel
 rich
-fsspec==2023.1.0
+fsspec<=2023.5.0
 pyarrow
 sshtunnel>=0.3.0
 sshfs
