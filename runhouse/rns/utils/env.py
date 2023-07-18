@@ -42,7 +42,7 @@ def _get_env_from(env):
     from runhouse.rns.envs import Env
 
     if isinstance(env, List):
-        return Env(reqs=env)
+        return Env(reqs=env, working_dir="./")
     elif isinstance(env, Dict):
         return Env.from_config(env)
     elif isinstance(env, str) and rns_client.exists(env, resource_type="env"):

@@ -150,19 +150,18 @@ def test_env_git_reqs(cpu_cluster):
 
 
 @pytest.mark.clustertest
-def test_working_dir(cpu_cluster):
-    working_dir = "test_working_dir"
-    os.makedirs(working_dir, exist_ok=True)
+def test_working_dir(cpu_cluster, tmp_path):
+    working_dir = tmp_path / "test_working_dir"
+    working_dir.mkdir(exist_ok=True)
 
-    env = rh.env(working_dir=working_dir)
-    assert working_dir in env.reqs
+    env = rh.env(working_dir=str(working_dir))
+    assert str(working_dir) in env.reqs
 
     env.to(cpu_cluster)
-    assert working_dir in cpu_cluster.run(["ls"])[0][1]
+    assert working_dir.name in cpu_cluster.run(["ls"])[0][1]
 
-    os.rmdir(working_dir)
-    cpu_cluster.run([f"rm -r {working_dir}"])
-    assert working_dir not in cpu_cluster.run(["ls"])[0][1]
+    cpu_cluster.run([f"rm -r {working_dir.name}"])
+    assert working_dir.name not in cpu_cluster.run(["ls"])[0][1]
 
 
 # -------- CONDA ENV TESTS ----------- #

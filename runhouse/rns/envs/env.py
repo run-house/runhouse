@@ -19,7 +19,7 @@ class Env(Resource):
         reqs: List[Union[str, Package]] = [],
         setup_cmds: List[str] = None,
         env_vars: Union[Dict, str] = {},
-        working_dir: Optional[Union[str, Path]] = "./",
+        working_dir: Optional[Union[str, Path]] = None,
         dryrun: bool = True,
         **kwargs,  # We have this here to ignore extra arguments when calling from_config
     ):
@@ -30,20 +30,23 @@ class Env(Resource):
             To create an Env, please use the factory method :func:`env`.
         """
         super().__init__(name=name, dryrun=dryrun)
-        self.reqs = reqs
-        if working_dir is not None:
-            self.reqs.append(working_dir)
+        self._reqs = reqs
         self.setup_cmds = setup_cmds
         self.env_vars = env_vars
         self.working_dir = working_dir
 
     @staticmethod
-    def from_config(config: dict, dryrun: bool = True):
+    def from_config(config: dict, dryrun: bool = False):
         """Create an Env object from a config dict"""
         config["reqs"] = [
-            Package.from_config(req) if isinstance(req, dict) else req
+            Package.from_config(req, dryrun=True) if isinstance(req, dict) else req
             for req in config.get("reqs", [])
         ]
+        config["working_dir"] = (
+            Package.from_config(config["working_dir"], dryrun=True)
+            if isinstance(config["working_dir"], dict)
+            else config["working_dir"]
+        )
 
         resource_subtype = config.get("resource_subtype")
         if resource_subtype == "CondaEnv":
@@ -60,14 +63,22 @@ class Env(Resource):
             {
                 "reqs": [
                     self._resource_string_for_subconfig(package)
-                    for package in self.reqs
+                    for package in self._reqs
                 ],
                 "setup_cmds": self.setup_cmds,
                 "env_vars": self.env_vars,
-                "workding_dir": self.working_dir,
+                "working_dir": self._resource_string_for_subconfig(self.working_dir),
             }
         )
         return config
+
+    @property
+    def reqs(self):
+        return (self._reqs or []) + ([self.working_dir] if self.working_dir else [])
+
+    @reqs.setter
+    def reqs(self, reqs):
+        self._reqs = reqs
 
     def _reqs_to(self, system: Union[str, Cluster], path=None, mount=False):
         """Send self.reqs to the system (cluster or file system)"""
@@ -85,7 +96,9 @@ class Env(Resource):
                     else req.to(system, path=path)
                 )
             new_reqs.append(req)
-        return new_reqs
+        if self.working_dir:
+            return new_reqs[:-1], new_reqs[-1]
+        return new_reqs, None
 
     def _setup_env(self, system: Cluster):
         """Install packages and run setup commands on the cluster."""
@@ -106,7 +119,7 @@ class Env(Resource):
         """
         system = _get_cluster_from(system)
         new_env = copy.deepcopy(self)
-        new_env.reqs = self._reqs_to(system, path, mount)
+        new_env.reqs, new_env.working_dir = self._reqs_to(system, path, mount)
 
         if isinstance(system, Cluster):
             system.check_server()
