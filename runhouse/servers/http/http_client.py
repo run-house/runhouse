@@ -138,6 +138,7 @@ class HTTPClient:
         """
         # Measure the time it takes to send the message
         start = time.time()
+        logger.info(f"Calling {module_name}.{method_name}")
         res = requests.post(
             f"http://{self.host}:{self.port}/{module_name}/{method_name}/",
             json={
@@ -176,8 +177,8 @@ class HTTPClient:
                         if output_type == OutputType.RESULT_STREAM:
                             yield result_inner
 
-                return results_generator
-            else:
+                return results_generator()
+            elif output_type == OutputType.RESULT:
                 # Finish iterating over logs before returning single result
                 non_generator_result = result
         end = time.time()

@@ -95,20 +95,21 @@ class slow_numpy_array:
     def slow_get_array(self):
         for i in range(self.size):
             time.sleep(1)
+            logger.info(f"Hello from the cluster logs! {i}")
             self.arr[i] = i
             yield f"Hello from the cluster! {self.arr}"
 
 
 @pytest.mark.clustertest
-@unittest.skip("Not working yet")
 @pytest.mark.parametrize("env", [None])
 def test_stateful_generator(cpu_cluster, env):
+    # We need this here just to make sure the "tests" module is synced over
+    # TODO remove when we add support for rh.Module
+    rh.function(fn=do_printing_and_logging, system=cpu_cluster)
     cpu_cluster.put("slow_numpy_array", slow_numpy_array(), env=env)
-    vals = cpu_cluster.call_module_method(
+    for val in cpu_cluster.call_module_method(
         "slow_numpy_array", "slow_get_array", stream_logs=True
-    )
-    inspect.isgenerator(res)
-    for val in vals:
+    ):
         assert val
         print(val)
 
@@ -206,7 +207,7 @@ def np_serialization_helper_1():
 
 
 def np_serialization_helper_2():
-    arr = rh.blob(name="np_arr").fetch()
+    arr = rh.blob(name="np_arr", load=False).fetch()
     arr[0] = 1
     return arr
 

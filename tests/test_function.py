@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 import unittest
@@ -10,6 +11,8 @@ import runhouse as rh
 from runhouse.rns.utils.api import load_resp_content, ResourceAccess
 
 REMOTE_FUNC_NAME = "@/remote_function"
+
+logger = logging.getLogger(__name__)
 
 
 def call_function(fn, **kwargs):
@@ -135,6 +138,28 @@ def test_maps(cpu_cluster):
     res = re_fn.map(alist, blist)
     assert res == [4, 6, 8, 10, 12]
 
+
+def slow_generator(size):
+    logger.info(f"Hello from the cluster logs!")
+    print(f"Hello from the cluster stdout!")
+    arr = []
+    for i in range(size):
+        time.sleep(1)
+        logger.info(f"Hello from the cluster logs! {i}")
+        print(f"Hello from the cluster stdout! {i}")
+        arr += [i]
+        yield f"Hello from the cluster! {arr}"
+
+
+@pytest.mark.clustertest
+def test_generator(cpu_cluster):
+    remote_slow_generator = rh.function(slow_generator).to(cpu_cluster)
+    results = []
+    for val in remote_slow_generator(5):
+        assert val
+        print(val)
+        results += [val]
+    assert len(results) == 5
 
 @pytest.mark.clustertest
 def test_remotes(cpu_cluster):

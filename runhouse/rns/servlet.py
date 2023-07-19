@@ -1,6 +1,7 @@
 import codecs
 import inspect
 import logging
+import queue
 import traceback
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from runhouse.rh_config import configs, obj_store
 
 from runhouse.rns.blobs import blob
 from runhouse.rns.packages.package import Package
+from runhouse.rns.queues import Queue
 from runhouse.rns.resource import Resource
 from runhouse.rns.run_module_utils import call_fn_by_type
 from runhouse.rns.utils.names import _generate_default_name
@@ -31,11 +33,15 @@ class EnvServlet:
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     LOGGING_WAIT_TIME = 1.0
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
+    LOGS_DIR = ".rh/logs"
+    RH_LOGFILE_PATH = Path.home() / LOGS_DIR
 
     def __init__(self, env_name, *args, **kwargs):
         self.env_name = env_name
 
         obj_store.set_name(self.env_name)
+
+        self.results_streams = {}
 
     @staticmethod
     def register_activity():
@@ -100,61 +106,85 @@ class EnvServlet:
     def call_module_method(self, module_name, method_name, message: Message):
         self.register_activity()
         try:
-            args, kwargs = b64_unpickle(message.data)
+            self.results_streams[message.key] = Queue()
+            args, kwargs = b64_unpickle(message.data) if message.data else ([], {})
             logger.info(
-                f"Message received from client to call method {method_name} on resource {module_name}"
+                f"Message received from client to call method {method_name} on module {module_name}"
             )
-            resource = obj_store.get(module_name, None)
-            if not resource:
+            module = obj_store.get(module_name, None)
+            if not module:
                 raise ValueError(f"Resource {module_name} not found")
-            method = getattr(resource, method_name, None)
+
+            # If method_name is None, return the module itself as this is a "get" request
+            method = getattr(module, method_name, None) if method_name else module
             if not method:
                 raise ValueError(
-                    f"Method {method_name} not found on resource {module_name}"
+                    f"Method {method_name} not found on module {module_name}"
                 )
 
-            if inspect.isgenerator(method):
-                # Stream back the results of the generator
-                saved = False
-                for result in method(*args, **kwargs):
-                    self.register_activity()
-                    if not saved and message.save:
-                        blob(data=[]).save(message.key)
-                        saved = True
-                    if message.save:
-                        prior_results = blob(name=message.key).fetch()
-                        blob(data=prior_results + [result]).write(message.key)
-                    yield Response(
-                        output_type=OutputType.RESULT_STREAM, data=pickle_b64(result)
-                    )
+            # Don't call the method if it's a property or a "get" request (returning the module itself)
+            if hasattr(method, "__call__") and method_name:
+                # If method is callable, call it and return the result
+                logger.info(
+                    f"{self.env_name} servlet: Calling method {method_name} on module {module_name}"
+                )
+                callable_method = True
             else:
-                if hasattr(method, "__call__"):
-                    # If method is callable, call it and return the result
-                    logger.info(
-                        f"{self.env_name} servlet: Calling method {method_name} on resource {module_name}"
+                # Method is a property, return the value
+                logger.info(
+                    f"Env {self.env_name} servlet: Getting property {method_name} on module {module_name}"
+                )
+                callable_method = False
+
+            result = method(*args, **kwargs) if callable_method else method
+            if inspect.isgenerator(result):
+                # Stream back the results of the generator
+                logger.info(f"Streaming back results of generator {module_name}.{method_name}")
+                results_to_save = []
+                resp = None
+                for val in result:
+                    self.register_activity()
+                    # Doing this at the top of the loop so we can catch the final result and change the OutputType
+                    if resp is not None:
+                        self.results_streams[message.key].put(resp)
+                    if message.save:
+                        # TODO save queue instead
+                        results_to_save = results_to_save + [val]
+                        blob(data=results_to_save).write(message.key)
+                    resp = Response(
+                        output_type=OutputType.RESULT_STREAM, data=pickle_b64(val)
                     )
-                    result = method(*args, **kwargs)
-                else:
-                    # Method is a property, return the value
-                    logger.info(
-                        f"Env {self.env_name} servlet: Getting property {method_name} on resource {module_name}"
-                    )
-                    result = method
+                # Change type of final result to RESULT to indicate end of stream
+                resp.output_type = OutputType.RESULT
+                self.results_streams[message.key].put(resp)
+            else:
                 if message.save:
                     if isinstance(result, Resource):
                         result.save(message.key)
                     else:
                         blob(name=message.key, data=result).save()
                 self.register_activity()
-                yield Response(output_type=OutputType.RESULT, data=pickle_b64(result))
+                resp = Response(output_type=OutputType.RESULT, data=pickle_b64(result))
+                self.results_streams[message.key].put(resp)
         except Exception as e:
             logger.exception(e)
             self.register_activity()
-            yield Response(
+            resp = Response(
                 error=pickle_b64(e),
                 traceback=pickle_b64(traceback.format_exc()),
                 output_type=OutputType.EXCEPTION,
             )
+            self.results_streams[message.key].put(resp)
+
+    def _get_result_from_stream(self, key, block=True, timeout=None):
+        # TODO return queue.Empty instead of None
+        self.register_activity()
+        if key not in self.results_streams:
+            return None
+        try:
+            return self.results_streams[key].get(block=block, timeout=timeout)
+        except queue.Empty:
+            return None
 
     def run_module(self, message: Message):
         self.register_activity()

@@ -99,7 +99,10 @@ class Resource:
     @name.setter
     def name(self, name):
         # Split the name and rns path if path is given (concat with current_folder if just stem is given)
-        self._name, self._rns_folder = split_rns_name_and_path(resolve_rns_path(name))
+        if name is None:
+            self._name = None
+        else:
+            self._name, self._rns_folder = split_rns_name_and_path(resolve_rns_path(name))
 
     @rns_address.setter
     def rns_address(self, new_address):

@@ -8,66 +8,6 @@ import ray
 logger = logging.getLogger(__name__)
 
 
-class KVStore:
-    """Simple dict wrapper to act as key-value/object storage. Wrapping this in an actor allows us to
-    access it across Ray processes and nodes, and even keep some things pinned to Python memory."""
-
-    def __init__(self):
-        num_gpus = ray.cluster_resources().get("GPU", 0)
-        cuda_visible_devices = list(range(int(num_gpus)))
-        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
-        self._kv = {}
-
-    def put(self, key: str, value: Any):
-        self._kv[key] = value
-
-    def get(self, key: str, default=None):
-        return self._kv.get(key, default)
-
-    def pop(self, key: str, *args):
-        # We accept *args here to match the signature of dict.pop (throw an error if key is not found,
-        # unless another arg is provided as a default)
-        return self._kv.pop(key, *args)
-
-    def keys(self):
-        return list(self._kv.keys())
-
-    def values(self):
-        return list(self._kv.values())
-
-    def items(self):
-        return list(self._kv.items())
-
-    def clear(self):
-        self._kv = {}
-
-    def rename(self, old_key, new_key, *args):
-        # We accept *args here to match the signature of dict.pop (throw an error if key is not found,
-        # unless another arg is provided as a default)
-        self._kv[new_key] = self._kv.pop(old_key, *args)
-
-    def __len__(self):
-        return len(self._kv)
-
-    def contains(self, key: str):
-        return key in self
-
-    def __contains__(self, key: str):
-        return key in self._kv
-
-    def __getitem__(self, key: str):
-        return self._kv[key]
-
-    def __setitem__(self, key: str, value: Any):
-        self._kv[key] = value
-
-    def __delitem__(self, key: str):
-        del self._kv[key]
-
-    def __repr__(self):
-        return repr(self._kv)
-
-
 class ObjStore:
     """Class to handle object storage for Runhouse. Object storage for a cluster is
     stored in the Ray GCS, if available."""
@@ -89,6 +29,8 @@ class ObjStore:
         # This needs to be in a separate method so the HTTPServer actually
         # initalizes the obj_store, and it doesn't get created and destroyed when
         # nginx runs http_server.py as a module.
+        from runhouse.rns.kvstores import KVStore
+
         self.servlet_name = servlet_name or "base"
         num_gpus = ray.cluster_resources().get("GPU", 0)
         cuda_visible_devices = list(range(int(num_gpus)))
@@ -248,6 +190,7 @@ class ObjStore:
         return self.call_kv_method(self._kv_store, "contains", key)
 
     def get_logfiles(self, key: str, log_type=None):
+        # TODO remove
         # Info on ray logfiles: https://docs.ray.io/en/releases-2.2.0/ray-observability/ray-logging.html#id1
         if self.contains(key):
             # Logs are like: `.rh/logs/key.[out|err]`

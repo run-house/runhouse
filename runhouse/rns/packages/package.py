@@ -307,7 +307,7 @@ class Package(Resource):
 
         if isinstance(system, Resource):
             logger.info(
-                f"Copying folder from {self.install_target.fsspec_url} to: {getattr(system, 'name', system)}"
+                f"Copying package from {self.install_target.fsspec_url} to: {getattr(system, 'name', system)}"
             )
             new_folder = self.install_target._to_cluster(system, path=path, mount=mount)
         else:  # to fs

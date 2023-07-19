@@ -51,13 +51,15 @@ class HTTPServer:
         except Exception as e:
             logger.error(f"Failed to collect cluster stats: {str(e)}")
 
-        if conda_env:
-            base_env = self.get_env_servlet(
-                env_name="base", create=True, runtime_env={"conda": conda_env}
-            )
-        else:
-            base_env = EnvServlet(env_name="base")
+        base_env = self.get_env_servlet(
+            env_name="base",
+            create=True,
+            runtime_env={"conda": conda_env} if conda_env else {},
+        )
         env_servlets["base"] = base_env
+        from runhouse.rh_config import obj_store
+
+        obj_store.set_name("server")
 
         HTTPServer.register_activity()
 
@@ -107,6 +109,7 @@ class HTTPServer:
                     runtime_env=runtime_env,
                     lifetime="detached",
                     namespace="runhouse",
+                    max_concurrency=1000,
                 )
                 .remote(env_name=env_name)
             )
@@ -119,10 +122,13 @@ class HTTPServer:
             )
 
     @staticmethod
-    def call_servlet_method(servlet, method, args, generator=False):
-        options = {"num_returns": "dynamic"} if generator else {}
+    def call_servlet_method(servlet, method, args, block=True):
         if isinstance(servlet, ray.actor.ActorHandle):
-            return ray.get(getattr(servlet, method).options(**options).remote(*args))
+            obj_ref = getattr(servlet, method).remote(*args)
+            if block:
+                return ray.get(obj_ref)
+            else:
+                return obj_ref
         else:
             return getattr(servlet, method)(*args)
 
@@ -133,7 +139,7 @@ class HTTPServer:
         env=None,
         create=False,
         lookup_env_for_name=None,
-        generator=False,
+        block=True,
     ):
         HTTPServer.register_activity()
         try:
@@ -142,7 +148,7 @@ class HTTPServer:
             servlet = HTTPServer.get_env_servlet(env or "base", create=create)
             # If servlet is a RayActor, call with .remote
             return HTTPServer.call_servlet_method(
-                servlet, method, args, generator=generator
+                servlet, method, args, block=block
             )
         except Exception as e:
             logger.exception(e)
@@ -193,37 +199,27 @@ class HTTPServer:
 
     @staticmethod
     @app.post("/{module}/{method}")
-    def call_module_method(module, method, message: Message):
+    def call_module_method(module, method=None, message: Message = None):
         # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
+            # If this is a "get" request to just return the module, do not stream logs or save by default
+            message = message or Message(stream_logs=False, save=False)
             if message.stream_logs or message.save:
                 message.key = message.key or _generate_default_name(
-                    prefix=f"{module}_{method}"
+                    prefix=module if method == "__call__" else f"{module}_{method}"
                 )
             env = message.env or HTTPServer.lookup_env_for_name(module)
-            generator = HTTPServer.call_in_env_servlet(
+            HTTPServer.call_in_env_servlet(
                 "call_module_method",
                 [module, method, message],
-                env=message.env,
+                env=env,
                 create=True,
-                lookup_env_for_name=module,
-                generator=True,
-            )
-            logfiles = (
-                HTTPServer.call_in_env_servlet(
-                    method="get_logfiles",
-                    args=[message.key],
-                    env=env,
-                    create=False,
-                    lookup_env_for_name=module,
-                )
-                if message.stream_logs
-                else None
+                block=False,
             )
             return StreamingResponse(
                 HTTPServer._get_results_and_logs_generator(
-                    generator, logfiles=logfiles
+                    message.key, env=env, stream_logs=message.stream_logs
                 ),
                 media_type="application/json",
             )
@@ -237,22 +233,71 @@ class HTTPServer:
             )
 
     @staticmethod
-    def _get_results_and_logs_generator(generator, logfiles=None):
-        try:
-            open_files = [open(i, "r") for i in (logfiles or [])] if logfiles else []
-            if open_files:
-                logger.info(f"Streaming logs from {logfiles}")
-            for res in generator:
-                if isinstance(res, Response):
-                    yield json.dumps(jsonable_encoder(res))
-                elif isinstance(res, ray.ObjectRef):
-                    yield json.dumps(jsonable_encoder(ray.get(res)))
-                else:
-                    raise Exception(f"Unexpected result type {type(res)}")
+    def _get_logfiles(log_key, log_type=None):
+        key_logs_path = Path(EnvServlet.RH_LOGFILE_PATH) / log_key
+        if key_logs_path.exists():
+            # Logs are like: `.rh/logs/key/key.[out|err]`
+            glob_pattern = (
+                "*.out"
+                if log_type == "stdout"
+                else "*.err"
+                if log_type == "stderr"
+                else "*.[oe][ur][tr]"
+            )
+            return [str(f.absolute()) for f in key_logs_path.glob(glob_pattern)]
+        else:
+            return None
 
-                    # Grab all the lines written to all the log files since the last time we checked
+    @staticmethod
+    def open_new_logfiles(key, open_files):
+        logfiles = HTTPServer._get_logfiles(key)
+        if logfiles:
+            for f in logfiles:
+                if f not in [o.name for o in open_files]:
+                    logger.info(f"Streaming logs from {f}")
+                    open_files.append(open(f, "r"))
+        return open_files
+
+    @staticmethod
+    def _get_results_and_logs_generator(key, env, stream_logs):
+        open_logfiles = []
+
+        waiting_for_results = True
+        try:
+            obj_ref = None
+            while waiting_for_results:
+                if not obj_ref:
+                    obj_ref = HTTPServer.call_in_env_servlet(
+                        "_get_result_from_stream",
+                        [key],
+                        env=env,
+                        block=False,
+                    )
+                try:
+                    ret_val = ray.get(obj_ref, timeout=HTTPServer.LOGGING_WAIT_TIME)
+                    # Last result in a stream will have type RESULT to indicate the end
+                    if ret_val is None:
+                        # Still waiting for results in queue
+                        obj_ref = None
+                        # time.sleep(HTTPServer.LOGGING_WAIT_TIME)
+                        raise ray.exceptions.GetTimeoutError
+                    if not ret_val.output_type == OutputType.RESULT_STREAM:
+                        waiting_for_results = False
+                    ret_resp = json.dumps(jsonable_encoder(ret_val))
+                    logger.info(f"Yielding response for key {key}")
+                    yield ret_resp
+                    obj_ref = None
+                except ray.exceptions.GetTimeoutError:
+                    pass
+                # Grab all the lines written to all the log files since the last time we checked, including
+                # any new log files that have been created
+                open_logfiles = (
+                    HTTPServer.open_new_logfiles(key, open_logfiles)
+                    if stream_logs
+                    else []
+                )
                 ret_lines = []
-                for i, f in enumerate(open_files):
+                for i, f in enumerate(open_logfiles):
                     file_lines = f.readlines()
                     if file_lines:
                         # TODO [DG] handle .out vs .err, and multiple workers
@@ -260,14 +305,12 @@ class HTTPServer:
                         #     ret_lines.append(f"Process {i}:")
                         ret_lines += file_lines
                 if ret_lines:
-                    yield json.dumps(
-                        jsonable_encoder(
-                            Response(
-                                data=ret_lines,
-                                output_type=OutputType.STDOUT,
-                            )
-                        )
+                    lines_resp = Response(
+                        data=ret_lines,
+                        output_type=OutputType.STDOUT,
                     )
+                    logger.info(f"Yielding logs for key {key}")
+                    yield json.dumps(jsonable_encoder(lines_resp))
         except Exception as e:
             logger.exception(e)
             yield json.dumps(
@@ -279,6 +322,11 @@ class HTTPServer:
                     )
                 )
             )
+        finally:
+            if stream_logs and not open_logfiles:
+                logger.warning(f"No logfiles found for call {key}")
+            for f in open_logfiles:
+                f.close()
 
     @staticmethod
     @app.post("/run")

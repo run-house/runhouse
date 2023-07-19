@@ -213,6 +213,7 @@ def blob(
     path: Optional[str] = None,
     system: Optional[str] = None,
     data_config: Optional[Dict] = None,
+    load: bool = True,
     dryrun: bool = False,
 ):
     """Returns a Blob object, which can be used to interact with the resource at the given path
@@ -229,6 +230,7 @@ def blob(
             specified.
         data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler (in the case of
             saving the the filesystem).
+        load (bool): Whether to try to load the Blob object from RNS. (Default: ``True``)
         dryrun (bool): Whether to create the Blob if it doesn't exist, or load a Blob object as a dryrun.
             (Default: ``False``)
 
@@ -261,7 +263,7 @@ def blob(
         >>> my_local_blob = rh.blob(name="~/my_blob")
         >>> my_s3_blob = rh.blob(name="@/my_blob")
     """
-    if name and not any([data is not None, path, system, data_config]):
+    if name and load and not any([data is not None, path, system, data_config]):
         # Try reloading existing blob
         try:
             return Blob.from_name(name, dryrun)
