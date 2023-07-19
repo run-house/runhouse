@@ -69,7 +69,7 @@ install_requires = [
     "sshtunnel>=0.3.0",
     "sshfs",
     "typer",
-    "skypilot==0.3.1",
+    "skypilot==0.3.3",
     "fastapi<=0.99.0",
     "uvicorn",
     "pyOpenSSL>=21.1.0",

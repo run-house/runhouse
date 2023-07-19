@@ -851,7 +851,7 @@ def function(
             git_url=f"https://github.com/{username}/{repo_name}.git",
             revision=branch_name,
         )
-        env.reqs.insert(0, repo_package)
+        env.reqs = [repo_package] + env.reqs
 
     system = _get_cluster_from(system)
 
