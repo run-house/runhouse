@@ -1,3 +1,4 @@
+import warnings
 from typing import List, Optional, Union
 
 from ..utils.hardware import RESERVED_SYSTEM_NAMES
@@ -9,7 +10,7 @@ from .on_demand_cluster import OnDemandCluster
 # Cluster factory method
 def cluster(
     name: str,
-    ips: List[str] = None,
+    host: List[str] = None,
     ssh_creds: Optional[dict] = None,
     dryrun: bool = False,
     **kwargs,
@@ -19,7 +20,7 @@ def cluster(
 
     Args:
         name (str): Name for the cluster, to re-use later on.
-        ips (List[str], optional): List of IP addresses for the BYO cluster.
+        host (List[str], optional): List of IP addresses for the BYO cluster.
         ssh_creds (dict, optional): Dictionary mapping SSH credentials.
             Example: ``ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'}``
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
@@ -30,14 +31,20 @@ def cluster(
 
     Example:
         >>> import runhouse as rh
-        >>> gpu = rh.cluster(ips=['<ip of the cluster>'],
+        >>> gpu = rh.cluster(host=['<ip of the cluster>'],
         >>>                  ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'},
         >>>                  name='rh-a10x').save()
 
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.cluster(name="rh-a10x")
     """
-    if name and ips is None and ssh_creds is None and not kwargs:
+    if "ips" in kwargs:
+        host = kwargs["ips"]
+        warnings.warn(
+            "``ips`` argument has been deprecated. Please use ``host`` to refer to the cluster IPs or host instead."
+        )
+
+    if name and host is None and ssh_creds is None and not kwargs:
         # If only the name is provided and dryrun is set to True
         return Cluster.from_name(name, dryrun)
 
@@ -56,7 +63,7 @@ def cluster(
         # )
         return ondemand_cluster(name=name, **kwargs)
 
-    return Cluster(ips=ips, ssh_creds=ssh_creds, name=name, dryrun=dryrun)
+    return Cluster(ips=host, ssh_creds=ssh_creds, name=name, dryrun=dryrun)
 
 
 # OnDemandCluster factory method

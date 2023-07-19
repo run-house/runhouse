@@ -49,7 +49,6 @@ class Cluster(Resource):
 
         super().__init__(name=name, dryrun=dryrun)
 
-        # TODO [CC]: replace "ips" with "host"/"hostname"
         self.address = ips[0] if ips else None
         self._ssh_creds = ssh_creds
         self.ips = ips
@@ -831,7 +830,12 @@ class Cluster(Resource):
         """Run a list of python commands on the cluster.
 
         Example:
-            >>> cpu.run_python(['import numpy', 'print(numpy.__version__)'])([""])
+            >>> cpu.run_python(['import numpy', 'print(numpy.__version__)'])
+            >>> cpu.run_python(["print('hello')"])
+
+        Note:
+            Running Python commands with nested quotes can be finicky. If using nested quotes,
+            try to wrap the outer quote with double quotes (") and the inner quotes with a single quote (').
         """
         cmd_prefix = "python3 -c"
         if env:
