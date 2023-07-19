@@ -420,23 +420,6 @@ class Cluster(Resource):
 
         return ssh_tunnel, local_port
 
-    # import paramiko
-    # ssh = paramiko.SSHClient()
-    # ssh.load_system_host_keys()
-    # ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    # from pathlib import Path
-    # ssh.connect(self.address,
-    #             username=creds['ssh_user'],
-    #             key_filename=str(Path(creds['ssh_private_key']).expanduser())
-    #             )
-    # transport = ssh.get_transport()
-    # transport.request_port_forward('', local_port)
-    # ssh_tunnel = transport.open_channel("direct-tcpip", ("localhost", local_port),
-    #                                     (self.address, remote_port or local_port))
-    # if ssh_tunnel.is_active():
-    #     connected = True
-    #     print(f"SSH tunnel is open to {self.address}:{local_port}")
-
     def restart_server(
         self,
         _rh_install_url: str = None,
@@ -446,8 +429,8 @@ class Cluster(Resource):
         """Restart the RPC server.
 
         Args:
-            resync_rh (bool): Whether to resync runhouse. (Default: True)
-            restart_ray (bool): Whether to restart Ray. (Default: False)
+            resync_rh (bool): Whether to resync runhouse. (Default: ``True``)
+            restart_ray (bool): Whether to restart Ray. (Default: ``False``)
 
         Example:
             >>> rh.cluster("rh-cpu").restart_server()

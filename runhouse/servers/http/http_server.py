@@ -379,6 +379,51 @@ class HTTPServer:
             )
 
     @staticmethod
+    @app.post("/job")
+    def submit_job_to_queue(message: Message):
+        """Submit the job into the queue to be run on the partition server."""
+        logger.info(message.data)
+        HTTPServer.register_activity()
+        (
+            name,
+            partition,
+            fn_obj,
+            commands,
+            env,
+            mail_type,
+            mail_user,
+            args,
+            kwargs,
+        ) = b64_unpickle(message.data)
+        logger.info(f"Received a new job with name: {name}")
+
+        try:
+            from runhouse import folder
+
+            # Add the submitted job to the queue - i.e. create a new folder for the submitted job
+            # on the local file system
+            job_folder = folder(name=name, path=obj_store.RH_LOGFILE_PATH / name)
+            logger.info(f"Saving submitted job to path: {job_folder.path}")
+
+            # Save the serialized request object to the job's dedicated folder (i.e. the queue)
+            job_folder.put(
+                {"request.json": message.data},
+                mode="w",
+                write_fn=lambda data, f: json.dump(data, f, indent=4),
+            )
+
+            return Response(output_type=OutputType.SUCCESS)
+
+        except Exception as e:
+            logger.exception(e)
+            HTTPServer.register_activity()
+            return Response(
+                error=pickle_b64(e),
+                traceback=pickle_b64(traceback.format_exc()),
+                output_type=OutputType.EXCEPTION,
+            )
+
+    @staticmethod
     @app.post("/cancel")
     def cancel_run(message: Message):
         # Having this be a POST instead of a DELETE on the "run" endpoint is strange, but we're not actually

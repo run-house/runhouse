@@ -145,9 +145,10 @@ def ondemand_cluster(
 
 def slurm_cluster(
     name: str,
-    ip: str,
+    ip: str = None,
     ssh_creds: dict = None,
-    port: int = None,
+    partition: str = None,
+    dryrun: bool = False,
 ) -> SlurmCluster:
     """
     Builds an instance of :class:`SlurmCluster`.
@@ -158,7 +159,10 @@ def slurm_cluster(
             for requesting compute and submitting jobs.
         ssh_creds (dict, optional): Required for submitting a job via SSH and for accessing the
             node(s) running the job.
-        port (str, optional): Port to connect to on the target host. Defaults to ``22``.
+        partition (str, optional): Name of specific partition for the Slurm scheduler to use.
+            If no partition is specified it is assumed the cluster is a single node.
+        dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
+            (Default: ``False``)
 
     Returns:
         SlurmCluster: The resulting cluster.
@@ -166,15 +170,15 @@ def slurm_cluster(
     Example:
         >>> import runhouse as rh
         >>> cluster = rh.slurm_cluster(ip='<ip of the jump server or login node>',
-        >>>                  ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'},
-        >>>                  name='slurm_cluster').save()
+        >>>                            ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'},
+        >>>                            name='slurm_cluster').save()
 
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.slurm_cluster(name="slurm_cluster")
     """
-    if name and not any([ssh_creds, ip, port]):
+    if name and not any([ssh_creds, ip, partition]):
         # Try reloading existing cluster
-        return SlurmCluster.from_name(name, dryrun=True)
+        return SlurmCluster.from_name(name, dryrun=dryrun)
 
     if name in RESERVED_SYSTEM_NAMES:
         raise ValueError(
@@ -182,4 +186,6 @@ def slurm_cluster(
             f"{RESERVED_SYSTEM_NAMES}."
         )
 
-    return SlurmCluster(ip=ip, ssh_creds=ssh_creds, name=name, port=port)
+    return SlurmCluster(
+        ip=ip, ssh_creds=ssh_creds, name=name, partition=partition, dryrun=dryrun
+    )

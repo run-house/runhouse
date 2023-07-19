@@ -1,5 +1,5 @@
-import os
 import pickle
+import time
 
 import pandas as pd
 
@@ -110,8 +110,6 @@ def ray_table():
 
 
 # ----------------- Clusters -----------------
-
-
 @pytest.fixture
 def cluster(request):
     """Parametrize over multiple fixtures - useful for running the same test on multiple hardware types."""
@@ -125,17 +123,6 @@ def cpu_cluster():
     c.up_if_not()
     c.install_packages(["pytest"])
     # Save to RNS - to be loaded in other tests (ex: Runs)
-    c.save()
-    return c
-
-
-@pytest.fixture(scope="session")
-def slurm_cluster():
-    c = rh.slurm_cluster(
-        name="slurm_cluster",
-        ip=os.getenv("SLURM_JUMPBOX_IP"),
-        ssh_creds={"ssh_user": "ubuntu", "ssh_private_key": "~/.ssh/runhouse-auth.pem"},
-    )
     c.save()
     return c
 
@@ -184,6 +171,95 @@ def a10g_gpu_cluster():
     return rh.ondemand_cluster(
         name="rh-a10x", instance_type="g5.2xlarge", provider="aws"
     ).up_if_not()
+
+
+# ----------------- Slurm Cluster -----------------
+@pytest.fixture(scope="session")
+def slurm_cluster(cpu_cluster):
+    slurm_cluster = rh.slurm_cluster(
+        name="slurm_cluster", ip=cpu_cluster.address, ssh_creds=cpu_cluster.ssh_creds()
+    )
+    slurm_cluster.save()
+
+    configure_slurm_cluster(cpu_cluster)
+
+    return slurm_cluster
+
+
+def configure_slurm_cluster(cpu_cluster):
+    """Create a slurm cluster on using the existing CPU cluster (i.e. a single node CPU cluster)."""
+    # Check if already configured
+    sinfo_status_codes = cpu_cluster.run(["sinfo"])
+    if sinfo_status_codes[0][0] != 0:
+        raise Exception(
+            f"Slurm cluster not running as expected: {sinfo_status_codes[0][1]}"
+        )
+
+    path_to_script = "~/runhouse/runhouse/scripts/create_slurm_cluster.sh"
+    install_status_codes = cpu_cluster.run(
+        [f"sudo chmod +x {path_to_script}", path_to_script]
+    )
+    if install_status_codes[0][0] != 0:
+        raise Exception(
+            f"Failed to create slurm cluster for {cpu_cluster.name}: {install_status_codes[0][1]}"
+        )
+
+    # NOTE: this will set the slurm cluster up, but we still need to reboot the VM in order for this to properly work
+    reboot_cluster(cpu_cluster)
+
+    # Confirm that the slurm cluster is up and running properly
+    sinfo_status_codes = cpu_cluster.run(["sinfo"])
+    if sinfo_status_codes[0][0] != 0:
+        raise Exception(
+            f"Slurm cluster not running as expected: {sinfo_status_codes[0][1]}"
+        )
+
+
+def reboot_cluster(cpu_cluster):
+    import boto3
+
+    filters = [{"Name": "tag:Name", "Values": ["ray-" + cpu_cluster.name + "-head"]}]
+
+    # Create a Boto3 EC2 client
+    ec2_client = boto3.client("ec2")
+
+    start_time = time.time()
+
+    try:
+        max_wait_time = 300  # 5 minutes
+
+        response = ec2_client.describe_instances(Filters=filters)
+        instance_id = response["Reservations"][0]["Instances"][0]["InstanceId"]
+
+        # Reboot the EC2 instance
+        ec2_client.reboot_instances(InstanceIds=[instance_id])
+
+        while True:
+            response = ec2_client.describe_instances(InstanceIds=[instance_id])
+            instance_state = response["Reservations"][0]["Instances"][0]["State"][
+                "Name"
+            ]
+
+            if instance_state == "running":
+                print(f"Instance {instance_id} is now running.")
+                break
+
+            # Calculate the elapsed time
+            elapsed_time = time.time() - start_time
+
+            if elapsed_time >= max_wait_time:
+                raise TimeoutError(
+                    f"Instance {instance_id} still not running after {max_wait_time} seconds"
+                )
+
+            print(
+                f"Instance {instance_id} is still in state: {instance_state}. Waiting for 10 seconds..."
+            )
+
+            time.sleep(10)
+
+    except Exception as e:
+        raise Exception(f"Failed to reboot cluster: {e}")
 
 
 # ----------------- Envs -----------------

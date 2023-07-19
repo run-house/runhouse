@@ -60,6 +60,28 @@ class HTTPClient:
             err_str=f"Error installing packages {to_install}",
         )
 
+    def submit_job(
+        self, name, partition, fn_obj, commands, env, mail_type, mail_user, args, kwargs
+    ):
+        return self.request(
+            "job",
+            req_type="post",
+            data=pickle_b64(
+                [
+                    name,
+                    partition,
+                    fn_obj,
+                    commands,
+                    env,
+                    mail_type,
+                    mail_user,
+                    args,
+                    kwargs,
+                ]
+            ),
+            err_str=f"Error submitting job {name}",
+        )
+
     def run_module(
         self,
         relative_path,

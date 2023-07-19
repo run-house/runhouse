@@ -1,168 +1,101 @@
 import logging
-import re
-from typing import List, Tuple, Union
+from typing import Callable, List, Union
 
-import paramiko
 from sky.utils import command_runner
 
-from runhouse.rns.api_utils.utils import resolve_absolute_path
 from runhouse.rns.hardware.cluster import Cluster
 
 logger = logging.getLogger(__name__)
 
 
-class SlurmConnectionManager:
-    def __init__(
-        self,
-        jumpbox_client: paramiko.SSHClient,
-        jumpbox_transport: paramiko.Transport,
-        target_client: paramiko.SSHClient,
-    ):
-        self.jumpbox_client = jumpbox_client
-        self.jumpbox_transport = jumpbox_transport
-        self.target_client = target_client
-
-    def close(self):
-        self.target_client.close()
-        self.jumpbox_transport.close()
-        self.jumpbox_client.close()
-
-
 class SlurmCluster(Cluster):
     RESOURCE_TYPE = "cluster"
-    DEFAULT_PORT = 22
+    PARTITION_SERVER_JOB = "partition_server"
 
     def __init__(
         self,
         name: str,
         ip: str,
         ssh_creds: dict = None,
-        port: int = None,
+        partition: str = None,
+        dryrun: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
         .. note::
             To build a slurm cluster, please use the factory method :func:`slurm_cluster`.
         """
-        self.port = port or self.DEFAULT_PORT
-        self.scm = None
+        self.partition = partition
 
-        # Note: dryrun is ignored here, since we don't want to start a ray instance on the slurm cluster
-        super().__init__(name=name, dryrun=True, ips=[ip], ssh_creds=ssh_creds)
+        super().__init__(name=name, dryrun=dryrun, ips=[ip], ssh_creds=ssh_creds)
+
+        if not dryrun:
+            self._launch_partition_server()
 
     @staticmethod
     def from_config(config: dict, dryrun=True, **kwargs):
         cluster_config = {**config, **kwargs}
         return SlurmCluster(**cluster_config)
 
-    def submit_job(self, job_name: str, commands: list) -> List[str]:
-        """Run the submit command on the cluster. Return the IP(s) of the worker(s)
-        running the job. If the submitted job name is not found, return None.
+    @property
+    def config_for_rns(self):
+        """Metadata to store in RNS for the Slurm Cluster."""
+        config = super().config_for_rns
+        self.save_attrs_to_config(config, ["partition"])
+        return config
 
-        Args:
-            job_name (str): Name of the job. To be used later for retrieving the job id.
-            commands (list): Commands to run on the cluser to submit the job (ex: srun / sbatch).
-
-        Returns:
-            List of IP addresses of the worker nodes running the job.
-        """
-
-        # TODO [JL] can we reliably get the worker nodes from these commands, or also run an squeue command below?
-        ret = self.run(commands=commands)
-
-        resp_code = ret[0][0]
-        if resp_code != 0:
-            raise Exception(f"Failed to submit job: {ret}")
-
-        logger.info(f"Ran command on cluster with IP: {self.address}")
-
-        # TODO [JL] can also filter by partition, user, etc. - make this more dynamic?
-        ret = self.run([f"squeue --name={job_name} -o %i"])
-        if ret[0][0] != 0:
-            raise Exception(
-                f"Failed to get job id for submitted job with name: {job_name}"
-            )
-
-        job_ids = self.format_cmd_output(ret)
-
-        # Take the most recent job id if there are multiple jobs with the same name
-        job_id = job_ids.split("\n")[-1]
-        worker_ips = self._get_worker_node_ips(job_id)
-
-        return worker_ips
-
-    def ssh_tunnel_to_target_host(
+    def jump_run(
         self,
-        target_host: str,
-        target_port: int = 22,
-        target_username: str = "ubuntu",
-        local_port: int = 9000,
-    ) -> None:
-        """
-        Create an SSH tunnel to a target host (i.e. worker node) via the jumpbox server / login node.
+        fn: Callable = None,
+        commands: List[str] = None,
+        env: Union["Env", str] = None,
+        mail_type: str = None,
+        mail_user: str = None,
+        *args,
+        **kwargs,
+    ):
+        """Submit a function or command(s) to run on the slurm cluster. Runhouse will send an RPC to the jump server
+        and push the job into a queue on the cluster for execution.
 
         Args:
-            target_host (str, optional): IP of the target host.
-            target_port (int, optional): Port to connect to on the target host. Defaults to 22.
-            target_username (str, optional): Username to connect to target host. Defaults to ``ubuntu``.
-            local_port (int, optional): Local port to bind the tunnel. Defaults to 9000.
+            fn (Callable, optional): A function to run on the cluster. If not provided, ``commands`` must be provided.
+            commands (List[str], optional): A list of commands to run on the cluster.
+                If not provided, ``fn`` must be provided.
+            env (Union[Env, str], optional): Environment to install package on.
+                If left empty, defaults to base environment.
+            mail_type (str, optional): The type of email to send.
+                Options include: ``NONE``, ``BEGIN``, ``END``, ``FAIL``, ``REQUEUE``, ``ALL``.
+            mail_user (str, optional): The email address to send the email to. If not provided, no email will be sent.
+            *args: Arguments to pass to the function.
+            **kwargs: Keyword arguments to pass to the function.
         """
-        # Connect to the jumpbox server / login node
-        ssh_creds = self.ssh_creds()
-        key_filename = ssh_creds.get("ssh_private_key")
-        if key_filename is None:
-            raise ValueError("ssh_private_key must be specified in ssh_creds")
-        key_filename = resolve_absolute_path(key_filename)
+        from runhouse import function
 
-        jumpbox_client = paramiko.SSHClient()
-        jumpbox_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        jumpbox_client.load_system_host_keys()
-        jumpbox_client.connect(
-            self.address,
-            port=self.port,
-            username=ssh_creds.get("ssh_user"),
-            key_filename=key_filename,
+        fn_obj = function(fn=fn, name=self.name, env=env, system=self) if fn else None
+
+        resp = self.client.submit_job(
+            name=self.name,
+            fn_obj=fn_obj,
+            partition=self.partition,
+            commands=commands,
+            env=env,
+            mail_type=mail_type,
+            mail_user=mail_user,
+            args=args,
+            kwargs=kwargs,
         )
 
-        # Create a transport channel through the jumpbox server
-        jumpbox_transport = jumpbox_client.get_transport()
+        if resp.status_code != 200:
+            raise Exception(f"Failed to submit job to {self.name}: {resp.json()}")
 
-        # Open a new SSH session to the target server via the jumpbox
-        target_channel = jumpbox_transport.open_channel(
-            "direct-tcpip", (target_host, target_port), ("localhost", local_port)
-        )
-
-        # Connect to the target server through the tunnel
-        target_client = paramiko.SSHClient()
-        target_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        target_client.connect(
-            "localhost",
-            port=local_port,
-            username=target_username,
-            sock=target_channel,
-            key_filename=key_filename,
-        )
-
-        self.scm = SlurmConnectionManager(
-            jumpbox_client=jumpbox_client,
-            jumpbox_transport=jumpbox_transport,
-            target_client=target_client,
-        )
-
-        logger.info(f"Successfully created SSH tunnel to {target_host}:{target_port}")
-
-    def run_commands_on_target_host(self, commands: list) -> Tuple[str, str]:
-        """Execute commands on the target worker node via SSH. Return the stdout and stderr."""
-        if self.scm is None:
-            raise ValueError(
-                "No SSH connection to worker host has been established. "
-                "Please call `ssh_tunnel_to_target()` to create one."
-            )
-        stdin, stdout, stderr = self.scm.target_client.exec_command("\n".join(commands))
-
-        self.scm.close()
-
-        return self._decode_streams(stdout), self._decode_streams(stderr)
+    def srun(
+        self,
+        commands: List[str],
+        env: Union["Env", str] = None,
+        stream_logs: bool = True,
+    ):
+        """Run a command (e.g. srun / sbatch) on the slurm cluster, without respecting queueing."""
+        return super().run(commands, env, stream_logs)
 
     def sync_data_to_cluster(self, source: str, target: str) -> None:
         """Sync data from local machine to the jumpbox or login node.
@@ -174,63 +107,44 @@ class SlurmCluster(Cluster):
         # Up: indicates that we are syncing from local to the cluster
         runner.rsync(source=source, target=target, up=True)
 
-    # TODO [JL] - add these back in
-    def status(self, job_id: int) -> str:
-        """Get the status of a job."""
-        raise NotImplementedError
+    def _launch_partition_server(self, job_name: str = None):
+        job_name = job_name or self.PARTITION_SERVER_JOB
+        if self._partition_server_is_running(job_name):
+            return
 
-    def result(self, job_id: int) -> str:
-        """Get the result of a job. Returns the result as a string."""
-        raise NotImplementedError
-
-    def stderr(self, job_id: int) -> str:
-        """Get the stderr of a job."""
-        raise NotImplementedError
-
-    def stdout(self, job_id: int) -> str:
-        """Get the stdout of a job."""
-        raise NotImplementedError
-
-    # -------------------------------------
-    @staticmethod
-    def _decode_streams(stream):
-        return stream.read().decode("utf-8")
-
-    @staticmethod
-    def format_cmd_output(output):
-        return output[0][1].strip("\n")
-
-    def _get_worker_node_ips(self, job_id: Union[str, int]) -> list:
-        """Get the worker node(s) where a specified job is running."""
-        ret = self.run(commands=[f"scontrol show jobid -dd {job_id} | grep NodeList"])
-        if ret[0][0] != 0:
-            raise Exception(f"Failed to get info on job: {ret}")
-
-        # Extract the value(s) of NodeList (i.e. the nodes where the job is running)
-        node_data = ret[0][1]
-        reg_exp = re.search(r"NodeList=([^ ]+)", str(node_data))
-        node_list = reg_exp.group(1).strip()
-
-        if node_list == "(null)":
-            raise Exception(f"No node list found: {node_list}")
-
-        worker_ips = []
-        for ip_or_name in node_list:
-            resp = self.run_python(
-                ["import socket", f"print(socket.inet_aton('{ip_or_name}'))"]
+        if self.partition:
+            partition_server_cmd = (
+                f"srun -J {job_name} -o %j.out -e %j.err "
+                "python3 -m runhouse.servers.http.slurm.partition_server"
             )
-            if resp[0][0] == 0:
-                worker_ips.append(self.format_cmd_output(resp))
-                continue
-
-            resp = self.run_python(
-                ["import socket", f"print(socket.gethostbyname('{ip_or_name}'))"]
+        else:
+            #  If not using slurm to launch the partition server (e.g. on a single node cluster), then
+            #  run the partition server as a python process
+            python_cmd = "python3 -m runhouse.servers.http.slurm.partition_server"
+            partition_server_cmd = (
+                f"screen -dm bash -c '{python_cmd} |& tee "
+                f"-a ~/.rh/{self.PARTITION_SERVER_JOB}.log 2>&1'"
             )
-            if resp[0][0] != 0:
-                raise Exception(f"Failed to get IP address for {ip_or_name}: {resp}")
-            worker_ips.append(self.format_cmd_output(resp))
 
-        if not worker_ips:
-            raise Exception(f"Failed to get IP address from node list")
+        status_codes = self.run(
+            commands=[partition_server_cmd],
+            stream_logs=True,
+        )
 
-        return worker_ips
+        if status_codes[0][0] != 0:
+            raise Exception(f"Failed to launch partition server for {self.name}.")
+
+    def _partition_server_is_running(self, job_name: str) -> bool:
+        if self.partition:
+            status_codes = self.run([f"squeue --name {job_name}"], stream_logs=True)
+            if job_name in status_codes[0][1]:
+                return True
+        else:
+            status_codes = self.run(
+                ["ps aux | grep '[r]unhouse.servers.http.slurm.partition_server'"],
+                stream_logs=True,
+            )
+            if "partition_server" in status_codes[0][1]:
+                return True
+
+        return False
