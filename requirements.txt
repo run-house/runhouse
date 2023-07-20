@@ -9,4 +9,5 @@ skypilot==0.3.3
 sentry-sdk
 fastapi<=0.99.0
 uvicorn
+sentry_sdk
 pyOpenSSL>=21.1.0

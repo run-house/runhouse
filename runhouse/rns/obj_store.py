@@ -68,8 +68,16 @@ class ObjStore:
     def put_env(self, key, value):
         return self.call_kv_method(self._env_for_key, "put", key, value)
 
-    def put(self, key: str, value: Any):
+    def put(self, key: str, value: Any, env=None):
         # First check if it's in the Python kv store
+        if env and not self.servlet_name == env:
+            servlet = self.get_env_servlet(env)
+            if servlet is not None:
+                if isinstance(servlet, ray.actor.ActorHandle):
+                    ray.get(servlet.put.remote(key, value, _intra_cluster=True))
+                else:
+                    servlet.put(key, value, _intra_cluster=True)
+
         self.call_kv_method(self._kv_store, "put", key, value)
         self.put_env(key, self.servlet_name)
 
@@ -81,8 +89,8 @@ class ObjStore:
 
     def rename(self, old_key, new_key, default=None):
         # By passing default, we don't throw an error if the key is not found
-        self.call_kv_method(self._kv_store, "rename", old_key, new_key, default)
-        self.call_kv_method(self._env_for_key, "rename", old_key, new_key, default)
+        self.call_kv_method(self._kv_store, "rename_key", old_key, new_key, default)
+        self.call_kv_method(self._env_for_key, "rename_key", old_key, new_key, default)
 
     def get_obj_ref(self, key):
         return self.call_kv_method(self._kv_store, "get", key + "_ref", [None])[0]
@@ -180,11 +188,16 @@ class ObjStore:
         self.clear_env()
 
     def cancel(self, key: str, force: bool = False, recursive: bool = True):
+        # TODO wire up properly
         obj_ref = self.get_obj_ref(key)
         if not obj_ref:
             raise ValueError(f"Object with key {key} not found in object store.")
         else:
             ray.cancel(obj_ref, force=force, recursive=recursive)
+
+    def cancel_all(self, force: bool = False, recursive: bool = True):
+        for key in self.keys():
+            self.cancel(key, force=force, recursive=recursive)
 
     def contains(self, key: str):
         return self.call_kv_method(self._kv_store, "contains", key)

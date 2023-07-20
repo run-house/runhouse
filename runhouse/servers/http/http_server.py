@@ -147,9 +147,7 @@ class HTTPServer:
                 env = env or HTTPServer.lookup_env_for_name(lookup_env_for_name)
             servlet = HTTPServer.get_env_servlet(env or "base", create=create)
             # If servlet is a RayActor, call with .remote
-            return HTTPServer.call_servlet_method(
-                servlet, method, args, block=block
-            )
+            return HTTPServer.call_servlet_method(servlet, method, args, block=block)
         except Exception as e:
             logger.exception(e)
             HTTPServer.register_activity()
@@ -205,18 +203,23 @@ class HTTPServer:
         try:
             # If this is a "get" request to just return the module, do not stream logs or save by default
             message = message or Message(stream_logs=False, save=False)
-            if message.stream_logs or message.save:
-                message.key = message.key or _generate_default_name(
-                    prefix=module if method == "__call__" else f"{module}_{method}"
-                )
+            message.key = message.key or _generate_default_name(
+                prefix=module if method == "__call__" else f"{module}_{method}"
+            )
             env = message.env or HTTPServer.lookup_env_for_name(module)
-            HTTPServer.call_in_env_servlet(
+            obj_ref = HTTPServer.call_in_env_servlet(
                 "call_module_method",
                 [module, method, message],
                 env=env,
                 create=True,
                 block=False,
             )
+            # TODO hold onto obj_refs so we can cancel
+            if message.remote:
+                return Response(
+                    data=pickle_b64(message.key),
+                    output_type=OutputType.RESULT,
+                )
             return StreamingResponse(
                 HTTPServer._get_results_and_logs_generator(
                     message.key, env=env, stream_logs=message.stream_logs
@@ -418,7 +421,7 @@ class HTTPServer:
     @app.post("/object")
     def put_object(message: Message):
         return HTTPServer.call_in_env_servlet(
-            "put_object", [message], env=message.env, create=True
+            "put_object", [message.key, message.data], env=message.env, create=True
         )
 
     @staticmethod

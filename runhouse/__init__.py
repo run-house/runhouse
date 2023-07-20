@@ -21,6 +21,7 @@ from .rns.function import function, Function
 from .rns.hardware import cluster, Cluster, ondemand_cluster, OnDemandCluster
 from .rns.kvstores.kvstore import KVStore
 from .rns.login import login, logout
+from .rns.module import module, Module
 from .rns.packages import git_package, GitPackage, package, Package
 from .rns.run import Run, run, RunStatus, RunType
 from .rns.secrets.secrets import Secrets

@@ -130,6 +130,7 @@ class HTTPClient:
         stream_logs=True,
         save=False,
         run_name=None,
+        remote=False,
         args=None,
         kwargs=None,
     ):
@@ -147,17 +148,23 @@ class HTTPClient:
                 "stream_logs": stream_logs,
                 "save": save,
                 "key": run_name,
+                "remote": remote
             },
-            stream=True,
+            stream=not remote,
         )
         if res.status_code != 200:
             raise ValueError(
                 f"Error calling {method_name} on server: {res.content.decode()}"
             )
+        error_str = f"Error calling {method_name} on {module_name} on server"
+
+        if remote:
+            resp = res.json()
+            return handle_response(resp, resp["output_type"], error_str)
+
         # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single result,
         # maybe a stream of results), so we need to separate these out.
         non_generator_result = None
-        error_str = f"Error calling {method_name} on {module_name} on server"
         res_iter = iter(res.iter_content(chunk_size=None))
         for responses_json in res_iter:
             resp = json.loads(responses_json)
@@ -215,7 +222,8 @@ class HTTPClient:
         self.request(
             "object",
             req_type="post",
-            data=pickle_b64((key, value)),
+            data=pickle_b64(value),
+            key=key,
             env=env,
             err_str=f"Error putting object {key}",
         )

@@ -72,6 +72,7 @@ install_requires = [
     "skypilot==0.3.3",
     "fastapi<=0.99.0",
     "uvicorn",
+    "sentry_sdk",
     "pyOpenSSL>=21.1.0",
 ]
 

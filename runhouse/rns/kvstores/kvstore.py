@@ -1,10 +1,10 @@
 from typing import Any, Optional, Union
 
-from runhouse import Cluster
-from runhouse.rns.resource import Resource
+from runhouse import Cluster, Env
+from runhouse.rns.module import Module
 
 
-class KVStore(Resource):
+class KVStore(Module):
     RESOURCE_TYPE = "kvstore"
     DEFAULT_CACHE_FOLDER = ".cache/runhouse/kvstores"
 
@@ -14,18 +14,18 @@ class KVStore(Resource):
     def __init__(
         self,
         name: Optional[str] = None,
-        system: Union[None, str, Cluster] = None,
+        system: Union[Cluster] = None,
+        env: Optional[Env] = None,
         dryrun: bool = False,
         **kwargs,
     ):
         """
-        Runhouse Blob object
+        Runhouse KVStore object
 
         .. note::
-                To build a Blob, please use the factory method :func:`blob`.
+                To build a KVStore, please use the factory method :func:`kvstore`.
         """
-        super().__init__(name=name, dryrun=dryrun)
-        self._system = system
+        super().__init__(name=name, dryrun=dryrun, system=system, env=env)
         self.data = {}
 
     def put(self, key: str, value: Any):
@@ -51,7 +51,7 @@ class KVStore(Resource):
     def clear(self):
         self.data = {}
 
-    def rename(self, old_key, new_key, *args):
+    def rename_key(self, old_key, new_key, *args):
         # We accept *args here to match the signature of dict.pop (throw an error if key is not found,
         # unless another arg is provided as a default)
         self.data[new_key] = self.data.pop(old_key, *args)

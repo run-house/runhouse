@@ -13,7 +13,7 @@ import sshtunnel
 from sky.utils import command_runner
 from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
-from runhouse.rh_config import open_cluster_tunnels, rns_client
+from runhouse.rh_config import obj_store, open_cluster_tunnels, rns_client
 from runhouse.rns.folders.folder import Folder
 from runhouse.rns.packages.package import Package
 from runhouse.rns.resource import Resource
@@ -251,6 +251,8 @@ class Cluster(Resource):
     def get(self, key: str, default: Any = None, stream_logs: bool = True):
         """Get the result for a given key from the cluster's object store."""
         self.check_server()
+        if self.on_this_cluster():
+            return obj_store.get(key, default=default)
         res = self.client.get_object(key, stream_logs=stream_logs)
         return res if res is not None else default
 
@@ -266,6 +268,8 @@ class Cluster(Resource):
     def put(self, key: str, obj: Any, env=None):
         """Put the given object on the cluster's object store at the given key."""
         self.check_server()
+        if self.on_this_cluster():
+            return obj_store.put(key, obj, env=env)
         return self.client.put_object(key, obj, env=env)
 
     def put_resource(self, resource: Resource, dryrun=False):
@@ -283,22 +287,30 @@ class Cluster(Resource):
     def rename(self, old_key: str, new_key: str):
         """Rename a key in the cluster's object store."""
         self.check_server()
+        if self.on_this_cluster():
+            return obj_store.rename(old_key, new_key)
         return self.client.rename_object(old_key, new_key)
 
     def list_keys(self, env=None):
         """List all keys in the cluster's object store."""
         self.check_server()
+        if self.on_this_cluster():
+            return obj_store.keys()
         res = self.client.list_keys(env=env)
         return res
 
     def cancel(self, key: str, force=False):
         """Cancel a given run on cluster by its key."""
         self.check_server()
+        if self.on_this_cluster():
+            return obj_store.cancel(key, force=force)
         return self.client.cancel_runs(key, force=force)
 
     def cancel_all(self, force=False):
         """Cancel all runs on cluster."""
         self.check_server()
+        if self.on_this_cluster():
+            return obj_store.cancel_all(force=force)
         return self.client.cancel_runs("all", force=force)
 
     def delete_keys(self, keys: Union[None, str, List[str]] = None):
@@ -353,7 +365,7 @@ class Cluster(Resource):
         self.client = HTTPClient(host="127.0.0.1", port=connected_port)
 
     def check_server(self, restart_server=True):
-        if self.name == _current_cluster("name"):
+        if self.on_this_cluster():
             return
 
         if not self.address:
@@ -548,7 +560,7 @@ class Cluster(Resource):
         )
 
     def call_module_method(
-        self, module_name, method_name, *args, stream_logs=True, run_name=None, **kwargs
+        self, module_name, method_name, *args, stream_logs=True, run_name=None, remote=False, **kwargs
     ):
         """Call a method on a module that is installed on the cluster.
 
@@ -570,6 +582,7 @@ class Cluster(Resource):
             method_name,
             stream_logs=stream_logs,
             run_name=run_name,
+            remote=remote,
             args=args,
             kwargs=kwargs,
         )

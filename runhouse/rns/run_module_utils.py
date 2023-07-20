@@ -158,9 +158,7 @@ def call_fn_by_type(
     return res, obj_ref, run_name
 
 
-def get_fn_from_pointers(fn_pointers, serialize_res, num_gpus, *args, **kwargs):
-    (module_path, module_name, fn_name) = fn_pointers
-    run_obj = kwargs.pop("run_obj")
+def get_fn_from_pointers(module_path, module_name, fn_name):
 
     if module_name == "notebook":
         fn = fn_name  # already unpickled
@@ -182,23 +180,7 @@ def get_fn_from_pointers(fn_pointers, serialize_res, num_gpus, *args, **kwargs):
             )
         fn = getattr(rh_config.obj_store.imported_modules[module_name], fn_name)
 
-    cuda_visible_devices = list(range(int(num_gpus)))
-    os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
-
-    with run_obj:
-        result = fn(*args, **kwargs)
-        # except Exception as e:
-        # result = e
-        # logger.error(f"Error executing function: {e}")
-        #
-        # # write traceback to the Run's .err file
-        # stderr_path = run_obj._stderr_path
-        # logger.info(f"Writing stderr to path: {stderr_path}")
-        # run_obj.write(data=str(e).encode(), path=stderr_path)
-
-    if serialize_res:
-        return pickle.dumps(result)
-    return result
+    return fn
 
 
 def _populate_run_with_result(run_obj, fn_type, obj_ref) -> ["Run", Any]:

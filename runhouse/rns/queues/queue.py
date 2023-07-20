@@ -1,11 +1,11 @@
 import queue
 from typing import Any, List, Optional, Union
 
-from runhouse import Cluster
-from runhouse.rns.resource import Resource
+from runhouse import Cluster, Env
+from runhouse.rns.module import Module
 
 
-class Queue(Resource):
+class Queue(Module):
     RESOURCE_TYPE = "queue"
     DEFAULT_CACHE_FOLDER = ".cache/runhouse/queues"
 
@@ -15,23 +15,30 @@ class Queue(Resource):
     def __init__(
         self,
         name: Optional[str] = None,
-        system: Union[None, str, Cluster] = None,
+        system: Union[Cluster] = None,
+        env: Optional[Env] = None,
         max_size: int = 0,
+        persist: bool = False,  # TODO
         dryrun: bool = False,
         **kwargs,
     ):
         """
-        Runhouse Blob object
+        Runhouse Queue object
 
         .. note::
-                To build a Blob, please use the factory method :func:`blob`.
+                To build a Queue, please use the factory method :func:`queue`.
         """
-        super().__init__(name=name, dryrun=dryrun)
-        self._system = system
+        super().__init__(name=name, system=system, env=env, dryrun=dryrun)
         self.data = queue.Queue(maxsize=max_size)
+        self.persist = persist
+        self._subscribers = []
 
     def put(self, item: Any, block=True, timeout=None):
         self.data.put(item, block=block, timeout=timeout)
+        for fn, out_queue in self._subscribers:
+            res = fn(item)
+            if out_queue:
+                out_queue.put(res)
 
     def put_nowait(self, item: Any):
         self.data.put_nowait(item)
@@ -66,3 +73,6 @@ class Queue(Resource):
 
     def join(self):
         return self.data.join()
+
+    def subscribe(self, function, out_queue=None):
+        self._subscribers.append((function, out_queue))

@@ -465,6 +465,7 @@ def run(
     path: str = None,
     system: Union[str, Cluster] = None,
     data_config: dict = None,
+    load: bool = True,
     dryrun: bool = False,
     **kwargs,
 ) -> Union["Run", None]:
@@ -485,7 +486,7 @@ def run(
     Returns:
         Run: The loaded Run object.
     """
-    if name and not any([path, system, data_config, kwargs]):
+    if name and load and not any([path, system, data_config, kwargs]):
         # Try reloading existing Run from RNS
         return Run.from_name(name, dryrun=dryrun)
 

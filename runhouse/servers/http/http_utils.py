@@ -19,6 +19,7 @@ class Message(BaseModel):
     key: Optional[str] = None
     stream_logs: Optional[bool] = True
     save: Optional[bool] = False
+    remote: Optional[bool] = False
 
 
 class Args(BaseModel):

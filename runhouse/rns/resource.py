@@ -25,6 +25,7 @@ class Resource:
         self,
         name: Optional[str] = None,
         dryrun: bool = None,
+        provenance = None
     ):
         """
         Runhouse abstraction for objects that can be saved, shared, and reused.
@@ -55,6 +56,7 @@ class Resource:
             )
 
         self.dryrun = dryrun
+        self.provenance = provenance
 
     # TODO add a utility to allow a parameter to be specified as "default" and then use the default value
 
@@ -64,6 +66,7 @@ class Resource:
             "name": self.rns_address,
             "resource_type": self.RESOURCE_TYPE,
             "resource_subtype": self.__class__.__name__,
+            "provenance": self.provenance,
         }
         return config
 
@@ -102,7 +105,9 @@ class Resource:
         if name is None:
             self._name = None
         else:
-            self._name, self._rns_folder = split_rns_name_and_path(resolve_rns_path(name))
+            self._name, self._rns_folder = split_rns_name_and_path(
+                resolve_rns_path(name)
+            )
 
     @rns_address.setter
     def rns_address(self, new_address):

@@ -15,6 +15,7 @@ from runhouse.rns.blobs import blob
 from runhouse.rns.packages.package import Package
 from runhouse.rns.queues import Queue
 from runhouse.rns.resource import Resource
+from runhouse.rns.run import run
 from runhouse.rns.run_module_utils import call_fn_by_type
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.http_utils import (
@@ -105,6 +106,9 @@ class EnvServlet:
 
     def call_module_method(self, module_name, method_name, message: Message):
         self.register_activity()
+        callable_method = None
+        run_obj = None
+
         try:
             self.results_streams[message.key] = Queue()
             args, kwargs = b64_unpickle(message.data) if message.data else ([], {})
@@ -136,10 +140,26 @@ class EnvServlet:
                 )
                 callable_method = False
 
+            if not callable_method and "new_value" in kwargs:
+                # If new_value was passed, that means we're setting a property
+                setattr(module, method_name, kwargs["new_value"])
+                resp = Response(output_type=OutputType.SUCCESS)
+                self.results_streams[message.key].put(resp)
+                return
+
+            if callable_method:
+                # Only create a run for callable methods, not properties
+                run_obj = run(name=message.key, load=False)
+                run_obj.__enter__()
+
+            # If method is a property, `method = getattr(module, method_name, None)` above already
+            # got our result
             result = method(*args, **kwargs) if callable_method else method
             if inspect.isgenerator(result):
                 # Stream back the results of the generator
-                logger.info(f"Streaming back results of generator {module_name}.{method_name}")
+                logger.info(
+                    f"Streaming back results of generator {module_name}.{method_name}"
+                )
                 results_to_save = []
                 resp = None
                 for val in result:
@@ -147,22 +167,33 @@ class EnvServlet:
                     # Doing this at the top of the loop so we can catch the final result and change the OutputType
                     if resp is not None:
                         self.results_streams[message.key].put(resp)
-                    if message.save:
-                        # TODO save queue instead
-                        results_to_save = results_to_save + [val]
-                        blob(data=results_to_save).write(message.key)
+                    results_to_save = results_to_save + [val] if message.save else []
                     resp = Response(
                         output_type=OutputType.RESULT_STREAM, data=pickle_b64(val)
                     )
                 # Change type of final result to RESULT to indicate end of stream
                 resp.output_type = OutputType.RESULT
                 self.results_streams[message.key].put(resp)
+                if callable_method:
+                    run_obj.__exit__(None, None, None)
+
+                if message.save:
+                    # TODO save queue inside loop instead
+                    b = blob(data=results_to_save)
+                    b.provenance = run_obj
+                    b.save(message.key)
             else:
+                if callable_method:
+                    run_obj.__exit__(None, None, None)
+
                 if message.save:
                     if isinstance(result, Resource):
+                        result.provenance = run_obj
                         result.save(message.key)
                     else:
-                        blob(name=message.key, data=result).save()
+                        b = blob(name=message.key, data=result)
+                        b.provenance = run_obj
+                        b.save(message.key)
                 self.register_activity()
                 resp = Response(output_type=OutputType.RESULT, data=pickle_b64(result))
                 self.results_streams[message.key].put(resp)
@@ -308,11 +339,14 @@ class EnvServlet:
     def get_logfiles(self, key):
         return obj_store.get_logfiles(key)
 
-    def put_object(self, message: Message):
+    def put_object(self, key, value, _intra_cluster=False):
         self.register_activity()
         # We may not want to deserialize the object here in case the object requires dependencies
         # (to be used inside an env) which aren't present in the BaseEnv.
-        key, obj = b64_unpickle(message.data)
+        if _intra_cluster:
+            obj = value
+        else:
+            obj = b64_unpickle(value)
         logger.info(f"Message received from client to get object: {key}")
         try:
             obj_store.put(key, obj)

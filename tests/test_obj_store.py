@@ -39,6 +39,14 @@ def do_tqdm_printing_and_logging(steps=6):
 
 
 @pytest.mark.clustertest
+def test_stream_logs(cpu_cluster):
+    print_fn = rh.function(fn=do_printing_and_logging, system=cpu_cluster)
+    res = print_fn(stream_logs=True)
+    # TODO [DG] assert that the logs are streamed
+    assert res == list(range(50))
+
+
+@pytest.mark.clustertest
 def test_get_from_cluster(cpu_cluster):
     print_fn = rh.function(fn=do_printing_and_logging, system=cpu_cluster)
     run_obj = print_fn.run()
@@ -223,14 +231,6 @@ def test_pinning_in_memory(cpu_cluster):
     res = fn_2()
     assert res[0] == 1
     assert res[1] == 0
-
-
-@pytest.mark.clustertest
-def test_stream_logs(cpu_cluster):
-    print_fn = rh.function(fn=do_printing_and_logging, system=cpu_cluster)
-    res = print_fn(stream_logs=True)
-    # TODO [DG] assert that the logs are streamed
-    assert res == list(range(50))
 
 
 @pytest.mark.clustertest
