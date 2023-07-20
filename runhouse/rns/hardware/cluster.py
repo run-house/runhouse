@@ -56,9 +56,9 @@ class Cluster(Resource):
         self.client = None
 
         if not dryrun and self.address:
-            self.check_server()
             # OnDemandCluster will start ray itself, but will also set address later, so won't reach here.
-            # self.start_ray()
+            self.start_ray()
+            self.check_server()
 
     def save_config_to_cluster(self):
         import json
@@ -162,6 +162,7 @@ class Cluster(Resource):
     def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
         if not self.address:
             raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
+
         local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
 
         # Check if runhouse is installed from source and has setup.py
@@ -385,8 +386,19 @@ class Cluster(Resource):
                         f"Server {self.name} is up, but the HTTP server may not be up."
                     )
                     self.restart_server()
-                    logger.info(f"Checking server {self.name} again.")
-                    self.client.check_server(cluster_config=cluster_config)
+                    for i in range(5):
+                        logger.info(f"Checking server {self.name} again [{i+1}/5].")
+                        try:
+                            self.client.check_server(cluster_config=cluster_config)
+                            logger.info(f"Server {self.name} is up.")
+                            break
+                        except (
+                            requests.exceptions.ConnectionError,
+                            requests.exceptions.ReadTimeout,
+                        ) as error:
+                            if i == 5:
+                                print(error)
+                            time.sleep(5)
                 else:
                     raise ValueError(f"Could not connect to cluster <{self.name}>")
         return
