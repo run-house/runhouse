@@ -87,39 +87,15 @@ def test_on_diff_cluster(cpu_cluster, byo_cpu):
 @pytest.mark.slurmtest
 def test_submit_job_to_slurm(slurm_cluster):
     # Submit a function to be executed on the slurm cluster
-    res = slurm_cluster.jump_run(fn=summer, a=1, b=2)
-    assert res
+    job_name = "test_job"
+    slurm_cluster.jump_run(job_name=job_name, fn=summer, a=1, b=2)
 
-
-@unittest.skip("Not implemented yet")
-@pytest.mark.slurmtest
-def test_get_slurm_job_result(slurm_cluster, request):
-    job_id = request.config.cache.get("job_id", None)
-    res = slurm_cluster.result(job_id)
-    assert int(res) == 3
-
-
-@unittest.skip("Not implemented yet")
-@pytest.mark.slurmtest
-def test_get_slurm_stdout(slurm_cluster, request):
-    job_id = request.config.cache.get("job_id", None)
-    stdout = slurm_cluster.stdout(job_id)
-    assert "3" in stdout
-
-
-@unittest.skip("Not implemented yet")
-@pytest.mark.slurmtest
-def test_get_slurm_stderr(slurm_cluster, request):
-    job_id = request.config.cache.get("job_id", None)
-    stderr = slurm_cluster.stderr(job_id)
-    assert stderr == ""
-
-
-@pytest.mark.rnstest
-@pytest.mark.slurmtest
-def test_reload_ssh_slurm_cluster_from_rns():
-    sc = rh.SlurmCluster.from_name("ssh_slurm_cluster")
-    assert isinstance(sc, rh.SlurmCluster)
+    f = rh.folder(
+        path=f"~/.rh/logs/{job_name}",
+        dryrun=True,
+        system=slurm_cluster,
+    )
+    assert "request.json" in f.ls()
 
 
 if __name__ == "__main__":

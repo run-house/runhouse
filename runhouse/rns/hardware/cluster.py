@@ -34,6 +34,7 @@ class Cluster(Resource):
         ips: List[str] = None,
         ssh_creds: Dict = None,
         dryrun=False,
+        restart_server=True,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
@@ -57,7 +58,7 @@ class Cluster(Resource):
         self.client = None
 
         if not dryrun and self.address:
-            self.check_server()
+            self.check_server(restart_server=restart_server)
             # OnDemandCluster will start ray itself, but will also set address later, so won't reach here.
             self.start_ray()
 

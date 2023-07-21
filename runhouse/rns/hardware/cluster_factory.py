@@ -149,6 +149,7 @@ def slurm_cluster(
     ssh_creds: dict = None,
     partition: str = None,
     dryrun: bool = False,
+    restart_server: bool = True,
 ) -> SlurmCluster:
     """
     Builds an instance of :class:`SlurmCluster`.
@@ -163,6 +164,8 @@ def slurm_cluster(
             If no partition is specified it is assumed the cluster is a single node.
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
+        restart_server (bool): Whether to restart the HTTP server and Partition server on the Cluster.
+            (Default: ``True``)
 
     Returns:
         SlurmCluster: The resulting cluster.
@@ -187,5 +190,10 @@ def slurm_cluster(
         )
 
     return SlurmCluster(
-        ip=ip, ssh_creds=ssh_creds, name=name, partition=partition, dryrun=dryrun
+        ip=ip,
+        ssh_creds=ssh_creds,
+        name=name,
+        partition=partition,
+        dryrun=dryrun,
+        restart_server=restart_server,
     )

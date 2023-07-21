@@ -6,7 +6,6 @@ from pathlib import PosixPath
 from typing import List, Union
 
 from runhouse.rh_config import obj_store
-
 from runhouse.servers.http.http_utils import b64_unpickle
 
 logger = logging.getLogger(__name__)
@@ -100,32 +99,65 @@ class SlurmPartitionServer:
                     kwargs,
                 ) = b64_unpickle(request_data)
 
-                # TODO [JL] support other params here? (ex: ntasks, nodes, etc.)
-                command = f"""srun --partition={partition} --job-name={name} --pty bash -c {commands}"""
+                from runhouse.servers.http.http_server import app
 
-                if mail_user and mail_type:
-                    # Enable slurm email notifications if mail_user and mail_type are provided
-                    mail_options = f"--mail-type={mail_type} --mail-user={mail_user}"
-                    command.replace("srun", f"srun {mail_options}", 1)
+                if fn_obj:
+                    from runhouse import Env
 
-                # Run the slurm command to be executed on the partition server
-                result = subprocess.run(commands, capture_output=True, text=True)
+                    # Call the HTTP server's run_module endpoint to execute the function on the partition server
+                    run_name = None
+                    resources = {}
+                    fn_type = "call"
 
-                # Access the captured output saved on the jump server
-                stdout = result.stdout
-                stderr = result.stderr
+                    env_vars = env.env_vars if isinstance(env, Env) else None
+                    [relative_path, module_name, fn_name] = fn_obj.fn_pointers
 
-                # Save down the stdout and stderr to the job's folder on the jump server
-                current_job.put({f"{name}.out": stdout}, overwrite=True)
-                current_job.put({f"{name}.err": stderr}, overwrite=True)
+                    module_info = [
+                        relative_path,
+                        module_name,
+                        fn_name,
+                        fn_type,
+                        resources,
+                        env,
+                        env_vars,
+                        run_name,
+                        args,
+                        kwargs,
+                    ]
+                    # TODO [JL] run the module on the partition server
+                    app.post("/run", json=module_info)
 
-                logger.info(
-                    f"Saved stdout and stderr for job {name} to folder: {str(current_job.path)}"
-                )
+                    if mail_user:
+                        # TODO [JL] send email notification to user pending the outcome of the fn execution?
+                        pass
+
+                else:
+                    # Running slurm commands
+                    command = f"""srun --partition={partition} --job-name={name} --pty bash -c {commands}"""
+                    if mail_user and mail_type:
+                        # https://slurm.schedmd.com/srun.html#OPT_mail-type
+                        # Enable slurm email notifications if mail_user and mail_type are provided
+                        mail_options = (
+                            f"--mail-type={mail_type} --mail-user={mail_user}"
+                        )
+                        command.replace("srun", f"srun {mail_options}", 1)
+
+                    result = subprocess.run([command], capture_output=True, text=True)
+
+                    stdout = result.stdout
+                    stderr = result.stderr
+
+                    # Save down the stdout and stderr to the job's folder which will be shared with the jump server
+                    current_job.put({f"{name}.out": stdout}, overwrite=True)
+                    current_job.put({f"{name}.err": stderr}, overwrite=True)
+
+                    logger.info(
+                        f"Saved stdout and stderr for job {name} to folder: {str(current_job.path)}"
+                    )
 
                 # remove the job's request file from its folder once its been executed
                 current_job.rm(contents=cls.REQUEST_FILE)
-
+                logger.info("Removing request file from job to mark completion")
                 # TODO [JL] save the completed job to a different queue for completed jobs? (ex: ~/.rh/completed_jobs)
 
             except Exception as e:

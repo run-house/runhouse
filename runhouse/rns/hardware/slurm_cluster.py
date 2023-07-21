@@ -1,4 +1,5 @@
 import logging
+import warnings
 from typing import Callable, List, Union
 
 from sky.utils import command_runner
@@ -19,18 +20,30 @@ class SlurmCluster(Cluster):
         ssh_creds: dict = None,
         partition: str = None,
         dryrun: bool = False,
+        restart_server: bool = True,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
         .. note::
             To build a slurm cluster, please use the factory method :func:`slurm_cluster`.
         """
+        if partition is None:
+            warnings.warn(
+                "No partition provided. Cluster will be assumed to be single-node."
+            )
+
         self.partition = partition
 
-        super().__init__(name=name, dryrun=dryrun, ips=[ip], ssh_creds=ssh_creds)
+        super().__init__(
+            name=name,
+            dryrun=dryrun,
+            ips=[ip],
+            ssh_creds=ssh_creds,
+            restart_server=restart_server,
+        )
 
         if not dryrun:
-            self._launch_partition_server()
+            self._launch_partition_server(restart_server=restart_server)
 
     @staticmethod
     def from_config(config: dict, dryrun=True, **kwargs):
@@ -46,6 +59,7 @@ class SlurmCluster(Cluster):
 
     def jump_run(
         self,
+        job_name: str = None,
         fn: Callable = None,
         commands: List[str] = None,
         env: Union["Env", str] = None,
@@ -58,6 +72,8 @@ class SlurmCluster(Cluster):
         and push the job into a queue on the cluster for execution.
 
         Args:
+            job_name (str, optional): Name to assign to the job.
+                If none provided will use the name of the cluster.
             fn (Callable, optional): A function to run on the cluster. If not provided, ``commands`` must be provided.
             commands (List[str], optional): A list of commands to run on the cluster.
                 If not provided, ``fn`` must be provided.
@@ -73,8 +89,8 @@ class SlurmCluster(Cluster):
 
         fn_obj = function(fn=fn, name=self.name, env=env, system=self) if fn else None
 
-        resp = self.client.submit_job(
-            name=self.name,
+        self.client.submit_job(
+            name=job_name or self.name,
             fn_obj=fn_obj,
             partition=self.partition,
             commands=commands,
@@ -84,9 +100,6 @@ class SlurmCluster(Cluster):
             args=args,
             kwargs=kwargs,
         )
-
-        if resp.status_code != 200:
-            raise Exception(f"Failed to submit job to {self.name}: {resp.json()}")
 
     def srun(
         self,
@@ -107,42 +120,50 @@ class SlurmCluster(Cluster):
         # Up: indicates that we are syncing from local to the cluster
         runner.rsync(source=source, target=target, up=True)
 
-    def _launch_partition_server(self, job_name: str = None):
+    def _launch_partition_server(self, restart_server: bool, job_name: str = None):
         job_name = job_name or self.PARTITION_SERVER_JOB
-        if self._partition_server_is_running(job_name):
+        if not restart_server and self._partition_server_is_running(job_name):
             return
 
+        path_to_partition_server = "runhouse.servers.http.slurm.partition_server"
         if self.partition:
+            queue_return_codes = self.run([f"squeue -n {job_name}"])
+            if job_name in queue_return_codes[0][1]:
+                # TODO [JL] kill the partition server job if it's running
+                pass
+
             partition_server_cmd = (
                 f"srun -J {job_name} -o %j.out -e %j.err "
-                "python3 -m runhouse.servers.http.slurm.partition_server"
+                f"python3 -m {path_to_partition_server}"
             )
         else:
             #  If not using slurm to launch the partition server (e.g. on a single node cluster), then
             #  run the partition server as a python process
-            python_cmd = "python3 -m runhouse.servers.http.slurm.partition_server"
+            logger.info(
+                f"No partition specified. Running partition server as a python process on {self.address}."
+            )
+            kill_cmd = f"pkill -f {path_to_partition_server}"
+            self.run([kill_cmd])
+
+            python_cmd = f"python3 -m {path_to_partition_server}"
             partition_server_cmd = (
                 f"screen -dm bash -c '{python_cmd} |& tee "
                 f"-a ~/.rh/{self.PARTITION_SERVER_JOB}.log 2>&1'"
             )
 
-        status_codes = self.run(
-            commands=[partition_server_cmd],
-            stream_logs=True,
-        )
+        partition_status_codes = self.run([partition_server_cmd])
 
-        if status_codes[0][0] != 0:
+        if partition_status_codes[0][0] != 0:
             raise Exception(f"Failed to launch partition server for {self.name}.")
 
     def _partition_server_is_running(self, job_name: str) -> bool:
         if self.partition:
-            status_codes = self.run([f"squeue --name {job_name}"], stream_logs=True)
+            status_codes = self.run([f"squeue --name {job_name}"])
             if job_name in status_codes[0][1]:
                 return True
         else:
             status_codes = self.run(
-                ["ps aux | grep '[r]unhouse.servers.http.slurm.partition_server'"],
-                stream_logs=True,
+                ["ps aux | grep '[r]unhouse.servers.http.slurm.partition_server'"]
             )
             if "partition_server" in status_codes[0][1]:
                 return True
