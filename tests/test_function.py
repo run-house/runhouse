@@ -140,8 +140,8 @@ def test_maps(cpu_cluster):
 
 
 def slow_generator(size):
-    logger.info(f"Hello from the cluster logs!")
-    print(f"Hello from the cluster stdout!")
+    logger.info("Hello from the cluster logs!")
+    print("Hello from the cluster stdout!")
     arr = []
     for i in range(size):
         time.sleep(1)
@@ -160,6 +160,7 @@ def test_generator(cpu_cluster):
         print(val)
         results += [val]
     assert len(results) == 5
+
 
 @pytest.mark.clustertest
 def test_remotes(cpu_cluster):

@@ -330,6 +330,7 @@ class Folder(Resource):
     def _fsspec_copy(self, system: str, path: str, data_config: dict):
         """Copy the fsspec filesystem to the given new filesystem and path."""
         # Fallback for other fsspec filesystems, but very slow:
+        system = system or Folder.DEFAULT_FS
         if self.is_local():
             self.fsspec_fs.put(self.path, f"{system}://{path}", recursive=True)
         else:

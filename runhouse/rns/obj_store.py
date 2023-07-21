@@ -140,16 +140,6 @@ class ObjStore:
                 if val is not None:
                     return val
 
-            # Try requesting the object through localhost in case it's not in a Ray Actor servlet
-            # try:
-            #     from runhouse.servers.http.http_client import HTTPClient
-            #     client = HTTPClient("localhost")
-            #     val = client.get_object(key, stream_logs=False)
-            #     if val:
-            #         return val
-            # except Exception as e:
-            #     print(f"Error getting object {key} from localhost: {e}")
-
         return default
 
     def get_list(self, keys: List[str], default: Optional[Any] = None):

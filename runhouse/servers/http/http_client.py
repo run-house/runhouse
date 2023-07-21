@@ -139,7 +139,9 @@ class HTTPClient:
         """
         # Measure the time it takes to send the message
         start = time.time()
-        logger.info(f"Calling {module_name}.{method_name}")
+        logger.info(
+            f"Calling {module_name}" + (f".{method_name}" if method_name else "")
+        )
         res = requests.post(
             f"http://{self.host}:{self.port}/{module_name}/{method_name}/",
             json={
@@ -148,7 +150,7 @@ class HTTPClient:
                 "stream_logs": stream_logs,
                 "save": save,
                 "key": run_name,
-                "remote": remote
+                "remote": remote,
             },
             stream=not remote,
         )
@@ -228,7 +230,7 @@ class HTTPClient:
             err_str=f"Error putting object {key}",
         )
 
-    def put_resource(self, resource, env=None, dryrun=False):
+    def put_resource(self, resource, env=None, state=None, dryrun=False):
         if env and not isinstance(env, str):
             env = _get_env_from(env)
             env = env.name
@@ -236,7 +238,7 @@ class HTTPClient:
             "resource",
             req_type="post",
             # TODO wire up dryrun properly
-            data=pickle_b64((resource.config_for_rns, resource.dryrun)),
+            data=pickle_b64((resource.config_for_rns, state, resource.dryrun)),
             # data=pickle_b64((resource.config_for_rns, dryrun)),
             env=env,
             err_str=f"Error putting resource {resource.name or type(resource)}",

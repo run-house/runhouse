@@ -201,10 +201,14 @@ class HTTPServer:
         # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
+            method = None if method == "None" else method
             # If this is a "get" request to just return the module, do not stream logs or save by default
             message = message or Message(stream_logs=False, save=False)
             message.key = message.key or _generate_default_name(
-                prefix=module if method == "__call__" else f"{module}_{method}"
+                prefix=module
+                if method == "__call__" or not method
+                else f"{module}_{method}",
+                precision="ms",  # Higher precision because we see collisions within the same second
             )
             env = message.env or HTTPServer.lookup_env_for_name(module)
             obj_ref = HTTPServer.call_in_env_servlet(
@@ -214,7 +218,12 @@ class HTTPServer:
                 create=True,
                 block=False,
             )
-            # TODO hold onto obj_refs so we can cancel
+
+            # Hold onto obj_refs just so we can support cancelling
+            from runhouse.rh_config import obj_store
+
+            obj_store.put(message.key + "_ref", obj_ref)
+
             if message.remote:
                 return Response(
                     data=pickle_b64(message.key),

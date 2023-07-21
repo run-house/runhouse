@@ -1,6 +1,5 @@
 import copy
 import inspect
-import json
 import logging
 import re
 import warnings
@@ -169,18 +168,6 @@ class Function(Module):
 
     def call(self, *args, **kwargs) -> Any:
         # We need this strictly because Module's __getattribute__ overload can't pick up the __call__ method
-        [relative_path, module_name, fn_name] = self.fn_pointers
-        conda_env = (
-            self.env.env_name if self.env and isinstance(self.env, CondaEnv) else None
-        )
-        env_vars = self.env.env_vars
-        # If we're on this cluster, don't pickle the result before passing back.
-        # We need to pickle before passing back in most cases because the env in
-        # which the function executes may have a different set of packages than the
-        # server, so when Ray passes a result back into the server it will may fail to
-        # unpickle. We assume the user's client has the necessary packages to unpickle
-        # their own result.
-
         fn = get_fn_from_pointers(*self.fn_pointers)
         return fn(*args, **kwargs)
 

@@ -22,10 +22,7 @@ class Resource:
     RESOURCE_TYPE = None
 
     def __init__(
-        self,
-        name: Optional[str] = None,
-        dryrun: bool = None,
-        provenance = None
+        self, name: Optional[str] = None, dryrun: bool = None, provenance=None
     ):
         """
         Runhouse abstraction for objects that can be saved, shared, and reused.
@@ -183,7 +180,7 @@ class Resource:
             if loaded.name:
                 rns_client.add_upstream_resource(loaded.name)
             return loaded
-        except:
+        except Exception:
             raise ValueError(
                 f"Could not find constructor for type {config['resource_type']}"
             )

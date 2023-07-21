@@ -1,10 +1,12 @@
+import copy
+import functools
 import importlib
 import inspect
 import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import Callable, List, Optional, Tuple, Type, Union
 
 from runhouse.rh_config import obj_store, rns_client
 from runhouse.rns.envs import Env
@@ -13,24 +15,79 @@ from runhouse.rns.packages import Package
 from runhouse.rns.resource import Resource
 from runhouse.rns.utils.env import _get_env_from
 from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
-from runhouse.rns.utils.names import _generate_default_name, _generate_default_path
+from runhouse.rns.utils.names import _generate_default_name
 
 logger = logging.getLogger(__name__)
 
-LOCAL_METHODS = ['RESOURCE_TYPE', '__class__', '__delattr__', '__dict__', '__dir__', '__doc__', '__eq__', '__format__', '__ge__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__', '__lt__', '__module__', '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__', '__subclasshook__', '__weakref__', '_check_for_child_configs', '_cls_pointers', '_env', '_extract_pointers', '_name', '_resource_string_for_subconfig', '_rns_folder', '_save_sub_resources', '_system', 'config_for_rns', 'delete_configs', 'dryrun', 'env', 'from_config', 'from_name', 'history', 'is_local', 'name', 'rename', 'rns_address', 'save', 'save_attrs_to_config', 'share', 'system', 'to', 'unname']
+# These are methods that the Module's __getattribute__ logic should not intercept to run remotely
+LOCAL_METHODS = [
+    "RESOURCE_TYPE",
+    "__class__",
+    "__delattr__",
+    "__dict__",
+    "__dir__",
+    "__doc__",
+    "__eq__",
+    "__format__",
+    "__ge__",
+    "__gt__",
+    "__hash__",
+    "__init__",
+    "__init_subclass__",
+    "__le__",
+    "__lt__",
+    "__module__",
+    "__ne__",
+    "__new__",
+    "__reduce__",
+    "__reduce_ex__",
+    "__repr__",
+    "__setattr__",
+    "__sizeof__",
+    "__str__",
+    "__subclasshook__",
+    "__weakref__",
+    "_check_for_child_configs",
+    "_cls_pointers",
+    "_env",
+    "_extract_pointers",
+    "_name",
+    "_resource_string_for_subconfig",
+    "_rns_folder",
+    "_save_sub_resources",
+    "_system",
+    "config_for_rns",
+    "delete_configs",
+    "dryrun",
+    "env",
+    "from_config",
+    "from_name",
+    "history",
+    "is_local",
+    "fetch",
+    "name",
+    "rename",
+    "rns_address",
+    "save",
+    "save_attrs_to_config",
+    "share",
+    "system",
+    "to",
+    "unname",
+]
 
 
 class Module(Resource):
     RESOURCE_TYPE = "module"
 
     def __init__(
-        self,
-        cls_pointers: Optional[Tuple] = None,
-        name: Optional[str] = None,
-        system: Union[Cluster] = None,
-        env: Optional[Env] = None,
-        dryrun: bool = False,
-        **kwargs,
+            self,
+            cls_pointers: Optional[Tuple] = None,
+            name: Optional[str] = None,
+            system: Union[Cluster] = None,
+            env: Optional[Env] = None,
+            dryrun: bool = False,
+            **kwargs,
     ):
         """
         Runhouse Module object
@@ -41,6 +98,13 @@ class Module(Resource):
         super().__init__(name=name, dryrun=dryrun)
         self._system = system
         self._env = env
+        if not cls_pointers:
+            # When creating a module as a subclass of rh.Module, we need to collect pointers here
+            self._env = env or Env()
+            # If we're creating pointers, we're also local to the class definition and package, so it should be
+            # set as the workdir (we can do this in a fancier way later)
+            self._env.working_dir = self._env.working_dir or "./"
+            cls_pointers = Module._extract_pointers(self.__class__, reqs=self._env.reqs)
         self._cls_pointers = cls_pointers
 
     @property
@@ -57,11 +121,17 @@ class Module(Resource):
         config["env"] = (
             self._resource_string_for_subconfig(self.env) if self.env else None
         )
+        config["cls_pointers"] = self._cls_pointers
         return config
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
+        config.pop("resource_type", None)
+        config.pop("provenance", None)
+        config.pop("resource_subtype", None)
+
         if config.get("cls_pointers"):
+            logger.info(f"Constructing module from pointers {config['cls_pointers']}")
             (module_path, module_name, class_name) = config["cls_pointers"]
             if module_path:
                 sys.path.append(module_path)
@@ -79,9 +149,35 @@ class Module(Resource):
                     module_name
                 )
             cls = getattr(obj_store.imported_modules[module_name], class_name)
-            return cls.from_config(config=config, dryrun=dryrun)
+            if not issubclass(cls, Module):
+                # Case when module was created through rh.module(new_class) factory, and needs to be
+                # made into a subclass of rh.Module
+                module_cls = _module_subclass_factory(cls, config.get("cls_pointers"))
+            else:
+                # Case when module was created through NewClass(rh.Module) and is already a Module subclass
+                module_cls = cls
 
-        super().from_config(config=config, dryrun=dryrun)
+            if hasattr(module_cls, "_check_for_child_configs"):
+                config = module_cls._check_for_child_configs(config)
+
+            if not issubclass(cls, Module):
+                # When we explicitly make module_cls a Molue subclass, we also made sure it could accept all of
+                # rh.Module's constructor arguments.
+                new_module = module_cls(**config, dryrun=dryrun)
+            else:
+                # Module created as subclass of rh.Module may not have rh.Module's
+                # constructor signature (e.g. system, env, etc.), so assign them manually
+                new_module = module_cls()
+                new_module.system = config.pop("system", None)
+                new_module.env = config.pop("env", None)
+                new_module.name = config.pop("name", None)
+                new_module._cls_pointers = config.pop("cls_pointers", None)
+                new_module.dryrun = config.pop("dryrun", False)
+        else:
+            config = Module._check_for_child_configs(config)
+            new_module = Module(**config, dryrun=dryrun)
+
+        return new_module
 
     @classmethod
     def _check_for_child_configs(cls, config):
@@ -110,10 +206,17 @@ class Module(Resource):
     def env(self, new_env: Optional[Union[str, Env]]):
         self._env = _get_env_from(new_env)
 
+    def remote_init(self):
+        """A method which you can overload and will be called remotely on the cluster upon initialization there,
+        in case you want to do certain initialization activities on the cluster only. For example, if you want
+        to load a model or dataset and send it to GPU, you probably don't want to do those locally and send the
+        state over to the cluster."""
+        pass
+
     def to(
-        self,
-        system: Union[str, Cluster],
-        env: Optional[Union[str, Env]] = None,
+            self,
+            system: Union[str, Cluster],
+            env: Optional[Union[str, List[str], Env]] = None,
     ):
         """Put a copy of the module on the destination system and env, and return the new module.
 
@@ -122,6 +225,9 @@ class Module(Resource):
             >>> cluster_module = local_module.to("my_cluster")
             >>> cluster_module = module.to(my_cluster)
         """
+        if system == self.system and env == self.env:
+            return self
+
         if system == "here":
             current_cluster_config = _current_cluster(key="config")
             if current_cluster_config:
@@ -132,22 +238,36 @@ class Module(Resource):
         system = (
             _get_cluster_from(system, dryrun=self.dryrun) if system else self.system
         )
-        env = env or self.env or Env()
+        env = env or self.env
         env = _get_env_from(env)
 
-        new_module = self.__class__(
-            cls_pointers=self._cls_pointers,
-            name=self.name,
-            system=system,
-            env=env,
-            dryrun=self.dryrun,
-        )
+        if env and system:
+            env = env.to(system)
 
-        if not system or isinstance(system, Cluster):
-            new_module.name = self.name or _generate_default_name(
-                prefix=self.__class__.__qualname__.lower()
+        # We need to backup the system here so the __getstate__ method of the cluster
+        # doesn't wipe the client of this function's cluster when deepcopy copies it.
+        hw_backup = self.system
+        self.system = None
+        new_module = copy.deepcopy(self)
+        self.system = hw_backup
+
+        new_module.system = system
+        new_module.env = env
+        new_module.dryrun = True
+
+        if isinstance(system, Cluster):
+            state = {
+                attr: val
+                for attr, val in self.__dict__.items()
+                if attr[0] != "_" and attr not in new_module.config_for_rns
+            }
+            new_module.name = (
+                self.name or self._cls_pointers[2]
+                if self._cls_pointers
+                else None
+                     or _generate_default_name(prefix=self.__class__.__qualname__.lower())
             )
-            system.put_resource(new_module, dryrun=True)
+            system.put_resource(new_module, state, dryrun=True)
 
         return new_module
 
@@ -161,21 +281,31 @@ class Module(Resource):
             return super().__getattribute__(item)
 
         attr = super().__getattribute__(item)
-        if not callable(attr):
+
+        # Don't try to run private methods or attributes remotely
+        if item[0] == "_":
             return attr
 
         name = super().__getattribute__("_name")
 
+        # Handle properties
+        if not callable(attr):
+            # TODO should we throw a warning here or is that annoying?
+            return attr
+            # return system.call_module_method(name, item)
+
         signature = inspect.signature(attr)
         has_local_arg = "local" in signature.parameters
-        local_default_true = has_local_arg and signature.parameters["local"].default is True
-        if local_default_true:
-            return attr
+        local_default_true = (
+                has_local_arg and signature.parameters["local"].default is True
+        )
 
         class RemoteMethodWrapper:
-            """ Helper class to allow methods to be called with __call__, remote, or run."""
+            """Helper class to allow methods to be called with __call__, remote, or run."""
+
             def __call__(self, *args, stream_logs=True, run_name=None, **kwargs):
-                if kwargs.pop("local", None):
+                # Check if the method has a "local=True" arg, and check that the user didn't pass local=False instead
+                if local_default_true and kwargs.pop("local", True):
                     return attr(*args, **kwargs)
 
                 return system.call_module_method(
@@ -188,10 +318,19 @@ class Module(Resource):
                 )
 
             def remote(self, *args, stream_logs=True, run_name=None, **kwargs):
-                return self.__call__(*args, stream_logs=stream_logs, run_name=run_name, remote=True, **kwargs)
+                # TODO add a callback? e.g. model.forward.remote(x, callback=print)
+                return self.__call__(
+                    *args,
+                    stream_logs=stream_logs,
+                    run_name=run_name,
+                    remote=True,
+                    **kwargs,
+                )
 
             def run(self, *args, stream_logs=True, run_name=None, **kwargs):
-                key = self.remote(*args, stream_logs=stream_logs, run_name=run_name, **kwargs)
+                key = self.remote(
+                    *args, stream_logs=stream_logs, run_name=run_name, **kwargs
+                )
                 return system.get_run(key)
 
         return RemoteMethodWrapper()
@@ -202,9 +341,9 @@ class Module(Resource):
         if key in LOCAL_METHODS or not hasattr(self, "_system"):
             return super().__setattr__(key, value)
         if (
-            not self._system
-            or not isinstance(self._system, Cluster)
-            or self._system.on_this_cluster()
+                not self._system
+                or not isinstance(self._system, Cluster)
+                or self._system.on_this_cluster()
         ):
             return super().__setattr__(key, value)
 
@@ -213,6 +352,47 @@ class Module(Resource):
             method_name=key,
             new_value=value,
         )
+
+    @property
+    def fetch(self):
+        """Helper property to allow for access to remote properties, both public and private. Returning functions
+        is not advised.
+
+        Example:
+            >>> my_module.fetch.my_property
+            >>> my_module.fetch._my_private_property
+        """
+        # TODO is remote a better name?
+        system = super().__getattribute__("_system")
+        name = super().__getattribute__("_name")
+
+        class RemotePropertyWrapper:
+            @classmethod
+            def __getattribute__(cls, item):
+                return system.call_module_method(name, item)
+
+            @classmethod
+            def __call__(cls, *args, **kwargs):
+                return system.get(name, *args, **kwargs)
+
+        return RemotePropertyWrapper()
+
+    # TODO do we need this?
+    # def __delattr__(self, key):
+    #     if key in LOCAL_METHODS or not hasattr(self, "_system"):
+    #         return super().__delattr__(key)
+    #     if (
+    #         not self._system
+    #         or not isinstance(self._system, Cluster)
+    #         or self._system.on_this_cluster()
+    #     ):
+    #         return super().__delattr__(key)
+    #
+    #     return self.system.call_module_method(
+    #         module_name=self.name,
+    #         method_name=key,
+    #         delete=True,
+    #     )
 
     def _save_sub_resources(self):
         if isinstance(self.system, Resource):
@@ -232,9 +412,9 @@ class Module(Resource):
             self.system.rename(old_key=old_name, new_key=self.name)
 
     def save(
-        self,
-        name: str = None,
-        overwrite: bool = True,
+            self,
+            name: str = None,
+            overwrite: bool = True,
     ):
         # Need to override Resource's save to handle key changes in the obj store
         # Also check that this is a Blob and not a File
@@ -306,9 +486,9 @@ class Module(Resource):
         for req in reqs:
             local_path = None
             if (
-                isinstance(req, Package)
-                and not isinstance(req.install_target, str)
-                and req.install_target.is_local()
+                    isinstance(req, Package)
+                    and not isinstance(req.install_target, str)
+                    and req.install_target.is_local()
             ):
                 local_path = Path(req.install_target.local_path)
             elif isinstance(req, str):
@@ -344,14 +524,72 @@ class Module(Resource):
     #     full_name = func_name
 
 
+def _module_subclass_factory(
+        cls, pointers, new_system=None, new_env=None, resource_name=None, signature=None
+):
+    def __init__(
+            self,
+            system=None,
+            env=None,
+            dryrun=False,
+            cls_pointers=None,
+            name=resource_name,
+            **kwargs,
+    ):
+        cls.__init__(self, **kwargs)
+        Module.__init__(
+            self, cls_pointers=cls_pointers or pointers, name=name, dryrun=dryrun
+        )
+        # Overwrite the .to classmethod we injected below, we don't need it anymore
+        self.to = functools.partial(Module.to, self)
+        if not self.dryrun:
+            self.to(system, env)
+        self.system = system
+        self.env = env
+
+    @classmethod
+    def to(new_cls, system=new_system, env=new_env):
+        new_cls.__init__ = functools.partialmethod(__init__, system=system, env=env)
+        return new_cls
+
+    methods = {
+        k: v for k, v in cls.__dict__.items() if callable(v) and not k.startswith("__")
+    }
+    methods.update({"__init__": __init__})
+    new_type = type(pointers[2], (Module, cls), methods)
+    # Classmethod, so you can do RemoteClass = rh.module(MyClass).to("my_cluster", "prod")
+    new_type.to = to
+    new_type.__signature__ = signature
+    return new_type
+
+
 def module(
-    cls: [Type] = None,
-    name: Optional[str] = None,
-    system: Optional[Union[str, Cluster]] = None,
-    env: Optional[Union[str, Env]] = None,
-    dryrun: bool = False,
+        cls: [Type] = None,
+        name: Optional[str] = None,
+        system: Optional[Union[str, Cluster]] = None,
+        env: Optional[Union[str, Env]] = None,
+        dryrun: bool = False,
 ):
     """Returns a Module object, which can be used to instantiate and interact with the class remotely.
+
+    The behavior of Modules (and subclasses thereof) is as follows:
+        - Any callable public method of the module is intercepted and executed remotely over rpc, with exception of
+            certain functions Python doesn't make interceptable (e.g. __call__, __init__), and methods of the Module
+            class (e.g. ``to``, ``fetch``, etc.). Properties and private methods are not intercepted, and will be
+            executed locally.
+        - Any method which executes remotely may be called normally, e.g. ``model.forward(x)``, or asynchronously,
+            e.g. ``key = model.forward.remote(x)`` (which returns a key to retrieve the result with
+            ``cluster.get(key)``), or with ``run_obj = model.train.run(x)``, which is also async but returns a
+            Run object instead of a key.
+        - Setting attributes, both public and private, will be executed remotely, with the new values only being
+            set in the remote module and not the local one. This excludes any methods or attribtes of the Module class
+            proper (e.g. ``system`` or ``name``), which will be set locally.
+        - Attributes, private properties, and the full resource can be fetched over rpc using the ``.fetch`` property,
+            e.g. ``model.fetch.weights``, ``model.fetch.__dict__``, ``model.fetch()``.
+        - When a module is sent to a cluster, it's public attribtes are serialized, sent over, and repopulated in the
+            remote instance. This means that any changes to the module's attributes will not be reflected in the remote
+
+
 
     Args:
         cls: The class to instantiate.
@@ -383,12 +621,12 @@ def module(
         >>>        return self.model(x)
         >>>
         >>> model = Model(name="bert-base-uncased", device="cuda", system="my_gpu", env="my_env")
-        >>> model.predict("Hello world!")
+        >>> model.predict("Hello world!")  # Runs on system in env
         >>>
         >>> # Create a module from a class
         >>> RemoteModel = rh.module(cls=Model, name="remote_model", system="my_gpu", env="my_env")
         >>> remote_model = RemoteModel(name="bert-base-uncased", device="cuda")
-        >>> remote_model.predict("Hello world!")
+        >>> remote_model.predict("Hello world!")  # Runs on system in env
         >>>
         >>> # Loading a module
         >>> my_local_module = rh.module(name="~/my_module")
@@ -400,6 +638,12 @@ def module(
 
     system = _get_cluster_from(system or _current_cluster(key="config"), dryrun=dryrun)
 
-    name = name or _generate_default_name(prefix="module")
-    new_module = Blob(name=name, system=system, dryrun=dryrun)
-    return new_module
+    if not isinstance(env, Env):
+        env = _get_env_from(env) or Env()
+        env.working_dir = env.working_dir or "./"
+
+    pointers = Module._extract_pointers(cls, env.reqs)
+    name = name or _generate_default_name(prefix=pointers[2] if pointers else "module")
+    signature = inspect.signature(cls)
+
+    return _module_subclass_factory(cls, pointers, system, env, name, signature)

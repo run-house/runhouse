@@ -79,18 +79,30 @@ class EnvServlet:
     def put_resource(self, message: Message):
         self.register_activity()
         try:
-            resource_config, dryrun = b64_unpickle(message.data)
+            resource_config, state, dryrun = b64_unpickle(message.data)
             # Resolve any sub-resources which are string references to resources already sent to this cluster
             resource_config = obj_store.get_obj_refs_dict(resource_config)
             logger.info(
                 f"Message received from client to construct resource: {resource_config}"
             )
+
             resource = Resource.from_config(config=resource_config, dryrun=dryrun)
+
+            for attr, val in state.items():
+                setattr(resource, attr, val)
+
             if not resource.name and message.key:
                 resource.name = message.key
             name = resource.name or _generate_default_name(
                 prefix=resource.RESOURCE_TYPE
             )
+
+            if hasattr(resource, "remote_init"):
+                logger.info(
+                    f"Initializing module {resource.name} in env servlet {self.env_name}"
+                )
+                resource.remote_init()
+
             obj_store.put(name, resource)
             self.register_activity()
             # Return the name in case we had to set it
@@ -120,8 +132,10 @@ class EnvServlet:
                 raise ValueError(f"Resource {module_name} not found")
 
             # If method_name is None, return the module itself as this is a "get" request
-            method = getattr(module, method_name, None) if method_name else module
-            if not method:
+            try:
+                method = getattr(module, method_name) if method_name else module
+            except AttributeError:
+                logger.info(module.__dict__)
                 raise ValueError(
                     f"Method {method_name} not found on module {module_name}"
                 )
@@ -140,7 +154,7 @@ class EnvServlet:
                 )
                 callable_method = False
 
-            if not callable_method and "new_value" in kwargs:
+            if not callable_method and kwargs and "new_value" in kwargs:
                 # If new_value was passed, that means we're setting a property
                 setattr(module, method_name, kwargs["new_value"])
                 resp = Response(output_type=OutputType.SUCCESS)

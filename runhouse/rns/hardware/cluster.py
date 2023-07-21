@@ -253,7 +253,7 @@ class Cluster(Resource):
         self.check_server()
         if self.on_this_cluster():
             return obj_store.get(key, default=default)
-        res = self.client.get_object(key, stream_logs=stream_logs)
+        res = self.client.call_module_method(key, None, stream_logs=stream_logs)
         return res if res is not None else default
 
     def get_run(self, run_name: str, folder_path: str = None):
@@ -272,7 +272,7 @@ class Cluster(Resource):
             return obj_store.put(key, obj, env=env)
         return self.client.put_object(key, obj, env=env)
 
-    def put_resource(self, resource: Resource, dryrun=False):
+    def put_resource(self, resource: Resource, state=None, dryrun=False):
         """Put the given resource on the cluster's object store. Returns the key (important if name is not set)."""
         self.check_server()
         env = (
@@ -282,7 +282,11 @@ class Cluster(Resource):
             if resource.RESOURCE_TYPE == "env"
             else None
         )
-        return self.client.put_resource(resource, env=env, dryrun=dryrun)
+        if self.on_this_cluster():
+            return obj_store.put(key=resource.name, obj=resource, env=env)
+        return self.client.put_resource(
+            resource, state=state or {}, env=env, dryrun=dryrun
+        )
 
     def rename(self, old_key: str, new_key: str):
         """Rename a key in the cluster's object store."""
@@ -560,7 +564,14 @@ class Cluster(Resource):
         )
 
     def call_module_method(
-        self, module_name, method_name, *args, stream_logs=True, run_name=None, remote=False, **kwargs
+        self,
+        module_name,
+        method_name,
+        *args,
+        stream_logs=True,
+        run_name=None,
+        remote=False,
+        **kwargs,
     ):
         """Call a method on a module that is installed on the cluster.
 
