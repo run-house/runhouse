@@ -424,7 +424,7 @@ class Module(Resource):
             else:
                 if isinstance(self.system, Cluster):
                     self.system.put(name, self)
-        super().save(name=name, overwrite=overwrite)
+        return super().save(name=name, overwrite=overwrite)
 
     @staticmethod
     def _extract_pointers(raw_cls_or_fn: Union[Type, Callable], reqs: List[str]):

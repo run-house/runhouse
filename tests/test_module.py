@@ -65,6 +65,7 @@ class SlowNumpyArray:
     def slow_iter(self):
         for i in range(self.size):
             time.sleep(1)
+            print(f"Hello from the cluster stdout! {i}")
             logger.info(f"Hello from the cluster logs! {i}")
             self.arr[i] = i
             yield f"Hello from the cluster! {self.arr}"
@@ -81,10 +82,14 @@ def test_module_from_class(cpu_cluster, env):
     remote_array = RemoteClass(size=5)
     assert remote_array.system == cpu_cluster
     results = []
-    for val in remote_array.slow_iter():
-        assert val
-        print(val)
-        results += [val]
+    with rh.capture_stdout() as stdout:
+        for i, val in enumerate(remote_array.slow_iter()):
+            assert val
+            print(val)
+            results += [val]
+            out = str(stdout)
+            assert f"Hello from the cluster stdout! {i}" in out
+            assert f"Hello from the cluster logs! {i}" in out
     assert len(results) == 5
 
     print(remote_array.cpu_count())
@@ -116,6 +121,7 @@ class SlowPandas(rh.Module):
     def slow_iter(self):
         for i in range(self.size):
             time.sleep(1)
+            print(f"Hello from the cluster stdout! {i}")
             logger.info(f"Hello from the cluster logs! {i}")
             self.df[i] = i
             yield f"Hello from the cluster! {self.df.loc[[i]]}"
@@ -131,10 +137,15 @@ def test_module_from_subclass(cpu_cluster, env):
     remote_df = SlowPandas(size=5).to(cpu_cluster, env)
     assert remote_df.system == cpu_cluster
     results = []
-    for val in remote_df.slow_iter():
-        assert val
-        print(val)
-        results += [val]
+    # Capture stdout to check that it's working
+    with rh.capture_stdout() as stdout:
+        for i, val in enumerate(remote_df.slow_iter()):
+            assert val
+            print(val)
+            results += [val]
+            out = str(stdout)
+            assert f"Hello from the cluster stdout! {i}" in out
+            assert f"Hello from the cluster logs! {i}" in out
     assert len(results) == 5
 
     print(remote_df.cpu_count())

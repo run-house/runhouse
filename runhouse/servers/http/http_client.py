@@ -183,7 +183,7 @@ class HTTPClient:
                         result_inner = handle_response(
                             resp_inner, output_type_inner, error_str
                         )
-                        if output_type == OutputType.RESULT_STREAM:
+                        if output_type_inner in [OutputType.RESULT_STREAM, OutputType.RESULT]:
                             yield result_inner
 
                 return results_generator()

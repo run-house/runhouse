@@ -63,7 +63,7 @@ class Resource:
             "name": self.rns_address,
             "resource_type": self.RESOURCE_TYPE,
             "resource_subtype": self.__class__.__name__,
-            "provenance": self.provenance,
+            "provenance": self.provenance.config_for_rns if self.provenance else None,
         }
         return config
 

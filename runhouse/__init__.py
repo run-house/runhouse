@@ -26,6 +26,7 @@ from .rns.packages import git_package, GitPackage, package, Package
 from .rns.run import Run, run, RunStatus, RunType
 from .rns.secrets.secrets import Secrets
 from .rns.tables.table import table, Table
+from .rns.utils.runs import capture_stdout
 
 # Briefly keep for BC.
 send = function

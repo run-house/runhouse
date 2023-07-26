@@ -59,6 +59,13 @@ class Queue(Module):
             items.append(self.data.get(block=block, timeout=timeout))
         return items
 
+    def __iter__(self):
+        try:
+            while True:
+                yield self.get()
+        except queue.Empty:
+            return
+
     def qsize(self):
         return self.data.qsize()
 

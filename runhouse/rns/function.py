@@ -44,10 +44,10 @@ class Function(Module):
         .. note::
                 To create a Function, please use the factory method :func:`function`.
         """
-        super().__init__(name=name, dryrun=dryrun, system=system, env=env)
         self.fn_pointers = fn_pointers
         self.access = access or self.DEFAULT_ACCESS
         self.resources = resources or {}
+        super().__init__(name=name, dryrun=dryrun, system=system, env=env)
 
         # if not self.dryrun:
         #     self = self.to(self.system, env=self.env)
@@ -261,35 +261,6 @@ class Function(Module):
     def run(self, *args, local=True, **kwargs):
         run_obj = self.call.run(*args, **kwargs)
         return run_obj
-
-    # def run(self, *args, run_name: str = None, **kwargs):
-    #     """Run async remote call on cluster.
-    #
-    #     Args:
-    #         *args: Optional args for the Function
-    #         run_name (Optional[str]): Name of the Run to create. If not provided, a name will automatically
-    #          be generated.
-    #          **kwargs: Optional kwargs for the Function
-    #     Returns:
-    #         Run: Run object
-    #     Example:
-    #         >>> remote_fn = rh.function(local_fn).to(gpu)
-    #         >>> remote_fn.run(arg1, arg2, run_name="my_async_run")
-    #     """
-    #     if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
-    #         # Use the run_name if provided, otherwise create a new one using the Function's name
-    #         run_name = run_name or _generate_default_name(prefix=self.name)
-    #
-    #         run_obj = self._call_fn_with_ssh_access(
-    #             fn_type="remote", run_name=run_name, args=args, kwargs=kwargs
-    #         )
-    #
-    #         logger.info(f"Submitted remote call to cluster for {run_name}")
-    #         return run_obj
-    #     else:
-    #         raise NotImplementedError(
-    #             "Function.remote only works with Write or Read access, not Proxy access"
-    #         )
 
     def get(self, run_key):
         """Get the result of a Function call that was submitted as async using `remote`.

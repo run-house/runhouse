@@ -3,6 +3,7 @@ import json
 import logging
 import sys
 from enum import Enum
+from pathlib import Path
 from typing import Any, Optional, Union
 
 from runhouse.rh_config import obj_store, rns_client
@@ -15,6 +16,7 @@ from runhouse.rns.resource import Resource
 from runhouse.rns.top_level_rns_fns import resolve_rns_path
 from runhouse.rns.utils.api import log_timestamp, resolve_absolute_path
 from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
+from runhouse.rns.utils.runs import StreamTee
 
 # Load the root logger
 logger = logging.getLogger("")
@@ -109,14 +111,16 @@ class Run(Resource):
         # Begin tracking the Run in the rns_client - this adds the current Run to the stack of active Runs
         rns_client.start_run(self)
 
-        # TODO [DG->JL] Why do we need these?
-        # sys.stdout = StringIO()
-        # sys.stderr = StringIO()
+        # Capture stdout and stderr to the Run's folder
+        sys.stdout = StreamTee(sys.stdout, [Path(self._stdout_path).open(mode="a")])
+        sys.stderr = StreamTee(sys.stderr, [Path(self._stderr_path).open(mode="a")])
 
+        # Add the stdout and stderr handlers to the root logger
         self._stdout_handler = logging.StreamHandler(sys.stdout)
         logger.addHandler(self._stdout_handler)
-        self._outfile_handler = logging.FileHandler(self._stdout_path)
-        logger.addHandler(self._outfile_handler)
+        # For now it seems we don't need this, because stdout streams to this file, which includes logs.
+        # self._outfile_handler = logging.FileHandler(self._stdout_path)
+        # logger.addHandler(self._outfile_handler)
 
         return self
 
@@ -140,7 +144,15 @@ class Run(Resource):
         # self.write(data=stderr.encode(), path=self._stderr_path)
 
         logger.removeHandler(self._stdout_handler)
-        logger.removeHandler(self._outfile_handler)
+        # logger.removeHandler(self._outfile_handler)
+
+        # Flush stdout and stderr
+        # sys.stdout.flush()
+        # sys.stderr.flush()
+
+        # Restore stdout and stderr
+        sys.stdout = sys.stdout.instream
+        sys.stderr = sys.stderr.instream
 
         # Save Run config to its folder on the system - this will already happen on the cluster
         # for function based Runs
@@ -457,7 +469,7 @@ class Run(Resource):
     @staticmethod
     def _base_local_folder_path(name: str):
         """Path to the base folder for this Run on a local system."""
-        return f"{Run.LOCAL_RUN_PATH}/{name}"
+        return f"{obj_store.LOGS_DIR}/{name}"
 
 
 def run(

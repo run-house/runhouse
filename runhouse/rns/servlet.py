@@ -191,8 +191,8 @@ class EnvServlet:
                 if callable_method:
                     run_obj.__exit__(None, None, None)
 
-                if message.save:
-                    # TODO save queue inside loop instead
+                if message.save or message.remote:
+                    # TODO save queue inside loop instead?
                     b = blob(data=results_to_save)
                     b.provenance = run_obj
                     b.save(message.key)
@@ -200,12 +200,12 @@ class EnvServlet:
                 if callable_method:
                     run_obj.__exit__(None, None, None)
 
-                if message.save:
+                if message.save or message.remote:
                     if isinstance(result, Resource):
                         result.provenance = run_obj
                         result.save(message.key)
                     else:
-                        b = blob(name=message.key, data=result)
+                        b = blob(data=result)
                         b.provenance = run_obj
                         b.save(message.key)
                 self.register_activity()
