@@ -83,6 +83,11 @@ class Cluster(Resource):
             from runhouse.rns.hardware import OnDemandCluster
 
             return OnDemandCluster(**config, dryrun=dryrun)
+
+        elif resource_subtype == "SageMakerCluster":
+            from runhouse.rns.hardware import SageMakerCluster
+
+            return SageMakerCluster(**config, dryrun=dryrun)
         else:
             raise ValueError(f"Unknown cluster type {resource_subtype}")
 

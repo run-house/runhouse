@@ -93,6 +93,12 @@ extras_require = {
     "azure": ["azure-cli==2.31.0", "azure-core"],
     "gcp": ["google-api-python-client", "google-cloud-storage", "gcsfs"],
     "docker": ["docker"],
+    "sagemaker": [
+        # https://github.com/aws-samples/sagemaker-ssh-helper
+        "sagemaker",
+        "sagemaker_ssh_helper",
+        "paramiko>=3.2.0",
+    ],
 }
 
 extras_require["all"] = sum(extras_require.values(), [])

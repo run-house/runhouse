@@ -1,12 +1,13 @@
-from typing import List, Optional, Union
+import warnings
+from typing import Dict, List, Optional, Union
 
 from ..utils.hardware import RESERVED_SYSTEM_NAMES
 
 from .cluster import Cluster
 from .on_demand_cluster import OnDemandCluster
+from .sagemaker_cluster import SageMakerCluster
 
 
-# Cluster factory method
 def cluster(
     name: str,
     ips: List[str] = None,
@@ -125,5 +126,70 @@ def ondemand_cluster(
         image_id=image_id,
         region=region,
         name=name,
+        dryrun=dryrun,
+    )
+
+
+def sagemaker_cluster(
+    name: str,
+    arn_role: str = None,
+    estimator: Union["sagemaker.estimator.EstimatorBase", Dict] = None,
+    connection_wait_time: int = None,
+    dryrun: bool = False,
+) -> SageMakerCluster:
+    """
+    Builds an instance of :class:`SageMakerCluster`.
+
+    Args:
+        name (str): Name for the cluster, to re-use later on.
+        arn_role (str, optional): AWS IAM role ARN to use for connecting to the cluster.
+        estimator (Union[str, "sagemaker.estimator.EstimatorBase"], optional): Estimator to use for the job.
+        connection_wait_time (int, optional): Amount of time the SSH helper will wait inside SageMaker before
+            it continues normal execution. Useful if you want to connect before the job starts (e.g. training).
+            If you don't want to wait, set it to 0.
+        dryrun (bool): Whether to create the SageMakerCluster if it doesn't exist, or load
+            a SageMakerCluster object as a dryrun.
+            (Default: ``False``)
+
+    Returns:
+        SageMakerCluster: The resulting cluster.
+
+    Example:
+        >>> import runhouse as rh
+        >>> c = rh.sagemaker_cluster(name='sagemaker-cluster',
+        >>>                          arn_role='arn:aws:iam::123456789012:role/MySageMakerRole',
+        >>>                          estimator=PyTorch(entry_point='train.py', role=arn_role,
+        >>>                                            source_dir='/Users/myuser/dev/sagemaker',
+        >>>                                            framework_version='1.8.1', py_version='py36',
+        >>>                                            instance_type='ml.p3.2xlarge'),
+        >>>                          ).save()
+
+        >>> # Load cluster from above
+        >>> reloaded_cluster = rh.cluster(name="sagemaker-cluster")
+    """
+    if name and not any([arn_role, estimator, connection_wait_time]):
+        # If only the name is provided and dryrun is set to True
+        return Cluster.from_name(name, dryrun)
+
+    if name in RESERVED_SYSTEM_NAMES:
+        raise ValueError(
+            f"Cluster name {name} is a reserved name. Please use a different name which is not one of "
+            f"{RESERVED_SYSTEM_NAMES}."
+        )
+
+    # TODO [JL] Manually add the SageMaker SSH helper to the train script?
+    warnings.warn(
+        "Please make sure the SageMaker SSH helper is included in the estimator's script."
+        "To do so, add the below lines at the top of the file:"
+        "\n\nimport sagemaker_ssh_helper\nsagemaker_ssh_helper.setup_and_start_ssh()\n\n"
+        "For more information and examples: "
+        "https://github.com/aws-samples/sagemaker-ssh-helper#step-3-modify-your-training-script"
+    )
+
+    return SageMakerCluster(
+        name=name,
+        arn_role=arn_role,
+        estimator=estimator,
+        connection_wait_time=connection_wait_time,
         dryrun=dryrun,
     )

@@ -31,6 +31,23 @@ various cluster properties.
 
     .. automethod:: __init__
 
+
+SageMaker Factory Method
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. autofunction:: runhouse.sagemaker_cluster
+
+
+SageMakerCluster Class
+~~~~~~~~~~~~~~~~~~~~~
+A SageMakerCluster is a cluster that uses a SageMaker instance under the hood.
+
+.. autoclass:: runhouse.SageMakerCluster
+   :members:
+   :exclude-members:
+
+    .. automethod:: __init__
+
 Hardware Setup
 ~~~~~~~~~~~~~~
 For BYO Clusters, no additional setup is required. You will just need to have the IP address for the cluster
