@@ -425,7 +425,7 @@ class Run(Resource):
             system=folder_system,
         )
 
-        existing_folder.rm()
+        existing_folder.rm(recursive=True)
 
     @staticmethod
     def _create_new_run_name(name: str = None) -> str:

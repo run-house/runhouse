@@ -35,35 +35,35 @@ def do_tqdm_printing_and_logging(steps=6):
 
 
 @pytest.mark.clustertest
-def test_get_from_cluster(cpu_cluster):
-    print_fn = rh.function(fn=do_printing_and_logging, system=cpu_cluster)
+def test_get_from_cluster(ondemand_cpu_cluster):
+    print_fn = rh.function(fn=do_printing_and_logging, system=ondemand_cpu_cluster)
     run_obj = print_fn.run()
     assert isinstance(run_obj, rh.Run)
 
-    res = cpu_cluster.get(run_obj.name, stream_logs=True)
+    res = ondemand_cpu_cluster.get(run_obj.name, stream_logs=True)
     assert res == list(range(50))
 
 
 @pytest.mark.clustertest
-def test_put_and_get_on_cluster(cpu_cluster):
+def test_put_and_get_on_cluster(ondemand_cpu_cluster):
     test_list = list(range(5, 50, 2)) + ["a string"]
-    cpu_cluster.put("my_list", test_list)
-    ret = cpu_cluster.get("my_list")
+    ondemand_cpu_cluster.put("my_list", test_list)
+    ret = ondemand_cpu_cluster.get("my_list")
     assert all(a == b for (a, b) in zip(ret, test_list))
 
 
 @pytest.mark.clustertest
-def test_stream_logs(cpu_cluster):
-    print_fn = rh.function(fn=do_printing_and_logging, system=cpu_cluster)
+def test_stream_logs(ondemand_cpu_cluster):
+    print_fn = rh.function(fn=do_printing_and_logging, system=ondemand_cpu_cluster)
     res = print_fn(stream_logs=True)
     # TODO [DG] assert that the logs are streamed
     assert res == list(range(50))
 
 
 @pytest.mark.clustertest
-def test_multiprocessing_streaming(cpu_cluster):
+def test_multiprocessing_streaming(ondemand_cpu_cluster):
     re_fn = rh.function(
-        multiproc_torch_sum, system=cpu_cluster, env=["./", "torch==1.12.1"]
+        multiproc_torch_sum, system=ondemand_cpu_cluster, env=["./", "torch==1.12.1"]
     )
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn(summands, stream_logs=True)
@@ -71,24 +71,24 @@ def test_multiprocessing_streaming(cpu_cluster):
 
 
 @pytest.mark.clustertest
-def test_tqdm_streaming(cpu_cluster):
+def test_tqdm_streaming(ondemand_cpu_cluster):
     # Note, this doesn't work properly in PyCharm due to incomplete
     # support for carriage returns in the PyCharm console.
-    print_fn = rh.function(fn=do_tqdm_printing_and_logging, system=cpu_cluster)
+    print_fn = rh.function(fn=do_tqdm_printing_and_logging, system=ondemand_cpu_cluster)
     res = print_fn(steps=40, stream_logs=True)
     assert res == list(range(50))
 
 
 @pytest.mark.clustertest
-def test_cancel_run(cpu_cluster):
-    print_fn = rh.function(fn=do_printing_and_logging, system=cpu_cluster)
+def test_cancel_run(ondemand_cpu_cluster):
+    print_fn = rh.function(fn=do_printing_and_logging, system=ondemand_cpu_cluster)
     run_obj = print_fn.run()
     assert isinstance(run_obj, rh.Run)
 
     key = run_obj.name
-    cpu_cluster.cancel(key)
+    ondemand_cpu_cluster.cancel(key)
     with pytest.raises(Exception) as e:
-        cpu_cluster.get(key, stream_logs=True)
+        ondemand_cpu_cluster.get(key, stream_logs=True)
     # NOTE [DG]: For some reason the exception randomly returns in different formats
     assert "ray.exceptions.TaskCancelledError" in str(
         e.value

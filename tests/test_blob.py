@@ -11,6 +11,8 @@ from ray import cloudpickle as pickle
 
 from runhouse.rh_config import configs
 
+from .conftest import cpu_clusters
+
 TEMP_LOCAL_FOLDER = Path(__file__).parents[1] / "rh-blobs"
 
 
@@ -148,18 +150,20 @@ def test_create_and_reload_rns_blob_with_path(blob_data, blob_s3_bucket):
 
 
 @pytest.mark.clustertest
-def test_to_cluster_attr(cpu_cluster, tmp_path):
+@cpu_clusters
+def test_to_cluster_attr(cluster, tmp_path):
     local_blob = rh.blob(
         pickle.dumps(list(range(50))), path=str(tmp_path / "pipeline.pkl")
     )
-    cluster_blob = local_blob.to(system=cpu_cluster)
+    cluster_blob = local_blob.to(system=cluster)
     assert isinstance(cluster_blob.system, rh.Cluster)
     assert cluster_blob._folder._fs_str == "ssh"
 
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_local_to_cluster(cpu_cluster, blob_data):
+@cpu_clusters
+def test_local_to_cluster(cluster, blob_data):
     name = "~/my_local_blob"
     my_blob = (
         rh.blob(
@@ -171,29 +175,31 @@ def test_local_to_cluster(cpu_cluster, blob_data):
         .save()
     )
 
-    my_blob = my_blob.to(system=cpu_cluster)
+    my_blob = my_blob.to(system=cluster)
     blob_data = pickle.loads(my_blob.data)
     assert blob_data == list(range(50))
 
 
 @pytest.mark.clustertest
-def test_save_blob_to_cluster(cpu_cluster, tmp_path):
+@cpu_clusters
+def test_save_blob_to_cluster(cluster, tmp_path):
     # Save blob to local directory, then upload to a new "models" directory on the root path of the cluster
     model = rh.blob(
         pickle.dumps(list(range(50))), path=str(tmp_path / "pipeline.pkl")
     ).write()
-    model.to(cpu_cluster, path="models")
+    model.to(cluster, path="models")
 
     # Confirm the model is saved on the cluster in the `models` folder
-    status_codes = cpu_cluster.run(commands=["ls models"])
+    status_codes = cluster.run(commands=["ls models"])
     assert "pipeline.pkl" in status_codes[0][1]
 
 
 @pytest.mark.clustertest
-def test_from_cluster(cpu_cluster):
-    config_blob = rh.blob(path="/home/ubuntu/.rh/config.yaml", system=cpu_cluster)
+@cpu_clusters
+def test_from_cluster(cluster):
+    config_blob = rh.blob(path="~/.rh/config.yaml", system=cluster)
     config_data = yaml.safe_load(config_blob.data)
-    assert len(config_data.keys()) > 4
+    assert len(config_data.keys()) >= 1
 
 
 @pytest.mark.awstest

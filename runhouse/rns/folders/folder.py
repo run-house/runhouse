@@ -200,13 +200,19 @@ class Folder(Resource):
                         "Cluster must be started before copying data from it."
                     )
             creds = self.system.ssh_creds()
+
+            client_keys = (
+                [str(Path(creds["ssh_private_key"]).expanduser())]
+                if creds.get("ssh_private_key")
+                else []
+            )
+            password = creds.get("password", None)
             config_creds = {
                 "host": self.system.address,
                 "username": creds["ssh_user"],
                 # 'key_filename': str(Path(creds['ssh_private_key']).expanduser())}  # For SFTP
-                "client_keys": [
-                    str(Path(creds["ssh_private_key"]).expanduser())
-                ],  # For SSHFS
+                "client_keys": client_keys,  # For SSHFS
+                "password": password,
                 "connect_timeout": "3s",
             }
             ret_config = self._data_config.copy()
@@ -501,23 +507,32 @@ class Folder(Resource):
         src_path = self.path
 
         cluster_creds = self.system.ssh_creds()
-        creds_file = cluster_creds["ssh_private_key"]
 
-        dest_cluster.run([f"mkdir -p {dest_path}"])
-        command = (
-            f"rsync -Pavz --filter='dir-merge,- .gitignore' -e \"ssh -i '{creds_file}' "
-            f"-o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes "
-            f"-o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=30s -o ForwardAgent=yes "
-            f'-o ControlMaster=auto -o ControlPersist=300s" {src_path}/ {dest_cluster.address}:{dest_path}'
-        )
-        status_codes = self.system.run([command])
-        if status_codes[0][0] != 0:
-            raise Exception(
-                f"Error syncing folder to destination cluster ({dest_cluster.name}). "
-                f"Make sure the source cluster ({self.system.name}) has the necessary provider keys "
-                f"loaded in path: {creds_file}. "
-                f"For example: `rh.Secrets.to({self.system.name}, providers=['aws'])`"
+        if not cluster_creds.get("password") and not dest_cluster.ssh_creds().get(
+            "password"
+        ):
+            creds_file = cluster_creds.get("ssh_private_key")
+            creds_cmd = f"-i '{creds_file}' " if creds_file else ""
+
+            dest_cluster.run([f"mkdir -p {dest_path}"])
+            command = (
+                f"rsync -Pavz --filter='dir-merge,- .gitignore' -e \"ssh {creds_cmd}"
+                f"-o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes "
+                f"-o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=30s -o ForwardAgent=yes "
+                f'-o ControlMaster=auto -o ControlPersist=300s" {src_path}/ {dest_cluster.address}:{dest_path}'
             )
+            status_codes = self.system.run([command])
+            if status_codes[0][0] != 0:
+                raise Exception(
+                    f"Error syncing folder to destination cluster ({dest_cluster.name}). "
+                    f"Make sure the source cluster ({self.system.name}) has the necessary provider keys "
+                    f"if applicable. "
+                    f"For example: `rh.Secrets.to({self.system.name}, providers=['aws'])`"
+                )
+        else:
+            # TODO: fsspec copy function might be able to do this as well
+            local_folder = self._cluster_to_local(self.system, self.path)
+            local_folder._to_cluster(dest_cluster, dest_path)
 
     def _cluster_to_local(self, cluster, dest_path):
         """Create a local folder with dest_path from the cluster.
