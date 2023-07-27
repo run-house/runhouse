@@ -11,7 +11,7 @@ from ray import cloudpickle as pickle
 
 from runhouse.rh_config import configs
 
-from .conftest import parametrize_cpu_clusters
+from .conftest import cpu_clusters
 
 TEMP_LOCAL_FOLDER = Path(__file__).parents[1] / "rh-blobs"
 
@@ -150,7 +150,7 @@ def test_create_and_reload_rns_blob_with_path(blob_data, blob_s3_bucket):
 
 
 @pytest.mark.clustertest
-@parametrize_cpu_clusters
+@cpu_clusters
 def test_to_cluster_attr(cluster, tmp_path):
     local_blob = rh.blob(
         pickle.dumps(list(range(50))), path=str(tmp_path / "pipeline.pkl")
@@ -162,7 +162,7 @@ def test_to_cluster_attr(cluster, tmp_path):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-@parametrize_cpu_clusters
+@cpu_clusters
 def test_local_to_cluster(cluster, blob_data):
     name = "~/my_local_blob"
     my_blob = (
@@ -181,7 +181,7 @@ def test_local_to_cluster(cluster, blob_data):
 
 
 @pytest.mark.clustertest
-@parametrize_cpu_clusters
+@cpu_clusters
 def test_save_blob_to_cluster(cluster, tmp_path):
     # Save blob to local directory, then upload to a new "models" directory on the root path of the cluster
     model = rh.blob(
@@ -195,7 +195,7 @@ def test_save_blob_to_cluster(cluster, tmp_path):
 
 
 @pytest.mark.clustertest
-@parametrize_cpu_clusters
+@cpu_clusters
 def test_from_cluster(cluster):
     config_blob = rh.blob(path="~/.rh/config.yaml", system=cluster)
     config_data = yaml.safe_load(config_blob.data)

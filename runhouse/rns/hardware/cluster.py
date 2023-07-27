@@ -636,11 +636,9 @@ class Cluster(Resource):
                 files = files.split()
                 fs.get(files, dest, recursive=True, create_dir=True)
             else:
-                # the following errors {source} is a directory so currently working around by extracting files
+                # the following errors if {source} is a directory so currently working around by extracting files
                 # fs.get(source, dest, recursive=True, create_dir=True)
-
                 files = fs.find(source)
-                files = [file for file in files]
                 fs.get(files, dest, recursive=True, create_dir=True)
 
     def _rsync(self, source: str, dest: str, up: bool, contents: bool = False):

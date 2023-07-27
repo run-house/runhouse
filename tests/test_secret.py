@@ -4,7 +4,7 @@ import pytest
 
 import runhouse as rh
 
-from .conftest import parametrize_cpu_clusters
+from .conftest import cpu_clusters
 
 
 @pytest.mark.rnstest
@@ -146,7 +146,7 @@ def test_add_github_secrets():
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-@parametrize_cpu_clusters
+@cpu_clusters
 def test_sending_secrets_to_cluster(cluster):
     enabled_providers: list = rh.Secrets.enabled_providers()
 

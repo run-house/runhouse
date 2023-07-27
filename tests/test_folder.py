@@ -8,7 +8,7 @@ import runhouse as rh
 from ray import cloudpickle as pickle
 from runhouse.rh_config import configs
 
-from .conftest import parametrize_cpu_clusters
+from .conftest import cpu_clusters
 
 DATA_STORE_BUCKET = "runhouse-folder"
 DATA_STORE_PATH = f"/{DATA_STORE_BUCKET}/folder-tests"
@@ -22,7 +22,7 @@ def fs_str_rh_fn(folder):
 
 
 @pytest.mark.clustertest
-@parametrize_cpu_clusters
+@cpu_clusters
 def test_from_cluster(cluster):
     rh.folder(path=str(Path.cwd())).to(cluster, path="~/my_new_tests_folder")
     tests_folder = rh.folder(system=cluster, path="~/my_new_tests_folder")
@@ -61,7 +61,7 @@ def test_create_and_delete_folder_from_s3():
 
 
 @pytest.mark.clustertest
-@parametrize_cpu_clusters
+@cpu_clusters
 def test_folder_attr_on_cluster(local_folder, cluster):
     cluster_folder = local_folder.to(cluster)
     fs_str_cluster = rh.function(fn=fs_str_rh_fn).to(cluster)
@@ -72,7 +72,7 @@ def test_folder_attr_on_cluster(local_folder, cluster):
 @pytest.mark.gcptest
 @pytest.mark.awstest
 @pytest.mark.clustertest
-@parametrize_cpu_clusters
+@cpu_clusters
 def test_cluster_tos(cluster, tmp_path):
     tests_folder = rh.folder(path=str(Path.cwd()))
 
@@ -105,7 +105,7 @@ def test_cluster_tos(cluster, tmp_path):
 
 
 @pytest.mark.clustertest
-@parametrize_cpu_clusters
+@cpu_clusters
 def test_local_and_cluster(cluster, local_folder, tmp_path):
     # Local to cluster
     cluster_folder = local_folder.to(system=cluster)
@@ -150,7 +150,7 @@ def test_local_and_gcs(local_folder, tmp_path):
 
 @pytest.mark.awstest
 @pytest.mark.clustertest
-@parametrize_cpu_clusters
+@cpu_clusters
 def test_cluster_and_s3(cluster, cluster_folder):
     # Cluster to S3
     s3_folder = cluster_folder.to(system="s3")
@@ -167,7 +167,7 @@ def test_cluster_and_s3(cluster, cluster_folder):
 
 @unittest.skip("requires GCS setup")
 @pytest.mark.clustertest
-@parametrize_cpu_clusters
+@cpu_clusters
 def test_cluster_and_gcs(cluster, cluster_folder):
     # Make sure we have gsutil and gcloud on the cluster - needed for copying the package + authenticating
     cluster.install_packages(["gsutil"])
@@ -267,24 +267,21 @@ def test_s3_folder_uploads_and_downloads(local_folder, tmp_path):
 
 
 @pytest.mark.clustertest
-def test_cluster_and_cluster(cpu_cluster, password_cluster, local_folder):
+@cpu_clusters
+def test_cluster_and_cluster(byo_cpu, cluster, local_folder):
     # Upload sky secrets to cluster - required when syncing over the folder from c1 to c2
-    cpu_cluster.sync_secrets(providers=["sky"])
+    byo_cpu.sync_secrets(providers=["sky"])
 
-    cluster_folder_1 = local_folder.to(system=cpu_cluster)
+    cluster_folder_1 = local_folder.to(system=byo_cpu)
     assert "sample_file_0.txt" in cluster_folder_1.ls(full_paths=False)
 
     # Cluster 1 to cluster 2
-    cluster_folder_2 = cluster_folder_1.to(
-        system=password_cluster, path=cluster_folder_1.path
-    )
+    cluster_folder_2 = cluster_folder_1.to(system=cluster, path=cluster_folder_1.path)
     assert "sample_file_0.txt" in cluster_folder_2.ls(full_paths=False)
 
     # Cluster 2 to cluster 1
     cluster_folder_1.rm()
-    cluster_folder_1 = cluster_folder_2.to(
-        system=cpu_cluster, path=cluster_folder_2.path
-    )
+    cluster_folder_1 = cluster_folder_2.to(system=byo_cpu, path=cluster_folder_2.path)
     assert "sample_file_0.txt" in cluster_folder_1.ls(full_paths=False)
 
 

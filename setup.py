@@ -89,6 +89,7 @@ extras_require = {
         "boto3==1.24.59",
         "pycryptodome==3.12.0",
         "s3fs==2023.1.0",
+        "fsspec==2023.1.0",
     ],
     "azure": ["azure-cli==2.31.0", "azure-core"],
     "gcp": ["google-api-python-client", "google-cloud-storage", "gcsfs"],

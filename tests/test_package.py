@@ -6,7 +6,7 @@ import pytest
 
 import runhouse as rh
 
-from .conftest import parametrize_cpu_clusters
+from .conftest import cpu_clusters
 
 extra_index_url = "--extra-index-url https://pypi.python.org/simple/"
 cuda_116_url = "--index-url https://download.pytorch.org/whl/cu116"
@@ -40,8 +40,8 @@ def test_from_string():
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_share_package(cpu_cluster, local_package):
-    local_package.to(system=cpu_cluster)
+def test_share_package(ondemand_cpu_cluster, local_package):
+    local_package.to(system=ondemand_cpu_cluster)
     local_package.save("package_to_share")  # shareable resource requires a name
 
     local_package.share(
@@ -52,7 +52,7 @@ def test_share_package(cpu_cluster, local_package):
 
     # TODO test loading from a different account for real
     # Confirm the package's folder is now on the cluster
-    status_codes = cpu_cluster.run(commands=["ls tmp_package"])
+    status_codes = ondemand_cpu_cluster.run(commands=["ls tmp_package"])
     assert "sample_file_0.txt" in status_codes[0][1]
 
 
@@ -80,7 +80,7 @@ def test_load_shared_git_package():
 
 
 @pytest.mark.clustertest
-@parametrize_cpu_clusters
+@cpu_clusters
 def test_local_package_function(cluster):
     function = rh.function(fn=summer).to(cluster, env=["./"])
 
@@ -91,7 +91,7 @@ def test_local_package_function(cluster):
 
 
 @pytest.mark.clustertest
-@parametrize_cpu_clusters
+@cpu_clusters
 def test_local_package_to_cluster(cluster):
     package = rh.Package.from_string("./").to(cluster)
 
@@ -100,7 +100,7 @@ def test_local_package_to_cluster(cluster):
 
 
 @pytest.mark.clustertest
-@parametrize_cpu_clusters
+@cpu_clusters
 def test_mount_local_package_to_cluster(cluster):
     mount_path = "package_mount"
     package = rh.Package.from_string("./").to(cluster, path=mount_path, mount=True)
@@ -112,7 +112,7 @@ def test_mount_local_package_to_cluster(cluster):
 
 @pytest.mark.clustertest
 @pytest.mark.awstest
-@parametrize_cpu_clusters
+@cpu_clusters
 def test_package_file_system_to_cluster(cluster, s3_package):
     assert s3_package.install_target.system == "s3"
     assert s3_package.install_target.exists_in_system()
@@ -279,7 +279,7 @@ def test_torch_install_command_generator():
 @pytest.mark.gputest
 @pytest.mark.parametrize(
     "cluster",
-    ["cpu_cluster", "v100_gpu_cluster", "k80_gpu_cluster", "a10g_gpu_cluster"],
+    ["ondemand_cpu_cluster", "v100_gpu_cluster", "k80_gpu_cluster", "a10g_gpu_cluster"],
     indirect=True,
 )
 def test_getting_cuda_version_on_clusters(request, cluster):
@@ -306,7 +306,7 @@ def test_getting_cuda_version_on_clusters(request, cluster):
 @pytest.mark.gputest
 @pytest.mark.parametrize(
     "cluster",
-    ["cpu_cluster", "v100_gpu_cluster", "k80_gpu_cluster", "a10g_gpu_cluster"],
+    ["ondemand_cpu_cluster", "v100_gpu_cluster", "k80_gpu_cluster", "a10g_gpu_cluster"],
     indirect=True,
 )
 def test_install_cmd_for_torch_on_cluster(request, cluster):

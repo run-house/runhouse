@@ -27,8 +27,8 @@ def local_folder(tmp_path):
 
 
 @pytest.fixture
-def cluster_folder(cpu_cluster, local_folder):
-    return local_folder.to(system=cpu_cluster)
+def cluster_folder(ondemand_cpu_cluster, local_folder):
+    return local_folder.to(system=ondemand_cpu_cluster)
 
 
 @pytest.fixture
@@ -119,8 +119,8 @@ def cluster(request):
 
 
 @pytest.fixture(scope="session")
-def cpu_cluster():
-    c = rh.cluster("^rh-cpu")
+def ondemand_cpu_cluster():
+    c = rh.cluster("test-cluster")
     c.up_if_not()
     c.install_packages(["pytest"])
     # Save to RNS - to be loaded in other tests (ex: Runs)
@@ -148,7 +148,7 @@ def byo_cpu():
     ).save()
 
     c.install_packages(["pytest"])
-    c.send_secrets(["ssh"])
+    c.sync_secrets(["ssh"])
 
     return c
 
@@ -206,8 +206,8 @@ def password_cluster():
     return cluster
 
 
-parametrize_cpu_clusters = pytest.mark.parametrize(
-    "cluster", ["cpu_cluster", "password_cluster"], indirect=True
+cpu_clusters = pytest.mark.parametrize(
+    "cluster", ["ondemand_cpu_cluster", "password_cluster"], indirect=True
 )
 
 
@@ -253,21 +253,23 @@ def slow_running_func(a, b):
 
 
 @pytest.fixture(scope="session")
-def summer_func(cpu_cluster):
-    return rh.function(summer, name="summer_func").to(cpu_cluster, env=["pytest"])
-
-
-@pytest.fixture(scope="session")
-def func_with_artifacts(cpu_cluster):
-    return rh.function(save_and_load_artifacts, name="artifacts_func").to(
-        cpu_cluster, env=["pytest"]
+def summer_func(ondemand_cpu_cluster):
+    return rh.function(summer, name="summer_func").to(
+        ondemand_cpu_cluster, env=["pytest"]
     )
 
 
 @pytest.fixture(scope="session")
-def slow_func(cpu_cluster):
+def func_with_artifacts(ondemand_cpu_cluster):
+    return rh.function(save_and_load_artifacts, name="artifacts_func").to(
+        ondemand_cpu_cluster, env=["pytest"]
+    )
+
+
+@pytest.fixture(scope="session")
+def slow_func(ondemand_cpu_cluster):
     return rh.function(slow_running_func, name="slow_func").to(
-        cpu_cluster, env=["pytest"]
+        ondemand_cpu_cluster, env=["pytest"]
     )
 
 

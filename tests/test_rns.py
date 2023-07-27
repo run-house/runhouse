@@ -83,10 +83,10 @@ def test_ls():
 
 
 @pytest.mark.rnstest
-def test_from_name(cpu_cluster):
+def test_from_name(ondemand_cpu_cluster):
     f = rh.folder(name="~/tests/bert_ft")
     assert f.path
-    assert cpu_cluster.instance_type == "CPU:2+"
+    assert ondemand_cpu_cluster.instance_type == "CPU:2+"
 
 
 if __name__ == "__main__":
