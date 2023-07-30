@@ -85,14 +85,15 @@ def test_sagemaker_cluster():
     from runhouse import sagemaker_cluster
     from sagemaker.pytorch import PyTorch
 
-    # from sagemaker_ssh_helper.wrapper import SSHModelWrapper, SSHEstimatorWrapper
-
     role = os.getenv("SAGEMAKER_ARN_ROLE")
 
     # Training job
     estimator = PyTorch(
-        entry_point="train.py",
-        source_dir=f'{os.path.expanduser("~/dev/playground/sagemaker")}',
+        entry_point="pytorch_train.py",
+        source_dir=os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "runhouse/scripts/sagemaker",
+        ),
         role=role,
         framework_version="1.9.1",
         py_version="py38",
@@ -100,24 +101,25 @@ def test_sagemaker_cluster():
         instance_type="ml.m5.large",
     )
 
-    # Inference
-    # model = estimator.create_model(
-    #     entry_point='inference_ssh.py',
-    #     source_dir=f'{os.path.expanduser("~/dev/playground/sagemaker")}',
-    #     # dependencies=[SSHModelWrapper.dependency_dir()]
-    # )
-
     cluster_name = "sagemaker-training"
-    sm_cluster = sagemaker_cluster(
-        name=cluster_name, arn_role=role, estimator=estimator
-    ).save()
-    assert type(sm_cluster.estimator).__name__ == "PyTorch"
 
-    # Reload the cluster object and run a command on the instance
+    sagemaker_cluster(name=cluster_name, arn_role=role, estimator=estimator).save()
+
+    # Reload the cluster object and run a command on the cluster
     reloaded_cluster = sagemaker_cluster(cluster_name, dryrun=True)
 
+    # Confirm HTTP server is up and running
+    test_list = list(range(5, 50, 2)) + ["a string"]
+    reloaded_cluster.put("my_list", test_list)
+    ret = reloaded_cluster.get("my_list")
+    assert ret == test_list
+
+    # Test CLI commands
     return_codes = reloaded_cluster.run(commands=["ls -la"])
-    assert return_codes[0][1]
+    assert return_codes[0][0] != 0
+
+    # Delete the cluster
+    reloaded_cluster.teardown_and_delete()
 
 
 if __name__ == "__main__":

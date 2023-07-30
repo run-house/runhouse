@@ -68,6 +68,7 @@ install_requires = [
     "pyarrow",
     "sshtunnel>=0.3.0",
     "sshfs",
+    "sentry_sdk",
     "typer",
     "skypilot==0.3.3",
     "fastapi<=0.99.0",
@@ -95,9 +96,10 @@ extras_require = {
     "docker": ["docker"],
     "sagemaker": [
         # https://github.com/aws-samples/sagemaker-ssh-helper
-        "sagemaker",
         "sagemaker_ssh_helper",
+        "sagemaker",
         "paramiko>=3.2.0",
+        "boto3==1.24.59",
     ],
 }
 

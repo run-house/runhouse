@@ -1,4 +1,3 @@
-import warnings
 from typing import Dict, List, Optional, Union
 
 from ..utils.hardware import RESERVED_SYSTEM_NAMES
@@ -133,6 +132,7 @@ def ondemand_cluster(
 def sagemaker_cluster(
     name: str,
     arn_role: str = None,
+    instance_type: str = None,
     estimator: Union["sagemaker.estimator.EstimatorBase", Dict] = None,
     connection_wait_time: int = None,
     dryrun: bool = False,
@@ -143,7 +143,14 @@ def sagemaker_cluster(
     Args:
         name (str): Name for the cluster, to re-use later on.
         arn_role (str, optional): AWS IAM role ARN to use for connecting to the cluster.
-        estimator (Union[str, "sagemaker.estimator.EstimatorBase"], optional): Estimator to use for the job.
+        instance_type (str, optional): Type of AWS instance to use for the cluster.
+            For a list of valid SageMaker instance options,
+            see: https://aws.amazon.com/sagemaker/pricing/instance-types
+            (Default: ``ml.m5.large``.)
+        estimator (Union[str, "sagemaker.estimator.EstimatorBase"], optional): Estimator to use for the job
+            (e.g. for training. If not running a dedicated job but simply want to access the SageMaker compute, leave
+            as ``None``).
+            See: https://sagemaker.readthedocs.io/en/stable/frameworks/pytorch/using_pytorch.html#create-an-estimator
         connection_wait_time (int, optional): Amount of time the SSH helper will wait inside SageMaker before
             it continues normal execution. Useful if you want to connect before the job starts (e.g. training).
             If you don't want to wait, set it to 0.
@@ -167,7 +174,7 @@ def sagemaker_cluster(
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.cluster(name="sagemaker-cluster")
     """
-    if name and not any([arn_role, estimator, connection_wait_time]):
+    if name and not any([arn_role, estimator, connection_wait_time, instance_type]):
         # If only the name is provided and dryrun is set to True
         return Cluster.from_name(name, dryrun)
 
@@ -177,19 +184,11 @@ def sagemaker_cluster(
             f"{RESERVED_SYSTEM_NAMES}."
         )
 
-    # TODO [JL] Manually add the SageMaker SSH helper to the train script?
-    warnings.warn(
-        "Please make sure the SageMaker SSH helper is included in the estimator's script."
-        "To do so, add the below lines at the top of the file:"
-        "\n\nimport sagemaker_ssh_helper\nsagemaker_ssh_helper.setup_and_start_ssh()\n\n"
-        "For more information and examples: "
-        "https://github.com/aws-samples/sagemaker-ssh-helper#step-3-modify-your-training-script"
-    )
-
     return SageMakerCluster(
         name=name,
         arn_role=arn_role,
         estimator=estimator,
+        instance_type=instance_type,
         connection_wait_time=connection_wait_time,
         dryrun=dryrun,
     )

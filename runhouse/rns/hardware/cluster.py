@@ -302,7 +302,7 @@ class Cluster(Resource):
 
     # ----------------- RPC Methods ----------------- #
 
-    def connect_server_client(self, tunnel=True, force_reconnect=False):
+    def connect_server_client(self, force_reconnect=False):
         # FYI based on: https://sshtunnel.readthedocs.io/en/latest/#example-1
         # FYI If we ever need to do this from scratch, we can use this example:
         # https://github.com/paramiko/paramiko/blob/main/demos/rforward.py#L74
@@ -464,9 +464,7 @@ class Cluster(Resource):
         http_server_cmd = "python -m runhouse.servers.http.http_server"
         kill_proc_cmd = f'pkill -f "{http_server_cmd}"'
         # 2>&1 redirects stderr to stdout
-        screen_cmd = (
-            f"screen -dm bash -c '{http_server_cmd} |& tee -a ~/.rh/{logfile} 2>&1'"
-        )
+        screen_cmd = f"screen -dm bash -c '{http_server_cmd} |& tee -a {self._logfile_path(logfile)} 2>&1'"
         cmds = [kill_proc_cmd]
         if restart_ray:
             ray_start_cmd = "ray start --head --port 6379 --autoscaling-config=~/ray_bootstrap_config.yaml"
@@ -534,6 +532,9 @@ class Cluster(Resource):
             args,
             kwargs,
         )
+
+    def _logfile_path(self, logfile):
+        return f"~/.rh/{logfile}"
 
     def is_connected(self):
         """Whether the RPC tunnel is up.
