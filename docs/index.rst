@@ -74,7 +74,7 @@ Table of Contents
    tutorials/examples/inference
    tutorials/examples/training
    tutorials/examples/distributed
-   Pipelining: BERT <https://github.com/run-house/tutorials/tree/stable/t05_BERT_pipeline>
+   Pipelining: BERT <https://github.com/run-house/funhouse/tree/main/bert_pipeline>
 
 .. toctree::
    :maxdepth: 1
