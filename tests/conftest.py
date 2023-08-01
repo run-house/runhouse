@@ -129,6 +129,13 @@ def cpu_cluster():
 
 
 @pytest.fixture(scope="session")
+def sm_cluster():
+    c = rh.sagemaker_cluster(name="rh-sagemaker", connection_wait_time=0)
+    c.save()
+    return c
+
+
+@pytest.fixture(scope="session")
 def byo_cpu():
     # Spin up a new basic m5.xlarge EC2 instance
     c = (

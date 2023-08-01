@@ -131,10 +131,12 @@ def ondemand_cluster(
 
 def sagemaker_cluster(
     name: str,
-    arn_role: str = None,
+    role: str = None,
     instance_type: str = None,
-    estimator: Union["sagemaker.estimator.EstimatorBase", Dict] = None,
+    instance_count: int = None,
+    autostop_mins: int = None,
     connection_wait_time: int = None,
+    estimator: Union["sagemaker.estimator.EstimatorBase", Dict] = None,
     dryrun: bool = False,
 ) -> SageMakerCluster:
     """
@@ -142,15 +144,22 @@ def sagemaker_cluster(
 
     Args:
         name (str): Name for the cluster, to re-use later on.
-        arn_role (str, optional): AWS IAM role ARN to use for connecting to the cluster.
+        role (str, optional): An AWS IAM role (either name or full ARN). Required for training jobs and APIs that
+            create SageMaker endpoints. If not provided, Runhouse will first try to load it from the environment
+            variable ``ROLE_ARN`` and before attempting to use the default SageMaker
+            execution role (if found).
         instance_type (str, optional): Type of AWS instance to use for the cluster.
             For a list of valid SageMaker instance options,
             see: https://aws.amazon.com/sagemaker/pricing/instance-types
             (Default: ``ml.m5.large``.)
+        instance_count (int, optional): Number of instances to use for the cluster.
+            (Default: ``1``.)
         estimator (Union[str, "sagemaker.estimator.EstimatorBase"], optional): Estimator to use for the job
             (e.g. for training. If not running a dedicated job but simply want to access the SageMaker compute, leave
             as ``None``).
             See: https://sagemaker.readthedocs.io/en/stable/frameworks/pytorch/using_pytorch.html#create-an-estimator
+        autostop_mins (int, optional): Number of minutes to keep the cluster up after inactivity,
+            or ``-1`` to keep cluster up indefinitely.
         connection_wait_time (int, optional): Amount of time the SSH helper will wait inside SageMaker before
             it continues normal execution. Useful if you want to connect before the job starts (e.g. training).
             If you don't want to wait, set it to 0.
@@ -174,7 +183,12 @@ def sagemaker_cluster(
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.cluster(name="sagemaker-cluster")
     """
-    if name and not any([arn_role, estimator, connection_wait_time, instance_type]):
+    if (
+        name
+        and not any([role, estimator, instance_type, autostop_mins])
+        and connection_wait_time is None
+        and instance_count is None
+    ):
         # If only the name is provided and dryrun is set to True
         return Cluster.from_name(name, dryrun)
 
@@ -186,9 +200,11 @@ def sagemaker_cluster(
 
     return SageMakerCluster(
         name=name,
-        arn_role=arn_role,
+        role=role,
         estimator=estimator,
         instance_type=instance_type,
+        instance_count=instance_count,
+        autostop_mins=autostop_mins,
         connection_wait_time=connection_wait_time,
         dryrun=dryrun,
     )
