@@ -70,6 +70,7 @@ install_requires = [
     "sshfs",
     "typer",
     "skypilot==0.3.3",
+    "sentry-sdk",
     "fastapi<=0.99.0",
     "uvicorn",
     "pyOpenSSL>=21.1.0",
