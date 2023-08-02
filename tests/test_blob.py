@@ -9,6 +9,8 @@ import runhouse as rh
 from runhouse import Cluster
 from runhouse.rh_config import configs
 
+from .conftest import cpu_clusters
+
 TEMP_LOCAL_FOLDER = Path(__file__).parents[1] / "rh-blobs"
 
 
@@ -68,14 +70,15 @@ def test_reload_file_with_path(blob):
 
 @pytest.mark.clustertest
 @pytest.mark.parametrize("file", ["local_file", "cluster_file"], indirect=True)
-def test_file_to_blob(file, cpu_cluster):
+@cpu_clusters
+def test_file_to_blob(file, cluster):
     local_blob = file.to("here")
     assert local_blob.system is None
     fetched = local_blob.fetch()
     assert fetched[1] == "test"
     assert str(fetched) == str(file.fetch())
 
-    cluster_blob = file.to(cpu_cluster)
+    cluster_blob = file.to(cluster)
     assert isinstance(cluster_blob.system, Cluster)
     fetched = cluster_blob.fetch()
     assert fetched[1] == "test"
