@@ -47,7 +47,7 @@ class Function(Module):
         self.fn_pointers = fn_pointers
         self.access = access or self.DEFAULT_ACCESS
         self.resources = resources or {}
-        super().__init__(name=name, dryrun=dryrun, system=system, env=env)
+        super().__init__(name=name, dryrun=dryrun, system=system, env=env, **kwargs)
 
         # if not self.dryrun:
         #     self = self.to(self.system, env=self.env)
@@ -62,6 +62,7 @@ class Function(Module):
         if isinstance(config["env"], dict):
             config["env"] = Env.from_config(config["env"], dryrun=dryrun)
 
+        config.pop("resource_subtype", None)
         return Function(**config, dryrun=dryrun)
 
     @classmethod
@@ -150,7 +151,7 @@ class Function(Module):
 
     # ----------------- Function call methods -----------------
 
-    def __call__(self, *args, stream_logs=True, run_name: str = None, **kwargs) -> Any:
+    def __call__(self, *args, **kwargs) -> Any:
         """Call the function on its system
 
         Args:
@@ -164,7 +165,7 @@ class Function(Module):
         Returns:
             The Function's return value
         """
-        return self.call(*args, stream_logs=stream_logs, run_name=run_name, **kwargs)
+        return self.call(*args, **kwargs)
 
     def call(self, *args, **kwargs) -> Any:
         # We need this strictly because Module's __getattribute__ overload can't pick up the __call__ method
@@ -255,12 +256,12 @@ class Function(Module):
             )
 
     def remote(self, *args, local=True, **kwargs):
-        key = self.call.remote(*args, **kwargs)
-        return key
+        obj = self.call.remote(*args, **kwargs)
+        return obj
 
     def run(self, *args, local=True, **kwargs):
-        run_obj = self.call.run(*args, **kwargs)
-        return run_obj
+        key = self.call.run(*args, **kwargs)
+        return key
 
     def get(self, run_key):
         """Get the result of a Function call that was submitted as async using `remote`.

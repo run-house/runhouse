@@ -7,13 +7,14 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import requests
 
-from runhouse.rh_config import rns_client
+from runhouse.rh_config import obj_store, rns_client
 from runhouse.rns.top_level_rns_fns import (
     resolve_rns_path,
     save,
     split_rns_name_and_path,
 )
 from runhouse.rns.utils.api import load_resp_content, read_resp_data, ResourceAccess
+from runhouse.rns.utils.hardware import _current_cluster
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ class Resource:
     RESOURCE_TYPE = None
 
     def __init__(
-        self, name: Optional[str] = None, dryrun: bool = None, provenance=None
+        self, name: Optional[str] = None, dryrun: bool = None, provenance=None, **kwargs
     ):
         """
         Runhouse abstraction for objects that can be saved, shared, and reused.
@@ -52,8 +53,12 @@ class Resource:
                 rns_client.resolve_rns_path(name)
             )
 
+        from runhouse.rns.run import Run
+
         self.dryrun = dryrun
-        self.provenance = provenance
+        self.provenance = (
+            Run.from_config(provenance) if isinstance(provenance, Dict) else provenance
+        )
 
     # TODO add a utility to allow a parameter to be specified as "default" and then use the default value
 
@@ -114,6 +119,20 @@ class Resource:
         """Overload by child resources to save any resources they hold internally."""
         pass
 
+    def pin(self):
+        """Write the resource to the object store."""
+        if _current_cluster():
+            obj_store.put(self._name, self)
+        else:
+            raise ValueError("Cannot pin a resource outside of a cluster.")
+
+    def refresh(self):
+        """Update the resource in the object store."""
+        if _current_cluster():
+            return obj_store.get(self._name)
+        else:
+            return self
+
     def save(
         self,
         name: str = None,
@@ -152,6 +171,10 @@ class Resource:
     @classmethod
     def from_name(cls, name, dryrun=False):
         """Load existing Resource via its name."""
+        # TODO is this the right priority order?
+        if _current_cluster() and obj_store.contains(name):
+            return obj_store.get(name, check_other_envs=True)
+
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Resource {name} not found.")
@@ -167,23 +190,19 @@ class Resource:
     @staticmethod
     def from_config(config, dryrun=False):
         resource_class = getattr(
-            sys.modules["runhouse"], config["resource_type"].capitalize(), None
+            sys.modules["runhouse"], config.pop("resource_type").capitalize(), None
         )
-        config = resource_class._check_for_child_configs(config)
         if not resource_class:
             raise TypeError(
                 f"Could not find module associated with {config['resource_type']}"
             )
+        config = resource_class._check_for_child_configs(config)
 
-        try:
-            loaded = resource_class.from_config(config=config, dryrun=dryrun)
-            if loaded.name:
-                rns_client.add_upstream_resource(loaded.name)
-            return loaded
-        except Exception:
-            raise ValueError(
-                f"Could not find constructor for type {config['resource_type']}"
-            )
+        dryrun = config.pop("dryrun", False) or dryrun
+        loaded = resource_class.from_config(config=config, dryrun=dryrun)
+        if loaded.name:
+            rns_client.add_upstream_resource(loaded.name)
+        return loaded
 
     def unname(self):
         """Remove the name of the resource. This changes the resource name to anonymous and deletes any local

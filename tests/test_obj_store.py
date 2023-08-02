@@ -19,10 +19,10 @@ logger = logging.getLogger(__name__)
 
 
 def do_printing_and_logging():
-    for i in range(6):
+    for i in range(3):
         # Wait to make sure we're actually streaming
         time.sleep(1)
-        print(f"Hello from the cluster! {i}")
+        print(f"Hello from the cluster stdout! {i}")
         logger.info(f"Hello from the cluster logs! {i}")
     return list(range(50))
 
@@ -49,10 +49,13 @@ def test_stream_logs(cpu_cluster):
 @pytest.mark.clustertest
 def test_get_from_cluster(cpu_cluster):
     print_fn = rh.function(fn=do_printing_and_logging, system=cpu_cluster)
-    run_obj = print_fn.run()
-    assert isinstance(run_obj, rh.Run)
+    print(print_fn())
+    res = print_fn.remote()
+    assert isinstance(res, rh.Blob)
+    assert res.name in cpu_cluster.list_keys()
 
-    res = cpu_cluster.get(run_obj.name, stream_logs=True)
+    assert res.fetch.data == list(range(50))
+    res = cpu_cluster.get(res.name)
     assert res == list(range(50))
 
 
@@ -70,15 +73,11 @@ def test_call_module_method(cpu_cluster, env):
     cpu_cluster.put("numpy_pkg", Package.from_string("numpy"), env=env)
 
     # Test for method
-    res = cpu_cluster.call_module_method(
-        "numpy_pkg", "_detect_cuda_version_or_cpu", stream_logs=True
-    )
+    res = cpu_cluster.call_module_method("numpy_pkg", "_detect_cuda_version_or_cpu")
     assert res == "cpu"
 
     # Test for property
-    res = cpu_cluster.call_module_method(
-        "numpy_pkg", "config_for_rns", stream_logs=True
-    )
+    res = cpu_cluster.call_module_method("numpy_pkg", "config_for_rns")
     numpy_config = Package.from_string("numpy").config_for_rns
     assert res
     assert isinstance(res, dict)
@@ -123,14 +122,11 @@ def test_stateful_generator(cpu_cluster, env):
 
 
 def pinning_helper(key=None):
-    if not isinstance(key, str):
-        return key + ["Found in args!"]
-
-    from_obj_store = rh.blob(name=key + "_inside").fetch()
+    from_obj_store = rh.here.get(key + "_inside")
     if from_obj_store:
         return "Found in obj store!"
 
-    rh.blob(name=key + "_inside", data=["put within fn"] * 5)
+    rh.blob(name=key + "_inside", data=["put within fn"] * 5).pin()
     return ["fn result"] * 3
 
 
@@ -140,14 +136,10 @@ def test_pinning_and_arg_replacement(cpu_cluster):
     pin_fn = rh.function(pinning_helper).to(cpu_cluster)
 
     # First run should pin "run_pin" and "run_pin_inside"
-    pin_fn.run(key="run_pin", run_name="pinning_test")
+    pin_fn.remote(key="run_pin", run_name="pinning_test")
     print(cpu_cluster.list_keys())
     assert cpu_cluster.get("pinning_test") == ["fn result"] * 3
-    assert cpu_cluster.get("run_pin_inside") == ["put within fn"] * 5
-
-    # Subsequent runs should find replaced values in args
-    assert pin_fn("pinning_test") == ["fn result"] * 3 + ["Found in args!"]
-    assert pin_fn("run_pin_inside") == ["put within fn"] * 5 + ["Found in args!"]
+    assert cpu_cluster.get("run_pin_inside").data == ["put within fn"] * 5
 
     # When we just ran with the arg "run_pin", we put a new pin called "pinning_test_inside"
     # from within the fn. Running again should return it.
@@ -156,8 +148,6 @@ def test_pinning_and_arg_replacement(cpu_cluster):
     put_pin_value = ["put_pin_value"] * 4
     cpu_cluster.put("put_pin_inside", put_pin_value)
     assert pin_fn("put_pin") == "Found in obj store!"
-    cpu_cluster.put("put_pin_outside", put_pin_value)
-    assert pin_fn("put_pin_outside") == put_pin_value + ["Found in args!"]
 
 
 @pytest.mark.clustertest
@@ -211,11 +201,13 @@ def test_pinning_to_gpu(k80_gpu_cluster):
 
 
 def np_serialization_helper_1():
-    rh.blob(data=np.zeros(100), name="np_arr")
+    print(time.time())
+    rh.blob(data=np.zeros(100), name="np_arr").pin()
 
 
 def np_serialization_helper_2():
-    arr = rh.blob(name="np_arr", load=False).fetch()
+    print(time.time())
+    arr = rh.blob(name="np_arr").data
     arr[0] = 1
     return arr
 
@@ -239,7 +231,7 @@ def test_multiprocessing_streaming(cpu_cluster):
         multiproc_torch_sum, system=cpu_cluster, env=["./", "torch==1.12.1"]
     )
     summands = list(zip(range(5), range(4, 9)))
-    res = re_fn(summands, stream_logs=True)
+    res = re_fn(summands)
     assert res == [4, 6, 8, 10, 12]
 
 

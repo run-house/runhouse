@@ -4,7 +4,7 @@ import logging
 import sys
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, List, Optional, Union
 
 from runhouse.rh_config import obj_store, rns_client
 from runhouse.rns.blobs import file
@@ -52,6 +52,14 @@ class Run(Resource):
         path: str = None,
         system: Union[str, Cluster] = None,
         data_config: dict = None,
+        status: RunStatus = RunStatus.NOT_STARTED,
+        start_time: Optional[str] = None,
+        end_time: Optional[str] = None,
+        upstream_artifacts: Optional[List] = None,
+        downstream_artifacts: Optional[List] = None,
+        run_type: RunType = RunType.CMD_RUN,
+        error: Optional[str] = None,
+        traceback: Optional[str] = None,
         overwrite: bool = False,
         dryrun: bool = False,
         **kwargs,
@@ -89,20 +97,16 @@ class Run(Resource):
             dryrun=dryrun,
         )
 
-        # Use the config for this run saved on the system if it exists
-        run_config: dict = self._load_run_config(folder=self.folder)
-
-        self.status = run_config.get("status", RunStatus.NOT_STARTED)
-        self.start_time = run_config.get("start_time", None)
-        self.end_time = run_config.get("end_time", None)
-        self.upstream_artifacts = run_config.get("upstream_artifacts", [])
-        self.downstream_artifacts = run_config.get("downstream_artifacts", [])
-        self.fn_name = run_config.get("fn_name", fn_name)
-        self.cmds = run_config.get("cmds", cmds)
-        self.run_type = run_config.get("run_type", self._detect_run_type())
-
-        self._stdout_path = self._path_to_file_by_ext(ext=".out")
-        self._stderr_path = self._path_to_file_by_ext(ext=".err")
+        self.status = status
+        self.start_time = start_time
+        self.end_time = end_time
+        self.upstream_artifacts = upstream_artifacts or []
+        self.downstream_artifacts = downstream_artifacts or []
+        self.fn_name = fn_name
+        self.cmds = cmds
+        self.run_type = run_type or self._detect_run_type()
+        self.error = error
+        self.traceback = traceback
 
     def __enter__(self):
         self.status = RunStatus.RUNNING
@@ -112,6 +116,8 @@ class Run(Resource):
         rns_client.start_run(self)
 
         # Capture stdout and stderr to the Run's folder
+        self.folder.mkdir()
+        # TODO fix the fact that we keep appending and then stream back the full file
         sys.stdout = StreamTee(sys.stdout, [Path(self._stdout_path).open(mode="a")])
         sys.stderr = StreamTee(sys.stderr, [Path(self._stderr_path).open(mode="a")])
 
@@ -126,18 +132,23 @@ class Run(Resource):
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.end_time = self._current_timestamp()
-        self.status = RunStatus.COMPLETED
+        if exc_type:
+            self.status = RunStatus.ERROR
+            self.error = exc_value
+            self.traceback = exc_traceback
+        else:
+            self.status = RunStatus.COMPLETED
 
         # Pop the current Run from the stack of active Runs
         rns_client.stop_run()
 
-        if self.run_type == RunType.CMD_RUN:
-            # Save Run config to its folder on the system - this will already happen on the cluster
-            # for function based Runs
-            self._write_config()
-
-            # For cmd runs we are using the SSH command runner to get the stdout / stderr
-            return
+        # if self.run_type == RunType.CMD_RUN:
+        #     # Save Run config to its folder on the system - this will already happen on the cluster
+        #     # for function based Runs
+        #     self._write_config()
+        #
+        #     # For cmd runs we are using the SSH command runner to get the stdout / stderr
+        #     return
 
         # TODO [DG->JL] Do we still need this?
         # stderr = f"{type(exc_value).__name__}: {str(exc_value)}" if exc_value else ""
@@ -170,9 +181,19 @@ class Run(Resource):
         """Metadata to store in RNS for the Run."""
         config = super().config_for_rns
         base_config = {
+            "status": self.status,
+            "start_time": self.start_time,
+            "end_time": self.end_time,
+            "run_type": self.run_type,
+            "fn_name": self.fn_name,
+            "cmds": self.cmds,
+            # NOTE: artifacts are currently only tracked in context manager based runs
+            "upstream_artifacts": self.upstream_artifacts,
+            "downstream_artifacts": self.downstream_artifacts,
             "path": self.folder.path,
             "system": self._resource_string_for_subconfig(self.folder.system),
-            "run_type": self.run_type,
+            "error": str(self.error),
+            "traceback": str(self.traceback),
         }
         config.update(base_config)
         return config
@@ -362,7 +383,7 @@ class Run(Resource):
             config (Optional[Dict]): Config to write. If none is provided, the Run's config for RNS will be used.
             overwrite (Optional[bool]): Overwrite the config if one is already saved down. Defaults to ``True``.
         """
-        config_to_write = config or self.run_config
+        config_to_write = config or self.config_for_rns
         logger.info(f"Config to save on system: {config_to_write}")
         self.folder.put(
             {self.RUN_CONFIG_FILE: config_to_write},
@@ -406,6 +427,16 @@ class Run(Resource):
                 self.folder.system.run(
                     [f"cp --remove-destination `readlink {path}` {path}"]
                 )
+
+    @property
+    def _stdout_path(self) -> str:
+        """Path to the stdout file for the Run."""
+        return self._path_to_file_by_ext(ext=".out")
+
+    @property
+    def _stderr_path(self) -> str:
+        """Path to the stderr file for the Run."""
+        return self._path_to_file_by_ext(ext=".err")
 
     def _find_file_path_by_ext(self, ext: str) -> Union[str, None]:
         """Get the file path by provided extension. Needed when loading the stdout and stderr files associated

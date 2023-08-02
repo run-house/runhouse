@@ -1,7 +1,7 @@
 import codecs
 import inspect
 import logging
-import queue
+import time
 import traceback
 from pathlib import Path
 
@@ -11,11 +11,12 @@ from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 from runhouse.rh_config import configs, obj_store
 
-from runhouse.rns.blobs import blob
+from runhouse.rns.blobs import blob, Blob
+from runhouse.rns.module import Module
 from runhouse.rns.packages.package import Package
 from runhouse.rns.queues import Queue
 from runhouse.rns.resource import Resource
-from runhouse.rns.run import run
+from runhouse.rns.run import run, RunStatus
 from runhouse.rns.run_module_utils import call_fn_by_type
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.http_utils import (
@@ -42,7 +43,7 @@ class EnvServlet:
 
         obj_store.set_name(self.env_name)
 
-        self.results_streams = {}
+        self.output_types = {}
 
     @staticmethod
     def register_activity():
@@ -62,7 +63,6 @@ class EnvServlet:
                 else:
                     raise ValueError(f"package {package} not recognized")
 
-                logger.info(f"Installing package: {str(pkg)}")
                 pkg._install(env)
 
             self.register_activity()
@@ -80,8 +80,15 @@ class EnvServlet:
         self.register_activity()
         try:
             resource_config, state, dryrun = b64_unpickle(message.data)
-            # Resolve any sub-resources which are string references to resources already sent to this cluster
+            # Resolve any sub-resources which are string references to resources already sent to this cluster.
+            # We need to pop the resource's own name so it doesn't get resolved if it's already present in the
+            # obj_store.
+            name = resource_config.pop("name")
+            subtype = resource_config.pop("resource_subtype")
             resource_config = obj_store.get_obj_refs_dict(resource_config)
+            resource_config["name"] = name
+            resource_config["resource_subtype"] = subtype
+
             logger.info(
                 f"Message received from client to construct resource: {resource_config}"
             )
@@ -91,11 +98,16 @@ class EnvServlet:
             for attr, val in state.items():
                 setattr(resource, attr, val)
 
-            if not resource.name and message.key:
-                resource.name = message.key
-            name = resource.name or _generate_default_name(
-                prefix=resource.RESOURCE_TYPE
+            name = (
+                resource.name
+                or message.key
+                or _generate_default_name(prefix=resource.RESOURCE_TYPE)
             )
+            if isinstance(resource, Module):
+                resource.rename(name)
+            else:
+                resource.name = name
+            obj_store.put(name, resource)
 
             if hasattr(resource, "remote_init"):
                 logger.info(
@@ -103,7 +115,6 @@ class EnvServlet:
                 )
                 resource.remote_init()
 
-            obj_store.put(name, resource)
             self.register_activity()
             # Return the name in case we had to set it
             return Response(output_type=OutputType.RESULT, data=pickle_b64(name))
@@ -118,15 +129,26 @@ class EnvServlet:
 
     def call_module_method(self, module_name, method_name, message: Message):
         self.register_activity()
-        callable_method = None
-        run_obj = None
+        result_resource = None
 
+        persist = message.save or message.remote or message.run_async
         try:
-            self.results_streams[message.key] = Queue()
-            args, kwargs = b64_unpickle(message.data) if message.data else ([], {})
             logger.info(
-                f"Message received from client to call method {method_name} on module {module_name}"
+                f"Message received from client to call method {method_name} on module {module_name} at {time.time()}"
             )
+
+            # Remove output types from previous runs
+            self.output_types.pop(message.key, None)
+            result_resource = Queue(name=message.key, persist=persist)
+            result_resource.pin()
+            result_resource.provenance = run(name=message.key, load=False)
+            result_resource.provenance.__enter__()
+
+            # Save now so status and initial streamed results are available globally
+            if message.save:
+                result_resource.save()
+
+            args, kwargs = b64_unpickle(message.data) if message.data else ([], {})
             module = obj_store.get(module_name, None)
             if not module:
                 raise ValueError(f"Resource {module_name} not found")
@@ -135,7 +157,7 @@ class EnvServlet:
             try:
                 method = getattr(module, method_name) if method_name else module
             except AttributeError:
-                logger.info(module.__dict__)
+                logger.debug(module.__dict__)
                 raise ValueError(
                     f"Method {method_name} not found on module {module_name}"
                 )
@@ -157,14 +179,10 @@ class EnvServlet:
             if not callable_method and kwargs and "new_value" in kwargs:
                 # If new_value was passed, that means we're setting a property
                 setattr(module, method_name, kwargs["new_value"])
-                resp = Response(output_type=OutputType.SUCCESS)
-                self.results_streams[message.key].put(resp)
+                # module.pin()
+                self.output_types[message.key] = OutputType.SUCCESS
+                result_resource.provenance.__exit__(None, None, None)
                 return
-
-            if callable_method:
-                # Only create a run for callable methods, not properties
-                run_obj = run(name=message.key, load=False)
-                run_obj.__enter__()
 
             # If method is a property, `method = getattr(module, method_name, None)` above already
             # got our result
@@ -174,62 +192,61 @@ class EnvServlet:
                 logger.info(
                     f"Streaming back results of generator {module_name}.{method_name}"
                 )
-                results_to_save = []
-                resp = None
+                self.output_types[message.key] = OutputType.RESULT_STREAM
                 for val in result:
                     self.register_activity()
                     # Doing this at the top of the loop so we can catch the final result and change the OutputType
-                    if resp is not None:
-                        self.results_streams[message.key].put(resp)
-                    results_to_save = results_to_save + [val] if message.save else []
-                    resp = Response(
-                        output_type=OutputType.RESULT_STREAM, data=pickle_b64(val)
-                    )
-                # Change type of final result to RESULT to indicate end of stream
-                resp.output_type = OutputType.RESULT
-                self.results_streams[message.key].put(resp)
-                if callable_method:
-                    run_obj.__exit__(None, None, None)
+                    result_resource.put(val)
 
-                if message.save or message.remote:
-                    # TODO save queue inside loop instead?
-                    b = blob(data=results_to_save)
-                    b.provenance = run_obj
-                    b.save(message.key)
+                # Set run status to COMPLETED to indicate end of stream
+                result_resource.provenance.__exit__(None, None, None)
+
+                # Resave with new status
+                if message.save:
+                    result_resource.save()
             else:
-                if callable_method:
-                    run_obj.__exit__(None, None, None)
-
-                if message.save or message.remote:
+                # If the user needs this result again later, don't put it in queue or
+                # it will be gone after the first get
+                if persist:
                     if isinstance(result, Resource):
-                        result.provenance = run_obj
-                        result.save(message.key)
+                        # If the user's method returned a resource, save that resource as the result
+                        # instead of the queue so it's available for global caching
+                        result.provenance = result_resource.provenance
+                        result.name = message.key
+                        result_resource = result
                     else:
-                        b = blob(data=result)
-                        b.provenance = run_obj
-                        b.save(message.key)
+                        # We shouldn't return a queue if the result is not a generator, so replace it with a blob
+                        result_resource = Blob(
+                            name=message.key, provenance=result_resource.provenance
+                        )
+                        result_resource.data = result
+
+                    result_resource.pin()
+
+                    # Write out the new result_resource to the obj_store
+                    # obj_store.put(message.key, result_resource, env=self.env_name)
+                else:
+                    # Put the result in the queue so we can retrieve it once
+                    result_resource.put(result)
+
+                # If not a generator, the method was already called above and completed
+                self.output_types[message.key] = OutputType.RESULT
+                result_resource.provenance.__exit__(None, None, None)
+
+                if message.save:
+                    result_resource.save()
                 self.register_activity()
-                resp = Response(output_type=OutputType.RESULT, data=pickle_b64(result))
-                self.results_streams[message.key].put(resp)
         except Exception as e:
             logger.exception(e)
             self.register_activity()
-            resp = Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
-            self.results_streams[message.key].put(resp)
 
-    def _get_result_from_stream(self, key, block=True, timeout=None):
-        # TODO return queue.Empty instead of None
-        self.register_activity()
-        if key not in self.results_streams:
-            return None
-        try:
-            return self.results_streams[key].get(block=block, timeout=timeout)
-        except queue.Empty:
-            return None
+            # Setting this here is great because it allows us to still return all the computed values of a
+            # generator before hitting the exception, stream the logs back to the client until raising the exception,
+            # and indicate that we hit an exception before any results are available if that's the case.
+            self.output_types[message.key] = OutputType.EXCEPTION
+            result_resource.provenance.__exit__(
+                type(e), e, traceback.format_exc()
+            )  # TODO use format_tb instead?
 
     def run_module(self, message: Message):
         self.register_activity()
@@ -305,43 +322,141 @@ class EnvServlet:
                 output_type=OutputType.EXCEPTION,
             )
 
-    def get(self, key, timeout=None, _intra_cluster=False):
+    def get(self, key, remote=False, timeout=None, _intra_cluster=False):
         self.register_activity()
         try:
+            if not obj_store.contains(key):
+                while not obj_store.contains(key):
+                    time.sleep(0.01)
+                # Return so if the server's ray.get times out we don't try to get the object below, which
+                # would drain it out of the queue
+                return
+
             ret_obj = obj_store.get(
                 key, timeout=timeout, check_other_envs=not _intra_cluster
             )
-            logger.info(
+            logger.debug(
                 f"Servlet {self.env_name} got object of type "
                 f"{type(ret_obj)} back from object store for key {key}"
             )
             if _intra_cluster:
+                if remote:
+                    return ret_obj.config_for_rns
                 return ret_obj
-            # Case 1: ...
-            if isinstance(ret_obj, tuple):
-                (res, obj_ref, run_name) = ret_obj
-                ret_obj = res
-            # Case 2: ...
-            if isinstance(ret_obj, bytes):
-                ret_serialized = codecs.encode(ret_obj, "base64").decode()
-            # Case 3: ...
-            else:
-                ret_serialized = pickle_b64(ret_obj)
+
+            if isinstance(ret_obj, Queue):
+                # If we're waiting for a result, this will block until one is available, which will either
+                # cause the server's ray.get to timeout so it can try again, or return None as soon as the result is
+                # available so the server can try requesting again now that it's ready.
+                if ret_obj.empty():
+                    if (
+                        not ret_obj.provenance
+                        or ret_obj.provenance.status == RunStatus.NOT_STARTED
+                    ):
+                        while key not in self.output_types:
+                            time.sleep(0.01)
+                        return
+
+                    if ret_obj.provenance.status == RunStatus.RUNNING:
+                        while (
+                            isinstance(ret_obj, Queue)
+                            and ret_obj.empty()
+                            and ret_obj.provenance.status == RunStatus.RUNNING
+                        ):
+                            ret_obj = ret_obj.refresh()
+                            time.sleep(0.01)
+                        return
+
+                    if ret_obj.provenance.status == RunStatus.COMPLETED:
+                        # We need to look up the output type because this could be a stream with no results left,
+                        # which should still return OutputType.RESULT_STREAM, or a call with no result, which should
+                        # return OutputType.SUCCESS
+                        if self.output_types[key] == OutputType.RESULT_STREAM:
+                            return Response(output_type=OutputType.SUCCESS_STREAM)
+                        else:
+                            return Response(output_type=OutputType.SUCCESS)
+                    if ret_obj.provenance.status == RunStatus.ERROR:
+                        return Response(
+                            error=pickle_b64(ret_obj.provenance.error),
+                            traceback=pickle_b64(ret_obj.provenance.traceback),
+                            output_type=OutputType.EXCEPTION,
+                        )
+                    # TODO
+                    # if ret_obj.provenance.status == RunStatus.CANCELLED:
+                    #     return Response(output_type=OutputType.CANCELLED)
+
+                    # If queue is empty and RunStatus.RUNNING or RunStatus.NOT_STARTED,
+                    # just wait for results (or timeout), same as if it weren't empty
+
+                res = ret_obj.get(block=True, timeout=timeout)
+                # There's no OutputType.EXCEPTION case to handle here, because if an exception were thrown the
+                # provenance.status would be RunStatus.ERROR, and we want to continue retrieving results until the
+                # queue is empty, and then will return the exception and traceback in the empty case above.
+                return Response(
+                    data=pickle_b64(res),
+                    output_type=self.output_types[key],
+                )
+
+            # If the user requests a remote object, we can return a queue before results complete so they can
+            # stream in results directly from the queue. For all other cases, we need to wait for the results
+            # to be available.
+            # TODO handle queue case above
+            if remote:
+                if not isinstance(ret_obj, Resource):
+                    # If the user requests a remote of an object that is not a Resource, we need to wrap it
+                    # in a Resource first, which will overwrite the original object in the object store. We
+                    # may want to just throw an error instead, but let's see if this is acceptable to start.
+                    ret_obj = blob(data=ret_obj, name=key)
+                    ret_obj.pin()
+
+                if ret_obj.provenance and ret_obj.provenance.status == RunStatus.ERROR:
+                    return Response(
+                        error=pickle_b64(ret_obj.provenance.error),
+                        traceback=pickle_b64(ret_obj.provenance.traceback),
+                        output_type=OutputType.EXCEPTION,
+                    )
+
+                # If this is a "remote" request, just return the rns config and the client will reconstruct the
+                # resource from it
+                res = ret_obj.config_for_rns
+                res["dryrun"] = True
+                return Response(
+                    data=res,
+                    output_type=OutputType.CONFIG,
+                )
+
+            if isinstance(ret_obj, Resource) and ret_obj.provenance:
+                if ret_obj.provenance.status == RunStatus.ERROR:
+                    return Response(
+                        error=pickle_b64(ret_obj.provenance.error),
+                        traceback=pickle_b64(ret_obj.provenance.traceback),
+                        output_type=OutputType.EXCEPTION,
+                    )
+                # Includes the case where the user called a method with remote or save, where even if the original
+                # return value wasn't a resource, we want to return the wrapped resource anyway. If the user called
+                # a non-generator method without remote or save, the result would be in a queue and handled above,
+                # so it'll still be returned unwrapped.
+                if ret_obj.provenance.status == RunStatus.COMPLETED:
+                    if isinstance(ret_obj, Blob) and not remote:
+                        # If the user doesn't want the remote object, we need to return the actual data
+                        ret_obj = ret_obj.data
+
+                    return Response(
+                        data=pickle_b64(ret_obj),
+                        output_type=OutputType.RESULT,
+                    )
+                # TODO
+                # if ret_obj.provenance.status == RunStatus.CANCELLED:
+                #     return Response(output_type=OutputType.CANCELLED)
+
+                # We don't need to handle the ret_obj.provenance.status == RunStatus.NOT_STARTED case, because
+                # if the run hasn't started yet, the result_resource will still be a Queue and handled above.
+                # If the run has started, but for some reason the Queue hasn't been created yet (even though it's
+                # created immediately), the ret_obj wouldn't be found in the obj_store.
+
             return Response(
-                data=ret_serialized,
+                data=pickle_b64(ret_obj),
                 output_type=OutputType.RESULT,
-            )
-        except ray.exceptions.GetTimeoutError:
-            return None
-        except (
-            ray.exceptions.TaskCancelledError,
-            ray.exceptions.RayTaskError,
-        ) as e:
-            logger.info(f"Attempted to get task {key} that was cancelled.")
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
             )
         except Exception as e:
             return Response(

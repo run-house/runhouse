@@ -24,20 +24,20 @@ def test_save_local_blob_fails(local_blob, blob_data):
 @pytest.mark.clustertest
 @pytest.mark.parametrize(
     "blob",
-    ["local_file", "s3_blob", "gcs_blob", "cluster_file", "cluster_blob"],
+    ["cluster_blob", "cluster_file", "local_file", "s3_blob", "gcs_blob"],
     indirect=True,
 )
 def test_reload_blob_with_name(blob):
     name = "my_blob"
     blob.save(name)
     original_system = str(blob.system)
-    original_data_str = str(blob.fetch())
+    original_data_str = str(blob.fetch().data)
 
     del blob
 
     reloaded_blob = rh.blob(name=name)
     assert str(reloaded_blob.system) == str(original_system)
-    reloaded_data = reloaded_blob.fetch()
+    reloaded_data = reloaded_blob.fetch().data
     assert reloaded_data[1] == "test"
     assert str(reloaded_data) == original_data_str
 

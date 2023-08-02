@@ -166,13 +166,16 @@ def test_generator(cpu_cluster):
 def test_remotes(cpu_cluster):
     pid_fn = rh.function(getpid, system=cpu_cluster)
 
-    pid_run = pid_fn.run()
-    pid_res = pid_fn.get(pid_run.name)
+    pid_key = pid_fn.run()
+    pid_res = cpu_cluster.get(pid_key)
     assert pid_res > 0
 
-    # Test passing an objectref into a normal call
-    pid_res_from_ref = pid_fn(pid_run.name)
-    assert pid_res_from_ref > pid_res
+    # Test passing a remote into a normal call
+    pid_blob = pid_fn.remote()
+    pid_res = cpu_cluster.get(pid_blob.name)
+    assert pid_res > 0
+    pid_res = pid_blob.fetch()
+    assert pid_res > 0
 
 
 @pytest.mark.clustertest
@@ -212,7 +215,13 @@ def test_list_keys(cpu_cluster):
     pid_obj2 = pid_fn.run()
 
     current_jobs = cpu_cluster.list_keys()
-    assert set([pid_obj1.name, pid_obj2.name]).issubset(current_jobs)
+    assert set([pid_obj1, pid_obj2]).issubset(current_jobs)
+
+    pid_obj3 = pid_fn.remote()
+    pid_obj4 = pid_fn.remote()
+
+    current_jobs = cpu_cluster.list_keys()
+    assert set([pid_obj3.name, pid_obj4.name]).issubset(current_jobs)
 
 
 def slow_getpid(a=0):

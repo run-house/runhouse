@@ -118,7 +118,10 @@ class Env(Resource):
     def install(self, force=False):
         """Locally install packages and run setup commands."""
         # Hash the config_for_rns to check if we need to install
-        install_hash = hash(str(self.config_for_rns))
+        env_config = self.config_for_rns
+        # Remove the name because auto-generated names will be different, but the installed components are the same
+        env_config.pop("name")
+        install_hash = hash(str(env_config))
         # Check the existing hash
         if install_hash in obj_store.installed_envs and not force:
             logger.info("Env already installed, skipping")

@@ -189,6 +189,7 @@ def cluster(request):
 @pytest.fixture(scope="session")
 def cpu_cluster():
     c = rh.cluster("^rh-cpu")
+    c.name = "test-rh-cluster"
     c.up_if_not()
     # c.restart_server(restart_ray=True)
     c.install_packages(["pytest"])
@@ -217,7 +218,7 @@ def byo_cpu():
     ).save()
 
     c.install_packages(["pytest"])
-    c.send_secrets(["ssh"])
+    c.sync_secrets(["ssh"])
 
     return c
 

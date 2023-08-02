@@ -116,6 +116,7 @@ class ObjStore:
         check_other_envs: bool = True,
         resolve: bool = True,
     ):
+        # TODO change this to look up which env the object lives in by default, with an opt out
         # First check if it's in the Python kv store
         val = self.call_kv_method(self._kv_store, "get", key, None)
         if val is not None:

@@ -248,12 +248,16 @@ class Cluster(Resource):
         )
         self.client.install(to_install, env)
 
-    def get(self, key: str, default: Any = None, stream_logs: bool = True):
+    def get(
+        self, key: str, default: Any = None, remote=False, stream_logs: bool = False
+    ):
         """Get the result for a given key from the cluster's object store."""
         self.check_server()
         if self.on_this_cluster():
             return obj_store.get(key, default=default)
-        res = self.client.call_module_method(key, None, stream_logs=stream_logs)
+        res = self.client.call_module_method(
+            key, None, remote=remote, stream_logs=stream_logs
+        )
         return res if res is not None else default
 
     def get_run(self, run_name: str, folder_path: str = None):
@@ -283,7 +287,7 @@ class Cluster(Resource):
             else None
         )
         if self.on_this_cluster():
-            return obj_store.put(key=resource.name, obj=resource, env=env)
+            return obj_store.put(key=resource.name, value=resource, env=env)
         return self.client.put_resource(
             resource, state=state or {}, env=env, dryrun=dryrun
         )
@@ -571,6 +575,7 @@ class Cluster(Resource):
         stream_logs=True,
         run_name=None,
         remote=False,
+        run_async=False,
         **kwargs,
     ):
         """Call a method on a module that is installed on the cluster.
@@ -580,6 +585,8 @@ class Cluster(Resource):
             method_name (str): Name of the method.
             stream_logs (bool): Whether to stream logs from the method call.
             run_name (str): Name for the run.
+            remote (bool): Return a remote object from the function, rather than the result proper.
+            run_async (bool): Run the method asynchronously and retun a run_key to retreive results and logs later.
             *args: Positional arguments to pass to the method.
             **kwargs: Keyword arguments to pass to the method.
 
@@ -594,6 +601,7 @@ class Cluster(Resource):
             stream_logs=stream_logs,
             run_name=run_name,
             remote=remote,
+            run_async=run_async,
             args=args,
             kwargs=kwargs,
         )
@@ -689,7 +697,7 @@ class Cluster(Resource):
             >>> cpu.run(["python script.py"], run_name="my_exp")
         """
         # TODO [DG] suspect autostop while running?
-        from runhouse import run
+        from runhouse.rns.run import run
 
         cmd_prefix = ""
         if env:

@@ -34,7 +34,7 @@ app = FastAPI()
 class HTTPServer:
     DEFAULT_PORT = 50052
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
-    LOGGING_WAIT_TIME = 1.0
+    LOGGING_WAIT_TIME = 1
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
 
     def __init__(self, conda_env=None, *args, **kwargs):
@@ -203,35 +203,45 @@ class HTTPServer:
         try:
             method = None if method == "None" else method
             # If this is a "get" request to just return the module, do not stream logs or save by default
-            message = message or Message(stream_logs=False, save=False)
-            message.key = message.key or _generate_default_name(
-                prefix=module
-                if method == "__call__" or not method
-                else f"{module}_{method}",
-                precision="ms",  # Higher precision because we see collisions within the same second
+            message = message or (
+                Message(stream_logs=False, key=module) if not method else Message()
             )
             env = message.env or HTTPServer.lookup_env_for_name(module)
-            obj_ref = HTTPServer.call_in_env_servlet(
-                "call_module_method",
-                [module, method, message],
-                env=env,
-                create=True,
-                block=False,
-            )
+            if method:
+                # TODO fix the way we generate runkeys, it's ugly
+                message.key = message.key or _generate_default_name(
+                    prefix=module if method == "__call__" else f"{module}_{method}",
+                    precision="ms",  # Higher precision because we see collisions within the same second
+                )
+                HTTPServer.call_in_env_servlet(
+                    "call_module_method",
+                    [module, method, message],
+                    env=env,
+                    create=True,
+                    block=False,
+                )
 
-            # Hold onto obj_refs just so we can support cancelling
-            from runhouse.rh_config import obj_store
+                # Hold onto obj_refs just so we can support cancelling
+                # TODO don't do this in the obj_store (lots of extra keys show up to the user),
+                #  just do it in a local dict.
+                # from runhouse.rh_config import obj_store
+                #
+                # obj_store.put(message.key + "_ref", obj_ref)
+            else:
+                message.key = module
 
-            obj_store.put(message.key + "_ref", obj_ref)
-
-            if message.remote:
+            if message.run_async:
                 return Response(
                     data=pickle_b64(message.key),
                     output_type=OutputType.RESULT,
                 )
+
             return StreamingResponse(
                 HTTPServer._get_results_and_logs_generator(
-                    message.key, env=env, stream_logs=message.stream_logs
+                    message.key,
+                    env=env,
+                    stream_logs=message.stream_logs,
+                    remote=message.remote,
                 ),
                 media_type="application/json",
             )
@@ -246,6 +256,8 @@ class HTTPServer:
 
     @staticmethod
     def _get_logfiles(log_key, log_type=None):
+        if not log_key:
+            return None
         key_logs_path = Path(EnvServlet.RH_LOGFILE_PATH) / log_key
         if key_logs_path.exists():
             # Logs are like: `.rh/logs/key/key.[out|err]`
@@ -271,7 +283,7 @@ class HTTPServer:
         return open_files
 
     @staticmethod
-    def _get_results_and_logs_generator(key, env, stream_logs):
+    def _get_results_and_logs_generator(key, env, stream_logs, remote=False):
         open_logfiles = []
 
         waiting_for_results = True
@@ -280,8 +292,8 @@ class HTTPServer:
             while waiting_for_results:
                 if not obj_ref:
                     obj_ref = HTTPServer.call_in_env_servlet(
-                        "_get_result_from_stream",
-                        [key],
+                        "get",
+                        [key, remote],
                         env=env,
                         block=False,
                     )
@@ -298,9 +310,12 @@ class HTTPServer:
                     ret_resp = json.dumps(jsonable_encoder(ret_val))
                     logger.info(f"Yielding response for key {key}")
                     yield ret_resp
-                    obj_ref = None
                 except ray.exceptions.GetTimeoutError:
                     pass
+
+                # Reset the obj_ref so we make a fresh request for the result next time around
+                obj_ref = None
+
                 # Grab all the lines written to all the log files since the last time we checked, including
                 # any new log files that have been created
                 open_logfiles = (

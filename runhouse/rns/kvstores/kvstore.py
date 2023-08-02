@@ -25,7 +25,7 @@ class KVStore(Module):
         .. note::
                 To build a KVStore, please use the factory method :func:`kvstore`.
         """
-        super().__init__(name=name, dryrun=dryrun, system=system, env=env)
+        super().__init__(name=name, system=system, env=env, dryrun=dryrun, **kwargs)
         self.data = {}
 
     def put(self, key: str, value: Any):

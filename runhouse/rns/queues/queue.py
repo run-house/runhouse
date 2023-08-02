@@ -28,10 +28,11 @@ class Queue(Module):
         .. note::
                 To build a Queue, please use the factory method :func:`queue`.
         """
-        super().__init__(name=name, system=system, env=env, dryrun=dryrun)
-        self.data = queue.Queue(maxsize=max_size)
-        self.persist = persist
-        self._subscribers = []
+        super().__init__(name=name, system=system, env=env, dryrun=dryrun, **kwargs)
+        if not self._system or self._system.on_this_cluster():
+            self.data = queue.Queue(maxsize=max_size)
+            self.persist = persist
+            self._subscribers = []
 
     def put(self, item: Any, block=True, timeout=None):
         self.data.put(item, block=block, timeout=timeout)

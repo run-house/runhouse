@@ -80,9 +80,7 @@ class Package(Resource):
             env (Env or str): Environment to install package on. If left empty, defaults to base environment.
                 (Default: ``None``)
         """
-        logging.info(
-            f"Installing package {str(self)} with method {self.install_method}."
-        )
+        logging.info(f"Installing {str(self)} with method {self.install_method}.")
         install_cmd = ""
         install_args = f" {self.install_args}" if self.install_args else ""
         cuda_version_or_cpu = self._detect_cuda_version_or_cpu()

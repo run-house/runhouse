@@ -4,6 +4,7 @@ import time
 
 import requests
 
+from runhouse.rns.resource import Resource
 from runhouse.rns.utils.env import _get_env_from
 from runhouse.servers.http.http_utils import handle_response, OutputType, pickle_b64
 
@@ -131,6 +132,7 @@ class HTTPClient:
         save=False,
         run_name=None,
         remote=False,
+        run_async=False,
         args=None,
         kwargs=None,
     ):
@@ -140,7 +142,8 @@ class HTTPClient:
         # Measure the time it takes to send the message
         start = time.time()
         logger.info(
-            f"Calling {module_name}" + (f".{method_name}" if method_name else "")
+            f"{'Calling' if method_name else 'Getting'} {module_name}"
+            + (f".{method_name}" if method_name else "")
         )
         res = requests.post(
             f"http://{self.host}:{self.port}/{module_name}/{method_name}/",
@@ -151,18 +154,15 @@ class HTTPClient:
                 "save": save,
                 "key": run_name,
                 "remote": remote,
+                "run_async": run_async,
             },
-            stream=not remote,
+            stream=not run_async,
         )
         if res.status_code != 200:
             raise ValueError(
                 f"Error calling {method_name} on server: {res.content.decode()}"
             )
         error_str = f"Error calling {method_name} on {module_name} on server"
-
-        if remote:
-            resp = res.json()
-            return handle_response(resp, resp["output_type"], error_str)
 
         # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single result,
         # maybe a stream of results), so we need to separate these out.
@@ -172,28 +172,47 @@ class HTTPClient:
             resp = json.loads(responses_json)
             output_type = resp["output_type"]
             result = handle_response(resp, output_type, error_str)
-            if output_type == OutputType.RESULT_STREAM:
+            if output_type in [OutputType.RESULT_STREAM, OutputType.SUCCESS_STREAM]:
                 # First time we encounter a stream result, we know the rest of the results will be a stream, so return
                 # a generator
                 def results_generator():
-                    yield result
+                    # If this is supposed to be an empty generator, there's no first result to return
+                    if not output_type == OutputType.SUCCESS_STREAM:
+                        yield result
                     for responses_json_inner in res_iter:
                         resp_inner = json.loads(responses_json_inner)
                         output_type_inner = resp_inner["output_type"]
                         result_inner = handle_response(
                             resp_inner, output_type_inner, error_str
                         )
-                        if output_type_inner in [OutputType.RESULT_STREAM, OutputType.RESULT]:
+                        # if output_type == OutputType.SUCCESS_STREAM:
+                        #     break
+                        if output_type_inner in [
+                            OutputType.RESULT_STREAM,
+                            OutputType.RESULT,
+                        ]:
                             yield result_inner
+                    end_inner = time.time()
+                    if method_name:
+                        log_str = f"Time to call {module_name}.{method_name}: {round(end_inner - start, 2)} seconds"
+                    else:
+                        log_str = f"Time to get {module_name}: {round(end_inner - start, 2)} seconds"
+                    logging.info(log_str)
 
                 return results_generator()
+            elif output_type == OutputType.CONFIG:
+                # Finish iterating over logs before returning single result
+                non_generator_result = Resource.from_config(result, dryrun=True)
             elif output_type == OutputType.RESULT:
                 # Finish iterating over logs before returning single result
                 non_generator_result = result
+
         end = time.time()
-        logging.info(
-            f"Time to call {module_name}.{method_name}: {round(end - start, 2)} seconds"
-        )
+        if method_name:
+            log_str = f"Time to call {module_name}.{method_name}: {round(end - start, 2)} seconds"
+        else:
+            log_str = f"Time to get {module_name}: {round(end - start, 2)} seconds"
+        logging.info(log_str)
         return non_generator_result
 
     # TODO [DG]: maybe just merge cancel into this so we can get log streaming back as we cancel a job (ditto others)

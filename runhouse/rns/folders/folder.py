@@ -94,8 +94,6 @@ class Folder(Resource):
         self._local_mount_path = None
         if local_mount:
             self.mount(tmp=True)
-        if not self.dryrun:
-            self.mkdir()
 
     def __getstate__(self):
         """Override the pickle method to clear _fsspec_fs before pickling."""
@@ -840,7 +838,7 @@ class Folder(Resource):
         Example:
             >>> my_folder.put(contents={"filename.txt": data})
         """
-        # TODO create the bucket if it doesn't already exist
+        self.mkdir()
         # Handle lists of resources just for convenience
         if isinstance(contents, list):
             for resource in contents:

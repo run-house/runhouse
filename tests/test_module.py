@@ -79,18 +79,22 @@ class SlowNumpyArray:
 @pytest.mark.parametrize("env", [None])
 def test_module_from_class(cpu_cluster, env):
     RemoteClass = rh.module(SlowNumpyArray).to(cpu_cluster)
-    remote_array = RemoteClass(size=5)
+    remote_array = RemoteClass(size=3)
     assert remote_array.system == cpu_cluster
     results = []
+    out = ""
     with rh.capture_stdout() as stdout:
         for i, val in enumerate(remote_array.slow_iter()):
             assert val
             print(val)
             results += [val]
-            out = str(stdout)
-            assert f"Hello from the cluster stdout! {i}" in out
-            assert f"Hello from the cluster logs! {i}" in out
-    assert len(results) == 5
+            out = out + str(stdout)
+    assert len(results) == 3
+
+    # Check that stdout was captured
+    for i in range(remote_array.size):
+        assert f"Hello from the cluster stdout! {i}" in out
+        assert f"Hello from the cluster logs! {i}" in out
 
     print(remote_array.cpu_count())
     assert remote_array.cpu_count() == os.cpu_count()
@@ -104,9 +108,9 @@ def test_module_from_class(cpu_cluster, env):
     assert remote_array.arr is None
     arr = remote_array.fetch.arr
     assert isinstance(arr, np.ndarray)
-    assert arr.shape == (5,)
+    assert arr.shape == (3,)
     assert arr[0] == 0
-    assert arr[4] == 4
+    assert arr[2] == 2
 
 
 class SlowPandas(rh.Module):
@@ -134,19 +138,23 @@ class SlowPandas(rh.Module):
 # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
 @pytest.mark.parametrize("env", [None])
 def test_module_from_subclass(cpu_cluster, env):
-    remote_df = SlowPandas(size=5).to(cpu_cluster, env)
+    remote_df = SlowPandas(size=3).to(cpu_cluster, env)
     assert remote_df.system == cpu_cluster
     results = []
     # Capture stdout to check that it's working
+    out = ""
     with rh.capture_stdout() as stdout:
         for i, val in enumerate(remote_df.slow_iter()):
             assert val
             print(val)
             results += [val]
-            out = str(stdout)
-            assert f"Hello from the cluster stdout! {i}" in out
-            assert f"Hello from the cluster logs! {i}" in out
-    assert len(results) == 5
+            out = out + str(stdout)
+    assert len(results) == 3
+
+    # Check that stdout was captured
+    for i in range(remote_df.size):
+        assert f"Hello from the cluster stdout! {i}" in out
+        assert f"Hello from the cluster logs! {i}" in out
 
     print(remote_df.cpu_count())
     assert remote_df.cpu_count() == os.cpu_count()
@@ -157,9 +165,9 @@ def test_module_from_subclass(cpu_cluster, env):
     assert remote_df.df is None
     df = remote_df.fetch.df
     assert isinstance(df, pd.DataFrame)
-    assert df.shape == (5, 5)
+    assert df.shape == (3, 3)
     assert df.loc[0, 0] == 0
-    assert df.loc[4, 4] == 4
+    assert df.loc[2, 2] == 2
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@ class Message(BaseModel):
     stream_logs: Optional[bool] = True
     save: Optional[bool] = False
     remote: Optional[bool] = False
+    run_async: Optional[bool] = False
 
 
 class Args(BaseModel):
@@ -28,7 +29,7 @@ class Args(BaseModel):
 
 
 class Response(BaseModel):
-    data: Union[None, str, List[str]]
+    data: Union[None, str, List[str], Dict]
     error: Optional[str]
     traceback: Optional[str]
     output_type: str
@@ -42,6 +43,8 @@ class OutputType:
     RESULT = "result"
     RESULT_LIST = "result_list"
     RESULT_STREAM = "result_stream"
+    SUCCESS_STREAM = "success_stream"  # No output, but with generators
+    CONFIG = "config"
 
 
 def pickle_b64(picklable):
@@ -55,10 +58,13 @@ def b64_unpickle(b64_pickled):
 def handle_response(response_data, output_type, err_str):
     if output_type in [OutputType.RESULT, OutputType.RESULT_STREAM]:
         return b64_unpickle(response_data["data"])
+    elif output_type == OutputType.CONFIG:
+        # No need to unpickle since this was just sent as json
+        return response_data["data"]
     elif output_type == OutputType.RESULT_LIST:
         # Map, starmap, and repeat return lists of results
         return [b64_unpickle(val) for val in response_data["data"]]
-    elif output_type == OutputType.SUCCESS:
+    elif output_type in [OutputType.SUCCESS, OutputType.SUCCESS_STREAM]:
         return
     elif output_type == OutputType.EXCEPTION:
         fn_exception = b64_unpickle(response_data["error"])

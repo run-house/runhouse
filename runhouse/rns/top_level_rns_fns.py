@@ -60,6 +60,19 @@ def load(name: str, instantiate: bool = True, dryrun: bool = False):
         )
 
 
+# This funny structure lets us to rh.here to get the current cluster
+def __getattr__(name):
+    if name == "here":
+        from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
+
+        config = _current_cluster(key="config")
+        if not config:
+            return "file"
+        system = _get_cluster_from(config)
+        return system
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
 def load_from_path(
     path: str,
     instantiate: bool = True,
