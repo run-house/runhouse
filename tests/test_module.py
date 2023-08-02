@@ -25,17 +25,17 @@ logger = logging.getLogger(__name__)
 
 @pytest.mark.clustertest
 @pytest.mark.parametrize("env", [None, "base", "pytorch"])
-def test_call_module_method(cpu_cluster, env):
-    cpu_cluster.put("numpy_pkg", Package.from_string("numpy"), env=env)
+def test_call_module_method(ondemand_cpu_cluster, env):
+    ondemand_cpu_cluster.put("numpy_pkg", Package.from_string("numpy"), env=env)
 
     # Test for method
-    res = cpu_cluster.call_module_method(
+    res = ondemand_cpu_cluster.call_module_method(
         "numpy_pkg", "_detect_cuda_version_or_cpu", stream_logs=True
     )
     assert res == "cpu"
 
     # Test for property
-    res = cpu_cluster.call_module_method(
+    res = ondemand_cpu_cluster.call_module_method(
         "numpy_pkg", "config_for_rns", stream_logs=True
     )
     numpy_config = Package.from_string("numpy").config_for_rns
@@ -44,8 +44,10 @@ def test_call_module_method(cpu_cluster, env):
     assert res == numpy_config
 
     # Test iterator
-    cpu_cluster.put("config_dict", list(numpy_config.keys()), env=env)
-    res = cpu_cluster.call_module_method("config_dict", "__iter__", stream_logs=True)
+    ondemand_cpu_cluster.put("config_dict", list(numpy_config.keys()), env=env)
+    res = ondemand_cpu_cluster.call_module_method(
+        "config_dict", "__iter__", stream_logs=True
+    )
     # Checks that all the keys in numpy_config were returned
     inspect.isgenerator(res)
     for key in res:
@@ -77,10 +79,10 @@ class SlowNumpyArray:
 @pytest.mark.clustertest
 # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
 @pytest.mark.parametrize("env", [None])
-def test_module_from_class(cpu_cluster, env):
-    RemoteClass = rh.module(SlowNumpyArray).to(cpu_cluster)
+def test_module_from_class(ondemand_cpu_cluster, env):
+    RemoteClass = rh.module(SlowNumpyArray).to(ondemand_cpu_cluster)
     remote_array = RemoteClass(size=3)
-    assert remote_array.system == cpu_cluster
+    assert remote_array.system == ondemand_cpu_cluster
     results = []
     out = ""
     with rh.capture_stdout() as stdout:
@@ -137,9 +139,9 @@ class SlowPandas(rh.Module):
 @pytest.mark.clustertest
 # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
 @pytest.mark.parametrize("env", [None])
-def test_module_from_subclass(cpu_cluster, env):
-    remote_df = SlowPandas(size=3).to(cpu_cluster, env)
-    assert remote_df.system == cpu_cluster
+def test_module_from_subclass(ondemand_cpu_cluster, env):
+    remote_df = SlowPandas(size=3).to(ondemand_cpu_cluster, env)
+    assert remote_df.system == ondemand_cpu_cluster
     results = []
     # Capture stdout to check that it's working
     out = ""

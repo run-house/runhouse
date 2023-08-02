@@ -175,12 +175,12 @@ def test_remotes(cluster):
     pid_fn = rh.function(getpid, system=cluster)
 
     pid_key = pid_fn.run()
-    pid_res = cpu_cluster.get(pid_key)
+    pid_res = cluster.get(pid_key)
     assert pid_res > 0
 
     # Test passing a remote into a normal call
     pid_blob = pid_fn.remote()
-    pid_res = cpu_cluster.get(pid_blob.name)
+    pid_res = cluster.get(pid_blob.name)
     assert pid_res > 0
     pid_res = pid_blob.fetch()
     assert pid_res > 0
@@ -230,7 +230,7 @@ def test_list_keys(cluster):
     pid_obj3 = pid_fn.remote()
     pid_obj4 = pid_fn.remote()
 
-    current_jobs = cpu_cluster.list_keys()
+    current_jobs = cluster.list_keys()
     assert set([pid_obj3.name, pid_obj4.name]).issubset(current_jobs)
 
 

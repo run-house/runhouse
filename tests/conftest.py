@@ -50,18 +50,18 @@ def gcs_blob(blob_data, blob_gcs_bucket):
 
 
 @pytest.fixture
-def cluster_blob(blob_data, cpu_cluster):
+def cluster_blob(blob_data, ondemand_cpu_cluster):
     return rh.blob(
         data=blob_data,
-        system=cpu_cluster,
+        system=ondemand_cpu_cluster,
     )
 
 
 @pytest.fixture
-def cluster_file(blob_data, cpu_cluster):
+def cluster_file(blob_data, ondemand_cpu_cluster):
     return rh.blob(
         data=blob_data,
-        system=cpu_cluster,
+        system=ondemand_cpu_cluster,
         path="test_blob.pickle",
     )
 
@@ -188,7 +188,7 @@ def cluster(request):
 
 @pytest.fixture(scope="session")
 def ondemand_cpu_cluster():
-    c = rh.cluster("test-cluster")
+    c = rh.cluster("^rh-cpu")
     c.name = "test-rh-cluster"
     c.up_if_not()
     # c.restart_server(restart_ray=True)
