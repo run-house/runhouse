@@ -30,9 +30,14 @@ def cluster(
         Union[Cluster, OnDemandCluster]: The resulting cluster.
 
     Example:
-        >>> import runhouse as rh
+        >>> # using private key
         >>> gpu = rh.cluster(host=['<ip of the cluster>'],
         >>>                  ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'},
+        >>>                  name='rh-a10x').save()
+
+        >>> # using password
+        >>> gpu = rh.cluster(host=['<ip of the cluster>'],
+        >>>                  ssh_creds={'ssh_user': '...', 'password':'*****'},
         >>>                  name='rh-a10x').save()
 
         >>> # Load cluster from above

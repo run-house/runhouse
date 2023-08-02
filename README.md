@@ -184,9 +184,7 @@ Please reach out (first name at run.house) to contribute or share feedback!
 ## 👨‍🏫 Learn More
 
 [**Docs**](https://runhouse-docs.readthedocs-hosted.com/en/latest/index.html):
-High-level overviews of the architecture, detailed API references, and basic API examples.
-
-[**Tutorials Repo**](https://github.com/run-house/tutorials): A comprehensive walkthrough of Runhouse APIs through some popular ML examples, think Stable Diffusion, Dreambooth, BERT.
+Detailed API references, basic API examples and walkthroughs, end-to-end tutorials, and high-level architecture overview.
 
 [**Funhouse Repo**](https://github.com/run-house/funhouse): Standalone Runhouse apps to try out fun ML ideas,
 think the latest Stable Diffusion models, text generation models, launching Gradio spaces, and even more!
