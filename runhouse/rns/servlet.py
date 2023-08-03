@@ -49,33 +49,6 @@ class EnvServlet:
     def register_activity():
         set_last_active_time_to_now()
 
-    def install(self, message: Message):
-        self.register_activity()
-        try:
-            packages, env = b64_unpickle(message.data)
-            logger.info(f"Message received from client to install packages: {packages}")
-            for package in packages:
-                if isinstance(package, str):
-                    pkg = Package.from_string(package)
-
-                elif hasattr(package, "_install"):
-                    pkg = package
-                else:
-                    raise ValueError(f"package {package} not recognized")
-
-                pkg._install(env)
-
-            self.register_activity()
-            return Response(output_type=OutputType.SUCCESS)
-        except Exception as e:
-            logger.exception(e)
-            self.register_activity()
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
-
     def put_resource(self, message: Message):
         self.register_activity()
         try:
@@ -322,15 +295,18 @@ class EnvServlet:
                 output_type=OutputType.EXCEPTION,
             )
 
-    def get(self, key, remote=False, timeout=None, _intra_cluster=False):
+    def get(self, key, remote=False, stream=False, timeout=None, _intra_cluster=False):
+        """ Get an object from the servlet's object store.
+
+        Args:
+            key (str): The key of the object to get.
+            remote (bool): Whether to return the object or it's config to construct a remote object.
+            stream (bool): Whether to stream results as available (if the key points to a queue).
+            """
         self.register_activity()
         try:
             if not obj_store.contains(key):
-                while not obj_store.contains(key):
-                    time.sleep(0.01)
-                # Return so if the server's ray.get times out we don't try to get the object below, which
-                # would drain it out of the queue
-                return
+                return Response(output_type=OutputType.NOT_FOUND)
 
             ret_obj = obj_store.get(
                 key, timeout=timeout, check_other_envs=not _intra_cluster
@@ -344,7 +320,18 @@ class EnvServlet:
                     return ret_obj.config_for_rns
                 return ret_obj
 
-            if isinstance(ret_obj, Queue):
+            # If the request doesn't want a stream, we can just return the queue object in same way as any other, below
+            if isinstance(ret_obj, Queue) and stream:
+                if remote and self.output_types.get(key) in [OutputType.RESULT_STREAM, OutputType.SUCCESS_STREAM]:
+                    # If this is a "remote" request and we already know the output type is a stream, we can
+                    # return the Queue as a remote immediately so the client can start streaming the results
+                    res = ret_obj.config_for_rns
+                    res["dryrun"] = True
+                    return Response(
+                        data=res,
+                        output_type=OutputType.CONFIG,
+                    )
+
                 # If we're waiting for a result, this will block until one is available, which will either
                 # cause the server's ray.get to timeout so it can try again, or return None as soon as the result is
                 # available so the server can try requesting again now that it's ready.
@@ -357,6 +344,8 @@ class EnvServlet:
                             time.sleep(0.01)
                         return
 
+                    # This allows us to return the results of a generator as they become available, rather than
+                    # waiting a full second for the ray.get in the server to timeout before trying again.
                     if ret_obj.provenance.status == RunStatus.RUNNING:
                         while (
                             isinstance(ret_obj, Queue)

@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import time
 import subprocess
 import traceback
 from pathlib import Path
@@ -174,17 +175,6 @@ class HTTPServer:
         return None
 
     @staticmethod
-    @app.post("/env")
-    def install(message: Message):
-        return HTTPServer.call_in_env_servlet(
-            "install",
-            [message],
-            env=message.env,
-            create=True,
-            lookup_env_for_name=message.key,
-        )
-
-    @staticmethod
     @app.post("/resource")
     def put_resource(message: Message):
         return HTTPServer.call_in_env_servlet(
@@ -290,10 +280,15 @@ class HTTPServer:
         try:
             obj_ref = None
             while waiting_for_results:
+                from runhouse.rh_config import obj_store
+
+                while not obj_store.contains(key):
+                    time.sleep(0.01)
+
                 if not obj_ref:
                     obj_ref = HTTPServer.call_in_env_servlet(
                         "get",
-                        [key, remote],
+                        [key, remote, True],
                         env=env,
                         block=False,
                     )

@@ -73,14 +73,6 @@ class HTTPClient:
             timeout=self.CHECK_TIMEOUT_SEC,
         )
 
-    def install(self, to_install, env=""):
-        self.request(
-            "env",
-            req_type="post",
-            data=pickle_b64((to_install, env)),
-            err_str=f"Error installing packages {to_install}",
-        )
-
     def run_module(
         self,
         relative_path,

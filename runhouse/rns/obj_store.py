@@ -191,7 +191,7 @@ class ObjStore:
             self.cancel(key, force=force, recursive=recursive)
 
     def contains(self, key: str):
-        return self.call_kv_method(self._kv_store, "contains", key)
+        return self.call_kv_method(self._env_for_key, "contains", key)
 
     def get_logfiles(self, key: str, log_type=None):
         # TODO remove

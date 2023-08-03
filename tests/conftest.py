@@ -189,7 +189,6 @@ def cluster(request):
 @pytest.fixture(scope="session")
 def ondemand_cpu_cluster():
     c = rh.cluster("^rh-cpu")
-    c.name = "test-rh-cluster"
     c.up_if_not()
     # c.restart_server(restart_ray=True)
     c.install_packages(["pytest"])

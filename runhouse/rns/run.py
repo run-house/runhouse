@@ -6,7 +6,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, List, Optional, Union
 
-from runhouse.rh_config import obj_store, rns_client
+from runhouse.rh_config import obj_store, rns_client, configs
 from runhouse.rns.blobs import file
 
 # Need to alias so it doesn't conflict with the folder property
@@ -55,11 +55,13 @@ class Run(Resource):
         status: RunStatus = RunStatus.NOT_STARTED,
         start_time: Optional[str] = None,
         end_time: Optional[str] = None,
+        creator: Optional[str] = None,
+        creation_stacktrace: Optional[str] = None,
         upstream_artifacts: Optional[List] = None,
         downstream_artifacts: Optional[List] = None,
         run_type: RunType = RunType.CMD_RUN,
         error: Optional[str] = None,
-        traceback: Optional[str] = None,
+        error_traceback: Optional[str] = None,
         overwrite: bool = False,
         dryrun: bool = False,
         **kwargs,
@@ -100,13 +102,15 @@ class Run(Resource):
         self.status = status
         self.start_time = start_time
         self.end_time = end_time
+        self.creator = creator
+        self.creation_stacktrace = creation_stacktrace
         self.upstream_artifacts = upstream_artifacts or []
         self.downstream_artifacts = downstream_artifacts or []
         self.fn_name = fn_name
         self.cmds = cmds
         self.run_type = run_type or self._detect_run_type()
         self.error = error
-        self.traceback = traceback
+        self.traceback = error_traceback
 
     def __enter__(self):
         self.status = RunStatus.RUNNING
@@ -124,9 +128,6 @@ class Run(Resource):
         # Add the stdout and stderr handlers to the root logger
         self._stdout_handler = logging.StreamHandler(sys.stdout)
         logger.addHandler(self._stdout_handler)
-        # For now it seems we don't need this, because stdout streams to this file, which includes logs.
-        # self._outfile_handler = logging.FileHandler(self._stdout_path)
-        # logger.addHandler(self._outfile_handler)
 
         return self
 
@@ -155,7 +156,6 @@ class Run(Resource):
         # self.write(data=stderr.encode(), path=self._stderr_path)
 
         logger.removeHandler(self._stdout_handler)
-        # logger.removeHandler(self._outfile_handler)
 
         # Flush stdout and stderr
         # sys.stdout.flush()
@@ -197,6 +197,10 @@ class Run(Resource):
         }
         config.update(base_config)
         return config
+
+    def populate_init_provenance(self):
+        self.creator = configs.get("username", None)
+        self.creation_stacktrace = "".join(traceback.format_stack(limit=11)[1:])
 
     @property
     def run_config(self):

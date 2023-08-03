@@ -60,7 +60,7 @@ def load(name: str, instantiate: bool = True, dryrun: bool = False):
         )
 
 
-# This funny structure lets us to rh.here to get the current cluster
+# This funny structure lets us use `rh.here` to get the current cluster
 def __getattr__(name):
     if name == "here":
         from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from

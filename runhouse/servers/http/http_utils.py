@@ -40,6 +40,7 @@ class OutputType:
     STDOUT = "stdout"
     STDERR = "stderr"
     SUCCESS = "success"  # No output
+    NOT_FOUND = "not_found"
     RESULT = "result"
     RESULT_LIST = "result_list"
     RESULT_STREAM = "result_stream"

@@ -19,6 +19,7 @@ from runhouse.rns.folders.folder import Folder
 from runhouse.rns.packages.package import Package
 from runhouse.rns.resource import Resource
 from runhouse.rns.utils.hardware import _current_cluster
+from runhouse.rns.utils.env import _get_env_from
 
 from runhouse.servers.http import DEFAULT_SERVER_PORT, HTTPClient
 
@@ -57,7 +58,6 @@ class Cluster(Resource):
 
         if not dryrun and self.address:
             # OnDemandCluster will start ray itself, but will also set address later, so won't reach here.
-            self.start_ray()
             self.check_server()
 
     def save_config_to_cluster(self):
@@ -123,42 +123,6 @@ class Cluster(Resource):
             f"cluster.keep_warm will have no effect on self-managed cluster {self.name}."
         )
 
-    def start_ray(self):
-        """Start Ray on the cluster.
-
-        Example:
-            >>> rh.cluster("rh-cpu").start_ray()
-        """
-        if self.is_up():
-            res = self.run(["ray start --head"], stream_logs=False)
-            if res[0] == 0:
-                return
-            if any(
-                line.startswith("ConnectionError: Ray is trying to start at")
-                for line in res[0][1].splitlines()
-            ):
-                # Ray is already started
-                return
-            # Check if ray is installed
-            if "ray" not in self._get_pip_installs(strip_versions=True):
-                self.run(
-                    ["pip install ray==2.4.0"]
-                )  # pin to SkyPilot's Ray requirement
-                res = self.run(["ray start --head"])
-                if not res[0][0]:
-                    raise RuntimeError(
-                        f"Failed to start ray on cluster <{self.name}>. "
-                        f"Error: {res[0][1]}"
-                    )
-        else:
-            raise ValueError(f"Cluster <{self.name}> is not up.")
-
-    def _get_pip_installs(self, strip_versions=False):
-        packages = self.run(["pip freeze"], stream_logs=False)[0][1].splitlines()
-        if strip_versions:
-            packages = [p.split("==")[0] for p in packages]
-        return packages
-
     def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
         if not self.address:
             raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
@@ -222,32 +186,12 @@ class Cluster(Resource):
             >>> cluster.install_packages(reqs=["accelerate", "diffusers"])
             >>> cluster.install_packages(reqs=["accelerate", "diffusers"], env="my_conda_env")
         """
-        self.check_server()
-        to_install = []
-        for package in reqs:
-            if isinstance(package, str):
-                pkg_obj = Package.from_string(package, dryrun=False)
-            else:
-                pkg_obj = package
+        from runhouse.rns.envs.env import Env
 
-            if isinstance(pkg_obj, dict):
-                pkg_obj = Package.from_config(pkg_obj)
-                to_install.append(pkg_obj)
-            elif isinstance(pkg_obj.install_target, Folder):
-                if not pkg_obj.install_target.system == self:
-                    pkg_str = pkg_obj.name or Path(pkg_obj.install_target.path).name
-                    logging.info(
-                        f"Copying local package {pkg_str} to cluster <{self.name}>"
-                    )
-                    pkg_obj = pkg_obj.to(self)
-                to_install.append(pkg_obj)
-            else:
-                to_install.append(package)  # Just appending the string!
-        logging.info(
-            f"Installing packages on cluster {self.name}: "
-            f"{[req if isinstance(req, str) else str(req) for req in reqs]}"
-        )
-        self.client.install(to_install, env)
+        self.check_server()
+        env = _get_env_from(env) or Env(name=env)
+        env.reqs = env._reqs + reqs
+        env.to(self)
 
     def get(
         self, key: str, default: Any = None, remote=False, stream_logs: bool = False
