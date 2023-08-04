@@ -1,14 +1,12 @@
-<h1 align="center">🏃‍♀️ Runhouse 🏠</h1>
+# 🏃‍♀️ Runhouse 🏠
 
-[//]: # (<p align="center">)
+[![Discord](https://dcbadge.vercel.app/api/server/RnhB6589Hs?compact=true&style=flat)](https://discord.gg/RnhB6589Hs)
+[![Twitter](https://img.shields.io/twitter/url/https/twitter.com/runhouse_.svg?style=social&label=@runhouse_)](https://twitter.com/runhouse_)
 
-[//]: # (  <a href="https://discord.gg/RnhB6589Hs"> )
+[![Website](https://img.shields.io/badge/run.house-green)](https://www.run.house)
+[![Docs](https://img.shields.io/badge/docs-blue)](https://runhouse-docs.readthedocs-hosted.com/en/latest/index.html)
+[![Den](https://img.shields.io/badge/runhouse_den-purple)](https://www.run.house/login)
 
-[//]: # (    <img alt="Join Discord" src="https://img.shields.io/discord/1065833240625172600?label=Discord&style=for-the-badge">)
-
-[//]: # (  </a>)
-
-[//]: # (</p>)
 
 ## 👵 Welcome Home!
 
