@@ -72,7 +72,7 @@ def sd_generate(prompt):
     model = StableDiffusionPipeline.from_pretrained("stabilityai/stable-diffusion-2-base").to("cuda")
     return model(prompt).images[0]
 
-gpu = rh.cluster(name="my-a100", instance_type="A100:1").up_if_not()
+gpu = rh.ondemand_cluster(name="my-a100", instance_type="A100:1").up_if_not()
 sd_generate = rh.function(sd_generate).to(gpu, env=["torch", "diffusers"])
 
 # the following runs on our remote A100 gpu

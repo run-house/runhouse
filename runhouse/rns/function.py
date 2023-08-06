@@ -781,7 +781,7 @@ def function(
     Example:
         >>> import runhouse as rh
 
-        >>> cluster = rh.cluster(name="my_cluster")
+        >>> cluster = rh.ondemand_cluster(name="my_cluster")
         >>> def sum(a, b):
         >>>    return a + b
 

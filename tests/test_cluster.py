@@ -100,49 +100,24 @@ def test_on_diff_cluster(cpu_cluster, byo_cpu):
 @pytest.mark.clustertest
 def test_launch_and_connect_to_sagemaker(sm_cluster):
     # Reload the cluster object and run a command on the cluster
-    reloaded_cluster = rh.sagemaker_cluster(sm_cluster.name)
-    assert reloaded_cluster.is_up()
+    assert sm_cluster.is_up()
 
     # Check cluster object store is working
     test_list = list(range(5, 50, 2)) + ["a string"]
-    reloaded_cluster.put("my_list", test_list)
-    ret = reloaded_cluster.get("my_list")
+    sm_cluster.put("my_list", test_list)
+    ret = sm_cluster.get("my_list")
     assert ret == test_list
 
     # # Test CLI commands
-    return_codes = reloaded_cluster.run(commands=["ls -la"])
+    return_codes = sm_cluster.run(commands=["ls -la"])
     assert return_codes[0][0] == 0
 
 
-@pytest.mark.gputest
-def test_sd_generate():
-    cluster = rh.sagemaker_cluster(
-        name="rh-sagemaker-gpu",
-        instance_type="ml.g5.2xlarge",
-    ).save()
-
-    sd_generate = (
-        rh.function(sd_generate_image)
-        .to(
-            cluster,
-            env=["torch==2.0.0", "diffusers", "transformers", "accelerate", "pytest"],
-        )
-        .save("sd_generate")
-    )
-
-    # the following runs on our remote SageMaker instance
-    sd_generate("A hot dog made out of matcha.").show()
-
-    cluster.teardown_and_delete()
-
-
 @pytest.mark.clustertest
-def test_run_function_on_sagemaker():
-    # Launch a new SageMaker instance, save the cluster object's metadata to Runhouse Den for re-use and sharing
-    cluster = rh.sagemaker_cluster(name="rh-sagemaker", connection_wait_time=0).save()
-    assert cluster.is_up()
+def test_run_function_on_sagemaker(sm_cluster):
+    assert sm_cluster.is_up()
 
-    np_func = rh.function(np_array).to(cluster, env=["numpy", "pytest"])
+    np_func = rh.function(np_array).to(sm_cluster, env=["numpy", "pytest"])
 
     # Run function on SageMaker compute
     my_list = [1, 2, 3]
@@ -152,30 +127,56 @@ def test_run_function_on_sagemaker():
 
 
 @pytest.mark.clustertest
-def test_create_sagemaker_training_job():
+def test_create_sagemaker_training_job(sm_source_dir, sm_entry_point):
     from sagemaker.pytorch import PyTorch
 
-    role = os.getenv("ROLE_ARN")
+    cluster_name = "rh-sagemaker-training"
 
+    # https://sagemaker.readthedocs.io/en/stable/api/training/estimators.html#sagemaker.estimator.EstimatorBase
     estimator = PyTorch(
-        entry_point="pytorch_train.py",
-        source_dir=os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "runhouse/scripts/sagemaker",
-        ),
-        role=role,
+        entry_point=sm_entry_point,
+        role=os.getenv("AWS_ROLE_ARN"),
+        # Script can sit anywhere in the file system
+        source_dir=sm_source_dir,
         framework_version="1.9.1",
         py_version="py38",
         instance_count=1,
         instance_type="ml.m5.large",
+        # https://docs.aws.amazon.com/sagemaker/latest/dg/train-warm-pools.html
+        keep_alive_period_in_seconds=3600,
+        # A list of absolute or relative paths to directories with any additional libraries that
+        # should be exported to the cluster
+        dependencies=[],
     )
-    c = rh.sagemaker_cluster(
-        name="rh-sagemaker-training", role=role, estimator=estimator
-    )
+
+    c = rh.sagemaker_cluster(name=cluster_name, estimator=estimator)
     c.save()
 
-    reloaded_cluster = rh.sagemaker_cluster("rh-sagemaker-training", dryrun=True)
-    assert reloaded_cluster
+    reloaded_cluster = rh.sagemaker_cluster(cluster_name, dryrun=True)
+    reloaded_cluster.teardown_and_delete()
+    assert not reloaded_cluster.is_up()
+
+
+@pytest.mark.clustertest
+def test_stable_diffusion_on_sm_gpu(sm_gpu_cluster):
+    sd_generate = (
+        rh.function(sd_generate_image)
+        .to(
+            sm_gpu_cluster,
+            env=[
+                "torch==2.0.0",
+                "diffusers",
+                "transformers",
+                "accelerate",
+                "pytest",
+            ],
+        )
+        .save("sd_generate")
+    )
+
+    # the following runs on our remote SageMaker instance
+    img = sd_generate("A hot dog made out of matcha.")
+    assert img
 
 
 if __name__ == "__main__":

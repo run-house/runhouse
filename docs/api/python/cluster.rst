@@ -1,8 +1,9 @@
 Cluster
 ====================================
 A Cluster is a Runhouse primitive used for abstracting a particular hardware configuration.
-This can be either an :ref:`on-demand cluster <OnDemandCluster>` (requires valid cloud credentials) or a BYO
-(bring-your-own) cluster (requires IP address and ssh creds).
+This can be either an :ref:`on-demand cluster <OnDemandCluster Class>` (requires valid cloud credentials), a
+:ref:`BYO (bring-your-own) cluster <Cluster Factory Method>` (requires IP address and ssh creds), or a
+:ref:`SageMaker cluster <SageMakerCluster Class>` (requires an ARN role).
 
 A cluster is assigned a name, through which it can be accessed and reused later on.
 
@@ -32,21 +33,41 @@ various cluster properties.
     .. automethod:: __init__
 
 
-SageMaker Factory Method
-~~~~~~~~~~~~~~~~~~~~~~
-
-.. autofunction:: runhouse.sagemaker_cluster
-
-
 SageMakerCluster Class
 ~~~~~~~~~~~~~~~~~~~~~
 A SageMakerCluster is a cluster that uses a SageMaker instance under the hood.
+
+Runhouse currently supports two core usage paths for SageMaker clusters:
+
+- *Dedicated training jobs*: You can use a SageMakerCluster class to run a training job on SageMaker compute.
+  To do so, you will need to provide an
+  `estimator <https://sagemaker.readthedocs.io/en/stable/api/training/estimators.html>`_.
+
+- *Compute backend*: You can use SageMaker as a compute backend, just as you would a
+  :ref:`BYO (bring-your-own) <Cluster>` or an :ref:`on-demand cluster <OnDemandCluster>` cluster.
+  Runhouse will facilitate the creation of the SageMaker compute and will handle the creation of an SSH
+  connection to the instance. You can then use the instance as you would any other compute backend.
+
+.. note::
+
+    Runhouse requires an AWS IAM role (either name or full ARN) whose credentials have adequate permissions to
+    create create SageMaker endpoints and access AWS resources.
+
+    This can be specified with the ``role`` attribute. If not provided, Runhouse will use the SageMaker default
+    role configured in your local environment.
 
 .. autoclass:: runhouse.SageMakerCluster
    :members:
    :exclude-members:
 
     .. automethod:: __init__
+
+
+SageMaker Factory Method
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. autofunction:: runhouse.sagemaker_cluster
+
 
 Hardware Setup
 ~~~~~~~~~~~~~~

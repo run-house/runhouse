@@ -1,10 +1,14 @@
-import ast
 import contextlib
+import json
 import logging
 import os
 import pkgutil
 import pty
+import re
+import select
 import subprocess
+import sys
+import textwrap
 import threading
 import warnings
 from pathlib import Path
@@ -13,10 +17,13 @@ from typing import Dict, Tuple, Union
 import paramiko
 import sagemaker
 from sagemaker.estimator import EstimatorBase
+from sagemaker.mxnet import MXNet
 from sagemaker.pytorch import PyTorch
+from sagemaker.tensorflow import TensorFlow
+from sagemaker.xgboost import XGBoost
 from sshtunnel import SSHTunnelForwarder
 
-from runhouse.rh_config import configs, rns_client
+from runhouse.rh_config import configs, open_cluster_tunnels, rns_client
 from runhouse.rns.hardware.cluster import Cluster
 from runhouse.rns.utils.hardware import _current_cluster
 
@@ -27,11 +34,12 @@ class SageMakerCluster(Cluster):
     DEFAULT_HOST = "localhost"
     DEFAULT_INSTANCE_TYPE = "ml.m5.large"
     DEFAULT_USER = "root"
-    SSH_KEY_PATH = "~/.ssh/sagemaker-ssh-gw"
+    # Default path for source code copied to SageMaker instance
+    ESTIMATOR_SRC_CODE_PATH = "/opt/ml/code"
 
     DEFAULT_SSH_PORT = 11022
     DEFAULT_HTTP_PORT = 50052
-    DEFAULT_CONNECTION_WAIT_TIME = 600  # seconds
+    DEFAULT_CONNECTION_WAIT_TIME = 60  # seconds
 
     def __init__(
         self,
@@ -42,26 +50,29 @@ class SageMakerCluster(Cluster):
         autostop_mins: int = None,
         connection_wait_time: int = None,
         estimator: Union[EstimatorBase, Dict] = None,
+        job_name: str = None,
         dryrun=False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
-        The Runhouse SageMaker cluster abstraction. This is where you can run jobs (e.g. training, inference,
-        batch transform, etc.), or simply spin up a new SageMaker instance which behaves in a similar way to
-        OnDemand or BYO clusters.
+        The Runhouse SageMaker cluster abstraction. This is where you can run training jobs, or simply spin up a
+        new SageMaker cluster as a compute backend which behaves in the same way as an OnDemand or BYO cluster.
 
         .. note::
             To build a cluster, please use the factory method :func:`sagemaker_cluster`.
         """
-        self._role = role
         self._connection_wait_time = connection_wait_time
         self._instance_type = instance_type
+        self._instance_count = instance_count
         self._ssh_wrapper = None
-        self._job_type = None
 
-        self.instance_count = instance_count or 1
+        # Relevant if estimator is provided
+        self._estimator_entry_point = kwargs.get("estimator_entry_point")
+        self._estimator_source_dir = kwargs.get("estimator_source_dir")
+        self._estimator_framework = kwargs.get("estimator_framework")
+
         self.instance_id = kwargs.get("instance_id")
-        self.job_name = kwargs.get("job_name")
+        self.job_name = job_name
 
         self.autostop_mins = (
             autostop_mins
@@ -70,48 +81,16 @@ class SageMakerCluster(Cluster):
         )
 
         self.estimator = self._load_estimator(estimator)
+        self.role = self._set_role(role)
 
         # Setting instance ID as cluster IP for compatibility with Cluster parent class methods
         super().__init__(
             name=name, ips=[self.instance_id], ssh_creds=None, dryrun=dryrun
         )
 
-        if dryrun:
-            return
-
-        if self.estimator is None:
-            # Create an estimator for the purpose of launching the instance
-            self.estimator = self._create_mock_estimator()
-        else:
-            # Make sure the estimator's source file has the SSH SageMaker init
-            # TODO [JL] this should be handled by Runhouse internally
-            self._add_ssh_helper_init_to_estimator()
-
-            # Running a dedicated training job
-            self._job_type = self.estimator.JOB_CLASS_NAME
-
-        if not self.instance_id:
-            logger.info(
-                f"Launching a new SageMaker instance on type: {self.instance_type}"
-            )
-            self._launch_new_instance()
-
-            self.job_name = self._ssh_wrapper.training_job_name()
-            logger.info(f"New SageMaker instance started with name: {self.job_name}")
-
-            # Set the instance ID of the new SageMaker instance
-            self.instance_id = self._get_instance_id()
-            logger.info(f"New SageMaker instance started with ID: {self.instance_id}")
-
-        self.check_server(restart_server=True)
-
-        # Add the job name for this instance to the local SSH config
-        self._add_ssh_config_entry()
-
-        logger.info(
-            "SSH connection has been created, you can now SSH into "
-            f"the instance with the CLI using: ssh {self.name}"
-        )
+        if not dryrun and not self.is_up():
+            logger.info("Preparing to launch a new SageMaker cluster")
+            self._prepare_and_launch_new_cluster()
 
     @property
     def config_for_rns(self):
@@ -127,65 +106,71 @@ class SageMakerCluster(Cluster):
                 "connection_wait_time": self.connection_wait_time,
             }
         )
-        if self.estimator and self._job_type:
-            if isinstance(self.estimator, dict):
-                config.update({"estimator": self.estimator})
-                return config
+        if self.estimator and (
+            self._estimator_source_dir and self._estimator_entry_point
+        ):
+            # Dedicated job provided
+            config.update(
+                {
+                    "estimator_entry_point": self._estimator_entry_point,
+                    "estimator_source_dir": self._estimator_source_dir,
+                }
+            )
 
-            if type(self.estimator).__name__ == "PyTorch":
-                estimator_attrs = [
-                    "framework_version",
-                    "py_version",
-                    "instance_count",
-                    "instance_type",
-                    "role",
-                    "image_uri",
-                    "entry_point",
-                    "source_dir",
-                    "output_path",
-                    "volume_size",
-                ]
+            if isinstance(self.estimator, EstimatorBase):
+                # Serialize the estimator before saving it down in the config
                 selected_attrs = {
-                    attr: getattr(self.estimator, attr, None)
-                    for attr in estimator_attrs
+                    key: value
+                    for key, value in self.estimator.__dict__.items()
+                    if self.is_serializable(value)
                 }
                 # Estimator types: mxnet, tensorflow, keras, pytorch, onnx, xgboost
-                config.update({"estimator": selected_attrs})
-                config["estimator"]["framework"] = "PyTorch"
+                self._estimator_framework = type(self.estimator).__name__
+                config.update(
+                    {
+                        "estimator": selected_attrs,
+                        "estimator_framework": self._estimator_framework,
+                    }
+                )
+
+            if isinstance(self.estimator, dict):
+                config.update({"estimator": self.estimator})
 
         return config
 
     @property
     def ssh_key_path(self):
-        return os.path.expanduser(self.SSH_KEY_PATH)
+        return os.path.expanduser("~/.ssh/sagemaker-ssh-gw")
+
+    @property
+    def hosts_path(self):
+        return os.path.expanduser("~/.ssh/known_hosts")
 
     @property
     def ssh_config_file(self):
         return os.path.expanduser("~/.ssh/config")
 
     @property
-    def role(self):
-        if self._role:
-            return self._role
-        arn_role = os.getenv("ROLE_ARN")
-        if arn_role:
-            return arn_role
-        try:
-            execution_role_arn = sagemaker.get_execution_role()
-            return execution_role_arn
-        except Exception as e:
-            raise e
+    def instance_count(self):
+        if self._instance_count:
+            return self._instance_count
+        elif self.estimator:
+            return self.estimator.instance_count
+        else:
+            return 1
 
-    @role.setter
-    def role(self, value):
-        self._role = value
+    @instance_count.setter
+    def instance_count(self, instance_count):
+        self._instance_count = instance_count
 
     @property
     def connection_wait_time(self):
         """Amount of time the SSH helper will wait inside SageMaker before it continues normal execution"""
         if self._connection_wait_time is not None:
             return self._connection_wait_time
-        elif self._job_type == "training-job" or self.estimator:
+        elif self.estimator and (
+            self._estimator_source_dir and self._estimator_entry_point
+        ):
             # Allow for connecting to the instance before the job starts (e.g. training)
             return self.DEFAULT_CONNECTION_WAIT_TIME
         else:
@@ -193,8 +178,8 @@ class SageMakerCluster(Cluster):
             return 0
 
     @connection_wait_time.setter
-    def connection_wait_time(self, value):
-        self._connection_wait_time = value
+    def connection_wait_time(self, connection_wait_time):
+        self._connection_wait_time = connection_wait_time
 
     @property
     def instance_type(self):
@@ -206,8 +191,16 @@ class SageMakerCluster(Cluster):
             return self.DEFAULT_INSTANCE_TYPE
 
     @instance_type.setter
-    def instance_type(self, value):
-        self._instance_type = value
+    def instance_type(self, instance_type):
+        self._instance_type = instance_type
+
+    @staticmethod
+    def is_serializable(obj):
+        try:
+            json.dumps(obj)
+            return True
+        except (TypeError, OverflowError):
+            return False
 
     def check_server(self, restart_server=True):
         if self.name == _current_cluster("name"):
@@ -236,6 +229,7 @@ class SageMakerCluster(Cluster):
 
                     # Make sure screen and a compatible version of protobuf for the sagemaker-ssh helper library
                     # are installed before installing runhouse and restarting the server
+                    # TODO [JL] do we still need this?
                     self.run(
                         [
                             "sudo apt-get install screen -y",
@@ -254,7 +248,7 @@ class SageMakerCluster(Cluster):
         """Check if the cluster is up.
 
         Example:
-            >>> rh.cluster("sagemaker-cluster").is_up()
+            >>> rh.sagemaker_cluster("sagemaker-cluster").is_up()
         """
         import boto3
 
@@ -267,14 +261,21 @@ class SageMakerCluster(Cluster):
             # Up if the instance is in progress
             return status == "InProgress"
 
-        except sagemaker_client.exceptions.ResourceNotFound as e:
-            raise e
+        except:
+            return False
+
+    def up(self):
+        return_codes = self.restart_server(restart_ray=True)
+        if return_codes[0][0] != 0:
+            raise ValueError(
+                f"Could not restart or connect to server {self.name}: {return_codes[0]}"
+            )
 
     def teardown(self):
         """Teardown the SageMaker instance.
 
         Example:
-            >>> rh.cluster("sagemaker-cluster").teardown()
+            >>> rh.sagemaker_cluster(name="sagemaker-cluster").teardown()
         """
         self._stop_instance(delete_configs=False)
 
@@ -282,7 +283,7 @@ class SageMakerCluster(Cluster):
         """Teardown the SageMaker instance and delete from RNS configs.
 
         Example:
-            >>> rh.cluster("sagemaker-cluster").teardown_and_delete()
+            >>> rh.sagemaker_cluster(name="sagemaker-cluster").teardown_and_delete()
         """
         self._stop_instance()
 
@@ -293,12 +294,23 @@ class SageMakerCluster(Cluster):
             autostop_mins (int): Amount of time (in min) to keep the cluster warm after inactivity.
             If set to -1, keep cluster warm indefinitely. (Default: `-1`)
         """
-        raise NotImplementedError
+        self._update_autostop(autostop_mins)
 
     @contextlib.contextmanager
     def pause_autostop(self):
         """Context manager to temporarily pause autostop."""
-        raise NotImplementedError
+        self._update_autostop(autostop_mins=-1)
+        yield
+        self._update_autostop(self.autostop_mins)
+
+    def _run_training_job(self):
+        """Call the SageMaker CreateTrainingJob API to start the training job on the cluster."""
+        # TODO [JL] Keeping private until re-running training jobs on the same cluster is supported
+        if not self.estimator:
+            logger.warning("No estimator found, cannot run training job.")
+            return
+
+        self.estimator.fit(wait=False, job_name=self.job_name)
 
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
@@ -326,8 +338,8 @@ class SageMakerCluster(Cluster):
                 # Manually allocate a pseudo-terminal to prevent a "pseudo-terminal not allocated" error
                 master_fd, slave_fd = pty.openpty()
 
-                # Execute the command with the pseudo-terminal in a separate thread
-                def run_ssh_tunnel():
+                def setup_ssh_tunnel():
+                    # Execute the command with the pseudo-terminal in a separate thread
                     process = subprocess.Popen(
                         command,
                         shell=True,
@@ -350,7 +362,7 @@ class SageMakerCluster(Cluster):
                     # Signal that the tunnel setup is complete
                     tunnel_setup_complete.set()
 
-                tunnel_thread = threading.Thread(target=run_ssh_tunnel)
+                tunnel_thread = threading.Thread(target=setup_ssh_tunnel)
                 tunnel_thread.daemon = True  # Set the thread as a daemon, so it won't block the main thread
 
                 # Start the SSH tunnel thread
@@ -368,7 +380,7 @@ class SageMakerCluster(Cluster):
                 local_bind_addresses = ("", local_port)
 
                 ssh_tunnel = SSHTunnelForwarder(
-                    (ssh_host, self.DEFAULT_SSH_PORT),
+                    (ssh_host, ssh_port),
                     ssh_username=ssh_username,
                     ssh_pkey=ssh_key_path,
                     remote_bind_address=remote_bind_addresses,
@@ -398,38 +410,137 @@ class SageMakerCluster(Cluster):
         return ssh_tunnel, local_port
 
     def ssh(self):
-        """SSH into the cluster
+        """SSH into the cluster.
+        **Note**: Via the CLI can SSH via ``ssh cluster-name``
 
         Example:
-            >>> rh.cluster("sagemaker-cluster").ssh()
+            >>> rh.sagemaker_cluster(name="sagemaker-cluster").ssh()
         """
+        master_fd, slave_fd = pty.openpty()
+        ssh_process = subprocess.Popen(
+            ["ssh", self.name],
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            universal_newlines=True,
+        )
+
+        # Close the slave_fd in the parent process as it's not needed there
+        os.close(slave_fd)
+
+        # Wait for the SSH process to initialize
+        select.select([master_fd], [], [])
+
+        # Interact with the SSH process through the master_fd
+        try:
+            while True:
+                if master_fd in select.select([master_fd], [], [], 0)[0]:
+                    output = os.read(master_fd, 1024).decode()
+                    print(output, end="")
+
+                if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
+                    user_input = sys.stdin.readline()
+                    try:
+                        os.write(master_fd, user_input.encode())
+                    except OSError:
+                        pass
+
+                    # terminate the SSH process gracefully
+                    if user_input.strip() == "exit":
+                        break
+        except Exception as e:
+            raise e
+        finally:
+            # Close the master_fd and terminate the SSH process when done
+            os.close(master_fd)
+            ssh_process.terminate()
+
+    def _create_launch_estimator(self):
+        """Create the estimator object used for launching the cluster. If a custom estimator is provided, use that.
+        Otherwise use a Runhouse default estimator to launch.
+        **Note If an estimator is provided, Runhouse will override the entry point and source dir to use the
+        default Runhouse entry point and source dir. This is to ensure that the connection to the cluster
+        can be maintained even if the job fails, or if autostop is enabled.**"""
+        default_entry_point = "launch_instance.py"
+        default_source_dir = os.path.join(
+            os.path.abspath(
+                os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "..")
+            ),
+            "scripts",
+            "sagemaker_cluster",
+        )
+        if self.estimator:
+            # Save this to be used on the cluster for running the estimator
+            self._estimator_entry_point = self.estimator.entry_point
+            self._estimator_source_dir = self.estimator.source_dir
+
+            # Update the estimator with the Runhouse custom entry point and source dir
+            self.estimator.entry_point = default_entry_point
+            self.estimator.source_dir = default_source_dir
+
+            return self.estimator
+
+        else:
+            # No estimator provided, use the Runhouse custom estimator (using PyTorch by default)
+            estimator_dict = {
+                "instance_count": self.instance_count,
+                "framework_version": "1.9.1",
+                "py_version": "py38",
+                "role": self.role,
+                "entry_point": default_entry_point,
+                "source_dir": default_source_dir,
+                "instance_type": self.instance_type,
+                # https://docs.aws.amazon.com/sagemaker/latest/dg/train-warm-pools.html
+                "keep_alive_period_in_seconds": 3600,
+            }
+
+            return PyTorch(**estimator_dict)
+
+    def _prepare_and_launch_new_cluster(self):
+        self.estimator = self._create_launch_estimator()
+
+        logger.info(
+            f"Launching a new SageMaker cluster (instance count={self.instance_count}) on type: {self.instance_type}"
+        )
+
+        self._launch_new_instance()
+
+        self.job_name = self._ssh_wrapper.training_job_name()
+
+        # Set the instance ID of the new SageMaker instance
+        self.instance_id = self._get_instance_id()
+        logger.info(f"New SageMaker instance started with ID: {self.instance_id}")
+
         self.check_server(restart_server=True)
-        # Alternative SSH command (if job name is not added to ~/.ssh/config):
-        # ssh -i ~/.ssh/sagemaker-ssh-gw -p 11022 root@localhost
-        subprocess.run(f"ssh {self.name}".split(" "))
+
+        if self._estimator_source_dir and self._estimator_entry_point:
+            # Copy the estimator's code to the cluster - Runhouse will then manage the running of the job
+            self._sync_estimator_to_cluster()
+
+        # Add the cluster name to the local SSH config to enable the <ssh cluster_name> command
+        self._add_ssh_config_entry()
+
+        logger.info(
+            f"Connection with {self.name} has been created. You can now SSH into "
+            f"the instance with the CLI using: ``ssh {self.name}``"
+        )
 
     def _launch_new_instance(self):
         from sagemaker_ssh_helper.wrapper import SSHEstimatorWrapper
 
-        logger.info("Setting up training job on new SageMaker instance")
         # Make sure the SSHEstimatorWrapper is being used by the estimator, this is necessary for
-        # enabling the SSH tunnel to the SageMaker instance
+        # enabling the SSH tunnel to the cluster
         # https://github.com/aws-samples/sagemaker-ssh-helper/tree/main#step-2-modify-your-start-training-job-code
-        dependency_dir = SSHEstimatorWrapper.dependency_dir()
-        if dependency_dir not in self.estimator.dependencies:
-            self.estimator.dependencies.append(dependency_dir)
+        ssh_dependency_dir = SSHEstimatorWrapper.dependency_dir()
+        if ssh_dependency_dir not in self.estimator.dependencies:
+            self.estimator.dependencies.append(ssh_dependency_dir)
 
         # Create the SSH wrapper & run the job
         self._ssh_wrapper = SSHEstimatorWrapper.create(
             self.estimator, connection_wait_time_seconds=self.connection_wait_time
         )
 
-        if self.autostop_mins:
-            # TODO [JL] incorporate autostop when launching
-            logger.info(f"Launching instance with autostop: {self.autostop_mins}")
-
-        # Call the SageMaker CreateTrainingJob API to start training
-        self.estimator.fit(wait=False)
+        self._run_training_job()
 
     def _rsync(self, source: str, dest: str, up: bool, contents: bool = False):
         command = (
@@ -443,15 +554,38 @@ class SageMakerCluster(Cluster):
         if return_codes[0][0] != 0:
             logger.error(f"rsync to SageMaker cluster failed: {return_codes[0][1]}")
 
+    def _get_instance_id(self):
+        try:
+            return self._ssh_wrapper.get_instance_ids()[0]
+        except Exception as e:
+            raise e
+
+    def _set_role(self, role: str = None):
+        """Set the role required for launching and connecting to the SageMaker instance. If no role is provided
+        explicitly or via the estimator, try to get the default SageMaker role configured in the local environment."""
+        if role:
+            return role
+
+        if self.estimator:
+            return self.estimator.role
+
+        try:
+            return sagemaker.get_execution_role()
+        except Exception as e:
+            raise e
+
     def _stop_instance(self, delete_configs=True):
         """Stop the SageMaker instance. Optionally remove its config from RNS"""
         import boto3
 
-        sagemaker_client = boto3.client("sagemaker")
-        resp = sagemaker_client.stop_training_job(TrainingJobName=self.job_name)
-        resp_metadata = resp["ResponseMetadata"]
+        try:
+            sagemaker_client = boto3.client("sagemaker")
+            resp = sagemaker_client.stop_training_job(TrainingJobName=self.job_name)
+            resp_metadata = resp["ResponseMetadata"]
 
-        if resp_metadata["HTTPStatusCode"] == 200:
+            if resp_metadata["HTTPStatusCode"] != 200:
+                raise Exception(f"Failed to stop cluster: {resp_metadata}")
+
             logger.info(f"Successfully stopped cluster {self.instance_id}")
             if delete_configs:
                 # Delete from RNS
@@ -461,8 +595,9 @@ class SageMakerCluster(Cluster):
                 self._delete_ssh_config_entry()
 
                 logger.info(f"Deleted SageMaker cluster {self.name}")
-        else:
-            raise Exception(f"Failed to stop cluster: {resp_metadata}")
+
+        except Exception as e:
+            raise e
 
     def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
         if not self.instance_id:
@@ -518,10 +653,15 @@ class SageMakerCluster(Cluster):
             ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             ssh_client.load_system_host_keys()
 
+            try:
+                connected_ssh_port = self._connected_ssh_port()
+            except ValueError:
+                connected_ssh_port = self.DEFAULT_SSH_PORT
+
             # Connect to the instance
             ssh_client.connect(
                 hostname=self.DEFAULT_HOST,
-                port=self.DEFAULT_SSH_PORT,
+                port=connected_ssh_port,
                 username=self.DEFAULT_USER,
                 key_filename=self.ssh_key_path,
                 allow_agent=False,
@@ -555,6 +695,18 @@ class SageMakerCluster(Cluster):
 
             return return_codes
 
+        except paramiko.BadHostKeyException as e:
+            # Handle error along the lines of: "Host key for server 'localhost' does not match: got 'X', expected 'Y'"
+            # Delete the old keys from previous SageMaker clusters from the known hosts file and retry connecting
+            logger.warning(e)
+            self._filter_known_hosts()
+            self._run_commands_with_ssh(
+                commands=commands,
+                cmd_prefix=cmd_prefix,
+                stream_logs=stream_logs,
+                port_forward=port_forward,
+                require_outputs=require_outputs,
+            )
         except (
             paramiko.AuthenticationException,
             paramiko.SSHException,
@@ -563,10 +715,9 @@ class SageMakerCluster(Cluster):
             msg = (
                 "Error occurred: {}\n\n"
                 "Note: If you are experiencing connection errors, make sure you are using "
-                "the latest version of paramiko and the AWS CLI:\npip install -U paramiko\n"
+                "the latest version of paramiko and the AWS CLI:\n``pip install -U paramiko``\n"
                 "AWS CLI: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html\n\n"
-                "To check if the SSH tunnel with the instance is still up:\n"
-                f"ssh {self.name}\n\n"
+                f"To check if the SSH tunnel with the instance is still up: ``ssh {self.name}``"
             ).format(str(e))
             warnings.warn(msg)
 
@@ -574,8 +725,17 @@ class SageMakerCluster(Cluster):
             # Remember to close the SSH connection when you're done
             ssh_client.close()
 
-    def _logfile_path(self, logfile):
-        return f"/root/.rh/{logfile}"
+    def _connected_ssh_port(self) -> int:
+        """Get opened SSH port for connecting to the SageMaker cluster."""
+        open_tunnels: tuple = open_cluster_tunnels.get(self.instance_id)
+        if open_tunnels is None:
+            raise ValueError(
+                f"No tunnels are currently open for the cluster with name {self.name} "
+                f"and instance id: {self.instance_id}."
+            )
+
+        connected_ssh_port: int = open_tunnels[0].ssh_port
+        return connected_ssh_port
 
     def _load_estimator(self, estimator: Union[Dict, EstimatorBase, None]):
         if estimator is None:
@@ -588,100 +748,83 @@ class SageMakerCluster(Cluster):
             raise TypeError(
                 f"Unsupported estimator type. Expected dictionary or EstimatorBase, got {type(estimator)}"
             )
-
-        estimator_framework = estimator.pop("framework", None)
-        if estimator_framework is None:
-            raise ValueError("Framework not specified in the config file.")
-
-        elif estimator_framework == "PyTorch":
-            # Re-build the estimator object from the saved params
+        # Re-build the estimator object from its config
+        estimator_framework = self._estimator_framework
+        if estimator_framework == "PyTorch":
             return PyTorch(**estimator)
+        elif estimator_framework == "TensorFlow":
+            return TensorFlow(**estimator)
+        elif estimator_framework == "MXNet":
+            return MXNet(**estimator)
+        elif estimator_framework == "XGBoost":
+            return XGBoost(**estimator)
         else:
-            raise NotImplementedError("Currently only PyTorch Estimator is supported.")
+            raise NotImplementedError(
+                f"Unsupported estimator framework {estimator_framework}"
+            )
 
-    def _get_instance_id(self):
-        try:
-            return self._ssh_wrapper.get_instance_ids()[0]
-        except Exception as e:
-            raise e
+    def _sync_estimator_to_cluster(self):
+        """If providing a custom estimator sync over the estimator's provided source directory to the cluster"""
+        from runhouse import folder
 
-    def _create_mock_estimator(self):
-        """Create an estimator required for launching the instance.
-        **Note: this is only meant to serve as a mock estimator object, not used for an actual training job
-        but solely for the purpose of spinning up the SageMaker instance.**"""
-        estimator_dict = {
-            "instance_count": self.instance_count,
-            "framework_version": "1.9.1",
-            "py_version": "py38",
-            "role": self.role,
-            "entry_point": "launch_instance.py",
-            "source_dir": os.path.abspath(
-                os.path.join(
-                    os.path.dirname(os.path.abspath(__file__)),
-                    "../../scripts/sagemaker_cluster",
-                )
-            ),
-            "instance_type": self.instance_type,
-        }
-        return PyTorch(**estimator_dict)
-
-    def _add_ssh_helper_init_to_estimator(self):
-        # https://github.com/aws-samples/sagemaker-ssh-helper#step-3-modify-your-training-script
-        job_file_path = os.path.join(
-            self.estimator.source_dir, self.estimator.entry_point
+        estimator_folder = folder(
+            path=os.path.expanduser(self._estimator_source_dir)
+        ).to(self, path=self.ESTIMATOR_SRC_CODE_PATH)
+        logger.info(
+            f"Synced estimator source directory to the cluster in path: {estimator_folder.path}"
         )
 
-        # Define the import line to be added
-        ssh_install_cmd = "sagemaker_ssh_helper.setup_and_start_ssh()"
-        import_line = f"import sagemaker_ssh_helper\n{ssh_install_cmd}\n\n"
+    def _update_autostop(self, autostop_mins: int = None):
+        cluster_config = self.config_for_rns
+        cluster_config["autostop_mins"] = autostop_mins or -1
+        if not self.client:
+            self.connect_server_client()
+        self.client.check_server(cluster_config=cluster_config)
 
-        # Read the content of the Python file
-        with open(job_file_path, "r") as f:
-            code = f.read()
+    def _filter_known_hosts(self):
+        known_hosts = self.hosts_path
+        valid_hosts = []
+        with open(known_hosts, "r") as f:
+            for line in f:
+                if not line.strip().startswith(f"[{self.DEFAULT_HOST}]"):
+                    valid_hosts.append(line)
 
-        if ssh_install_cmd in code:
-            return
-
-        tree = ast.parse(code)
-
-        # Find the last import statement in the AST
-        last_import = -1
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import) or isinstance(node, ast.ImportFrom):
-                last_import = max(last_import, node.end_lineno)
-
-        if last_import == -1:
-            # If there are no import statements, insert the code at the beginning of the file
-            code = import_line + code
-        else:
-            lines = code.splitlines()
-            insert_line = min(last_import + 1, len(lines))
-
-            # Insert the code after the last import statement
-            code = "\n".join(lines[:insert_line] + [import_line] + lines[insert_line:])
-
-        with open(job_file_path, "w") as f:
-            f.write(code)
+        with open(known_hosts, "w") as f:
+            f.writelines(valid_hosts)
 
     def _add_ssh_config_entry(self):
         """Update the SSH config to allow for accessing the cluster via: ssh <cluster name>"""
+        connected_ssh_port = self._connected_ssh_port()
+
         config_file = self.ssh_config_file
         identity_file = self.ssh_key_path
 
         # Create the new entry
-        new_entry = f"""\n# Added by Runhouse for SageMaker SSH Support\nHost {self.name}\n  HostName {self.DEFAULT_HOST}\n  IdentityFile {identity_file}\n  Port {self.DEFAULT_SSH_PORT}\n  User {self.DEFAULT_USER}\n"""  # noqa
+        new_entry = textwrap.dedent(
+            f"""
+            # Added by Runhouse for SageMaker SSH Support (Job Name: {self.job_name})
+            Host {self.name}
+              HostName {self.DEFAULT_HOST}
+              IdentityFile {identity_file}
+              Port {connected_ssh_port}
+              User {self.DEFAULT_USER}
+        """
+        )
 
         with open(config_file, "r") as f:
-            existing_content = f.read()
+            existing_config = f.read()
 
-        if new_entry in existing_content:
+        pattern = rf"\(Job Name: {re.escape(self.job_name)}\)"
+        match = re.search(pattern, existing_config)
+        if match:
+            logger.info(f"Entry already exists in SSH config for job {self.job_name}")
             return
 
         with open(config_file, "a") as f:
             f.write(new_entry)
 
     def _delete_ssh_config_entry(self):
-        """Remove the SSH config entry from th for the cluster."""
+        """Remove the SSH config entry for the cluster."""
         config_file = self.ssh_config_file
 
         with open(config_file) as f:
@@ -690,19 +833,19 @@ class SageMakerCluster(Cluster):
         # Find the start and end lines of the entry to be deleted
         start_line = None
         for i, line in enumerate(lines):
-            if line.strip().startswith("Host ") and self.name in line:
+            if self.job_name in line:
                 start_line = i
                 break
 
-        if start_line is not None:
-            end_line = len(lines)
-            for i in range(start_line + 1, len(lines)):
-                if lines[i].strip().startswith("Host "):
-                    end_line = i
-                    break
+        if not start_line:
+            return
 
-            # Remove the entry from the lines list (start at -1 to also delete the comment)
-            del lines[start_line - 1 : end_line]
+        # Find the end of the entry (next empty line)
+        end_line = start_line
+        while end_line < len(lines) and lines[end_line].strip():
+            end_line += 1
 
-            with open(config_file, "w") as f:
-                f.writelines(lines)
+        del lines[start_line:end_line]
+
+        with open(config_file, "w") as f:
+            f.writelines(lines)

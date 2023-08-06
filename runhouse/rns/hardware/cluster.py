@@ -464,7 +464,9 @@ class Cluster(Resource):
         http_server_cmd = "python -m runhouse.servers.http.http_server"
         kill_proc_cmd = f'pkill -f "{http_server_cmd}"'
         # 2>&1 redirects stderr to stdout
-        screen_cmd = f"screen -dm bash -c '{http_server_cmd} |& tee -a {self._logfile_path(logfile)} 2>&1'"
+        screen_cmd = (
+            f"screen -dm bash -c '{http_server_cmd} |& tee -a ~/.rh/{logfile} 2>&1'"
+        )
         cmds = [kill_proc_cmd]
         if restart_ray:
             ray_start_cmd = "ray start --head --port 6379 --autoscaling-config=~/ray_bootstrap_config.yaml"
@@ -491,7 +493,6 @@ class Cluster(Resource):
         # f'kill -9 $(lsof -t -i:{UnaryService.DEFAULT_PORT})'
         # kill_proc_at_port_cmd = debian_kill_proc_cmd if cloud_provider == 'GCP' \
         #     else ubuntu_kill_proc_cmd
-
         status_codes = self.run(
             commands=cmds,
             stream_logs=True,
@@ -532,9 +533,6 @@ class Cluster(Resource):
             args,
             kwargs,
         )
-
-    def _logfile_path(self, logfile):
-        return f"~/.rh/{logfile}"
 
     def is_connected(self):
         """Whether the RPC tunnel is up.
@@ -761,7 +759,7 @@ class Cluster(Resource):
         """Remove conda env from the cluster.
 
         Example:
-            >>> rh.cluster("rh-cpu").remove_conda_env("my_conda_env")
+            >>> rh.ondemand_cluster("rh-cpu").remove_conda_env("my_conda_env")
         """
         env_name = env if isinstance(env, str) else env.env_name
         self.run([f"conda env remove -n {env_name}"])

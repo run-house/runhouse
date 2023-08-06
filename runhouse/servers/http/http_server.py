@@ -543,7 +543,6 @@ class HTTPServer:
         return fn_res
 
 
-# TODO [JL] initialize SSH helper here? does it need to be long lived?
 if __name__ == "__main__":
     import uvicorn
 

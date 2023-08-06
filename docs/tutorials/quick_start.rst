@@ -115,7 +115,7 @@ run ``sky check`` to confirm that the cloud provider is enabled
 
     !sky check
 
-To create a cluster instance, use the ``rh.cluster()`` factory function.
+To create a cluster instance, use the ``rh.ondemand_cluster()`` factory function.
 We go more in depth about how to launch the cluster, and run a function
 on it later in this tutorial.
 
