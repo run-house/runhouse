@@ -80,9 +80,7 @@ class Package(Resource):
             env (Env or str): Environment to install package on. If left empty, defaults to base environment.
                 (Default: ``None``)
         """
-        logging.info(
-            f"Installing package {str(self)} with method {self.install_method}."
-        )
+        logging.info(f"Installing {str(self)} with method {self.install_method}.")
         install_cmd = ""
         install_args = f" {self.install_args}" if self.install_args else ""
         cuda_version_or_cpu = self._detect_cuda_version_or_cpu()
@@ -249,17 +247,16 @@ class Package(Resource):
     @staticmethod
     def _pip_install(install_cmd: str, env: Union[str, "Env"] = ""):
         """Run pip install."""
+        pip_cmd = f"pip install {install_cmd}"
         if env:
-            if isinstance(env, str):
-                from runhouse.rns.envs import Env
+            from runhouse.rns.utils.env import _get_env_from
 
-                env = Env.from_name(env)
-            cmd_prefix = env._run_cmd
+            env = _get_env_from(env)
+            env.run([pip_cmd])
         else:
-            cmd_prefix = f"{sys.executable} -m"
-        cmd = f"{cmd_prefix} pip install {install_cmd}"
-        logging.info(f"Running: {cmd}")
-        subprocess.check_call(cmd.split(" "))
+            cmd = f"{sys.executable} -m {pip_cmd}"
+            logging.info(f"Running: {cmd}")
+            subprocess.check_call(cmd.split(" "))
 
     @staticmethod
     def _conda_install(install_cmd: str, env: Union[str, "Env"] = ""):
@@ -308,7 +305,7 @@ class Package(Resource):
 
         if isinstance(system, Resource):
             logger.info(
-                f"Copying folder from {self.install_target.fsspec_url} to: {getattr(system, 'name', system)}"
+                f"Copying package from {self.install_target.fsspec_url} to: {getattr(system, 'name', system)}"
             )
             new_folder = self.install_target._to_cluster(system, path=path, mount=mount)
         else:  # to fs

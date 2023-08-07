@@ -3,13 +3,12 @@ import subprocess
 import webbrowser
 from typing import Optional
 
-import pkg_resources
 import typer
 from rich.console import Console
 
 import runhouse.rns.login
 
-from runhouse import cluster, configs
+from runhouse import __version__, cluster, configs
 
 # create an explicit Typer application
 app = typer.Typer(add_completion=False)
@@ -157,6 +156,5 @@ def main(verbose: bool = False):
     """
     if verbose:
         name = "runhouse"
-        version = pkg_resources.get_distribution(name).version
-        console.print(f"{name}=={version}", style="bold green")
+        console.print(f"{name}=={__version__}", style="bold green")
         state["verbose"] = True

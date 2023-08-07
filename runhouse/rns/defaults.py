@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 import requests
 import yaml
 
-from runhouse.rns.api_utils.utils import read_resp_data, to_bool
+from runhouse.rns.utils.api import read_resp_data, to_bool
 
 logger = logging.getLogger(__name__)
 

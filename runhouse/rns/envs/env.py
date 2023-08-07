@@ -1,6 +1,11 @@
 import copy
+import logging
+import shlex
+import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Union
+
+from runhouse.rh_config import obj_store
 
 from runhouse.rns.folders import Folder
 from runhouse.rns.hardware import Cluster
@@ -8,6 +13,9 @@ from runhouse.rns.packages import Package
 from runhouse.rns.resource import Resource
 
 from runhouse.rns.utils.hardware import _get_cluster_from
+
+
+logger = logging.getLogger(__name__)
 
 
 class Env(Resource):
@@ -107,7 +115,50 @@ class Env(Resource):
         if self.setup_cmds:
             system.run(self.setup_cmds)
 
-    def to(self, system: Union[str, Cluster], path=None, mount=False):
+    def install(self, force=False):
+        """Locally install packages and run setup commands."""
+        # Hash the config_for_rns to check if we need to install
+        env_config = self.config_for_rns
+        # Remove the name because auto-generated names will be different, but the installed components are the same
+        env_config.pop("name")
+        install_hash = hash(str(env_config))
+        # Check the existing hash
+        if install_hash in obj_store.installed_envs and not force:
+            logger.info("Env already installed, skipping")
+            return
+        obj_store.installed_envs[install_hash] = self.name
+
+        for package in self.reqs:
+            if isinstance(package, str):
+                pkg = Package.from_string(package)
+            elif hasattr(package, "_install"):
+                pkg = package
+            else:
+                raise ValueError(f"package {package} not recognized")
+
+            logger.info(f"Installing package: {str(pkg)}")
+            pkg._install(self)
+        return self.run(self.setup_cmds) if self.setup_cmds else None
+
+    def run(self, cmds: List[str]):
+        """Run command locally inside the environment"""
+        ret_codes = []
+        for cmd in cmds:
+            if self._run_cmd:
+                cmd = f"{self._run_cmd} {cmd}"
+            logging.info(f"Running: {cmd}")
+            ret_code = subprocess.call(
+                shlex.split(cmd),
+                env=self.env_vars or None,
+                # cwd=self.working_dir,  # Should we do this?
+                shell=False,
+            )
+            ret_codes.append(ret_code)
+        return ret_codes
+
+    def to(
+        self, system: Union[str, Cluster], path=None, mount=False, force_install=False
+    ):
         """
         Send environment to the system (Cluster or file system).
         This includes installing packages and running setup commands if system is a cluster.
@@ -119,10 +170,12 @@ class Env(Resource):
         """
         system = _get_cluster_from(system)
         new_env = copy.deepcopy(self)
+        # new_env.name = new_env.name or "base"
         new_env.reqs, new_env.working_dir = self._reqs_to(system, path, mount)
 
         if isinstance(system, Cluster):
-            new_env._setup_env(system)
+            key = system.put_resource(new_env)
+            system.call_module_method(key, "install", force=force_install)
 
         return new_env
 

@@ -4,6 +4,7 @@ from typing import List
 
 from runhouse.logger import LOGGING_CONFIG
 from runhouse.rh_config import configs, rns_client
+from runhouse.rns.utils.hardware import _get_cluster_from
 
 # Configure the logger once
 logging.config.dictConfig(LOGGING_CONFIG)
@@ -57,6 +58,19 @@ def load(name: str, instantiate: bool = True, dryrun: bool = False):
         raise ValueError(
             f"Could not find constructor for type {config['resource_type']}"
         )
+
+
+# This funny structure lets us use `rh.here` to get the current cluster
+def __getattr__(name):
+    if name == "here":
+        from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
+
+        config = _current_cluster(key="config")
+        if not config:
+            return "file"
+        system = _get_cluster_from(config)
+        return system
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
 def load_from_path(
@@ -152,33 +166,31 @@ def load_all_clusters():
 
 
 # -----------------  Pinning objects to cluster memory  -----------------
-# TODO is this a bad idea?
-
 from runhouse import rh_config
 
 
 def pin_to_memory(key: str, value):
+    # Put the obj_ref in Ray obj store here so it doesn't need to be deserialized inside the ObjStoreActor's process
+    # which may not have the necessary modules installed or gpu access
+    # obj_ref = ray.put(value)
+    # rh_config.obj_store.put_obj_ref(key, obj_ref)
     rh_config.obj_store.put(key, value)
 
 
 def get_pinned_object(key: str, default=None):
+    # ref = rh_config.obj_store.get_obj_ref(key)
+    # if ref is None:
+    #     return default
+    # else:
+    #     return ray.get(ref)
     return rh_config.obj_store.get(key, default=default)
 
 
 def get(key: str, cluster=None, default=None):
-    from runhouse.rns.hardware.on_demand_cluster import OnDemandCluster
-
-    if isinstance(cluster, str):
-        if cluster == rh_config.obj_store.cluster_name:
-            # We're currently on cluster, so just get the object from local rh_config.obj_store
-            return rh_config.obj_store.get(key, default=default)
-        else:
-            cluster = OnDemandCluster.from_name(cluster)
-
-    if cluster.name == rh_config.obj_store.cluster_name:
-        return rh_config.obj_store.get(key, default=default)
-    else:
-        return cluster.get(key, default=default)
+    system = _get_cluster_from(cluster)
+    if system:
+        return system.get(key, default=default)
+    return rh_config.obj_store.get(key, default=default)
 
 
 def remove_pinned_object(key: str):

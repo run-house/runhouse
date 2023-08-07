@@ -1,19 +1,81 @@
-import pickle
+import numpy as np
 
 import pandas as pd
 
 import pytest
 
 import runhouse as rh
-from runhouse.rns.api_utils.utils import create_s3_bucket
 
 
 # https://docs.pytest.org/en/6.2.x/fixture.html#conftest-py-sharing-fixtures-across-multiple-files
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def blob_data():
-    return pickle.dumps(list(range(50)))
+    return [np.arange(50), "test", {"a": 1, "b": 2}]
+
+
+@pytest.fixture
+def local_file(blob_data, tmp_path):
+    return rh.blob(
+        data=blob_data,
+        system="file",
+        path=tmp_path / "test_blob.pickle",
+    )
+
+
+@pytest.fixture
+def local_blob(blob_data):
+    return rh.blob(
+        data=blob_data,
+    )
+
+
+@pytest.fixture
+def s3_blob(blob_data, blob_s3_bucket):
+    return rh.blob(
+        data=blob_data,
+        system="s3",
+        path=f"/{blob_s3_bucket}/test_blob.pickle",
+    )
+
+
+@pytest.fixture
+def gcs_blob(blob_data, blob_gcs_bucket):
+    return rh.blob(
+        data=blob_data,
+        system="gs",
+        path=f"/{blob_gcs_bucket}/test_blob.pickle",
+    )
+
+
+@pytest.fixture
+def cluster_blob(blob_data, ondemand_cpu_cluster):
+    return rh.blob(
+        data=blob_data,
+        system=ondemand_cpu_cluster,
+    )
+
+
+@pytest.fixture
+def cluster_file(blob_data, ondemand_cpu_cluster):
+    return rh.blob(
+        data=blob_data,
+        system=ondemand_cpu_cluster,
+        path="test_blob.pickle",
+    )
+
+
+@pytest.fixture
+def blob(request):
+    """Parametrize over multiple blobs - useful for running the same test on multiple storage types."""
+    return request.getfixturevalue(request.param)
+
+
+@pytest.fixture
+def file(request):
+    """Parametrize over multiple files - useful for running the same test on multiple storage types."""
+    return request.getfixturevalue(request.param)
 
 
 # ----------------- Folders -----------------
@@ -47,6 +109,12 @@ def gcs_folder(local_folder):
 
     # Delete files from GCS
     gcs_folder.rm()
+
+
+@pytest.fixture
+def folder(request):
+    """Parametrize over multiple folders - useful for running the same test on multiple storage types."""
+    return request.getfixturevalue(request.param)
 
 
 # ----------------- Tables -----------------
@@ -122,6 +190,7 @@ def cluster(request):
 def ondemand_cpu_cluster():
     c = rh.cluster("^rh-cpu")
     c.up_if_not()
+    # c.restart_server(restart_ray=True)
     c.install_packages(["pytest"])
     # Save to RNS - to be loaded in other tests (ex: Runs)
     c.save()
@@ -130,6 +199,7 @@ def ondemand_cpu_cluster():
 
 @pytest.fixture(scope="session")
 def byo_cpu():
+    # TODO merge into password cluster
     # Spin up a new basic m5.xlarge EC2 instance
     c = (
         rh.ondemand_cluster(
@@ -236,6 +306,7 @@ def s3_package(s3_folder):
 
 # ----------------- Functions -----------------
 def summer(a: int, b: int):
+    print("Running summer function")
     return a + b
 
 
@@ -292,6 +363,21 @@ def table_s3_bucket():
     return table_bucket.name
 
 
+# ----------------- GCP -----------------
+
+
+@pytest.fixture(scope="session")
+def blob_gcs_bucket():
+    blob_bucket = create_gcs_bucket("runhouse-blob")
+    return blob_bucket.name
+
+
+@pytest.fixture(scope="session")
+def table_gcs_bucket():
+    table_bucket = create_gcs_bucket("runhouse-table")
+    return table_bucket.name
+
+
 # ----------------- Runs -----------------
 
 
@@ -312,3 +398,19 @@ def submitted_async_run(summer_func):
 
     assert isinstance(async_run, rh.Run)
     return run_name
+
+
+def create_s3_bucket(bucket_name: str):
+    """Create bucket in S3 if it does not already exist."""
+    from sky.data.storage import S3Store
+
+    s3_store = S3Store(name=bucket_name, source="")
+    return s3_store
+
+
+def create_gcs_bucket(bucket_name: str):
+    """Create bucket in GS if it does not already exist."""
+    from sky.data.storage import GcsStore
+
+    gcs_store = GcsStore(name=bucket_name, source="")
+    return gcs_store

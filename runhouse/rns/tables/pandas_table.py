@@ -1,6 +1,6 @@
 import logging
 
-from ..api_utils.utils import generate_uuid
+from runhouse.rns.utils.api import generate_uuid
 
 from .table import Table
 

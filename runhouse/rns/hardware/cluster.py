@@ -14,10 +14,10 @@ import sshtunnel
 from sky.utils import command_runner
 from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
-from runhouse.rh_config import open_cluster_tunnels, rns_client
-from runhouse.rns.folders.folder import Folder
+from runhouse.rh_config import obj_store, open_cluster_tunnels, rns_client
 from runhouse.rns.packages.package import Package
 from runhouse.rns.resource import Resource
+from runhouse.rns.utils.env import _get_env_from
 from runhouse.rns.utils.hardware import _current_cluster
 
 from runhouse.servers.http import DEFAULT_SERVER_PORT, HTTPClient
@@ -57,7 +57,6 @@ class Cluster(Resource):
 
         if not dryrun and self.address:
             # OnDemandCluster will start ray itself, but will also set address later, so won't reach here.
-            self.start_ray()
             self.check_server()
 
     def save_config_to_cluster(self):
@@ -123,42 +122,6 @@ class Cluster(Resource):
             f"cluster.keep_warm will have no effect on self-managed cluster {self.name}."
         )
 
-    def start_ray(self):
-        """Start Ray on the cluster.
-
-        Example:
-            >>> rh.cluster("rh-cpu").start_ray()
-        """
-        if self.is_up():
-            res = self.run(["ray start --head"], stream_logs=False)
-            if res[0] == 0:
-                return
-            if any(
-                line.startswith("ConnectionError: Ray is trying to start at")
-                for line in res[0][1].splitlines()
-            ):
-                # Ray is already started
-                return
-            # Check if ray is installed
-            if "ray" not in self._get_pip_installs(strip_versions=True):
-                self.run(
-                    ["pip install ray==2.4.0"]
-                )  # pin to SkyPilot's Ray requirement
-                res = self.run(["ray start --head"])
-                if not res[0][0]:
-                    raise RuntimeError(
-                        f"Failed to start ray on cluster <{self.name}>. "
-                        f"Error: {res[0][1]}"
-                    )
-        else:
-            raise ValueError(f"Cluster <{self.name}> is not up.")
-
-    def _get_pip_installs(self, strip_versions=False):
-        packages = self.run(["pip freeze"], stream_logs=False)[0][1].splitlines()
-        if strip_versions:
-            packages = [p.split("==")[0] for p in packages]
-        return packages
-
     def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
         if not self.address:
             raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
@@ -222,75 +185,95 @@ class Cluster(Resource):
             >>> cluster.install_packages(reqs=["accelerate", "diffusers"])
             >>> cluster.install_packages(reqs=["accelerate", "diffusers"], env="my_conda_env")
         """
+        from runhouse.rns.envs.env import Env
+
         self.check_server()
-        to_install = []
-        for package in reqs:
-            if isinstance(package, str):
-                pkg_obj = Package.from_string(package, dryrun=False)
-            else:
-                pkg_obj = package
+        env = _get_env_from(env) or Env(name=env)
+        env.reqs = env._reqs + reqs
+        env.to(self)
 
-            if isinstance(pkg_obj, dict):
-                pkg_obj = Package.from_config(pkg_obj)
-                to_install.append(pkg_obj)
-            elif isinstance(pkg_obj.install_target, Folder):
-                if not pkg_obj.install_target.system == self:
-                    pkg_str = pkg_obj.name or Path(pkg_obj.install_target.path).name
-                    logging.info(
-                        f"Copying local package {pkg_str} to cluster <{self.name}>"
-                    )
-                    pkg_obj = pkg_obj.to(self)
-                to_install.append(pkg_obj)
-            else:
-                to_install.append(package)  # Just appending the string!
-        logging.info(
-            f"Installing packages on cluster {self.name}: "
-            f"{[req if isinstance(req, str) else str(req) for req in reqs]}"
-        )
-        self.client.install(to_install, env)
-
-    def get(self, key: str, default: Any = None, stream_logs: bool = True):
+    def get(
+        self, key: str, default: Any = None, remote=False, stream_logs: bool = False
+    ):
         """Get the result for a given key from the cluster's object store."""
         self.check_server()
-        res = self.client.get_object(key, stream_logs=stream_logs)
+        if self.on_this_cluster():
+            return obj_store.get(key, default=default)
+        res = self.client.call_module_method(
+            key, None, remote=remote, stream_logs=stream_logs
+        )
         return res if res is not None else default
 
+    # TODO deprecate
     def get_run(self, run_name: str, folder_path: str = None):
         self.check_server()
-        return self.client.get_run_object(run_name, folder_path)
+        return self.get(run_name, remote=True).provenance
 
+    # TODO this doesn't need to be a dedicated rpc, it can just flow through Secrets.to and put_resource,
+    #  like installing packages. Also, it should accept an env (for env var secrets and docker envs).
     def add_secrets(self, provider_secrets: dict):
         """Copy secrets from current environment onto the cluster"""
         self.check_server()
         return self.client.add_secrets(provider_secrets)
 
-    def put(self, key: str, obj: Any):
+    def put(self, key: str, obj: Any, env=None):
         """Put the given object on the cluster's object store at the given key."""
         self.check_server()
-        return self.client.put_object(key, obj)
+        if self.on_this_cluster():
+            return obj_store.put(key, obj, env=env)
+        return self.client.put_object(key, obj, env=env)
 
-    def list_keys(self):
+    def put_resource(self, resource: Resource, state=None, dryrun=False):
+        """Put the given resource on the cluster's object store. Returns the key (important if name is not set)."""
+        self.check_server()
+        env = (
+            resource.env
+            if hasattr(resource, "env")
+            else resource.name
+            if resource.RESOURCE_TYPE == "env"
+            else None
+        )
+        if self.on_this_cluster():
+            return obj_store.put(key=resource.name, value=resource, env=env)
+        return self.client.put_resource(
+            resource, state=state or {}, env=env, dryrun=dryrun
+        )
+
+    def rename(self, old_key: str, new_key: str):
+        """Rename a key in the cluster's object store."""
+        self.check_server()
+        if self.on_this_cluster():
+            return obj_store.rename(old_key, new_key)
+        return self.client.rename_object(old_key, new_key)
+
+    def list_keys(self, env=None):
         """List all keys in the cluster's object store."""
         self.check_server()
-        res = self.client.list_keys()
+        if self.on_this_cluster():
+            return obj_store.keys()
+        res = self.client.list_keys(env=env)
         return res
 
     def cancel(self, key: str, force=False):
         """Cancel a given run on cluster by its key."""
         self.check_server()
-        return self.client.cancel_runs(key, force=force)
+        if self.on_this_cluster():
+            return obj_store.cancel(key, force=force)
+        return self.client.cancel(key, force=force)
 
     def cancel_all(self, force=False):
         """Cancel all runs on cluster."""
         self.check_server()
-        return self.client.cancel_runs("all", force=force)
+        if self.on_this_cluster():
+            return obj_store.cancel_all(force=force)
+        return self.client.cancel("all", force=force)
 
-    def clear_pins(self, pins: Optional[List[str]] = None):
-        """Remove the given pinned items from the cluster. If `pins` is set to ``None``, then
-        all pinned objects will be cleared."""
+    def delete_keys(self, keys: Union[None, str, List[str]] = None):
+        """Delete the given keys from the cluster's object store."""
         self.check_server()
-        self.client.clear_pins(pins)
-        logger.info(f'Clearing pins on cluster {pins or ""}')
+        if isinstance(keys, str):
+            keys = [keys]
+        return self.client.delete_keys(keys)
 
     def on_this_cluster(self):
         """Whether this function is being called on the same cluster."""
@@ -347,7 +330,7 @@ class Cluster(Resource):
             self.client = HTTPClient(host="127.0.0.1", port=connected_port)
 
     def check_server(self, restart_server=True):
-        if self.name == _current_cluster("name"):
+        if self.on_this_cluster():
             return
 
         if not self.address:
@@ -556,6 +539,45 @@ class Cluster(Resource):
             kwargs,
         )
 
+    def call_module_method(
+        self,
+        module_name,
+        method_name,
+        *args,
+        stream_logs=True,
+        run_name=None,
+        remote=False,
+        run_async=False,
+        **kwargs,
+    ):
+        """Call a method on a module that is installed on the cluster.
+
+        Args:
+            module_name (str): Name of the module saved on system.
+            method_name (str): Name of the method.
+            stream_logs (bool): Whether to stream logs from the method call.
+            run_name (str): Name for the run.
+            remote (bool): Return a remote object from the function, rather than the result proper.
+            run_async (bool): Run the method asynchronously and retun a run_key to retreive results and logs later.
+            *args: Positional arguments to pass to the method.
+            **kwargs: Keyword arguments to pass to the method.
+
+        Example:
+            >>> cluster.call_module_method("my_module", "my_method", arg1, arg2, kwarg1=kwarg1)
+        """
+        self.check_server()
+        # Note: might be single value, might be a generator!
+        return self.client.call_module_method(
+            module_name,
+            method_name,
+            stream_logs=stream_logs,
+            run_name=run_name,
+            remote=remote,
+            run_async=run_async,
+            args=args,
+            kwargs=kwargs,
+        )
+
     def is_connected(self):
         """Whether the RPC tunnel is up.
 
@@ -715,7 +737,7 @@ class Cluster(Resource):
             >>> cpu.run(["python script.py"], run_name="my_exp")
         """
         # TODO [DG] suspect autostop while running?
-        from runhouse import run
+        from runhouse.rns.run import run
 
         cmd_prefix = ""
         if env:

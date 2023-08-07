@@ -2,31 +2,31 @@ import copy
 import json
 import logging
 import sys
-from datetime import datetime
 from enum import Enum
-from io import StringIO
-from typing import Any, Optional, Union
+from pathlib import Path
+from typing import Any, List, Optional, Union
 
-from ray import cloudpickle as pickle
-
-from runhouse import blob
-from runhouse.rh_config import obj_store, rns_client
-from runhouse.rns.api_utils.utils import log_timestamp, resolve_absolute_path
+from runhouse.rh_config import configs, obj_store, rns_client
+from runhouse.rns.blobs import file
 
 # Need to alias so it doesn't conflict with the folder property
 from runhouse.rns.folders import Folder, folder as folder_factory
 from runhouse.rns.hardware import Cluster
 from runhouse.rns.resource import Resource
 from runhouse.rns.top_level_rns_fns import resolve_rns_path
+from runhouse.rns.utils.api import log_timestamp, resolve_absolute_path
 from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
+from runhouse.rns.utils.runs import StreamTee
 
-logger = logging.getLogger(__name__)
+# Load the root logger
+logger = logging.getLogger("")
 
 
 class RunStatus(str, Enum):
     NOT_STARTED = "NOT_STARTED"
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
     ERROR = "ERROR"
 
 
@@ -53,6 +53,16 @@ class Run(Resource):
         path: str = None,
         system: Union[str, Cluster] = None,
         data_config: dict = None,
+        status: RunStatus = RunStatus.NOT_STARTED,
+        start_time: Optional[str] = None,
+        end_time: Optional[str] = None,
+        creator: Optional[str] = None,
+        creation_stacktrace: Optional[str] = None,
+        upstream_artifacts: Optional[List] = None,
+        downstream_artifacts: Optional[List] = None,
+        run_type: RunType = RunType.CMD_RUN,
+        error: Optional[str] = None,
+        error_traceback: Optional[str] = None,
         overwrite: bool = False,
         dryrun: bool = False,
         **kwargs,
@@ -90,20 +100,18 @@ class Run(Resource):
             dryrun=dryrun,
         )
 
-        # Use the config for this run saved on the system if it exists
-        run_config: dict = self._load_run_config(folder=self.folder)
-
-        self.status = run_config.get("status", RunStatus.NOT_STARTED)
-        self.start_time = run_config.get("start_time", None)
-        self.end_time = run_config.get("end_time", None)
-        self.upstream_artifacts = run_config.get("upstream_artifacts", [])
-        self.downstream_artifacts = run_config.get("downstream_artifacts", [])
-        self.fn_name = run_config.get("fn_name", fn_name)
-        self.cmds = run_config.get("cmds", cmds)
-        self.run_type = run_config.get("run_type", self._detect_run_type())
-
-        self._stdout_path = self._path_to_file_by_ext(ext=".out")
-        self._stderr_path = self._path_to_file_by_ext(ext=".err")
+        self.status = status
+        self.start_time = start_time
+        self.end_time = end_time
+        self.creator = creator
+        self.creation_stacktrace = creation_stacktrace
+        self.upstream_artifacts = upstream_artifacts or []
+        self.downstream_artifacts = downstream_artifacts or []
+        self.fn_name = fn_name
+        self.cmds = cmds
+        self.run_type = run_type or self._detect_run_type()
+        self.error = error
+        self.traceback = error_traceback
 
     def __enter__(self):
         self.status = RunStatus.RUNNING
@@ -112,33 +120,55 @@ class Run(Resource):
         # Begin tracking the Run in the rns_client - this adds the current Run to the stack of active Runs
         rns_client.start_run(self)
 
-        sys.stdout = StringIO()
-        sys.stderr = StringIO()
+        # Capture stdout and stderr to the Run's folder
+        self.folder.mkdir()
+        # TODO fix the fact that we keep appending and then stream back the full file
+        sys.stdout = StreamTee(sys.stdout, [Path(self._stdout_path).open(mode="a")])
+        sys.stderr = StreamTee(sys.stderr, [Path(self._stderr_path).open(mode="a")])
+
+        # Add the stdout and stderr handlers to the root logger
+        self._stdout_handler = logging.StreamHandler(sys.stdout)
+        logger.addHandler(self._stdout_handler)
 
         return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.end_time = self._current_timestamp()
-        self.status = RunStatus.COMPLETED
+        if exc_type:
+            self.status = RunStatus.ERROR
+            self.error = exc_value
+            self.traceback = exc_traceback
+        else:
+            self.status = RunStatus.COMPLETED
 
         # Pop the current Run from the stack of active Runs
         rns_client.stop_run()
 
+        # if self.run_type == RunType.CMD_RUN:
+        #     # Save Run config to its folder on the system - this will already happen on the cluster
+        #     # for function based Runs
+        #     self._write_config()
+        #
+        #     # For cmd runs we are using the SSH command runner to get the stdout / stderr
+        #     return
+
+        # TODO [DG->JL] Do we still need this?
+        # stderr = f"{type(exc_value).__name__}: {str(exc_value)}" if exc_value else ""
+        # self.write(data=stderr.encode(), path=self._stderr_path)
+
+        logger.removeHandler(self._stdout_handler)
+
+        # Flush stdout and stderr
+        # sys.stdout.flush()
+        # sys.stderr.flush()
+
+        # Restore stdout and stderr
+        sys.stdout = sys.stdout.instream
+        sys.stderr = sys.stderr.instream
+
         # Save Run config to its folder on the system - this will already happen on the cluster
         # for function based Runs
         self._write_config()
-
-        if self.run_type in [RunType.FUNCTION_RUN, RunType.CMD_RUN]:
-            # For function based Runs we use the logfiles already generated for the current Ray worker
-            # on the cluster, and for cmd runs we are using the SSH command runner to get the stdout / stderr
-            return
-
-        stdout = sys.stdout.getvalue()
-        stderr = sys.stderr.getvalue()
-
-        # save stdout and stderr to their respective log files
-        self.write(data=stdout.encode(), path=self._stdout_path)
-        self.write(data=stderr.encode(), path=self._stderr_path)
 
         # return False to propagate any exception that occurred inside the with block
         return False
@@ -152,12 +182,26 @@ class Run(Resource):
         """Metadata to store in RNS for the Run."""
         config = super().config_for_rns
         base_config = {
+            "status": self.status,
+            "start_time": self.start_time,
+            "end_time": self.end_time,
+            "run_type": self.run_type,
+            "fn_name": self.fn_name,
+            "cmds": self.cmds,
+            # NOTE: artifacts are currently only tracked in context manager based runs
+            "upstream_artifacts": self.upstream_artifacts,
+            "downstream_artifacts": self.downstream_artifacts,
             "path": self.folder.path,
             "system": self._resource_string_for_subconfig(self.folder.system),
-            "run_type": self.run_type,
+            "error": str(self.error),
+            "traceback": str(self.traceback),
         }
         config.update(base_config)
         return config
+
+    def populate_init_provenance(self):
+        self.creator = configs.get("username", None)
+        self.creation_stacktrace = "".join(traceback.format_stack(limit=11)[1:])
 
     @property
     def run_config(self):
@@ -196,7 +240,7 @@ class Run(Resource):
 
     def write(self, data: Any, path: str):
         """Write data (ex: function inputs or result, stdout, stderr) to the Run's dedicated folder on the system."""
-        blob(data=data, system=self.folder.system, path=path).write()
+        file(system=self.folder.system, path=path).write(data, serialize=False)
 
     def to(
         self,
@@ -252,9 +296,7 @@ class Run(Resource):
 
     def inputs(self) -> bytes:
         """Load the pickled function inputs saved on the system for the Run."""
-        return pickle.loads(
-            self._load_blob_from_path(path=self._fn_inputs_path()).fetch()
-        )
+        return self._load_blob_from_path(path=self._fn_inputs_path()).fetch()
 
     def result(self):
         """Load the function result saved on the system for the Run. If the Run has failed return the stderr,
@@ -266,7 +308,7 @@ class Run(Resource):
                 raise FileNotFoundError(
                     f"No results file found in path: {results_path}"
                 )
-            return pickle.loads(self._load_blob_from_path(path=results_path).fetch())
+            return self._load_blob_from_path(path=results_path).fetch()
         elif run_status == RunStatus.ERROR:
             logger.info("Run failed, returning stderr")
             return self.stderr()
@@ -279,14 +321,24 @@ class Run(Resource):
         stdout_path = self._stdout_path
         logger.info(f"Reading stdout from path: {stdout_path}")
 
-        return self._load_blob_from_path(path=stdout_path).fetch().decode().strip()
+        return (
+            self._load_blob_from_path(path=stdout_path)
+            .fetch(deserialize=False)
+            .decode()
+            .strip()
+        )
 
     def stderr(self) -> str:
         """Read the stderr saved on the system for the Run."""
         stderr_path = self._stderr_path
         logger.info(f"Reading stderr from path: {stderr_path}")
 
-        return self._load_blob_from_path(stderr_path).fetch().decode().strip()
+        return (
+            self._load_blob_from_path(stderr_path)
+            .fetch(deserialize=False)
+            .decode()
+            .strip()
+        )
 
     def _fn_inputs_path(self) -> str:
         """Path to the pickled inputs used for the function which are saved on the system."""
@@ -298,7 +350,7 @@ class Run(Resource):
 
     def _load_blob_from_path(self, path: str):
         """Load a blob from the Run's folder in the specified path. (ex: function inputs, result, stdout, stderr)."""
-        return blob(path=path, system=self.folder.system)
+        return file(path=path, system=self.folder.system)
 
     def _register_new_run(self):
         """Log a Run once it's been triggered on the system."""
@@ -336,7 +388,7 @@ class Run(Resource):
             config (Optional[Dict]): Config to write. If none is provided, the Run's config for RNS will be used.
             overwrite (Optional[bool]): Overwrite the config if one is already saved down. Defaults to ``True``.
         """
-        config_to_write = config or self.run_config
+        config_to_write = config or self.config_for_rns
         logger.info(f"Config to save on system: {config_to_write}")
         self.folder.put(
             {self.RUN_CONFIG_FILE: config_to_write},
@@ -380,6 +432,16 @@ class Run(Resource):
                 self.folder.system.run(
                     [f"cp --remove-destination `readlink {path}` {path}"]
                 )
+
+    @property
+    def _stdout_path(self) -> str:
+        """Path to the stdout file for the Run."""
+        return self._path_to_file_by_ext(ext=".out")
+
+    @property
+    def _stderr_path(self) -> str:
+        """Path to the stderr file for the Run."""
+        return self._path_to_file_by_ext(ext=".err")
 
     def _find_file_path_by_ext(self, ext: str) -> Union[str, None]:
         """Get the file path by provided extension. Needed when loading the stdout and stderr files associated
@@ -428,15 +490,6 @@ class Run(Resource):
         existing_folder.rm(recursive=True)
 
     @staticmethod
-    def _create_new_run_name(name: str = None) -> str:
-        """Name of the Run's parent folder which contains the Run's data (config, stdout, stderr, etc).
-        If a name is provided, prepend that to the current timestamp to complete the folder name."""
-        timestamp_key = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        if name is None:
-            return timestamp_key
-        return f"{name}_{timestamp_key}"
-
-    @staticmethod
     def _load_run_config(folder: Folder) -> dict:
         """Load the Run config file saved for the Run in its dedicated folder on the system ."""
         try:
@@ -452,7 +505,7 @@ class Run(Resource):
     @staticmethod
     def _base_local_folder_path(name: str):
         """Path to the base folder for this Run on a local system."""
-        return f"{Run.LOCAL_RUN_PATH}/{name}"
+        return f"{obj_store.LOGS_DIR}/{name}"
 
 
 def run(
@@ -460,6 +513,7 @@ def run(
     path: str = None,
     system: Union[str, Cluster] = None,
     data_config: dict = None,
+    load: bool = True,
     dryrun: bool = False,
     **kwargs,
 ) -> Union["Run", None]:
@@ -480,7 +534,7 @@ def run(
     Returns:
         Run: The loaded Run object.
     """
-    if name and not any([path, system, data_config, kwargs]):
+    if name and load and not any([path, system, data_config, kwargs]):
         # Try reloading existing Run from RNS
         return Run.from_name(name, dryrun=dryrun)
 

@@ -73,6 +73,7 @@ install_requires = [
     "sentry-sdk",
     "fastapi<=0.99.0",
     "uvicorn",
+    "sentry_sdk",
     "pyOpenSSL>=21.1.0",
 ]
 

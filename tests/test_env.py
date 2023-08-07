@@ -46,9 +46,10 @@ def test_create_env():
 
 
 @pytest.mark.clustertest
+@pytest.mark.parametrize("env_name", ["base", "test_env"])
 @cpu_clusters
-def test_to_cluster(cluster):
-    test_env = rh.env(name="test_env", reqs=["transformers"])
+def test_to_cluster(cluster, env_name):
+    test_env = rh.env(name=env_name, reqs=["transformers"])
 
     test_env.to(cluster)
     res = cluster.run_python(["import transformers"])
@@ -222,7 +223,7 @@ def test_conda_env_from_name_rns():
 def test_conda_env_path_to_system(cluster):
     env_name = "from_path"
     python_version = "3.9.16"
-    tmp_path = Path.cwd() / "test-env"
+    tmp_path = tmp_path / "test-env"
     file_path = f"{tmp_path}/{env_name}.yml"
     tmp_path.mkdir(exist_ok=True)
     yaml.dump(
