@@ -106,10 +106,11 @@ class SageMakerCluster(Cluster):
                 "connection_wait_time": self.connection_wait_time,
             }
         )
+
+        # If running a dedicated job on the cluster, add the estimator config
         if self.estimator and (
             self._estimator_source_dir and self._estimator_entry_point
         ):
-            # Dedicated job provided
             config.update(
                 {
                     "estimator_entry_point": self._estimator_entry_point,
@@ -521,8 +522,8 @@ class SageMakerCluster(Cluster):
         self._add_ssh_config_entry()
 
         logger.info(
-            f"Connection with {self.name} has been created. You can now SSH into "
-            f"the instance with the CLI using: ``ssh {self.name}``"
+            f"Connection with {self.name} has been created. You can now SSH onto "
+            f"the cluster with the CLI using: ``ssh {self.name}``"
         )
 
     def _launch_new_instance(self):
@@ -817,7 +818,6 @@ class SageMakerCluster(Cluster):
         pattern = rf"\(Job Name: {re.escape(self.job_name)}\)"
         match = re.search(pattern, existing_config)
         if match:
-            logger.info(f"Entry already exists in SSH config for job {self.job_name}")
             return
 
         with open(config_file, "a") as f:

@@ -1,13 +1,13 @@
 import os
 import shutil
 import tempfile
-import numpy as np
 import textwrap
+
+import numpy as np
 import pandas as pd
 import pytest
 
 import runhouse as rh
-from runhouse.rns.api_utils.utils import create_s3_bucket
 
 # https://docs.pytest.org/en/6.2.x/fixture.html#conftest-py-sharing-fixtures-across-multiple-files
 
@@ -309,7 +309,6 @@ def cluster(request):
 def ondemand_cpu_cluster():
     c = rh.ondemand_cluster("^rh-cpu")
     c.up_if_not()
-    # c.restart_server(restart_ray=True)
     c.install_packages(["pytest"])
     # Save to RNS - to be loaded in other tests (ex: Runs)
     c.save()

@@ -324,7 +324,7 @@ class Cluster(Resource):
         )
 
         # Connecting to localhost because it's tunneled into the server at the specified port.
-        creds = self.ssh_creds()
+        creds = self.ssh_creds() or {}
         if creds.get("password") and creds.get("ssh_user"):
             self.client = HTTPClient(
                 host="127.0.0.1",
