@@ -458,16 +458,6 @@ class HTTPServer:
         )
 
     @staticmethod
-    @app.get("/run_object")
-    def get_run_object(message: Message):
-        return HTTPServer.call_in_env_servlet(
-            "get_run_object",
-            [message],
-            env=message.env,
-            lookup_env_for_name=message.key,
-        )
-
-    @staticmethod
     @app.post("/cancel")
     def cancel_run(message: Message):
         return HTTPServer.call_in_env_servlet(

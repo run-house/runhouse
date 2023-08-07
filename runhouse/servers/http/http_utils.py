@@ -41,6 +41,7 @@ class OutputType:
     STDERR = "stderr"
     SUCCESS = "success"  # No output
     NOT_FOUND = "not_found"
+    CANCELLED = "cancelled"
     RESULT = "result"
     RESULT_LIST = "result_list"
     RESULT_STREAM = "result_stream"
@@ -65,6 +66,10 @@ def handle_response(response_data, output_type, err_str):
     elif output_type == OutputType.RESULT_LIST:
         # Map, starmap, and repeat return lists of results
         return [b64_unpickle(val) for val in response_data["data"]]
+    elif output_type == OutputType.NOT_FOUND:
+        raise KeyError(f"{err_str}: key {response_data['data']} not found")
+    elif output_type == OutputType.CANCELLED:
+        raise RuntimeError(f"{err_str}: task was cancelled")
     elif output_type in [OutputType.SUCCESS, OutputType.SUCCESS_STREAM]:
         return
     elif output_type == OutputType.EXCEPTION:

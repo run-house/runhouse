@@ -18,8 +18,8 @@ TEMP_FOLDER = "~/runhouse-tests"
 logger = logging.getLogger(__name__)
 
 
-def do_printing_and_logging():
-    for i in range(3):
+def do_printing_and_logging(steps=3):
+    for i in range(steps):
         # Wait to make sure we're actually streaming
         time.sleep(1)
         print(f"Hello from the cluster stdout! {i}")
@@ -255,17 +255,19 @@ def test_tqdm_streaming(ondemand_cpu_cluster):
 @pytest.mark.clustertest
 def test_cancel_run(ondemand_cpu_cluster):
     print_fn = rh.function(fn=do_printing_and_logging, system=ondemand_cpu_cluster)
-    run_obj = print_fn.run()
-    assert isinstance(run_obj, rh.Run)
+    run_key = print_fn.run(10)
+    run_key2 = print_fn.run()
 
-    key = run_obj.name
-    ondemand_cpu_cluster.cancel(key)
+    # TODO if you look at screen on the cluster, the job is continuing
+    ondemand_cpu_cluster.cancel(run_key, force=True)
     with pytest.raises(Exception) as e:
-        ondemand_cpu_cluster.get(key, stream_logs=True)
-    # NOTE [DG]: For some reason the exception randomly returns in different formats
-    assert "ray.exceptions.TaskCancelledError" in str(
-        e.value
-    ) or "This task or its dependency was cancelled by" in str(e.value)
+        ondemand_cpu_cluster.get(run_key, stream_logs=True)
+    assert "task was cancelled" in str(e.value)
+
+    # Check that another job in the same env isn't affected
+    res = ondemand_cpu_cluster.get(run_key2)
+    assert res == list(range(50))
+
 
 
 if __name__ == "__main__":

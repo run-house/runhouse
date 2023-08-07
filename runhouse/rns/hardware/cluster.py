@@ -205,10 +205,13 @@ class Cluster(Resource):
         )
         return res if res is not None else default
 
+    # TODO deprecate
     def get_run(self, run_name: str, folder_path: str = None):
         self.check_server()
-        return self.client.get_run_object(run_name, folder_path)
+        return self.get(run_name, remote=True).provenance
 
+    # TODO this doesn't need to be a dedicated rpc, it can just flow through Secrets.to and put_resource,
+    #  like installing packages. Also, it should accept an env (for env var secrets and docker envs).
     def add_secrets(self, provider_secrets: dict):
         """Copy secrets from current environment onto the cluster"""
         self.check_server()
@@ -257,14 +260,14 @@ class Cluster(Resource):
         self.check_server()
         if self.on_this_cluster():
             return obj_store.cancel(key, force=force)
-        return self.client.cancel_runs(key, force=force)
+        return self.client.cancel(key, force=force)
 
     def cancel_all(self, force=False):
         """Cancel all runs on cluster."""
         self.check_server()
         if self.on_this_cluster():
             return obj_store.cancel_all(force=force)
-        return self.client.cancel_runs("all", force=force)
+        return self.client.cancel("all", force=force)
 
     def delete_keys(self, keys: Union[None, str, List[str]] = None):
         """Delete the given keys from the cluster's object store."""

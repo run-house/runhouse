@@ -3,6 +3,8 @@ import inspect
 import logging
 import time
 import traceback
+import threading
+import signal
 from pathlib import Path
 
 import ray
@@ -44,6 +46,7 @@ class EnvServlet:
         obj_store.set_name(self.env_name)
 
         self.output_types = {}
+        self.thread_ids = {}
 
     @staticmethod
     def register_activity():
@@ -110,6 +113,8 @@ class EnvServlet:
                 f"Message received from client to call method {method_name} on module {module_name} at {time.time()}"
             )
 
+            import ray
+            self.thread_ids[message.key] = ray.worker.global_worker.import_thread.t._ident
             # Remove output types from previous runs
             self.output_types.pop(message.key, None)
             result_resource = Queue(name=message.key, persist=persist)
@@ -306,7 +311,7 @@ class EnvServlet:
         self.register_activity()
         try:
             if not obj_store.contains(key):
-                return Response(output_type=OutputType.NOT_FOUND)
+                return Response(output_type=OutputType.NOT_FOUND, data=key)
 
             ret_obj = obj_store.get(
                 key, timeout=timeout, check_other_envs=not _intra_cluster
@@ -364,18 +369,16 @@ class EnvServlet:
                             return Response(output_type=OutputType.SUCCESS_STREAM)
                         else:
                             return Response(output_type=OutputType.SUCCESS)
+
                     if ret_obj.provenance.status == RunStatus.ERROR:
                         return Response(
                             error=pickle_b64(ret_obj.provenance.error),
                             traceback=pickle_b64(ret_obj.provenance.traceback),
                             output_type=OutputType.EXCEPTION,
                         )
-                    # TODO
-                    # if ret_obj.provenance.status == RunStatus.CANCELLED:
-                    #     return Response(output_type=OutputType.CANCELLED)
 
-                    # If queue is empty and RunStatus.RUNNING or RunStatus.NOT_STARTED,
-                    # just wait for results (or timeout), same as if it weren't empty
+                    if ret_obj.provenance.status == RunStatus.CANCELLED:
+                        return Response(output_type=OutputType.CANCELLED)
 
                 res = ret_obj.get(block=True, timeout=timeout)
                 # There's no OutputType.EXCEPTION case to handle here, because if an exception were thrown the
@@ -389,7 +392,6 @@ class EnvServlet:
             # If the user requests a remote object, we can return a queue before results complete so they can
             # stream in results directly from the queue. For all other cases, we need to wait for the results
             # to be available.
-            # TODO handle queue case above
             if remote:
                 if not isinstance(ret_obj, Resource):
                     # If the user requests a remote of an object that is not a Resource, we need to wrap it
@@ -434,9 +436,9 @@ class EnvServlet:
                         data=pickle_b64(ret_obj),
                         output_type=OutputType.RESULT,
                     )
-                # TODO
-                # if ret_obj.provenance.status == RunStatus.CANCELLED:
-                #     return Response(output_type=OutputType.CANCELLED)
+
+                if ret_obj.provenance.status == RunStatus.CANCELLED:
+                    return Response(output_type=OutputType.CANCELLED)
 
                 # We don't need to handle the ret_obj.provenance.status == RunStatus.NOT_STARTED case, because
                 # if the run hasn't started yet, the result_resource will still be a Queue and handled above.
@@ -521,56 +523,40 @@ class EnvServlet:
                 output_type=OutputType.EXCEPTION,
             )
 
-    def get_run_object(self, message: Message):
-        from runhouse import folder, Run, run
-        from runhouse.rns.utils.api import resolve_absolute_path
-
-        self.register_activity()
-        logger.info(
-            f"Message received from client to get run object: {b64_unpickle(message.data)}"
-        )
-        run_name, folder_path = b64_unpickle(message.data)
-
-        # Create folder object which points to the Run's folder on the system
-        folder_path = folder_path or Run._base_cluster_folder_path(run_name)
-        folder_path_on_system = resolve_absolute_path(folder_path)
-        system_folder = folder(path=folder_path_on_system, dryrun=True)
-
-        try:
-            result = None
-            try:
-                run_config = Run._load_run_config(folder=system_folder)
-                if run_config:
-                    # Re-load the Run object from the Run config data (and RNS data where relevant)
-                    result = run(name=run_name, path=folder_path_on_system)
-            except FileNotFoundError:
-                logger.info(
-                    f"No config for Run {run_name} found in path: {folder_path_on_system}"
-                )
-
-            return Response(
-                data=pickle_b64(result),
-                output_type=OutputType.RESULT,
-            )
-
-        except Exception as e:
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
-
     def cancel_run(self, message: Message):
         # Having this be a POST instead of a DELETE on the "run" endpoint is strange, but we're not actually
         # deleting the run, just cancelling it. Maybe we should merge this into get_object to allow streaming logs.
         self.register_activity()
-        run_key, force = b64_unpickle(message.data)
-        logger.info(f"Message received from client to cancel runs: {run_key}")
+        force = b64_unpickle(message.data)
+        logger.info(f"Message received from client to cancel runs: {message.key}")
+        def kill_thread(key, sigterm=False):
+            thread_id = self.thread_ids.get(key)
+            if not thread_id:
+                return
+            # Get thread object from id
+            # print(list(threading.enumerate()))
+            # print(self.thread_ids.items())
+            thread = threading._active.get(thread_id)
+            if thread is None:
+                return
+            if thread.is_alive():
+                # exc = KeyboardInterrupt()
+                # thread._async_raise(exc)
+                logging.info(f"Killing thread {thread_id}")
+                # SIGINT is like Ctrl+C: https://docs.python.org/3/library/signal.html#signal.SIGINT
+                signal.pthread_kill(thread_id, signal.SIGINT  if not sigterm else signal.SIGTERM)
+                self.output_types[thread_id] = OutputType.CANCELLED
+                if obj_store.contains(key):
+                    obj = obj_store.get(key)
+                    obj.provenance.status = RunStatus.CANCELLED
+            self.thread_ids.pop(thread_id, None)
+
         try:
-            if run_key == "all":
-                [obj_store.cancel(key, force=force) for key in obj_store.keys()]
+            if message.key == "all":
+                for key in self.thread_ids:
+                    kill_thread(key, force)
             else:
-                obj_store.cancel(run_key, force=force)
+                kill_thread(message.key, force)
 
             return Response(output_type=OutputType.SUCCESS)
         except Exception as e:

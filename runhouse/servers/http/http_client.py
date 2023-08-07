@@ -265,16 +265,6 @@ class HTTPClient:
             err_str=f"Error renaming object {old_key}",
         )
 
-    def get_run_object(self, run_name, folder_path):
-        run_obj = self.request(
-            "run_object",
-            req_type="get",
-            data=pickle_b64((run_name, folder_path)),
-            err_str=f"Error getting Run with name {run_name}",
-        )
-
-        return run_obj
-
     def delete_keys(self, keys=None, env=None):
         return self.request(
             "object",
@@ -284,13 +274,14 @@ class HTTPClient:
             err_str=f"Error deleting keys {keys}",
         )
 
-    def cancel_runs(self, keys, force=False):
-        # Note keys can be set to "all" to cancel all runs
+    def cancel(self, key, force=False):
+        # Note key can be set to "all" to cancel all runs
         return self.request(
             "cancel",
             req_type="post",
-            data=pickle_b64((keys, force)),
-            err_str=f"Error cancelling runs {keys}",
+            data=pickle_b64(force),
+            key=key,
+            err_str=f"Error cancelling runs {key}",
         )
 
     def list_keys(self, env=None):
