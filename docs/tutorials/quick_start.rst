@@ -59,11 +59,19 @@ ready:
 
 .. code:: python
 
+    # using private key
     cluster = rh.cluster(
-                  name="cpu-cluster",
-                  ips=['<ip of the cluster>'],
-                  ssh_creds={'ssh_user': '<user>', 'ssh_private_key':'<path_to_key>'},
-              )
+                name="cpu-cluster",
+                ips=['<ip of the cluster>'],
+                ssh_creds={'ssh_user': '<user>', 'ssh_private_key':'<path_to_key>'},
+            )
+
+    # using password
+    cluster = rh.cluster(
+                name="cpu-cluster",
+                ips=['<ip of the cluster>'],
+                ssh_creds={'ssh_user': '<user>', 'password':'******'},
+            )
 
 On-Demand Cluster
 ~~~~~~~~~~~~~~~~~
