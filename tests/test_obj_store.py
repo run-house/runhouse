@@ -269,6 +269,5 @@ def test_cancel_run(ondemand_cpu_cluster):
     assert res == list(range(50))
 
 
-
 if __name__ == "__main__":
     unittest.main()

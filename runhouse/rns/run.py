@@ -6,7 +6,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, List, Optional, Union
 
-from runhouse.rh_config import obj_store, rns_client, configs
+from runhouse.rh_config import configs, obj_store, rns_client
 from runhouse.rns.blobs import file
 
 # Need to alias so it doesn't conflict with the folder property

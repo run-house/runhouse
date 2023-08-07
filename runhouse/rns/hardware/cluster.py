@@ -15,11 +15,10 @@ from sky.utils import command_runner
 from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
 from runhouse.rh_config import obj_store, open_cluster_tunnels, rns_client
-from runhouse.rns.folders.folder import Folder
 from runhouse.rns.packages.package import Package
 from runhouse.rns.resource import Resource
-from runhouse.rns.utils.hardware import _current_cluster
 from runhouse.rns.utils.env import _get_env_from
+from runhouse.rns.utils.hardware import _current_cluster
 
 from runhouse.servers.http import DEFAULT_SERVER_PORT, HTTPClient
 

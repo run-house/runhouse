@@ -1,10 +1,10 @@
 import codecs
 import inspect
 import logging
+import signal
+import threading
 import time
 import traceback
-import threading
-import signal
 from pathlib import Path
 
 import ray
@@ -15,7 +15,6 @@ from runhouse.rh_config import configs, obj_store
 
 from runhouse.rns.blobs import blob, Blob
 from runhouse.rns.module import Module
-from runhouse.rns.packages.package import Package
 from runhouse.rns.queues import Queue
 from runhouse.rns.resource import Resource
 from runhouse.rns.run import run, RunStatus
@@ -114,7 +113,10 @@ class EnvServlet:
             )
 
             import ray
-            self.thread_ids[message.key] = ray.worker.global_worker.import_thread.t._ident
+
+            self.thread_ids[
+                message.key
+            ] = ray.worker.global_worker.import_thread.t._ident
             # Remove output types from previous runs
             self.output_types.pop(message.key, None)
             result_resource = Queue(name=message.key, persist=persist)
@@ -301,13 +303,13 @@ class EnvServlet:
             )
 
     def get(self, key, remote=False, stream=False, timeout=None, _intra_cluster=False):
-        """ Get an object from the servlet's object store.
+        """Get an object from the servlet's object store.
 
         Args:
             key (str): The key of the object to get.
             remote (bool): Whether to return the object or it's config to construct a remote object.
             stream (bool): Whether to stream results as available (if the key points to a queue).
-            """
+        """
         self.register_activity()
         try:
             if not obj_store.contains(key):
@@ -327,7 +329,10 @@ class EnvServlet:
 
             # If the request doesn't want a stream, we can just return the queue object in same way as any other, below
             if isinstance(ret_obj, Queue) and stream:
-                if remote and self.output_types.get(key) in [OutputType.RESULT_STREAM, OutputType.SUCCESS_STREAM]:
+                if remote and self.output_types.get(key) in [
+                    OutputType.RESULT_STREAM,
+                    OutputType.SUCCESS_STREAM,
+                ]:
                     # If this is a "remote" request and we already know the output type is a stream, we can
                     # return the Queue as a remote immediately so the client can start streaming the results
                     res = ret_obj.config_for_rns
@@ -529,6 +534,7 @@ class EnvServlet:
         self.register_activity()
         force = b64_unpickle(message.data)
         logger.info(f"Message received from client to cancel runs: {message.key}")
+
         def kill_thread(key, sigterm=False):
             thread_id = self.thread_ids.get(key)
             if not thread_id:
@@ -544,7 +550,9 @@ class EnvServlet:
                 # thread._async_raise(exc)
                 logging.info(f"Killing thread {thread_id}")
                 # SIGINT is like Ctrl+C: https://docs.python.org/3/library/signal.html#signal.SIGINT
-                signal.pthread_kill(thread_id, signal.SIGINT  if not sigterm else signal.SIGTERM)
+                signal.pthread_kill(
+                    thread_id, signal.SIGINT if not sigterm else signal.SIGTERM
+                )
                 self.output_types[thread_id] = OutputType.CANCELLED
                 if obj_store.contains(key):
                     obj = obj_store.get(key)
