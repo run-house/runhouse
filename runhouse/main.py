@@ -1,14 +1,14 @@
+import shlex
 import subprocess
 import webbrowser
 from typing import Optional
 
-import pkg_resources
 import typer
 from rich.console import Console
 
 import runhouse.rns.login
 
-from runhouse import cluster, configs
+from runhouse import __version__, cluster, configs
 
 # create an explicit Typer application
 app = typer.Typer(add_completion=False)
@@ -81,7 +81,7 @@ def ssh(cluster_name: str, up: bool = typer.Option(False, help="Start the cluste
             f"Cluster {cluster_name} is not up. Please run `runhouse ssh {cluster_name} --up`."
         )
         raise typer.Exit(1)
-    subprocess.call(f"ssh {c.name}", shell=True)
+    c.ssh()
 
 
 @app.command()
@@ -132,10 +132,10 @@ def start(
         subprocess.run(["ray", "stop"])
         subprocess.run(["ray", "start", "--head"])
 
-    start_server_cmd = http_server_cmd.split()
-    if screen:
-        start_server_cmd = ["screen", "-dm", "bash", "-c"] + start_server_cmd
-    subprocess.run(start_server_cmd)
+    start_server_cmd = (
+        f'screen -dm bash -c "{http_server_cmd}"' if screen else http_server_cmd
+    )
+    subprocess.run(shlex.split(start_server_cmd))
 
 
 @app.command()
@@ -156,6 +156,5 @@ def main(verbose: bool = False):
     """
     if verbose:
         name = "runhouse"
-        version = pkg_resources.get_distribution(name).version
-        console.print(f"{name}=={version}", style="bold green")
+        console.print(f"{name}=={__version__}", style="bold green")
         state["verbose"] = True

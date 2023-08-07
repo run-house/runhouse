@@ -64,15 +64,17 @@ def parse_readme(readme: str) -> str:
 install_requires = [
     "wheel",
     "rich",
-    "fsspec",
+    "fsspec<=2023.5.0",
     "pyarrow",
     "sshtunnel>=0.3.0",
     "sshfs",
     "sentry_sdk",
     "typer",
     "skypilot==0.3.3",
+    "sentry-sdk",
     "fastapi<=0.99.0",
     "uvicorn",
+    "sentry_sdk",
     "pyOpenSSL>=21.1.0",
 ]
 
@@ -90,6 +92,7 @@ extras_require = {
         "boto3==1.24.59",
         "pycryptodome==3.12.0",
         "s3fs==2023.1.0",
+        "fsspec==2023.1.0",
     ],
     "azure": ["azure-cli==2.31.0", "azure-core"],
     "gcp": ["google-api-python-client", "google-cloud-storage", "gcsfs"],

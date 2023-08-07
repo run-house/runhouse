@@ -1,19 +1,20 @@
 import logging
 
 import pprint
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import requests
 
-from runhouse.rh_config import rns_client
-from runhouse.rns.api_utils.resource_access import ResourceAccess
-from runhouse.rns.api_utils.utils import load_resp_content, read_resp_data
+from runhouse.rh_config import obj_store, rns_client
 from runhouse.rns.top_level_rns_fns import (
     resolve_rns_path,
     save,
     split_rns_name_and_path,
 )
+from runhouse.rns.utils.api import load_resp_content, read_resp_data, ResourceAccess
+from runhouse.rns.utils.hardware import _current_cluster
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +23,7 @@ class Resource:
     RESOURCE_TYPE = None
 
     def __init__(
-        self,
-        name: Optional[str] = None,
-        dryrun: bool = None,
+        self, name: Optional[str] = None, dryrun: bool = None, provenance=None, **kwargs
     ):
         """
         Runhouse abstraction for objects that can be saved, shared, and reused.
@@ -54,7 +53,12 @@ class Resource:
                 rns_client.resolve_rns_path(name)
             )
 
+        from runhouse.rns.run import Run
+
         self.dryrun = dryrun
+        self.provenance = (
+            Run.from_config(provenance) if isinstance(provenance, Dict) else provenance
+        )
 
     # TODO add a utility to allow a parameter to be specified as "default" and then use the default value
 
@@ -64,6 +68,7 @@ class Resource:
             "name": self.rns_address,
             "resource_type": self.RESOURCE_TYPE,
             "resource_subtype": self.__class__.__name__,
+            "provenance": self.provenance.config_for_rns if self.provenance else None,
         }
         return config
 
@@ -99,7 +104,12 @@ class Resource:
     @name.setter
     def name(self, name):
         # Split the name and rns path if path is given (concat with current_folder if just stem is given)
-        self._name, self._rns_folder = split_rns_name_and_path(resolve_rns_path(name))
+        if name is None:
+            self._name = None
+        else:
+            self._name, self._rns_folder = split_rns_name_and_path(
+                resolve_rns_path(name)
+            )
 
     @rns_address.setter
     def rns_address(self, new_address):
@@ -108,6 +118,20 @@ class Resource:
     def _save_sub_resources(self):
         """Overload by child resources to save any resources they hold internally."""
         pass
+
+    def pin(self):
+        """Write the resource to the object store."""
+        if _current_cluster():
+            obj_store.put(self._name, self)
+        else:
+            raise ValueError("Cannot pin a resource outside of a cluster.")
+
+    def refresh(self):
+        """Update the resource in the object store."""
+        if _current_cluster():
+            return obj_store.get(self._name)
+        else:
+            return self
 
     def save(
         self,
@@ -147,6 +171,10 @@ class Resource:
     @classmethod
     def from_name(cls, name, dryrun=False):
         """Load existing Resource via its name."""
+        # TODO is this the right priority order?
+        if _current_cluster() and obj_store.contains(name):
+            return obj_store.get(name, check_other_envs=True)
+
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Resource {name} not found.")
@@ -158,6 +186,23 @@ class Resource:
 
         # Uses child class's from_config
         return cls.from_config(config=config, dryrun=dryrun)
+
+    @staticmethod
+    def from_config(config, dryrun=False):
+        resource_class = getattr(
+            sys.modules["runhouse"], config.pop("resource_type").capitalize(), None
+        )
+        if not resource_class:
+            raise TypeError(
+                f"Could not find module associated with {config['resource_type']}"
+            )
+        config = resource_class._check_for_child_configs(config)
+
+        dryrun = config.pop("dryrun", False) or dryrun
+        loaded = resource_class.from_config(config=config, dryrun=dryrun)
+        if loaded.name:
+            rns_client.add_upstream_resource(loaded.name)
+        return loaded
 
     def unname(self):
         """Remove the name of the resource. This changes the resource name to anonymous and deletes any local

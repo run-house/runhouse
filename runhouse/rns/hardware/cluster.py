@@ -1,5 +1,6 @@
 import contextlib
 import logging
+import os
 import pkgutil
 import subprocess
 import threading
@@ -13,10 +14,10 @@ import sshtunnel
 from sky.utils import command_runner
 from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
-from runhouse.rh_config import open_cluster_tunnels, rns_client
-from runhouse.rns.folders.folder import Folder
+from runhouse.rh_config import obj_store, open_cluster_tunnels, rns_client
 from runhouse.rns.packages.package import Package
 from runhouse.rns.resource import Resource
+from runhouse.rns.utils.env import _get_env_from
 from runhouse.rns.utils.hardware import _current_cluster
 
 from runhouse.servers.http import DEFAULT_SERVER_PORT, HTTPClient
@@ -55,9 +56,8 @@ class Cluster(Resource):
         self.client = None
 
         if not dryrun and self.address:
-            self.check_server()
             # OnDemandCluster will start ray itself, but will also set address later, so won't reach here.
-            self.start_ray()
+            self.check_server()
 
     def save_config_to_cluster(self):
         import json
@@ -127,45 +127,10 @@ class Cluster(Resource):
             f"cluster.keep_warm will have no effect on self-managed cluster {self.name}."
         )
 
-    def start_ray(self):
-        """Start Ray on the cluster.
-
-        Example:
-            >>> rh.cluster("rh-cpu").start_ray()
-        """
-        if self.is_up():
-            res = self.run(["ray start --head"], stream_logs=False)
-            if res[0] == 0:
-                return
-            if any(
-                line.startswith("ConnectionError: Ray is trying to start at")
-                for line in res[0][1].splitlines()
-            ):
-                # Ray is already started
-                return
-            # Check if ray is installed
-            if "ray" not in self._get_pip_installs(strip_versions=True):
-                self.run(
-                    ["pip install ray==2.4.0"]
-                )  # pin to SkyPilot's Ray requirement
-                res = self.run(["ray start --head"])
-                if not res[0][0]:
-                    raise RuntimeError(
-                        f"Failed to start ray on cluster <{self.name}>. "
-                        f"Error: {res[0][1]}"
-                    )
-        else:
-            raise ValueError(f"Cluster <{self.name}> is not up.")
-
-    def _get_pip_installs(self, strip_versions=False):
-        packages = self.run(["pip freeze"], stream_logs=False)[0][1].splitlines()
-        if strip_versions:
-            packages = [p.split("==")[0] for p in packages]
-        return packages
-
     def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
         if not self.address:
             raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
+
         local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
 
         # Check if runhouse is installed from source and has setup.py
@@ -204,9 +169,8 @@ class Cluster(Resource):
                 _install_url = f"runhouse=={runhouse.__version__}"
             rh_install_cmd = f"pip install {_install_url}"
 
-        install_cmd = (
-            f"{env._activate_cmd} && {rh_install_cmd}" if env else rh_install_cmd
-        )
+        install_cmd = f"{env._run_cmd} {rh_install_cmd}" if env else rh_install_cmd
+
         status_codes = self.run([install_cmd], stream_logs=True)
 
         if status_codes[0][0] != 0:
@@ -226,75 +190,95 @@ class Cluster(Resource):
             >>> cluster.install_packages(reqs=["accelerate", "diffusers"])
             >>> cluster.install_packages(reqs=["accelerate", "diffusers"], env="my_conda_env")
         """
+        from runhouse.rns.envs.env import Env
+
         self.check_server()
-        to_install = []
-        for package in reqs:
-            if isinstance(package, str):
-                pkg_obj = Package.from_string(package, dryrun=False)
-            else:
-                pkg_obj = package
+        env = _get_env_from(env) or Env(name=env)
+        env.reqs = env._reqs + reqs
+        env.to(self)
 
-            if isinstance(pkg_obj, dict):
-                pkg_obj = Package.from_config(pkg_obj)
-                to_install.append(pkg_obj)
-            elif isinstance(pkg_obj.install_target, Folder):
-                if not pkg_obj.install_target.system == self:
-                    pkg_str = pkg_obj.name or Path(pkg_obj.install_target.path).name
-                    logging.info(
-                        f"Copying local package {pkg_str} to cluster <{self.name}>"
-                    )
-                    pkg_obj = pkg_obj.to(self)
-                to_install.append(pkg_obj)
-            else:
-                to_install.append(package)  # Just appending the string!
-        logging.info(
-            f"Installing packages on cluster {self.name}: "
-            f"{[req if isinstance(req, str) else str(req) for req in reqs]}"
-        )
-        self.client.install(to_install, env)
-
-    def get(self, key: str, default: Any = None, stream_logs: bool = True):
+    def get(
+        self, key: str, default: Any = None, remote=False, stream_logs: bool = False
+    ):
         """Get the result for a given key from the cluster's object store."""
         self.check_server()
-        res = self.client.get_object(key, stream_logs=stream_logs)
+        if self.on_this_cluster():
+            return obj_store.get(key, default=default)
+        res = self.client.call_module_method(
+            key, None, remote=remote, stream_logs=stream_logs
+        )
         return res if res is not None else default
 
+    # TODO deprecate
     def get_run(self, run_name: str, folder_path: str = None):
         self.check_server()
-        return self.client.get_run_object(run_name, folder_path)
+        return self.get(run_name, remote=True).provenance
 
+    # TODO this doesn't need to be a dedicated rpc, it can just flow through Secrets.to and put_resource,
+    #  like installing packages. Also, it should accept an env (for env var secrets and docker envs).
     def add_secrets(self, provider_secrets: dict):
         """Copy secrets from current environment onto the cluster"""
         self.check_server()
         return self.client.add_secrets(provider_secrets)
 
-    def put(self, key: str, obj: Any):
+    def put(self, key: str, obj: Any, env=None):
         """Put the given object on the cluster's object store at the given key."""
         self.check_server()
-        return self.client.put_object(key, obj)
+        if self.on_this_cluster():
+            return obj_store.put(key, obj, env=env)
+        return self.client.put_object(key, obj, env=env)
 
-    def list_keys(self):
+    def put_resource(self, resource: Resource, state=None, dryrun=False):
+        """Put the given resource on the cluster's object store. Returns the key (important if name is not set)."""
+        self.check_server()
+        env = (
+            resource.env
+            if hasattr(resource, "env")
+            else resource.name
+            if resource.RESOURCE_TYPE == "env"
+            else None
+        )
+        if self.on_this_cluster():
+            return obj_store.put(key=resource.name, value=resource, env=env)
+        return self.client.put_resource(
+            resource, state=state or {}, env=env, dryrun=dryrun
+        )
+
+    def rename(self, old_key: str, new_key: str):
+        """Rename a key in the cluster's object store."""
+        self.check_server()
+        if self.on_this_cluster():
+            return obj_store.rename(old_key, new_key)
+        return self.client.rename_object(old_key, new_key)
+
+    def list_keys(self, env=None):
         """List all keys in the cluster's object store."""
         self.check_server()
-        res = self.client.list_keys()
+        if self.on_this_cluster():
+            return obj_store.keys()
+        res = self.client.list_keys(env=env)
         return res
 
     def cancel(self, key: str, force=False):
         """Cancel a given run on cluster by its key."""
         self.check_server()
-        return self.client.cancel_runs(key, force=force)
+        if self.on_this_cluster():
+            return obj_store.cancel(key, force=force)
+        return self.client.cancel(key, force=force)
 
     def cancel_all(self, force=False):
         """Cancel all runs on cluster."""
         self.check_server()
-        return self.client.cancel_runs("all", force=force)
+        if self.on_this_cluster():
+            return obj_store.cancel_all(force=force)
+        return self.client.cancel("all", force=force)
 
-    def clear_pins(self, pins: Optional[List[str]] = None):
-        """Remove the given pinned items from the cluster. If `pins` is set to ``None``, then
-        all pinned objects will be cleared."""
+    def delete_keys(self, keys: Union[None, str, List[str]] = None):
+        """Delete the given keys from the cluster's object store."""
         self.check_server()
-        self.client.clear_pins(pins)
-        logger.info(f'Clearing pins on cluster {pins or ""}')
+        if isinstance(keys, str):
+            keys = [keys]
+        return self.client.delete_keys(keys)
 
     def on_this_cluster(self):
         """Whether this function is being called on the same cluster."""
@@ -318,14 +302,16 @@ class Cluster(Resource):
         # if not self.check_port(self.address, UnaryClient.DEFAULT_PORT):
 
         tunnel_refcount = 0
+        ssh_tunnel = None
         if self.address in open_cluster_tunnels:
             ssh_tunnel, connected_port, tunnel_refcount = open_cluster_tunnels[
                 self.address
             ]
-            ssh_tunnel.check_tunnels()
-            if ssh_tunnel.tunnel_is_up[ssh_tunnel.local_bind_address]:
-                self._rpc_tunnel = ssh_tunnel
-        else:
+            if ssh_tunnel:
+                ssh_tunnel.check_tunnels()
+                if ssh_tunnel.tunnel_is_up[ssh_tunnel.local_bind_address]:
+                    self._rpc_tunnel = ssh_tunnel
+        if not ssh_tunnel:
             self._rpc_tunnel, connected_port = self.ssh_tunnel(
                 HTTPClient.DEFAULT_PORT,
                 remote_port=DEFAULT_SERVER_PORT,
@@ -338,10 +324,18 @@ class Cluster(Resource):
         )
 
         # Connecting to localhost because it's tunneled into the server at the specified port.
-        self.client = HTTPClient(host="127.0.0.1", port=connected_port)
+        creds = self.ssh_creds()
+        if creds.get("password") and creds.get("ssh_user"):
+            self.client = HTTPClient(
+                host="127.0.0.1",
+                port=connected_port,
+                auth=(creds.get("ssh_user"), creds.get("password")),
+            )
+        else:
+            self.client = HTTPClient(host="127.0.0.1", port=connected_port)
 
     def check_server(self, restart_server=True):
-        if self.name == _current_cluster("name"):
+        if self.on_this_cluster():
             return
 
         if not self.address:
@@ -379,9 +373,20 @@ class Cluster(Resource):
                     logger.info(
                         f"Server {self.name} is up, but the HTTP server may not be up."
                     )
-                    self.restart_server(resync_rh=False)
-                    logger.info(f"Checking server {self.name} again.")
-                    self.client.check_server(cluster_config=cluster_config)
+                    self.restart_server()
+                    for i in range(5):
+                        logger.info(f"Checking server {self.name} again [{i+1}/5].")
+                        try:
+                            self.client.check_server(cluster_config=cluster_config)
+                            logger.info(f"Server {self.name} is up.")
+                            break
+                        except (
+                            requests.exceptions.ConnectionError,
+                            requests.exceptions.ReadTimeout,
+                        ) as error:
+                            if i == 5:
+                                print(error)
+                            time.sleep(5)
                 else:
                     raise ValueError(f"Could not connect to cluster <{self.name}>")
         return
@@ -408,8 +413,12 @@ class Cluster(Resource):
                     self.address,
                     ssh_username=creds.get("ssh_user"),
                     ssh_pkey=creds.get("ssh_private_key"),
+                    ssh_password=creds.get("password"),
                     local_bind_address=("", local_port),
-                    remote_bind_address=("127.0.0.1", remote_port or local_port),
+                    remote_bind_address=(
+                        "127.0.0.1",
+                        remote_port or local_port,
+                    ),
                     set_keepalive=1,
                     # mute_exceptions=True,
                 )
@@ -465,7 +474,7 @@ class Cluster(Resource):
         kill_proc_cmd = f'pkill -f "{http_server_cmd}"'
         # 2>&1 redirects stderr to stdout
         screen_cmd = (
-            f"screen -dm bash -c '{http_server_cmd} |& tee -a ~/.rh/{logfile} 2>&1'"
+            f"screen -dm bash -c \"{http_server_cmd} |& tee -a '~/.rh/{logfile}' 2>&1\""
         )
         cmds = [kill_proc_cmd]
         if restart_ray:
@@ -534,6 +543,45 @@ class Cluster(Resource):
             kwargs,
         )
 
+    def call_module_method(
+        self,
+        module_name,
+        method_name,
+        *args,
+        stream_logs=True,
+        run_name=None,
+        remote=False,
+        run_async=False,
+        **kwargs,
+    ):
+        """Call a method on a module that is installed on the cluster.
+
+        Args:
+            module_name (str): Name of the module saved on system.
+            method_name (str): Name of the method.
+            stream_logs (bool): Whether to stream logs from the method call.
+            run_name (str): Name for the run.
+            remote (bool): Return a remote object from the function, rather than the result proper.
+            run_async (bool): Run the method asynchronously and retun a run_key to retreive results and logs later.
+            *args: Positional arguments to pass to the method.
+            **kwargs: Keyword arguments to pass to the method.
+
+        Example:
+            >>> cluster.call_module_method("my_module", "my_method", arg1, arg2, kwarg1=kwarg1)
+        """
+        self.check_server()
+        # Note: might be single value, might be a generator!
+        return self.client.call_module_method(
+            module_name,
+            method_name,
+            stream_logs=stream_logs,
+            run_name=run_name,
+            remote=remote,
+            run_async=run_async,
+            args=args,
+            kwargs=kwargs,
+        )
+
     def is_connected(self):
         """Whether the RPC tunnel is up.
 
@@ -566,6 +614,59 @@ class Cluster(Resource):
         """Retrieve SSH credentials."""
         return self._ssh_creds
 
+    def _fsspec_sync(self, source: str, dest: str, up: bool):
+        from runhouse.rns.folders import folder
+
+        logger.info(f"syncing files from {source} to {dest} using fsspec")
+
+        f = folder(system=self, path="", dryrun=True)
+        fs = f.fsspec_fs
+
+        if up:  # local to cluster
+            if (Path(source) / ".gitignore").exists():
+                tracked_files = (
+                    subprocess.check_output(
+                        "git ls-files --cached --exclude-standard",
+                        cwd=source,
+                        shell=True,
+                    )
+                    .decode("utf-8")
+                    .split()
+                )
+                # exclude docs/ when syncing over runhouse
+                if Path(source).name == "runhouse":
+                    tracked_files = [
+                        file for file in tracked_files if "docs/" not in file
+                    ]
+                untracked_files = (
+                    subprocess.check_output(
+                        "git ls-files --other --exclude-standard",
+                        cwd=source,
+                        shell=True,
+                    )
+                    .decode("utf-8")
+                    .split()
+                )
+                files = [
+                    Path(source) / file for file in tracked_files + untracked_files
+                ]
+                fs.put(files, dest, recursive=True, create_dir=True)
+            else:
+                fs.put(source, dest, recursive=True, create_dir=True)
+        else:  # cluster to local
+            if fs.exists(str(Path(source) / ".gitignore")):
+                files = self.run(
+                    [f"cd {source} && git ls-files --cached --exclude-standard"]
+                )[0][1]
+
+                files = files.split()
+                fs.get(files, dest, recursive=True, create_dir=True)
+            else:
+                # the following errors if {source} is a directory so currently working around by extracting files
+                # fs.get(source, dest, recursive=True, create_dir=True)
+                files = fs.find(source)
+                fs.get(files, dest, recursive=True, create_dir=True)
+
     def _rsync(self, source: str, dest: str, up: bool, contents: bool = False):
         """
         Sync the contents of the source directory into the destination.
@@ -578,13 +679,23 @@ class Cluster(Resource):
         if contents:
             source = source + "/" if not source.endswith("/") else source
             dest = dest + "/" if not dest.endswith("/") else dest
+
         ssh_credentials = self.ssh_creds()
-        runner = command_runner.SSHCommandRunner(self.address, **ssh_credentials)
-        if up:
-            runner.run(["mkdir", "-p", dest], stream_logs=False)
+        if not ssh_credentials.get("password"):
+            # Use SkyPilot command runner
+            if not ssh_credentials.get("ssh_private_key"):
+                ssh_credentials["ssh_private_key"] = None
+            runner = command_runner.SSHCommandRunner(self.address, **ssh_credentials)
+            if up:
+                runner.run(["mkdir", "-p", dest], stream_logs=False)
+            else:
+                Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
+            runner.rsync(source, dest, up=up, stream_logs=False)
         else:
-            Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
-        runner.rsync(source, dest, up=up, stream_logs=False)
+            if dest.startswith("~/"):
+                dest = dest[2:]
+
+            self._fsspec_sync(source, dest, up)
 
     def ssh(self):
         """SSH into the cluster
@@ -593,11 +704,16 @@ class Cluster(Resource):
             >>> rh.cluster("rh-cpu").ssh()
         """
         creds = self.ssh_creds()
-        subprocess.run(
-            f"ssh {creds['ssh_user']}:{self.address} -i {creds['ssh_private_key']}".split(
-                " "
+
+        if creds.get("ssh_private_key"):
+            cmd = (
+                f"ssh {creds['ssh_user']}:{self.address} -i {creds['ssh_private_key']}"
             )
-        )
+        else:
+            # if needs a password, will prompt for manual password
+            cmd = f"ssh {creds['ssh_user']}@{self.address}"
+
+        subprocess.run(cmd.split(" "))
 
     def _ping(self, timeout=5):
         ssh_call = threading.Thread(target=lambda: self.run(['echo "hello"']))
@@ -625,7 +741,7 @@ class Cluster(Resource):
             >>> cpu.run(["python script.py"], run_name="my_exp")
         """
         # TODO [DG] suspect autostop while running?
-        from runhouse import run
+        from runhouse.rns.run import run
 
         cmd_prefix = ""
         if env:
@@ -662,17 +778,81 @@ class Cluster(Resource):
     ):
         return_codes = []
 
-        runner = command_runner.SSHCommandRunner(self.address, **self.ssh_creds())
-        for command in commands:
-            command = f"{cmd_prefix} {command}" if cmd_prefix else command
-            logger.info(f"Running command on {self.name}: {command}")
-            ret_code = runner.run(
-                command,
-                require_outputs=require_outputs,
-                stream_logs=stream_logs,
-                port_forward=port_forward,
-            )
-            return_codes.append(ret_code)
+        ssh_credentials = self.ssh_creds()
+
+        if not ssh_credentials.get("password"):
+            runner = command_runner.SSHCommandRunner(self.address, **ssh_credentials)
+            for command in commands:
+                command = f"{cmd_prefix} {command}" if cmd_prefix else command
+                logger.info(f"Running command on {self.name}: {command}")
+                ret_code = runner.run(
+                    command,
+                    require_outputs=require_outputs,
+                    stream_logs=stream_logs,
+                    port_forward=port_forward,
+                )
+                return_codes.append(ret_code)
+        else:
+            import paramiko
+
+            log_path = os.devnull
+            log_dir = os.path.expanduser(os.path.dirname(log_path))
+            os.makedirs(log_dir, exist_ok=True)
+
+            with paramiko.SSHClient() as ssh:
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                ssh.connect(
+                    self.address,
+                    username=ssh_credentials.get("ssh_user"),
+                    # key_filename=ssh_credentials.get("ssh_private_key", None),
+                    password=ssh_credentials.get("password"),
+                )
+
+                # bash warnings to remove from stderr
+                skip_err = [
+                    "bash: cannot set terminal process group",
+                    "bash: no job control in this shell",
+                ]
+
+                for command in commands:
+                    logger.info(f"Running command on {self.name}: {command}")
+
+                    if stream_logs:
+                        command += f"| tee {log_path} "
+                        command += "; exit ${PIPESTATUS[0]}"
+                    else:
+                        command += f"> {log_path}"
+
+                    # adapted from skypilot's ssh command runner
+                    command = (
+                        "bash --login -c -i $'true && source ~/.bashrc"
+                        "&& export OMP_NUM_THREADS=1 PYTHONWARNINGS=ignore"
+                        f" && ({cmd_prefix} {command})'"
+                    )
+
+                    transport = ssh.get_transport()
+                    channel = transport.open_session()
+                    channel.exec_command(command)
+
+                    stdout = channel.recv(-1).decode()
+                    exit_code = channel.recv_exit_status()
+                    stderr = channel.recv_stderr(-1).decode()
+
+                    stderr = stderr.split("\n")
+                    stderr = [
+                        err
+                        for err in stderr
+                        if not any(skip in err for skip in skip_err)
+                    ]
+                    stderr = "\n".join(stderr)
+
+                    channel.close()
+
+                    if require_outputs:
+                        return_codes.append((exit_code, stdout, stderr))
+                    else:
+                        return_codes.append(exit_code)
+
         return return_codes
 
     def run_python(
@@ -686,7 +866,12 @@ class Cluster(Resource):
         """Run a list of python commands on the cluster.
 
         Example:
-            >>> cpu.run_python(['import numpy', 'print(numpy.__version__)'])([""])
+            >>> cpu.run_python(['import numpy', 'print(numpy.__version__)'])
+            >>> cpu.run_python(["print('hello')"])
+
+        Note:
+            Running Python commands with nested quotes can be finicky. If using nested quotes,
+            try to wrap the outer quote with double quotes (") and the inner quotes with a single quote (').
         """
         cmd_prefix = "python3 -c"
         if env:
@@ -696,13 +881,21 @@ class Cluster(Resource):
                 env = Env.from_name(env)
             cmd_prefix = f"{env._run_cmd} {cmd_prefix}"
         command_str = "; ".join(commands)
+        command_str_repr = (
+            repr(repr(command_str))[2:-2]
+            if self.ssh_creds().get("password")
+            else command_str
+        )
+        formatted_command = f'{cmd_prefix} "{command_str_repr}"'
+
         # If invoking a run as part of the python commands also return the Run object
         return_codes = self.run(
-            [f'{cmd_prefix} "{command_str}"'],
+            [formatted_command],
             stream_logs=stream_logs,
             port_forward=port_forward,
             run_name=run_name,
         )
+
         return return_codes
 
     def sync_secrets(self, providers: Optional[List[str]] = None):

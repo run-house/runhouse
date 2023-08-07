@@ -8,12 +8,12 @@ from typing import Optional
 
 import requests
 
-from runhouse.rns.api_utils.resource_access import ResourceAccess
-from runhouse.rns.api_utils.utils import (
+from runhouse.rns.utils.api import (
     generate_uuid,
     load_resp_content,
     read_resp_data,
     remove_null_values_from_dict,
+    ResourceAccess,
 )
 from runhouse.rns.utils.hardware import _current_cluster
 
@@ -353,7 +353,11 @@ class RNSClient:
 
     def _save_config_in_rns(self, config, resource_name):
         """Update or create resource config in database"""
-        logger.info(f"Saving config to RNS: {config}")
+        # TODO [CC]: can maybe asterik out sensitive info instead of this approach
+        if not config.get("ssh_creds"):
+            logger.info(f"Saving config to RNS: {config}")
+        else:
+            logger.info(f"Saving config for {resource_name} to RNS")
 
         resource_uri = self.resource_uri(resource_name)
         uri = f"resource/{resource_uri}"

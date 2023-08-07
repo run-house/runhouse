@@ -1,8 +1,6 @@
 import importlib
 import logging
-import os
 import sys
-import time
 from functools import wraps
 from pathlib import Path
 from typing import Any, Union
@@ -12,8 +10,9 @@ import ray
 from ray import cloudpickle as pickle
 
 from runhouse import rh_config
-from runhouse.rns.api_utils.utils import resolve_absolute_path
+from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.env import _env_vars_from_file
+from runhouse.rns.utils.names import _generate_default_name
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +30,11 @@ def call_fn_by_type(
     kwargs=None,
     serialize_res=True,
 ):
-    from runhouse import Run, RunStatus
+    from runhouse import RunStatus
 
     # **NOTE**: No need to pass in the fn callable here! We should be able to get it from the module_name and fn_name
 
-    run_name = run_name if run_name else Run._create_new_run_name(fn_name)
+    run_name = run_name if run_name else _generate_default_name(prefix=fn_name)
 
     if fn_type.startswith("get_or"):
         # If Run already exists with this run key return the Run object
@@ -110,7 +109,9 @@ def call_fn_by_type(
 
     fn_pointers = (module_path, module_name, fn_name)
 
-    logging_wrapped_fn = enable_logging_fn_wrapper(get_fn_from_pointers, run_name)
+    run_obj = _create_new_run(run_name, fn_name, args, kwargs)
+
+    logging_wrapped_fn = enable_logging_fn_wrapper(get_fn_from_pointers, run_obj)
 
     ray_fn = ray.remote(
         num_cpus=resources.get("num_cpus") or 0.0001,
@@ -119,17 +120,23 @@ def call_fn_by_type(
         runtime_env=runtime_env,
     )(logging_wrapped_fn)
 
+    res = None
+    obj_ref = None
     # TODO other possible fn_types: 'batch', 'streaming'
     if fn_type == "starmap":
         obj_ref = [
             ray_fn.remote(fn_pointers, serialize_res, num_cuda_devices, *arg, **kwargs)
             for arg in args
         ]
-    elif fn_type in ("queue", "remote", "call", "nested"):
-        run_obj = _create_new_run(run_name, fn_name, args, kwargs)
+    elif fn_type in ("queue", "remote", "call"):
         obj_ref = ray_fn.remote(
             fn_pointers, serialize_res, num_cuda_devices, *args, **kwargs
         )
+    elif fn_type == "nested":
+        res = logging_wrapped_fn(
+            fn_pointers, serialize_res, num_cuda_devices, *args, **kwargs
+        )
+        return res
     elif fn_type == "repeat":
         [num_repeats, args] = args
         obj_ref = [
@@ -139,7 +146,7 @@ def call_fn_by_type(
     else:
         raise ValueError(f"fn_type {fn_type} not recognized")
 
-    if fn_type in ("queue", "remote", "call", "nested"):
+    if fn_type in ("queue", "remote", "call"):
         fn_result = _populate_run_with_result(run_obj, fn_type, obj_ref)
         logger.info(f"Result from function execution: {type(fn_result)}")
         res = fn_result
@@ -150,8 +157,7 @@ def call_fn_by_type(
     return res, obj_ref, run_name
 
 
-def get_fn_from_pointers(fn_pointers, serialize_res, num_gpus, *args, **kwargs):
-    (module_path, module_name, fn_name) = fn_pointers
+def get_fn_from_pointers(module_path, module_name, fn_name):
 
     if module_name == "notebook":
         fn = fn_name  # already unpickled
@@ -173,22 +179,7 @@ def get_fn_from_pointers(fn_pointers, serialize_res, num_gpus, *args, **kwargs):
             )
         fn = getattr(rh_config.obj_store.imported_modules[module_name], fn_name)
 
-    cuda_visible_devices = list(range(int(num_gpus)))
-    os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
-
-    result = fn(*args, **kwargs)
-    if serialize_res:
-        return pickle.dumps(result)
-    return result
-
-
-def _stdout_files_for_fn():
-    worker_id = ray._private.worker.global_worker.worker_id.hex()
-
-    ray_logs_path = RAY_LOGFILE_PATH
-    stdout_files = list(ray_logs_path.glob(f"worker-{worker_id}-*"))
-
-    return stdout_files
+    return fn
 
 
 def _populate_run_with_result(run_obj, fn_type, obj_ref) -> ["Run", Any]:
@@ -291,7 +282,6 @@ def _get_result_from_ray(run_obj, obj_ref):
         # write traceback to new error file - this will be loaded as the result of the Run
         stderr_path = run_obj._stderr_path
         logger.info(f"Writing error to stderr path: {stderr_path}")
-        time.sleep(1)
         run_obj.write(data=str(e).encode(), path=stderr_path)
 
     finally:
@@ -360,19 +350,14 @@ def _save_run_result(result: bytes, run_obj):
 RAY_LOGFILE_PATH = Path("/tmp/ray/session_latest/logs")
 
 
-def enable_logging_fn_wrapper(fn, run_name):
+def enable_logging_fn_wrapper(fn, run_obj):
     @wraps(fn)
     def wrapped_fn(*inner_args, **inner_kwargs):
         """Sets the logfiles for a function to be the logfiles for the current ray worker.
         This is used to stream logs from the worker to the client."""
-        logdir = Path.home() / ".rh/logs" / run_name
+        logdir = Path.home() / ".rh/logs" / run_obj.name
         logdir.mkdir(exist_ok=True, parents=True)
-        # Create simlinks to the ray log files in the run directory
-        stdout_files: list = _stdout_files_for_fn()
-        for f in stdout_files:
-            symlink = logdir / f.name
-            if not symlink.exists():
-                symlink.symlink_to(f)
-        return fn(*inner_args, **inner_kwargs)
+
+        return fn(run_obj=run_obj, *inner_args, **inner_kwargs)
 
     return wrapped_fn

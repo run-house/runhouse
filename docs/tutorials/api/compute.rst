@@ -59,11 +59,17 @@ There are two types of supported cluster types:
 .. code:: python
 
     # BYO cluster
-    cluster = rh.cluster(
-                  name="cpu-cluster",
-                  ips=['<ip of the cluster>'],
-                  ssh_creds={'ssh_user': '<user>', 'ssh_private_key':'<path_to_key>'},
-              )
+    cluster = rh.cluster(  # using private key
+                name="cpu-cluster",
+                ips=['<ip of the cluster>'],
+                ssh_creds={'ssh_user': '<user>', 'ssh_private_key':'<path_to_key>'},
+            )
+
+    cluster = rh.cluster(  # using password
+                name="cpu-cluster",
+                ips=['<ip of the cluster>'],
+                ssh_creds={'ssh_user': '<user>', 'password':'******'},
+            )
 
     # Using a Cloud provider
     cluster = rh.ondemand_cluster(

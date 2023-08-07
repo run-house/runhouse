@@ -1,23 +1,83 @@
 import os
-import pickle
 import shutil
 import tempfile
+import numpy as np
 import textwrap
-
 import pandas as pd
-
 import pytest
 
 import runhouse as rh
 from runhouse.rns.api_utils.utils import create_s3_bucket
 
-
 # https://docs.pytest.org/en/6.2.x/fixture.html#conftest-py-sharing-fixtures-across-multiple-files
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def blob_data():
-    return pickle.dumps(list(range(50)))
+    return [np.arange(50), "test", {"a": 1, "b": 2}]
+
+
+@pytest.fixture
+def local_file(blob_data, tmp_path):
+    return rh.blob(
+        data=blob_data,
+        system="file",
+        path=tmp_path / "test_blob.pickle",
+    )
+
+
+@pytest.fixture
+def local_blob(blob_data):
+    return rh.blob(
+        data=blob_data,
+    )
+
+
+@pytest.fixture
+def s3_blob(blob_data, blob_s3_bucket):
+    return rh.blob(
+        data=blob_data,
+        system="s3",
+        path=f"/{blob_s3_bucket}/test_blob.pickle",
+    )
+
+
+@pytest.fixture
+def gcs_blob(blob_data, blob_gcs_bucket):
+    return rh.blob(
+        data=blob_data,
+        system="gs",
+        path=f"/{blob_gcs_bucket}/test_blob.pickle",
+    )
+
+
+@pytest.fixture
+def cluster_blob(blob_data, ondemand_cpu_cluster):
+    return rh.blob(
+        data=blob_data,
+        system=ondemand_cpu_cluster,
+    )
+
+
+@pytest.fixture
+def cluster_file(blob_data, ondemand_cpu_cluster):
+    return rh.blob(
+        data=blob_data,
+        system=ondemand_cpu_cluster,
+        path="test_blob.pickle",
+    )
+
+
+@pytest.fixture
+def blob(request):
+    """Parametrize over multiple blobs - useful for running the same test on multiple storage types."""
+    return request.getfixturevalue(request.param)
+
+
+@pytest.fixture
+def file(request):
+    """Parametrize over multiple files - useful for running the same test on multiple storage types."""
+    return request.getfixturevalue(request.param)
 
 
 # ----------------- Folders -----------------
@@ -31,8 +91,8 @@ def local_folder(tmp_path):
 
 
 @pytest.fixture
-def cluster_folder(cpu_cluster, local_folder):
-    return local_folder.to(system=cpu_cluster)
+def cluster_folder(ondemand_cpu_cluster, local_folder):
+    return local_folder.to(system=ondemand_cpu_cluster)
 
 
 @pytest.fixture
@@ -51,6 +111,12 @@ def gcs_folder(local_folder):
 
     # Delete files from GCS
     gcs_folder.rm()
+
+
+@pytest.fixture
+def folder(request):
+    """Parametrize over multiple folders - useful for running the same test on multiple storage types."""
+    return request.getfixturevalue(request.param)
 
 
 # ----------------- Tables -----------------
@@ -240,9 +306,10 @@ def cluster(request):
 
 
 @pytest.fixture(scope="session")
-def cpu_cluster():
+def ondemand_cpu_cluster():
     c = rh.ondemand_cluster("^rh-cpu")
     c.up_if_not()
+    # c.restart_server(restart_ray=True)
     c.install_packages(["pytest"])
     # Save to RNS - to be loaded in other tests (ex: Runs)
     c.save()
@@ -276,6 +343,7 @@ def sm_gpu_cluster():
 
 @pytest.fixture(scope="session")
 def byo_cpu():
+    # TODO merge into password cluster
     # Spin up a new basic m5.xlarge EC2 instance
     c = (
         rh.ondemand_cluster(
@@ -294,7 +362,7 @@ def byo_cpu():
     ).save()
 
     c.install_packages(["pytest"])
-    c.send_secrets(["ssh"])
+    c.sync_secrets(["ssh"])
 
     return c
 
@@ -318,6 +386,43 @@ def a10g_gpu_cluster():
     return rh.ondemand_cluster(
         name="rh-a10x", instance_type="g5.2xlarge", provider="aws"
     ).up_if_not()
+
+
+@pytest.fixture(scope="session")
+def password_cluster():
+    sky_cluster = rh.cluster("temp-rh-password", instance_type="CPU:4").save()
+    if not sky_cluster.is_up():
+        sky_cluster.up()
+
+        # set up password on remote
+        sky_cluster.run(
+            [
+                [
+                    'sudo sed -i "/^[^#]*PasswordAuthentication[[:space:]]no/c\PasswordAuthentication yes" '
+                    "/etc/ssh/sshd_config"
+                ]
+            ]
+        )
+        sky_cluster.run(["sudo /etc/init.d/ssh force-reload"])
+        sky_cluster.run(["sudo /etc/init.d/ssh restart"])
+        sky_cluster.run(
+            ["(echo 'cluster-pass' && echo 'cluster-pass') | sudo passwd ubuntu"]
+        )
+        sky_cluster.run(["pip uninstall skypilot runhouse -y", "pip install pytest"])
+        sky_cluster.run(["rm -rf runhouse/"])
+
+    # instantiate byo cluster with password
+    ssh_creds = {"ssh_user": "ubuntu", "password": "cluster-pass"}
+    cluster = rh.cluster(
+        name="rh-password", ips=[sky_cluster.address], ssh_creds=ssh_creds
+    ).save()
+
+    return cluster
+
+
+cpu_clusters = pytest.mark.parametrize(
+    "cluster", ["ondemand_cpu_cluster", "password_cluster"], indirect=True
+)
 
 
 # ----------------- Envs -----------------
@@ -345,6 +450,7 @@ def s3_package(s3_folder):
 
 # ----------------- Functions -----------------
 def summer(a: int, b: int):
+    print("Running summer function")
     return a + b
 
 
@@ -362,21 +468,23 @@ def slow_running_func(a, b):
 
 
 @pytest.fixture(scope="session")
-def summer_func(cpu_cluster):
-    return rh.function(summer, name="summer_func").to(cpu_cluster, env=["pytest"])
-
-
-@pytest.fixture(scope="session")
-def func_with_artifacts(cpu_cluster):
-    return rh.function(save_and_load_artifacts, name="artifacts_func").to(
-        cpu_cluster, env=["pytest"]
+def summer_func(ondemand_cpu_cluster):
+    return rh.function(summer, name="summer_func").to(
+        ondemand_cpu_cluster, env=["pytest"]
     )
 
 
 @pytest.fixture(scope="session")
-def slow_func(cpu_cluster):
+def func_with_artifacts(ondemand_cpu_cluster):
+    return rh.function(save_and_load_artifacts, name="artifacts_func").to(
+        ondemand_cpu_cluster, env=["pytest"]
+    )
+
+
+@pytest.fixture(scope="session")
+def slow_func(ondemand_cpu_cluster):
     return rh.function(slow_running_func, name="slow_func").to(
-        cpu_cluster, env=["pytest"]
+        ondemand_cpu_cluster, env=["pytest"]
     )
 
 
@@ -396,6 +504,21 @@ def blob_s3_bucket():
 @pytest.fixture(scope="session")
 def table_s3_bucket():
     table_bucket = create_s3_bucket("runhouse-table")
+    return table_bucket.name
+
+
+# ----------------- GCP -----------------
+
+
+@pytest.fixture(scope="session")
+def blob_gcs_bucket():
+    blob_bucket = create_gcs_bucket("runhouse-blob")
+    return blob_bucket.name
+
+
+@pytest.fixture(scope="session")
+def table_gcs_bucket():
+    table_bucket = create_gcs_bucket("runhouse-table")
     return table_bucket.name
 
 
@@ -419,3 +542,19 @@ def submitted_async_run(summer_func):
 
     assert isinstance(async_run, rh.Run)
     return run_name
+
+
+def create_s3_bucket(bucket_name: str):
+    """Create bucket in S3 if it does not already exist."""
+    from sky.data.storage import S3Store
+
+    s3_store = S3Store(name=bucket_name, source="")
+    return s3_store
+
+
+def create_gcs_bucket(bucket_name: str):
+    """Create bucket in GS if it does not already exist."""
+    from sky.data.storage import GcsStore
+
+    gcs_store = GcsStore(name=bucket_name, source="")
+    return gcs_store

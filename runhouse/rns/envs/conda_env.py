@@ -80,14 +80,16 @@ class CondaEnv(Env):
                 "import yaml",
                 "from pathlib import Path",
                 f"path = Path('{path}').expanduser()",
-                f"yaml.dump({self.conda_yaml}, open(path/'{self.env_name}.yml', 'w'))",
+                f"yaml.dump({self.conda_yaml}, open(path / '{self.env_name}.yml', 'w'))",
             ]
         )
 
         if f"\n{self.env_name} " not in system.run(["conda info --envs"])[0][1]:
             system.run([f"conda env create -f {path}/{self.env_name}.yml"])
-        # TODO [CC]: throw an error if environment is not constructed correctly
         system.run(['eval "$(conda shell.bash hook)"'])
+        if f"\n{self.env_name} " not in system.run(["conda info --envs"])[0][1]:
+            raise RuntimeError(f"conda env {self.env_name} not created properly.")
+
         system._sync_runhouse_to_cluster(env=self)
 
         if self.reqs:
@@ -96,6 +98,9 @@ class CondaEnv(Env):
         if self.setup_cmds:
             cmd = f"{self._activate_cmd} && {self.setup_cmds.join(' && ')}"
             system.run([cmd])
+
+    def install(self):
+        pass  # TODO [CC]
 
     @property
     def _run_cmd(self):

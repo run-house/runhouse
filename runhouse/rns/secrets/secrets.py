@@ -11,7 +11,7 @@ import typer
 import yaml
 
 from runhouse.rh_config import configs, rns_client
-from runhouse.rns.api_utils.utils import load_resp_content, read_resp_data
+from runhouse.rns.utils.api import load_resp_content, read_resp_data
 
 logger = logging.getLogger(__name__)
 

@@ -1,27 +1,23 @@
-import codecs
+import argparse
 import json
 import logging
 import subprocess
+import time
 import traceback
 from pathlib import Path
+from typing import Optional
 
 import ray
-import ray.cloudpickle as pickle
 import requests
 from fastapi import FastAPI
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-from runhouse.rh_config import configs, obj_store
-from runhouse.rns.packages.package import Package
-from runhouse.rns.run_module_utils import call_fn_by_type
-from runhouse.rns.top_level_rns_fns import (
-    clear_pinned_memory,
-    pinned_keys,
-    remove_pinned_object,
-)
-from runhouse.servers.http.http_utils import (
+from runhouse.rh_config import configs, env_servlets, rns_client
+from runhouse.rns.servlet import EnvServlet
+from runhouse.rns.utils.names import _generate_default_name
+from ..http.http_utils import (
     Args,
     b64_unpickle,
     DEFAULT_SERVER_PORT,
@@ -39,17 +35,32 @@ app = FastAPI()
 class HTTPServer:
     DEFAULT_PORT = 50052
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
-    LOGGING_WAIT_TIME = 1.0
+    LOGGING_WAIT_TIME = 1
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
 
-    def __init__(self, *args, **kwargs):
-        ray.init(address="auto", ignore_reinit_error=True)
+    def __init__(self, conda_env=None, *args, **kwargs):
+        if not ray.is_initialized():
+            ray.init(
+                ignore_reinit_error=True,
+                runtime_env={"conda": conda_env} if conda_env else {},
+                namespace="runhouse",
+            )
 
         try:
             # Collect metadata for the cluster immediately on init
             self._collect_cluster_stats()
         except Exception as e:
             logger.error(f"Failed to collect cluster stats: {str(e)}")
+
+        base_env = self.get_env_servlet(
+            env_name="base",
+            create=True,
+            runtime_env={"conda": conda_env} if conda_env else {},
+        )
+        env_servlets["base"] = base_env
+        from runhouse.rh_config import obj_store
+
+        obj_store.set_name("server")
 
         HTTPServer.register_activity()
 
@@ -86,26 +97,58 @@ class HTTPServer:
             )
 
     @staticmethod
-    @app.post("/env")
-    def install(message: Message):
+    def get_env_servlet(env_name, create=False, runtime_env=None):
+        if env_name in env_servlets.keys():
+            return env_servlets[env_name]
+
+        if create:
+            new_env = (
+                ray.remote(EnvServlet)
+                .options(
+                    name=env_name,
+                    get_if_exists=True,
+                    runtime_env=runtime_env,
+                    lifetime="detached",
+                    namespace="runhouse",
+                    max_concurrency=1000,
+                )
+                .remote(env_name=env_name)
+            )
+            env_servlets[env_name] = new_env
+            return new_env
+
+        else:
+            raise Exception(
+                f"Environment {env_name} does not exist. Please send it to the cluster first."
+            )
+
+    @staticmethod
+    def call_servlet_method(servlet, method, args, block=True):
+        if isinstance(servlet, ray.actor.ActorHandle):
+            obj_ref = getattr(servlet, method).remote(*args)
+            if block:
+                return ray.get(obj_ref)
+            else:
+                return obj_ref
+        else:
+            return getattr(servlet, method)(*args)
+
+    @staticmethod
+    def call_in_env_servlet(
+        method,
+        args=None,
+        env=None,
+        create=False,
+        lookup_env_for_name=None,
+        block=True,
+    ):
         HTTPServer.register_activity()
         try:
-            packages, env = b64_unpickle(message.data)
-            logger.info(f"Message received from client to install packages: {packages}")
-            for package in packages:
-                if isinstance(package, str):
-                    pkg = Package.from_string(package)
-
-                elif hasattr(package, "_install"):
-                    pkg = package
-                else:
-                    raise ValueError(f"package {package} not recognized")
-
-                logger.info(f"Installing package: {str(pkg)}")
-                pkg._install(env)
-
-            HTTPServer.register_activity()
-            return Response(output_type=OutputType.SUCCESS)
+            if lookup_env_for_name:
+                env = env or HTTPServer.lookup_env_for_name(lookup_env_for_name)
+            servlet = HTTPServer.get_env_servlet(env or "base", create=create)
+            # If servlet is a RayActor, call with .remote
+            return HTTPServer.call_servlet_method(servlet, method, args, block=block)
         except Exception as e:
             logger.exception(e)
             HTTPServer.register_activity()
@@ -116,72 +159,82 @@ class HTTPServer:
             )
 
     @staticmethod
-    @app.post("/run")
-    def run_module(message: Message):
+    def lookup_env_for_name(name, check_rns=False):
+        from runhouse.rh_config import obj_store
+
+        env = obj_store.get_env(name)
+        if env:
+            return env
+
+        # Load the resource config from rns and see if it has an "env" field
+        if check_rns:
+            resource_config = rns_client.load_config(name)
+            if resource_config and "env" in resource_config:
+                return resource_config["env"]
+
+        return None
+
+    @staticmethod
+    @app.post("/resource")
+    def put_resource(message: Message):
+        return HTTPServer.call_in_env_servlet(
+            "put_resource",
+            [message],
+            env=message.env,
+            create=True,
+            lookup_env_for_name=message.key,
+        )
+
+    @staticmethod
+    @app.post("/{module}/{method}")
+    def call_module_method(module, method=None, message: Message = None):
+        # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
-        # get the function result from the incoming request
-        [
-            relative_path,
-            module_name,
-            fn_name,
-            fn_type,
-            resources,
-            conda_env,
-            env_vars,
-            run_name,
-            args,
-            kwargs,
-        ] = b64_unpickle(message.data)
-
         try:
-            args = obj_store.get_obj_refs_list(args)
-            kwargs = obj_store.get_obj_refs_dict(kwargs)
-
-            result = call_fn_by_type(
-                fn_type=fn_type,
-                fn_name=fn_name,
-                relative_path=relative_path,
-                module_name=module_name,
-                resources=resources,
-                conda_env=conda_env,
-                env_vars=env_vars,
-                run_name=run_name,
-                args=args,
-                kwargs=kwargs,
-                serialize_res=True,
+            method = None if method == "None" else method
+            # If this is a "get" request to just return the module, do not stream logs or save by default
+            message = message or (
+                Message(stream_logs=False, key=module) if not method else Message()
             )
-            # We need to pin the run_key in the server's Python context rather than inside the call_fn context,
-            # because the call_fn context is a separate process and the pinned object will be lost when Ray
-            # garbage collects the call_fn process.
-            from runhouse import Run
-
-            (res, obj_ref, run_key) = result
-
-            if obj_ref is not None:
-                obj_store.put_obj_ref(key=run_key, obj_ref=obj_ref)
-
-            result = pickle.dumps(res) if isinstance(res, Run) else res
-
-            HTTPServer.register_activity()
-            if isinstance(result, ray.exceptions.RayTaskError):
-                # If Ray throws an error when executing the function as part of a Run,
-                # it will be reflected in the result since we catch the exception and do not immediately raise it
-                logger.exception(result)
-                return Response(
-                    error=pickle_b64(result),
-                    traceback=pickle_b64(traceback.format_exc()),
-                    output_type=OutputType.EXCEPTION,
+            env = message.env or HTTPServer.lookup_env_for_name(module)
+            if method:
+                # TODO fix the way we generate runkeys, it's ugly
+                message.key = message.key or _generate_default_name(
+                    prefix=module if method == "__call__" else f"{module}_{method}",
+                    precision="ms",  # Higher precision because we see collisions within the same second
                 )
-            elif isinstance(result, list):
-                return Response(
-                    data=[codecs.encode(i, "base64").decode() for i in result],
-                    output_type=OutputType.RESULT_LIST,
+                HTTPServer.call_in_env_servlet(
+                    "call_module_method",
+                    [module, method, message],
+                    env=env,
+                    create=True,
+                    block=False,
                 )
+
+                # Hold onto obj_refs just so we can support cancelling
+                # TODO don't do this in the obj_store (lots of extra keys show up to the user),
+                #  just do it in a local dict.
+                # from runhouse.rh_config import obj_store
+                #
+                # obj_store.put(message.key + "_ref", obj_ref)
             else:
+                message.key = module
+
+            if message.run_async:
                 return Response(
-                    data=codecs.encode(result, "base64").decode(),
+                    data=pickle_b64(message.key),
                     output_type=OutputType.RESULT,
                 )
+
+            return StreamingResponse(
+                HTTPServer._get_results_and_logs_generator(
+                    message.key,
+                    env=env,
+                    stream_logs=message.stream_logs,
+                    remote=message.remote,
+                ),
+                media_type="application/json",
+            )
         except Exception as e:
             logger.exception(e)
             HTTPServer.register_activity()
@@ -190,54 +243,136 @@ class HTTPServer:
                 traceback=pickle_b64(traceback.format_exc()),
                 output_type=OutputType.EXCEPTION,
             )
+
+    @staticmethod
+    def _get_logfiles(log_key, log_type=None):
+        if not log_key:
+            return None
+        key_logs_path = Path(EnvServlet.RH_LOGFILE_PATH) / log_key
+        if key_logs_path.exists():
+            # Logs are like: `.rh/logs/key/key.[out|err]`
+            glob_pattern = (
+                "*.out"
+                if log_type == "stdout"
+                else "*.err"
+                if log_type == "stderr"
+                else "*.[oe][ur][tr]"
+            )
+            return [str(f.absolute()) for f in key_logs_path.glob(glob_pattern)]
+        else:
+            return None
+
+    @staticmethod
+    def open_new_logfiles(key, open_files):
+        logfiles = HTTPServer._get_logfiles(key)
+        if logfiles:
+            for f in logfiles:
+                if f not in [o.name for o in open_files]:
+                    logger.info(f"Streaming logs from {f}")
+                    open_files.append(open(f, "r"))
+        return open_files
+
+    @staticmethod
+    def _get_results_and_logs_generator(key, env, stream_logs, remote=False):
+        open_logfiles = []
+
+        waiting_for_results = True
+        try:
+            obj_ref = None
+            while waiting_for_results:
+                from runhouse.rh_config import obj_store
+
+                while not obj_store.contains(key):
+                    time.sleep(0.01)
+
+                if not obj_ref:
+                    obj_ref = HTTPServer.call_in_env_servlet(
+                        "get",
+                        [key, remote, True],
+                        env=env,
+                        block=False,
+                    )
+                try:
+                    ret_val = ray.get(obj_ref, timeout=HTTPServer.LOGGING_WAIT_TIME)
+                    # Last result in a stream will have type RESULT to indicate the end
+                    if ret_val is None:
+                        # Still waiting for results in queue
+                        obj_ref = None
+                        # time.sleep(HTTPServer.LOGGING_WAIT_TIME)
+                        raise ray.exceptions.GetTimeoutError
+                    if not ret_val.output_type == OutputType.RESULT_STREAM:
+                        waiting_for_results = False
+                    ret_resp = json.dumps(jsonable_encoder(ret_val))
+                    logger.info(f"Yielding response for key {key}")
+                    yield ret_resp
+                except ray.exceptions.GetTimeoutError:
+                    pass
+
+                # Reset the obj_ref so we make a fresh request for the result next time around
+                obj_ref = None
+
+                # Grab all the lines written to all the log files since the last time we checked, including
+                # any new log files that have been created
+                open_logfiles = (
+                    HTTPServer.open_new_logfiles(key, open_logfiles)
+                    if stream_logs
+                    else []
+                )
+                ret_lines = []
+                for i, f in enumerate(open_logfiles):
+                    file_lines = f.readlines()
+                    if file_lines:
+                        # TODO [DG] handle .out vs .err, and multiple workers
+                        # if len(logfiles) > 1:
+                        #     ret_lines.append(f"Process {i}:")
+                        ret_lines += file_lines
+                if ret_lines:
+                    lines_resp = Response(
+                        data=ret_lines,
+                        output_type=OutputType.STDOUT,
+                    )
+                    logger.info(f"Yielding logs for key {key}")
+                    yield json.dumps(jsonable_encoder(lines_resp))
+        except Exception as e:
+            logger.exception(e)
+            yield json.dumps(
+                jsonable_encoder(
+                    Response(
+                        error=pickle_b64(e),
+                        traceback=pickle_b64(traceback.format_exc()),
+                        output_type=OutputType.EXCEPTION,
+                    )
+                )
+            )
+        finally:
+            if stream_logs and not open_logfiles:
+                logger.warning(f"No logfiles found for call {key}")
+            for f in open_logfiles:
+                f.close()
+
+    @staticmethod
+    @app.post("/run")
+    def run_module(message: Message):
+        return HTTPServer.call_in_env_servlet(
+            "run_module",
+            [message],
+            env=message.env,
+            create=True,
+            lookup_env_for_name=message.key,
+        )
 
     @staticmethod
     @app.get("/object")
     def get_object(message: Message):
         HTTPServer.register_activity()
-        key, stream_logs = b64_unpickle(message.data)
-        logger.info(f"Message received from client to get object: {key}")
-
-        return StreamingResponse(
-            HTTPServer._get_object_and_logs_generator(key, stream_logs=stream_logs),
-            media_type="application/json",
-        )
-
-    @staticmethod
-    @app.get("/run_object")
-    def get_run_object(message: Message):
-        from runhouse import folder, Run, run
-        from runhouse.rns.api_utils.utils import resolve_absolute_path
-
-        HTTPServer.register_activity()
-        logger.info(
-            f"Message received from client to get run object: {b64_unpickle(message.data)}"
-        )
-        run_name, folder_path = b64_unpickle(message.data)
-
-        # Create folder object which points to the Run's folder on the system
-        folder_path = folder_path or Run._base_cluster_folder_path(run_name)
-        folder_path_on_system = resolve_absolute_path(folder_path)
-        system_folder = folder(path=folder_path_on_system, dryrun=True)
-
         try:
-            result = None
-            try:
-                run_config = Run._load_run_config(folder=system_folder)
-                if run_config:
-                    # Re-load the Run object from the Run config data (and RNS data where relevant)
-                    result = run(name=run_name, path=folder_path_on_system)
-            except FileNotFoundError:
-                logger.info(
-                    f"No config for Run {run_name} found in path: {folder_path_on_system}"
-                )
-
-            return Response(
-                data=pickle_b64(result),
-                output_type=OutputType.RESULT,
+            return StreamingResponse(
+                HTTPServer._get_object_and_logs_generator(message),
+                media_type="application/json",
             )
-
         except Exception as e:
+            logger.exception(e)
+            HTTPServer.register_activity()
             return Response(
                 error=pickle_b64(e),
                 traceback=pickle_b64(traceback.format_exc()),
@@ -245,39 +380,34 @@ class HTTPServer:
             )
 
     @staticmethod
-    def _get_object_and_logs_generator(key, stream_logs=False):
+    def _get_object_and_logs_generator(message):
+        key, stream_logs = b64_unpickle(message.data)
+        logger.info(f"Message received from client to get object: {key}")
+        # servlet = HTTPServer.get_env_servlet(message.env or "base", create=False, lookup_env_for_name=key)
         logfiles = None
         open_files = None
         ret_obj = None
-        err = None
-        tb = None
         returned = False
         while not returned:
-            try:
-                ret_obj = obj_store.get(key, timeout=HTTPServer.LOGGING_WAIT_TIME)
-                logger.info(
-                    f"Got object of type {type(ret_obj)} back from object store"
-                )
-                returned = True
-                # Don't return yet, go through the loop once more to get any remaining log lines
-            except ray.exceptions.GetTimeoutError:
-                pass
-            except (
-                ray.exceptions.TaskCancelledError,
-                ray.exceptions.RayTaskError,
-            ) as e:
-                logger.info(f"Attempted to get task {key} that was cancelled.")
-                returned = True
-                err = e
-                tb = traceback.format_exc()
-            except Exception as e:
-                returned = True
-                err = e
-                tb = traceback.format_exc()
+            ret_obj = HTTPServer.call_in_env_servlet(
+                method="get",
+                args=[key, HTTPServer.LOGGING_WAIT_TIME],
+                env=message.env,
+                create=False,
+                lookup_env_for_name=key,
+            )
+            returned = ret_obj is not None
+            # Don't return yet, go through the loop once more to get any remaining log lines
 
             if stream_logs:
                 if not logfiles:
-                    logfiles = obj_store.get_logfiles(key)
+                    logfiles = HTTPServer.call_in_env_servlet(
+                        method="get_logfiles",
+                        args=[key],
+                        env=message.env,
+                        create=False,
+                        lookup_env_for_name=key,
+                    )
                     open_files = [open(i, "r") for i in (logfiles or [])]
                     logger.info(f"Streaming logs for {key} from {logfiles}")
 
@@ -304,151 +434,60 @@ class HTTPServer:
             # We got the object back from the object store, so we're done (but we went through the loop once
             # more to get any remaining log lines)
             [f.close() for f in open_files]
-        if err:
-            yield json.dumps(
-                jsonable_encoder(
-                    Response(
-                        error=pickle_b64(err),
-                        traceback=pickle_b64(tb),
-                        output_type=OutputType.EXCEPTION,
-                    )
-                )
-            )
-        else:
-            if isinstance(ret_obj, tuple):
-                (res, obj_ref, run_name) = ret_obj
-                ret_obj = res
-            if isinstance(ret_obj, bytes):
-                ret_serialized = codecs.encode(ret_obj, "base64").decode()
-            else:
-                ret_serialized = pickle_b64(ret_obj)
-            yield json.dumps(
-                jsonable_encoder(
-                    Response(
-                        data=ret_serialized,
-                        output_type=OutputType.RESULT,
-                    )
-                )
-            )
+        yield json.dumps(jsonable_encoder(ret_obj))
+
+    @staticmethod
+    @app.post("/object")
+    def put_object(message: Message):
+        return HTTPServer.call_in_env_servlet(
+            "put_object", [message.key, message.data], env=message.env, create=True
+        )
 
     @staticmethod
     @app.put("/object")
-    def put_object(message: Message):
-        HTTPServer.register_activity()
-        # We may not want to deserialize the object here in case the object requires dependencies
-        # (to be used inside an env) which aren't present in the BaseEnv.
-        key, obj = b64_unpickle(message.data)
-        logger.info(f"Message received from client to get object: {key}")
-        try:
-            obj_store.put(key, obj)
-            return Response(output_type=OutputType.SUCCESS)
-        except Exception as e:
-            logger.exception(e)
-            HTTPServer.register_activity()
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
+    def rename_object(message: Message):
+        return HTTPServer.call_in_env_servlet(
+            "rename_object", [message], env=message.env
+        )
 
     @staticmethod
     @app.delete("/object")
     def delete_obj(message: Message):
-        HTTPServer.register_activity()
-        pins_to_clear = b64_unpickle(message.data)
-        logger.info(
-            f"Message received from client to clear pins: {pins_to_clear or 'all'}"
+        return HTTPServer.call_in_env_servlet(
+            "delete_obj", [message], env=message.env, lookup_env_for_name=message.key
         )
-        try:
-            cleared = []
-            if pins_to_clear:
-                for pin in pins_to_clear:
-                    remove_pinned_object(pin)
-                    cleared.append(pin)
-            else:
-                cleared = list(pinned_keys())
-                clear_pinned_memory()
-                return Response(data=pickle_b64(cleared), output_type=OutputType.RESULT)
-        except Exception as e:
-            logger.exception(e)
-            HTTPServer.register_activity()
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
 
     @staticmethod
     @app.post("/cancel")
     def cancel_run(message: Message):
-        # Having this be a POST instead of a DELETE on the "run" endpoint is strange, but we're not actually
-        # deleting the run, just cancelling it. Maybe we should merge this into get_object to allow streaming logs.
-        HTTPServer.register_activity()
-        run_key, force = b64_unpickle(message.data)
-        logger.info(f"Message received from client to cancel runs: {run_key}")
-        try:
-            if run_key == "all":
-                [obj_store.cancel(key, force=force) for key in obj_store.keys()]
-            else:
-                obj_store.cancel(run_key, force=force)
-
-            return Response(output_type=OutputType.SUCCESS)
-        except Exception as e:
-            logger.exception(e)
-            HTTPServer.register_activity()
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
+        return HTTPServer.call_in_env_servlet(
+            "cancel_run", [message], env=message.env, lookup_env_for_name=message.key
+        )
 
     @staticmethod
     @app.get("/keys")
-    def get_keys():
-        HTTPServer.register_activity()
-        keys: list = obj_store.keys()
-        return Response(data=pickle_b64(keys), output_type=OutputType.RESULT)
+    def get_keys(env: Optional[str] = None):
+        from runhouse.rh_config import obj_store
+
+        if not env:
+            return Response(
+                output_type=OutputType.RESULT, data=pickle_b64(obj_store.keys())
+            )
+        return HTTPServer.call_in_env_servlet("get_keys", [], env=env)
 
     @staticmethod
     @app.post("/secrets")
     def add_secrets(message: Message):
-        from runhouse import Secrets
+        return HTTPServer.call_in_env_servlet(
+            "add_secrets", [message], env=message.env, create=True
+        )
 
-        HTTPServer.register_activity()
-        secrets_to_add: dict = b64_unpickle(message.data)
-        failed_providers = (
-            {}
-        )  # Track which providers fail and send them back to the user
-        try:
-            for provider_name, provider_secrets in secrets_to_add.items():
-                p = Secrets.builtin_provider_class_from_name(provider_name)
-                if p is None:
-                    error_msg = f"{provider_name} is not a Runhouse builtin provider"
-                    failed_providers[provider_name] = error_msg
-                    continue
-
-                # NOTE: For now we are always saving in the provider's default location on the cluster
-                credentials_path = p.default_credentials_path()
-                try:
-                    p.save_secrets(provider_secrets, overwrite=True)
-                except Exception as e:
-                    failed_providers[provider_name] = str(e)
-                    continue
-
-                # update config on the cluster with the default creds path for each provider
-                configs.set_nested("secrets", {provider_name: credentials_path})
-                logger.info(f"Added secrets for {provider_name} to: {credentials_path}")
-            return Response(
-                data=pickle_b64(failed_providers), output_type=OutputType.RESULT
-            )
-        except Exception as e:
-            logger.exception(e)
-            HTTPServer.register_activity()
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
+    @staticmethod
+    @app.post("/call/{fn_name}")
+    def call_fn(fn_name: str, args: Args):
+        return HTTPServer.call_in_env_servlet(
+            "call_fn", [fn_name, args], create=True, lookup_env_for_name=fn_name
+        )
 
     @staticmethod
     def _collect_cluster_stats():
@@ -505,7 +544,7 @@ class HTTPServer:
 
     @staticmethod
     def _log_cluster_data(data: dict, labels: dict):
-        from runhouse.rns.api_utils.utils import log_timestamp
+        from runhouse.rns.utils.api import log_timestamp
 
         payload = {
             "streams": [
@@ -527,24 +566,19 @@ class HTTPServer:
                 f"({resp.status_code}) Failed to send logs to Grafana Loki: {resp.text}"
             )
 
-    @staticmethod
-    @app.post("/call/{fn_name}")
-    def call_fn(fn_name: str, args: Args):
-        HTTPServer.register_activity()
-        from runhouse import function
-
-        fn = function(name=fn_name, dryrun=True)
-        result = fn(*(args.args or []), **(args.kwargs or {}))
-
-        (fn_res, obj_ref, run_key) = result
-        if isinstance(fn_res, bytes):
-            fn_res = pickle.loads(fn_res)
-
-        return fn_res
-
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--port", type=int, default=DEFAULT_SERVER_PORT, help="Port to run server on"
+    )
+    parser.add_argument(
+        "--conda_env", type=str, default=None, help="Conda env to run server in"
+    )
+    parse_args = parser.parse_args()
+    port = parse_args.port
+    conda_name = parse_args.conda_env
     import uvicorn
 
-    HTTPServer()
-    uvicorn.run(app, host="127.0.0.1", port=DEFAULT_SERVER_PORT)
+    HTTPServer(conda_env=conda_name)
+    uvicorn.run(app, host="127.0.0.1", port=port)

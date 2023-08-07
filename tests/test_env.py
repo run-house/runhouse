@@ -11,6 +11,8 @@ import yaml
 from runhouse.rns.folders.folder import Folder
 from runhouse.rns.packages import Package
 
+from .conftest import cpu_clusters
+
 pip_reqs = ["torch", "numpy"]
 
 # -------- BASE ENV TESTS ----------- #
@@ -44,20 +46,23 @@ def test_create_env():
 
 
 @pytest.mark.clustertest
-def test_to_cluster(cpu_cluster):
-    test_env = rh.env(name="test_env", reqs=["transformers"])
+@pytest.mark.parametrize("env_name", ["base", "test_env"])
+@cpu_clusters
+def test_to_cluster(cluster, env_name):
+    test_env = rh.env(name=env_name, reqs=["transformers"])
 
-    test_env.to(cpu_cluster)
-    res = cpu_cluster.run_python(["import transformers"])
+    test_env.to(cluster)
+    res = cluster.run_python(["import transformers"])
     assert res[0][0] == 0  # import was successful
 
-    cpu_cluster.run(["pip uninstall transformers -y"])
+    cluster.run(["pip uninstall transformers -y"])
 
 
 @pytest.mark.awstest
 @pytest.mark.clustertest
-def test_to_fs_to_cluster(cpu_cluster, s3_package):
-    cpu_cluster.install_packages(["s3fs"])
+@cpu_clusters
+def test_to_fs_to_cluster(cluster, s3_package):
+    cluster.install_packages(["s3fs"])
 
     test_env_s3 = rh.env(name="test_env_s3", reqs=["s3fs", "scipy", s3_package]).to(
         "s3"
@@ -68,35 +73,36 @@ def test_to_fs_to_cluster(cpu_cluster, s3_package):
             assert req.install_target.exists_in_system()
 
     folder_name = "test_package"
-    test_env_cluster = test_env_s3.to(system=cpu_cluster, path=folder_name, mount=True)
+    test_env_cluster = test_env_s3.to(system=cluster, path=folder_name, mount=True)
     for req in test_env_cluster.reqs:
         if isinstance(req, Package) and isinstance(req.install_target, Folder):
-            assert req.install_target.system == cpu_cluster
+            assert req.install_target.system == cluster
 
-    assert "sample_file_0.txt" in cpu_cluster.run([f"ls {folder_name}"])[0][1]
-    cpu_cluster.run([f"rm -r {folder_name}"])
+    assert "sample_file_0.txt" in cluster.run([f"ls {folder_name}"])[0][1]
+    cluster.run([f"rm -r {folder_name}"])
 
 
 @pytest.mark.clustertest
-def test_function_to_env(cpu_cluster):
+@cpu_clusters
+def test_function_to_env(cluster):
     test_env = rh.env(name="test-env", reqs=["parameterized"]).save()
 
     def summer(a, b):
         return a + b
 
-    rh.function(summer).to(cpu_cluster, test_env)
-    res = cpu_cluster.run_python(["import parameterized"])
+    rh.function(summer).to(cluster, test_env)
+    res = cluster.run_python(["import parameterized"])
     assert res[0][0] == 0
 
-    cpu_cluster.run(["pip uninstall parameterized -y"])
-    res = cpu_cluster.run_python(["import parameterized"])
+    cluster.run(["pip uninstall parameterized -y"])
+    res = cluster.run_python(["import parameterized"])
     assert res[0][0] == 1
 
-    rh.function(summer, system=cpu_cluster, env="test-env")
-    res = cpu_cluster.run_python(["import parameterized"])
+    rh.function(summer, system=cluster, env="test-env")
+    res = cluster.run_python(["import parameterized"])
     assert res[0][0] == 0
 
-    cpu_cluster.run(["pip uninstall parameterized -y"])
+    cluster.run(["pip uninstall parameterized -y"])
 
 
 def _get_env_var_value(env_var):
@@ -106,19 +112,21 @@ def _get_env_var_value(env_var):
 
 
 @pytest.mark.clustertest
-def test_function_env_vars(cpu_cluster):
+@cpu_clusters
+def test_function_env_vars(cluster):
     test_env_var = "TEST_ENV_VAR"
     test_value = "value"
     test_env = rh.env(name="test-env", env_vars={test_env_var: test_value})
 
-    get_env_var_cpu = rh.function(_get_env_var_value).to(cpu_cluster, test_env)
+    get_env_var_cpu = rh.function(_get_env_var_value).to(cluster, test_env)
     res = get_env_var_cpu(test_env_var)
 
     assert res == test_value
 
 
 @pytest.mark.clustertest
-def test_function_env_vars_file(cpu_cluster):
+@cpu_clusters
+def test_function_env_vars_file(cluster):
     env_file = ".env"
     contents = ["# comment", "", "ENV_VAR1=value", "# comment with =", "ENV_VAR2 =val2"]
     with open(env_file, "w") as f:
@@ -127,7 +135,7 @@ def test_function_env_vars_file(cpu_cluster):
 
     test_env = rh.env(name="test-env", env_vars=env_file)
 
-    get_env_var_cpu = rh.function(_get_env_var_value).to(cpu_cluster, test_env)
+    get_env_var_cpu = rh.function(_get_env_var_value).to(cluster, test_env)
     assert get_env_var_cpu("ENV_VAR1") == "value"
     assert get_env_var_cpu("ENV_VAR2") == "val2"
 
@@ -136,32 +144,34 @@ def test_function_env_vars_file(cpu_cluster):
 
 
 @pytest.mark.clustertest
-def test_env_git_reqs(cpu_cluster):
+@cpu_clusters
+def test_env_git_reqs(cluster):
     git_package = rh.GitPackage(
         git_url="https://github.com/huggingface/diffusers.git",
         install_method="pip",
         revision="v0.11.1",
     )
     env = rh.env(reqs=[git_package])
-    env.to(cpu_cluster)
-    res = cpu_cluster.run(["pip freeze | grep diffusers"])
+    env.to(cluster)
+    res = cluster.run(["pip freeze | grep diffusers"])
     assert "diffusers" in res[0][1]
-    cpu_cluster.run(["pip uninstall diffusers -y"])
+    cluster.run(["pip uninstall diffusers -y"])
 
 
 @pytest.mark.clustertest
-def test_working_dir(cpu_cluster, tmp_path):
+@cpu_clusters
+def test_working_dir(cluster, tmp_path):
     working_dir = tmp_path / "test_working_dir"
     working_dir.mkdir(exist_ok=True)
 
     env = rh.env(working_dir=str(working_dir))
     assert str(working_dir) in env.reqs
 
-    env.to(cpu_cluster)
-    assert working_dir.name in cpu_cluster.run(["ls"])[0][1]
+    env.to(cluster)
+    assert working_dir.name in cluster.run(["ls"])[0][1]
 
-    cpu_cluster.run([f"rm -r {working_dir.name}"])
-    assert working_dir.name not in cpu_cluster.run(["ls"])[0][1]
+    cluster.run([f"rm -r {working_dir.name}"])
+    assert working_dir.name not in cluster.run(["ls"])[0][1]
 
 
 # -------- CONDA ENV TESTS ----------- #
@@ -179,7 +189,6 @@ def _get_conda_env(name="rh-test", python_version="3.10.9"):
 
 
 def _get_conda_python_version(env, system):
-    system.up_if_not()
     env.to(system)
     py_version = system.run([f"{env._run_cmd} python --version"])
     return py_version[0][1]
@@ -210,10 +219,11 @@ def test_conda_env_from_name_rns():
 
 
 @pytest.mark.clustertest
-def test_conda_env_path_to_system(cpu_cluster):
+@cpu_clusters
+def test_conda_env_path_to_system(cluster):
     env_name = "from_path"
     python_version = "3.9.16"
-    tmp_path = Path.cwd() / "test-env"
+    tmp_path = tmp_path / "test-env"
     file_path = f"{tmp_path}/{env_name}.yml"
     tmp_path.mkdir(exist_ok=True)
     yaml.dump(
@@ -223,55 +233,60 @@ def test_conda_env_path_to_system(cpu_cluster):
     conda_env = rh.env(conda_env=file_path)
     shutil.rmtree(tmp_path)
 
-    assert python_version in _get_conda_python_version(conda_env, cpu_cluster)
+    assert python_version in _get_conda_python_version(conda_env, cluster)
 
 
 @pytest.mark.clustertest
-def test_conda_env_local_to_system(cpu_cluster):
+@cpu_clusters
+def test_conda_env_local_to_system(cluster):
     env_name = "local-env"
     python_version = "3.9.16"
     os.system(f"conda create -n {env_name} -y python=={python_version}")
 
     conda_env = rh.env(conda_env=env_name)
-    assert python_version in _get_conda_python_version(conda_env, cpu_cluster)
+    assert python_version in _get_conda_python_version(conda_env, cluster)
 
 
 @pytest.mark.clustertest
-def test_conda_env_dict_to_system(cpu_cluster):
+@cpu_clusters
+def test_conda_env_dict_to_system(cluster):
     conda_env = _get_conda_env(python_version="3.9.16")
     test_env = rh.env(name="test_env", conda_env=conda_env)
 
-    assert "3.9.16" in _get_conda_python_version(test_env, cpu_cluster)
+    assert "3.9.16" in _get_conda_python_version(test_env, cluster)
 
     # ray installed successfully
-    res = cpu_cluster.run([f"{test_env._run_cmd} python -c 'import ray'"])
+    res = cluster.run([f'{test_env._run_cmd} python -c "import ray"'])
     assert res[0][0] == 0
 
 
 @pytest.mark.clustertest
-def test_function_to_conda_env(cpu_cluster):
+@cpu_clusters
+def test_function_to_conda_env(cluster):
     conda_env = _get_conda_env(python_version="3.9.16")
     test_env = rh.env(name="test_env", conda_env=conda_env)
 
     def summer(a, b):
         return a + b
 
-    rh.function(summer).to(cpu_cluster, test_env)
-    assert "3.9.16" in _get_conda_python_version(test_env, cpu_cluster)
+    rh.function(summer).to(cluster, test_env)
+    assert "3.9.16" in _get_conda_python_version(test_env, cluster)
 
 
 @pytest.mark.clustertest
-def test_conda_additional_reqs(cpu_cluster):
+@cpu_clusters
+def test_conda_additional_reqs(cluster):
     new_conda_env = _get_conda_env(name="test-add-reqs")
     new_conda_env = rh.env(name="conda_env", reqs=["scipy"], conda_env=new_conda_env)
-    new_conda_env.to(cpu_cluster)
-    res = cpu_cluster.run([f"{new_conda_env._run_cmd} python -c 'import scipy'"])
+    new_conda_env.to(cluster)
+    res = cluster.run([f'{new_conda_env._run_cmd} python -c "import scipy"'])
     assert res[0][0] == 0  # reqs successfully installed
-    cpu_cluster.run([f"{new_conda_env._run_cmd} pip uninstall scipy"])
+    cluster.run([f"{new_conda_env._run_cmd} pip uninstall scipy"])
 
 
 @pytest.mark.clustertest
-def test_conda_git_reqs(cpu_cluster):
+@cpu_clusters
+def test_conda_git_reqs(cluster):
     conda_env = _get_conda_env(name="test-add-reqs")
     git_package = rh.GitPackage(
         git_url="https://github.com/huggingface/diffusers.git",
@@ -279,14 +294,15 @@ def test_conda_git_reqs(cpu_cluster):
         revision="v0.11.1",
     )
     conda_env = rh.env(conda_env=conda_env, reqs=[git_package])
-    conda_env.to(cpu_cluster)
-    res = cpu_cluster.run([f"{conda_env._run_cmd} pip freeze | grep diffusers"])
+    conda_env.to(cluster)
+    res = cluster.run([f"{conda_env._run_cmd} pip freeze | grep diffusers"])
     assert "diffusers" in res[0][1]
-    cpu_cluster.run([f"{conda_env._run_cmd} pip uninstall diffusers"])
+    cluster.run([f"{conda_env._run_cmd} pip uninstall diffusers"])
 
 
 @pytest.mark.clustertest
-def test_conda_env_to_fs_to_cluster(cpu_cluster, s3_package):
+@cpu_clusters
+def test_conda_env_to_fs_to_cluster(cluster, s3_package):
     conda_env = _get_conda_env(name="s3-env")
     conda_env_s3 = rh.env(reqs=["s3fs", "scipy", s3_package], conda_env=conda_env).to(
         "s3"
@@ -301,20 +317,18 @@ def test_conda_env_to_fs_to_cluster(cpu_cluster, s3_package):
 
     folder_name = "test_package"
     count = 0
-    conda_env_cluster = conda_env_s3.to(
-        system=cpu_cluster, path=folder_name, mount=True
-    )
+    conda_env_cluster = conda_env_s3.to(system=cluster, path=folder_name, mount=True)
     for req in conda_env_cluster.reqs:
         if isinstance(req, Package) and isinstance(req.install_target, Folder):
-            assert req.install_target.system == cpu_cluster
+            assert req.install_target.system == cluster
             count += 1
     assert count >= 1
 
-    assert "sample_file_0.txt" in cpu_cluster.run([f"ls {folder_name}"])[0][1]
-    assert "s3-env" in cpu_cluster.run(["conda info --envs"])[0][1]
+    assert "sample_file_0.txt" in cluster.run([f"ls {folder_name}"])[0][1]
+    assert "s3-env" in cluster.run(["conda info --envs"])[0][1]
 
-    cpu_cluster.run([f"rm -r {folder_name}"])
-    cpu_cluster.run(["conda env remove -n s3-env"])
+    cluster.run([f"rm -r {folder_name}"])
+    cluster.run(["conda env remove -n s3-env"])
 
 
 # -------- CONDA ENV + FUNCTION TESTS ----------- #
@@ -327,19 +341,21 @@ def np_summer(a, b):
 
 
 @pytest.mark.clustertest
-def test_conda_call_fn(cpu_cluster):
+@cpu_clusters
+def test_conda_call_fn(cluster):
     conda_dict = _get_conda_env(name="c")
     conda_env = rh.env(conda_env=conda_dict, reqs=["pytest", "numpy"])
-    fn = rh.function(np_summer).to(system=cpu_cluster, env=conda_env)
+    fn = rh.function(np_summer).to(system=cluster, env=conda_env)
     result = fn(1, 4)
     assert result == 5
 
 
 @pytest.mark.clustertest
-def test_conda_map_fn(cpu_cluster):
+@cpu_clusters
+def test_conda_map_fn(cluster):
     conda_dict = _get_conda_env(name="test-map-fn")
     conda_env = rh.env(conda_env=conda_dict, reqs=["pytest", "numpy"])
-    map_fn = rh.function(np_summer, system=cpu_cluster, env=conda_env)
+    map_fn = rh.function(np_summer, system=cluster, env=conda_env)
     inputs = list(zip(range(5), range(4, 9)))
     results = map_fn.starmap(inputs)
     assert results == [4, 6, 8, 10, 12]

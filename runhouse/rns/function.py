@@ -1,41 +1,36 @@
 import copy
 import inspect
-import json
 import logging
-import os
 import re
-import time
 import warnings
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-import requests
-
 from runhouse import rh_config
-from runhouse.rns.api_utils.resource_access import ResourceAccess
-from runhouse.rns.api_utils.utils import load_resp_content, read_resp_data
 from runhouse.rns.envs import CondaEnv, Env
 from runhouse.rns.hardware import Cluster
-from runhouse.rns.packages import git_package, Package
 
-from runhouse.rns.resource import Resource
-from runhouse.rns.run_module_utils import call_fn_by_type
+from runhouse.rns.module import Module
+from runhouse.rns.packages import git_package
+from runhouse.rns.run_module_utils import get_fn_from_pointers
+from runhouse.rns.utils.api import ResourceAccess
 
 from runhouse.rns.utils.env import _env_vars_from_file, _get_env_from
 from runhouse.rns.utils.hardware import _get_cluster_from
+from runhouse.rns.utils.names import _generate_default_name
 
 logger = logging.getLogger(__name__)
 
 
-class Function(Resource):
+class Function(Module):
     RESOURCE_TYPE = "function"
     DEFAULT_ACCESS = "write"
 
     def __init__(
         self,
         fn_pointers: Optional[Tuple] = None,
-        system: Optional[Cluster] = None,
         name: Optional[str] = None,
+        system: Optional[Cluster] = None,
         env: Optional[Env] = None,
         dryrun: bool = False,
         access: Optional[str] = None,
@@ -50,15 +45,12 @@ class Function(Resource):
                 To create a Function, please use the factory method :func:`function`.
         """
         self.fn_pointers = fn_pointers
-        self.system = system
-        self.env = env
         self.access = access or self.DEFAULT_ACCESS
-        self.dryrun = dryrun
         self.resources = resources or {}
-        super().__init__(name=name, dryrun=dryrun)
+        super().__init__(name=name, dryrun=dryrun, system=system, env=env, **kwargs)
 
-        if not self.dryrun:
-            self = self.to(self.system, env=self.env)
+        # if not self.dryrun:
+        #     self = self.to(self.system, env=self.env)
 
     # ----------------- Constructor helper methods -----------------
 
@@ -70,11 +62,13 @@ class Function(Resource):
         if isinstance(config["env"], dict):
             config["env"] = Env.from_config(config["env"], dryrun=dryrun)
 
+        config.pop("resource_subtype", None)
         return Function(**config, dryrun=dryrun)
 
     @classmethod
     def _check_for_child_configs(cls, config):
         """Overload by child resources to load any resources they hold internally."""
+        # TODO: Replace with _get_cluster_from?
         system = config["system"]
         if isinstance(system, str):
             config["system"] = rh_config.rns_client.load_config(name=system)
@@ -136,123 +130,28 @@ class Function(Resource):
         new_function = copy.deepcopy(self)
         self.system = hw_backup
 
-        if system:
-            if isinstance(system, str):
-                system = Cluster.from_name(system, dryrun=self.dryrun)
-            new_function.system = system
-        else:
-            new_function.system = self.system
+        new_function.system = (
+            _get_cluster_from(system, dryrun=self.dryrun) if system else self.system
+        )
 
         logging.info("Setting up Function on cluster.")
         # To up cluster in case it's not yet up
         new_function.system.check_server()
+        new_function.name = new_function.name or self.fn_pointers[2]
+        # TODO
+        # env.name = env.name or (new_function.name + "_env")
         new_env = env.to(new_function.system)
-        logging.info("Function setup complete.")
         new_function.env = new_env
+
+        new_function.dryrun = True
+        system.put_resource(new_function, dryrun=True)
+        logging.info("Function setup complete.")
 
         return new_function
 
-    @staticmethod
-    def _extract_fn_paths(raw_fn: Callable, reqs: List[str]):
-        """Get the path to the module, module name, and function name to be able to import it on the server"""
-        if not isinstance(raw_fn, Callable):
-            raise TypeError(
-                f"Invalid fn for Function, expected Callable but received {type(raw_fn)}"
-            )
-        # Background on all these dunders: https://docs.python.org/3/reference/import.html
-        module = inspect.getmodule(raw_fn)
-
-        # Need to resolve in case just filename is given
-        module_path = (
-            str(Path(inspect.getfile(module)).resolve())
-            if hasattr(module, "__file__")
-            else None
-        )
-
-        # TODO better way of detecting if in a notebook or interactive Python env
-        if (
-            not module_path
-            or module_path.endswith("ipynb")
-            or raw_fn.__name__ == "<lambda>"
-        ):
-            # The only time __file__ wouldn't be present is if the function is defined in an interactive
-            # interpreter or a notebook. We can't import on the server in that case, so we need to cloudpickle
-            # the fn to send it over. The __call__ function will serialize the function if we return it this way.
-            # This is a short-term hack.
-            # return None, "notebook", raw_fn.__name__
-            root_path = os.getcwd()
-            module_name = "notebook"
-            fn_name = raw_fn.__name__
-        else:
-            root_path = os.path.dirname(module_path)
-            module_name = inspect.getmodulename(module_path)
-            # TODO __qualname__ doesn't work when fn is aliased funnily, like torch.sum
-            fn_name = getattr(raw_fn, "__qualname__", raw_fn.__name__)
-
-            # Adapted from https://github.com/modal-labs/modal-client/blob/main/modal/_function_utils.py#L94
-            if getattr(module, "__package__", None):
-                module_path = os.path.abspath(module.__file__)
-                package_paths = [
-                    os.path.abspath(p) for p in __import__(module.__package__).__path__
-                ]
-                base_dirs = [
-                    base_dir
-                    for base_dir in package_paths
-                    if os.path.commonpath((base_dir, module_path)) == base_dir
-                ]
-
-                if len(base_dirs) != 1:
-                    logger.info(f"Module files: {module_path}")
-                    logger.info(f"Package paths: {package_paths}")
-                    logger.info(f"Base dirs: {base_dirs}")
-                    raise Exception("Wasn't able to find the package directory!")
-                root_path = os.path.dirname(base_dirs[0])
-                module_name = module.__spec__.name
-
-        remote_import_path = None
-        for req in reqs:
-            local_path = None
-            if (
-                isinstance(req, Package)
-                and not isinstance(req.install_target, str)
-                and req.install_target.is_local()
-            ):
-                local_path = Path(req.install_target.local_path)
-            elif isinstance(req, str):
-                if req.split(":")[0] in ["local", "reqs", "pip"]:
-                    req = req.split(":")[1]
-
-                if Path(req).expanduser().resolve().exists():
-                    # Relative paths are relative to the working directory in Folders/Packages!
-                    local_path = (
-                        Path(req).expanduser()
-                        if Path(req).expanduser().is_absolute()
-                        else Path(rh_config.rns_client.locate_working_dir()) / req
-                    )
-
-            if local_path:
-                try:
-                    # Module path relative to package
-                    remote_import_path = str(
-                        local_path.name / Path(root_path).relative_to(local_path)
-                    )
-                    break
-                except ValueError:  # Not a subdirectory
-                    pass
-
-        return remote_import_path, module_name, fn_name
-
-    # Found in python decorator logic, maybe use
-    # func_name = getattr(f, '__qualname__', f.__name__)
-    # module_name = getattr(f, '__module__', '')
-    # if module_name:
-    #     full_name = f'{module_name}.{func_name}'
-    # else:
-    #     full_name = func_name
-
     # ----------------- Function call methods -----------------
 
-    def __call__(self, *args, stream_logs=True, run_name: str = None, **kwargs) -> Any:
+    def __call__(self, *args, **kwargs) -> Any:
         """Call the function on its system
 
         Args:
@@ -266,68 +165,12 @@ class Function(Resource):
         Returns:
             The Function's return value
         """
+        return self.call(*args, **kwargs)
 
-        fn_type = "call"
-        if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
-            run_locally = not self.system or self.system.on_this_cluster()
-            if not run_locally:
-                start = time.time()
-                run_obj = self.run(*args, run_name=run_name, **kwargs)
-                res = self.system.get(run_obj.name, stream_logs=stream_logs)
-                end = time.time()
-                logging.info(
-                    f"Time to call remote function: {round(end - start, 2)} seconds"
-                )
-                return res
-            else:
-                [relative_path, module_name, fn_name] = self.fn_pointers
-                conda_env = (
-                    self.env.env_name
-                    if self.env and isinstance(self.env, CondaEnv)
-                    else None
-                )
-                env_vars = self.env.env_vars
-                # If we're on this cluster, don't pickle the result before passing back.
-                # We need to pickle before passing back in most cases because the env in
-                # which the function executes may have a different set of packages than the
-                # server, so when Ray passes a result back into the server it will may fail to
-                # unpickle. We assume the user's client has the necessary packages to unpickle
-                # their own result.
-
-                return call_fn_by_type(
-                    fn_type=fn_type,
-                    fn_name=fn_name,
-                    relative_path=relative_path,
-                    module_name=module_name,
-                    resources=self.resources,
-                    conda_env=conda_env,
-                    env_vars=env_vars,
-                    run_name=run_name,
-                    args=args,
-                    kwargs=kwargs,
-                    serialize_res=False,
-                )
-        else:
-            # run the function via http path - user only needs Proxy access
-            if self.access != ResourceAccess.PROXY:
-                raise RuntimeError("Running http path requires proxy access")
-            if not rh_config.rns_client.token:
-                raise ValueError(
-                    "Token must be saved in the local .rh config in order to use an http path"
-                )
-            http_url = self.http_url()
-            logger.info(f"Running {self.name} via http path: {http_url}")
-            resp = requests.post(
-                http_url,
-                data=json.dumps({"args": args, "kwargs": kwargs}),
-                headers=rh_config.rns_client.request_headers,
-            )
-            if resp.status_code != 200:
-                raise Exception(
-                    f"Failed to run Function endpoint: {load_resp_content(resp)}"
-                )
-
-            return read_resp_data(resp)
+    def call(self, *args, **kwargs) -> Any:
+        # We need this strictly because Module's __getattribute__ overload can't pick up the __call__ method
+        fn = get_fn_from_pointers(*self.fn_pointers)
+        return fn(*args, **kwargs)
 
     def repeat(self, num_repeats: int, *args, **kwargs):
         """Repeat the Function call multiple times.
@@ -412,41 +255,13 @@ class Function(Resource):
                 "Function.enqueue only works with Write or Read access, not Proxy access"
             )
 
-    def remote(self, *args, **kwargs):
-        warnings.warn("`remote()` is deprecated, use `run()` instead")
-        run_obj = self.run(*args, **kwargs)
-        return run_obj.name
+    def remote(self, *args, local=True, **kwargs):
+        obj = self.call.remote(*args, **kwargs)
+        return obj
 
-    def run(self, *args, run_name: str = None, **kwargs):
-        """Run async remote call on cluster.
-
-        Args:
-            *args: Optional args for the Function
-            run_name (Optional[str]): Name of the Run to create. If not provided, a name will automatically
-             be generated.
-             **kwargs: Optional kwargs for the Function
-        Returns:
-            Run: Run object
-        Example:
-            >>> remote_fn = rh.function(local_fn).to(gpu)
-            >>> remote_fn.run(arg1, arg2, run_name="my_async_run")
-        """
-        if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
-            from runhouse import Run
-
-            # Use the run_name if provided, otherwise create a new one using the Function's name
-            run_name = run_name or Run._create_new_run_name(self.name)
-
-            run_obj = self._call_fn_with_ssh_access(
-                fn_type="remote", run_name=run_name, args=args, kwargs=kwargs
-            )
-
-            logger.info(f"Submitted remote call to cluster for {run_name}")
-            return run_obj
-        else:
-            raise NotImplementedError(
-                "Function.remote only works with Write or Read access, not Proxy access"
-            )
+    def run(self, *args, local=True, **kwargs):
+        key = self.call.run(*args, **kwargs)
+        return key
 
     def get(self, run_key):
         """Get the result of a Function call that was submitted as async using `remote`.
@@ -462,6 +277,7 @@ class Function(Resource):
         """
         return self.system.get(run_key)
 
+    # TODO remove
     def _call_fn_with_ssh_access(
         self, fn_type, resources=None, run_name=None, args=None, kwargs=None
     ):
@@ -548,13 +364,9 @@ class Function(Resource):
     @property
     def config_for_rns(self):
         # TODO save Package resource, because fn_pointers are meaningless without the package.
-
         config = super().config_for_rns
-
         config.update(
             {
-                "system": self._resource_string_for_subconfig(self.system),
-                "env": self._resource_string_for_subconfig(self.env),
                 "fn_pointers": self.fn_pointers,
                 "resources": self.resources,
             }
@@ -562,27 +374,8 @@ class Function(Resource):
         return config
 
     def _save_sub_resources(self):
-        if isinstance(self.system, Resource):
+        if isinstance(self.system, Cluster):
             self.system.save()
-
-    # TODO maybe reuse these if we starting putting each function in its own container
-    # @staticmethod
-    # def run_ssh_cmd_in_cluster(ssh_key, ssh_user, address, cmd, port_fwd=None):
-    #     subprocess.run("ssh -tt -o IdentitiesOnly=yes -i "
-    #                    f"{ssh_key} {port_fwd or ''}"
-    #                    f"{ssh_user}@{address} docker exec -it ray_container /bin/bash -c {cmd}".split(' '))
-
-    def ssh(self):
-        """SSH into the system associated with the function.
-
-        Example:
-            >>> remote_fn = rh.function(local_fn).to(gpu)
-            >>> # SSH into gpu
-            >>> remote_fn.ssh()
-        """
-        if self.system is None:
-            raise RuntimeError("System must be specified and up to ssh into a Function")
-        self.system.ssh()
 
     def send_secrets(self, providers: Optional[List[str]] = None):
         """Send secrets to the system.
@@ -620,10 +413,9 @@ class Function(Resource):
             if sync_package_on_close:
                 if sync_package_on_close == "./":
                     sync_package_on_close = rh_config.rns_client.locate_working_dir()
-                pkg = Package.from_string("local:" + sync_package_on_close)
-                self.system._rsync(
-                    source=f"~/{pkg.name}", dest=pkg.local_path, up=False
-                )
+                from .folders import folder
+
+                folder(system=self.system, path=sync_package_on_close).to("here")
             if not persist:
                 tunnel.stop()
                 kill_jupyter_cmd = f"jupyter notebook stop {port_fwd}"
@@ -647,9 +439,8 @@ class Function(Resource):
             >>> # previously, remote_fn.run(arg1, arg2, run_name="my_async_run")
             >>> remote_fn.get_or_call()
         """
-        from runhouse import Run
 
-        run_name = run_name or Run._create_new_run_name(self.name)
+        run_name = run_name or _generate_default_name(prefix=self.name)
 
         res = self._call_fn_with_ssh_access(
             fn_type="get_or_call", run_name=run_name, args=args, kwargs=kwargs
@@ -677,7 +468,7 @@ class Function(Resource):
         """
         from runhouse import Run
 
-        run_name = run_name or Run._create_new_run_name(self.name)
+        run_name = run_name or _generate_default_name(prefix=self.name)
         if run_name == "latest":
             # TODO [JL]
             raise NotImplementedError("Latest not currently supported")
@@ -813,7 +604,7 @@ def function(
 
     fn_pointers = None
     if callable(fn):
-        fn_pointers = Function._extract_fn_paths(raw_fn=fn, reqs=env.reqs)
+        fn_pointers = Function._extract_pointers(fn, reqs=env.reqs)
         if fn_pointers[1] == "notebook":
             fn_pointers = Function._handle_nb_fn(
                 fn,
@@ -856,13 +647,11 @@ def function(
 
     new_function = Function(
         fn_pointers=fn_pointers,
-        system=system,
-        env=env,
         resources=resources,
         access=Function.DEFAULT_ACCESS,
         name=name,
         dryrun=dryrun,
-    )
+    ).to(system=system, env=env)
 
     if load_secrets and not dryrun:
         new_function.send_secrets()

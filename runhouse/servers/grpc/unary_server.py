@@ -13,7 +13,6 @@ from sky.skylet.autostop_lib import set_last_active_time_to_now
 import runhouse.servers.grpc.unary_pb2 as pb2
 import runhouse.servers.grpc.unary_pb2_grpc as pb2_grpc
 from runhouse.rh_config import configs, obj_store
-from runhouse.rns.api_utils.utils import resolve_absolute_path
 from runhouse.rns.packages.package import Package
 from runhouse.rns.run_module_utils import call_fn_by_type
 from runhouse.rns.top_level_rns_fns import (
@@ -21,6 +20,7 @@ from runhouse.rns.top_level_rns_fns import (
     pinned_keys,
     remove_pinned_object,
 )
+from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.servers.grpc.unary_client import OutputType
 
 logger = logging.getLogger(__name__)
@@ -326,7 +326,7 @@ class UnaryService(pb2_grpc.UnaryServicer):
         }
 
     def _log_cluster_data(self, data: dict, labels: dict):
-        from runhouse.rns.api_utils.utils import log_timestamp
+        from runhouse.rns.utils.api import log_timestamp
 
         payload = {
             "streams": [

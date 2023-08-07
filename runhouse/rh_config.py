@@ -19,5 +19,7 @@ open_cluster_tunnels = {}
 
 rns_client = RNSClient(configs=configs)
 
-# To allow pinning objects to memory inside a function, e.g. to save time sending to cuda over and over
+# Note: this initalizes a dummy global object. The obj_store must
+# be properly initialized by a servlet via set_name.
 obj_store = ObjStore()
+env_servlets = {}
