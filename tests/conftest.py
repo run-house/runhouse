@@ -199,7 +199,6 @@ def ondemand_cpu_cluster():
 
 @pytest.fixture(scope="session")
 def byo_cpu():
-    # TODO merge into password cluster
     # Spin up a new basic m5.xlarge EC2 instance
     c = (
         rh.ondemand_cluster(
@@ -277,7 +276,7 @@ def password_cluster():
 
 
 cpu_clusters = pytest.mark.parametrize(
-    "cluster", ["ondemand_cpu_cluster", "password_cluster"], indirect=True
+    "cluster", ["ondemand_cpu_cluster", "password_cluster", "byo_cpu"], indirect=True
 )
 
 

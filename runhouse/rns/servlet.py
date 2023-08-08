@@ -6,6 +6,7 @@ import threading
 import time
 import traceback
 from pathlib import Path
+from typing import List, Union
 
 import ray
 import ray.cloudpickle as pickle
@@ -82,7 +83,7 @@ class EnvServlet:
                 resource.rename(name)
             else:
                 resource.name = name
-            obj_store.put(name, resource)
+            obj_store.put(resource.name, resource)
 
             if hasattr(resource, "remote_init"):
                 logger.info(
@@ -112,11 +113,9 @@ class EnvServlet:
                 f"Message received from client to call method {method_name} on module {module_name} at {time.time()}"
             )
 
-            import ray
-
             self.thread_ids[
                 message.key
-            ] = ray.worker.global_worker.import_thread.t._ident
+            ] = threading.get_ident()  # Save thread ID for this message
             # Remove output types from previous runs
             self.output_types.pop(message.key, None)
             result_resource = Queue(name=message.key, persist=persist)
@@ -351,19 +350,19 @@ class EnvServlet:
                         or ret_obj.provenance.status == RunStatus.NOT_STARTED
                     ):
                         while key not in self.output_types:
-                            time.sleep(0.01)
+                            time.sleep(0.1)
                         return
 
                     # This allows us to return the results of a generator as they become available, rather than
                     # waiting a full second for the ray.get in the server to timeout before trying again.
                     if ret_obj.provenance.status == RunStatus.RUNNING:
-                        while (
-                            isinstance(ret_obj, Queue)
-                            and ret_obj.empty()
-                            and ret_obj.provenance.status == RunStatus.RUNNING
-                        ):
-                            ret_obj = ret_obj.refresh()
-                            time.sleep(0.01)
+                        # while (
+                        #     isinstance(ret_obj, Queue)
+                        #     and ret_obj.empty()
+                        #     and ret_obj.provenance.status == RunStatus.RUNNING
+                        # ):
+                        #     ret_obj = ret_obj.refresh()
+                        time.sleep(0.1)
                         return
 
                     if ret_obj.provenance.status == RunStatus.COMPLETED:
@@ -505,9 +504,9 @@ class EnvServlet:
                 output_type=OutputType.EXCEPTION,
             )
 
-    def delete_obj(self, message: Message):
+    def delete_obj(self, message: Union[Message, List], _intra_cluster=False):
         self.register_activity()
-        keys = b64_unpickle(message.data)
+        keys = b64_unpickle(message.data) if not _intra_cluster else message
         logger.info(f"Message received from client to delete keys: {keys or 'all'}")
         try:
             cleared = []

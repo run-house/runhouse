@@ -8,7 +8,7 @@ import pytest
 import ray.exceptions
 import requests
 import runhouse as rh
-from runhouse.rns.utils.api import load_resp_content, ResourceAccess
+from runhouse.rns.utils.api import load_resp_content
 
 from .conftest import cpu_clusters
 
@@ -52,20 +52,6 @@ def test_create_function_from_name_local(cluster):
 
     remote_sum.delete_configs()
     assert rh.exists(local_name) is False
-
-
-@unittest.skip("Not yet implemented.")
-@pytest.mark.rnstest
-@pytest.mark.clustertest
-def test_running_function_as_proxy(ondemand_cpu_cluster):
-    # reload the function from RNS
-    remote_sum = rh.function(name=REMOTE_FUNC_NAME)
-    remote_sum.access = ResourceAccess.PROXY
-    res = remote_sum(1, 5)
-    assert res == 6
-
-    remote_sum.delete_configs()
-    assert not rh.exists(REMOTE_FUNC_NAME)
 
 
 @pytest.mark.clustertest
@@ -360,19 +346,6 @@ def delete_function_from_rns(s):
         s.cluster.teardown_and_delete()
     except Exception as e:
         raise Exception(f"Failed to teardown the cluster: {e}")
-
-
-@pytest.mark.clustertest
-@pytest.mark.rnstest
-def test_byo_cluster_function(byo_cpu):
-    re_fn = rh.function(multiproc_torch_sum).to(
-        byo_cpu, env=["torch==1.12.1", "pytest"]
-    )
-
-    summands = list(zip(range(5), range(4, 9)))
-    res = re_fn(summands)
-
-    assert res == [4, 6, 8, 10, 12]
 
 
 @pytest.mark.clustertest

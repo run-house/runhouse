@@ -211,12 +211,6 @@ class HTTPServer:
                     block=False,
                 )
 
-                # Hold onto obj_refs just so we can support cancelling
-                # TODO don't do this in the obj_store (lots of extra keys show up to the user),
-                #  just do it in a local dict.
-                # from runhouse.rh_config import obj_store
-                #
-                # obj_store.put(message.key + "_ref", obj_ref)
             else:
                 message.key = module
 
@@ -226,12 +220,16 @@ class HTTPServer:
                     output_type=OutputType.RESULT,
                 )
 
+            persist = (
+                message.run_async or message.remote or message.save
+            ) or not method
             return StreamingResponse(
                 HTTPServer._get_results_and_logs_generator(
                     message.key,
                     env=env,
                     stream_logs=message.stream_logs,
                     remote=message.remote,
+                    pop=not persist,
                 ),
                 media_type="application/json",
             )
@@ -273,17 +271,18 @@ class HTTPServer:
         return open_files
 
     @staticmethod
-    def _get_results_and_logs_generator(key, env, stream_logs, remote=False):
-        open_logfiles = []
+    def _get_results_and_logs_generator(key, env, stream_logs, remote=False, pop=False):
+        from runhouse.rh_config import obj_store
 
+        open_logfiles = []
         waiting_for_results = True
+
         try:
             obj_ref = None
             while waiting_for_results:
-                from runhouse.rh_config import obj_store
 
                 while not obj_store.contains(key):
-                    time.sleep(0.01)
+                    time.sleep(0.1)
 
                 if not obj_ref:
                     obj_ref = HTTPServer.call_in_env_servlet(
@@ -333,6 +332,7 @@ class HTTPServer:
                     )
                     logger.info(f"Yielding logs for key {key}")
                     yield json.dumps(jsonable_encoder(lines_resp))
+
         except Exception as e:
             logger.exception(e)
             yield json.dumps(
@@ -349,6 +349,11 @@ class HTTPServer:
                 logger.warning(f"No logfiles found for call {key}")
             for f in open_logfiles:
                 f.close()
+
+            logger.debug(f"Deleting {key}")
+            if pop:
+                obj_store.delete(key)
+                HTTPServer.call_in_env_servlet("delete_obj", [[key], True], env=env)
 
     @staticmethod
     @app.post("/run")

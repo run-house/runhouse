@@ -110,7 +110,10 @@ class OnDemandCluster(Cluster):
                 "cluster_yaml": self.relative_yaml_path(
                     yaml_path=config["handle"]._cluster_yaml
                 ),
-                "head_ip": config["handle"].head_ip,
+                "head_ip": config["handle"].head_ip or self.address,
+                "stable_internal_external_ips": config[
+                    "handle"
+                ].stable_internal_external_ips,
                 "launched_nodes": config["handle"].launched_nodes,
                 "launched_resources": config[
                     "handle"
@@ -169,7 +172,10 @@ class OnDemandCluster(Cluster):
                 cluster_name=self.name,
                 cluster_yaml=str(Path(yaml_path).expanduser()),
                 launched_nodes=handle_info["launched_nodes"],
-                # head_ip=handle_info['head_ip'], # deprecated
+                stable_internal_external_ips=handle_info.get(
+                    "stable_internal_external_ips"
+                )
+                or [(handle_info["head_ip"], handle_info["head_ip"])],
                 launched_resources=resources,
             )
             sky.global_user_state.add_or_update_cluster(
