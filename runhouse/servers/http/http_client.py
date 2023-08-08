@@ -46,8 +46,10 @@ class HTTPClient:
             if req_type == "delete"
             else requests.post
         )
+        endpoint = endpoint.strip("/")
+        endpoint = (endpoint + "/") if "?" not in endpoint else endpoint
         response = req_fn(
-            f"http://{self.host}:{self.port}/{endpoint}/",
+            f"http://{self.host}:{self.port}/{endpoint}",
             json={
                 "data": data,
                 "env": env,
@@ -285,7 +287,7 @@ class HTTPClient:
         )
 
     def list_keys(self, env=None):
-        return self.request(f"keys/{env}" if env else "keys", req_type="get")
+        return self.request(f"keys/?env={env}" if env else "keys", req_type="get")
 
     def add_secrets(self, secrets):
         failed_providers = self.request(

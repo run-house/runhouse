@@ -161,12 +161,12 @@ class ObjStore:
             for k, v in d.items()
         }
 
-    def delete_env(self, key):
-        self.call_kv_method(self._env_for_key, "pop", key)
+    def pop_env(self, key: str, default: Optional[Any] = None):
+        self.call_kv_method(self._env_for_key, "pop", key, default)
 
     def delete(self, key: str):
-        self.call_kv_method(self._kv_store, "pop", key)
-        self.delete_env(key)
+        self.pop(key, None)
+        self.pop_env(key, None)
 
     def pop(self, key: str, default: Optional[Any] = None):
         return self.call_kv_method(self._kv_store, "pop", key, default)
