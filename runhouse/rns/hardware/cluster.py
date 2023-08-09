@@ -83,7 +83,6 @@ class Cluster(Resource):
             from runhouse.rns.hardware import OnDemandCluster
 
             return OnDemandCluster(**config, dryrun=dryrun)
-
         elif resource_subtype == "SageMakerCluster":
             from runhouse.rns.hardware import SageMakerCluster
 
@@ -478,7 +477,7 @@ class Cluster(Resource):
         )
         cmds = [kill_proc_cmd]
         if restart_ray:
-            ray_start_cmd = "ray start --head --port 6379 --autoscaling-config=~/ray_bootstrap_config.yaml"
+            ray_start_cmd = "ray start --head --port 6379"
             # We need to use this instead of ray stop to make sure we don't stop the SkyPilot ray server,
             # which runs on other ports but is required to preserve autostop and correct cluster status.
             kill_ray_cmd = 'pkill -f ".*ray.*6379.*"'

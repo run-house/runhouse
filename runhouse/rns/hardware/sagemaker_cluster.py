@@ -25,7 +25,6 @@ from sshtunnel import SSHTunnelForwarder
 
 from runhouse.rh_config import configs, open_cluster_tunnels, rns_client
 from runhouse.rns.hardware.cluster import Cluster
-from runhouse.rns.utils.hardware import _current_cluster
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +35,7 @@ class SageMakerCluster(Cluster):
     DEFAULT_USER = "root"
     # Default path for source code copied to SageMaker instance
     ESTIMATOR_SRC_CODE_PATH = "/opt/ml/code"
+    DEFAULT_REGION = "us-east-1"
 
     DEFAULT_SSH_PORT = 11022
     DEFAULT_HTTP_PORT = 50052
@@ -195,6 +195,19 @@ class SageMakerCluster(Cluster):
     def instance_type(self, instance_type):
         self._instance_type = instance_type
 
+    @property
+    def default_region(self):
+        # TODO [JL] Run CLI command instead? something like: ``aws configure get region``
+        import boto3
+
+        try:
+            region = boto3.session.Session().region_name
+            if region is None:
+                return self.DEFAULT_REGION
+            return region
+        except:
+            return self.DEFAULT_REGION
+
     @staticmethod
     def is_serializable(obj):
         try:
@@ -204,7 +217,7 @@ class SageMakerCluster(Cluster):
             return False
 
     def check_server(self, restart_server=True):
-        if self.name == _current_cluster("name"):
+        if self.on_this_cluster():
             return
 
         if not self.instance_id:
@@ -218,7 +231,10 @@ class SageMakerCluster(Cluster):
                     self.instance_id
                 )  # For compatibility with parent method (``connect_server_client``)
                 self.connect_server_client()
-                logger.info(f"Checking server with instance ID: {self.instance_id}")
+                logger.info(
+                    f"Checking server {self.name} with instance ID: {self.instance_id}"
+                )
+
                 self.client.check_server(cluster_config=cluster_config)
                 logger.info(f"Server {self.instance_id} is up.")
             except Exception as e:
@@ -242,7 +258,7 @@ class SageMakerCluster(Cluster):
                     self.client.check_server(cluster_config=cluster_config)
                 else:
                     raise ValueError(
-                        f"Could not connect to SageMaker instance <{self.instance_id}>"
+                        f"Could not connect to SageMaker instance {self.instance_id}"
                     )
 
     def is_up(self) -> bool:
@@ -253,7 +269,7 @@ class SageMakerCluster(Cluster):
         """
         import boto3
 
-        sagemaker_client = boto3.client("sagemaker")
+        sagemaker_client = boto3.client("sagemaker", region_name=self.default_region)
         try:
             response = sagemaker_client.describe_training_job(
                 TrainingJobName=self.job_name
@@ -405,7 +421,6 @@ class SageMakerCluster(Cluster):
                 # try connecting with a different port - most likely the issue is the port is already taken
                 local_port += 1
                 ssh_port += 1
-                num_ports_to_try -= 1
                 pass
 
         return ssh_tunnel, local_port
@@ -458,7 +473,7 @@ class SageMakerCluster(Cluster):
 
     def _create_launch_estimator(self):
         """Create the estimator object used for launching the cluster. If a custom estimator is provided, use that.
-        Otherwise use a Runhouse default estimator to launch.
+        Otherwise, use a Runhouse default estimator to launch.
         **Note If an estimator is provided, Runhouse will override the entry point and source dir to use the
         default Runhouse entry point and source dir. This is to ensure that the connection to the cluster
         can be maintained even if the job fails, or if autostop is enabled.**"""
@@ -515,7 +530,7 @@ class SageMakerCluster(Cluster):
         self.check_server(restart_server=True)
 
         if self._estimator_source_dir and self._estimator_entry_point:
-            # Copy the estimator's code to the cluster - Runhouse will then manage the running of the job
+            # Copy the estimator's code to the cluster - Runhouse will then manage running the job
             self._sync_estimator_to_cluster()
 
         # Add the cluster name to the local SSH config to enable the <ssh cluster_name> command
@@ -546,8 +561,8 @@ class SageMakerCluster(Cluster):
     def _rsync(self, source: str, dest: str, up: bool, contents: bool = False):
         command = (
             f"rsync -rvh --exclude='.git' "
-            f"--exclude='.*' --exclude='venv*/' --exclude='dist/' --exclude='docs/' --exclude='__pycache__/' "
-            f"--exclude='.*' -e 'ssh -o StrictHostKeyChecking=no -i {self.ssh_key_path} -p {self.DEFAULT_SSH_PORT}' "
+            f"--exclude='venv*/' --exclude='dist/' --exclude='docs/' --exclude='__pycache__/' --exclude='.*' "
+            f"--include='.rh/' -e 'ssh -o StrictHostKeyChecking=no -i {self.ssh_key_path} -p {self.DEFAULT_SSH_PORT}' "
             f"--delete {source} root@localhost:{dest}"
         )
 
@@ -603,6 +618,15 @@ class SageMakerCluster(Cluster):
     def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
         if not self.instance_id:
             raise ValueError(f"No instance ID set for cluster {self.name}. Is it up?")
+
+        # Sync the local ~/.rh directory to the cluster
+        self._rsync(
+            source=f"{os.path.expanduser('~/.rh')}/",
+            dest="~/.rh",
+            up=True,
+            contents=True,
+        )
+        logger.info("Synced .rh config to the cluster")
 
         local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
 
@@ -765,7 +789,7 @@ class SageMakerCluster(Cluster):
             )
 
     def _sync_estimator_to_cluster(self):
-        """If providing a custom estimator sync over the estimator's provided source directory to the cluster"""
+        """If providing a custom estimator sync over the estimator's source directory to the cluster"""
         from runhouse import folder
 
         estimator_folder = folder(

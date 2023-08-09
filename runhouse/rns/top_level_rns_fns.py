@@ -68,7 +68,7 @@ def __getattr__(name):
         config = _current_cluster(key="config")
         if not config:
             return "file"
-        system = _get_cluster_from(config)
+        system = _get_cluster_from(config, dryrun=True)
         return system
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
