@@ -60,7 +60,7 @@ markdown_anchor_sections = True
 
 if tags.has("json"):
     html_link_suffix = ""
-    json_baseurl = "docs/json/"
+    json_baseurl = "docs/"
 
 # -- Options for HTML output -------------------------------------------------
 
