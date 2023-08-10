@@ -58,7 +58,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 markdown_http_base = "/docs/guide"
 markdown_anchor_sections = True
 
-if tags.has('json') :
+if tags.has("json"):
     html_link_suffix = ""
     json_baseurl = "docs/json/"
 
@@ -68,7 +68,7 @@ if tags.has('json') :
 # a list of builtin themes.
 #
 # html_theme = "sphinx_rtd_theme"
-if not tags.has('json') :
+if not tags.has("json"):
     html_theme = "sphinx_book_theme"
 
 html_title = "Runhouse"
