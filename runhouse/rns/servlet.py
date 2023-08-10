@@ -1,5 +1,6 @@
 import codecs
 import inspect
+import json
 import logging
 import signal
 import threading
@@ -119,8 +120,9 @@ class EnvServlet:
             # Remove output types from previous runs
             self.output_types.pop(message.key, None)
             result_resource = Queue(name=message.key, persist=persist)
-            result_resource.pin()
-            result_resource.provenance = run(name=message.key, load=False)
+            result_resource.provenance = run(name=message.key,
+                                             log_dest="file" if message.stream_logs else None,
+                                             load=False)
             result_resource.provenance.__enter__()
 
             # Save now so status and initial streamed results are available globally
@@ -163,10 +165,14 @@ class EnvServlet:
                 result_resource.provenance.__exit__(None, None, None)
                 return
 
+            if persist or message.stream_logs:
+                result_resource.pin()
+
             # If method is a property, `method = getattr(module, method_name, None)` above already
             # got our result
             result = method(*args, **kwargs) if callable_method else method
             if inspect.isgenerator(result):
+                result_resource.pin()
                 # Stream back the results of the generator
                 logger.info(
                     f"Streaming back results of generator {module_name}.{method_name}"
@@ -205,6 +211,14 @@ class EnvServlet:
                     # Write out the new result_resource to the obj_store
                     # obj_store.put(message.key, result_resource, env=self.env_name)
                 else:
+                    if not message.stream_logs:
+                        # If we don't need to persist the result or stream logs,
+                        # we can return the result to the user immediately
+                        result_resource.provenance.__exit__(None, None, None)
+                        return Response(
+                            data=pickle_b64(result),
+                            output_type=OutputType.RESULT,
+                        )
                     # Put the result in the queue so we can retrieve it once
                     result_resource.put(result)
 
@@ -619,15 +633,23 @@ class EnvServlet:
                 output_type=OutputType.EXCEPTION,
             )
 
-    def call_fn(fn_name, args):
+    def call(self, module, method=None, args=None, kwargs=None, serialization="json"):
         self.register_activity()
-        from runhouse import function
+        module = obj_store.get(module)
+        if method:
+            fn = getattr(module, method)
+            result = fn(*(args or []), **(kwargs or {}))
+        else:
+            result = module
 
-        fn = function(name=fn_name, dryrun=True)
-        result = fn(*(args.args or []), **(args.kwargs or {}))
+        logger.info(f"Got result back from call: {result}")
 
-        (fn_res, obj_ref, run_key) = result
-        if isinstance(fn_res, bytes):
-            fn_res = pickle.loads(fn_res)
-
-        return fn_res
+        if serialization == "json":
+            return json.dumps(result)
+        elif serialization == "pickle":
+            return pickle_b64(result)
+        elif serialization == "None":
+            # e.g. if the user wants to handle their own serialization
+            return result
+        else:
+            raise ValueError(f"Unknown serialization: {serialization}")

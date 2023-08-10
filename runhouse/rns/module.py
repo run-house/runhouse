@@ -292,6 +292,27 @@ class Module(Resource):
 
         return new_module
 
+    def get_or_to(
+        self,
+        system: Union[str, Cluster],
+        env: Optional[Union[str, List[str], Env]] = None,
+        name: Optional[str] = None,
+    ):
+        name = self.name or name
+        if not name:
+            raise ValueError(
+                "You must specify a name for the module if you want to get_or_to it."
+            )
+        system = _get_cluster_from(system)
+        try:
+            remote = system.get(name, remote=True)
+        except KeyError:
+            remote = None
+        if remote:
+            return remote
+        self.name = name
+        return self.to(system, env)
+
     def __getattribute__(self, item):
         """Override to allow for remote execution if system is a remote cluster. If not, the subclass's own
         __getattr__ will be called."""
@@ -574,6 +595,7 @@ def _module_subclass_factory(
 ):
     def __init__(
         self,
+            *args,
         system=None,
         env=None,
         dryrun=False,
@@ -582,7 +604,7 @@ def _module_subclass_factory(
         provenance=None,
         **kwargs,
     ):
-        cls.__init__(self, **kwargs)
+        cls.__init__(self, *args, **kwargs)
         Module.__init__(
             self,
             cls_pointers=cls_pointers or pointers,
@@ -594,6 +616,11 @@ def _module_subclass_factory(
         self.to = functools.partial(Module.to, self)
         if not self.dryrun:
             self.to(system, env)
+            # TODO introduce module.instantiated to allow for real lazy instantiation and calling classmethods
+            # if system is not None and not system.on_this_cluster():
+                # Construct the module remotely
+                # system.call_module_method(self.name, "__init__", *args, **kwargs)
+                # system.call_module_method(self.name, "remote_init")
         self.system = system
         self.env = env
 

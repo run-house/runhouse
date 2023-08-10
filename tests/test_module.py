@@ -60,11 +60,15 @@ class SlowNumpyArray:
     def __init__(self, size=5):
         self.size = size
         self.arr = None
+        self._hidden_1 = "hidden"
 
     def remote_init(self):
         self.arr = np.zeros(self.size)
+        self._hidden_2 = "hidden"
 
     def slow_iter(self):
+        if not self._hidden_1 and self._hidden_2:
+            raise ValueError("Hidden attributes not set")
         for i in range(self.size):
             time.sleep(1)
             print(f"Hello from the cluster stdout! {i}")

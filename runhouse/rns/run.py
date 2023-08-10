@@ -50,6 +50,7 @@ class Run(Resource):
         name: str = None,
         fn_name: str = None,
         cmds: list = None,
+        log_dest: str = "file",
         path: str = None,
         system: Union[str, Cluster] = None,
         data_config: dict = None,
@@ -76,29 +77,32 @@ class Run(Resource):
         run_name = name or str(self._current_timestamp())
         super().__init__(name=run_name, dryrun=dryrun)
 
-        folder_system = system or Folder.DEFAULT_FS
-        folder_path = (
-            resolve_absolute_path(path)
-            if path
-            else (
-                self._base_local_folder_path(self.name)
-                if folder_system == Folder.DEFAULT_FS
-                else self._base_cluster_folder_path(name=run_name)
+        self.log_dest = log_dest
+        self.folder = None
+        if self.log_dest == "file":
+            folder_system = system or Folder.DEFAULT_FS
+            folder_path = (
+                resolve_absolute_path(path)
+                if path
+                else (
+                    self._base_local_folder_path(self.name)
+                    if folder_system == Folder.DEFAULT_FS
+                    else self._base_cluster_folder_path(name=run_name)
+                )
             )
-        )
 
-        if overwrite:
-            # Delete the Run from the system if one already exists
-            self._delete_existing_run(folder_path, folder_system)
+            if overwrite:
+                # Delete the Run from the system if one already exists
+                self._delete_existing_run(folder_path, folder_system)
 
-        # Create new folder which lives on the system and contains all the Run's data:
-        # (run config, stdout, stderr, inputs, result)
-        self.folder = folder_factory(
-            path=folder_path,
-            system=folder_system,
-            data_config=data_config,
-            dryrun=dryrun,
-        )
+            # Create new folder which lives on the system and contains all the Run's data:
+            # (run config, stdout, stderr, inputs, result)
+            self.folder = folder_factory(
+                path=folder_path,
+                system=folder_system,
+                data_config=data_config,
+                dryrun=dryrun,
+            )
 
         self.status = status
         self.start_time = start_time
@@ -120,15 +124,16 @@ class Run(Resource):
         # Begin tracking the Run in the rns_client - this adds the current Run to the stack of active Runs
         rns_client.start_run(self)
 
-        # Capture stdout and stderr to the Run's folder
-        self.folder.mkdir()
-        # TODO fix the fact that we keep appending and then stream back the full file
-        sys.stdout = StreamTee(sys.stdout, [Path(self._stdout_path).open(mode="a")])
-        sys.stderr = StreamTee(sys.stderr, [Path(self._stderr_path).open(mode="a")])
+        if self.log_dest == "file":
+            # Capture stdout and stderr to the Run's folder
+            self.folder.mkdir()
+            # TODO fix the fact that we keep appending and then stream back the full file
+            sys.stdout = StreamTee(sys.stdout, [Path(self._stdout_path).open(mode="a")])
+            sys.stderr = StreamTee(sys.stderr, [Path(self._stderr_path).open(mode="a")])
 
-        # Add the stdout and stderr handlers to the root logger
-        self._stdout_handler = logging.StreamHandler(sys.stdout)
-        logger.addHandler(self._stdout_handler)
+            # Add the stdout and stderr handlers to the root logger
+            self._stdout_handler = logging.StreamHandler(sys.stdout)
+            logger.addHandler(self._stdout_handler)
 
         return self
 
@@ -156,19 +161,20 @@ class Run(Resource):
         # stderr = f"{type(exc_value).__name__}: {str(exc_value)}" if exc_value else ""
         # self.write(data=stderr.encode(), path=self._stderr_path)
 
-        logger.removeHandler(self._stdout_handler)
+        if self.log_dest == "file":
+            logger.removeHandler(self._stdout_handler)
 
-        # Flush stdout and stderr
-        # sys.stdout.flush()
-        # sys.stderr.flush()
+            # Flush stdout and stderr
+            # sys.stdout.flush()
+            # sys.stderr.flush()
 
-        # Restore stdout and stderr
-        sys.stdout = sys.stdout.instream
-        sys.stderr = sys.stderr.instream
+            # Restore stdout and stderr
+            sys.stdout = sys.stdout.instream
+            sys.stderr = sys.stderr.instream
 
-        # Save Run config to its folder on the system - this will already happen on the cluster
-        # for function based Runs
-        self._write_config()
+            # Save Run config to its folder on the system - this will already happen on the cluster
+            # for function based Runs
+            self._write_config()
 
         # return False to propagate any exception that occurred inside the with block
         return False
@@ -186,6 +192,8 @@ class Run(Resource):
             "start_time": self.start_time,
             "end_time": self.end_time,
             "run_type": self.run_type,
+            "log_dest": self.log_dest,
+            "creator": self.creator,
             "fn_name": self.fn_name,
             "cmds": self.cmds,
             # NOTE: artifacts are currently only tracked in context manager based runs
@@ -510,6 +518,7 @@ class Run(Resource):
 
 def run(
     name: str = None,
+    log_dest: str = "file",
     path: str = None,
     system: Union[str, Cluster] = None,
     data_config: dict = None,
@@ -538,7 +547,7 @@ def run(
         # Try reloading existing Run from RNS
         return Run.from_name(name, dryrun=dryrun)
 
-    if name and path is None:
+    if name and path is None and log_dest == "file":
         path = (
             Run._base_cluster_folder_path(name=name)
             if isinstance(system, Cluster)
@@ -551,6 +560,7 @@ def run(
 
     run_obj = Run(
         name=name,
+        log_dest=log_dest,
         path=path,
         system=system,
         data_config=data_config,

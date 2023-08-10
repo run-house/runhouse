@@ -567,6 +567,9 @@ class Cluster(Resource):
         """
         self.check_server()
         # Note: might be single value, might be a generator!
+        if self.on_this_cluster():
+            # TODO
+            pass
         return self.client.call_module_method(
             module_name,
             method_name,
