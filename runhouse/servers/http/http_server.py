@@ -5,20 +5,19 @@ import subprocess
 import time
 import traceback
 from pathlib import Path
-from typing import Optional, Any, List, Dict, Annotated
+from typing import Annotated, Any, Dict, List, Optional
 
 import ray
 import requests
-from fastapi import FastAPI, Body
+from fastapi import Body, FastAPI
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 from runhouse.rh_config import configs, env_servlets, rns_client
 from runhouse.rns.servlet import EnvServlet
 from runhouse.rns.utils.names import _generate_default_name
 from ..http.http_utils import (
-    Args,
     b64_unpickle,
     DEFAULT_SERVER_PORT,
     Message,
@@ -187,11 +186,12 @@ class HTTPServer:
 
     @staticmethod
     @app.post("/{module}/{method}")
-    def call_module_method(module, method=None, message: Annotated[Any,  Body()] = None):
+    def call_module_method(module, method=None, message: Annotated[Any, Body()] = None):
         # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
             import argparse
+
             message = argparse.Namespace(**message) if message else None
             method = None if method == "None" else method
             # If this is a "get" request to just return the module, do not stream logs or save by default
@@ -200,8 +200,8 @@ class HTTPServer:
             )
             env = message.env or HTTPServer.lookup_env_for_name(module)
             persist = (
-                              message.run_async or message.remote or message.save
-                      ) or not method
+                message.run_async or message.remote or message.save
+            ) or not method
             if method:
                 # TODO fix the way we generate runkeys, it's ugly
                 message.key = message.key or _generate_default_name(
@@ -225,7 +225,7 @@ class HTTPServer:
                         res = ray.get(obj_ref, timeout=0.1)
                         if res:
                             logger.info(f"Returning fast response for {message.key}")
-                            return  res
+                            return res
                     except ray.exceptions.RayTimeoutError:
                         pass
 
@@ -509,13 +509,18 @@ class HTTPServer:
 
     @staticmethod
     @app.post("/call/{module}/{method}")
-    async def call(module,
-             method = None,
-             args  : Annotated[List, Body()]=  None,
-             kwargs: Annotated[Dict, Body()]= None,
-             serialization="json"):
+    async def call(
+        module,
+        method=None,
+        args: Annotated[List, Body()] = None,
+        kwargs: Annotated[Dict, Body()] = None,
+        serialization="json",
+    ):
         resp = HTTPServer.call_in_env_servlet(
-            "call", [module, method, args, kwargs, serialization], create=True, lookup_env_for_name=module
+            "call",
+            [module, method, args, kwargs, serialization],
+            create=True,
+            lookup_env_for_name=module,
         )
 
         return JSONResponse(content=resp)

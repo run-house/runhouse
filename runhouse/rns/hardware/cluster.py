@@ -302,16 +302,25 @@ class Cluster(Resource):
             ssh_tunnel, connected_port, tunnel_refcount = open_cluster_tunnels[
                 self.address
             ]
-            if ssh_tunnel:
+            if isinstance(ssh_tunnel, SSHTunnelForwarder):
                 ssh_tunnel.check_tunnels()
                 if ssh_tunnel.tunnel_is_up[ssh_tunnel.local_bind_address]:
                     self._rpc_tunnel = ssh_tunnel
-        if not ssh_tunnel:
+
+        if "localhost" in self.address or ":" in self.address:
+            if ":" in self.address:
+                # Case 1: "localhost:23324" or <real_ip>:<custom port> (e.g. a port is already open to the server)
+                self._rpc_tunnel, connected_port = self.address.split(":")
+            else:
+                # Case 2: "localhost"
+                self._rpc_tunnel, connected_port = self.address, HTTPClient.DEFAULT_PORT
+        elif not ssh_tunnel:
             self._rpc_tunnel, connected_port = self.ssh_tunnel(
                 HTTPClient.DEFAULT_PORT,
                 remote_port=DEFAULT_SERVER_PORT,
                 num_ports_to_try=5,
             )
+
         open_cluster_tunnels[self.address] = (
             self._rpc_tunnel,
             connected_port,

@@ -120,9 +120,11 @@ class EnvServlet:
             # Remove output types from previous runs
             self.output_types.pop(message.key, None)
             result_resource = Queue(name=message.key, persist=persist)
-            result_resource.provenance = run(name=message.key,
-                                             log_dest="file" if message.stream_logs else None,
-                                             load=False)
+            result_resource.provenance = run(
+                name=message.key,
+                log_dest="file" if message.stream_logs else None,
+                load=False,
+            )
             result_resource.provenance.__enter__()
 
             # Save now so status and initial streamed results are available globally

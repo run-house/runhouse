@@ -1,6 +1,6 @@
 import logging
-import unittest
 import time
+import unittest
 
 import pytest
 import requests
@@ -32,8 +32,11 @@ def test_roundtrip_performance(summer_func):
     print(f"Call without logs took {round(avg_time, 2)} ms: {times_list}")
 
     call_url = "http://127.0.0.1:50052/call/summer_func/call/?serialization=None"
-    times_list, avg_time = profile(lambda: requests.post(call_url, json={"args": [1, 2]}).json() == 3)
+    times_list, avg_time = profile(
+        lambda: requests.post(call_url, json={"args": [1, 2]}).json() == 3
+    )
     print(f"HTTP call took {round(avg_time, 2)} ms: {times_list}")
+
 
 if __name__ == "__main__":
     unittest.main()

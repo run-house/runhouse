@@ -595,7 +595,7 @@ def _module_subclass_factory(
 ):
     def __init__(
         self,
-            *args,
+        *args,
         system=None,
         env=None,
         dryrun=False,
@@ -618,9 +618,9 @@ def _module_subclass_factory(
             self.to(system, env)
             # TODO introduce module.instantiated to allow for real lazy instantiation and calling classmethods
             # if system is not None and not system.on_this_cluster():
-                # Construct the module remotely
-                # system.call_module_method(self.name, "__init__", *args, **kwargs)
-                # system.call_module_method(self.name, "remote_init")
+            # Construct the module remotely
+            # system.call_module_method(self.name, "__init__", *args, **kwargs)
+            # system.call_module_method(self.name, "remote_init")
         self.system = system
         self.env = env
 
