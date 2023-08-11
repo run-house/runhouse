@@ -282,19 +282,11 @@ class Cluster(Resource):
     # ----------------- RPC Methods ----------------- #
 
     def connect_server_client(self, tunnel=True, force_reconnect=False):
-        # FYI based on: https://sshtunnel.readthedocs.io/en/latest/#example-1
-        # FYI If we ever need to do this from scratch, we can use this example:
-        # https://github.com/paramiko/paramiko/blob/main/demos/rforward.py#L74
         if not self.address:
             raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
 
-        # TODO [DG] figure out how to ping to see if tunnel is already up
         if self._rpc_tunnel and force_reconnect:
             self._rpc_tunnel.close()
-
-        # TODO Check if port is already open instead of refcounting?
-        # status = subprocess.run(['nc', '-z', self.address, str(self.grpc_port)], capture_output=True)
-        # if not self.check_port(self.address, UnaryClient.DEFAULT_PORT):
 
         tunnel_refcount = 0
         ssh_tunnel = None
@@ -470,7 +462,6 @@ class Cluster(Resource):
         """
         logger.info(f"Restarting HTTP server on {self.name}.")
 
-        # TODO how do we capture errors if this fails?
         if resync_rh:
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
         logfile = f"cluster_server_{self.name}.log"
@@ -748,7 +739,7 @@ class Cluster(Resource):
             >>> cpu.run(["pip install numpy", env="my_conda_env"])
             >>> cpu.run(["python script.py"], run_name="my_exp")
         """
-        # TODO [DG] suspect autostop while running?
+        # TODO [DG] suspend autostop while running
         from runhouse.rns.run import run
 
         cmd_prefix = ""

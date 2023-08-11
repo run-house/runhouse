@@ -441,23 +441,6 @@ class Module(Resource):
 
         return RemotePropertyWrapper()
 
-    # TODO do we need this?
-    # def __delattr__(self, key):
-    #     if key in LOCAL_METHODS or not hasattr(self, "_system"):
-    #         return super().__delattr__(key)
-    #     if (
-    #         not self._system
-    #         or not isinstance(self._system, Cluster)
-    #         or self._system.on_this_cluster()
-    #     ):
-    #         return super().__delattr__(key)
-    #
-    #     return self.system.call_module_method(
-    #         module_name=self.name,
-    #         method_name=key,
-    #         delete=True,
-    #     )
-
     def _save_sub_resources(self):
         if isinstance(self.system, Resource):
             self.system.save()

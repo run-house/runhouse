@@ -350,7 +350,7 @@ class HTTPServer:
                         data=ret_lines,
                         output_type=OutputType.STDOUT,
                     )
-                    logger.info(f"Yielding logs for key {key}")
+                    logger.debug(f"Yielding logs for key {key}")
                     yield json.dumps(jsonable_encoder(lines_resp))
 
         except Exception as e:

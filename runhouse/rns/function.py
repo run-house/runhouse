@@ -281,11 +281,6 @@ class Function(Module):
     def _call_fn_with_ssh_access(
         self, fn_type, resources=None, run_name=None, args=None, kwargs=None
     ):
-        # https://docs.ray.io/en/latest/ray-core/tasks/patterns/map-reduce.html
-        # return ray.get([map.remote(i, map_func) for i in replicas])
-        # TODO allow specifying resources per worker for map
-        # TODO [DG] check whether we're on the cluster and if so, just call the function directly via the
-        # helper function currently in UnaryServer
         resources = (
             resources or self.resources
         )  # Allow for passing in one-off resources for this specific call
@@ -318,52 +313,8 @@ class Function(Module):
         )
         return res
 
-    # TODO [DG] test this properly
-    # def debug(self, redirect_logging=False, timeout=10000, *args, **kwargs):
-    #     """Run the Function in debug mode. This will run the Function through a tunnel interpreter, which
-    #     allows the use of breakpoints and other debugging tools, like rh.ipython().
-    #     FYI, alternative ideas from Ray: https://github.com/ray-project/ray/issues/17197
-    #     FYI, alternative Modal folks shared: https://github.com/modal-labs/modal-client/pull/32
-    #     """
-    #     from paramiko import AutoAddPolicy
-    #
-    #     # Importing this here because they're heavy
-    #     from plumbum.machines.paramiko_machine import ParamikoMachine
-    #     from rpyc.utils.classic import redirected_stdio
-    #     from rpyc.utils.zerodeploy import DeployedServer
-    #
-    #     creds = self.system.ssh_creds()
-    #     ssh_client = ParamikoMachine(
-    #         self.system.address,
-    #         user=creds["ssh_user"],
-    #         keyfile=str(Path(creds["ssh_private_key"]).expanduser()),
-    #         missing_host_policy=AutoAddPolicy(),
-    #     )
-    #     server = DeployedServer(
-    #         ssh_client, server_class="rpyc.utils.server.ForkingServer"
-    #     )
-    #     conn = server.classic_connect()
-    #
-    #     if redirect_logging:
-    #         rlogger = conn.modules.logging.getLogger()
-    #         rlogger.parent = logging.getLogger()
-    #
-    #     conn._config[
-    #         "sync_request_timeout"
-    #     ] = timeout  # seconds. May need to be longer for real debugging.
-    #     conn._config["allow_public_attrs"] = True
-    #     conn._config["allow_pickle"] = True
-    #     # This assumes the code is already synced over to the remote container
-    #     remote_fn = getattr(conn.modules[self.fn.__module__], self.fn.__name__)
-    #
-    #     with redirected_stdio(conn):
-    #         res = remote_fn(*args, **kwargs)
-    #     conn.close()
-    #     return res
-
     @property
     def config_for_rns(self):
-        # TODO save Package resource, because fn_pointers are meaningless without the package.
         config = super().config_for_rns
         config.update(
             {
@@ -470,7 +421,6 @@ class Function(Module):
 
         run_name = run_name or _generate_default_name(prefix=self.name)
         if run_name == "latest":
-            # TODO [JL]
             raise NotImplementedError("Latest not currently supported")
 
         completed_run: "Run" = self._call_fn_with_ssh_access(
@@ -482,9 +432,6 @@ class Function(Module):
     def keep_warm(
         self,
         autostop_mins=None,
-        # TODO regions: List[str] = None,
-        # TODO min_replicas: List[int] = None,
-        # TODO max_replicas: List[int] = None
     ):
         """Keep the system warm for autostop_mins. If autostop_mins is ``None`` or -1, keep warm indefinitely.
 
@@ -509,7 +456,6 @@ class Function(Module):
             # sensitive to differences in minor Python versions between the serializing and deserializing envs.
             return "", "notebook", fn
         else:
-            # TODO put this in the current folder instead?
             module_path = Path.cwd() / (f"{name}_fn.py" if name else "sent_fn.py")
             logging.info(
                 f"Writing out function function to {str(module_path)}. Please make "
