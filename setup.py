@@ -102,7 +102,7 @@ extras_require = {
         "sagemaker_ssh_helper",
         "sagemaker",
         "paramiko>=3.2.0",
-        "boto3==1.24.59",
+        "boto3>=1.26.131,<2.0",
     ],
 }
 

@@ -1,5 +1,4 @@
 import contextlib
-import json
 import logging
 import os
 import pkgutil
@@ -25,6 +24,7 @@ from sshtunnel import SSHTunnelForwarder
 
 from runhouse.rh_config import configs, open_cluster_tunnels, rns_client
 from runhouse.rns.hardware.cluster import Cluster
+from runhouse.rns.utils.api import is_jsonable
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +32,12 @@ logger = logging.getLogger(__name__)
 class SageMakerCluster(Cluster):
     DEFAULT_HOST = "localhost"
     DEFAULT_INSTANCE_TYPE = "ml.m5.large"
+    DEFAULT_REGION = "us-east-1"
     DEFAULT_USER = "root"
+
     # Default path for source code copied to SageMaker instance
     ESTIMATOR_SRC_CODE_PATH = "/opt/ml/code"
-    DEFAULT_REGION = "us-east-1"
+    ESTIMATOR_LOG_FILE = "sm_cluster.log"
 
     DEFAULT_SSH_PORT = 11022
     DEFAULT_HTTP_PORT = 50052
@@ -64,7 +66,12 @@ class SageMakerCluster(Cluster):
         self._connection_wait_time = connection_wait_time
         self._instance_type = instance_type
         self._instance_count = instance_count
+
+        # Used by SSHEstimatorWrapper to facilitate the SSH connection to the cluster
         self._ssh_wrapper = None
+
+        # Paramiko SSH client object for running commands on the cluster
+        self._ssh_client = None
 
         # Relevant if estimator is provided
         self._estimator_entry_point = kwargs.get("estimator_entry_point")
@@ -84,9 +91,7 @@ class SageMakerCluster(Cluster):
         self.role = self._set_role(role)
 
         # Setting instance ID as cluster IP for compatibility with Cluster parent class methods
-        super().__init__(
-            name=name, ips=[self.instance_id], ssh_creds=None, dryrun=dryrun
-        )
+        super().__init__(name=name, ips=[self.instance_id], ssh_creds={}, dryrun=dryrun)
 
         if not dryrun and not self.is_up():
             logger.info("Preparing to launch a new SageMaker cluster")
@@ -123,7 +128,7 @@ class SageMakerCluster(Cluster):
                 selected_attrs = {
                     key: value
                     for key, value in self.estimator.__dict__.items()
-                    if self.is_serializable(value)
+                    if is_jsonable(value)
                 }
                 # Estimator types: mxnet, tensorflow, keras, pytorch, onnx, xgboost
                 self._estimator_framework = type(self.estimator).__name__
@@ -197,7 +202,6 @@ class SageMakerCluster(Cluster):
 
     @property
     def default_region(self):
-        # TODO [JL] Run CLI command instead? something like: ``aws configure get region``
         import boto3
 
         try:
@@ -208,20 +212,12 @@ class SageMakerCluster(Cluster):
         except:
             return self.DEFAULT_REGION
 
-    @staticmethod
-    def is_serializable(obj):
-        try:
-            json.dumps(obj)
-            return True
-        except (TypeError, OverflowError):
-            return False
-
     def check_server(self, restart_server=True):
         if self.on_this_cluster():
             return
 
         if not self.instance_id:
-            raise ValueError("SageMaker cluster has no instance ID")
+            raise ValueError(f"SageMaker cluster {self.name} has no instance ID")
 
         if not self.client:
             cluster_config = self.config_for_rns
@@ -243,14 +239,10 @@ class SageMakerCluster(Cluster):
                     logger.info(
                         f"Server {self.instance_id} is up, but the HTTP server may not be up."
                     )
-
-                    # Make sure screen and a compatible version of protobuf for the sagemaker-ssh helper library
-                    # are installed before installing runhouse and restarting the server
-                    # TODO [JL] do we still need this?
                     self.run(
                         [
-                            "sudo apt-get install screen -y",
-                            "pip install protobuf==3.20.3",
+                            "sudo apt-get install screen -y && sudo apt-get install rsync -y "
+                            "&& pip install protobuf==3.20.3",
                         ]
                     )
                     self.restart_server(resync_rh=True, restart_ray=True)
@@ -329,6 +321,16 @@ class SageMakerCluster(Cluster):
 
         self.estimator.fit(wait=False, job_name=self.job_name)
 
+    def disconnect(self):
+        """Disconnect the RPC tunnel.
+
+        Example:
+            >>> cluster.disconnect()
+        """
+        if self._ssh_client:
+            self._ssh_client.close()
+        super().disconnect()
+
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
     ) -> Tuple[SSHTunnelForwarder, int]:
@@ -341,7 +343,10 @@ class SageMakerCluster(Cluster):
             try:
                 if local_port > local_port + num_ports_to_try:
                     raise Exception(
-                        f"Failed to create SSH tunnel after {num_ports_to_try} attempts"
+                        f"Failed to create SSH tunnel after {num_ports_to_try} attempts.\n"
+                        f"Please confirm the latest version of paramiko and AWS CLI v2 is "
+                        f"installed:\n ``pip install -U paramiko``\n"
+                        "AWS CLI: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
                     )
                 command = (
                     f'sm-local-start-ssh "{self.instance_id}" -R localhost:12345:localhost:12345 '
@@ -390,16 +395,13 @@ class SageMakerCluster(Cluster):
                 tunnel_setup_complete.wait(timeout=30)
 
                 # Continue with the creation of the SSHTunnelForwarder object
-                ssh_host = self.DEFAULT_HOST
-                ssh_username = self.DEFAULT_USER
-                ssh_key_path = self.ssh_key_path
                 remote_bind_addresses = ("127.0.0.1", remote_port or local_port)
                 local_bind_addresses = ("", local_port)
 
                 ssh_tunnel = SSHTunnelForwarder(
-                    (ssh_host, ssh_port),
-                    ssh_username=ssh_username,
-                    ssh_pkey=ssh_key_path,
+                    (self.DEFAULT_HOST, ssh_port),
+                    ssh_username=self.DEFAULT_USER,
+                    ssh_pkey=self.ssh_key_path,
                     remote_bind_address=remote_bind_addresses,
                     local_bind_address=local_bind_addresses,
                     set_keepalive=1,
@@ -410,10 +412,6 @@ class SageMakerCluster(Cluster):
 
                 logger.info(
                     "SSH connection has been successfully created with the cluster"
-                )
-                logger.info(
-                    "Note: You can also SSH directly onto the cluster via the CLI: "
-                    f"``ssh {self.name}``"
                 )
                 connected = True
             except Exception as e:
@@ -471,6 +469,18 @@ class SageMakerCluster(Cluster):
             os.close(master_fd)
             ssh_process.terminate()
 
+    def stream_estimator_logs(self):
+        """Get the logs for the running job. Relevant if a custom estimator was provided to run
+        a dedicated training job.
+        """
+        # TODO [JL] WIP
+        if not self.estimator:
+            warnings.warn(f"No estimator provided for {self.name}. No logs to stream.")
+            return
+
+        # return self.client.estimator_logs()
+        return None
+
     def _create_launch_estimator(self):
         """Create the estimator object used for launching the cluster. If a custom estimator is provided, use that.
         Otherwise, use a Runhouse default estimator to launch.
@@ -521,16 +531,18 @@ class SageMakerCluster(Cluster):
 
         self._launch_new_instance()
 
-        self.job_name = self._ssh_wrapper.training_job_name()
+        # If no name provided, use the autogenerated name
+        self.job_name = self._ssh_wrapper.latest_training_job_name()
 
         # Set the instance ID of the new SageMaker instance
-        self.instance_id = self._get_instance_id()
+        self.instance_id = self._cluster_instance_id()
         logger.info(f"New SageMaker instance started with ID: {self.instance_id}")
 
-        self.check_server(restart_server=True)
+        self.check_server()
 
         if self._estimator_source_dir and self._estimator_entry_point:
-            # Copy the estimator's code to the cluster - Runhouse will then manage running the job
+            # Copy the estimator's code to the cluster - Runhouse will then manage running the job in order
+            # to preserve control over the cluster's autostop
             self._sync_estimator_to_cluster()
 
         # Add the cluster name to the local SSH config to enable the <ssh cluster_name> command
@@ -540,6 +552,9 @@ class SageMakerCluster(Cluster):
             f"Connection with {self.name} has been created. You can now SSH onto "
             f"the cluster with the CLI using: ``ssh {self.name}``"
         )
+
+        if self._estimator_source_dir and self._estimator_entry_point:
+            self.stream_estimator_logs()
 
     def _launch_new_instance(self):
         from sagemaker_ssh_helper.wrapper import SSHEstimatorWrapper
@@ -560,17 +575,96 @@ class SageMakerCluster(Cluster):
 
     def _rsync(self, source: str, dest: str, up: bool, contents: bool = False):
         command = (
-            f"rsync -rvh --exclude='.git' "
-            f"--exclude='venv*/' --exclude='dist/' --exclude='docs/' --exclude='__pycache__/' --exclude='.*' "
+            f"rsync -rvh --exclude='.git' --exclude='venv*/' --exclude='dist/' --exclude='docs/' "
+            f"--exclude='__pycache__/' --exclude='.*' "
             f"--include='.rh/' -e 'ssh -o StrictHostKeyChecking=no -i {self.ssh_key_path} -p {self.DEFAULT_SSH_PORT}' "
-            f"--delete {source} root@localhost:{dest}"
+            f"--delete {source}/ root@localhost:{dest}"
         )
 
         return_codes = self.run([command])
         if return_codes[0][0] != 0:
             logger.error(f"rsync to SageMaker cluster failed: {return_codes[0][1]}")
 
-    def _get_instance_id(self):
+    def _run_rsync_command(self, command: str):
+        """Use subprocess to run rsync on the cluster and specify the ssh command as an argument.
+        Since rsync is not a simple shell command, we can't use the paramiko SSH client"""
+        result = subprocess.run(
+            command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        stdout = result.stdout
+        stderr = result.stderr
+        return_code = result.returncode
+
+        return return_code, stdout, stderr
+
+    def _run_ssh_client_command(self, command: str):
+        """Use the paramiko SSH client to run a command on the cluster. If the connection has been lost or
+        terminated re-initialize the SSH client and try again."""
+        try:
+            # Check if connection is already up for this instance, and whether the SSH client connection
+            # has already been initiated
+            if self._ssh_client is None:
+                raise ValueError
+
+            # Connection registered in ``open_cluster_tunnels``
+            self._connected_ssh_port()
+
+            t = self._ssh_client.get_transport()
+            if t is None:
+                # connection is no longer active
+                raise ValueError
+        except ValueError:
+            self._ssh_client = paramiko.SSHClient()
+
+            # Automatically add the server's host key to the known_hosts file
+            self._ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            self._ssh_client.load_system_host_keys()
+
+            # Connect to the instance if no rpc tunnel is already active
+            self._ssh_client.connect(
+                hostname=self.DEFAULT_HOST,
+                port=self.DEFAULT_SSH_PORT,
+                username=self.DEFAULT_USER,
+                key_filename=self.ssh_key_path,
+                allow_agent=False,
+                look_for_keys=False,
+                banner_timeout=200,
+            )
+
+        try:
+            stdin, stdout, stderr = self._ssh_client.exec_command(command)
+            stdout = stdout.read().decode()
+            stderr = stderr.read().decode()
+
+            return_code = 1 if ("Traceback" in stderr and "ERROR" in stderr) else 0
+
+            return return_code, stdout, stderr
+
+        except paramiko.BadHostKeyException as e:
+            # Handle error like: "Host key for server 'localhost' does not match: got 'X', expected 'Y'"
+            # Delete the old keys from previous SageMaker clusters from the known hosts file and retry
+            logger.warning(e)
+            self._filter_known_hosts()
+            self._run_ssh_client_command(command=command)
+        except (
+            paramiko.AuthenticationException,
+            paramiko.SSHException,
+            Exception,
+        ) as e:
+            msg = (
+                "Error occurred: {}\n\n"
+                "Note: If you are experiencing connection errors, make sure you are using "
+                "the latest version of paramiko and AWS CLI v2:\n``pip install -U paramiko``\n"
+                "AWS CLI: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html\n\n"
+                f"To check if the SSH tunnel with the instance is still up: ``ssh {self.name}``"
+            ).format(str(e))
+            warnings.warn(msg)
+
+    def _cluster_instance_id(self):
         try:
             return self._ssh_wrapper.get_instance_ids()[0]
         except Exception as e:
@@ -578,7 +672,7 @@ class SageMakerCluster(Cluster):
 
     def _set_role(self, role: str = None):
         """Set the role required for launching and connecting to the SageMaker instance. If no role is provided
-        explicitly or via the estimator, try to get the default SageMaker role configured in the local environment."""
+        explicitly or via the estimator, try using the default SageMaker role configured locally."""
         if role:
             return role
 
@@ -591,7 +685,7 @@ class SageMakerCluster(Cluster):
             raise e
 
     def _stop_instance(self, delete_configs=True):
-        """Stop the SageMaker instance. Optionally remove its config from RNS"""
+        """Stop the SageMaker instance. Optionally remove its config from RNS."""
         import boto3
 
         try:
@@ -621,12 +715,12 @@ class SageMakerCluster(Cluster):
 
         # Sync the local ~/.rh directory to the cluster
         self._rsync(
-            source=f"{os.path.expanduser('~/.rh')}/",
+            source=os.path.expanduser("~/.rh"),
             dest="~/.rh",
             up=True,
             contents=True,
         )
-        logger.info("Synced .rh config to the cluster")
+        logger.info("Synced ~/.rh folder to the cluster")
 
         local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
 
@@ -638,7 +732,7 @@ class SageMakerCluster(Cluster):
         ):
             # Package is installed in editable mode
             local_rh_package_path = local_rh_package_path.parent
-            dest_path = "~/"
+            dest_path = f"~/{local_rh_package_path.name}"
 
             self._rsync(
                 source=str(local_rh_package_path),
@@ -671,87 +765,18 @@ class SageMakerCluster(Cluster):
         require_outputs: bool = True,
     ):
         return_codes = []
-        ssh_client = paramiko.SSHClient()
+        for command in commands:
+            if command.startswith("rsync"):
+                return_code, stdout, stderr = self._run_rsync_command(command)
+            else:
+                return_code, stdout, stderr = self._run_ssh_client_command(command)
 
-        try:
-            # Automatically add the server's host key to the known_hosts file
-            ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh_client.load_system_host_keys()
+            return_codes.append((return_code, stdout, stderr))
 
-            try:
-                connected_ssh_port = self._connected_ssh_port()
-            except ValueError:
-                connected_ssh_port = self.DEFAULT_SSH_PORT
-
-            # Connect to the instance
-            ssh_client.connect(
-                hostname=self.DEFAULT_HOST,
-                port=connected_ssh_port,
-                username=self.DEFAULT_USER,
-                key_filename=self.ssh_key_path,
-                allow_agent=False,
-                look_for_keys=False,
-            )
-
-            for command in commands:
-                if command.startswith("rsync"):
-                    # Use subprocess to run rsync locally and specify the ssh command as an argument
-                    # Since rsync is not a simple shell command, we can't use the SSH client
-                    result = subprocess.run(
-                        command,
-                        shell=True,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                    )
-                    stdout = result.stdout
-                    stderr = result.stderr
-                    return_code = result.returncode
-                else:
-                    stdin, stdout, stderr = ssh_client.exec_command(command)
-                    stdout = stdout.read().decode()
-                    stderr = stderr.read().decode()
-
-                    return_code = (
-                        1 if ("Traceback" in stderr and "ERROR" in stderr) else 0
-                    )
-
-                return_codes.append((return_code, stdout, stderr))
-
-            return return_codes
-
-        except paramiko.BadHostKeyException as e:
-            # Handle error along the lines of: "Host key for server 'localhost' does not match: got 'X', expected 'Y'"
-            # Delete the old keys from previous SageMaker clusters from the known hosts file and retry connecting
-            logger.warning(e)
-            self._filter_known_hosts()
-            self._run_commands_with_ssh(
-                commands=commands,
-                cmd_prefix=cmd_prefix,
-                stream_logs=stream_logs,
-                port_forward=port_forward,
-                require_outputs=require_outputs,
-            )
-        except (
-            paramiko.AuthenticationException,
-            paramiko.SSHException,
-            Exception,
-        ) as e:
-            msg = (
-                "Error occurred: {}\n\n"
-                "Note: If you are experiencing connection errors, make sure you are using "
-                "the latest version of paramiko and the AWS CLI:\n``pip install -U paramiko``\n"
-                "AWS CLI: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html\n\n"
-                f"To check if the SSH tunnel with the instance is still up: ``ssh {self.name}``"
-            ).format(str(e))
-            warnings.warn(msg)
-
-        finally:
-            # Remember to close the SSH connection when you're done
-            ssh_client.close()
+        return return_codes
 
     def _connected_ssh_port(self) -> int:
-        """Get opened SSH port for connecting to the SageMaker cluster."""
+        """Get the opened SSH port used for connecting to the SageMaker cluster."""
         open_tunnels: tuple = open_cluster_tunnels.get(self.instance_id)
         if open_tunnels is None:
             raise ValueError(
@@ -804,6 +829,7 @@ class SageMakerCluster(Cluster):
         cluster_config["autostop_mins"] = autostop_mins or -1
         if not self.client:
             self.connect_server_client()
+        # Update the config on the server with the new autostop time
         self.client.check_server(cluster_config=cluster_config)
 
     def _filter_known_hosts(self):

@@ -43,7 +43,7 @@ def to_bool(value):
 def is_jsonable(myjson):
     try:
         json.dumps(myjson)
-    except ValueError:
+    except (TypeError, OverflowError):
         return False
     return True
 

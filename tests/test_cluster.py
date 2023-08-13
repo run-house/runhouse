@@ -121,7 +121,7 @@ def test_launch_and_connect_to_sagemaker(sm_cluster):
 def test_run_function_on_sagemaker(sm_cluster):
     assert sm_cluster.is_up()
 
-    np_func = rh.function(np_array).to(sm_cluster, env=["numpy", "pytest"])
+    np_func = rh.function(np_array).to(sm_cluster, env=["./", "numpy", "pytest"])
 
     # Run function on SageMaker compute
     my_list = [1, 2, 3]

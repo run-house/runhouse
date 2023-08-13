@@ -6,17 +6,33 @@ import time
 
 import yaml
 
-logger = logging.getLogger(__name__)
-
 DEFAULT_AUTOSTOP = -1
+MAIN_DIR = "/opt/ml/code"
 
+# ---------Configure SSH Helper----------
 # https://github.com/aws-samples/sagemaker-ssh-helper#step-3-modify-your-training-script
 import sagemaker_ssh_helper
 
 sagemaker_ssh_helper.setup_and_start_ssh()
+# ---------------------------------------
+
+# ---------Configure Logger--------------
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Configure the logger
+log_file = os.path.join(MAIN_DIR, "sm_cluster.log")
+
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+file_handler = logging.FileHandler(log_file)
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(formatter)
+
+logger.addHandler(file_handler)
+# ---------------------------------------
 
 
-def run_training_job(path_to_job, num_attempts):
+def run_training_job(path_to_job: str, num_attempts: int):
     job_succeeded = False
 
     try:
@@ -34,10 +50,10 @@ def run_training_job(path_to_job, num_attempts):
         stderr = completed_process.stderr
 
         if stdout:
-            print(f"Stdout\n: {stdout}")
+            logger.info(stdout)
 
         if stderr:
-            print(f"stderr\n: {stderr}")
+            logger.error(stderr)
 
         job_succeeded = True
 
@@ -69,6 +85,7 @@ def read_cluster_config():
 
 
 if __name__ == "__main__":
+    logger.info("Launching instance from script")
     launched_time = time.time()
     last_autostop_value = None
     training_job_completed = False
@@ -85,12 +102,14 @@ if __name__ == "__main__":
             current_time = time.time()
 
             if current_time >= time_to_autostop:
-                print("Autostop time reached, stopping instance")
+                logger.info("Autostop time reached, stopping instance")
                 break
 
             # Reset launch time if autostop was updated
             if last_autostop_value is not None and autostop != last_autostop_value:
-                print(f"Resetting autostop from {last_autostop_value} to {autostop}")
+                logger.info(
+                    f"Resetting autostop from {last_autostop_value} to {autostop}"
+                )
                 launched_time = current_time
 
             last_autostop_value = autostop
@@ -101,10 +120,10 @@ if __name__ == "__main__":
         if estimator_source_dir:
             # Update the path to the custom estimator job on the cluster
             folder_name = os.path.basename(estimator_source_dir)
-            path_to_job = f"/opt/ml/code/{folder_name}/{estimator_entry_point}"
+            path_to_job = f"{MAIN_DIR}/{folder_name}/{estimator_entry_point}"
 
         if not training_job_completed and path_to_job:
-            print(f"Running training job specified in path: {path_to_job}")
+            logger.info(f"Running training job specified in path: {path_to_job}")
             training_job_completed, num_attempts = run_training_job(
                 path_to_job, num_attempts
             )

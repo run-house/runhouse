@@ -198,23 +198,23 @@ class Folder(Resource):
                         "Cluster must be started before copying data from it."
                     )
             creds = self.system.ssh_creds()
-
-            client_keys = (
-                [str(Path(creds["ssh_private_key"]).expanduser())]
-                if creds.get("ssh_private_key")
-                else []
-            )
-            password = creds.get("password", None)
-            config_creds = {
-                "host": self.system.address,
-                "username": creds["ssh_user"],
-                # 'key_filename': str(Path(creds['ssh_private_key']).expanduser())}  # For SFTP
-                "client_keys": client_keys,  # For SSHFS
-                "password": password,
-                "connect_timeout": "3s",
-            }
             ret_config = self._data_config.copy()
-            ret_config.update(config_creds)
+            if creds:
+                client_keys = (
+                    [str(Path(creds["ssh_private_key"]).expanduser())]
+                    if creds.get("ssh_private_key")
+                    else []
+                )
+                password = creds.get("password", None)
+                config_creds = {
+                    "host": self.system.address,
+                    "username": creds.get("ssh_user"),
+                    # 'key_filename': str(Path(creds['ssh_private_key']).expanduser())}  # For SFTP
+                    "client_keys": client_keys,  # For SSHFS
+                    "password": password,
+                    "connect_timeout": "3s",
+                }
+                ret_config.update(config_creds)
             return ret_config
         return self._data_config
 

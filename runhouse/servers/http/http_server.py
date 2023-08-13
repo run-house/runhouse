@@ -17,7 +17,7 @@ from sky.skylet.autostop_lib import set_last_active_time_to_now
 from runhouse.rh_config import configs, env_servlets, rns_client
 from runhouse.rns.servlet import EnvServlet
 from runhouse.rns.utils.names import _generate_default_name
-from ..http.http_utils import (
+from runhouse.servers.http.http_utils import (
     Args,
     b64_unpickle,
     DEFAULT_SERVER_PORT,
