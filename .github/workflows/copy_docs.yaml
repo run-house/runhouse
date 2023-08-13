@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - '*'
+  pull_request:
 
 jobs:
   generate-docs:
