@@ -374,7 +374,7 @@ class Cluster(Resource):
                     )
                     self.restart_server()
                     for i in range(5):
-                        logger.info(f"Checking server {self.name} again [{i+1}/5].")
+                        logger.info(f"Checking server {self.name} again [{i + 1}/5].")
                         try:
                             self.client.check_server(cluster_config=cluster_config)
                             logger.info(f"Server {self.name} is up.")
@@ -472,9 +472,7 @@ class Cluster(Resource):
         http_server_cmd = "python -m runhouse.servers.http.http_server"
         kill_proc_cmd = f'pkill -f "{http_server_cmd}"'
         # 2>&1 redirects stderr to stdout
-        screen_cmd = (
-            f"screen -dm bash -c \"{http_server_cmd} |& tee -a '~/.rh/{logfile}' 2>&1\""
-        )
+        screen_cmd = f"screen -dm bash -c \"{http_server_cmd} |& tee -a '{self._logfile_path(logfile)}' 2>&1\""
         cmds = [kill_proc_cmd]
         if restart_ray:
             ray_start_cmd = "ray start --head --port 6379"
@@ -721,6 +719,9 @@ class Cluster(Resource):
         if ssh_call.is_alive():
             raise TimeoutError("SSH call timed out")
         return True
+
+    def _logfile_path(self, logfile):
+        return f"~/.rh/{logfile}"
 
     def run(
         self,

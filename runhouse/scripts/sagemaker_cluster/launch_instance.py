@@ -1,35 +1,20 @@
 """Script used to keep the SageMaker cluster up, pending the autostop time provided in the cluster's config."""
-import logging
 import os
 import subprocess
 import time
+import warnings
 
 import yaml
 
 DEFAULT_AUTOSTOP = -1
 MAIN_DIR = "/opt/ml/code"
+OUT_FILE = "sm_cluster.out"
 
 # ---------Configure SSH Helper----------
 # https://github.com/aws-samples/sagemaker-ssh-helper#step-3-modify-your-training-script
 import sagemaker_ssh_helper
 
 sagemaker_ssh_helper.setup_and_start_ssh()
-# ---------------------------------------
-
-# ---------Configure Logger--------------
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-# Configure the logger
-log_file = os.path.join(MAIN_DIR, "sm_cluster.log")
-
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-file_handler = logging.FileHandler(log_file)
-file_handler.setLevel(logging.INFO)
-file_handler.setFormatter(formatter)
-
-logger.addHandler(file_handler)
-# ---------------------------------------
 
 
 def run_training_job(path_to_job: str, num_attempts: int):
@@ -41,31 +26,30 @@ def run_training_job(path_to_job: str, num_attempts: int):
             ["python", path_to_job],
             check=True,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.STDOUT,  # Redirect stderr to stdout
             text=True,
         )
 
-        # Access stdout and stderr
-        stdout = completed_process.stdout
-        stderr = completed_process.stderr
+        # Access combined stdout and stderr
+        combined_output = completed_process.stdout
 
-        if stdout:
-            logger.info(stdout)
-
-        if stderr:
-            logger.error(stderr)
+        if combined_output:
+            print(combined_output)
+            with open(f"{MAIN_DIR}/{OUT_FILE}", "w") as f:
+                f.write(combined_output)
 
         job_succeeded = True
 
     except subprocess.CalledProcessError as e:
-        logger.error(
+        warnings.warn(
             f"({e.returncode}) Error executing training script "
             f"(already made {num_attempts} attempts): {e.stderr}"
         )
         num_attempts += 1
+
     except Exception as e:
         num_attempts += 1
-        logger.error(
+        warnings.warn(
             f"Error executing training script (already made {num_attempts} attempts): {e}"
         )
 
@@ -85,7 +69,7 @@ def read_cluster_config():
 
 
 if __name__ == "__main__":
-    logger.info("Launching instance from script")
+    print("Launching instance from script")
     launched_time = time.time()
     last_autostop_value = None
     training_job_completed = False
@@ -102,28 +86,24 @@ if __name__ == "__main__":
             current_time = time.time()
 
             if current_time >= time_to_autostop:
-                logger.info("Autostop time reached, stopping instance")
+                print("Autostop time reached, stopping instance")
                 break
 
             # Reset launch time if autostop was updated
             if last_autostop_value is not None and autostop != last_autostop_value:
-                logger.info(
-                    f"Resetting autostop from {last_autostop_value} to {autostop}"
-                )
+                print(f"Resetting autostop from {last_autostop_value} to {autostop}")
                 launched_time = current_time
 
             last_autostop_value = autostop
 
         estimator_entry_point = config.get("estimator_entry_point")
-        estimator_source_dir = config.get("estimator_source_dir")
-
-        if estimator_source_dir:
-            # Update the path to the custom estimator job on the cluster
-            folder_name = os.path.basename(estimator_source_dir)
-            path_to_job = f"{MAIN_DIR}/{folder_name}/{estimator_entry_point}"
+        if estimator_entry_point:
+            # Update the path to the custom estimator job which was rsynced to the cluster
+            # and now lives in path: /opt/ml/code
+            path_to_job = f"{MAIN_DIR}/{estimator_entry_point}"
 
         if not training_job_completed and path_to_job:
-            logger.info(f"Running training job specified in path: {path_to_job}")
+            print(f"Running training job specified in path: {path_to_job}")
             training_job_completed, num_attempts = run_training_job(
                 path_to_job, num_attempts
             )

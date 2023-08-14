@@ -68,13 +68,11 @@ install_requires = [
     "pyarrow",
     "sshtunnel>=0.3.0",
     "sshfs",
-    "sentry_sdk",
     "typer",
     "skypilot==0.3.3",
     "sentry-sdk",
     "fastapi<=0.99.0",
     "uvicorn",
-    "sentry_sdk",
     "pyOpenSSL>=21.1.0",
 ]
 
@@ -100,7 +98,7 @@ extras_require = {
     "sagemaker": [
         # https://github.com/aws-samples/sagemaker-ssh-helper
         "sagemaker_ssh_helper",
-        "sagemaker",
+        "sagemaker==2.135.0",  # SkyPilot depends on PyYAML<=5.3.1, which is incompatible with sagemaker>=2.135.0
         "paramiko>=3.2.0",
         "boto3>=1.26.131,<2.0",
     ],
