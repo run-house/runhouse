@@ -1,3 +1,4 @@
+import asyncio
 import codecs
 import inspect
 import json
@@ -6,7 +7,6 @@ import signal
 import threading
 import time
 import traceback
-import asyncio
 from pathlib import Path
 from typing import List, Union
 
@@ -181,6 +181,10 @@ class EnvServlet:
                 result = asyncio.run(method(*args, **kwargs))
             else:
                 result = method(*args, **kwargs) if callable_method else method
+
+            # TODO do we need the branch above if we do this?
+            if inspect.iscoroutine(result):
+                result = asyncio.run(result)
 
             if inspect.isgenerator(result) or inspect.isasyncgen(result):
                 result_resource.pin()

@@ -1,3 +1,4 @@
+import asyncio
 import copy
 import functools
 import importlib
@@ -6,9 +7,8 @@ import logging
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
-import asyncio
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple, Type, Union, Any
+from typing import Callable, List, Optional, Tuple, Type, Union
 
 from runhouse.rh_config import obj_store, rns_client
 from runhouse.rns.envs import Env
@@ -346,6 +346,21 @@ class Module(Resource):
             has_local_arg and signature.parameters["local"].default is True
         )
 
+        # Needed to handle async Functions, because we can't detect if the function they wrap is async like we
+        # do below for Module methods
+        try:
+            is_async = (
+                super().__getattribute__("_is_async") if item == "__call__" else False
+            )
+            is_async_gen = (
+                super().__getattribute__("_is_async_gen")
+                if item == "__call__"
+                else False
+            )
+        except AttributeError:
+            is_async = False
+            is_async_gen = False
+
         class RemoteMethodWrapper:
             """Helper class to allow methods to be called with __call__, remote, or run."""
 
@@ -359,7 +374,11 @@ class Module(Resource):
                     return attr(*args, **kwargs)
 
                 # If the method is a coroutine, we need to wrap it in a function so we can await it
-                if inspect.iscoroutinefunction(attr) or inspect.isasyncgenfunction(attr):
+                if (
+                    inspect.iscoroutinefunction(attr)
+                    or inspect.isasyncgenfunction(attr)
+                    or is_async
+                ):
 
                     def call_wrapper():
                         return system.call_module_method(
@@ -369,7 +388,8 @@ class Module(Resource):
                             **kwargs,
                         )
 
-                    if inspect.isasyncgenfunction(attr):
+                    if inspect.isasyncgenfunction(attr) or is_async_gen:
+
                         async def async_gen():
                             for res in call_wrapper():
                                 yield res
@@ -472,8 +492,10 @@ class Module(Resource):
 
         return RemotePropertyWrapper()
 
-    async def fetch_async(self, key: str, remote: bool =False, stream_logs: bool = False):
-        """ Async version of fetch. Can't be a property like `fetch` because __getattr__ can't be awaited.
+    async def fetch_async(
+        self, key: str, remote: bool = False, stream_logs: bool = False
+    ):
+        """Async version of fetch. Can't be a property like `fetch` because __getattr__ can't be awaited.
 
         Example:
             >>> await my_module.fetch_async("my_property")
@@ -492,9 +514,16 @@ class Module(Resource):
                     return obj_store_obj.__getattribute__(key)
                 else:
                     return self.__getattribute__(key)
-            return system.call_module_method(name, key, remote=remote, stream_logs=stream_logs)
+            return system.call_module_method(
+                name, key, remote=remote, stream_logs=stream_logs
+            )
 
-        if key and hasattr(self, key) and inspect.isasyncgenfunction(super().__getattribute__(key)):
+        if (
+            key
+            and hasattr(self, key)
+            and inspect.isasyncgenfunction(super().__getattribute__(key))
+        ):
+
             async def async_gen():
                 for res in call_wrapper():
                     yield res
@@ -509,18 +538,18 @@ class Module(Resource):
         loop = asyncio.get_event_loop()
         return await asyncio.create_task(async_call())
 
-    async def set_async(self, key: str,  value):
-        """ Async version of property setter.
+    async def set_async(self, key: str, value):
+        """Async version of property setter.
 
         Example:
             >>> await my_module.set_async("my_property", my_value)
             >>> await my_module.set_async("_my_private_property", my_value)
         """
         if (
-                not self._system
-                or not isinstance(self._system, Cluster)
-                or self._system.on_this_cluster()
-                or not self._name
+            not self._system
+            or not isinstance(self._system, Cluster)
+            or self._system.on_this_cluster()
+            or not self._name
         ):
             return super().__setattr__(key, value)
 

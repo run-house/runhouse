@@ -172,6 +172,24 @@ class Function(Module):
         fn = get_fn_from_pointers(*self.fn_pointers)
         return fn(*args, **kwargs)
 
+    @property
+    def _is_async(self) -> Any:
+        if not self.fn_pointers:
+            return False
+        fn = get_fn_from_pointers(*self.fn_pointers)
+        if not fn:
+            return False
+        return inspect.iscoroutinefunction(fn) or inspect.isasyncgenfunction(fn)
+
+    @property
+    def _is_async_gen(self) -> Any:
+        if not self.fn_pointers:
+            return False
+        fn = get_fn_from_pointers(*self.fn_pointers)
+        if not fn:
+            return False
+        return inspect.isasyncgenfunction(fn)
+
     def repeat(self, num_repeats: int, *args, **kwargs):
         """Repeat the Function call multiple times.
 

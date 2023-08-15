@@ -136,9 +136,7 @@ def start(
         f'screen -dm bash -c "{http_server_cmd}"' if screen else http_server_cmd
     )
     try:
-        result = subprocess.run(
-            shlex.split(start_server_cmd), text=True
-        )
+        result = subprocess.run(shlex.split(start_server_cmd), text=True)
         if result.returncode != 0:
             console.print(
                 f"Error while executing `{start_server_cmd}`: {result.stderr}"
