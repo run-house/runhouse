@@ -141,7 +141,7 @@ def start(
             console.print(
                 f"Error while executing `{start_server_cmd}`: {result.stderr}"
             )
-            raise typer.exit(1)
+            raise typer.Exit(1)
     except FileNotFoundError:
         console.print("python3 command was not found. Make sure you have python3 installed.")
         raise typer.Exit(1)
