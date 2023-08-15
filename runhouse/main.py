@@ -137,7 +137,7 @@ def start(
     )
     try:
         result = subprocess.run(
-            shlex.split(start_server_cmd), capture_output=True, text=True
+            shlex.split(start_server_cmd), text=True
         )
         if result.returncode != 0:
             console.print(
