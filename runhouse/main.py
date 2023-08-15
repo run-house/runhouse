@@ -144,7 +144,7 @@ def start(
             raise typer.exit(1)
     except FileNotFoundError:
         console.print("python3 command was not found. Make sure you have python3 installed.")
-        raise type.exit(1)
+        raise typer.Exit(1)
 
 
 @app.command()
