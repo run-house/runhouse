@@ -6,6 +6,7 @@ import signal
 import threading
 import time
 import traceback
+import asyncio
 from pathlib import Path
 from typing import List, Union
 
@@ -162,28 +163,44 @@ class EnvServlet:
             if not callable_method and kwargs and "new_value" in kwargs:
                 # If new_value was passed, that means we're setting a property
                 setattr(module, method_name, kwargs["new_value"])
-                # module.pin()
+                result_resource.pin()
                 self.output_types[message.key] = OutputType.SUCCESS
                 result_resource.provenance.__exit__(None, None, None)
-                return
+                return Response(output_type=OutputType.SUCCESS)
 
             if persist or message.stream_logs:
                 result_resource.pin()
 
             # If method is a property, `method = getattr(module, method_name, None)` above already
             # got our result
-            result = method(*args, **kwargs) if callable_method else method
-            if inspect.isgenerator(result):
+            if inspect.iscoroutinefunction(method):
+                # If method is a coroutine, we need to await it
+                logger.debug(
+                    f"Env {self.env_name} servlet: Method {method_name} on module {module_name} is a coroutine"
+                )
+                result = asyncio.run(method(*args, **kwargs))
+            else:
+                result = method(*args, **kwargs) if callable_method else method
+
+            if inspect.isgenerator(result) or inspect.isasyncgen(result):
                 result_resource.pin()
                 # Stream back the results of the generator
                 logger.info(
                     f"Streaming back results of generator {module_name}.{method_name}"
                 )
                 self.output_types[message.key] = OutputType.RESULT_STREAM
-                for val in result:
-                    self.register_activity()
-                    # Doing this at the top of the loop so we can catch the final result and change the OutputType
-                    result_resource.put(val)
+                if inspect.isasyncgen(result):
+                    while True:
+                        try:
+                            self.register_activity()
+                            result_resource.put(asyncio.run(result.__anext__()))
+                        except StopAsyncIteration:
+                            break
+                else:
+                    for val in result:
+                        self.register_activity()
+                        # Doing this at the top of the loop so we can catch the final result and change the OutputType
+                        result_resource.put(val)
 
                 # Set run status to COMPLETED to indicate end of stream
                 result_resource.provenance.__exit__(None, None, None)

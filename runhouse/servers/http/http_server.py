@@ -221,13 +221,9 @@ class HTTPServer:
                 )
 
                 if fast_resp:
-                    try:
-                        res = ray.get(obj_ref, timeout=0.1)
-                        if res:
-                            logger.info(f"Returning fast response for {message.key}")
-                            return res
-                    except ray.exceptions.RayTimeoutError:
-                        pass
+                    res = ray.get(obj_ref)
+                    logger.info(f"Returning fast response for {message.key}")
+                    return res
 
             else:
                 message.key = module
