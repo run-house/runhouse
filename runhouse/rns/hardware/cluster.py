@@ -465,7 +465,7 @@ class Cluster(Resource):
         if resync_rh:
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
         logfile = f"cluster_server_{self.name}.log"
-        http_server_cmd = "python -m runhouse.servers.http.http_server"
+        http_server_cmd = "runhouse start"
         kill_proc_cmd = f'pkill -f "{http_server_cmd}"'
         # 2>&1 redirects stderr to stdout
         screen_cmd = (

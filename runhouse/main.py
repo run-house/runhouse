@@ -124,7 +124,7 @@ def start(
     restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
     screen: bool = typer.Option(False, help="Start the server in a screen"),
 ):
-    http_server_cmd = "python -m runhouse.servers.http.http_server"
+    http_server_cmd = "python3 -m runhouse.servers.http.http_server"
     kill_proc_cmd = ["pkill", "-f", f"{http_server_cmd}"]
     subprocess.run(kill_proc_cmd)
 
@@ -135,7 +135,20 @@ def start(
     start_server_cmd = (
         f'screen -dm bash -c "{http_server_cmd}"' if screen else http_server_cmd
     )
-    subprocess.run(shlex.split(start_server_cmd))
+    try:
+        result = subprocess.run(
+            shlex.split(start_server_cmd), capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            console.print(
+                f"Error while executing `{start_server_cmd}`: {result.stderr}"
+            )
+            raise typer.Exit(1)
+    except FileNotFoundError:
+        console.print(
+            "python3 command was not found. Make sure you have python3 installed."
+        )
+        raise typer.Exit(1)
 
 
 @app.command()
