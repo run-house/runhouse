@@ -70,6 +70,19 @@ def test_create_function_from_rns(cluster):
     assert not rh.exists(REMOTE_FUNC_NAME)
 
 
+async def async_summer(a, b):
+    return a + b
+
+
+@pytest.mark.clustertest
+@pytest.mark.asyncio
+@cpu_clusters
+async def test_async_function(cluster):
+    remote_sum = rh.function(async_summer).to(cluster)
+    res = await remote_sum(1, 5)
+    assert res == 6
+
+
 @pytest.mark.clustertest
 @pytest.mark.rnstest
 @cpu_clusters
@@ -151,6 +164,31 @@ def test_generator(cluster):
     remote_slow_generator = rh.function(slow_generator).to(cluster)
     results = []
     for val in remote_slow_generator(5):
+        assert val
+        print(val)
+        results += [val]
+    assert len(results) == 5
+
+
+async def async_slow_generator(size):
+    logger.info("Hello from the cluster logs!")
+    print("Hello from the cluster stdout!")
+    arr = []
+    for i in range(size):
+        time.sleep(1)
+        logger.info(f"Hello from the cluster logs! {i}")
+        print(f"Hello from the cluster stdout! {i}")
+        arr += [i]
+        yield f"Hello from the cluster! {arr}"
+
+
+@pytest.mark.clustertest
+@pytest.mark.asyncio
+@cpu_clusters
+async def test_async_generator(cluster):
+    remote_slow_generator = rh.function(async_slow_generator).to(cluster)
+    results = []
+    async for val in remote_slow_generator(5):
         assert val
         print(val)
         results += [val]

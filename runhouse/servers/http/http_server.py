@@ -5,20 +5,19 @@ import subprocess
 import time
 import traceback
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Any, Dict, List, Optional
 
 import ray
 import requests
-from fastapi import FastAPI
+from fastapi import Body, FastAPI
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 from runhouse.rh_config import configs, env_servlets, rns_client
 from runhouse.rns.servlet import EnvServlet
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.http_utils import (
-    Args,
     b64_unpickle,
     DEFAULT_SERVER_PORT,
     Message,
@@ -187,23 +186,33 @@ class HTTPServer:
 
     @staticmethod
     @app.post("/{module}/{method}")
-    def call_module_method(module, method=None, message: Message = None):
+    def call_module_method(module, method=None, message: Annotated[Any, Body()] = None):
         # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
+            import argparse
+
+            message = argparse.Namespace(**message) if message else None
             method = None if method == "None" else method
             # If this is a "get" request to just return the module, do not stream logs or save by default
             message = message or (
                 Message(stream_logs=False, key=module) if not method else Message()
             )
             env = message.env or HTTPServer.lookup_env_for_name(module)
+            persist = (
+                message.run_async or message.remote or message.save
+            ) or not method
             if method:
                 # TODO fix the way we generate runkeys, it's ugly
                 message.key = message.key or _generate_default_name(
                     prefix=module if method == "__call__" else f"{module}_{method}",
                     precision="ms",  # Higher precision because we see collisions within the same second
                 )
-                HTTPServer.call_in_env_servlet(
+                # If certain conditions are met, we can return a response immediately
+                fast_resp = not persist and not message.stream_logs
+
+                # Unless we're returning a fast response, we discard this obj_ref
+                obj_ref = HTTPServer.call_in_env_servlet(
                     "call_module_method",
                     [module, method, message],
                     env=env,
@@ -211,8 +220,18 @@ class HTTPServer:
                     block=False,
                 )
 
+                if fast_resp:
+                    res = ray.get(obj_ref)
+                    logger.info(f"Returning fast response for {message.key}")
+                    return res
+
             else:
                 message.key = module
+                # If this is a "get" call, don't wait for the result, it's either there or not.
+                from runhouse.rh_config import obj_store
+
+                if not obj_store.contains(message.key):
+                    return Response(output_type=OutputType.NOT_FOUND, data=message.key)
 
             if message.run_async:
                 return Response(
@@ -220,9 +239,6 @@ class HTTPServer:
                     output_type=OutputType.RESULT,
                 )
 
-            persist = (
-                message.run_async or message.remote or message.save
-            ) or not method
             return StreamingResponse(
                 HTTPServer._get_results_and_logs_generator(
                     message.key,
@@ -330,7 +346,7 @@ class HTTPServer:
                         data=ret_lines,
                         output_type=OutputType.STDOUT,
                     )
-                    logger.info(f"Yielding logs for key {key}")
+                    logger.debug(f"Yielding logs for key {key}")
                     yield json.dumps(jsonable_encoder(lines_resp))
 
         except Exception as e:
@@ -488,11 +504,22 @@ class HTTPServer:
         )
 
     @staticmethod
-    @app.post("/call/{fn_name}")
-    def call_fn(fn_name: str, args: Args):
-        return HTTPServer.call_in_env_servlet(
-            "call_fn", [fn_name, args], create=True, lookup_env_for_name=fn_name
+    @app.post("/call/{module}/{method}")
+    async def call(
+        module,
+        method=None,
+        args: Annotated[List, Body()] = None,
+        kwargs: Annotated[Dict, Body()] = None,
+        serialization="json",
+    ):
+        resp = HTTPServer.call_in_env_servlet(
+            "call",
+            [module, method, args, kwargs, serialization],
+            create=True,
+            lookup_env_for_name=module,
         )
+
+        return JSONResponse(content=resp)
 
     @staticmethod
     def _collect_cluster_stats():

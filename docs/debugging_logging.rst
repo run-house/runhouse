@@ -41,7 +41,7 @@ being printed out, and can debug normally inside the ``screen``.
     server.
 
 For debugging remote functions, which are launched using ``ray``, we can utilize Ray's debugger. Add a
-```breakpoint()`` call inside the function where you want to start the debugging session, then ssh into the
+``breakpoint()`` call inside the function where you want to start the debugging session, then ssh into the
 cluster with ``ssh cluster-name``, and call ``ray debug`` to view select the breakpoint to enter. You can run
 normal ``pdb`` commands within the debugging session, and can refer to
 `Ray Debugger <https://docs.ray.io/en/latest/ray-observability/ray-debugging.html>`_ for more information.

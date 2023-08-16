@@ -12,6 +12,9 @@ BUILDDIR      = _build
 help:
 	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
+json:
+	@$(SPHINXBUILD) -M json "$(SOURCEDIR)" "$(BUILDDIR)" -b json -t json
+
 .PHONY: help Makefile
 
 # Catch-all target: route all unknown targets to Sphinx using the new

@@ -1,3 +1,4 @@
+import asyncio
 import copy
 import functools
 import importlib
@@ -5,6 +6,7 @@ import inspect
 import logging
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple, Type, Union
 
@@ -43,6 +45,7 @@ LOCAL_METHODS = [
     "__reduce_ex__",
     "__repr__",
     "__setattr__",
+    "set_async",
     "__getattribute__",
     "__sizeof__",
     "__str__",
@@ -66,6 +69,7 @@ LOCAL_METHODS = [
     "history",
     "is_local",
     "fetch",
+    "fetch_async",
     "name",
     "rename",
     "rns_address",
@@ -292,6 +296,27 @@ class Module(Resource):
 
         return new_module
 
+    def get_or_to(
+        self,
+        system: Union[str, Cluster],
+        env: Optional[Union[str, List[str], Env]] = None,
+        name: Optional[str] = None,
+    ):
+        name = self.name or name
+        if not name:
+            raise ValueError(
+                "You must specify a name for the module if you want to get_or_to it."
+            )
+        system = _get_cluster_from(system)
+        try:
+            remote = system.get(name, remote=True)
+        except KeyError:
+            remote = None
+        if remote:
+            return remote
+        self.name = name
+        return self.to(system, env)
+
     def __getattribute__(self, item):
         """Override to allow for remote execution if system is a remote cluster. If not, the subclass's own
         __getattr__ will be called."""
@@ -321,6 +346,21 @@ class Module(Resource):
             has_local_arg and signature.parameters["local"].default is True
         )
 
+        # Needed to handle async Functions, because we can't detect if the function they wrap is async like we
+        # do below for Module methods
+        try:
+            is_async = (
+                super().__getattribute__("_is_async") if item == "__call__" else False
+            )
+            is_async_gen = (
+                super().__getattribute__("_is_async_gen")
+                if item == "__call__"
+                else False
+            )
+        except AttributeError:
+            is_async = False
+            is_async_gen = False
+
         class RemoteMethodWrapper:
             """Helper class to allow methods to be called with __call__, remote, or run."""
 
@@ -332,6 +372,37 @@ class Module(Resource):
                 # Check if the method has a "local=True" arg, and check that the user didn't pass local=False instead
                 if local_default_true and kwargs.pop("local", True):
                     return attr(*args, **kwargs)
+
+                # If the method is a coroutine, we need to wrap it in a function so we can await it
+                if (
+                    inspect.iscoroutinefunction(attr)
+                    or inspect.isasyncgenfunction(attr)
+                    or is_async
+                ):
+
+                    def call_wrapper():
+                        return system.call_module_method(
+                            name,
+                            item,
+                            *args,
+                            **kwargs,
+                        )
+
+                    if inspect.isasyncgenfunction(attr) or is_async_gen:
+
+                        async def async_gen():
+                            for res in call_wrapper():
+                                yield res
+
+                        return async_gen()
+
+                    _executor = ThreadPoolExecutor(1)
+
+                    async def async_call():
+                        return await loop.run_in_executor(_executor, call_wrapper)
+
+                    loop = asyncio.get_event_loop()
+                    return asyncio.create_task(async_call())
 
                 return system.call_module_method(
                     name,
@@ -377,6 +448,7 @@ class Module(Resource):
             module_name=self._name,
             method_name=key,
             new_value=value,
+            stream_logs=False,
         )
 
     def refresh(self):
@@ -412,7 +484,7 @@ class Module(Resource):
                         return obj_store_obj.__getattribute__(item)
                     else:
                         return self.__getattribute__(item)
-                return system.call_module_method(name, item)
+                return system.call_module_method(name, item, stream_logs=False)
 
             @classmethod
             def __call__(cls, *args, **kwargs):
@@ -420,22 +492,82 @@ class Module(Resource):
 
         return RemotePropertyWrapper()
 
-    # TODO do we need this?
-    # def __delattr__(self, key):
-    #     if key in LOCAL_METHODS or not hasattr(self, "_system"):
-    #         return super().__delattr__(key)
-    #     if (
-    #         not self._system
-    #         or not isinstance(self._system, Cluster)
-    #         or self._system.on_this_cluster()
-    #     ):
-    #         return super().__delattr__(key)
-    #
-    #     return self.system.call_module_method(
-    #         module_name=self.name,
-    #         method_name=key,
-    #         delete=True,
-    #     )
+    async def fetch_async(
+        self, key: str, remote: bool = False, stream_logs: bool = False
+    ):
+        """Async version of fetch. Can't be a property like `fetch` because __getattr__ can't be awaited.
+
+        Example:
+            >>> await my_module.fetch_async("my_property")
+            >>> await my_module.fetch_async("_my_private_property")
+        """
+        system = super().__getattribute__("_system")
+        name = super().__getattribute__("_name")
+
+        def call_wrapper():
+            if not key:
+                return system.get(name, remote=remote, stream_logs=stream_logs)
+
+            if isinstance(system, Cluster) and name and system.on_this_cluster():
+                obj_store_obj = obj_store.get(name, check_other_envs=True)
+                if obj_store_obj:
+                    return obj_store_obj.__getattribute__(key)
+                else:
+                    return self.__getattribute__(key)
+            return system.call_module_method(
+                name, key, remote=remote, stream_logs=stream_logs
+            )
+
+        if (
+            key
+            and hasattr(self, key)
+            and inspect.isasyncgenfunction(super().__getattribute__(key))
+        ):
+
+            async def async_gen():
+                for res in call_wrapper():
+                    yield res
+
+            return async_gen()
+
+        _executor = ThreadPoolExecutor(1)
+
+        async def async_call():
+            return await loop.run_in_executor(_executor, call_wrapper)
+
+        loop = asyncio.get_event_loop()
+        return await asyncio.create_task(async_call())
+
+    async def set_async(self, key: str, value):
+        """Async version of property setter.
+
+        Example:
+            >>> await my_module.set_async("my_property", my_value)
+            >>> await my_module.set_async("_my_private_property", my_value)
+        """
+        if (
+            not self._system
+            or not isinstance(self._system, Cluster)
+            or self._system.on_this_cluster()
+            or not self._name
+        ):
+            return super().__setattr__(key, value)
+
+        def call_wrapper():
+            return self._system.call_module_method(
+                module_name=self._name,
+                method_name=key,
+                new_value=value,
+                stream_logs=False,
+            )
+
+        _executor = ThreadPoolExecutor(1)
+
+        async def async_call():
+            return await loop.run_in_executor(_executor, call_wrapper)
+
+        loop = asyncio.get_event_loop()
+        return await asyncio.create_task(async_call())
 
     def _save_sub_resources(self):
         if isinstance(self.system, Resource):
@@ -574,6 +706,7 @@ def _module_subclass_factory(
 ):
     def __init__(
         self,
+        *args,
         system=None,
         env=None,
         dryrun=False,
@@ -582,7 +715,7 @@ def _module_subclass_factory(
         provenance=None,
         **kwargs,
     ):
-        cls.__init__(self, **kwargs)
+        cls.__init__(self, *args, **kwargs)
         Module.__init__(
             self,
             cls_pointers=cls_pointers or pointers,
@@ -594,6 +727,11 @@ def _module_subclass_factory(
         self.to = functools.partial(Module.to, self)
         if not self.dryrun:
             self.to(system, env)
+            # TODO introduce module.instantiated to allow for real lazy instantiation and calling classmethods
+            # if system is not None and not system.on_this_cluster():
+            # Construct the module remotely
+            # system.call_module_method(self.name, "__init__", *args, **kwargs)
+            # system.call_module_method(self.name, "remote_init")
         self.system = system
         self.env = env
 

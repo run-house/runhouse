@@ -170,7 +170,7 @@ def get_fn_from_pointers(module_path, module_name, fn_name):
         if module_path:
             abs_path = str((Path.home() / module_path).expanduser().resolve())
             sys.path.append(abs_path)
-            logger.info(f"Appending {abs_path} to sys.path")
+            logger.info(f"Appending {module_path} to sys.path")
 
         if module_name in rh_config.obj_store.imported_modules:
             importlib.invalidate_caches()

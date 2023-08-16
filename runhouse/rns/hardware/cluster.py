@@ -285,20 +285,12 @@ class Cluster(Resource):
 
     # ----------------- RPC Methods ----------------- #
 
-    def connect_server_client(self, force_reconnect=False):
-        # FYI based on: https://sshtunnel.readthedocs.io/en/latest/#example-1
-        # FYI If we ever need to do this from scratch, we can use this example:
-        # https://github.com/paramiko/paramiko/blob/main/demos/rforward.py#L74
+    def connect_server_client(self, tunnel=True, force_reconnect=False):
         if not self.address:
             raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
 
-        # TODO [DG] figure out how to ping to see if tunnel is already up
         if self._rpc_tunnel and force_reconnect:
             self._rpc_tunnel.close()
-
-        # TODO Check if port is already open instead of refcounting?
-        # status = subprocess.run(['nc', '-z', self.address, str(self.grpc_port)], capture_output=True)
-        # if not self.check_port(self.address, UnaryClient.DEFAULT_PORT):
 
         tunnel_refcount = 0
         ssh_tunnel = None
@@ -306,16 +298,25 @@ class Cluster(Resource):
             ssh_tunnel, connected_port, tunnel_refcount = open_cluster_tunnels[
                 self.address
             ]
-            if ssh_tunnel:
+            if isinstance(ssh_tunnel, SSHTunnelForwarder):
                 ssh_tunnel.check_tunnels()
                 if ssh_tunnel.tunnel_is_up[ssh_tunnel.local_bind_address]:
                     self._rpc_tunnel = ssh_tunnel
-        if not ssh_tunnel:
+
+        if "localhost" in self.address or ":" in self.address:
+            if ":" in self.address:
+                # Case 1: "localhost:23324" or <real_ip>:<custom port> (e.g. a port is already open to the server)
+                self._rpc_tunnel, connected_port = self.address.split(":")
+            else:
+                # Case 2: "localhost"
+                self._rpc_tunnel, connected_port = self.address, HTTPClient.DEFAULT_PORT
+        elif not ssh_tunnel:
             self._rpc_tunnel, connected_port = self.ssh_tunnel(
                 HTTPClient.DEFAULT_PORT,
                 remote_port=DEFAULT_SERVER_PORT,
                 num_ports_to_try=5,
             )
+
         open_cluster_tunnels[self.address] = (
             self._rpc_tunnel,
             connected_port,
@@ -465,11 +466,10 @@ class Cluster(Resource):
         """
         logger.info(f"Restarting HTTP server on {self.name}.")
 
-        # TODO how do we capture errors if this fails?
         if resync_rh:
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
         logfile = f"cluster_server_{self.name}.log"
-        http_server_cmd = "python -m runhouse.servers.http.http_server"
+        http_server_cmd = "runhouse start"
         kill_proc_cmd = f'pkill -f "{http_server_cmd}"'
         # 2>&1 redirects stderr to stdout
         screen_cmd = f"screen -dm bash -c \"{http_server_cmd} |& tee -a '{self._logfile_path(logfile)}' 2>&1\""
@@ -499,6 +499,7 @@ class Cluster(Resource):
         # f'kill -9 $(lsof -t -i:{UnaryService.DEFAULT_PORT})'
         # kill_proc_at_port_cmd = debian_kill_proc_cmd if cloud_provider == 'GCP' \
         #     else ubuntu_kill_proc_cmd
+
         status_codes = self.run(
             commands=cmds,
             stream_logs=True,
@@ -568,6 +569,9 @@ class Cluster(Resource):
         """
         self.check_server()
         # Note: might be single value, might be a generator!
+        if self.on_this_cluster():
+            # TODO
+            pass
         return self.client.call_module_method(
             module_name,
             method_name,
@@ -740,7 +744,7 @@ class Cluster(Resource):
             >>> cpu.run(["pip install numpy", env="my_conda_env"])
             >>> cpu.run(["python script.py"], run_name="my_exp")
         """
-        # TODO [DG] suspect autostop while running?
+        # TODO [DG] suspend autostop while running
         from runhouse.rns.run import run
 
         cmd_prefix = ""
