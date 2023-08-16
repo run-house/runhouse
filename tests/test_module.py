@@ -199,12 +199,13 @@ def test_module_from_subclass(ondemand_cpu_cluster, env):
     del remote_df
 
     # Test get_or_to
-    remote_df = SlowPandas(size=3).get_or_to(ondemand_cpu_cluster, env=env, name="SlowPandas")
+    remote_df = SlowPandas(size=3).get_or_to(
+        ondemand_cpu_cluster, env=env, name="SlowPandas"
+    )
     assert remote_df.system.config_for_rns == ondemand_cpu_cluster.config_for_rns
     assert remote_df.cpu_count(local=False, stream_logs=False) == 2
     # Check that size is unchanged from when we set it to 20 above
     assert remote_df.fetch.size == 20
-
 
 
 @pytest.mark.clustertest

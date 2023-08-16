@@ -35,8 +35,8 @@ class Cluster(Resource):
     SERVER_STOP_CMD = f'pkill -f "{SERVER_START_CMD}"'
     # 2>&1 redirects stderr to stdout
     START_SCREEN_CMD = (
-            f"screen -dm bash -c \"{SERVER_START_CMD} |& tee -a '{SERVER_LOGFILE}' 2>&1\""
-        )
+        f"screen -dm bash -c \"{SERVER_START_CMD} |& tee -a '{SERVER_LOGFILE}' 2>&1\""
+    )
     RAY_START_CMD = "ray start --head --port 6379"
     # RAY_BOOTSTRAP_FILE = "~/ray_bootstrap_config.yaml"
     # --autoscaling-config=~/ray_bootstrap_config.yaml
