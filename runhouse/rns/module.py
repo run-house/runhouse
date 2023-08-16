@@ -353,9 +353,7 @@ class Module(Resource):
                 super().__getattribute__("_is_async") if item == "call" else False
             )
             is_async_gen = (
-                super().__getattribute__("_is_async_gen")
-                if item == "call"
-                else False
+                super().__getattribute__("_is_async_gen") if item == "call" else False
             )
         except AttributeError:
             is_async = False

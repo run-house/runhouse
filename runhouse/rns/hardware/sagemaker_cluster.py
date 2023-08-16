@@ -895,10 +895,6 @@ class SageMakerCluster(Cluster):
         # Update the config on the server with the new autostop time
         self.client.check_server(cluster_config=cluster_config)
 
-    def _logfile_path(self, logfile):
-        # Note: on SageMaker instances tee does not properly resolve the relative path to the log file
-        return f"/root/.rh/{logfile}"
-
     def _filter_known_hosts(self):
         known_hosts = self.hosts_path
         valid_hosts = []

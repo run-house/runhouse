@@ -122,7 +122,12 @@ def load_cluster(cluster_name: str):
 def _start_server(restart, restart_ray, screen, create_logfile=True):
     from runhouse.rns.hardware.cluster import Cluster
 
-    cmds = Cluster._start_server_cmds(restart=restart, restart_ray=restart_ray, screen=screen, create_logfile=create_logfile)
+    cmds = Cluster._start_server_cmds(
+        restart=restart,
+        restart_ray=restart_ray,
+        screen=screen,
+        create_logfile=create_logfile,
+    )
 
     try:
         # We do these one by one so it's more obvious where the error is if there is one
@@ -131,9 +136,7 @@ def _start_server(restart, restart_ray, screen, create_logfile=True):
             result = subprocess.run(shlex.split(cmd), text=True)
             # We don't want to raise an error if the server kill fails, as it may simply not be running
             if result.returncode != 0 and "pkill" not in cmd:
-                console.print(
-                    f"Error while executing `{cmd}`"
-                )
+                console.print(f"Error while executing `{cmd}`")
                 raise typer.Exit(1)
     except FileNotFoundError:
         console.print(
@@ -141,21 +144,30 @@ def _start_server(restart, restart_ray, screen, create_logfile=True):
         )
         raise typer.Exit(1)
 
+
 @app.command()
 def start(
     restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
     screen: bool = typer.Option(False, help="Start the server in a screen"),
 ):
     """Start the HTTP server on the cluster."""
-    _start_server(restart=False, restart_ray=restart_ray, screen=screen, create_logfile=True)
+    _start_server(
+        restart=False, restart_ray=restart_ray, screen=screen, create_logfile=True
+    )
 
 
 @app.command()
 def restart(
     name: str = typer.Option(None, help="A *saved* remote cluster object to restart."),
     restart_ray: bool = typer.Option(True, help="Restart the Ray runtime"),
-    screen: bool = typer.Option(True, help="Start the server in a screen. Only relevant when restarting locally."),
-    resync_rh: bool = typer.Option(False, help="Resync the Runhouse package. Only relevant when restarting remotely."),
+    screen: bool = typer.Option(
+        True,
+        help="Start the server in a screen. Only relevant when restarting locally.",
+    ),
+    resync_rh: bool = typer.Option(
+        False,
+        help="Resync the Runhouse package. Only relevant when restarting remotely.",
+    ),
 ):
     """Restart the HTTP server on the cluster."""
     if name:
@@ -163,8 +175,9 @@ def restart(
         c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray)
         return
 
-    _start_server(restart=True, restart_ray=restart_ray, screen=screen, create_logfile=True)
-
+    _start_server(
+        restart=True, restart_ray=restart_ray, screen=screen, create_logfile=True
+    )
 
 
 @app.callback()
