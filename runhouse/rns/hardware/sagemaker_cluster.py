@@ -13,12 +13,17 @@ from pathlib import Path
 from typing import Dict, Tuple, Union
 
 import paramiko
-import sagemaker
-from sagemaker.estimator import EstimatorBase
-from sagemaker.mxnet import MXNet
-from sagemaker.pytorch import PyTorch
-from sagemaker.tensorflow import TensorFlow
-from sagemaker.xgboost import XGBoost
+
+try:
+    import sagemaker
+    from sagemaker.estimator import EstimatorBase
+    from sagemaker.mxnet import MXNet
+    from sagemaker.pytorch import PyTorch
+    from sagemaker.tensorflow import TensorFlow
+    from sagemaker.xgboost import XGBoost
+except ImportError:
+    pass
+
 from sshtunnel import SSHTunnelForwarder
 
 from runhouse.rh_config import configs, open_cluster_tunnels, rns_client
@@ -50,7 +55,7 @@ class SageMakerCluster(Cluster):
         instance_count: int = None,
         autostop_mins: int = None,
         connection_wait_time: int = None,
-        estimator: Union[EstimatorBase, Dict] = None,
+        estimator: Union["EstimatorBase", Dict] = None,
         job_name: str = None,
         dryrun=False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
@@ -92,10 +97,6 @@ class SageMakerCluster(Cluster):
 
         # Note: Setting instance ID as cluster IP for compatibility with Cluster parent class methods
         super().__init__(name=name, ips=[self.instance_id], ssh_creds={}, dryrun=dryrun)
-
-        if not dryrun and not self.is_up():
-            logger.info("Preparing to launch a new SageMaker cluster")
-            self._prepare_and_launch_new_cluster()
 
     @property
     def config_for_rns(self):
@@ -287,11 +288,23 @@ class SageMakerCluster(Cluster):
             return False
 
     def up(self):
-        return_codes = self.restart_server(restart_ray=True)
-        if return_codes[0][0] != 0:
-            raise ValueError(
-                f"Could not restart or connect to server {self.name}: {return_codes[0]}"
-            )
+        """Up the cluster.
+
+        Example:
+            >>> rh.sagemaker_cluster("sagemaker-cluster").up()
+        """
+        logger.info("Preparing to launch a new SageMaker cluster")
+        self._launch_new_cluster()
+
+    def up_if_not(self):
+        """Bring up the cluster if it is not up. No-op if cluster is already up.
+
+        Example:
+            >>> rh.sagemaker_cluster("sagemaker-cluster").up_if_not()
+        """
+        if not self.is_up():
+            self.up()
+        return self
 
     def teardown(self):
         """Teardown the SageMaker instance.
@@ -527,7 +540,7 @@ class SageMakerCluster(Cluster):
 
             return PyTorch(**estimator_dict)
 
-    def _prepare_and_launch_new_cluster(self):
+    def _launch_new_cluster(self):
         self.estimator = self._create_launch_estimator()
 
         logger.info(
@@ -587,7 +600,7 @@ class SageMakerCluster(Cluster):
             f"rsync -rvh --exclude='.git' --exclude='venv*/' --exclude='dist/' --exclude='docs/' "
             f"--exclude='__pycache__/' --exclude='.*' "
             f"--include='.rh/' -e 'ssh -o StrictHostKeyChecking=no -i {self.ssh_key_path} -p {self.DEFAULT_SSH_PORT}' "
-            f"--delete {source} root@localhost:{dest}"
+            f"{source} root@localhost:{dest}"
         )
 
         logger.info(f"Syncing {source} to: {dest} on cluster")
@@ -619,16 +632,16 @@ class SageMakerCluster(Cluster):
         terminated re-initialize the SSH client and try again."""
         try:
             stdin, stdout, stderr = self._ssh_client.exec_command(command)
+            return_code = stdout.channel.recv_exit_status()
+
             stdout = stdout.read().decode()
             stderr = stderr.read().decode()
 
-            return_code = 1 if ("Traceback" in stderr and "ERROR" in stderr) else 0
-
-            # TODO [JL]
+            # TODO [JL] - this only seems to happen on SageMaker GPUs, need to investigate further
             # NOTE: there seems to be an issue with some SageMaker GPUs post installation script which leads to:
             # "installed install-info package post-installation script subprocess returned error exit status 2"
             # SageMaker populates the /etc/environment for setting env vars which may be corrupt - if this happens
-            # create a new empty env file for now
+            # we get around it by creating a new empty env file and re-running the SSH command
             if "/usr/bin/dpkg returned an error code" in stderr:
                 self._run_command_with_ssh_client(
                     "sudo mv /etc/environment /etc/environment_broken "
@@ -835,8 +848,8 @@ class SageMakerCluster(Cluster):
         return connected_ssh_port
 
     def _load_estimator(
-        self, estimator: Union[Dict, EstimatorBase, None]
-    ) -> Union[None, EstimatorBase]:
+        self, estimator: Union[Dict, "EstimatorBase", None]
+    ) -> Union[None, "EstimatorBase"]:
         """Build an Estimator object from config"""
         if estimator is None:
             return None
@@ -883,7 +896,7 @@ class SageMakerCluster(Cluster):
         self.client.check_server(cluster_config=cluster_config)
 
     def _logfile_path(self, logfile):
-        # Note: on SageMaker tee does not resolve the relative path to the log file
+        # Note: on SageMaker instances tee does not properly resolve the relative path to the log file
         return f"/root/.rh/{logfile}"
 
     def _filter_known_hosts(self):

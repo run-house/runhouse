@@ -162,11 +162,6 @@ def get_fn_from_pointers(module_path, module_name, fn_name):
     if module_name == "notebook":
         fn = fn_name  # already unpickled
     else:
-        logger.info(f"In get fn from pointers")
-        logger.info(f"module_path: {module_path}")
-        logger.info(f"module_name: {module_name}")
-        logger.info(f"fn_name: {fn_name}")
-        logger.info(f"Home path: {Path.home()}")
         if module_path:
             abs_path = str((Path.home() / module_path).expanduser().resolve())
             sys.path.append(abs_path)

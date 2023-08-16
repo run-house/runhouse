@@ -59,7 +59,8 @@ def run_training_job(path_to_job: str, num_attempts: int):
 
 def read_cluster_config():
     try:
-        # Read the autostop from the cluster's config
+        # Read the autostop from the cluster's config - this will get populated when the cluster
+        # is created (via check_server) or via the autostop APIs (e.g. pause_autostop or keep_warm)
         with open(os.path.expanduser("~/.rh/cluster_config.yaml"), "r") as f:
             config = yaml.safe_load(f)
     except FileNotFoundError:
