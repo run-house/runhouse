@@ -29,14 +29,14 @@ class Cluster(Resource):
     RESOURCE_TYPE = "cluster"
     REQUEST_TIMEOUT = 5  # seconds
 
-    SERVER_LOGFILE = "~/.rh/server.log"
+    SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
     CLI_RESTART_CMD = "runhouse restart"
     SERVER_START_CMD = "python3 -m runhouse.servers.http.http_server"
     SERVER_STOP_CMD = f'pkill -f "{SERVER_START_CMD}"'
     # 2>&1 redirects stderr to stdout
     START_SCREEN_CMD = (
-            f"screen -dm bash -c \"{SERVER_START_CMD} |& tee -a '{SERVER_LOGFILE}' 2>&1\""
-        )
+        f"screen -dm bash -c \"{SERVER_START_CMD} |& tee -a '{SERVER_LOGFILE}' 2>&1\""
+    )
     RAY_START_CMD = "ray start --head --port 6379"
     # RAY_BOOTSTRAP_FILE = "~/ray_bootstrap_config.yaml"
     # --autoscaling-config=~/ray_bootstrap_config.yaml
@@ -447,6 +447,41 @@ class Cluster(Resource):
 
         return ssh_tunnel, local_port
 
+    # import paramiko
+    # ssh = paramiko.SSHClient()
+    # ssh.load_system_host_keys()
+    # ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    # from pathlib import Path
+    # ssh.connect(self.address,
+    #             username=creds['ssh_user'],
+    #             key_filename=str(Path(creds['ssh_private_key']).expanduser())
+    #             )
+    # transport = ssh.get_transport()
+    # transport.request_port_forward('', local_port)
+    # ssh_tunnel = transport.open_channel("direct-tcpip", ("localhost", local_port),
+    #                                     (self.address, remote_port or local_port))
+    # if ssh_tunnel.is_active():
+    #     connected = True
+    #     print(f"SSH tunnel is open to {self.address}:{local_port}")
+
+    @classmethod
+    def _start_server_cmds(cls, restart, restart_ray, screen, create_logfile):
+        cmds = []
+        if restart:
+            cmds.append(cls.SERVER_STOP_CMD)
+        if restart_ray:
+            cmds.append(cls.RAY_KILL_CMD)
+            # TODO Add in BOOTSTRAP file if it exists?
+            cmds.append(cls.RAY_START_CMD)
+        if screen:
+            if create_logfile and not Path(cls.SERVER_LOGFILE).exists():
+                Path(cls.SERVER_LOGFILE).parent.mkdir(parents=True, exist_ok=True)
+                Path(cls.SERVER_LOGFILE).touch()
+            cmds.append(cls.START_SCREEN_CMD)
+        else:
+            cmds.append(cls.SERVER_START_CMD)
+        return cmds
+
     def restart_server(
         self,
         _rh_install_url: str = None,
@@ -690,9 +725,6 @@ class Cluster(Resource):
         if ssh_call.is_alive():
             raise TimeoutError("SSH call timed out")
         return True
-
-    def _logfile_path(self, logfile):
-        return f"~/.rh/{logfile}"
 
     def run(
         self,
