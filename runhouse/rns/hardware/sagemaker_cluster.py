@@ -630,9 +630,10 @@ class SageMakerCluster(Cluster):
             # SageMaker populates the /etc/environment for setting env vars which may be corrupt - if this happens
             # create a new empty env file for now
             if "/usr/bin/dpkg returned an error code" in stderr:
-                self._run_command_with_ssh_client(command="sudo mv /etc/environment /etc/environment_broken "
-                                                          "&& sudo touch /etc/environment")
-
+                self._run_command_with_ssh_client(
+                    "sudo mv /etc/environment /etc/environment_broken "
+                    f"&& sudo touch /etc/environment && {command}"
+                )
             return return_code, stdout, stderr
 
         except paramiko.BadHostKeyException as e:
@@ -732,7 +733,9 @@ class SageMakerCluster(Cluster):
                 up=True,
                 contents=True,
             )
-            rh_install_cmd = "sudo apt-get install python3-pip -y && pip install ./runhouse"
+            rh_install_cmd = (
+                "sudo apt-get install python3-pip -y && pip install ./runhouse"
+            )
         else:
             if not _install_url:
                 import runhouse

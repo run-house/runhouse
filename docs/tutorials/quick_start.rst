@@ -30,6 +30,7 @@ etc.):
    $ pip install "runhouse[aws]"
    $ pip install "runhouse[gcp]"
    $ pip install "runhouse[azure]"
+   $ pip install "runhouse[sagemaker]"
    # Or
    $ pip install "runhouse[all]"
 
@@ -134,6 +135,36 @@ on it later in this tutorial.
                   instance_type="CPU:8",
                   provider="cheapest",      # options: "AWS", "GCP", "Azure", "Lambda", or "cheapest"
               )
+
+SageMaker Cluster
+~~~~~~~~~~~~~~~~~
+
+Runhouse facilitates easy access to existing or new SageMaker compute.
+Just provide your SageMaker execution role ARN or have it configured in your local environment.
+For more information on support SageMaker usage paths, see the :ref:`SageMakerCluster Class`.
+
+.. code:: python
+
+    # Launch a new SageMaker instance and keep it up indefinitely
+    cluster = rh.sagemaker_cluster(name='sm-cluster', autostop_mins=-1).save()
+
+    # Running a training job with a provided Estimator
+    pytorch_estimator = PyTorch(entry_point='train.py',
+                                role='arn:aws:iam::123456789012:role/MySageMakerRole',
+                                source_dir='/Users/myuser/dev/sagemaker',
+                                framework_version='1.8.1',
+                                py_version='py36',
+                                instance_type='ml.p3.2xlarge')
+
+    cluster = rh.sagemaker_cluster(name='sagemaker-cluster',
+                                   estimator=pytorch_estimator).save()
+
+.. note::
+
+    When providing an `estimator <https://sagemaker.readthedocs.io/en/stable/api/training/estimators.html>`_,
+    Runhouse will keep the cluster up even after a failure or after the
+    job has completed, based on the provided ``autotstop_mins``. More info in the :ref:`SageMaker Factory Method`.
+
 
 Secrets and Portability
 -----------------------

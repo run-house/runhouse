@@ -39,14 +39,18 @@ A SageMakerCluster is a cluster that uses a SageMaker instance under the hood.
 
 Runhouse currently supports two core usage paths for SageMaker clusters:
 
+- *Compute backend*: You can use SageMaker as a compute backend, just as you would a
+  :ref:`BYO (bring-your-own) <Cluster Class>` or an :ref:`on-demand cluster <OnDemandCluster Class>` cluster.
+  Runhouse will facilitate the creation of the SageMaker compute and will handle the creation of an SSH
+  connection to the instance. You can then use the instance as you would any other compute backend.
+
+.. raw:: html
+
+  <br>
+
 - *Dedicated training jobs*: You can use a SageMakerCluster class to run a training job on SageMaker compute.
   To do so, you will need to provide an
   `estimator <https://sagemaker.readthedocs.io/en/stable/api/training/estimators.html>`_.
-
-- *Compute backend*: You can use SageMaker as a compute backend, just as you would a
-  :ref:`BYO (bring-your-own) <Cluster>` or an :ref:`on-demand cluster <OnDemandCluster>` cluster.
-  Runhouse will facilitate the creation of the SageMaker compute and will handle the creation of an SSH
-  connection to the instance. You can then use the instance as you would any other compute backend.
 
 .. note::
 
@@ -64,7 +68,7 @@ Runhouse currently supports two core usage paths for SageMaker clusters:
 
 
 SageMaker Factory Method
-~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autofunction:: runhouse.sagemaker_cluster
 

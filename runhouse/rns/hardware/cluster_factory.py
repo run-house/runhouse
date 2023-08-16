@@ -203,6 +203,10 @@ def sagemaker_cluster(
 
     Example:
         >>> import runhouse as rh
+        >>> # Launch a new SageMaker instance and keep it up indefinitely
+        >>> c = rh.sagemaker_cluster(name='sm-cluster', autostop_mins=-1).save()
+
+        >>> # Running a training job with a provided Estimator
         >>> c = rh.sagemaker_cluster(name='sagemaker-cluster',
         >>>                          estimator=PyTorch(entry_point='train.py',
         >>>                                            role='arn:aws:iam::123456789012:role/MySageMakerRole',
