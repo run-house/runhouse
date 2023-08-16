@@ -29,6 +29,21 @@ class Cluster(Resource):
     RESOURCE_TYPE = "cluster"
     REQUEST_TIMEOUT = 5  # seconds
 
+    SERVER_LOGFILE = "~/.rh/server.log"
+    CLI_RESTART_CMD = "runhouse restart"
+    SERVER_START_CMD = "python3 -m runhouse.servers.http.http_server"
+    SERVER_STOP_CMD = f'pkill -f "{SERVER_START_CMD}"'
+    # 2>&1 redirects stderr to stdout
+    START_SCREEN_CMD = (
+            f"screen -dm bash -c \"{SERVER_START_CMD} |& tee -a '{SERVER_LOGFILE}' 2>&1\""
+        )
+    RAY_START_CMD = "ray start --head --port 6379"
+    # RAY_BOOTSTRAP_FILE = "~/ray_bootstrap_config.yaml"
+    # --autoscaling-config=~/ray_bootstrap_config.yaml
+    # We need to use this instead of ray stop to make sure we don't stop the SkyPilot ray server,
+    # which runs on other ports but is required to preserve autostop and correct cluster status.
+    RAY_KILL_CMD = 'pkill -f ".*ray.*6379.*"'
+
     def __init__(
         self,
         name,
@@ -445,11 +460,29 @@ class Cluster(Resource):
     #     connected = True
     #     print(f"SSH tunnel is open to {self.address}:{local_port}")
 
+    @classmethod
+    def _start_server_cmds(cls, restart, restart_ray, screen, create_logfile):
+        cmds = []
+        if restart:
+            cmds.append(cls.SERVER_STOP_CMD)
+        if restart_ray:
+            cmds.append(cls.RAY_KILL_CMD)
+            # TODO Add in BOOTSTRAP file if it exists?
+            cmds.append(cls.RAY_START_CMD)
+        if screen:
+            if create_logfile and not Path(cls.SERVER_LOGFILE).exists():
+                Path(cls.SERVER_LOGFILE).parent.mkdir(parents=True, exist_ok=True)
+                Path(cls.SERVER_LOGFILE).touch()
+            cmds.append(cls.START_SCREEN_CMD)
+        else:
+            cmds.append(cls.SERVER_START_CMD)
+        return cmds
+
     def restart_server(
         self,
         _rh_install_url: str = None,
         resync_rh: bool = True,
-        restart_ray: bool = False,
+        restart_ray: bool = True,
     ):
         """Restart the RPC server.
 
@@ -464,44 +497,11 @@ class Cluster(Resource):
 
         if resync_rh:
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
-        logfile = f"cluster_server_{self.name}.log"
-        http_server_cmd = "runhouse start"
-        kill_proc_cmd = f'pkill -f "{http_server_cmd}"'
-        # 2>&1 redirects stderr to stdout
-        screen_cmd = (
-            f"screen -dm bash -c \"{http_server_cmd} |& tee -a '~/.rh/{logfile}' 2>&1\""
-        )
-        cmds = [kill_proc_cmd]
-        if restart_ray:
-            ray_start_cmd = "ray start --head --port 6379 --autoscaling-config=~/ray_bootstrap_config.yaml"
-            # We need to use this instead of ray stop to make sure we don't stop the SkyPilot ray server,
-            # which runs on other ports but is required to preserve autostop and correct cluster status.
-            kill_ray_cmd = 'pkill -f ".*ray.*6379.*"'
-            if self.ips and len(self.ips) > 1:
-                raise NotImplementedError(
-                    "Starting Ray on a cluster with multiple nodes is not yet supported."
-                    "In the meantime, you can simply start the Ray cluster via the following instructions, "
-                    "and pass *only* the head node ip to the cluster constructor: \n"
-                    "https://docs.ray.io/en/latest/cluster/vms/user-guides/launching-clusters/on-premises.html#manually-set-up-a-ray-cluster"
-                )
-            cmds.append(kill_ray_cmd)
-            cmds.append(ray_start_cmd)
-        cmds.append(screen_cmd)
 
-        # If we need different commands for debian or ubuntu, we can use this:
-        # Need to get actual provider in case provider == 'cheapest'
-        # handle = sky.global_user_state.get_cluster_from_name(self.name)['handle']
-        # cloud_provider = str(handle.launched_resources.cloud)
-        # ubuntu_kill_proc_cmd = f'fuser -k {UnaryService.DEFAULT_PORT}/tcp'
-        # debian_kill_proc_cmd = "kill -9 $(netstat -anp | grep 50052 | grep -o '[0-9]*/' | sed 's+/$++')"
-        # f'kill -9 $(lsof -t -i:{UnaryService.DEFAULT_PORT})'
-        # kill_proc_at_port_cmd = debian_kill_proc_cmd if cloud_provider == 'GCP' \
-        #     else ubuntu_kill_proc_cmd
-
-        status_codes = self.run(
-            commands=cmds,
-            stream_logs=True,
-        )
+        cmd = self.CLI_RESTART_CMD + (" --no-restart-ray" if not restart_ray else "")
+        status_codes = self.run(commands=[cmd])
+        if not status_codes[0][0] == 0:
+            raise ValueError(f"Failed to restart server {self.name}.")
         # As of 2023-15-May still seems we need this.
         time.sleep(5)
         return status_codes
