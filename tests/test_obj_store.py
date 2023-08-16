@@ -88,7 +88,7 @@ def test_call_module_method(ondemand_cpu_cluster, env):
     # Test iterator
     ondemand_cpu_cluster.put("config_dict", list(numpy_config.keys()), env=env)
     res = ondemand_cpu_cluster.call_module_method(
-        "config_dict", "__iter__", stream_logs=True
+        "config_dict", "__iter__"
     )
     # Checks that all the keys in numpy_config were returned
     inspect.isgenerator(res)

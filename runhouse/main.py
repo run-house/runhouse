@@ -119,45 +119,52 @@ def load_cluster(cluster_name: str):
         c._update_from_sky_status(dryrun=True)
 
 
-@app.command()
-def start(
-    restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
-    screen: bool = typer.Option(False, help="Start the server in a screen"),
-):
-    http_server_cmd = "python3 -m runhouse.servers.http.http_server"
-    kill_proc_cmd = ["pkill", "-f", f"{http_server_cmd}"]
-    subprocess.run(kill_proc_cmd)
+def _start_server(restart, restart_ray, screen, create_logfile=True):
+    from runhouse.rns.hardware.cluster import Cluster
 
-    if restart_ray:
-        subprocess.run(["ray", "stop"])
-        subprocess.run(["ray", "start", "--head"])
+    cmds = Cluster._start_server_cmds(restart=restart, restart_ray=restart_ray, screen=screen, create_logfile=create_logfile)
 
-    start_server_cmd = (
-        f'screen -dm bash -c "{http_server_cmd}"' if screen else http_server_cmd
-    )
     try:
-        result = subprocess.run(shlex.split(start_server_cmd), text=True)
-        if result.returncode != 0:
-            console.print(
-                f"Error while executing `{start_server_cmd}`: {result.stderr}"
-            )
-            raise typer.Exit(1)
+        # We do these one by one so it's more obvious where the error is if there is one
+        for cmd in cmds:
+            console.print(f"Executing `{cmd}`")
+            result = subprocess.run(shlex.split(cmd), text=True)
+            # We don't want to raise an error if the server kill fails, as it may simply not be running
+            if result.returncode != 0 and "pkill" not in cmd:
+                console.print(
+                    f"Error while executing `{cmd}`"
+                )
+                raise typer.Exit(1)
     except FileNotFoundError:
         console.print(
             "python3 command was not found. Make sure you have python3 installed."
         )
         raise typer.Exit(1)
 
+@app.command()
+def start(
+    restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
+    screen: bool = typer.Option(False, help="Start the server in a screen"),
+):
+    """Start the HTTP server on the cluster."""
+    _start_server(restart=False, restart_ray=restart_ray, screen=screen, create_logfile=True)
+
 
 @app.command()
-def restart_server(
-    cluster_name: str,
-    restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
-    resync_rh: bool = typer.Option(False, help="Resync the Runhouse package"),
+def restart(
+    name: str = typer.Option(None, help="A *saved* remote cluster object to restart."),
+    restart_ray: bool = typer.Option(True, help="Restart the Ray runtime"),
+    screen: bool = typer.Option(True, help="Start the server in a screen. Only relevant when restarting locally."),
+    resync_rh: bool = typer.Option(False, help="Resync the Runhouse package. Only relevant when restarting remotely."),
 ):
-    """Restart the gRPC server on a cluster."""
-    c = cluster(name=cluster_name)
-    c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray)
+    """Restart the HTTP server on the cluster."""
+    if name:
+        c = cluster(name=name)
+        c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray)
+        return
+
+    _start_server(restart=True, restart_ray=restart_ray, screen=screen, create_logfile=True)
+
 
 
 @app.callback()

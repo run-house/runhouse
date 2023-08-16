@@ -157,7 +157,7 @@ def call_fn_by_type(
     return res, obj_ref, run_name
 
 
-def get_fn_from_pointers(module_path, module_name, fn_name):
+def get_fn_from_pointers(module_path, module_name, fn_name, quiet=False):
 
     if module_name == "notebook":
         fn = fn_name  # already unpickled
@@ -165,16 +165,19 @@ def get_fn_from_pointers(module_path, module_name, fn_name):
         if module_path:
             abs_path = str((Path.home() / module_path).expanduser().resolve())
             sys.path.append(abs_path)
-            logger.info(f"Appending {module_path} to sys.path")
+            if not quiet:
+                logger.info(f"Appending {module_path} to sys.path")
 
         if module_name in rh_config.obj_store.imported_modules:
             importlib.invalidate_caches()
             rh_config.obj_store.imported_modules[module_name] = importlib.reload(
                 rh_config.obj_store.imported_modules[module_name]
             )
-            logger.info(f"Reloaded module {module_name}")
+            if not quiet:
+                logger.info(f"Reloaded module {module_name}")
         else:
-            logger.info(f"Importing module {module_name}")
+            if not quiet:
+                logger.info(f"Importing module {module_name}")
             rh_config.obj_store.imported_modules[module_name] = importlib.import_module(
                 module_name
             )

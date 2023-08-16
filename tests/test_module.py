@@ -176,7 +176,7 @@ def test_module_from_subclass(ondemand_cpu_cluster, env):
 
     # Check that stdout was captured. Skip the last result because sometimes we
     # don't catch it and it makes the test flaky.
-    for i in range(remote_df.size):
+    for i in range(remote_df.size - 1):
         assert f"Hello from the cluster stdout! {i}" in out
         assert f"Hello from the cluster logs! {i}" in out
 
@@ -195,6 +195,16 @@ def test_module_from_subclass(ondemand_cpu_cluster, env):
 
     remote_df.size = 20
     assert remote_df.fetch.size == 20
+
+    del remote_df
+
+    # Test get_or_to
+    remote_df = SlowPandas(size=3).get_or_to(ondemand_cpu_cluster, env=env, name="SlowPandas")
+    assert remote_df.system.config_for_rns == ondemand_cpu_cluster.config_for_rns
+    assert remote_df.cpu_count(local=False, stream_logs=False) == 2
+    # Check that size is unchanged from when we set it to 20 above
+    assert remote_df.fetch.size == 20
+
 
 
 @pytest.mark.clustertest

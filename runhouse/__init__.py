@@ -52,4 +52,4 @@ if _current_cluster():
     ray.init(ignore_reinit_error=True)
     obj_store.set_name("base")
 
-__version__ = "0.0.10"
+__version__ = "0.0.11"

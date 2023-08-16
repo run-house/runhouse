@@ -176,7 +176,7 @@ class Function(Module):
     def _is_async(self) -> Any:
         if not self.fn_pointers:
             return False
-        fn = get_fn_from_pointers(*self.fn_pointers)
+        fn = get_fn_from_pointers(*self.fn_pointers, quiet=True)
         if not fn:
             return False
         return inspect.iscoroutinefunction(fn) or inspect.isasyncgenfunction(fn)
@@ -185,7 +185,7 @@ class Function(Module):
     def _is_async_gen(self) -> Any:
         if not self.fn_pointers:
             return False
-        fn = get_fn_from_pointers(*self.fn_pointers)
+        fn = get_fn_from_pointers(*self.fn_pointers, quiet=True)
         if not fn:
             return False
         return inspect.isasyncgenfunction(fn)
