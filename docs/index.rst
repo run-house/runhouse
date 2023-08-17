@@ -81,6 +81,7 @@ Table of Contents
    :caption: Additional Resources
 
    debugging_logging
+   troubleshooting
    data_collection
    Source Code <https://github.com/run-house/runhouse>
    REST API Guide <https://api.run.house/docs>
