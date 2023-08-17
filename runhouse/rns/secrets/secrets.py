@@ -225,9 +225,7 @@ class Secrets:
 
         if not configured_secrets or len(configured_secrets) < len(providers):
             # If no secrets found in the enabled providers' credentials files check if they exist in Vault
-            missing_providers = list(
-                set(providers) - set(list(configured_secrets))
-            )
+            missing_providers = list(set(providers) - set(list(configured_secrets)))
             secrets_for_missing_providers: dict = cls.download_into_env(
                 save_locally=False, providers=missing_providers
             )

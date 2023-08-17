@@ -687,6 +687,7 @@ class SageMakerCluster(Cluster):
             return self.estimator.role
 
         try:
+            # https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-roles.html
             return sagemaker.get_execution_role()
         except Exception as e:
             raise e
