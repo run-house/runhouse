@@ -1,5 +1,6 @@
 import copy
 import logging
+import os
 import shlex
 import subprocess
 from pathlib import Path
@@ -12,6 +13,7 @@ from runhouse.rns.hardware import Cluster
 from runhouse.rns.packages import Package
 from runhouse.rns.resource import Resource
 
+from runhouse.rns.utils.env import _env_vars_from_file
 from runhouse.rns.utils.hardware import _get_cluster_from
 
 
@@ -43,6 +45,10 @@ class Env(Resource):
         self.env_vars = env_vars
         self.working_dir = working_dir
 
+    @property
+    def env_name(self):
+        return self.name or "base"
+
     @staticmethod
     def from_config(config: dict, dryrun: bool = False):
         """Create an Env object from a config dict"""
@@ -64,6 +70,11 @@ class Env(Resource):
 
         return Env(**config, dryrun=dryrun)
 
+    @staticmethod
+    def _set_env_vars(env_vars):
+        for k, v in env_vars.items():
+            os.environ[k] = v
+
     @property
     def config_for_rns(self):
         config = super().config_for_rns
@@ -76,6 +87,7 @@ class Env(Resource):
                 "setup_cmds": self.setup_cmds,
                 "env_vars": self.env_vars,
                 "working_dir": self._resource_string_for_subconfig(self.working_dir),
+                "env_name": self.env_name,
             }
         )
         return config
@@ -107,13 +119,6 @@ class Env(Resource):
         if self.working_dir:
             return new_reqs[:-1], new_reqs[-1]
         return new_reqs, None
-
-    def _setup_env(self, system: Cluster):
-        """Install packages and run setup commands on the cluster."""
-        if self.reqs:
-            system.install_packages(self.reqs)
-        if self.setup_cmds:
-            system.run(self.setup_cmds)
 
     def install(self, force=False):
         """Locally install packages and run setup commands."""
@@ -175,6 +180,13 @@ class Env(Resource):
 
         if isinstance(system, Cluster):
             key = system.put_resource(new_env)
+            env_vars = (
+                _env_vars_from_file(self.env_vars)
+                if isinstance(self.env_vars, str)
+                else self.env_vars
+            )
+            if env_vars:
+                system.call_module_method(key, "_set_env_vars", env_vars)
             system.call(key, "install", force=force_install)
 
         return new_env

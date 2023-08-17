@@ -84,6 +84,7 @@ class Function(Module):
         # Variables below are deprecated
         reqs: Optional[List[str]] = None,
         setup_cmds: Optional[List[str]] = [],
+        force_install: bool = False,
     ):
         """
         Set up a Function and Env on the given system.
@@ -138,7 +139,7 @@ class Function(Module):
         new_function.name = new_function.name or self.fn_pointers[2]
         # TODO
         # env.name = env.name or (new_function.name + "_env")
-        new_env = env.to(new_function.system)
+        new_env = env.to(new_function.system, force_install=force_install)
         new_function.env = new_env
 
         new_function.dryrun = True

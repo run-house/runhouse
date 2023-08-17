@@ -71,6 +71,7 @@ class Cluster(Resource):
         self.client = None
 
         if not dryrun and self.address:
+            self._sync_runhouse_to_cluster()
             # OnDemandCluster will start ray itself, but will also set address later, so won't reach here.
             self.check_server()
 
@@ -245,7 +246,7 @@ class Cluster(Resource):
         env = (
             resource.env
             if hasattr(resource, "env")
-            else resource.name
+            else resource.name or resource.env_name
             if resource.RESOURCE_TYPE == "env"
             else None
         )

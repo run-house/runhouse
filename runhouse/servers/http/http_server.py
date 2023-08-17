@@ -37,10 +37,12 @@ class HTTPServer:
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
 
     def __init__(self, conda_env=None, *args, **kwargs):
+        runtime_env = {"conda": conda_env} if conda_env else {}
+
         if not ray.is_initialized():
             ray.init(
                 ignore_reinit_error=True,
-                runtime_env={"conda": conda_env} if conda_env else {},
+                runtime_env=runtime_env,
                 namespace="runhouse",
             )
 
@@ -53,7 +55,7 @@ class HTTPServer:
         base_env = self.get_env_servlet(
             env_name="base",
             create=True,
-            runtime_env={"conda": conda_env} if conda_env else {},
+            runtime_env=runtime_env,
         )
         env_servlets["base"] = base_env
         from runhouse.rh_config import obj_store
@@ -175,6 +177,24 @@ class HTTPServer:
     @staticmethod
     @app.post("/resource")
     def put_resource(message: Message):
+        # if resource is env and not yet a servlet, construct env servlet
+        if message.env and message.env not in env_servlets.keys():
+            resource = b64_unpickle(message.data)[0]
+            if resource["resource_type"] == "env":
+                runtime_env = (
+                    {"conda_env": resource["env_name"]}
+                    if resource["resource_subtype"] == "CondaEnv"
+                    else {}
+                )
+
+                new_env = HTTPServer.get_env_servlet(
+                    env_name=message.env,
+                    create=True,
+                    runtime_env=runtime_env,
+                )
+
+                env_servlets[message.env] = new_env
+
         return HTTPServer.call_in_env_servlet(
             "put_resource",
             [message],

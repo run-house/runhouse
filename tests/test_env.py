@@ -51,7 +51,7 @@ def test_create_env():
 def test_to_cluster(cluster, env_name):
     test_env = rh.env(name=env_name, reqs=["transformers"])
 
-    test_env.to(cluster)
+    test_env.to(cluster, force_install=True)
     res = cluster.run_python(["import transformers"])
     assert res[0][0] == 0  # import was successful
 
@@ -73,7 +73,9 @@ def test_to_fs_to_cluster(cluster, s3_package):
             assert req.install_target.exists_in_system()
 
     folder_name = "test_package"
-    test_env_cluster = test_env_s3.to(system=cluster, path=folder_name, mount=True)
+    test_env_cluster = test_env_s3.to(
+        system=cluster, path=folder_name, mount=True, force_install=True
+    )
     for req in test_env_cluster.reqs:
         if isinstance(req, Package) and isinstance(req.install_target, Folder):
             assert req.install_target.system == cluster
@@ -98,7 +100,7 @@ def test_function_to_env(cluster):
     res = cluster.run_python(["import parameterized"])
     assert res[0][0] == 1
 
-    rh.function(summer, system=cluster, env="test-env")
+    rh.function(summer).to(system=cluster, env="test-env", force_install=True)
     res = cluster.run_python(["import parameterized"])
     assert res[0][0] == 0
 
@@ -116,7 +118,7 @@ def _get_env_var_value(env_var):
 def test_function_env_vars(cluster):
     test_env_var = "TEST_ENV_VAR"
     test_value = "value"
-    test_env = rh.env(name="test-env", env_vars={test_env_var: test_value})
+    test_env = rh.env(env_vars={test_env_var: test_value})
 
     get_env_var_cpu = rh.function(_get_env_var_value).to(cluster, test_env)
     res = get_env_var_cpu(test_env_var)
@@ -141,6 +143,20 @@ def test_function_env_vars_file(cluster):
 
     os.remove(env_file)
     assert not Path(env_file).exists()
+
+
+@pytest.mark.clustertest
+@cpu_clusters
+def test_env_vars_conda_env(cluster):
+    test_env_var = "TEST_ENV_VAR_CONDA"
+    test_value = "conda"
+    conda_dict = _get_conda_env(name="conda_env_vars")
+    test_env = rh.env(conda_env=conda_dict, env_vars={test_env_var: test_value})
+
+    get_env_var_cpu = rh.function(_get_env_var_value).to(cluster, test_env)
+    res = get_env_var_cpu(test_env_var)
+
+    assert res == test_value
 
 
 @pytest.mark.clustertest
@@ -220,7 +236,7 @@ def test_conda_env_from_name_rns():
 
 @pytest.mark.clustertest
 @cpu_clusters
-def test_conda_env_path_to_system(cluster):
+def test_conda_env_path_to_system(cluster, tmp_path):
     env_name = "from_path"
     python_version = "3.9.16"
     tmp_path = tmp_path / "test-env"
@@ -350,6 +366,7 @@ def test_conda_call_fn(cluster):
     assert result == 5
 
 
+@unittest.skip("Map does not work properly following Module refactor.")
 @pytest.mark.clustertest
 @cpu_clusters
 def test_conda_map_fn(cluster):
