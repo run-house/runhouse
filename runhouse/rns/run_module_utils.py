@@ -164,7 +164,7 @@ def get_fn_from_pointers(module_path, module_name, fn_name, quiet=False):
     else:
         if module_path:
             abs_path = str((Path.home() / module_path).expanduser().resolve())
-            sys.path.append(abs_path)
+            sys.path.insert(0, abs_path)
             if not quiet:
                 logger.info(f"Appending {module_path} to sys.path")
 

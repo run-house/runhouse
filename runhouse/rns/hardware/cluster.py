@@ -70,9 +70,9 @@ class Cluster(Resource):
         self._rpc_tunnel = None
         self.client = None
 
-        if not dryrun and self.address:
-            # OnDemandCluster will start ray itself, but will also set address later, so won't reach here.
-            self.check_server()
+        # if not dryrun and self.address:
+        #     # OnDemandCluster will start ray itself, but will also set address later, so won't reach here.
+        #     self.check_server()
 
     def save_config_to_cluster(self):
         import json

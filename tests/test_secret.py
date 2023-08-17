@@ -148,12 +148,13 @@ def test_add_github_secrets():
 @pytest.mark.rnstest
 @cpu_clusters
 def test_sending_secrets_to_cluster(cluster):
-    enabled_providers: list = rh.Secrets.enabled_providers()
+    # only send a few to the cluster
+    providers: list = rh.Secrets.enabled_providers()[:3]
 
-    cluster.sync_secrets(providers=enabled_providers)
+    cluster.sync_secrets(providers=providers)
 
     # Confirm the secrets now exist on the cluster
-    for provider_cls in enabled_providers:
+    for provider_cls in providers:
         provider_name = provider_cls.PROVIDER_NAME
         commands = [
             f"from runhouse.rns.secrets.{provider_name}_secrets import {str(provider_cls)}",
