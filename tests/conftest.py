@@ -318,6 +318,7 @@ def ondemand_cpu_cluster():
 @pytest.fixture(scope="session")
 def sm_cluster():
     import dotenv
+
     dotenv.load_dotenv()
 
     c = (

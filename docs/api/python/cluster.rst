@@ -57,8 +57,8 @@ Runhouse currently supports two core usage paths for SageMaker clusters:
     Runhouse requires an AWS IAM role (either name or full ARN) whose credentials have adequate permissions to
     create create SageMaker endpoints and access AWS resources.
 
-    This can be specified with the ``role`` attribute. If not provided, Runhouse will use the SageMaker default
-    role configured in your local environment.
+    Please see the :ref:`SageMaker Clusters <SageMaker Clusters>` section for more specific instructions on
+    setting up the cluster.
 
 .. autoclass:: runhouse.SageMakerCluster
    :members:
@@ -75,10 +75,16 @@ SageMaker Factory Method
 
 Hardware Setup
 ~~~~~~~~~~~~~~
-For BYO Clusters, no additional setup is required. You will just need to have the IP address for the cluster
+
+BYO Clusters
+------------
+No additional setup is required. You will just need to have the IP address for the cluster
 and the path to SSH credentials ready to be used for the cluster initialization.
 
-For On-Demand Clusters, which use SkyPilot to automatically spin up and down clusters on the cloud, you will
+On-Demand Clusters
+------------------
+
+On-Demand clusters use SkyPilot to automatically spin up and down clusters on the cloud. You will
 need to first set up cloud access on your local machine:
 
 Run ``sky check`` to see which cloud providers are enabled, and how to set up cloud credentials for each of the
@@ -90,3 +96,33 @@ providers.
 
 For a more in depth tutorial on setting up individual cloud credentials, you can refer to
 `SkyPilot setup docs <https://skypilot.readthedocs.io/en/latest/getting-started/installation.html#cloud-account-setup>`_.
+
+SageMaker Clusters
+------------------
+
+SageMaker clusters require installing `AWS CLI V2 <https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html>`_ and
+configuring the SageMaker IAM role with the
+`AWS Systems Manager <https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent.html>`_.
+
+**AWS CLI V2**
+
+1. `Uninstall <https://docs.aws.amazon.com/cli/latest/userguide/cliv2-migration-instructions.html#cliv2-migration-instructions-migrate>`_
+   AWS CLI V1 if you already have it installed.
+
+2. Install AWS CLI V2 on your system.
+   You can find instructions for your OS `here <https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html>`_.
+
+3. Install the `AWS Session manager plugin <https://docs.aws.amazon.com/systems-manager/latest/userguide/install-plugin-macos-overview.html>`_.
+
+To confirm the installation succeeded, run ``aws --version`` in the command line. You should see something like:
+
+.. code-block:: cli
+
+    aws-cli/2.13.8 Python/3.11.4 Darwin/21.3.0 source/arm64 prompt/off
+
+**SSM Setup**
+
+The AWS Systems Manager service is used to create SSH tunnels with the SageMaker cluster.
+
+To configure your SageMaker IAM role with the AWS Systems Manager, please
+refer to `these instructions <https://github.com/aws-samples/sagemaker-ssh-helper/blob/main/IAM_SSM_Setup.md>`_.
