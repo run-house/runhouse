@@ -3,6 +3,7 @@ import os
 import subprocess
 import time
 import warnings
+from pathlib import Path
 
 import yaml
 
@@ -71,19 +72,24 @@ def read_cluster_config():
 
 if __name__ == "__main__":
     print("Launching instance from script")
-    launched_time = time.time()
+    server_log = Path("~/.rh/server.log").expanduser()
+    server_log.parent.mkdir(parents=True, exist_ok=True)
+    server_log.touch()
+
+    last_active = time.time()
     last_autostop_value = None
     training_job_completed = False
     path_to_job = None
     num_attempts = 0
 
     while True:
+        last_active = server_log.stat().st_mtime
         config = read_cluster_config()
 
         autostop = int(config.get("autostop_mins", DEFAULT_AUTOSTOP))
 
         if autostop != -1:
-            time_to_autostop = launched_time + (autostop * 60)
+            time_to_autostop = last_active + (autostop * 60)
             current_time = time.time()
 
             if current_time >= time_to_autostop:
@@ -93,7 +99,7 @@ if __name__ == "__main__":
             # Reset launch time if autostop was updated
             if last_autostop_value is not None and autostop != last_autostop_value:
                 print(f"Resetting autostop from {last_autostop_value} to {autostop}")
-                launched_time = current_time
+                last_active = current_time
 
             last_autostop_value = autostop
 

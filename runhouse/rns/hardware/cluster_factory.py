@@ -220,12 +220,14 @@ def sagemaker_cluster(
         >>> reloaded_cluster = rh.sagemaker_cluster(name="sagemaker-cluster")
     """
     if name:
-        alt_options = dict(role=role,
-                           estimator=estimator,
-                           instance_type=instance_type,
-                           autostop_mins=autostop_mins,
-                           job_name=job_name,
-                           instance_count=instance_count)
+        alt_options = dict(
+            role=role,
+            estimator=estimator,
+            instance_type=instance_type,
+            autostop_mins=autostop_mins,
+            job_name=job_name,
+            instance_count=instance_count,
+        )
         # Filter out None/default values
         alt_options = {k: v for k, v in alt_options.items() if v is not None}
         try:

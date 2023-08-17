@@ -181,6 +181,7 @@ class Resource:
         no error is raised, while if alt_options are not provided and the config is not found, an error is raised.
 
         """
+
         def str_dict_or_resource_to_str(val):
             if isinstance(val, Resource):
                 return val.rns_address
@@ -199,7 +200,9 @@ class Resource:
 
         for key, value in alt_options.items():
             if key in config:
-                if str_dict_or_resource_to_str(value) != str_dict_or_resource_to_str(config[key]):
+                if str_dict_or_resource_to_str(value) != str_dict_or_resource_to_str(
+                    config[key]
+                ):
                     return None
         return config
 
