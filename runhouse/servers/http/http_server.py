@@ -5,7 +5,7 @@ import subprocess
 import time
 import traceback
 from pathlib import Path
-from typing import Annotated, Any, Dict, List, Optional
+from typing import Optional
 
 import ray
 import requests
@@ -186,12 +186,13 @@ class HTTPServer:
 
     @staticmethod
     @app.post("/{module}/{method}")
-    def call_module_method(module, method=None, message: Annotated[Any, Body()] = None):
+    def call_module_method(module, method=None, message: dict = Body(...)):
         # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
             import argparse
 
+            # This translates the json dict into an object that we can can access with dot notation, e.g. message.key
             message = argparse.Namespace(**message) if message else None
             method = None if method == "None" else method
             # If this is a "get" request to just return the module, do not stream logs or save by default
@@ -508,10 +509,11 @@ class HTTPServer:
     async def call(
         module,
         method=None,
-        args: Annotated[List, Body()] = None,
-        kwargs: Annotated[Dict, Body()] = None,
+        args: dict = Body(),
         serialization="json",
     ):
+        kwargs = args.get("kwargs", {})
+        args = args.get("args", [])
         resp = HTTPServer.call_in_env_servlet(
             "call",
             [module, method, args, kwargs, serialization],
