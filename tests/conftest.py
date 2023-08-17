@@ -317,6 +317,9 @@ def ondemand_cpu_cluster():
 
 @pytest.fixture(scope="session")
 def sm_cluster():
+    import dotenv
+    dotenv.load_dotenv()
+
     c = (
         rh.sagemaker_cluster(name="rh-sagemaker", role=os.getenv("AWS_ROLE_ARN"))
         .up_if_not()
@@ -559,20 +562,3 @@ def create_gcs_bucket(bucket_name: str):
 
     gcs_store = GcsStore(name=bucket_name, source="")
     return gcs_store
-
-
-{
-    "name": "/jlewitt1/rh-sagemaker",
-    "resource_type": "cluster",
-    "resource_subtype": "SageMakerCluster",
-    "provenance": None,
-    "ips": [None],
-    "ssh_creds": {},
-    "instance_id": "mi-0e6b8f1b4564e6b23",
-    "role": "arn:aws:iam::172657097474:role/service-role/AmazonSageMaker-ExecutionRole-20230717T192142",
-    "job_name": "pytorch-training-2023-08-16-18-36-55-829",
-    "instance_type": "ml.m5.large",
-    "instance_count": 1,
-    "autostop_mins": -1,
-    "connection_wait_time": 0,
-}
