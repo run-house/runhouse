@@ -219,15 +219,19 @@ def sagemaker_cluster(
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.sagemaker_cluster(name="sagemaker-cluster")
     """
-    if (
-        name
-        and not any([role, estimator, instance_type, autostop_mins, job_name])
-        and connection_wait_time is None
-        and instance_count is None
-    ):
+    if name:
+        alt_options = dict(role=role,
+                           estimator=estimator,
+                           instance_type=instance_type,
+                           autostop_mins=autostop_mins,
+                           job_name=job_name,
+                           instance_count=instance_count)
+        # Filter out None/default values
+        alt_options = {k: v for k, v in alt_options.items() if v is not None}
         try:
-            # If only the name is provided try to first reload the existing config
-            return Cluster.from_name(name, dryrun)
+            c = SageMakerCluster.from_name(name, dryrun, alt_options=alt_options)
+            if c:
+                return c
         except ValueError:
             pass
 

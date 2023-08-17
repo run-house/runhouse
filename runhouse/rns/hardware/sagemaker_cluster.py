@@ -303,6 +303,10 @@ class SageMakerCluster(Cluster):
             >>> rh.sagemaker_cluster("sagemaker-cluster").up_if_not()
         """
         if not self.is_up():
+            self.estimator = None
+            self.address = None
+            self.job_name = None
+            self.instance_id = None
             self.up()
         return self
 
@@ -382,30 +386,31 @@ class SageMakerCluster(Cluster):
                     f"-L localhost:{local_port}:localhost:{local_port} "
                     f"-L localhost:{ssh_port}:localhost:22"
                 )
+                logger.info(f"Running command: {command}")
 
                 # Define an event to signal completion of the SSH tunnel setup
                 tunnel_setup_complete = threading.Event()
 
                 # Manually allocate a pseudo-terminal to prevent a "pseudo-terminal not allocated" error
-                master_fd, slave_fd = pty.openpty()
+                head_fd, worker_fd = pty.openpty()
 
                 def setup_ssh_tunnel():
                     # Execute the command with the pseudo-terminal in a separate thread
                     process = subprocess.Popen(
                         command,
                         shell=True,
-                        stdin=slave_fd,
+                        stdin=worker_fd,
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
                         close_fds=True,
                         preexec_fn=os.setsid,
                     )
 
-                    # Close the slave file descriptor as we don't need it
-                    os.close(slave_fd)
+                    # Close the worker file descriptor as we don't need it
+                    os.close(worker_fd)
 
                     # Close the master file descriptor after reading the output
-                    os.close(master_fd)
+                    os.close(head_fd)
 
                     # Wait for the process to complete and collect its return code
                     process.wait()
@@ -459,32 +464,32 @@ class SageMakerCluster(Cluster):
         Example:
             >>> rh.sagemaker_cluster(name="sagemaker-cluster").ssh()
         """
-        master_fd, slave_fd = pty.openpty()
+        head_fd, worker_fd = pty.openpty()
         ssh_process = subprocess.Popen(
             ["ssh", self.name],
-            stdin=slave_fd,
-            stdout=slave_fd,
-            stderr=slave_fd,
+            stdin=worker_fd,
+            stdout=worker_fd,
+            stderr=worker_fd,
             universal_newlines=True,
         )
 
-        # Close the slave_fd in the parent process as it's not needed there
-        os.close(slave_fd)
+        # Close the worker_fd in the parent process as it's not needed there
+        os.close(worker_fd)
 
         # Wait for the SSH process to initialize
-        select.select([master_fd], [], [])
+        select.select([head_fd], [], [])
 
-        # Interact with the SSH process through the master_fd
+        # Interact with the SSH process through the head_fd
         try:
             while True:
-                if master_fd in select.select([master_fd], [], [], 0)[0]:
-                    output = os.read(master_fd, 1024).decode()
+                if head_fd in select.select([head_fd], [], [], 0)[0]:
+                    output = os.read(head_fd, 1024).decode()
                     print(output, end="")
 
                 if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
                     user_input = sys.stdin.readline()
                     try:
-                        os.write(master_fd, user_input.encode())
+                        os.write(head_fd, user_input.encode())
                     except OSError:
                         pass
 
@@ -494,8 +499,8 @@ class SageMakerCluster(Cluster):
         except Exception as e:
             raise e
         finally:
-            # Close the master_fd and terminate the SSH process when done
-            os.close(master_fd)
+            # Close the head_fd and terminate the SSH process when done
+            os.close(head_fd)
             ssh_process.terminate()
 
     def _create_launch_estimator(self):
