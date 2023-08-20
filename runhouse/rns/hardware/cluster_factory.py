@@ -162,6 +162,7 @@ def sagemaker_cluster(
     role: str = None,
     instance_type: str = None,
     instance_count: int = None,
+    image_uri: str = None,
     autostop_mins: int = None,
     connection_wait_time: int = None,
     estimator: Union["sagemaker.estimator.EstimatorBase", Dict] = None,
@@ -181,6 +182,8 @@ def sagemaker_cluster(
             (Default: ``ml.m5.large``.)
         instance_count (int, optional): Number of instances to use for the cluster.
             (Default: ``1``.)
+        image_uri (str, optional): Image to use for the cluster instead of using the default SageMaker image which
+            will be based on the framework_version and py_version. Can be an ECR url or dockerhub image and tag.
         estimator (Union[str, sagemaker.estimator.EstimatorBase], optional): Estimator to use for a dedicated
             training job. Leave as ``None`` if launching the compute without running a dedicated job.
             More info on creating an estimator `here
@@ -222,6 +225,7 @@ def sagemaker_cluster(
     if name:
         alt_options = dict(
             role=role,
+            image_uri=image_uri,
             estimator=estimator,
             instance_type=instance_type,
             autostop_mins=autostop_mins,
@@ -250,6 +254,7 @@ def sagemaker_cluster(
         job_name=job_name,
         instance_type=instance_type,
         instance_count=instance_count,
+        image_uri=image_uri,
         autostop_mins=autostop_mins,
         connection_wait_time=connection_wait_time,
         dryrun=dryrun,

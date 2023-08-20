@@ -132,7 +132,10 @@ def test_run_function_on_sagemaker(sm_cluster):
 
 @pytest.mark.clustertest
 def test_create_and_run_sagemaker_training_job(sm_source_dir, sm_entry_point):
+    import dotenv
     from sagemaker.pytorch import PyTorch
+
+    dotenv.load_dotenv()
 
     cluster_name = "rh-sagemaker-training"
 

@@ -38,6 +38,7 @@ class SageMakerCluster(Cluster):
     DEFAULT_INSTANCE_TYPE = "ml.m5.large"
     DEFAULT_REGION = "us-east-1"
     DEFAULT_USER = "root"
+    ECR_URL = "763104351884.dkr.ecr.us-east-1.amazonaws.com"
 
     # Default path for any estimator source code copied onto the cluster
     ESTIMATOR_SRC_CODE_PATH = "/opt/ml/code"
@@ -49,10 +50,11 @@ class SageMakerCluster(Cluster):
 
     def __init__(
         self,
-        name,
+        name: str,
         role: str = None,
         instance_type: str = None,
         instance_count: int = None,
+        image_uri: str = None,
         autostop_mins: int = None,
         connection_wait_time: int = None,
         estimator: Union["EstimatorBase", Dict] = None,
@@ -94,6 +96,7 @@ class SageMakerCluster(Cluster):
 
         self.estimator = self._load_estimator(estimator)
         self.role = self._set_role(role)
+        self.image_uri = self._set_image_uri(image_uri)
 
         # Note: Setting instance ID as cluster IP for compatibility with Cluster parent class methods
         super().__init__(name=name, ips=[self.instance_id], ssh_creds={}, dryrun=dryrun)
@@ -108,6 +111,7 @@ class SageMakerCluster(Cluster):
                 "job_name": self.job_name,
                 "instance_type": self.instance_type,
                 "instance_count": self.instance_count,
+                "image_uri": self.image_uri,
                 "autostop_mins": self.autostop_mins,
                 "connection_wait_time": self.connection_wait_time,
             }
@@ -444,6 +448,9 @@ class SageMakerCluster(Cluster):
                 # Start the SSH tunnel
                 ssh_tunnel.start()
 
+                # Update the SSH config for the cluster with the connected SSH port
+                self._update_ssh_config_entry(port=ssh_port)
+
                 logger.info(
                     "SSH connection has been successfully created with the cluster"
                 )
@@ -536,6 +543,7 @@ class SageMakerCluster(Cluster):
                 "framework_version": "1.9.1",
                 "py_version": "py38",
                 "role": self.role,
+                "image_uri": self.image_uri,
                 "entry_point": default_entry_point,
                 "source_dir": default_source_dir,
                 "instance_type": self.instance_type,
@@ -642,16 +650,6 @@ class SageMakerCluster(Cluster):
             stdout = stdout.read().decode()
             stderr = stderr.read().decode()
 
-            # TODO [JL] - this only seems to happen on SageMaker GPUs, need to investigate further
-            # NOTE: there seems to be an issue with some SageMaker GPUs post installation script which leads to:
-            # "installed install-info package post-installation script subprocess returned error exit status 2"
-            # SageMaker populates the /etc/environment for setting env vars which may be corrupt - if this happens
-            # we get around it by creating a new empty env file and re-running the SSH command
-            if "/usr/bin/dpkg returned an error code" in stderr:
-                self._run_command_with_ssh_client(
-                    "sudo mv /etc/environment /etc/environment_broken "
-                    f"&& sudo touch /etc/environment && {command}"
-                )
             return return_code, stdout, stderr
 
         except paramiko.BadHostKeyException as e:
@@ -660,6 +658,7 @@ class SageMakerCluster(Cluster):
             logger.warning(e)
             self._filter_known_hosts()
             self._run_command_with_ssh_client(command=command)
+
         except Exception as e:
             msg = (
                 "Error occurred: {}\n\n"
@@ -679,7 +678,9 @@ class SageMakerCluster(Cluster):
 
     def _set_role(self, role: str = None):
         """Set the role required for launching and connecting to the SageMaker instance. If no role is provided
-        explicitly or via the estimator, try using the default SageMaker role configured locally."""
+        explicitly, try using the role defined by the SageMaker profile configured locally."""
+        import boto3
+
         if role:
             return role
 
@@ -688,9 +689,38 @@ class SageMakerCluster(Cluster):
 
         try:
             # https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-roles.html
-            return sagemaker.get_execution_role()
+            # Create a session using the SageMaker profile configured in the local aws credentials and config files
+            # For example, using a profile called 'sagemaker', the ~/.aws/credentials file should contain:
+
+            # [default]
+            # aws_access_key_id = ABCDEFGHIJKLMNOPQRST
+            # aws_secret_access_key = abcdefghijklmnopqrstuvwxyz0123456789
+
+            # The ~/.aws/config file should contain the default as the source_profile
+            # https://docs.aws.amazon.com/cli/latest/topic/config-vars.html#using-aws-iam-roles
+            # [profile sagemaker]
+            # role_arn = arn:aws:iam::12345678:role/service-role/AmazonSageMaker-ExecutionRole-12345
+            # region = us-east-1
+            # source_profile = default
+
+            # Note: this assumes that the default profile has the necessary permissions to assume the the role_arn
+            # defined in the sagemaker profile
+
+            boto_session = boto3.Session(profile_name="sagemaker")
+            sagemaker_session = sagemaker.Session(boto_session=boto_session)
+
+            return sagemaker.get_execution_role(sagemaker_session=sagemaker_session)
         except Exception as e:
             raise e
+
+    def _set_image_uri(self, image_uri: str = None):
+        if image_uri:
+            return image_uri
+
+        if self.estimator:
+            return self.estimator.image_uri
+
+        return self._base_image_uri()
 
     def _stop_instance(self, delete_configs=True):
         """Stop the SageMaker instance. Optionally remove its config from RNS."""
@@ -752,9 +782,7 @@ class SageMakerCluster(Cluster):
                 up=True,
                 contents=True,
             )
-            rh_install_cmd = (
-                "sudo apt-get install python3-pip -y && pip install ./runhouse"
-            )
+            rh_install_cmd = "pip install ./runhouse"
         else:
             if not _install_url:
                 import runhouse
@@ -893,6 +921,24 @@ class SageMakerCluster(Cluster):
             f"Synced estimator source directory to the cluster in path: {estimator_folder.path}"
         )
 
+    def _base_image_uri(self):
+        """Pick a default image for the cluster based on its instance type"""
+        gpu_instance_types = ["p2", "p3", "p4", "g3", "g4", "g5"]
+
+        image_type = (
+            "gpu"
+            if any(prefix in self.instance_type for prefix in gpu_instance_types)
+            else "cpu"
+        )
+
+        cuda_version = "cu118-" if image_type == "gpu" else ""
+        image_url = (
+            f"{self.ECR_URL}/pytorch-training:2.0.0-{image_type}-py310-{cuda_version}"
+            f"ubuntu20.04-sagemaker"
+        )
+
+        return image_url
+
     def _update_autostop(self, autostop_mins: int = None):
         cluster_config = self.config_for_rns
         cluster_config["autostop_mins"] = autostop_mins or -1
@@ -912,29 +958,44 @@ class SageMakerCluster(Cluster):
         with open(known_hosts, "w") as f:
             f.writelines(valid_hosts)
 
-    def _add_ssh_config_entry(self):
-        """Update the SSH config to allow for accessing the cluster via: ssh <cluster name>"""
-        connected_ssh_port = self._connected_ssh_port()
+    def _filter_ssh_config_entry(self) -> re.Pattern:
+        return re.compile(
+            rf"^\s*Host\s+{re.escape(self.name)}\s*.*?(?=^\s*Host\s+|\Z)",
+            re.MULTILINE | re.DOTALL,
+        )
 
-        config_file = self.ssh_config_file
-        identity_file = self.ssh_key_path
-
-        # Create the new entry
-        new_entry = textwrap.dedent(
+    def _ssh_config_entry(
+        self,
+        port: int,
+        name: str = None,
+        hostname: str = None,
+        identity_file: str = None,
+        user: str = None,
+    ):
+        return textwrap.dedent(
             f"""
             # Added by Runhouse for SageMaker SSH Support
-            Host {self.name}
-              HostName {self.DEFAULT_HOST}
-              IdentityFile {identity_file}
-              Port {connected_ssh_port}
-              User {self.DEFAULT_USER}
+            Host {name or self.name}
+              HostName {hostname or self.DEFAULT_HOST}
+              IdentityFile {identity_file or self.ssh_key_path}
+              Port {port}
+              User {user or self.DEFAULT_USER}
         """
         )
+
+    def _add_ssh_config_entry(self, port: int = None):
+        """Update the SSH config to allow for accessing the cluster via: ssh <cluster name>"""
+        connected_ssh_port = port or self._connected_ssh_port()
+
+        config_file = self.ssh_config_file
+
+        # Create the new entry
+        new_entry = self._ssh_config_entry(port=connected_ssh_port)
 
         with open(config_file, "r") as f:
             existing_config = f.read()
 
-        pattern = re.compile(rf"^\s*Host\s+{re.escape(self.name)}\s*$", re.MULTILINE)
+        pattern = self._filter_ssh_config_entry()
         if pattern.search(existing_config):
             return
 
@@ -967,3 +1028,33 @@ class SageMakerCluster(Cluster):
 
         with open(config_file, "w") as f:
             f.writelines(lines)
+
+    def _update_ssh_config_entry(
+        self,
+        host: str = None,
+        hostname: str = None,
+        port: int = None,
+        user: str = None,
+    ):
+        """Update the SSH config for an existing entry."""
+        config_file = self.ssh_config_file
+
+        with open(config_file, "r") as f:
+            existing_config = f.read()
+
+        # Define the pattern to match the host entry
+        pattern = self._filter_ssh_config_entry()
+
+        # Search for the pattern
+        match = pattern.search(existing_config)
+
+        if not match:
+            return
+
+        existing_entry = match.group()
+        new_entry = re.sub(r"(?<=Port )\d+", str(port), existing_entry)
+
+        updated_config = existing_config.replace(existing_entry, new_entry)
+
+        with open(config_file, "w") as f:
+            f.write(updated_config)
