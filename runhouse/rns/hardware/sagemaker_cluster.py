@@ -60,7 +60,7 @@ class SageMakerCluster(Cluster):
         estimator: Union["EstimatorBase", Dict] = None,
         job_name: str = None,
         dryrun=False,
-        **kwargs,  # We have this here to ignore extra arguments when calling from from_config
+        **kwargs,
     ):
         """
         The Runhouse SageMaker cluster abstraction. This is where you can use SageMaker as a compute backend, just as
@@ -74,7 +74,7 @@ class SageMakerCluster(Cluster):
         self._instance_type = instance_type
         self._instance_count = instance_count
 
-        # Used by SSHEstimatorWrapper to facilitate the SSH connection to the cluster
+        # SSHEstimatorWrapper to facilitate the SSH connection to the cluster
         self._ssh_wrapper = None
 
         # Paramiko SSH client object for running commands on the cluster
@@ -287,7 +287,6 @@ class SageMakerCluster(Cluster):
             status = response["TrainingJobStatus"]
             # Up if the instance is in progress
             return status == "InProgress"
-
         except:
             return False
 
@@ -370,100 +369,42 @@ class SageMakerCluster(Cluster):
         super().disconnect()
 
     def ssh_tunnel(
-        self, local_port, remote_port=None, num_ports_to_try: int = 0
+        self, local_port, remote_port=None, num_ports_to_try: int = 0, retry=True
     ) -> Tuple[SSHTunnelForwarder, int]:
-        # https://github.com/aws-samples/sagemaker-ssh-helper/tree/main#forwarding-tcp-ports-over-ssh-tunnel
-        ssh_port = self.DEFAULT_SSH_PORT
-        connected = False
-        ssh_tunnel = None
+        # Note: Used the ports previously initialized when establishing the connection to the cluster via SSM
+        try:
+            # Continue with the creation of the SSHTunnelForwarder object
+            remote_bind_addresses = ("127.0.0.1", remote_port or local_port)
+            local_bind_addresses = ("", local_port)
 
-        while not connected and num_ports_to_try > 0:
-            try:
-                if local_port > local_port + num_ports_to_try:
-                    raise Exception(
-                        f"Failed to create SSH tunnel after {num_ports_to_try} attempts. "
-                    )
-                # Note: 12345 port can be used for Python Debug Server
-                # https://github.com/aws-samples/sagemaker-ssh-helper#remote-debugging-with-pycharm-debug-server-over-ssh
-                command = (
-                    f'sm-local-start-ssh "{self.instance_id}" -R localhost:12345:localhost:12345 '
-                    f"-L localhost:{local_port}:localhost:{local_port} "
-                    f"-L localhost:{ssh_port}:localhost:22"
-                )
-                logger.info(f"Running command: {command}")
+            ssh_tunnel = SSHTunnelForwarder(
+                (self.DEFAULT_HOST, self.DEFAULT_SSH_PORT),
+                ssh_username=self.DEFAULT_USER,
+                ssh_pkey=self.ssh_key_path,
+                remote_bind_address=remote_bind_addresses,
+                local_bind_address=local_bind_addresses,
+                set_keepalive=1,
+            )
 
-                # Define an event to signal completion of the SSH tunnel setup
-                tunnel_setup_complete = threading.Event()
+            # Start the SSH tunnel
+            ssh_tunnel.start()
 
-                # Manually allocate a pseudo-terminal to prevent a "pseudo-terminal not allocated" error
-                head_fd, worker_fd = pty.openpty()
+            # Create the SSH client object used for running commands on the cluster
+            self._initialize_ssh_client()
 
-                def setup_ssh_tunnel():
-                    # Execute the command with the pseudo-terminal in a separate thread
-                    process = subprocess.Popen(
-                        command,
-                        shell=True,
-                        stdin=worker_fd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        close_fds=True,
-                        preexec_fn=os.setsid,
-                    )
+            logger.info("SSH connection has been successfully created with the cluster")
 
-                    # Close the worker file descriptor as we don't need it
-                    os.close(worker_fd)
+            return ssh_tunnel, local_port
 
-                    # Close the master file descriptor after reading the output
-                    os.close(head_fd)
+        except Exception as e:
+            # Possible the long-lived session created via SSM is no longer active - try once to recreate it
+            # before raising an exception
+            if not retry:
+                raise e
 
-                    # Wait for the process to complete and collect its return code
-                    process.wait()
-
-                    # Signal that the tunnel setup is complete
-                    tunnel_setup_complete.set()
-
-                tunnel_thread = threading.Thread(target=setup_ssh_tunnel)
-                tunnel_thread.daemon = True  # Set the thread as a daemon, so it won't block the main thread
-
-                # Start the SSH tunnel thread
-                tunnel_thread.start()
-
-                # Wait until the connection to the instance has been established before forming the SSHTunnelForwarder
-                # https://github.com/aws-samples/sagemaker-ssh-helper/blob/main/sagemaker_ssh_helper/sm-local-start-ssh
-                tunnel_setup_complete.wait(timeout=30)
-
-                # Continue with the creation of the SSHTunnelForwarder object
-                remote_bind_addresses = ("127.0.0.1", remote_port or local_port)
-                local_bind_addresses = ("", local_port)
-
-                ssh_tunnel = SSHTunnelForwarder(
-                    (self.DEFAULT_HOST, ssh_port),
-                    ssh_username=self.DEFAULT_USER,
-                    ssh_pkey=self.ssh_key_path,
-                    remote_bind_address=remote_bind_addresses,
-                    local_bind_address=local_bind_addresses,
-                    set_keepalive=1,
-                )
-
-                # Start the SSH tunnel
-                ssh_tunnel.start()
-
-                # Update the SSH config for the cluster with the connected SSH port
-                self._update_ssh_config_entry(port=ssh_port)
-
-                logger.info(
-                    "SSH connection has been successfully created with the cluster"
-                )
-                connected = True
-            except Exception as e:
-                logger.warning(e)
-                # try connecting with a different port - most likely the issue is the port is already taken
-                local_port += 1
-                ssh_port += 1
-                num_ports_to_try -= 1
-                pass
-
-        return ssh_tunnel, local_port
+            logger.warning(e)
+            self._create_ssm_session_with_cluster(num_ports_to_try)
+            self.ssh_tunnel(local_port, remote_port, num_ports_to_try, retry=False)
 
     def ssh(self):
         """SSH into the cluster.
@@ -560,7 +501,7 @@ class SageMakerCluster(Cluster):
             f"Launching a new SageMaker cluster (instance count={self.instance_count}) on type: {self.instance_type}"
         )
 
-        self._launch_new_instance()
+        self._create_new_instance()
 
         # If no name provided, use the autogenerated name
         self.job_name = self.estimator.latest_training_job.name
@@ -568,6 +509,9 @@ class SageMakerCluster(Cluster):
         # Set the instance ID of the new SageMaker instance
         self.instance_id = self._cluster_instance_id()
         logger.info(f"New SageMaker instance started with ID: {self.instance_id}")
+
+        logger.info("Creating session with cluster via SSM")
+        self._create_ssm_session_with_cluster()
 
         self.check_server()
 
@@ -588,7 +532,7 @@ class SageMakerCluster(Cluster):
             f"the cluster with the CLI using: ``ssh {self.name}``"
         )
 
-    def _launch_new_instance(self):
+    def _create_new_instance(self):
         from sagemaker_ssh_helper.wrapper import SSHEstimatorWrapper
 
         # Make sure the SSHEstimatorWrapper is being used by the estimator, this is necessary for
@@ -604,6 +548,90 @@ class SageMakerCluster(Cluster):
         )
 
         self._start_instance()
+
+    def _create_ssm_session_with_cluster(self, num_ports_to_try: int = 5):
+        """Create a long-lived session with the cluster. This sm-local-start-ssh command will generate the ssh keys
+        needed to authorize the connection with the cluster and create an SSH tunnel with the cluster via the AWS SSM.
+        We run this once when initially upping the cluster, storing the ssh port and local port used for creating
+        the connection to re-use for subsequent connections."""
+
+        # TODO [JL] make this dynamic to support multiple clusters at a time
+
+        # Note: to view all active sessions: ``aws ssm describe-sessions --state Active``
+        # https://github.com/aws-samples/sagemaker-ssh-helper/tree/main#forwarding-tcp-ports-over-ssh-tunnel
+        connected = False
+        local_port = self.DEFAULT_HTTP_PORT
+        ssh_port = self.DEFAULT_SSH_PORT
+
+        while not connected and num_ports_to_try > 0:
+            try:
+                if local_port > local_port + num_ports_to_try:
+                    raise Exception(
+                        f"Failed to create SSH tunnel after {num_ports_to_try} attempts. "
+                    )
+
+                # Note: 12345 port can be used for Python Debug Server
+                # https://github.com/aws-samples/sagemaker-ssh-helper#remote-debugging-with-pycharm-debug-server-over-ssh
+                command = (
+                    f'sm-local-start-ssh "{self.instance_id}" -R localhost:12345:localhost:12345 '
+                    f"-L localhost:{local_port}:localhost:{local_port} "
+                    f"-L localhost:{ssh_port}:localhost:22"
+                )
+
+                logger.info(f"Running command: {command}")
+
+                # Define an event to signal completion of the SSH tunnel setup
+                tunnel_setup_complete = threading.Event()
+
+                # Manually allocate a pseudo-terminal to prevent a "pseudo-terminal not allocated" error
+                head_fd, worker_fd = pty.openpty()
+
+                def setup_ssh_tunnel():
+                    # Execute the command with the pseudo-terminal in a separate thread
+                    process = subprocess.Popen(
+                        command,
+                        shell=True,
+                        stdin=worker_fd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        close_fds=True,
+                        preexec_fn=os.setsid,
+                    )
+
+                    # Close the worker file descriptor as we don't need it
+                    os.close(worker_fd)
+
+                    # Close the master file descriptor after reading the output
+                    os.close(head_fd)
+
+                    # Wait for the process to complete and collect its return code
+                    process.wait()
+
+                    # Signal that the tunnel setup is complete
+                    tunnel_setup_complete.set()
+
+                tunnel_thread = threading.Thread(target=setup_ssh_tunnel)
+                tunnel_thread.daemon = True  # Set the thread as a daemon, so it won't block the main thread
+
+                # Start the SSH tunnel thread
+                tunnel_thread.start()
+
+                # Wait until the connection to the instance has been established before forming the SSHTunnelForwarder
+                # https://github.com/aws-samples/sagemaker-ssh-helper/blob/main/sagemaker_ssh_helper/sm-local-start-ssh
+                tunnel_setup_complete.wait(timeout=30)
+
+                connected = True
+
+                # Update the SSH config for the cluster with the connected SSH port (if an entry already exists)
+                self._update_port_in_ssh_config(ssh_port)
+
+            except Exception as e:
+                logger.warning(e)
+                # try connecting with a different port - most likely the issue is the port is already taken
+                local_port += 1
+                ssh_port += 1
+                num_ports_to_try -= 1
+                pass
 
     def _rsync(self, source: str, dest: str, up: bool, contents: bool = False):
         source = source + "/" if not source.endswith("/") else source
@@ -821,7 +849,7 @@ class SageMakerCluster(Cluster):
                 raise ValueError
 
         except ValueError:
-            logger.info("No active SSH client connection, reinitializing")
+            logger.info("No active SSH client, reinitializing")
             self._initialize_ssh_client()
 
         return_codes = []
@@ -1029,14 +1057,8 @@ class SageMakerCluster(Cluster):
         with open(config_file, "w") as f:
             f.writelines(lines)
 
-    def _update_ssh_config_entry(
-        self,
-        host: str = None,
-        hostname: str = None,
-        port: int = None,
-        user: str = None,
-    ):
-        """Update the SSH config for an existing entry."""
+    def _update_port_in_ssh_config(self, port: int):
+        """Update the SSH config for the cluster if it already exists."""
         config_file = self.ssh_config_file
 
         with open(config_file, "r") as f:
