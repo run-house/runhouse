@@ -131,6 +131,7 @@ class HTTPClient:
         run_async=False,
         args=None,
         kwargs=None,
+        system=None,
     ):
         """
         Client function to call the rpc for run_module
@@ -197,7 +198,10 @@ class HTTPClient:
 
                 return results_generator()
             elif output_type == OutputType.CONFIG:
-                # Finish iterating over logs before returning single result
+                # If this was a `.remote` call, we don't need to recreate the system and connection, which can be
+                # slow, we can just set it explicitly.
+                if system and "system" in result and system.name == result["system"]:
+                    result["system"] = system
                 non_generator_result = Resource.from_config(result, dryrun=True)
             elif output_type == OutputType.RESULT:
                 # Finish iterating over logs before returning single result
@@ -254,7 +258,6 @@ class HTTPClient:
             req_type="post",
             # TODO wire up dryrun properly
             data=pickle_b64((resource.config_for_rns, state, resource.dryrun)),
-            # data=pickle_b64((resource.config_for_rns, dryrun)),
             env=env,
             err_str=f"Error putting resource {resource.name or type(resource)}",
         )

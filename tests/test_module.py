@@ -61,14 +61,11 @@ def test_call_module_method(ondemand_cpu_cluster, env):
 class SlowNumpyArray:
     def __init__(self, size=5):
         self.size = size
-        self.arr = None
+        self.arr = np.zeros(self.size)
         self._hidden_1 = "hidden"
 
-    def remote_init(self):
-        self.arr = np.zeros(self.size)
-        self._hidden_2 = "hidden"
-
     def slow_iter(self):
+        self._hidden_2 = "hidden"
         if not self._hidden_1 and self._hidden_2:
             raise ValueError("Hidden attributes not set")
         for i in range(self.size):
@@ -78,16 +75,27 @@ class SlowNumpyArray:
             self.arr[i] = i
             yield f"Hello from the cluster! {self.arr}"
 
-    def cpu_count(self, local=True):
+    @classmethod
+    def cpu_count(cls, local=True):
         return os.cpu_count()
+
+    def size_minus_cpus(self):
+        return self.size - self.cpu_count()
+
+    @classmethod
+    def factory_constructor(cls, size=5):
+        return cls(size=size)
 
 
 @pytest.mark.clustertest
 # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
 @pytest.mark.parametrize("env", [None])
-def test_module_from_class(ondemand_cpu_cluster, env):
+def test_module_from_factory(ondemand_cpu_cluster, env):
+    size = 3
     RemoteClass = rh.module(SlowNumpyArray).to(ondemand_cpu_cluster)
-    remote_array = RemoteClass(size=3)
+    remote_array = RemoteClass(size=size, name="remote_array1")
+    assert remote_array.name == "remote_array1"
+    assert RemoteClass.name == "SlowNumpyArray"
     assert remote_array.system == ondemand_cpu_cluster
     results = []
     out = ""
@@ -101,37 +109,55 @@ def test_module_from_class(ondemand_cpu_cluster, env):
 
     # Check that stdout was captured. Skip the last result because sometimes we
     # don't catch it and it makes the test flaky.
-    for i in range(remote_array.size - 1):
+    for i in range(size - 1):
         assert f"Hello from the cluster stdout! {i}" in out
         assert f"Hello from the cluster logs! {i}" in out
 
-    print(remote_array.cpu_count())
-    assert remote_array.cpu_count() == os.cpu_count()
-    print(remote_array.cpu_count(local=False))
-    assert remote_array.cpu_count(local=False) == 2
+    cluster_cpus = 2
+    # Test classmethod on remote class
+    assert RemoteClass.cpu_count() == os.cpu_count()
+    assert RemoteClass.cpu_count(local=False) == cluster_cpus
 
-    # Properties
-    print(remote_array.arr)
-    # We expect the arr to be populated, because we instantiated the class locally before sending to cluster,
-    # but it should reflect the remote updates we made.
-    assert remote_array.arr is None
+    # Test classmethod on remote instance
+    assert remote_array.cpu_count() == os.cpu_count()
+    assert remote_array.cpu_count(local=False) == cluster_cpus
+
+    # Test instance method
+    assert remote_array.size_minus_cpus() == size - cluster_cpus
+
+    # Test remote getter
     arr = remote_array.fetch.arr
     assert isinstance(arr, np.ndarray)
-    assert arr.shape == (3,)
+    assert arr.shape == (size,)
     assert arr[0] == 0
     assert arr[2] == 2
 
+    # Test remote setter
     remote_array.size = 20
     assert remote_array.fetch.size == 20
+
+    # Test creating a second instance of the same class
+    remote_array2 = RemoteClass(size=30, name="remote_array2")
+    assert remote_array2.system == ondemand_cpu_cluster
+    assert remote_array2.fetch.size == 30
+
+    # Test creating a third instance with the factory method
+    remote_array3 = RemoteClass.factory_constructor.remote(
+        size=40, run_name="remote_array3"
+    )
+    assert remote_array3.system.config_for_rns == ondemand_cpu_cluster.config_for_rns
+    assert remote_array3.fetch.size == 40
+    assert remote_array3.cpu_count(local=False) == cluster_cpus
+
+    # Make sure first array and class are unaffected by this change
+    assert remote_array.fetch.size == 20
+    assert RemoteClass.cpu_count(local=False) == cluster_cpus
 
 
 class SlowPandas(rh.Module):
     def __init__(self, size=5):
         super().__init__()
         self.size = size
-        self.df = None
-
-    def remote_init(self):
         self.df = pd.DataFrame(np.zeros((self.size, self.size)))
 
     def slow_iter(self):
@@ -186,7 +212,6 @@ def test_module_from_subclass(ondemand_cpu_cluster, env):
     assert remote_df.cpu_count(local=False) == 2
 
     # Properties
-    assert remote_df.df is None
     df = remote_df.fetch.df
     assert isinstance(df, pd.DataFrame)
     assert df.shape == (3, 3)
@@ -238,7 +263,6 @@ async def test_module_from_subclass_async(ondemand_cpu_cluster, env):
     assert await remote_df.cpu_count_async(local=False) == 2
 
     # Properties
-    assert remote_df.df is None
     df = await remote_df.fetch_async("df")
     assert isinstance(df, pd.DataFrame)
     assert df.shape == (3, 3)
@@ -247,6 +271,23 @@ async def test_module_from_subclass_async(ondemand_cpu_cluster, env):
 
     await remote_df.set_async("size", 20)
     assert remote_df.fetch.size == 20
+
+
+@unittest.skip("Not working yet")
+@pytest.mark.clustertest
+def test_hf_autotokenizer(ondemand_cpu_cluster):
+    from transformers import AutoTokenizer
+
+    AutoTokenizer.from_pretrained("bert-base-uncased")
+    RemoteAutoTokenizer = rh.module(AutoTokenizer).to(
+        ondemand_cpu_cluster, env=["transformers"]
+    )
+    tok = RemoteAutoTokenizer.from_pretrained.remote(
+        "bert-base-uncased", run_name="bert-tok"
+    )
+    # assert tok.fetch.pad_token == "<pad>"
+    prompt = "Tell me about unified development interfaces into compute and data infrastructure."
+    assert tok(prompt, return_tensors="pt").shape == (1, 18)
 
 
 if __name__ == "__main__":

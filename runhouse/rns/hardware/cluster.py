@@ -215,7 +215,7 @@ class Cluster(Resource):
         if self.on_this_cluster():
             return obj_store.get(key, default=default)
         res = self.client.call_module_method(
-            key, None, remote=remote, stream_logs=stream_logs
+            key, None, remote=remote, stream_logs=stream_logs, system=self
         )
         return res if res is not None else default
 
