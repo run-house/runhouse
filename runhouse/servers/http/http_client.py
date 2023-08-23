@@ -200,7 +200,7 @@ class HTTPClient:
             elif output_type == OutputType.CONFIG:
                 # If this was a `.remote` call, we don't need to recreate the system and connection, which can be
                 # slow, we can just set it explicitly.
-                if system and "system" in result and system.name == result["system"]:
+                if system and "system" in result and system.rns_address == result["system"]:
                     result["system"] = system
                 non_generator_result = Resource.from_config(result, dryrun=True)
             elif output_type == OutputType.RESULT:

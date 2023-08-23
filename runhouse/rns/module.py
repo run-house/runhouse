@@ -138,7 +138,7 @@ class Module(Resource):
     def from_config(cls, config: dict, dryrun=False):
         if config.get("cls_pointers"):
             config.pop("resource_subtype", None)
-            logger.info(f"Constructing module from pointers {config['cls_pointers']}")
+            logger.debug(f"Constructing module from pointers {config['cls_pointers']}")
             module_cls = cls._cls_from_pointers(pointers=config["cls_pointers"])
             if not issubclass(module_cls, Module):
                 # Case when module was created through rh.module(new_class) factory, and needs to be
@@ -223,16 +223,16 @@ class Module(Resource):
         (module_path, module_name, class_name) = pointers
         if module_path:
             sys.path.append(module_path)
-            logger.info(f"Appending {module_path} to sys.path")
+            logger.debug(f"Appending {module_path} to sys.path")
 
         if module_name in obj_store.imported_modules:
             importlib.invalidate_caches()
             obj_store.imported_modules[module_name] = importlib.reload(
                 obj_store.imported_modules[module_name]
             )
-            logger.info(f"Reloaded module {module_name}")
+            logger.debug(f"Reloaded module {module_name}")
         else:
-            logger.info(f"Importing module {module_name}")
+            logger.debug(f"Importing module {module_name}")
             obj_store.imported_modules[module_name] = importlib.import_module(
                 module_name
             )

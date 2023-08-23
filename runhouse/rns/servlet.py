@@ -87,12 +87,6 @@ class EnvServlet:
                 resource.name = name
             obj_store.put(resource.name, resource)
 
-            # if hasattr(resource, "remote_init"):
-            #     logger.info(
-            #         f"Initializing module {resource.name} in env servlet {self.env_name}"
-            #     )
-            #     resource.remote_init()
-
             self.register_activity()
             # Return the name in case we had to set it
             return Response(output_type=OutputType.RESULT, data=pickle_b64(name))
