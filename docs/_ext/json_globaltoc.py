@@ -1,22 +1,21 @@
-from typing import Dict, Any
+from typing import Any, Dict
 
 from sphinx.application import Sphinx
-from sphinxcontrib.serializinghtml import JSONHTMLBuilder
 from sphinx.environment.adapters.toctree import TocTree
+from sphinxcontrib.serializinghtml import JSONHTMLBuilder
 
-__version__ = '0.0.1'
+__version__ = "0.0.1"
+
 
 def setup(app: Sphinx) -> Dict[str, Any]:
     app.add_builder(SphinxGlobalTOCJSONHTMLBuilder, override=True)
 
-    return {
-        'version': __version__,
-        'parallel_read_safe': True
-    }
+    return {"version": __version__, "parallel_read_safe": True}
+
 
 class SphinxGlobalTOCJSONHTMLBuilder(JSONHTMLBuilder):
 
-    name: str = 'json'
+    name: str = "json"
 
     def get_doc_context(self, docname: str, body: str, metatags: str) -> Dict[str, Any]:
         """
@@ -37,9 +36,10 @@ class SphinxGlobalTOCJSONHTMLBuilder(JSONHTMLBuilder):
         # Get the entire doctree.  It is the 3rd argument (``collapse``) that
         # does this.  If you set that to ``True`` you will only get the submenu
         # HTML included if you are on a page that is within that submenu.
-        self_toctree = TocTree(self.env).get_toctree_for("index", self, False, titles_only=True, includehidden=False, maxdepth=2)
+        self_toctree = TocTree(self.env).get_toctree_for(
+            "index", self, False, titles_only=True, includehidden=False, maxdepth=2
+        )
         # self_toctree = global_toctree_for_doc(self.env, "index", self, collapse=False, titles_only=True)
         toctree = self.render_partial(self_toctree)["fragment"]
-        doc['globaltoc'] = toctree
+        doc["globaltoc"] = toctree
         return doc
-
