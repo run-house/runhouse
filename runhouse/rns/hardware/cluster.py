@@ -1,4 +1,5 @@
 import contextlib
+import copy
 import logging
 import os
 import pkgutil
@@ -11,14 +12,13 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import requests.exceptions
 import sshtunnel
 
-from sky.utils import command_runner
 from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
 from runhouse.rh_config import obj_store, open_cluster_tunnels, rns_client
 from runhouse.rns.packages.package import Package
 from runhouse.rns.resource import Resource
 from runhouse.rns.utils.env import _get_env_from
-from runhouse.rns.utils.hardware import _current_cluster
+from runhouse.rns.utils.hardware import _current_cluster, SkySSHRunner
 
 from runhouse.servers.http import DEFAULT_SERVER_PORT, HTTPClient
 
@@ -153,18 +153,13 @@ class Cluster(Resource):
             local_rh_package_path = local_rh_package_path.parent
             dest_path = f"~/{local_rh_package_path.name}"
 
-            # temp update rsync filters to exclude docs, when syncing over runhouse folder
-            org_rsync_filter = command_runner.RSYNC_FILTER_OPTION
-            command_runner.RSYNC_FILTER_OPTION = (
-                "--filter='dir-merge,- .gitignore,- docs/'"
-            )
             self._rsync(
                 source=str(local_rh_package_path),
                 dest=dest_path,
                 up=True,
                 contents=True,
+                filter_options="dir-merge,- .gitignore,- docs/",
             )
-            command_runner.RSYNC_FILTER_OPTION = org_rsync_filter
 
             rh_install_cmd = "pip install ./runhouse"
         # elif local_rh_package_path.parent.name == 'site-packages':
@@ -420,20 +415,28 @@ class Cluster(Resource):
                         f"Failed to create SSH tunnel after {num_ports_to_try} attempts"
                     )
 
-                ssh_tunnel = SSHTunnelForwarder(
-                    self.address,
-                    ssh_username=creds.get("ssh_user"),
-                    ssh_pkey=creds.get("ssh_private_key"),
-                    ssh_password=creds.get("password"),
-                    local_bind_address=("", local_port),
-                    remote_bind_address=(
-                        "127.0.0.1",
-                        remote_port or local_port,
-                    ),
-                    set_keepalive=1,
-                    # mute_exceptions=True,
-                )
-                ssh_tunnel.start()
+                if creds.get("ssh_proxy_command"):
+                    # Start a tunnel using self.run in a thread, instead of ssh_tunnel
+                    ssh_credentials = copy.copy(self.ssh_creds())
+                    host = ssh_credentials.pop("ssh_host", self.address)
+                    runner = SkySSHRunner(host, **ssh_credentials)
+                    runner.tunnel(local_port, remote_port)
+                    ssh_tunnel = runner  # Just to keep the object in memory
+                else:
+                    ssh_tunnel = SSHTunnelForwarder(
+                        self.address,
+                        ssh_username=creds.get("ssh_user"),
+                        ssh_pkey=creds.get("ssh_private_key"),
+                        ssh_password=creds.get("password"),
+                        local_bind_address=("", local_port),
+                        remote_bind_address=(
+                            "127.0.0.1",
+                            remote_port or local_port,
+                        ),
+                        set_keepalive=1,
+                        # mute_exceptions=True,
+                    )
+                    ssh_tunnel.start()
                 connected = True
             except HandlerSSHTunnelForwarderError:
                 # try connecting with a different port - most likely the issue is the port is already taken
@@ -666,7 +669,14 @@ class Cluster(Resource):
                 files = fs.find(source)
                 fs.get(files, dest, recursive=True, create_dir=True)
 
-    def _rsync(self, source: str, dest: str, up: bool, contents: bool = False):
+    def _rsync(
+        self,
+        source: str,
+        dest: str,
+        up: bool,
+        contents: bool = False,
+        filter_options: str = None,
+    ):
         """
         Sync the contents of the source directory into the destination.
 
@@ -679,17 +689,21 @@ class Cluster(Resource):
             source = source + "/" if not source.endswith("/") else source
             dest = dest + "/" if not dest.endswith("/") else dest
 
-        ssh_credentials = self.ssh_creds()
+        ssh_credentials = copy.copy(self.ssh_creds())
+        ssh_credentials.pop("ssh_host", self.address)
+
         if not ssh_credentials.get("password"):
             # Use SkyPilot command runner
             if not ssh_credentials.get("ssh_private_key"):
                 ssh_credentials["ssh_private_key"] = None
-            runner = command_runner.SSHCommandRunner(self.address, **ssh_credentials)
+            runner = SkySSHRunner(self.address, **ssh_credentials)
             if up:
                 runner.run(["mkdir", "-p", dest], stream_logs=False)
             else:
                 Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
-            runner.rsync(source, dest, up=up, stream_logs=False)
+            runner.rsync(
+                source, dest, up=up, filter_options=filter_options, stream_logs=False
+            )
         else:
             if dest.startswith("~/"):
                 dest = dest[2:]
@@ -727,7 +741,7 @@ class Cluster(Resource):
         commands: List[str],
         env: Union["Env", str] = None,
         stream_logs: bool = True,
-        port_forward: Optional[int] = None,
+        port_forward: Union[None, int, Tuple[int, int]] = None,
         require_outputs: bool = True,
         run_name: Optional[str] = None,
     ) -> list:
@@ -777,10 +791,11 @@ class Cluster(Resource):
     ):
         return_codes = []
 
-        ssh_credentials = self.ssh_creds()
+        ssh_credentials = copy.copy(self.ssh_creds())
+        host = ssh_credentials.pop("ssh_host", self.address)
 
         if not ssh_credentials.get("password"):
-            runner = command_runner.SSHCommandRunner(self.address, **ssh_credentials)
+            runner = SkySSHRunner(host, **ssh_credentials)
             for command in commands:
                 command = f"{cmd_prefix} {command}" if cmd_prefix else command
                 logger.info(f"Running command on {self.name}: {command}")
