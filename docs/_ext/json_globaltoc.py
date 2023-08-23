@@ -27,10 +27,8 @@ class SphinxGlobalTOCJSONHTMLBuilder(JSONHTMLBuilder):
         Note:
 
             We're rendering the **full global toc** for the entire documentation
-            set into every page.  We do this so that you can just look at the
-            ``master_doc`` and extract its ``globaltoc`` key to get the sitemap
-            for the entire set.  Otherwise you'd have to walk through every page
-            in the set and merge their individual HTML blobs into a whole.
+            set into every page. We do this to easily render the toc on each
+            page and allow for a unique toc for each branch and repo version.
         """
         doc = super().get_doc_context(docname, body, metatags)
         # Get the entire doctree.  It is the 3rd argument (``collapse``) that
@@ -39,7 +37,6 @@ class SphinxGlobalTOCJSONHTMLBuilder(JSONHTMLBuilder):
         self_toctree = TocTree(self.env).get_toctree_for(
             "index", self, False, titles_only=True, includehidden=False, maxdepth=2
         )
-        # self_toctree = global_toctree_for_doc(self.env, "index", self, collapse=False, titles_only=True)
         toctree = self.render_partial(self_toctree)["fragment"]
         doc["globaltoc"] = toctree
         return doc
