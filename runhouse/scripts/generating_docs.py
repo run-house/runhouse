@@ -3,8 +3,13 @@ import shutil
 import subprocess
 import warnings
 
+import dotenv
+
 import requests
+
 from git import Repo
+
+dotenv.load_dotenv()
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
@@ -29,12 +34,6 @@ def clone_repo():
         Repo(SOURCE_REPO_NAME)
     else:
         Repo.clone_from(SOURCE_REPO_URL, SOURCE_REPO_NAME)
-
-
-def does_branch_exist(branch_name):
-    url = f"https://api.github.com/repos/{TARGET_REPO_PATH}/branches/{branch_name}"
-    response = requests.get(url, headers=HEADERS)
-    return response.status_code == 200
 
 
 def get_refs_from_repo(url):
@@ -74,19 +73,7 @@ def build_and_copy_docs(branch_name, commit_hash=None):
                 f"Failed to build docs for branch: {branch_name}: {res.stderr}"
             )
 
-        # Check if the branch exists in the runhouse-docs repository
-        branch_exists = does_branch_exist(branch_name)
-        if branch_exists:
-            # Fetch the latest changes from the remote branch
-            run_command(f"cd {TARGET_REPO_NAME} && git fetch origin {branch_name}")
-
-            # Reset the local runhouse-docs branch to match the remote branch
-            run_command(
-                f"cd {TARGET_REPO_NAME} && git reset --hard origin/{branch_name}"
-            )
-
         # Get the absolute paths for the source and destination folders
-
         abs_folder_path = os.path.abspath(
             os.path.join(os.path.dirname(__file__), PATH_TO_DOCS)
         )
@@ -97,21 +84,15 @@ def build_and_copy_docs(branch_name, commit_hash=None):
             os.path.abspath(os.path.join(os.path.dirname(__file__), TARGET_REPO_NAME)),
         )
 
-        # Commit changes from the local runhouse-docs directory
-        c = (
-            f"cd {TARGET_REPO_NAME} && git init && git checkout -b {branch_name} "
-            f"&& git add . && git commit -m 'Updated docs for: {branch_name}'"
-        )
-        run_command(c)
-
-        # Set the remote URL for the local repository
         run_command(
-            f"cd {TARGET_REPO_NAME} && "
-            f"git remote add origin https://github.com/run-house/{TARGET_REPO_NAME}.git",
+            f"cd {TARGET_REPO_NAME} && git init && git checkout -b {branch_name} "
+            f"&& git remote add origin https://github.com/run-house/{TARGET_REPO_NAME}.git "
+            f"&& git add . && git commit -m 'Updated docs from script'"
         )
 
         # Push changes to the remote runhouse-docs repo
-        run_command(f"cd {TARGET_REPO_NAME} && git push origin {branch_name}")
+        # Overwrite with whatever we have in the remote based on the latest version of the branch in the runhouse repo
+        run_command(f"cd {TARGET_REPO_NAME} && git push --force origin {branch_name}")
 
         # Delete the _build folder in the local file system
         shutil.rmtree(abs_folder_path)
@@ -158,11 +139,11 @@ def generate_docs_for_tags():
 
         if "object" in tag_info and "sha" in tag_info["object"]:
             commit_hash = tag_info["object"]["sha"]
-            print(f"Tag: {tag_name} (commit hash: {commit_hash})")
+            print(f"Building docs for release: {tag_name} (commit hash: {commit_hash})")
             build_and_copy_docs(tag_name, commit_hash)
 
 
-if __name__ == "main":
+if __name__ == "__main__":
     clone_repo()
     generate_docs_for_branches()
     generate_docs_for_tags()
