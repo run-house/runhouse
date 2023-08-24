@@ -43,6 +43,7 @@ extensions = [
     "myst_parser",
     "sphinx_thebe",
     "sphinx_copybutton",
+    "_ext.json_globaltoc",
 ]
 
 autodoc_typehints_format = "short"
