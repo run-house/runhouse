@@ -159,7 +159,7 @@ def ondemand_cluster(
 
 def sagemaker_cluster(
     name: str,
-    role: str = None,
+    role_or_profile: str = None,
     instance_type: str = None,
     instance_count: int = None,
     image_uri: str = None,
@@ -174,9 +174,11 @@ def sagemaker_cluster(
 
     Args:
         name (str): Name for the cluster, to re-use later on.
-        role (str, optional): An AWS IAM role (either name or full ARN). Required for training jobs and APIs that
-            create SageMaker endpoints. If not provided explicitly or with an estimator, Runhouse will use the
-            default SageMaker execution role configured in the local environment.
+        role_or_profile (str, optional): An AWS IAM ARN role or profile name.
+            Required for training jobs and APIs that create SageMaker endpoints. Can be passed in explicitly as an
+            argument or provided via an estimator. If not specified will try using the environment
+            variable ``AWS_PROFILE``. More info on configuring an IAM role
+            `here <https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-roles.html>`_.
         instance_type (str, optional): Type of AWS instance to use for the cluster. More info on supported
             instance options `here <https://aws.amazon.com/sagemaker/pricing/instance-types>`_.
             (Default: ``ml.m5.large``.)
@@ -189,7 +191,8 @@ def sagemaker_cluster(
             More info on creating an estimator `here
             <https://sagemaker.readthedocs.io/en/stable/frameworks/pytorch/using_pytorch.html#create-an-estimator>`_.
         autostop_mins (int, optional): Number of minutes to keep the cluster up after inactivity,
-            or ``-1`` to keep cluster up indefinitely.
+            or ``-1`` to keep cluster up indefinitely. Note that this will keep the cluster up even if a dedicated
+            job has finished running or failed.
         connection_wait_time (int, optional): Amount of time to wait inside the SageMaker cluster before
             continuing with normal execution. Useful if you want to connect before a dedicated job starts
             (e.g. training). If you don't want to wait, set it to ``0``.
@@ -206,13 +209,14 @@ def sagemaker_cluster(
 
     Example:
         >>> import runhouse as rh
-        >>> # Launch a new SageMaker instance and keep it up indefinitely
-        >>> c = rh.sagemaker_cluster(name='sm-cluster', autostop_mins=-1).save()
+        >>> # Launch a new SageMaker instance and keep it up indefinitely.
+        >>> # Note: This will use Role ARN associated with the "sagemaker" profile defined in the local aws credentials
+        >>> c = rh.sagemaker_cluster(name='sm-cluster', role_or_profile="sagemaker").save()
 
         >>> # Running a training job with a provided Estimator
         >>> c = rh.sagemaker_cluster(name='sagemaker-cluster',
         >>>                          estimator=PyTorch(entry_point='train.py',
-        >>>                                            role='arn:aws:iam::123456789012:role/MySageMakerRole',
+        >>>                                            role_or_profile='arn:aws:iam::123456789012:role/MySageMakerRole',
         >>>                                            source_dir='/Users/myuser/dev/sagemaker',
         >>>                                            framework_version='1.8.1',
         >>>                                            py_version='py36',
@@ -224,7 +228,7 @@ def sagemaker_cluster(
     """
     if name:
         alt_options = dict(
-            role=role,
+            role_or_profile=role_or_profile,
             image_uri=image_uri,
             estimator=estimator,
             instance_type=instance_type,
@@ -249,7 +253,7 @@ def sagemaker_cluster(
 
     return SageMakerCluster(
         name=name,
-        role=role,
+        role_or_profile=role_or_profile,
         estimator=estimator,
         job_name=job_name,
         instance_type=instance_type,

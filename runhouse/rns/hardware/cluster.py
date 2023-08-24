@@ -323,7 +323,9 @@ class Cluster(Resource):
                 self._rpc_tunnel, connected_port = self.address, HTTPClient.DEFAULT_PORT
         elif not ssh_tunnel:
             self._rpc_tunnel, connected_port = self.ssh_tunnel(
-                HTTPClient.DEFAULT_PORT,
+                self._local_port
+                if hasattr(self, "_local_port")
+                else HTTPClient.DEFAULT_PORT,
                 remote_port=DEFAULT_SERVER_PORT,
                 num_ports_to_try=5,
             )
@@ -442,23 +444,6 @@ class Cluster(Resource):
                 pass
 
         return ssh_tunnel, local_port
-
-    # import paramiko
-    # ssh = paramiko.SSHClient()
-    # ssh.load_system_host_keys()
-    # ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    # from pathlib import Path
-    # ssh.connect(self.address,
-    #             username=creds['ssh_user'],
-    #             key_filename=str(Path(creds['ssh_private_key']).expanduser())
-    #             )
-    # transport = ssh.get_transport()
-    # transport.request_port_forward('', local_port)
-    # ssh_tunnel = transport.open_channel("direct-tcpip", ("localhost", local_port),
-    #                                     (self.address, remote_port or local_port))
-    # if ssh_tunnel.is_active():
-    #     connected = True
-    #     print(f"SSH tunnel is open to {self.address}:{local_port}")
 
     @classmethod
     def _start_server_cmds(cls, restart, restart_ray, screen, create_logfile):

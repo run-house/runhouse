@@ -104,6 +104,16 @@ SageMaker clusters require `AWS CLI V2 <https://docs.aws.amazon.com/cli/latest/u
 configuring the SageMaker IAM role with the
 `AWS Systems Manager <https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent.html>`_.
 
+**IAM Role**
+
+In order to use SageMaker clusters, you must grant SageMaker the necessary permissions with an IAM role.
+You can provide this role either by profile name or by full ARN, via an estimator, or with the :code:`AWS_PROFILE` environment
+variable.
+
+Please see the `AWS docs <https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-roles.html>`_ for more info
+on creating and configuring the role.
+
+
 **AWS CLI V2**
 
 - `Uninstall <https://docs.aws.amazon.com/cli/latest/userguide/cliv2-migration-instructions.html#cliv2-migration-instructions-migrate>`_ AWS CLI V1
