@@ -64,7 +64,7 @@ class Cluster(Resource):
 
         super().__init__(name=name, dryrun=dryrun)
 
-        self.address = ips[0] if ips else None
+        self.address = ips[0] if isinstance(ips, List) else ips
         self._ssh_creds = ssh_creds
         self.ips = ips
         self._rpc_tunnel = None
