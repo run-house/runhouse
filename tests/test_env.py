@@ -92,7 +92,7 @@ def test_function_to_env(cluster):
     def summer(a, b):
         return a + b
 
-    rh.function(summer).to(cluster, test_env)
+    rh.function(summer).to(cluster, test_env, force_install=True)
     res = cluster.run_python(["import parameterized"])
     assert res[0][0] == 0
 

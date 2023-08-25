@@ -154,7 +154,6 @@ class Env(Resource):
             logging.info(f"Running: {cmd}")
             ret_code = subprocess.call(
                 shlex.split(cmd),
-                env=self.env_vars or None,
                 # cwd=self.working_dir,  # Should we do this?
                 shell=False,
             )
@@ -186,7 +185,7 @@ class Env(Resource):
                 else self.env_vars
             )
             if env_vars:
-                system.call_module_method(key, "_set_env_vars", env_vars)
+                system.call(key, "_set_env_vars", env_vars)
             system.call(key, "install", force=force_install)
 
         return new_env

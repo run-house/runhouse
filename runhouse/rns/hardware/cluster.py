@@ -71,7 +71,6 @@ class Cluster(Resource):
         self.client = None
 
         if not dryrun and self.address:
-            self._sync_runhouse_to_cluster()
             # OnDemandCluster will start ray itself, but will also set address later, so won't reach here.
             self.check_server()
 
@@ -162,7 +161,7 @@ class Cluster(Resource):
                 filter_options="dir-merge,- .gitignore,- docs/",
             )
 
-            rh_install_cmd = "pip install ./runhouse"
+            rh_install_cmd = "python3 -m pip install ./runhouse"
         # elif local_rh_package_path.parent.name == 'site-packages':
         else:
             # Package is installed in site-packages
