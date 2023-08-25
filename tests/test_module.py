@@ -31,15 +31,13 @@ def test_call_module_method(ondemand_cpu_cluster, env):
     ondemand_cpu_cluster.put("numpy_pkg", Package.from_string("numpy"), env=env)
 
     # Test for method
-    res = ondemand_cpu_cluster.call_module_method(
+    res = ondemand_cpu_cluster.call(
         "numpy_pkg", "_detect_cuda_version_or_cpu", stream_logs=True
     )
     assert res == "cpu"
 
     # Test for property
-    res = ondemand_cpu_cluster.call_module_method(
-        "numpy_pkg", "config_for_rns", stream_logs=True
-    )
+    res = ondemand_cpu_cluster.call("numpy_pkg", "config_for_rns", stream_logs=True)
     numpy_config = Package.from_string("numpy").config_for_rns
     assert res
     assert isinstance(res, dict)
@@ -47,9 +45,7 @@ def test_call_module_method(ondemand_cpu_cluster, env):
 
     # Test iterator
     ondemand_cpu_cluster.put("config_dict", list(numpy_config.keys()), env=env)
-    res = ondemand_cpu_cluster.call_module_method(
-        "config_dict", "__iter__", stream_logs=True
-    )
+    res = ondemand_cpu_cluster.call("config_dict", "__iter__", stream_logs=True)
     # Checks that all the keys in numpy_config were returned
     inspect.isgenerator(res)
     for key in res:

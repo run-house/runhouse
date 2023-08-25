@@ -175,7 +175,7 @@ class Env(Resource):
 
         if isinstance(system, Cluster):
             key = system.put_resource(new_env)
-            system.call_module_method(key, "install", force=force_install)
+            system.call(key, "install", force=force_install)
 
         return new_env
 

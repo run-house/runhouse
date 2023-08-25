@@ -256,12 +256,12 @@ class Cluster(Resource):
             return obj_store.rename(old_key, new_key)
         return self.client.rename_object(old_key, new_key)
 
-    def list_keys(self, env=None):
+    def keys(self, env=None):
         """List all keys in the cluster's object store."""
         self.check_server()
         if self.on_this_cluster():
             return obj_store.keys()
-        res = self.client.list_keys(env=env)
+        res = self.client.keys(env=env)
         return res
 
     def cancel(self, key: str, force=False):
@@ -278,12 +278,21 @@ class Cluster(Resource):
             return obj_store.cancel_all(force=force)
         return self.client.cancel("all", force=force)
 
-    def delete_keys(self, keys: Union[None, str, List[str]] = None):
-        """Delete the given keys from the cluster's object store."""
+    def delete(self, keys: Union[None, str, List[str]]):
+        """Delete the given items from the cluster's object store. To delete all items, use `cluster.clear()`"""
         self.check_server()
         if isinstance(keys, str):
             keys = [keys]
-        return self.client.delete_keys(keys)
+        if self.on_this_cluster():
+            return obj_store.delete(keys)
+        return self.client.delete(keys)
+
+    def clear(self):
+        """Clear the cluster's object store."""
+        self.check_server()
+        if self.on_this_cluster():
+            return obj_store.clear()
+        return self.client.delete()
 
     def on_this_cluster(self):
         """Whether this function is being called on the same cluster."""
@@ -370,6 +379,8 @@ class Cluster(Resource):
             except (
                 requests.exceptions.ConnectionError,
                 sshtunnel.BaseSSHTunnelForwarderError,
+                requests.exceptions.ReadTimeout,
+                requests.exceptions.ChunkedEncodingError,
             ):
                 # It's possible that the cluster went down while we were trying to install packages.
                 if not self.is_up():
@@ -385,7 +396,7 @@ class Cluster(Resource):
                         try:
                             self.client.check_server(cluster_config=cluster_config)
                             logger.info(f"Server {self.name} is up.")
-                            break
+                            return
                         except (
                             requests.exceptions.ConnectionError,
                             requests.exceptions.ReadTimeout,
@@ -393,8 +404,7 @@ class Cluster(Resource):
                             if i == 5:
                                 print(error)
                             time.sleep(5)
-                else:
-                    raise ValueError(f"Could not connect to cluster <{self.name}>")
+                raise ValueError(f"Could not connect to cluster <{self.name}>")
         return
 
     def ssh_tunnel(
@@ -515,34 +525,7 @@ class Cluster(Resource):
         there is no autostop."""
         pass
 
-    def _run_module(
-        self,
-        relative_path,
-        module_name,
-        fn_name,
-        fn_type,
-        resources,
-        conda_env,
-        env_vars,
-        run_name,
-        args,
-        kwargs,
-    ):
-        self.check_server()
-        return self.client.run_module(
-            relative_path,
-            module_name,
-            fn_name,
-            fn_type,
-            resources,
-            conda_env,
-            env_vars,
-            run_name,
-            args,
-            kwargs,
-        )
-
-    def call_module_method(
+    def call(
         self,
         module_name,
         method_name,
@@ -553,7 +536,7 @@ class Cluster(Resource):
         run_async=False,
         **kwargs,
     ):
-        """Call a method on a module that is installed on the cluster.
+        """Call a method on a module that is in the cluster's object store.
 
         Args:
             module_name (str): Name of the module saved on system.
@@ -566,7 +549,7 @@ class Cluster(Resource):
             **kwargs: Keyword arguments to pass to the method.
 
         Example:
-            >>> cluster.call_module_method("my_module", "my_method", arg1, arg2, kwarg1=kwarg1)
+            >>> cluster.call("my_module", "my_method", arg1, arg2, kwarg1=kwarg1)
         """
         self.check_server()
         # Note: might be single value, might be a generator!
@@ -582,6 +565,7 @@ class Cluster(Resource):
             run_async=run_async,
             args=args,
             kwargs=kwargs,
+            system=self,
         )
 
     def is_connected(self):

@@ -1,7 +1,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import ray
 
@@ -164,9 +164,12 @@ class ObjStore:
     def pop_env(self, key: str, default: Optional[Any] = None):
         self.call_kv_method(self._env_for_key, "pop", key, default)
 
-    def delete(self, key: str):
-        self.pop(key, None)
-        self.pop_env(key, None)
+    def delete(self, key: Union[str, List[str]]):
+        if isinstance(key, str):
+            key = [key]
+        for k in key:
+            self.pop(k, None)
+            self.pop_env(k, None)
 
     def pop(self, key: str, default: Optional[Any] = None):
         return self.call_kv_method(self._kv_store, "pop", key, default)

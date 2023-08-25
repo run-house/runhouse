@@ -1,12 +1,10 @@
 from runhouse.rns.top_level_rns_fns import (
     current_folder,
     exists,
-    get_pinned_object,
     here,
     ipython,
     load,
     locate,
-    pin_to_memory,
     resources,
     set_folder,
     unset_folder,

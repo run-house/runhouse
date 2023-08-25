@@ -22,8 +22,8 @@ def profile(func, reps=10):
 @pytest.mark.rnstest
 def test_roundtrip_performance(summer_func):
 
-    times_list, avg_time = profile(lambda: summer_func.system.list_keys() is not None)
-    print(f"list_keys took {round(avg_time, 2)} ms: {times_list}")
+    times_list, avg_time = profile(lambda: summer_func.system.keys() is not None)
+    print(f"Listing keys took {round(avg_time, 2)} ms: {times_list}")
 
     times_list, avg_time = profile(lambda: summer_func(1, 5) == 6)
     print(f"Call with logs took {round(avg_time, 2)} ms: {times_list}")
