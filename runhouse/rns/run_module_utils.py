@@ -168,6 +168,9 @@ def get_fn_from_pointers(module_path, module_name, fn_name, quiet=False):
             if not quiet:
                 logger.info(f"Appending {module_path} to sys.path")
 
+        if not importlib.util.find_spec(module_name):
+            return None
+
         if module_name in rh_config.obj_store.imported_modules:
             importlib.invalidate_caches()
             rh_config.obj_store.imported_modules[module_name] = importlib.reload(

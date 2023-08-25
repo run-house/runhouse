@@ -32,6 +32,7 @@ Install dependencies
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-03-20 17:56:13,023 | No auth token provided, so not using RNS API to save and load configs
     INFO | 2023-03-20 17:56:14,334 | NumExpr defaulting to 2 threads.
@@ -121,6 +122,7 @@ hardware.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-03-20 21:01:46,942 | Setting up Function on cluster.
     INFO | 2023-03-20 21:01:46,951 | Installing packages on cluster rh-v100: ['GitPackage: https://github.com/huggingface/accelerate.git@v0.15.0', 'pip:./accelerate', 'transformers', 'datasets', 'evaluate', 'tqdm', 'scipy', 'scikit-learn', 'tensorboard', 'torch --upgrade --extra-index-url https://download.pytorch.org/whl/cu117']
@@ -156,6 +158,7 @@ then send the function to run on our GPU as well
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-03-20 19:56:15,257 | Writing out function function to /content/launch_training_fn.py as functions serialized in notebooks are brittle. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
     INFO | 2023-03-20 19:56:15,262 | Setting up Function on cluster.
@@ -184,6 +187,7 @@ hardware!
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-03-20 20:11:45,415 | Running launch_training via gRPC
     INFO | 2023-03-20 20:11:45,718 | Time to send message: 0.3 seconds

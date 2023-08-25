@@ -343,7 +343,7 @@ def byo_cpu():
             instance_type="m5.xlarge",
             provider="aws",
             region="us-east-1",
-            image_id="ami-0a313d6098716f372",
+            # image_id="ami-0a313d6098716f372",  # Upgraded to python 3.11.4 which is not compatible with ray 2.4.0
             name="test-byo-cluster",
         )
         .up_if_not()

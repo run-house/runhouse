@@ -11,7 +11,7 @@ from .sagemaker_cluster import SageMakerCluster
 # Cluster factory method
 def cluster(
     name: str,
-    host: List[str] = None,
+    host: Union[str, List[str]] = None,
     ssh_creds: Optional[dict] = None,
     dryrun: bool = False,
     **kwargs,
@@ -21,7 +21,7 @@ def cluster(
 
     Args:
         name (str): Name for the cluster, to re-use later on.
-        host (List[str], optional): List of IP addresses for the BYO cluster.
+        host (str or List[str], optional): Hostname, IP address, or list of IP addresses for the BYO cluster.
         ssh_creds (dict, optional): Dictionary mapping SSH credentials.
             Example: ``ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'}``
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
@@ -32,12 +32,12 @@ def cluster(
 
     Example:
         >>> # using private key
-        >>> gpu = rh.cluster(host=['<ip of the cluster>'],
+        >>> gpu = rh.cluster(host='<hostname>',
         >>>                  ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'},
         >>>                  name='rh-a10x').save()
 
         >>> # using password
-        >>> gpu = rh.cluster(host=['<ip of the cluster>'],
+        >>> gpu = rh.cluster(host='<hostname>',
         >>>                  ssh_creds={'ssh_user': '...', 'password':'*****'},
         >>>                  name='rh-a10x').save()
 

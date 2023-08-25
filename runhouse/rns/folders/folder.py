@@ -1,6 +1,7 @@
 import copy
 import logging
 import os
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -198,23 +199,24 @@ class Folder(Resource):
                         "Cluster must be started before copying data from it."
                     )
             creds = self.system.ssh_creds()
+
+            client_keys = (
+                [str(Path(creds["ssh_private_key"]).expanduser())]
+                if creds.get("ssh_private_key")
+                else []
+            )
+            password = creds.get("password", None)
+            config_creds = {
+                "host": creds.get("ssh_host") or self.system.address,
+                "username": creds.get("ssh_user"),
+                # 'key_filename': str(Path(creds['ssh_private_key']).expanduser())}  # For SFTP
+                "client_keys": client_keys,  # For SSHFS
+                "password": password,
+                "connect_timeout": "3s",
+                "proxy_command": creds.get("ssh_proxy_command"),
+            }
             ret_config = self._data_config.copy()
-            if creds:
-                client_keys = (
-                    [str(Path(creds["ssh_private_key"]).expanduser())]
-                    if creds.get("ssh_private_key")
-                    else []
-                )
-                password = creds.get("password", None)
-                config_creds = {
-                    "host": self.system.address,
-                    "username": creds.get("ssh_user"),
-                    # 'key_filename': str(Path(creds['ssh_private_key']).expanduser())}  # For SFTP
-                    "client_keys": client_keys,  # For SSHFS
-                    "password": password,
-                    "connect_timeout": "3s",
-                }
-                ret_config.update(config_creds)
+            ret_config.update(config_creds)
             return ret_config
         return self._data_config
 
@@ -426,10 +428,10 @@ class Folder(Resource):
         src_str = local
         if not up:
             src_str, dest_str = dest_str, src_str
-        subprocess.check_call(
-            f"rsync {src_str} {dest_str} "
-            f'--password_file {data_config["key_filename"]}'
+        cmd = (
+            f'rsync {src_str} {dest_str} --password_file {data_config["key_filename"]}'
         )
+        subprocess.check_call(shlex.split(cmd))
 
     def mkdir(self):
         """Create the folder in specified file system if it doesn't already exist."""

@@ -405,7 +405,9 @@ In this tutorial, we demonstrated how to use runhouse to create
 references to remote clusters, run local functions on the cluster, and
 save/share and reuse functions with a Runhouse account.
 
-Runhouse also lets you: - Send and save data (folders, blobs, tables)
-between local, remote, and file storage - Send, save, and share dev
-environments - Reload and reuse saved resources (both compute and data)
-from different environments (with a Runhouse account) - … and much more!
+Runhouse also lets you:
+
+- Send and save data (folders, blobs, tables) between local, remote, and file storage
+- Send, save, and share dev environments
+- Reload and reuse saved resources (both compute and data) from different environments (with a Runhouse account)
+- … and much more!

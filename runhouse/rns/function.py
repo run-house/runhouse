@@ -563,8 +563,7 @@ def function(
         )
         env = Env(reqs=reqs, setup_cmds=setup_cmds, working_dir="./")
     elif not isinstance(env, Env):
-        env = _get_env_from(env) or Env()
-        env.working_dir = env.working_dir or "./"
+        env = _get_env_from(env) or Env(working_dir="./")
 
     fn_pointers = None
     if callable(fn):

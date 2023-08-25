@@ -1,6 +1,5 @@
 import asyncio
 import copy
-import functools
 import importlib
 import inspect
 import logging
@@ -79,7 +78,6 @@ LOCAL_METHODS = [
     "system",
     "to",
     "unname",
-    "remote_init",
     "provenance",
 ]
 
@@ -140,65 +138,49 @@ class Module(Resource):
     def from_config(cls, config: dict, dryrun=False):
         if config.get("cls_pointers"):
             config.pop("resource_subtype", None)
-            logger.info(f"Constructing module from pointers {config['cls_pointers']}")
-            (module_path, module_name, class_name) = config["cls_pointers"]
-            if module_path:
-                sys.path.append(module_path)
-                logger.info(f"Appending {module_path} to sys.path")
-
-            if module_name in obj_store.imported_modules:
-                importlib.invalidate_caches()
-                obj_store.imported_modules[module_name] = importlib.reload(
-                    obj_store.imported_modules[module_name]
-                )
-                logger.info(f"Reloaded module {module_name}")
-            else:
-                logger.info(f"Importing module {module_name}")
-                obj_store.imported_modules[module_name] = importlib.import_module(
-                    module_name
-                )
-            cls = getattr(obj_store.imported_modules[module_name], class_name)
-            if not issubclass(cls, Module):
+            logger.debug(f"Constructing module from pointers {config['cls_pointers']}")
+            module_cls = cls._cls_from_pointers(pointers=config["cls_pointers"])
+            if not issubclass(module_cls, Module):
                 # Case when module was created through rh.module(new_class) factory, and needs to be
-                # made into a subclass of rh.Module
-                module_cls = _module_subclass_factory(cls, config.get("cls_pointers"))
-            else:
-                # Case when module was created through NewClass(rh.Module) and is already a Module subclass
-                module_cls = cls
-
-            if hasattr(module_cls, "_check_for_child_configs"):
-                config = module_cls._check_for_child_configs(config)
-
-            if not issubclass(cls, Module):
-                # When we explicitly make module_cls a Molue subclass, we also made sure it could accept all of
-                # rh.Module's constructor arguments.
-                new_module = module_cls(**config, dryrun=dryrun)
-            else:
-                # Module created as subclass of rh.Module may not have rh.Module's
-                # constructor signature (e.g. system, env, etc.), so assign them manually
-                new_module = module_cls()
-                new_module.system = config.pop("system", None)
-                new_module.env = config.pop("env", None)
-                new_module.name = config.pop("name", None)
-                new_module._cls_pointers = config.pop("cls_pointers", None)
-                new_module.dryrun = config.pop("dryrun", False)
-        elif config.get("resource_subtype", None) == "module":
-            config = Module._check_for_child_configs(config)
-            new_module = Module(**config, dryrun=dryrun)
-        else:
-            # If there are no class pointers, we assume the module is a built-in rh.Module subclass
-            resource_class = getattr(
-                sys.modules["runhouse"],
-                config.pop("resource_subtype").capitalize(),
-                None,
-            )
-            if not resource_class:
-                raise TypeError(
-                    f"Could not find module associated with {config['resource_subtype']}"
+                # made into a subclass of rh.Module. We'll follow the same flow as the subclass-created module below,
+                # where we don't call __init__ explicitly, because __init__ will call the subclass's init and this may
+                # a "type" module rather than an "instance". The user might instantiate it later, or it may be
+                # populated with attributes by the servlet's put_resource.
+                module_cls = _module_subclass_factory(
+                    module_cls, config.get("cls_pointers")
                 )
-            new_module = resource_class(**config, dryrun=dryrun)
 
-        return new_module
+            # Module created as subclass of rh.Module may not have rh.Module's
+            # constructor signature (e.g. system, env, etc.), so assign them manually
+            # We don't call __init__ here because we don't know the signature of the subclass's __init__
+            # If this resource was put on a cluster with put_resource, the servlet will be populating the rest
+            # of the class-specific attributes.
+            new_module = module_cls.__new__(module_cls)
+            config = module_cls._check_for_child_configs(config)
+            new_module.system = config.pop("system", None)
+            new_module.env = config.pop("env", None)
+            new_module.name = config.pop("name", None)
+            new_module._cls_pointers = config.pop("cls_pointers", None)
+            new_module.dryrun = config.pop("dryrun", False)
+            new_module.provenance = config.pop("provenance", None)
+            return new_module
+
+        if config.get("resource_subtype", None) == "module":
+            config = Module._check_for_child_configs(config)
+            return Module(**config, dryrun=dryrun)
+
+        # If there are no class pointers, we assume the module is a built-in rh.Module subclass
+        resource_class = getattr(
+            sys.modules["runhouse"],
+            config.pop("resource_subtype").capitalize(),
+            None,
+        )
+        if not resource_class:
+            raise TypeError(
+                f"Could not find module associated with {config['resource_subtype']}"
+            )
+        config = resource_class._check_for_child_configs(config)
+        return resource_class(**config, dryrun=dryrun)
 
     @classmethod
     def _check_for_child_configs(cls, config):
@@ -227,17 +209,40 @@ class Module(Resource):
     def env(self, new_env: Optional[Union[str, Env]]):
         self._env = _get_env_from(new_env)
 
-    def remote_init(self):
+    def remote_init(self, *args, **kwargs):
         """A method which you can overload and will be called remotely on the cluster upon initialization there,
         in case you want to do certain initialization activities on the cluster only. For example, if you want
         to load a model or dataset and send it to GPU, you probably don't want to do those locally and send the
         state over to the cluster."""
-        pass
+        if self._cls_pointers:
+            module_cls = self._cls_from_pointers(self._cls_pointers)
+            module_cls.__init__(self, *args, **kwargs)
+
+    @classmethod
+    def _cls_from_pointers(cls, pointers):
+        (module_path, module_name, class_name) = pointers
+        if module_path:
+            sys.path.append(module_path)
+            logger.debug(f"Appending {module_path} to sys.path")
+
+        if module_name in obj_store.imported_modules:
+            importlib.invalidate_caches()
+            obj_store.imported_modules[module_name] = importlib.reload(
+                obj_store.imported_modules[module_name]
+            )
+            logger.debug(f"Reloaded module {module_name}")
+        else:
+            logger.debug(f"Importing module {module_name}")
+            obj_store.imported_modules[module_name] = importlib.import_module(
+                module_name
+            )
+        return getattr(obj_store.imported_modules[module_name], class_name)
 
     def to(
         self,
         system: Union[str, Cluster],
         env: Optional[Union[str, List[str], Env]] = None,
+        name: Optional[str] = None,
     ):
         """Put a copy of the module on the destination system and env, and return the new module.
 
@@ -277,21 +282,29 @@ class Module(Resource):
         new_module.dryrun = True
 
         if isinstance(system, Cluster):
-            new_module.name = self.name or (
-                self._cls_pointers[2]
-                if self._cls_pointers
-                else None
-                or _generate_default_name(prefix=self.__class__.__qualname__.lower())
+            new_module.name = (
+                name
+                or self.name
+                or (
+                    self._cls_pointers[2]
+                    if self._cls_pointers
+                    else None
+                    or _generate_default_name(
+                        prefix=self.__class__.__qualname__.lower()
+                    )
+                )
             )
             if system.on_this_cluster():
-                new_module.remote_init()
                 new_module.pin()
             else:
-                state = {
-                    attr: val
-                    for attr, val in self.__dict__.items()
-                    if attr[0] != "_" and attr not in new_module.config_for_rns
-                }
+                # We only send over state for instances, not classes
+                state = {}
+                if not isinstance(self, type):
+                    state = {
+                        attr: val
+                        for attr, val in self.__dict__.items()
+                        if attr[0] != "_" and attr not in new_module.config_for_rns
+                    }
                 system.put_resource(new_module, state, dryrun=True)
 
         return new_module
@@ -323,10 +336,28 @@ class Module(Resource):
         if item in LOCAL_METHODS or not hasattr(self, "_system"):
             return super().__getattribute__(item)
         system = super().__getattribute__("_system")
-        if not system or not isinstance(system, Cluster) or system.on_this_cluster():
-            return super().__getattribute__(item)
 
         attr = super().__getattribute__(item)
+        # try:
+        #     attr = super().__getattribute__(item)
+        # except AttributeError:
+        #     # This means item is not an attribute of Module, Resource, or the Module subclass (if this is one).
+        #     # If there are class pointers, we can still check if it's an attribute of the class we're wrapping
+        #     # by loading the class from its pointers (though this only works for class methods!).
+        #     attr = None
+        #
+        # if attr is None:
+        #     try:
+        #         cls_pointers = super().__getattribute__("_cls_pointers")
+        #         if cls_pointers:
+        #             cls = self._cls_from_pointers(cls_pointers)
+        #             attr = getattr(cls, item)
+        #     except AttributeError:
+        #         # This is not a locally available attribute nor a class method
+        #         pass
+
+        if not system or not isinstance(system, Cluster) or system.on_this_cluster():
+            return attr
 
         # Don't try to run private methods or attributes remotely
         if item[0] == "_":
@@ -597,8 +628,9 @@ class Module(Resource):
             if overwrite:
                 self.rename(name)
             else:
+                self.name = name
                 if isinstance(self.system, Cluster):
-                    self.system.put_resource(name, self)
+                    self.system.put_resource(self)
         return super().save(name=name, overwrite=overwrite)
 
     @staticmethod
@@ -699,52 +731,55 @@ class Module(Resource):
     #     full_name = func_name
 
 
-def _module_subclass_factory(
-    cls, pointers, new_system=None, new_env=None, resource_name=None, signature=None
-):
+def _module_subclass_factory(cls, pointers, signature=None):
     def __init__(
         self,
         *args,
         system=None,
         env=None,
         dryrun=False,
-        cls_pointers=None,
-        name=resource_name,
+        cls_pointers=pointers,
+        name=None,
         provenance=None,
         **kwargs,
     ):
-        cls.__init__(self, *args, **kwargs)
+        # args and kwargs are passed to the cls's __init__ method if this is being called on a cluster. They
+        # shouldn't be passed otherwise.
         Module.__init__(
             self,
-            cls_pointers=cls_pointers or pointers,
+            cls_pointers=cls_pointers,
             name=name,
+            system=system,
+            env=env,
             dryrun=dryrun,
             provenance=provenance,
         )
-        # Overwrite the .to classmethod we injected below, we don't need it anymore
-        self.to = functools.partial(Module.to, self)
-        if not self.dryrun:
-            self.to(system, env)
-            # TODO introduce module.instantiated to allow for real lazy instantiation and calling classmethods
-            # if system is not None and not system.on_this_cluster():
-            # Construct the module remotely
-            # system.call_module_method(self.name, "__init__", *args, **kwargs)
-            # system.call_module_method(self.name, "remote_init")
-        self.system = system
-        self.env = env
+        # This allows a class which is already on the cluster to construct an instance of itself with a factory
+        # method, e.g. my_module = MyModuleCls.factory_constructor(*args, **kwargs)
+        if self.system and self.system.on_this_cluster():
+            self.remote_init(*args, **kwargs)
 
-    @classmethod
-    def to(new_cls, system=new_system, env=new_env):
-        new_cls.__init__ = functools.partialmethod(__init__, system=system, env=env)
-        return new_cls
+    def __call__(
+        self,
+        *args,
+        dryrun=False,
+        name=None,
+        **kwargs,
+    ):
+        # TODO change setting logic to be "mod.local.x = 5" or "mod.remote.x = 5", with properties being remote by
+        # default and private methods being local by default for both setting and getting
+        new_module = copy.copy(self)
+        # Create a copy of the item on the cluster under the new name
+        new_module.name = name or self.name
+        new_module.dryrun = dryrun
+        if not new_module.dryrun:
+            new_module.system.put_resource(new_module)
+            new_module.remote_init(*args, **kwargs)
 
-    methods = {
-        k: v for k, v in cls.__dict__.items() if callable(v) and not k.startswith("__")
-    }
-    methods.update({"__init__": __init__})
+        return new_module
+
+    methods = {"__init__": __init__, "__call__": __call__}
     new_type = type(pointers[2], (Module, cls), methods)
-    # Classmethod, so you can do RemoteClass = rh.module(MyClass).to("my_cluster", "prod")
-    new_type.to = to
     new_type.__signature__ = signature
     return new_type
 
@@ -841,7 +876,13 @@ def module(
         env.working_dir = env.working_dir or "./"
 
     pointers = Module._extract_pointers(cls, env.reqs)
-    name = name or _generate_default_name(prefix=pointers[2] if pointers else "module")
+    name = name or (
+        pointers[2] if pointers else _generate_default_name(prefix="module")
+    )
     signature = inspect.signature(cls)
 
-    return _module_subclass_factory(cls, pointers, system, env, name, signature)
+    # return _module_subclass_factory(cls, pointers, system, env, name, signature)
+    module_subclass = _module_subclass_factory(cls, pointers, signature)
+    return module_subclass(
+        system=system, env=env, dryrun=dryrun, cls_pointers=pointers, name=name
+    )
