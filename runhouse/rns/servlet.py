@@ -1,5 +1,4 @@
 import asyncio
-import codecs
 import inspect
 import json
 import logging
@@ -10,8 +9,6 @@ import traceback
 from pathlib import Path
 from typing import List, Union
 
-import ray
-import ray.cloudpickle as pickle
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 from runhouse.rh_config import configs, obj_store
@@ -21,7 +18,6 @@ from runhouse.rns.module import Module
 from runhouse.rns.queues import Queue
 from runhouse.rns.resource import Resource
 from runhouse.rns.run import run, RunStatus
-from runhouse.rns.run_module_utils import call_fn_by_type
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.http_utils import (
     b64_unpickle,
@@ -258,80 +254,6 @@ class EnvServlet:
                 type(e), e, traceback.format_exc()
             )  # TODO use format_tb instead?
 
-    def run_module(self, message: Message):
-        self.register_activity()
-        # get the function result from the incoming request
-        [
-            relative_path,
-            module_name,
-            fn_name,
-            fn_type,
-            resources,
-            conda_env,
-            env_vars,
-            run_name,
-            args,
-            kwargs,
-        ] = b64_unpickle(message.data)
-
-        try:
-            args = obj_store.get_obj_refs_list(args)
-            kwargs = obj_store.get_obj_refs_dict(kwargs)
-
-            result = call_fn_by_type(
-                fn_type=fn_type,
-                fn_name=fn_name,
-                relative_path=relative_path,
-                module_name=module_name,
-                resources=resources,
-                conda_env=conda_env,
-                env_vars=env_vars,
-                run_name=run_name,
-                args=args,
-                kwargs=kwargs,
-                serialize_res=True,
-            )
-            # We need to pin the run_key in the server's Python context rather than inside the call_fn context,
-            # because the call_fn context is a separate process and the pinned object will be lost when Ray
-            # garbage collects the call_fn process.
-            from runhouse import Run
-
-            (res, obj_ref, run_key) = result
-
-            if obj_ref is not None:
-                obj_store.put_obj_ref(key=run_key, obj_ref=obj_ref)
-
-            result = pickle.dumps(res) if isinstance(res, Run) else res
-
-            self.register_activity()
-            if isinstance(result, ray.exceptions.RayTaskError):
-                # If Ray throws an error when executing the function as part of a Run,
-                # it will be reflected in the result since we catch the exception and do not immediately raise it
-                logger.exception(result)
-                return Response(
-                    error=pickle_b64(result),
-                    traceback=pickle_b64(traceback.format_exc()),
-                    output_type=OutputType.EXCEPTION,
-                )
-            elif isinstance(result, list):
-                return Response(
-                    data=[codecs.encode(i, "base64").decode() for i in result],
-                    output_type=OutputType.RESULT_LIST,
-                )
-            else:
-                return Response(
-                    data=codecs.encode(result, "base64").decode(),
-                    output_type=OutputType.RESULT,
-                )
-        except Exception as e:
-            logger.exception(e)
-            self.register_activity()
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
-
     def get(self, key, remote=False, stream=False, timeout=None, _intra_cluster=False):
         """Get an object from the servlet's object store.
 
@@ -387,12 +309,6 @@ class EnvServlet:
                     # This allows us to return the results of a generator as they become available, rather than
                     # waiting a full second for the ray.get in the server to timeout before trying again.
                     if ret_obj.provenance.status == RunStatus.RUNNING:
-                        # while (
-                        #     isinstance(ret_obj, Queue)
-                        #     and ret_obj.empty()
-                        #     and ret_obj.provenance.status == RunStatus.RUNNING
-                        # ):
-                        #     ret_obj = ret_obj.refresh()
                         time.sleep(0.1)
                         return
 
@@ -560,7 +476,7 @@ class EnvServlet:
 
     def cancel_run(self, message: Message):
         # Having this be a POST instead of a DELETE on the "run" endpoint is strange, but we're not actually
-        # deleting the run, just cancelling it. Maybe we should merge this into get_object to allow streaming logs.
+        # deleting the run, just cancelling it. Maybe we should merge this into call_module_method to stream logs.
         self.register_activity()
         force = b64_unpickle(message.data)
         logger.info(f"Message received from client to cancel runs: {message.key}")

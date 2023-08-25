@@ -52,7 +52,7 @@ def test_get_from_cluster(ondemand_cpu_cluster):
     print(print_fn())
     res = print_fn.remote()
     assert isinstance(res, rh.Blob)
-    assert res.name in ondemand_cpu_cluster.list_keys()
+    assert res.name in ondemand_cpu_cluster.keys()
 
     assert res.fetch.data == list(range(50))
     res = ondemand_cpu_cluster.get(res.name)
@@ -73,13 +73,11 @@ def test_call_module_method(ondemand_cpu_cluster, env):
     ondemand_cpu_cluster.put("numpy_pkg", Package.from_string("numpy"), env=env)
 
     # Test for method
-    res = ondemand_cpu_cluster.call_module_method(
-        "numpy_pkg", "_detect_cuda_version_or_cpu"
-    )
+    res = ondemand_cpu_cluster.call("numpy_pkg", "_detect_cuda_version_or_cpu")
     assert res == "cpu"
 
     # Test for property
-    res = ondemand_cpu_cluster.call_module_method("numpy_pkg", "config_for_rns")
+    res = ondemand_cpu_cluster.call("numpy_pkg", "config_for_rns")
     numpy_config = Package.from_string("numpy").config_for_rns
     assert res
     assert isinstance(res, dict)
@@ -87,7 +85,7 @@ def test_call_module_method(ondemand_cpu_cluster, env):
 
     # Test iterator
     ondemand_cpu_cluster.put("config_dict", list(numpy_config.keys()), env=env)
-    res = ondemand_cpu_cluster.call_module_method("config_dict", "__iter__")
+    res = ondemand_cpu_cluster.call("config_dict", "__iter__")
     # Checks that all the keys in numpy_config were returned
     inspect.isgenerator(res)
     for key in res:
@@ -116,7 +114,7 @@ def test_stateful_generator(ondemand_cpu_cluster, env):
     # TODO remove when we add support for rh.Module
     rh.function(fn=do_printing_and_logging, system=ondemand_cpu_cluster)
     ondemand_cpu_cluster.put("slow_numpy_array", slow_numpy_array(), env=env)
-    for val in ondemand_cpu_cluster.call_module_method(
+    for val in ondemand_cpu_cluster.call(
         "slow_numpy_array", "slow_get_array", stream_logs=True
     ):
         assert val
@@ -134,12 +132,12 @@ def pinning_helper(key=None):
 
 @pytest.mark.clustertest
 def test_pinning_and_arg_replacement(ondemand_cpu_cluster):
-    ondemand_cpu_cluster.delete_keys()
+    ondemand_cpu_cluster.clear()
     pin_fn = rh.function(pinning_helper).to(ondemand_cpu_cluster)
 
     # First run should pin "run_pin" and "run_pin_inside"
     pin_fn.remote(key="run_pin", run_name="pinning_test")
-    print(ondemand_cpu_cluster.list_keys())
+    print(ondemand_cpu_cluster.keys())
     assert ondemand_cpu_cluster.get("pinning_test") == ["fn result"] * 3
     assert ondemand_cpu_cluster.get("run_pin_inside").data == ["put within fn"] * 5
 
@@ -161,20 +159,15 @@ def test_put_resource(ondemand_cpu_cluster, test_env):
     )
 
     assert (
-        ondemand_cpu_cluster.call_module_method(
-            "test_env", "config_for_rns", stream_logs=True
-        )
+        ondemand_cpu_cluster.call("test_env", "config_for_rns", stream_logs=True)
         == test_env.config_for_rns
     )
-    assert (
-        ondemand_cpu_cluster.call_module_method("test_env", "name", stream_logs=True)
-        == "test_env"
-    )
+    assert ondemand_cpu_cluster.call("test_env", "name", stream_logs=True) == "test_env"
 
 
 @pytest.mark.clustertest
 def test_fault_tolerance(ondemand_cpu_cluster):
-    ondemand_cpu_cluster.delete_keys()
+    ondemand_cpu_cluster.clear()
     ondemand_cpu_cluster.put("my_list", list(range(5, 50, 2)) + ["a string"])
     ondemand_cpu_cluster.restart_server(restart_ray=False, resync_rh=False)
     ret = ondemand_cpu_cluster.get("my_list")
@@ -199,7 +192,7 @@ def serialization_helper_2():
 def test_pinning_to_gpu(k80_gpu_cluster):
     # Based on the following quirk having to do with Numpy objects becoming immutable if they're serialized:
     # https://docs.ray.io/en/latest/ray-core/objects/serialization.html#fixing-assignment-destination-is-read-only
-    k80_gpu_cluster.delete_keys()
+    k80_gpu_cluster.delete()
     fn_1 = rh.function(serialization_helper_1).to(k80_gpu_cluster)
     fn_2 = rh.function(serialization_helper_2).to(k80_gpu_cluster)
     fn_1()
@@ -222,7 +215,7 @@ def np_serialization_helper_2():
 def test_pinning_in_memory(ondemand_cpu_cluster):
     # Based on the following quirk having to do with Numpy objects becoming immutable if they're serialized:
     # https://docs.ray.io/en/latest/ray-core/objects/serialization.html#fixing-assignment-destination-is-read-only
-    ondemand_cpu_cluster.delete_keys()
+    ondemand_cpu_cluster.clear()
     fn_1 = rh.function(np_serialization_helper_1).to(ondemand_cpu_cluster)
     fn_1()
     fn_2 = rh.function(np_serialization_helper_2).to(ondemand_cpu_cluster)

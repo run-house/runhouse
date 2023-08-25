@@ -250,13 +250,13 @@ def test_list_keys(cluster):
     pid_obj1 = pid_fn.run()
     pid_obj2 = pid_fn.run()
 
-    current_jobs = cluster.list_keys()
+    current_jobs = cluster.keys()
     assert set([pid_obj1, pid_obj2]).issubset(current_jobs)
 
     pid_obj3 = pid_fn.remote()
     pid_obj4 = pid_fn.remote()
 
-    current_jobs = cluster.list_keys()
+    current_jobs = cluster.keys()
     assert set([pid_obj3.name, pid_obj4.name]).issubset(current_jobs)
 
 
@@ -441,15 +441,17 @@ def test_http_url(cluster):
         else None
     )
     sum1 = requests.post(
-        "http://127.0.0.1:80/call/remote_function/", json={"args": [1, 2]}, auth=auth
+        "http://127.0.0.1:80/call/remote_function/call",
+        json={"args": [1, 2]},
+        auth=auth,
     ).json()
-    assert sum1 == 3
+    assert int(sum1) == 3
     sum2 = requests.post(
-        "http://127.0.0.1:80/call/remote_function/",
+        "http://127.0.0.1:80/call/remote_function/call",
         json={"kwargs": {"a": 1, "b": 2}},
         auth=auth,
     ).json()
-    assert sum2 == 3
+    assert int(sum2) == 3
 
     tun.close()
 

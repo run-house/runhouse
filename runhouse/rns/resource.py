@@ -56,8 +56,12 @@ class Resource:
         from runhouse.rns.run import Run
 
         self.dryrun = dryrun
+        # dryrun is true here so we don't spend time calling check on the server
+        # if we're just loading down the resource (e.g. with .remote)
         self.provenance = (
-            Run.from_config(provenance) if isinstance(provenance, Dict) else provenance
+            Run.from_config(provenance, dryrun=True)
+            if isinstance(provenance, Dict)
+            else provenance
         )
 
     # TODO add a utility to allow a parameter to be specified as "default" and then use the default value

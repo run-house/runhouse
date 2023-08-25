@@ -12,7 +12,6 @@ from runhouse.rns.hardware import Cluster
 
 from runhouse.rns.module import Module
 from runhouse.rns.packages import git_package
-from runhouse.rns.run_module_utils import get_fn_from_pointers
 from runhouse.rns.utils.api import ResourceAccess
 
 from runhouse.rns.utils.env import _env_vars_from_file, _get_env_from
@@ -169,14 +168,14 @@ class Function(Module):
 
     def call(self, *args, **kwargs) -> Any:
         # We need this strictly because Module's __getattribute__ overload can't pick up the __call__ method
-        fn = get_fn_from_pointers(*self.fn_pointers)
+        fn = self._get_obj_from_pointers(*self.fn_pointers)
         return fn(*args, **kwargs)
 
     @property
     def _is_async(self) -> Any:
         if not self.fn_pointers:
             return False
-        fn = get_fn_from_pointers(*self.fn_pointers, quiet=True)
+        fn = self._get_obj_from_pointers(*self.fn_pointers)
         if not fn:
             return False
         return inspect.iscoroutinefunction(fn) or inspect.isasyncgenfunction(fn)
@@ -185,7 +184,7 @@ class Function(Module):
     def _is_async_gen(self) -> Any:
         if not self.fn_pointers:
             return False
-        fn = get_fn_from_pointers(*self.fn_pointers, quiet=True)
+        fn = self._get_obj_from_pointers(*self.fn_pointers)
         if not fn:
             return False
         return inspect.isasyncgenfunction(fn)

@@ -309,6 +309,7 @@ def cluster(request):
 def ondemand_cpu_cluster():
     c = rh.ondemand_cluster("^rh-cpu")
     c.up_if_not()
+    # c.restart_server()
     c.install_packages(["pytest"])
     # Save to RNS - to be loaded in other tests (ex: Runs)
     c.save()

@@ -4,7 +4,6 @@ from typing import List
 
 from runhouse.logger import LOGGING_CONFIG
 from runhouse.rh_config import configs, rns_client
-from runhouse.rns.utils.hardware import _get_cluster_from
 
 # Configure the logger once
 logging.config.dictConfig(LOGGING_CONFIG)
@@ -74,13 +73,6 @@ def __getattr__(name):
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
-def load_from_path(
-    path: str,
-    instantiate: bool = True,
-):
-    pass
-
-
 def set_save_to(save_to: List[str]):
     rns_client.save_to = save_to
 
@@ -134,13 +126,14 @@ def resources(path: str = None, full_paths=False):
 
 
 def ipython():
-    import subprocess
+    try:
+        import IPython
 
-    subprocess.Popen("pip install ipython".split(" "))
-    # TODO install ipython if not installed
-    import IPython
+        IPython.embed()
+    except ImportError:
+        import code
 
-    IPython.embed()
+        code.interact(local=locals())
 
 
 def delete(resource_or_name: str):
@@ -148,63 +141,58 @@ def delete(resource_or_name: str):
     rns_client.delete_configs(resource=resource_or_name)
 
 
-# TODO [DG]
-def delete_all(folder: str = None):
-    """Delete all resources in the given folder, such that the user has peace of mind that they are not consuming
-    any hidden cloud costs."""
-    pass
-
-
-# TODO [DG]
-def sync_down():
-    pass
-
-
-# TODO [DG]
-def load_all_clusters():
-    """Load all clusters in RNS into the local Sky context."""
-    pass
-
-
 # -----------------  Pinning objects to cluster memory  -----------------
 from runhouse import rh_config
 
 
 def pin_to_memory(key: str, value):
-    # Put the obj_ref in Ray obj store here so it doesn't need to be deserialized inside the ObjStoreActor's process
-    # which may not have the necessary modules installed or gpu access
-    # obj_ref = ray.put(value)
-    # rh_config.obj_store.put_obj_ref(key, obj_ref)
+    # Deprecate after 0.0.12
+    import warnings
+
+    warnings.warn(
+        "pin_to_memory is deprecated, use `rh.here.put` instead", DeprecationWarning
+    )
     rh_config.obj_store.put(key, value)
 
 
 def get_pinned_object(key: str, default=None):
-    # ref = rh_config.obj_store.get_obj_ref(key)
-    # if ref is None:
-    #     return default
-    # else:
-    #     return ray.get(ref)
-    return rh_config.obj_store.get(key, default=default)
+    # Deprecate after 0.0.12
+    import warnings
 
-
-def get(key: str, cluster=None, default=None):
-    system = _get_cluster_from(cluster)
-    if system:
-        return system.get(key, default=default)
+    warnings.warn(
+        "get_pinned_object is deprecated, use `rh.here.get` instead", DeprecationWarning
+    )
     return rh_config.obj_store.get(key, default=default)
 
 
 def remove_pinned_object(key: str):
+    # Deprecate after 0.0.12
+    import warnings
+
+    warnings.warn(
+        "remove_pinned_object is deprecated, use `rh.here.delete` instead",
+        DeprecationWarning,
+    )
     rh_config.obj_store.delete(key)
 
 
-def pop_pinned_object(key: str, default=None):
-    return rh_config.obj_store.pop(key, default=default)
-
-
 def pinned_keys():
+    # Deprecate after 0.0.12
+    import warnings
+
+    warnings.warn(
+        "pinned_keys is deprecated, use `rh.here.keys` instead",
+        DeprecationWarning,
+    )
     return rh_config.obj_store.keys()
 
 
 def clear_pinned_memory():
+    # Deprecate after 0.0.12
+    import warnings
+
+    warnings.warn(
+        "clear_pinned_memory is deprecated, use `rh.here.clear` instead",
+        DeprecationWarning,
+    )
     rh_config.obj_store.clear()

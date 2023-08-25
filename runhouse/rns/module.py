@@ -139,7 +139,10 @@ class Module(Resource):
         if config.get("cls_pointers"):
             config.pop("resource_subtype", None)
             logger.debug(f"Constructing module from pointers {config['cls_pointers']}")
-            module_cls = cls._cls_from_pointers(pointers=config["cls_pointers"])
+            (module_path, module_name, class_name) = config["cls_pointers"]
+            module_cls = cls._get_obj_from_pointers(
+                module_path, module_name, class_name
+            )
             if not issubclass(module_cls, Module):
                 # Case when module was created through rh.module(new_class) factory, and needs to be
                 # made into a subclass of rh.Module. We'll follow the same flow as the subclass-created module below,
@@ -215,15 +218,23 @@ class Module(Resource):
         to load a model or dataset and send it to GPU, you probably don't want to do those locally and send the
         state over to the cluster."""
         if self._cls_pointers:
-            module_cls = self._cls_from_pointers(self._cls_pointers)
+            (module_path, module_name, class_name) = self._cls_pointers
+            module_cls = self._get_obj_from_pointers(
+                module_path, module_name, class_name
+            )
             module_cls.__init__(self, *args, **kwargs)
 
-    @classmethod
-    def _cls_from_pointers(cls, pointers):
-        (module_path, module_name, class_name) = pointers
+    @staticmethod
+    def _get_obj_from_pointers(module_path, module_name, obj_name):
+        """Helper method to load a class or function from a module path, module name, and class name."""
         if module_path:
-            sys.path.append(module_path)
-            logger.debug(f"Appending {module_path} to sys.path")
+            abs_path = str((Path.home() / module_path).expanduser().resolve())
+            if abs_path not in sys.path:
+                sys.path.append(abs_path)
+                logger.debug(f"Appending {module_path} to sys.path")
+
+        if not importlib.util.find_spec(module_name):
+            return None
 
         if module_name in obj_store.imported_modules:
             importlib.invalidate_caches()
@@ -236,7 +247,7 @@ class Module(Resource):
             obj_store.imported_modules[module_name] = importlib.import_module(
                 module_name
             )
-        return getattr(obj_store.imported_modules[module_name], class_name)
+        return getattr(obj_store.imported_modules[module_name], obj_name)
 
     def to(
         self,
@@ -369,7 +380,6 @@ class Module(Resource):
         if not callable(attr):
             # TODO should we throw a warning here or is that annoying?
             return attr
-            # return system.call_module_method(name, item)
 
         signature = inspect.signature(attr)
         has_local_arg = "local" in signature.parameters
@@ -410,7 +420,7 @@ class Module(Resource):
                 ):
 
                     def call_wrapper():
-                        return system.call_module_method(
+                        return system.call(
                             name,
                             item,
                             *args,
@@ -433,7 +443,7 @@ class Module(Resource):
                     loop = asyncio.get_event_loop()
                     return asyncio.create_task(async_call())
 
-                return system.call_module_method(
+                return system.call(
                     name,
                     item,
                     *args,
@@ -473,7 +483,7 @@ class Module(Resource):
         ):
             return super().__setattr__(key, value)
 
-        return self._system.call_module_method(
+        return self._system.call(
             module_name=self._name,
             method_name=key,
             new_value=value,
@@ -513,7 +523,7 @@ class Module(Resource):
                         return obj_store_obj.__getattribute__(item)
                     else:
                         return self.__getattribute__(item)
-                return system.call_module_method(name, item, stream_logs=False)
+                return system.call(name, item, stream_logs=False)
 
             @classmethod
             def __call__(cls, *args, **kwargs):
@@ -543,9 +553,7 @@ class Module(Resource):
                     return obj_store_obj.__getattribute__(key)
                 else:
                     return self.__getattribute__(key)
-            return system.call_module_method(
-                name, key, remote=remote, stream_logs=stream_logs
-            )
+            return system.call(name, key, remote=remote, stream_logs=stream_logs)
 
         if (
             key
@@ -583,7 +591,7 @@ class Module(Resource):
             return super().__setattr__(key, value)
 
         def call_wrapper():
-            return self._system.call_module_method(
+            return self._system.call(
                 module_name=self._name,
                 method_name=key,
                 new_value=value,

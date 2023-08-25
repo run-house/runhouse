@@ -76,50 +76,6 @@ class HTTPClient:
             timeout=self.CHECK_TIMEOUT_SEC,
         )
 
-    def run_module(
-        self,
-        relative_path,
-        module_name,
-        fn_name,
-        fn_type,
-        resources,
-        conda_env,
-        env_vars,
-        run_name,
-        args,
-        kwargs,
-    ):
-        """
-        Client function to call the rpc for run_module
-        """
-        # Measure the time it takes to send the message
-        module_info = [
-            relative_path,
-            module_name,
-            fn_name,
-            fn_type,
-            resources,
-            conda_env,
-            env_vars,
-            run_name,
-            args,
-            kwargs,
-        ]
-        start = time.time()
-        res = self.request(
-            "run",
-            req_type="post",
-            data=pickle_b64(module_info),
-            err_str=f"Error inside function {fn_type}",
-        )
-        end = time.time()
-        if fn_type not in ["remote", "get_or_run"]:
-            # Printing call time for async runs is not useful
-            logging.info(
-                f"Time to call remote function: {round(end - start, 2)} seconds"
-            )
-        return res
-
     def call_module_method(
         self,
         module_name,
@@ -135,7 +91,7 @@ class HTTPClient:
         system=None,
     ):
         """
-        Client function to call the rpc for run_module
+        Client function to call the rpc for call_module_method
         """
         # Measure the time it takes to send the message
         start = time.time()
@@ -208,6 +164,7 @@ class HTTPClient:
                 ):
                     result["system"] = system
                 non_generator_result = Resource.from_config(result, dryrun=True)
+
             elif output_type == OutputType.RESULT:
                 # Finish iterating over logs before returning single result
                 non_generator_result = result
@@ -219,30 +176,6 @@ class HTTPClient:
             log_str = f"Time to get {module_name}: {round(end - start, 2)} seconds"
         logging.info(log_str)
         return non_generator_result
-
-    # TODO [DG]: maybe just merge cancel into this so we can get log streaming back as we cancel a job (ditto others)
-    def get_object(self, key, stream_logs=False):
-        """
-        Get a value from the server
-        """
-        res = requests.get(
-            f"http://{self.host}:{self.port}/object/",
-            json={"data": pickle_b64((key, stream_logs))},
-            stream=True,
-        )
-        if res.status_code != 200:
-            raise ValueError(
-                f"Error getting key {key} from server: {res.content.decode()}"
-            )
-        for responses_json in res.iter_content(chunk_size=None):
-            for resp in responses_json.decode().split('{"data":')[1:]:
-                resp = json.loads('{"data":' + resp)
-                output_type = resp["output_type"]
-                result = handle_response(
-                    resp, output_type, f"Error running or getting key {key}"
-                )
-                if output_type not in [OutputType.STDOUT, OutputType.STDERR]:
-                    return result
 
     def put_object(self, key, value, env=None):
         self.request(
@@ -275,7 +208,7 @@ class HTTPClient:
             err_str=f"Error renaming object {old_key}",
         )
 
-    def delete_keys(self, keys=None, env=None):
+    def delete(self, keys=None, env=None):
         return self.request(
             "object",
             req_type="delete",
@@ -294,7 +227,10 @@ class HTTPClient:
             err_str=f"Error cancelling runs {key}",
         )
 
-    def list_keys(self, env=None):
+    def keys(self, env=None):
+        if env is not None and not isinstance(env, str):
+            env = _get_env_from(env)
+            env = env.name
         return self.request(f"keys/?env={env}" if env else "keys", req_type="get")
 
     def add_secrets(self, secrets):
