@@ -159,7 +159,9 @@ def ondemand_cluster(
 
 def sagemaker_cluster(
     name: str,
-    role_or_profile: str = None,
+    role: str = None,
+    profile: str = None,
+    ssh_key_path: str = None,
     instance_type: str = None,
     instance_count: int = None,
     image_uri: str = None,
@@ -174,11 +176,17 @@ def sagemaker_cluster(
 
     Args:
         name (str): Name for the cluster, to re-use later on.
-        role_or_profile (str, optional): An AWS IAM ARN role or profile name.
-            Required for training jobs and APIs that create SageMaker endpoints. Can be passed in explicitly as an
-            argument or provided via an estimator. If not specified will try using the environment
-            variable ``AWS_PROFILE``. More info on configuring an IAM role
+        role (str, optional): An AWS IAM role (either name or full ARN).
+            Can be passed in explicitly as an argument or provided via an estimator. If not specified will try
+            using the ``profile`` attribute or environment variable ``AWS_PROFILE`` to extract the relevant role ARN.
+            More info on configuring an IAM role for SageMaker
             `here <https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-roles.html>`_.
+        profile (str, optional): AWS profile to use for the cluster. If provided instead of a ``role``, will lookup
+            the role ARN associated with the profile in the local AWS credentials.
+            If not provided, will use the default profile.
+        ssh_key_path (str, optional): Path to SSH key to use for connecting to the cluster. If not provided, will
+            first look for the SageMaker default key store in path ``~/.ssh/sagemaker-ssh-gw`` before creating
+            a new one.
         instance_type (str, optional): Type of AWS instance to use for the cluster. More info on supported
             instance options `here <https://aws.amazon.com/sagemaker/pricing/instance-types>`_.
             (Default: ``ml.m5.large``.)
@@ -211,12 +219,12 @@ def sagemaker_cluster(
         >>> import runhouse as rh
         >>> # Launch a new SageMaker instance and keep it up indefinitely.
         >>> # Note: This will use Role ARN associated with the "sagemaker" profile defined in the local aws credentials
-        >>> c = rh.sagemaker_cluster(name='sm-cluster', role_or_profile="sagemaker").save()
+        >>> c = rh.sagemaker_cluster(name='sm-cluster', profile="sagemaker").save()
 
         >>> # Running a training job with a provided Estimator
         >>> c = rh.sagemaker_cluster(name='sagemaker-cluster',
         >>>                          estimator=PyTorch(entry_point='train.py',
-        >>>                                            role_or_profile='arn:aws:iam::123456789012:role/MySageMakerRole',
+        >>>                                            role='arn:aws:iam::123456789012:role/MySageMakerRole',
         >>>                                            source_dir='/Users/myuser/dev/sagemaker',
         >>>                                            framework_version='1.8.1',
         >>>                                            py_version='py36',
@@ -228,7 +236,9 @@ def sagemaker_cluster(
     """
     if name:
         alt_options = dict(
-            role_or_profile=role_or_profile,
+            role=role,
+            profile=profile,
+            ssh_key_path=ssh_key_path,
             image_uri=image_uri,
             estimator=estimator,
             instance_type=instance_type,
@@ -253,7 +263,9 @@ def sagemaker_cluster(
 
     return SageMakerCluster(
         name=name,
-        role_or_profile=role_or_profile,
+        role=role,
+        profile=profile,
+        ssh_key_path=ssh_key_path,
         estimator=estimator,
         job_name=job_name,
         instance_type=instance_type,

@@ -300,7 +300,7 @@ class Cluster(Resource):
 
     # ----------------- RPC Methods ----------------- #
 
-    def connect_server_client(self, tunnel=True, force_reconnect=False):
+    def connect_server_client(self, force_reconnect=False):
         if not self.address:
             raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
 

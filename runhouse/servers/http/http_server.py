@@ -18,7 +18,6 @@ from runhouse.rh_config import configs, env_servlets, rns_client
 from runhouse.rns.servlet import EnvServlet
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.http_utils import (
-    b64_unpickle,
     DEFAULT_SERVER_PORT,
     Message,
     OutputType,
