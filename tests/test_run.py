@@ -24,57 +24,38 @@ RUN_FILES = (
 
 @pytest.mark.clustertest
 @pytest.mark.runstest
-def test_read_fn_stdout(ondemand_cpu_cluster, submitted_run):
+def test_read_prov_info(summer_func):
     """Reads the stdout for the Run."""
-    fn_run = ondemand_cpu_cluster.get_run(submitted_run)
-    stdout = fn_run.stdout()
+    remote_res = summer_func.remote(a=1, b=2)
+    assert isinstance(remote_res, rh.Blob)
+    assert remote_res.name in summer_func.system.keys()
+    assert remote_res.fetch.data == 3
+    stdout = remote_res.provenance.stdout()
     pprint(stdout)
-    assert stdout
+    assert "Calling method call on module summer_func" in stdout
+
+    assert remote_res.provenance.status == rh.RunStatus.COMPLETED
 
 
 @pytest.mark.clustertest
 @pytest.mark.runstest
-def test_load_run_result(ondemand_cpu_cluster, submitted_run):
-    """Load the Run created above directly from the cluster."""
-    # Note: Run only exists on the cluster at this point (hasn't yet been saved to RNS).
-    func_run = ondemand_cpu_cluster.get_run(submitted_run)
-    assert func_run.result() == 3
-
-
-@pytest.mark.clustertest
-@pytest.mark.runstest
-def test_read_fn_run_inputs_and_result(ondemand_cpu_cluster, submitted_run):
-    # Load directly from the cluster
-    my_run = ondemand_cpu_cluster.get_run(submitted_run)
-    inputs = my_run.inputs()
-    assert inputs == {"args": [1, 2], "kwargs": {}}
-
-    refreshed_run = my_run.refresh()
-    assert refreshed_run.status == rh.RunStatus.COMPLETED
-
-    output = refreshed_run.result()
-    assert output == 3
-
-
-@pytest.mark.clustertest
-@pytest.mark.runstest
-def test_get_or_call_from_cache(summer_func, submitted_run):
+def test_get_or_call_from_cache(summer_func):
     """Cached version of synchronous run - if already completed return the result, otherwise run and wait for
     completion before returning the result."""
-    # Note: In this test since we already ran the function, it should return the result without re-running
-    run_output = summer_func.get_or_call(run_name=submitted_run)
-    assert run_output == 3
+    run_name = "my_sync_run"
+    summer_func.system.delete(run_name)
 
+    run_output = summer_func.get_or_call(run_name, a=1, b=2, load=False)
+    assert run_output.fetch.data == 3
+    assert run_name in summer_func.system.keys()
 
-@pytest.mark.clustertest
-@pytest.mark.runstest
-def test_get_or_call_no_cache(summer_func):
-    """Cached version of synchronous run - if already completed return the result, otherwise run and wait for
-    completion before returning the result."""
-    # Note: In this test since we do not have a run with this name, it should first execute the function
-    # before returning its result
-    run_output = summer_func.get_or_call(run_name="another_sync_run", a=1, b=2)
-    assert run_output == 3
+    run_output = summer_func.get_or_call(run_name, a=10, b=10, load=False)
+    assert run_output.fetch.data == 3
+
+    summer_func.system.delete(run_name)
+    # Asser than an exception is thrown if the wrong args are passed in
+    with pytest.raises(TypeError):
+        summer_func.get_or_call(run_name, a=10, b=10, c=10, load=False)
 
 
 @pytest.mark.clustertest

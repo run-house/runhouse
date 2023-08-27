@@ -189,8 +189,6 @@ class HTTPServer:
         # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
-            import argparse
-
             # This translates the json dict into an object that we can can access with dot notation, e.g. message.key
             message = argparse.Namespace(**message) if message else None
             method = None if method == "None" else method

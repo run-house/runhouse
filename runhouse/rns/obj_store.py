@@ -112,34 +112,43 @@ class ObjStore:
         self,
         key: str,
         default: Optional[Any] = None,
-        timeout: Optional[float] = None,
         check_other_envs: bool = True,
-        resolve: bool = True,
     ):
         # TODO change this to look up which env the object lives in by default, with an opt out
         # First check if it's in the Python kv store
-        val = self.call_kv_method(self._kv_store, "get", key, None)
-        if val is not None:
+        try:
+            val = self.call_kv_method(self._kv_store, "get", key, KeyError)
             return val
-        elif self.call_kv_method(self._kv_store, "contains", key):
-            # If it's in the kv store but None, return None
-            return None
-        elif not check_other_envs:
+        except KeyError as e:
+            key_err = e
+
+        if not check_other_envs:
+            if default == KeyError:
+                raise key_err
             return default
 
         # If not, check if it's in another env's servlet
         servlet_name = self.get_env(key)
-        if servlet_name is not None:
-            logger.info(f"Getting {key} from servlet {servlet_name}")
-            servlet = self.get_env_servlet(servlet_name)
-            if servlet is not None:
-                if isinstance(servlet, ray.actor.ActorHandle):
-                    val = ray.get(servlet.get.remote(key, _intra_cluster=True))
-                else:
-                    val = servlet.get(key, _intra_cluster=True, timeout=None)
+        if servlet_name is None:
+            if default == KeyError:
+                raise key_err
+            return default
 
-                if val is not None:
-                    return val
+        logger.info(f"Getting {key} from servlet {servlet_name}")
+        servlet = self.get_env_servlet(servlet_name)
+        if servlet is None:
+            if default == KeyError:
+                raise key_err
+            return default
+
+        try:
+            if isinstance(servlet, ray.actor.ActorHandle):
+                return ray.get(servlet.get.remote(key, _intra_cluster=True))
+            else:
+                return servlet.get(key, _intra_cluster=True, timeout=None)
+        except KeyError as e:
+            if default == KeyError:
+                raise e
 
         return default
 
@@ -149,16 +158,14 @@ class ObjStore:
     def get_dict(self, d: Dict[str, Any], default: Optional[Any] = None):
         return {k: self.get(v, default=default or v) for k, v in d.items()}
 
-    def get_obj_refs_list(self, keys: List, resolve=True):
+    def get_obj_refs_list(self, keys: List):
         return [
-            self.get(key, default=key, resolve=resolve) if isinstance(key, str) else key
-            for key in keys
+            self.get(key, default=key) if isinstance(key, str) else key for key in keys
         ]
 
-    def get_obj_refs_dict(self, d: Dict, resolve=True):
+    def get_obj_refs_dict(self, d: Dict):
         return {
-            k: self.get(v, default=v, resolve=resolve) if isinstance(v, str) else v
-            for k, v in d.items()
+            k: self.get(v, default=v) if isinstance(v, str) else v for k, v in d.items()
         }
 
     def pop_env(self, key: str, default: Optional[Any] = None):

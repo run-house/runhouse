@@ -32,6 +32,8 @@ class KVStore(Module):
         self.data[key] = value
 
     def get(self, key: str, default=None):
+        if default == KeyError:
+            return self.data[key]
         return self.data.get(key, default)
 
     def pop(self, key: str, *args):

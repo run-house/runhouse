@@ -66,6 +66,11 @@ def test_put_and_get_on_cluster(ondemand_cpu_cluster):
     ret = ondemand_cpu_cluster.get("my_list")
     assert all(a == b for (a, b) in zip(ret, test_list))
 
+    # Test that NOT_FOUND error is raised when key doesn't exist
+    with pytest.raises(KeyError) as e:
+        ondemand_cpu_cluster.get("nonexistent_key", default=KeyError)
+    assert "key nonexistent_key not found" in str(e.value)
+
 
 @pytest.mark.clustertest
 @pytest.mark.parametrize("env", [None, "base", "pytorch"])

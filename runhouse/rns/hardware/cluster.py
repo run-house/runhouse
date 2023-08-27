@@ -205,14 +205,20 @@ class Cluster(Resource):
     def get(
         self, key: str, default: Any = None, remote=False, stream_logs: bool = False
     ):
-        """Get the result for a given key from the cluster's object store."""
+        """Get the result for a given key from the cluster's object store. To raise an error if the key is not found,
+        use `cluster.get(key, default=KeyError)`."""
         self.check_server()
         if self.on_this_cluster():
             return obj_store.get(key, default=default)
-        res = self.client.call_module_method(
-            key, None, remote=remote, stream_logs=stream_logs, system=self
-        )
-        return res if res is not None else default
+        try:
+            res = self.client.call_module_method(
+                key, None, remote=remote, stream_logs=stream_logs, system=self
+            )
+        except KeyError as e:
+            if default == KeyError:
+                raise e
+            return default
+        return res
 
     # TODO deprecate
     def get_run(self, run_name: str, folder_path: str = None):
@@ -519,6 +525,7 @@ class Cluster(Resource):
         run_name=None,
         remote=False,
         run_async=False,
+        save=False,
         **kwargs,
     ):
         """Call a method on a module that is in the cluster's object store.
@@ -548,6 +555,7 @@ class Cluster(Resource):
             run_name=run_name,
             remote=remote,
             run_async=run_async,
+            save=save,
             args=args,
             kwargs=kwargs,
             system=self,

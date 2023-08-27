@@ -123,9 +123,7 @@ class EnvServlet:
                 result_resource.save()
 
             args, kwargs = b64_unpickle(message.data) if message.data else ([], {})
-            module = obj_store.get(module_name, None)
-            if not module:
-                raise ValueError(f"Resource {module_name} not found")
+            module = obj_store.get(module_name, default=KeyError)
 
             # If method_name is None, return the module itself as this is a "get" request
             try:
@@ -250,6 +248,7 @@ class EnvServlet:
             # generator before hitting the exception, stream the logs back to the client until raising the exception,
             # and indicate that we hit an exception before any results are available if that's the case.
             self.output_types[message.key] = OutputType.EXCEPTION
+            result_resource.pin()
             result_resource.provenance.__exit__(
                 type(e), e, traceback.format_exc()
             )  # TODO use format_tb instead?
@@ -264,11 +263,8 @@ class EnvServlet:
         """
         self.register_activity()
         try:
-            if not obj_store.contains(key):
-                return Response(output_type=OutputType.NOT_FOUND, data=key)
-
             ret_obj = obj_store.get(
-                key, timeout=timeout, check_other_envs=not _intra_cluster
+                key, default=KeyError, check_other_envs=not _intra_cluster
             )
             logger.debug(
                 f"Servlet {self.env_name} got object of type "
@@ -348,6 +344,7 @@ class EnvServlet:
                     # If the user requests a remote of an object that is not a Resource, we need to wrap it
                     # in a Resource first, which will overwrite the original object in the object store. We
                     # may want to just throw an error instead, but let's see if this is acceptable to start.
+                    # TODO just put it in the obj store and return a string instead?
                     ret_obj = blob(data=ret_obj, name=key)
                     ret_obj.pin()
 
