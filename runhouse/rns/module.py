@@ -349,23 +349,6 @@ class Module(Resource):
         system = super().__getattribute__("_system")
 
         attr = super().__getattribute__(item)
-        # try:
-        #     attr = super().__getattribute__(item)
-        # except AttributeError:
-        #     # This means item is not an attribute of Module, Resource, or the Module subclass (if this is one).
-        #     # If there are class pointers, we can still check if it's an attribute of the class we're wrapping
-        #     # by loading the class from its pointers (though this only works for class methods!).
-        #     attr = None
-        #
-        # if attr is None:
-        #     try:
-        #         cls_pointers = super().__getattribute__("_cls_pointers")
-        #         if cls_pointers:
-        #             cls = self._cls_from_pointers(cls_pointers)
-        #             attr = getattr(cls, item)
-        #     except AttributeError:
-        #         # This is not a locally available attribute nor a class method
-        #         pass
 
         if not system or not isinstance(system, Cluster) or system.on_this_cluster():
             return attr

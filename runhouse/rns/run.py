@@ -116,6 +116,7 @@ class Run(Resource):
         self.run_type = run_type or self._detect_run_type()
         self.error = error
         self.traceback = error_traceback
+        # TODO string representation of inputs
 
     def __enter__(self):
         self.status = RunStatus.RUNNING

@@ -4,19 +4,18 @@ import logging
 import re
 import warnings
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 from runhouse import rh_config
-from runhouse.rns.envs import CondaEnv, Env
+from runhouse.rns.envs import Env
 from runhouse.rns.hardware import Cluster
-
 from runhouse.rns.module import Module
 from runhouse.rns.packages import git_package
-from runhouse.rns.utils.api import ResourceAccess
 
-from runhouse.rns.utils.env import _env_vars_from_file, _get_env_from
+from runhouse.rns.resource import Resource
+
+from runhouse.rns.utils.env import _get_env_from
 from runhouse.rns.utils.hardware import _get_cluster_from
-from runhouse.rns.utils.names import _generate_default_name
 
 logger = logging.getLogger(__name__)
 
@@ -189,27 +188,6 @@ class Function(Module):
             return False
         return inspect.isasyncgenfunction(fn)
 
-    def repeat(self, num_repeats: int, *args, **kwargs):
-        """Repeat the Function call multiple times.
-
-        Args:
-            num_repeats (int): Number of times to repeat the Function call.
-            *args: Positional arguments to pass to the Function
-            **kwargs: Keyword arguments to pass to the Function
-
-        Example:
-            >>> remote_fn = rh.function(local_fn).to(gpu)
-            >>> remote_fn.repeat(num_repeats=5)
-        """
-        if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
-            return self._call_fn_with_ssh_access(
-                fn_type="repeat", args=[num_repeats, args], kwargs=kwargs
-            )
-        else:
-            raise NotImplementedError(
-                "Function.repeat only works with Write or Read access, not Proxy access"
-            )
-
     def map(self, *args, **kwargs):
         """Map a function over a list of arguments.
 
@@ -222,15 +200,11 @@ class Function(Module):
             >>> # output: [4, 9]
 
         """
-        arg_list = zip(*args)
-        if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
-            return self._call_fn_with_ssh_access(
-                fn_type="starmap", args=arg_list, kwargs=kwargs
-            )
-        else:
-            raise NotImplementedError(
-                "Function.map only works with Write or Read access, not Proxy access"
-            )
+        import ray
+
+        fn = self._get_obj_from_pointers(*self.fn_pointers)
+        ray_wrapped_fn = ray.remote(fn)
+        return ray.get([ray_wrapped_fn.remote(*args, **kwargs) for args in zip(*args)])
 
     def starmap(self, args_lists, **kwargs):
         """Like :func:`map` except that the elements of the iterable are expected to be iterables
@@ -241,36 +215,11 @@ class Function(Module):
             >>> # runs the function twice, once with args (1, 2) and once with args (3, 4)
             >>> remote_fn.starmap(arg_list)
         """
-        if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
-            return self._call_fn_with_ssh_access(
-                fn_type="starmap", args=args_lists, kwargs=kwargs
-            )
-        else:
-            raise NotImplementedError(
-                "Function.starmap only works with Write or Read access, not Proxy access"
-            )
+        import ray
 
-    def enqueue(self, resources: Optional[Dict] = None, *args, **kwargs):
-        """
-        Enqueue a Function call to be run later. This ensures a function call doesn’t run simultaneously with other
-        calls, but will wait until the execution completes.
-
-        Example:
-            >>> # This will run the functions sequentially
-            >>> [remote_fn.enqueue() for _ in range(3)]
-        """
-        # Add resources one-off without setting as a Function param
-        if self.access in [ResourceAccess.WRITE, ResourceAccess.READ]:
-            return self._call_fn_with_ssh_access(
-                fn_type="queue",
-                resources=resources or self.resources,
-                args=args,
-                kwargs=kwargs,
-            )
-        else:
-            raise NotImplementedError(
-                "Function.enqueue only works with Write or Read access, not Proxy access"
-            )
+        fn = self._get_obj_from_pointers(*self.fn_pointers)
+        ray_wrapped_fn = ray.remote(fn)
+        return ray.get([ray_wrapped_fn.remote(*args, **kwargs) for args in args_lists])
 
     def remote(self, *args, local=True, **kwargs):
         obj = self.call.remote(*args, **kwargs)
@@ -293,42 +242,6 @@ class Function(Module):
             >>> remote_fn.get(remote_fn_run.name)
         """
         return self.system.get(run_key)
-
-    # TODO remove
-    def _call_fn_with_ssh_access(
-        self, fn_type, resources=None, run_name=None, args=None, kwargs=None
-    ):
-        resources = (
-            resources or self.resources
-        )  # Allow for passing in one-off resources for this specific call
-        name = self.name or "anonymous function"
-        if self.fn_pointers is None:
-            raise RuntimeError(f"No fn pointers saved for {name}")
-
-        [relative_path, module_name, fn_name] = self.fn_pointers
-
-        name = self.name or fn_name or "anonymous function"
-        logger.info(f"Running {name} via HTTP")
-        env_name = (
-            self.env.env_name if (self.env and isinstance(self.env, CondaEnv)) else None
-        )
-        env_vars = self.env.env_vars if self.env else {}
-        if not isinstance(env_vars, dict):
-            env_vars = _env_vars_from_file(env_vars)
-
-        res = self.system._run_module(
-            relative_path,
-            module_name,
-            fn_name,
-            fn_type,
-            resources,
-            env_name,
-            env_vars,
-            run_name,
-            args,
-            kwargs,
-        )
-        return res
 
     @property
     def config_for_rns(self):
@@ -389,14 +302,15 @@ class Function(Module):
                 kill_jupyter_cmd = f"jupyter notebook stop {port_fwd}"
                 self.system.run(commands=[kill_jupyter_cmd])
 
-    def get_or_call(self, run_name: str = None, *args, **kwargs) -> Any:
-        """Check if Run was already completed, and if so return the result.
-        If no cached Run is found on the cluster, create a new one and run it synchronously before
-        returning its result.
+    def get_or_call(self, run_name: str, load=True, local=True, *args, **kwargs) -> Any:
+        """Check if object already exists on cluster or rns, and if so return the result. If not, run the function.
+        Keep in mind this can be called with any of the usual method call modifiers - `remote=True`, `run_async=True`,
+        `stream_logs=False`, etc.
 
         Args:
             run_name (Optional[str]): Name of a particular run for this function.
                 If not provided will use the function's name.
+            load (bool): Whether to load the name from the RNS if it exists.
             *args: Arguments to pass to the function for the run (relevant if creating a new run).
             **kwargs: Keyword arguments to pass to the function for the run (relevant if creating a new run).
 
@@ -407,44 +321,18 @@ class Function(Module):
             >>> # previously, remote_fn.run(arg1, arg2, run_name="my_async_run")
             >>> remote_fn.get_or_call()
         """
+        # TODO let's just do this for functions initially, and decide if we want to support it for calls on modules
+        #  as well. Right now this only works with remote=True, we should decide if we want to fix that later.
+        if load:
+            resource = rh_config.rns_client.load_config(name=run_name)
+            if resource:
+                return Resource.from_name(name=run_name, dryrun=self.dryrun)
+        try:
+            return self.system.get(run_name, default=KeyError, remote=True)
+        except KeyError:
+            logger.info(f"Item {run_name} not found on cluster. Running function.")
 
-        run_name = run_name or _generate_default_name(prefix=self.name)
-
-        res = self._call_fn_with_ssh_access(
-            fn_type="get_or_call", run_name=run_name, args=args, kwargs=kwargs
-        )
-
-        return res
-
-    def get_or_run(self, run_name: str = None, *args, **kwargs) -> "Run":
-        """Check if Run was already completed. If no cached Run is found on the cluster, create a new one.
-
-        Note: If the Run has already completed, will not trigger a new Run.
-
-        Args:
-            run_name (Optional[str]): Name of a particular run for this function.
-                If not provided will use the function's name.
-            *args: Arguments to pass to the function for the run (relevant if creating a new run).
-            **kwargs: Keyword arguments to pass to the function for the run (relevant if creating a new run).
-
-        Returns:
-            Run: Run object
-
-        Example:
-            >>> # previously, remote_fn.run(arg1, arg2, run_name="my_async_run")
-            >>> remote_fn.get_or_call()
-        """
-        from runhouse import Run
-
-        run_name = run_name or _generate_default_name(prefix=self.name)
-        if run_name == "latest":
-            raise NotImplementedError("Latest not currently supported")
-
-        completed_run: "Run" = self._call_fn_with_ssh_access(
-            fn_type="get_or_run", run_name=run_name, args=args, kwargs=kwargs
-        )
-
-        return completed_run
+        return self.call(*args, **kwargs, run_name=run_name, remote=True)
 
     def keep_warm(
         self,
