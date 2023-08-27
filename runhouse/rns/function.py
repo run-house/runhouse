@@ -168,6 +168,7 @@ class Function(Module):
     def call(self, *args, **kwargs) -> Any:
         # We need this strictly because Module's __getattribute__ overload can't pick up the __call__ method
         fn = self._get_obj_from_pointers(*self.fn_pointers)
+        logger.info(f"Fn received from pointers: {type(fn)}")
         return fn(*args, **kwargs)
 
     @property

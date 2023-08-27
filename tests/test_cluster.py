@@ -172,6 +172,19 @@ def test_run_function_on_sagemaker(sm_cluster):
 
 
 @pytest.mark.clustertest
+def test_connections_to_multiple_sm_clusters(sm_cluster, other_sm_cluster):
+    for cluster in [sm_cluster, other_sm_cluster]:
+        assert cluster.is_up()
+
+        np_func = rh.function(np_array).to(cluster, env=["./", "numpy", "pytest"])
+
+        # Run function on SageMaker compute
+        my_list = [1, 2, 3]
+        res = np_func(my_list)
+        assert res.tolist() == my_list
+
+
+@pytest.mark.clustertest
 def test_create_and_run_sagemaker_training_job(sm_source_dir, sm_entry_point):
     import dotenv
     from sagemaker.pytorch import PyTorch

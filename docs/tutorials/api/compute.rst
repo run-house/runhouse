@@ -44,17 +44,22 @@ Python commands from your local dev environment.
 Initialize your Cluster
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-There are two types of supported cluster types:
+There are three types of supported cluster types:
 
-1. Bring-your-own (BYO) Cluster: these are existing clusters that you
+1. **Bring-your-own (BYO) Cluster**: Existing clusters that you
    already have up, and access through an IP address and SSH
-   credentials.
+   credentials. Please refer to the :ref:`Bring-Your-Own Cluster` section for further instructions.
 
-2. On-demand Cluster associated with your cloud account (AWS, GCP,
+2. **On-demand Cluster**: Associated with your cloud account (AWS, GCP,
    Azure, LambdaLabs). There are additional features for these clusters,
    such as cluster (auto) stop. Please refer to
-   ``Installation and Setup Guide`` for instructions on first getting
+   :ref:`On-Demand Cluster` for instructions on first getting
    cloud credentials set up.
+
+3. **SageMaker Cluster**: Clusters that are created and managed
+   through SageMaker, which can be used as a compute backend (just like BYO or On-Demand clusters)
+   or for running dedicated training jobs. Please refer to the :ref:`SageMaker Clusters` section for instructions on
+   getting setup with SageMaker.
 
 .. code:: python
 
@@ -78,7 +83,15 @@ There are two types of supported cluster types:
                   provider="cheapest",       # "AWS", "GCP", "Azure", "Lambda", or "cheapest" (default)
                   autostop_mins=60,          # Optional, defaults to default_autostop_mins; -1 suspends autostop
               )
-    # Launch the cluster, only supported for on-demand clusters
+    # Launch the cluster
+    cluster.up()
+
+    # Using SageMaker as the compute provider
+    cluster = rh.sagemaker_cluster(
+                  name="sm-cluster",
+                  profile="sagemaker" # AWS profile with a role ARN configured for SageMaker
+              )
+    # Launch the cluster
     cluster.up()
 
 You can set default configs for future cluster constructions. These

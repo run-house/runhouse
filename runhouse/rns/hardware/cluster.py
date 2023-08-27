@@ -31,7 +31,9 @@ class Cluster(Resource):
 
     SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
     CLI_RESTART_CMD = "runhouse restart"
-    SERVER_START_CMD = "python3 -m runhouse.servers.http.http_server"
+    SERVER_START_CMD = (
+        f"python3 -m runhouse.servers.http.http_server --port {HTTPClient.DEFAULT_PORT}"
+    )
     SERVER_STOP_CMD = f'pkill -f "{SERVER_START_CMD}"'
     # 2>&1 redirects stderr to stdout
     START_SCREEN_CMD = (
@@ -333,9 +335,7 @@ class Cluster(Resource):
                 self._rpc_tunnel, connected_port = self.address, HTTPClient.DEFAULT_PORT
         elif not ssh_tunnel:
             self._rpc_tunnel, connected_port = self.ssh_tunnel(
-                self._local_port
-                if hasattr(self, "_local_port")
-                else HTTPClient.DEFAULT_PORT,
+                HTTPClient.DEFAULT_PORT,
                 remote_port=DEFAULT_SERVER_PORT,
                 num_ports_to_try=5,
             )
@@ -348,6 +348,7 @@ class Cluster(Resource):
 
         # Connecting to localhost because it's tunneled into the server at the specified port.
         creds = self.ssh_creds()
+        logger.info(f"Launching HTTP Client on port: {connected_port}")
         if creds.get("password") and creds.get("ssh_user"):
             self.client = HTTPClient(
                 host="127.0.0.1",
@@ -465,7 +466,7 @@ class Cluster(Resource):
         return ssh_tunnel, local_port
 
     @classmethod
-    def _start_server_cmds(cls, restart, restart_ray, screen, create_logfile):
+    def _start_server_cmds(cls, restart, restart_ray, screen, port, create_logfile):
         cmds = []
         if restart:
             cmds.append(cls.SERVER_STOP_CMD)
@@ -473,6 +474,15 @@ class Cluster(Resource):
             cmds.append(cls.RAY_KILL_CMD)
             # TODO Add in BOOTSTRAP file if it exists?
             cmds.append(cls.RAY_START_CMD)
+
+        if port:
+            # Update the start commands with the port provided
+            cls.SERVER_START_CMD = cls.SERVER_START_CMD.replace(
+                str(HTTPClient.DEFAULT_PORT), str(port)
+            )
+            cls.START_SCREEN_CMD = cls.START_SCREEN_CMD.replace(
+                f"--port {HTTPClient.DEFAULT_PORT}", f"--port {port}"
+            )
         if screen:
             if create_logfile and not Path(cls.SERVER_LOGFILE).exists():
                 Path(cls.SERVER_LOGFILE).parent.mkdir(parents=True, exist_ok=True)
@@ -487,22 +497,28 @@ class Cluster(Resource):
         _rh_install_url: str = None,
         resync_rh: bool = True,
         restart_ray: bool = True,
+        port: int = 50052,
     ):
         """Restart the RPC server.
 
         Args:
             resync_rh (bool): Whether to resync runhouse. (Default: ``True``)
             restart_ray (bool): Whether to restart Ray. (Default: ``True``)
+            port (int): Port to start the server on. (Default: ``50052``)
 
         Example:
             >>> rh.cluster("rh-cpu").restart_server()
         """
-        logger.info(f"Restarting HTTP server on {self.name}.")
+        logger.info(f"Restarting HTTP server on {self.name} on port: {port}.")
 
         if resync_rh:
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
 
-        cmd = self.CLI_RESTART_CMD + (" --no-restart-ray" if not restart_ray else "")
+        cmd = (
+            self.CLI_RESTART_CMD
+            + (" --no-restart-ray" if not restart_ray else "")
+            + f" --port {port}"
+        )
         status_codes = self.run(commands=[cmd])
         if not status_codes[0][0] == 0:
             raise ValueError(f"Failed to restart server {self.name}.")

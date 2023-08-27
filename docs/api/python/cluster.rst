@@ -39,16 +39,12 @@ A SageMakerCluster is a cluster that uses a SageMaker instance under the hood.
 
 Runhouse currently supports two core usage paths for SageMaker clusters:
 
-- *Compute backend*: You can use SageMaker as a compute backend, just as you would a
+- **Compute backend**: You can use SageMaker as a compute backend, just as you would a
   :ref:`BYO (bring-your-own) <Cluster Class>` or an :ref:`on-demand cluster <OnDemandCluster Class>` cluster.
   Runhouse will facilitate the creation of the SageMaker compute and will handle the creation of an SSH
   connection to the instance. You can then use the instance as you would any other compute backend.
 
-.. raw:: html
-
-  <br>
-
-- *Dedicated training jobs*: You can use a SageMakerCluster class to run a training job on SageMaker compute.
+- **Dedicated training jobs**: You can use a SageMakerCluster class to run a training job on SageMaker compute.
   To do so, you will need to provide an
   `estimator <https://sagemaker.readthedocs.io/en/stable/api/training/estimators.html>`_.
 
@@ -106,12 +102,37 @@ configuring the SageMaker IAM role with the
 
 **IAM Role**
 
-In order to use SageMaker clusters, you must grant SageMaker the necessary permissions with an IAM role.
-You can provide this role either by profile name or by full ARN, via an estimator, or with the :code:`AWS_PROFILE` environment
-variable.
+In order to use a :ref:`SageMaker Cluster`, you must grant SageMaker the necessary permissions with an IAM role, which
+can be provided either by name or by full ARN. You can also specify a profile explicitly or
+with the :code:`AWS_PROFILE` environment variable which includes the relevant role.
 
-Please see the `AWS docs <https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-roles.html>`_ for more info
-on creating and configuring the role.
+For example, let's say your local :code:`~/.aws/config` file contains:
+
+.. code-block:: ini
+
+    [profile sagemaker]
+    role_arn = arn:aws:iam::123456789:role/service-role/AmazonSageMaker-ExecutionRole-20230717T192142
+    region = us-east-1
+    source_profile = default
+
+There are several ways to provide the necessary credentials for initializing the cluster:
+
+- Providing the AWS profile name: :code:`profile="sagemaker"`
+- Providing the AWS Role ARN: :code:`role="arn:aws:iam::123456789:role/service-role/AmazonSageMaker-ExecutionRole-20230717T192142"`
+- Environment Variable: setting :code:`AWS_PROFILE` to :code:`"sagemaker"`
+
+.. note::
+
+    If no role or profile is provided, Runhouse will try using the :code:`default` profile. Note if this default AWS
+    identity is not a role, then you will need to provide the :code:`role` or :code:`profile` explicitly.
+
+.. tip::
+
+    If you are providing an estimator, you must provide the role ARN explicitly as part of the estimator object.
+    More info on estimators `here <https://sagemaker.readthedocs.io/en/stable/api/training/estimators.html>`_.
+
+Please see the `AWS docs <https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-roles.html>`_ for further
+instructions on creating and configuring the role.
 
 
 **AWS CLI V2**

@@ -318,12 +318,18 @@ def ondemand_cpu_cluster():
 
 @pytest.fixture(scope="session")
 def sm_cluster():
-    import dotenv
-
-    dotenv.load_dotenv()
-
     c = (
-        rh.sagemaker_cluster(name="rh-sagemaker", role=os.getenv("AWS_ROLE_ARN"))
+        rh.sagemaker_cluster(name="rh-sagemaker", profile="sagemaker")
+        .up_if_not()
+        .save()
+    )
+    return c
+
+
+@pytest.fixture(scope="session")
+def other_sm_cluster():
+    c = (
+        rh.sagemaker_cluster(name="rh-sagemaker-2", profile="sagemaker")
         .up_if_not()
         .save()
     )

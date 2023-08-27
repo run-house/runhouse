@@ -229,12 +229,12 @@ class Module(Resource):
         """Helper method to load a class or function from a module path, module name, and class name."""
         if module_path:
             abs_path = str((Path.home() / module_path).expanduser().resolve())
-            if abs_path not in sys.path:
-                sys.path.append(abs_path)
-                logger.debug(f"Appending {module_path} to sys.path")
+            sys.path.insert(0, abs_path)
 
-        if not importlib.util.find_spec(module_name):
-            return None
+            try:
+                importlib.util.find_spec(module_name)
+            except:
+                logger.info(f"Could not find module {module_name} in find spec")
 
         if module_name in obj_store.imported_modules:
             importlib.invalidate_caches()

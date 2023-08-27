@@ -521,7 +521,10 @@ if __name__ == "__main__":
         "--conda_env", type=str, default=None, help="Conda env to run server in"
     )
     parse_args = parser.parse_args()
+
     port = parse_args.port
+    logger.info(f"Starting HTTP server on port: {port}")
+
     conda_name = parse_args.conda_env
     import uvicorn
 

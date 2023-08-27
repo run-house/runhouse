@@ -45,6 +45,9 @@ echo "AWS CLI version (**Note: Must be v2**): $AWS_CLI_VERSION"
 
 echo "Running SSM commands at region ${CURRENT_REGION} to copy public key to ${INSTANCE_ID}"
 
+# Copy the public key from the s3 bucket to the authorized_keys.d directory on the cluster
+cp_command="aws s3 cp --recursive \"${SSH_AUTHORIZED_KEYS}\" /root/.ssh/authorized_keys.d/"
+
 # Copy the SSH public key onto the cluster
 send_command=$(aws ssm send-command \
     --region "${CURRENT_REGION}" \
@@ -55,7 +58,7 @@ send_command=$(aws ssm send-command \
     --parameters "commands=[
         'aws sts get-caller-identity',
         'mkdir -p /root/.ssh/authorized_keys.d/',
-        'aws s3 cp --recursive "${SSH_AUTHORIZED_KEYS_PATH}" /root/.ssh/authorized_keys.d/',
+        '$cp_command',
         'ls -la /root/.ssh/authorized_keys.d/',
         'cat /root/.ssh/authorized_keys.d/* > /root/.ssh/authorized_keys',
         'cat /root/.ssh/authorized_keys'
