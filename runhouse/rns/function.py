@@ -175,7 +175,10 @@ class Function(Module):
     def _is_async(self) -> Any:
         if not self.fn_pointers:
             return False
-        fn = self._get_obj_from_pointers(*self.fn_pointers)
+        try:
+            fn = self._get_obj_from_pointers(*self.fn_pointers)
+        except ModuleNotFoundError:
+            return False
         if not fn:
             return False
         return inspect.iscoroutinefunction(fn) or inspect.isasyncgenfunction(fn)
@@ -184,7 +187,10 @@ class Function(Module):
     def _is_async_gen(self) -> Any:
         if not self.fn_pointers:
             return False
-        fn = self._get_obj_from_pointers(*self.fn_pointers)
+        try:
+            fn = self._get_obj_from_pointers(*self.fn_pointers)
+        except ModuleNotFoundError:
+            return False
         if not fn:
             return False
         return inspect.isasyncgenfunction(fn)

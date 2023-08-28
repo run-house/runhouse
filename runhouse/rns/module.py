@@ -230,11 +230,7 @@ class Module(Resource):
         if module_path:
             abs_path = str((Path.home() / module_path).expanduser().resolve())
             sys.path.insert(0, abs_path)
-
-            try:
-                importlib.util.find_spec(module_name)
-            except:
-                logger.info(f"Could not find module {module_name} in find spec")
+            logger.debug(f"Appending {module_path} to sys.path")
 
         if module_name in obj_store.imported_modules:
             importlib.invalidate_caches()
