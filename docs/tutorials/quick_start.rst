@@ -146,7 +146,7 @@ For more information on support SageMaker usage paths, see the :ref:`SageMakerCl
 .. code:: python
 
     # Launch a new SageMaker instance and keep it up indefinitely
-    cluster = rh.sagemaker_cluster(name='sm-cluster', autostop_mins=-1).save()
+    cluster = rh.sagemaker_cluster(name='sm-cluster', profile="sagemaker").save()
 
     # Running a training job with a provided Estimator
     pytorch_estimator = PyTorch(entry_point='train.py',

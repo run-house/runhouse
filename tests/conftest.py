@@ -318,8 +318,10 @@ def ondemand_cpu_cluster():
 
 @pytest.fixture(scope="session")
 def sm_cluster():
+    # Note: providing a job name for easy deletion with Github Actions
+    name = "rh-sagemaker"
     c = (
-        rh.sagemaker_cluster(name="rh-sagemaker", profile="sagemaker")
+        rh.sagemaker_cluster(name=name, profile="sagemaker", job_name=name)
         .up_if_not()
         .save()
     )
@@ -328,8 +330,10 @@ def sm_cluster():
 
 @pytest.fixture(scope="session")
 def other_sm_cluster():
+    name = "rh-sagemaker-2"
+    # Note: providing a job name for easy deletion with Github Actions
     c = (
-        rh.sagemaker_cluster(name="rh-sagemaker-2", profile="sagemaker")
+        rh.sagemaker_cluster(name=name, profile="sagemaker", job_name=name)
         .up_if_not()
         .save()
     )
@@ -339,15 +343,14 @@ def other_sm_cluster():
 @pytest.fixture(scope="session")
 def sm_gpu_cluster():
     c = (
-        rh.sagemaker_cluster(name="rh-sagemaker-gpu", instance_type="ml.g5.2xlarge")
+        rh.sagemaker_cluster(
+            name="rh-sagemaker-gpu", instance_type="ml.g5.2xlarge", profile="sagemaker"
+        )
         .up_if_not()
         .save()
     )
 
-    yield c
-
-    c.teardown_and_delete()
-    assert not c.is_up()
+    return c
 
 
 @pytest.fixture(scope="session")
@@ -430,6 +433,10 @@ def password_cluster():
 
 cpu_clusters = pytest.mark.parametrize(
     "cluster", ["ondemand_cpu_cluster", "password_cluster", "byo_cpu"], indirect=True
+)
+
+sagemaker_clusters = pytest.mark.parametrize(
+    "cluster", ["sm_cluster", "other_sm_cluster"], indirect=True
 )
 
 

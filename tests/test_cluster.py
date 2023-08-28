@@ -8,7 +8,7 @@ import pytest
 import runhouse as rh
 from runhouse.rns.hardware import OnDemandCluster
 
-from .conftest import cpu_clusters, summer
+from .conftest import cpu_clusters, sagemaker_clusters, summer
 
 
 def is_on_cluster(cluster):
@@ -143,6 +143,19 @@ def test_byo_proxy(byo_cpu, local_folder):
 
 
 @pytest.mark.clustertest
+@sagemaker_clusters
+def test_connections_to_multiple_sm_clusters(cluster):
+    assert cluster.is_up()
+
+    np_func = rh.function(np_array).to(cluster, env=["./", "numpy", "pytest"])
+
+    # Run function on SageMaker compute
+    my_list = [1, 2, 3]
+    res = np_func(my_list)
+    assert res.tolist() == my_list
+
+
+@pytest.mark.sagemakertest
 def test_launch_and_connect_to_sagemaker(sm_cluster):
     # Reload the cluster object and run a command on the cluster
     assert sm_cluster.is_up()
@@ -158,33 +171,7 @@ def test_launch_and_connect_to_sagemaker(sm_cluster):
     assert return_codes[0][0] == 0
 
 
-@pytest.mark.clustertest
-def test_run_function_on_sagemaker(sm_cluster):
-    assert sm_cluster.is_up()
-
-    np_func = rh.function(np_array).to(sm_cluster, env=["./", "numpy", "pytest"])
-
-    # Run function on SageMaker compute
-    my_list = [1, 2, 3]
-    res = np_func(my_list)
-
-    assert res.tolist() == my_list
-
-
-@pytest.mark.clustertest
-def test_connections_to_multiple_sm_clusters(sm_cluster, other_sm_cluster):
-    for cluster in [sm_cluster, other_sm_cluster]:
-        assert cluster.is_up()
-
-        np_func = rh.function(np_array).to(cluster, env=["./", "numpy", "pytest"])
-
-        # Run function on SageMaker compute
-        my_list = [1, 2, 3]
-        res = np_func(my_list)
-        assert res.tolist() == my_list
-
-
-@pytest.mark.clustertest
+@pytest.mark.sagemakertest
 def test_create_and_run_sagemaker_training_job(sm_source_dir, sm_entry_point):
     import dotenv
     from sagemaker.pytorch import PyTorch
@@ -196,6 +183,7 @@ def test_create_and_run_sagemaker_training_job(sm_source_dir, sm_entry_point):
     # https://sagemaker.readthedocs.io/en/stable/api/training/estimators.html#sagemaker.estimator.EstimatorBase
     estimator = PyTorch(
         entry_point=sm_entry_point,
+        # Estimator requires a role ARN (can't be a profile)
         role=os.getenv("AWS_ROLE_ARN"),
         # Script can sit anywhere in the file system
         source_dir=sm_source_dir,
@@ -218,7 +206,7 @@ def test_create_and_run_sagemaker_training_job(sm_source_dir, sm_entry_point):
     assert not reloaded_cluster.is_up()
 
 
-@pytest.mark.clustertest
+@pytest.mark.sagemakertest
 def test_stable_diffusion_on_sm_gpu(sm_gpu_cluster):
     sd_generate = (
         rh.function(sd_generate_image)
@@ -238,6 +226,9 @@ def test_stable_diffusion_on_sm_gpu(sm_gpu_cluster):
     # the following runs on our remote SageMaker instance
     img = sd_generate("A hot dog made out of matcha.")
     assert img
+
+    sm_gpu_cluster.teardown_and_delete()
+    assert not sm_gpu_cluster.is_up()
 
 
 if __name__ == "__main__":

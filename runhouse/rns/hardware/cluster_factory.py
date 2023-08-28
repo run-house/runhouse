@@ -205,9 +205,9 @@ def sagemaker_cluster(
             continuing with normal execution. Useful if you want to connect before a dedicated job starts
             (e.g. training). If you don't want to wait, set it to ``0``.
             If no estimator is provided, will default to ``0``.
-        job_name (str, optional): Name to provide for a training job. Only relevant if an estimator is provided.
-            If not provided with an estimator, will generate a default job name based on the training
-            image name and current timestamp.
+        job_name (str, optional): Name to provide for a training job.
+            If not provided with an estimator, will generate a default job name based on the
+            image name and current timestamp (e.g. ``pytorch-training-2023-08-28-20-57-55-113``).
         dryrun (bool): Whether to create the SageMakerCluster if it doesn't exist, or load a SageMakerCluster object
             as a dryrun.
             (Default: ``False``)

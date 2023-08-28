@@ -106,10 +106,10 @@ class SageMakerCluster(Cluster):
 
         self.estimator = self._load_estimator(estimator)
 
-        # Default sagemaker session - to be overwritten by the profile if provided / extracted from the role
+        # Default sagemaker session - to be overwritten by the profile if provided explicitly or thru a role
         self._sagemaker_session = self._set_sagemaker_session()
 
-        # Role is required for using the SageMaker APIs - try getting associated profile for that role if not provided
+        # Role ARN is required for using the SageMaker APIs - can be provided explicitly or extracted from the profile
         self.role, self.profile = self._set_role_and_profile(role, profile)
 
         self.image_uri = self._set_image_uri(image_uri)
@@ -234,12 +234,7 @@ class SageMakerCluster(Cluster):
     @property
     def default_region(self):
         try:
-            region = (
-                self.estimator.sagemaker_session.boto_region_name
-                if self.estimator
-                else self._sagemaker_session.boto_region_name
-            )
-
+            region = self._sagemaker_session.boto_region_name
             if region is None:
                 return self.DEFAULT_REGION
             return region
@@ -267,9 +262,9 @@ class SageMakerCluster(Cluster):
             f"-L localhost:{self._ssh_port}:localhost:22"
         )
 
-    # ----------------------------
-    # Cluster State
-    # ----------------------------
+    # -------------------------------------------------------
+    # Cluster State & Lifecycle Methods
+    # -------------------------------------------------------
     def check_server(self, restart_server=True):
         if self.on_this_cluster():
             return
@@ -297,7 +292,7 @@ class SageMakerCluster(Cluster):
                     self.run(
                         [
                             "sudo apt-get install screen -y && sudo apt-get install rsync -y "
-                            "&& pip install protobuf==3.20.3",
+                            "&& sudo apt-get install python3-pip -y && python3 -m pip install protobuf==3.20.3",
                         ]
                     )
                     self.restart_server(
@@ -341,19 +336,8 @@ class SageMakerCluster(Cluster):
             >>> rh.sagemaker_cluster("sagemaker-cluster").is_up()
         """
         try:
-            if self.estimator:
-                response = self.estimator.sagemaker_session.describe_training_job(
-                    self.job_name
-                )
-            else:
-                sagemaker_client = boto3.client(
-                    "sagemaker", region_name=self.default_region
-                )
-                response = sagemaker_client.describe_training_job(
-                    TrainingJobName=self.job_name
-                )
-
-            status = response["TrainingJobStatus"]
+            resp = self.status()
+            status = resp.get("TrainingJobStatus")
             # Up if the instance is in progress
             return status == "InProgress"
         except:
@@ -391,9 +375,21 @@ class SageMakerCluster(Cluster):
         yield
         self._update_autostop(self.autostop_mins)
 
-    # ----------------------------
+    def status(self) -> dict:
+        """
+        Get status of SageMaker cluster.
+
+        Example:
+            >>> status = rh.sagemaker_cluster("sagemaker-cluster").status()
+        """
+        try:
+            return self._sagemaker_session.describe_training_job(self.job_name)
+        except:
+            return {}
+
+    # -------------------------------------------------------
     # SSH APIs
-    # ----------------------------
+    # -------------------------------------------------------
     def ssh_tunnel(
         self, local_port=None, remote_port=None, num_ports_to_try: int = 0, retry=True
     ) -> Tuple[SSHTunnelForwarder, int]:
@@ -446,6 +442,7 @@ class SageMakerCluster(Cluster):
                 # SSM session refresh succeeded, no need to try other ports
                 return ssh_tunnel, self._local_port
 
+        # Make sure we add here in case we don't go through ``connect_server_client``
         open_cluster_tunnels[self.instance_id] = (
             ssh_tunnel,
             self._ssh_port,
@@ -510,7 +507,6 @@ class SageMakerCluster(Cluster):
         return_codes = []
         for command in commands:
             if command.startswith("rsync"):
-                # TODO [JL] try to use the SkySSHRunner here too?
                 try:
                     result = subprocess.run(
                         command,
@@ -545,13 +541,32 @@ class SageMakerCluster(Cluster):
                     port_forward=port_forward,
                 )
 
+                if (
+                    return_code != 0
+                    and "dpkg: error processing package install-info" in stdout
+                ):
+                    # **NOTE**: there seems to be an issue with some SageMaker GPUs post installation script which
+                    # leads to an error which looks something like: "installed install-info package post-installation
+                    # script subprocess returned error exit status 2"
+                    # SageMaker populates the /etc/environment for setting env vars which may be corrupt -
+                    # if this happens create a new empty env file for now and re-install the cuda toolkit to ensure
+                    # nvcc is properly configured
+                    self._run_commands_with_ssh(
+                        commands=[
+                            "sudo mv /etc/environment /etc/environment_broken "
+                            f"&& sudo touch /etc/environment && sudo apt install nvidia-cuda-toolkit -y && {command}"
+                        ],
+                        cmd_prefix=cmd_prefix,
+                        stream_logs=stream_logs,
+                    )
+
                 return_codes.append((return_code, stdout, stderr))
 
         return return_codes
 
-    # ----------------------------
+    # -------------------------------------------------------
     # Cluster Provisioning & Launching
-    # ----------------------------
+    # -------------------------------------------------------
     def _create_launch_estimator(self):
         """Create the estimator object used for launching the cluster. If a custom estimator is provided, use that.
         Otherwise, use a Runhouse default estimator to launch.
@@ -718,7 +733,7 @@ class SageMakerCluster(Cluster):
             # ssh     71343 my-user    6u  IPv4 0xcf81f23073f07f6d      0t0  TCP localhost:11022 (LISTEN)
             if not self._ports_are_in_use():
                 raise RuntimeError(
-                    f"Failed to set up port forwarding on ports {self._ssh_port} and {self._local_port}"
+                    f"Failed to set up port forwarding for SSH port {self._ssh_port} and HTTP port {self._local_port}"
                 )
 
         except subprocess.CalledProcessError as e:
@@ -801,9 +816,9 @@ class SageMakerCluster(Cluster):
             )
             return self._create_ssm_session_with_cluster()
 
-    # ----------------------------
+    # -------------------------------------------------------
     # Helpers
-    # ----------------------------
+    # -------------------------------------------------------
     def _rsync(self, source: str, dest: str, up: bool, contents: bool = False):
         source = source + "/" if not source.endswith("/") else source
         dest = dest + "/" if not dest.endswith("/") else dest
@@ -912,24 +927,24 @@ class SageMakerCluster(Cluster):
     def _set_sagemaker_session(self, boto_session: boto3.Session = None):
         """Create a SageMaker session required for using the SageMaker APIs. If none is provided
         create one using the default region."""
+        if self.estimator:
+            return self.estimator.sagemaker_session
+
         boto_session = boto_session or boto3.Session(region_name=self.default_region)
         return sagemaker.Session(boto_session=boto_session)
 
     def _stop_instance(self, delete_configs=True):
         """Stop the SageMaker instance. Optionally remove its config from RNS."""
         try:
-            if self.estimator:
-                resp = self.estimator.sagemaker_session.stop_training_job(self.job_name)
-            else:
-                sagemaker_client = boto3.client("sagemaker")
-                resp = sagemaker_client.stop_training_job(TrainingJobName=self.job_name)
+            self._sagemaker_session.stop_training_job(job_name=self.job_name)
 
-            resp_metadata = resp["ResponseMetadata"]
+            if not self.is_up():
+                raise Exception(f"Failed to stop cluster {self.name}")
 
-            if resp_metadata["HTTPStatusCode"] != 200:
-                raise Exception(f"Failed to stop cluster: {resp_metadata}")
+            logger.info(f"Successfully stopped cluster {self.name}")
 
-            logger.info(f"Successfully stopped cluster {self.instance_id}")
+            # Remove stale host key(s) from known hosts
+            self._filter_known_hosts()
 
             if delete_configs:
                 # Delete from RNS
@@ -937,7 +952,7 @@ class SageMakerCluster(Cluster):
 
                 # Delete entry from ~/.ssh/config
                 self._delete_ssh_config_entry()
-                logger.info(f"Deleted SageMaker cluster {self.name}")
+                logger.info(f"Deleted cluster {self.name} from configs")
 
         except Exception as e:
             raise e
@@ -973,13 +988,13 @@ class SageMakerCluster(Cluster):
                 up=True,
                 contents=True,
             )
-            rh_install_cmd = "pip install ./runhouse"
+            rh_install_cmd = "python3 -m pip install ./runhouse"
         else:
             if not _install_url:
                 import runhouse
 
                 _install_url = f"runhouse=={runhouse.__version__}"
-            rh_install_cmd = f"pip install {_install_url}"
+            rh_install_cmd = f"python3 -m install {_install_url}"
 
         install_cmd = (
             f"{env._activate_cmd} && {rh_install_cmd}" if env else rh_install_cmd
@@ -988,8 +1003,7 @@ class SageMakerCluster(Cluster):
 
         if status_codes[0][0] != 0:
             raise ValueError(
-                f"Error installing runhouse on cluster <{self.name}>. Port forwarding"
-                f"may not be set up correctly."
+                f"Error installing runhouse on cluster: {status_codes[0][1]}"
             )
 
     def _load_estimator(
@@ -1060,9 +1074,9 @@ class SageMakerCluster(Cluster):
         # Update the config on the server with the new autostop time
         self.client.check_server(cluster_config=cluster_config)
 
-    # ----------------------------
+    # -------------------------------------------------------
     # Port Management
-    # ----------------------------
+    # -------------------------------------------------------
     def _set_available_ports(self):
         """Find the first pair of available ports to use for port forwarding from localhost to the cluster.
         Start with the default ports (50052 for HTTP server and 11022 for SSH) and increment until a pair of
@@ -1092,9 +1106,21 @@ class SageMakerCluster(Cluster):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s2:
             s2.bind(("localhost", self._local_port))
 
-    # ----------------------------
+    # -------------------------------------------------------
     # SSH config
-    # ----------------------------
+    # -------------------------------------------------------
+    def _filter_known_hosts(self):
+        """To prevent host key collisions in the ~/.ssh/known_hosts file, remove any existing entries of localhost"""
+        known_hosts = self.hosts_path
+        valid_hosts = []
+        with open(known_hosts, "r") as f:
+            for line in f:
+                if not line.strip().startswith(f"[{self.DEFAULT_HOST}]"):
+                    valid_hosts.append(line)
+
+        with open(known_hosts, "w") as f:
+            f.writelines(valid_hosts)
+
     def _ssh_config_entry(
         self,
         port: int,
