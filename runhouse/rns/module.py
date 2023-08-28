@@ -233,9 +233,6 @@ class Module(Resource):
                 sys.path.append(abs_path)
                 logger.debug(f"Appending {module_path} to sys.path")
 
-        if not importlib.util.find_spec(module_name):
-            return None
-
         if module_name in obj_store.imported_modules:
             importlib.invalidate_caches()
             obj_store.imported_modules[module_name] = importlib.reload(
