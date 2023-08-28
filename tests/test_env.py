@@ -147,6 +147,14 @@ def test_function_env_vars_file(cluster):
 
 @pytest.mark.clustertest
 @cpu_clusters
+def test_env_vars_to_cluster(cluster):
+    env_vars = {"TEST_ENV_VAR": "value"}
+    env = rh.env(name="base", reqs=["parameterized"], env_vars=env_vars)
+    env.to(cluster, force_install=True)
+
+
+@pytest.mark.clustertest
+@cpu_clusters
 def test_env_vars_conda_env(cluster):
     test_env_var = "TEST_ENV_VAR_CONDA"
     test_value = "conda"
