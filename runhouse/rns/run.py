@@ -184,6 +184,13 @@ class Run(Resource):
     def from_config(config: dict, dryrun=False):
         return Run(**config, dryrun=dryrun)
 
+    def __getstate__(self):
+        """Remove the folder object from the Run before pickling it."""
+        state = self.__dict__.copy()
+        state["folder"] = None
+        state["_stdout_handler"] = None
+        return state
+
     @property
     def config_for_rns(self):
         """Metadata to store in RNS for the Run."""

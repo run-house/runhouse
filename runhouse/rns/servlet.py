@@ -385,10 +385,6 @@ class EnvServlet:
                 # a non-generator method without remote or save, the result would be in a queue and handled above,
                 # so it'll still be returned unwrapped.
                 if ret_obj.provenance.status == RunStatus.COMPLETED:
-                    if isinstance(ret_obj, Blob) and not remote:
-                        # If the user doesn't want the remote object, we need to return the actual data
-                        ret_obj = ret_obj.data
-
                     return Response(
                         data=pickle_b64(ret_obj),
                         output_type=OutputType.RESULT,
