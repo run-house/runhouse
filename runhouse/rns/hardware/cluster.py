@@ -551,7 +551,7 @@ class Cluster(Resource):
             stream_logs (bool): Whether to stream logs from the method call.
             run_name (str): Name for the run.
             remote (bool): Return a remote object from the function, rather than the result proper.
-            run_async (bool): Run the method asynchronously and retun a run_key to retreive results and logs later.
+            run_async (bool): Run the method asynchronously and return a run_key to retreive results and logs later.
             *args: Positional arguments to pass to the method.
             **kwargs: Keyword arguments to pass to the method.
 

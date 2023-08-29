@@ -237,7 +237,7 @@ class Function(Module):
         return key
 
     def get(self, run_key):
-        """Get the result of a Function call that was submitted as async using `remote`.
+        """Get the result of a Function call that was submitted as async using `run`.
 
         Args:
             run_key: A single or list of runhouse run_key strings returned by a Function.remote() call. The ObjectRefs
