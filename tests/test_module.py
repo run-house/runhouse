@@ -24,6 +24,10 @@ logger = logging.getLogger(__name__)
 """
 
 
+def resolve_test_helper(obj):
+    return obj
+
+
 @pytest.mark.clustertest
 # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
 @pytest.mark.parametrize("env", [None])
@@ -122,32 +126,40 @@ def test_module_from_factory(ondemand_cpu_cluster, env):
     assert remote_array.size_minus_cpus() == size - cluster_cpus
 
     # Test remote getter
-    arr = remote_array.fetch.arr
+    arr = remote_array.remote.arr
     assert isinstance(arr, np.ndarray)
     assert arr.shape == (size,)
     assert arr[0] == 0
     assert arr[2] == 2
 
     # Test remote setter
-    remote_array.size = 20
-    assert remote_array.fetch.size == 20
+    remote_array.remote.size = 20
+    assert remote_array.remote.size == 20
 
     # Test creating a second instance of the same class
     remote_array2 = RemoteClass(size=30, name="remote_array2")
     assert remote_array2.system == ondemand_cpu_cluster
-    assert remote_array2.fetch.size == 30
+    assert remote_array2.remote.size == 30
 
     # Test creating a third instance with the factory method
     remote_array3 = RemoteClass.factory_constructor.remote(
         size=40, run_name="remote_array3"
     )
     assert remote_array3.system.config_for_rns == ondemand_cpu_cluster.config_for_rns
-    assert remote_array3.fetch.size == 40
+    assert remote_array3.remote.size == 40
     assert remote_array3.cpu_count(local=False) == cluster_cpus
 
     # Make sure first array and class are unaffected by this change
-    assert remote_array.fetch.size == 20
+    assert remote_array.remote.size == 20
     assert RemoteClass.cpu_count(local=False) == cluster_cpus
+
+    # Test resolve()
+    helper = rh.function(resolve_test_helper).to(ondemand_cpu_cluster, env=rh.Env())
+    resolved_obj = helper(remote_array.resolve())
+    assert resolved_obj.__class__.__name__ == "SlowNumpyArray"
+    assert not hasattr(resolved_obj, "config_for_rns")
+    assert resolved_obj.size == 20
+    assert list(resolved_obj.arr) == [0, 1, 2]
 
 
 class SlowPandas(rh.Module):
@@ -208,14 +220,14 @@ def test_module_from_subclass(ondemand_cpu_cluster, env):
     assert remote_df.cpu_count(local=False) == 2
 
     # Properties
-    df = remote_df.fetch.df
+    df = remote_df.remote.df
     assert isinstance(df, pd.DataFrame)
     assert df.shape == (3, 3)
     assert df.loc[0, 0] == 0
     assert df.loc[2, 2] == 2
 
     remote_df.size = 20
-    assert remote_df.fetch.size == 20
+    assert remote_df.remote.size == 20
 
     del remote_df
 
@@ -226,7 +238,14 @@ def test_module_from_subclass(ondemand_cpu_cluster, env):
     assert remote_df.system.config_for_rns == ondemand_cpu_cluster.config_for_rns
     assert remote_df.cpu_count(local=False, stream_logs=False) == 2
     # Check that size is unchanged from when we set it to 20 above
-    assert remote_df.fetch.size == 20
+    assert remote_df.remote.size == 20
+
+    # Test that resolve() has no effect
+    helper = rh.function(resolve_test_helper).to(ondemand_cpu_cluster, env=rh.Env())
+    resolved_obj = helper(remote_df.resolve())
+    assert resolved_obj.__class__.__name__ == "SlowPandas"
+    assert resolved_obj.remote.size == 20
+    assert resolved_obj.config_for_rns == remote_df.config_for_rns
 
 
 @pytest.mark.clustertest
@@ -266,7 +285,7 @@ async def test_module_from_subclass_async(ondemand_cpu_cluster, env):
     assert df.loc[2, 2] == 2
 
     await remote_df.set_async("size", 20)
-    assert remote_df.fetch.size == 20
+    assert remote_df.remote.size == 20
 
 
 @unittest.skip("Not working yet")
@@ -281,7 +300,7 @@ def test_hf_autotokenizer(ondemand_cpu_cluster):
     tok = RemoteAutoTokenizer.from_pretrained.remote(
         "bert-base-uncased", run_name="bert-tok"
     )
-    # assert tok.fetch.pad_token == "<pad>"
+    # assert tok.remote.pad_token == "<pad>"
     prompt = "Tell me about unified development interfaces into compute and data infrastructure."
     assert tok(prompt, return_tensors="pt").shape == (1, 18)
 

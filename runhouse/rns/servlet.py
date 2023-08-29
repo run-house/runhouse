@@ -123,6 +123,15 @@ class EnvServlet:
                 result_resource.save()
 
             args, kwargs = b64_unpickle(message.data) if message.data else ([], {})
+            # Resolve any resources which need to be resolved
+            args = [
+                arg.fetch() if (isinstance(arg, Module) and arg._resolve) else arg
+                for arg in args
+            ]
+            kwargs = {
+                k: v.fetch() if (isinstance(v, Module) and v._resolve) else v
+                for k, v in kwargs.items()
+            }
             module = obj_store.get(module_name, default=KeyError)
 
             # If method_name is None, return the module itself as this is a "get" request

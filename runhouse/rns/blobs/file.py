@@ -2,11 +2,13 @@ import copy
 import logging
 import pickle
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 from runhouse.rns.blobs.blob import Blob, blob
+from runhouse.rns.envs.env import Env
 from runhouse.rns.folders import Folder, folder
 from runhouse.rns.hardware.cluster import Cluster
+from runhouse.rns.utils.env import _get_env_from
 from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
 from runhouse.rns.utils.names import _generate_default_name
 
@@ -19,6 +21,7 @@ class File(Blob):
         path: Optional[str] = None,
         name: Optional[str] = None,
         system: Optional[str] = Folder.DEFAULT_FS,
+        env: Optional[Env] = None,
         data_config: Optional[Dict] = None,
         dryrun: bool = False,
         **kwargs,
@@ -29,8 +32,7 @@ class File(Blob):
         .. note::
                 To build a File, please use the factory method :func:`file`.
         """
-        super().__init__(name=name, dryrun=dryrun, system=system)
-        self._filename = str(Path(path).name) if path else self.name
+        self._filename = str(Path(path).name) if path else name
         # Use factory method so correct subclass for system is returned
         self._folder = folder(
             path=str(Path(path).parent) if path is not None else path,
@@ -39,6 +41,7 @@ class File(Blob):
             dryrun=dryrun,
         )
         self._cached_data = None
+        super().__init__(name=name, dryrun=dryrun, system=system, env=env, **kwargs)
 
     @property
     def config_for_rns(self):
@@ -96,7 +99,11 @@ class File(Blob):
         return self._folder.open(self._filename, mode=mode)
 
     def to(
-        self, system, path: Optional[str] = None, data_config: Optional[dict] = None
+        self,
+        system,
+        env: Optional[Union[str, Env]] = None,
+        path: Optional[str] = None,
+        data_config: Optional[dict] = None,
     ):
         """Return a copy of the file on the destination system and path.
 
@@ -116,25 +123,30 @@ class File(Blob):
                 system = "file"
 
         system = _get_cluster_from(system)
+        env = _get_env_from(env or self.env)
+
         if (not system or isinstance(system, Cluster)) and not path:
-            name = self.name or _generate_default_name(prefix="file")
-            return Blob(name=name, system=system).write(self.fetch())
+            name = self.name or _generate_default_name(prefix="blob")
+            data_backup = self.fetch()
+            new_blob = Blob(name=name).to(system, env)
+            new_blob.data = data_backup
+            return new_blob
 
         new_file = copy.copy(self)
-        new_file._folder = self._folder.to(
+        new_file.local._folder = self._folder.to(
             system=system, path=path, data_config=data_config
         )
         return new_file
 
-    def fetch(self, deserialize: bool = True):
-        """Return the data for the user to deserialize.
+    def resolved_state(self, deserialize: bool = True):
+        """Return the data for the user to deserialize. Primarily used to define the behavior of the ``fetch`` method.
 
         Example:
             >>> data = file.fetch()
         """
-        self._cached_data = self._folder.get(self._filename)
+        self.local._cached_data = self._folder.get(self._filename)
         if deserialize:
-            self._cached_data = pickle.loads(self._cached_data)
+            self.local._cached_data = pickle.loads(self._cached_data)
         return self._cached_data
 
     def _save_sub_resources(self):

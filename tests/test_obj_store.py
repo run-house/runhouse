@@ -54,7 +54,7 @@ def test_get_from_cluster(ondemand_cpu_cluster):
     assert isinstance(res, rh.Blob)
     assert res.name in ondemand_cpu_cluster.keys()
 
-    assert res.fetch.data == list(range(50))
+    assert res.fetch() == list(range(50))
     res = ondemand_cpu_cluster.get(res.name)
     assert res == list(range(50))
 
