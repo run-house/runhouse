@@ -55,7 +55,7 @@ def test_get_from_cluster(ondemand_cpu_cluster):
     assert res.name in ondemand_cpu_cluster.keys()
 
     assert res.fetch() == list(range(50))
-    res = ondemand_cpu_cluster.get(res.name)
+    res = ondemand_cpu_cluster.get(res.name).resolved_state()
     assert res == list(range(50))
 
 
@@ -143,7 +143,7 @@ def test_pinning_and_arg_replacement(ondemand_cpu_cluster):
     # First run should pin "run_pin" and "run_pin_inside"
     pin_fn.remote(key="run_pin", run_name="pinning_test")
     print(ondemand_cpu_cluster.keys())
-    assert ondemand_cpu_cluster.get("pinning_test") == ["fn result"] * 3
+    assert ondemand_cpu_cluster.get("pinning_test").fetch() == ["fn result"] * 3
     assert ondemand_cpu_cluster.get("run_pin_inside").data == ["put within fn"] * 5
 
     # When we just ran with the arg "run_pin", we put a new pin called "pinning_test_inside"
@@ -261,7 +261,7 @@ def test_cancel_run(ondemand_cpu_cluster):
     assert "task was cancelled" in str(e.value)
 
     # Check that another job in the same env isn't affected
-    res = ondemand_cpu_cluster.get(run_key2)
+    res = ondemand_cpu_cluster.get(run_key2).fetch()
     assert res == list(range(50))
 
 

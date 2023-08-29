@@ -246,7 +246,6 @@ def sagemaker_cluster(
             image_uri=image_uri,
             estimator=estimator,
             instance_type=instance_type,
-            autostop_mins=autostop_mins,
             job_name=job_name,
             instance_count=instance_count,
         )
