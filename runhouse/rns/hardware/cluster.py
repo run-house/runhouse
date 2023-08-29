@@ -161,7 +161,7 @@ class Cluster(Resource):
                 filter_options="dir-merge,- .gitignore,- docs/",
             )
 
-            rh_install_cmd = "pip install ./runhouse"
+            rh_install_cmd = "python3 -m pip install ./runhouse"
         # elif local_rh_package_path.parent.name == 'site-packages':
         else:
             # Package is installed in site-packages
@@ -245,7 +245,7 @@ class Cluster(Resource):
         env = (
             resource.env
             if hasattr(resource, "env")
-            else resource.name
+            else resource.name or resource.env_name
             if resource.RESOURCE_TYPE == "env"
             else None
         )

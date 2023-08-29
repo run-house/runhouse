@@ -1,12 +1,19 @@
 import logging
+import shlex
+import subprocess
 from pathlib import Path
 
 from typing import Dict, List, Optional, Union
 
-from runhouse.rns.hardware import Cluster
+from runhouse.rh_config import obj_store
+
 from runhouse.rns.packages import Package
+from runhouse.rns.utils.env import _install_conda
 
 from .env import Env
+
+
+logger = logging.getLogger(__name__)
 
 
 class CondaEnv(Env):
@@ -54,53 +61,82 @@ class CondaEnv(Env):
     def env_name(self):
         return self.conda_yaml["name"]
 
-    def _setup_env(self, system: Cluster):
-        if not ["python" in dep for dep in self.conda_yaml["dependencies"]]:
-            base_python_version = system.run(["python --version"])[0][1].split()[1]
-            self.conda_yaml["dependencies"].append(f"python=={base_python_version}")
-
-        try:
-            system.run(["conda --version"])
-        except FileNotFoundError:
-            logging.info("Conda is not installed")
-            system.run(
-                "wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh "
-                "-O ~/miniconda.sh".split(" ")
-            )
-            system.run(["bash ~/miniconda.sh -b -p ~/miniconda"])
-            system.run(["source $HOME/miniconda3/bin/activate"])
-            status = system.run("conda --version")[0]
-            if status != 0:
-                raise RuntimeError("Could not install Conda.")
-
+    def _create_conda_env(self, force=False):
         path = "~/.rh/envs"
-        system.run([f"mkdir -p {path}"])
-        system.run_python(
-            [
-                "import yaml",
-                "from pathlib import Path",
-                f"path = Path('{path}').expanduser()",
-                f"yaml.dump({self.conda_yaml}, open(path / '{self.env_name}.yml', 'w'))",
-            ]
-        )
+        subprocess.run(f"mkdir -p {path}", shell=True)
 
-        if f"\n{self.env_name} " not in system.run(["conda info --envs"])[0][1]:
-            system.run([f"conda env create -f {path}/{self.env_name}.yml"])
-        system.run(['eval "$(conda shell.bash hook)"'])
-        if f"\n{self.env_name} " not in system.run(["conda info --envs"])[0][1]:
-            raise RuntimeError(f"conda env {self.env_name} not created properly.")
+        local_env_exists = f"\n{self.env_name} " in subprocess.check_output(
+            shlex.split("conda info --envs"), shell=False
+        ).decode("utf-8")
+        yaml_exists = (Path(path).expanduser() / f"{self.env_name}.yml").exists()
 
-        system._sync_runhouse_to_cluster(env=self)
+        if force or not (yaml_exists and local_env_exists):
+            python_commands = "; ".join(
+                [
+                    "import yaml",
+                    "from pathlib import Path",
+                    f"path = Path('{path}').expanduser()",
+                    f"yaml.dump({self.conda_yaml}, open(path / '{self.env_name}.yml', 'w'))",
+                ]
+            )
+            subprocess.run(f'python -c "{python_commands}"', shell=True)
+
+            if not local_env_exists:
+                subprocess.run(
+                    f"conda env create -f {path}/{self.env_name}.yml", shell=True
+                )
+                if f"\n{self.env_name} " not in subprocess.check_output(
+                    shlex.split("conda info --envs"), shell=False
+                ).decode("utf-8"):
+                    raise RuntimeError(
+                        f"conda env {self.env_name} not created properly."
+                    )
+
+    def install(self, force=False):
+        """Locally install packages and run setup commands."""
+        if not ["python" in dep for dep in self.conda_yaml["dependencies"]]:
+            base_python_version = (
+                subprocess.check_output(shlex.split("python --version"), shell=False)
+                .decode("utf-8")
+                .split()[1]
+            )
+            self.conda_yaml["dependencies"].append(f"python=={base_python_version}")
+        if subprocess.run(shlex.split("conda --version")) != 0:
+            _install_conda()
+        local_env_exists = f"\n{self.env_name} " in subprocess.check_output(
+            shlex.split("conda info --envs"), shell=False
+        ).decode("utf-8")
+
+        # Hash the config_for_rns to check if we need to create/install the conda env
+        env_config = self.config_for_rns
+        # Remove the name because auto-generated names will be different, but the installed components are the same
+        env_config.pop("name")
+        install_hash = hash(str(env_config))
+        # Check the existing hash
+        if local_env_exists and install_hash in obj_store.installed_envs and not force:
+            logger.info("Env already installed, skipping")
+            return
+        obj_store.installed_envs[install_hash] = self.name
+
+        self._create_conda_env()
 
         if self.reqs:
-            system.install_packages(self.reqs, self)
+            for package in self.reqs:
+                if isinstance(package, str):
+                    pkg = Package.from_string(package)
+                elif hasattr(package, "_install"):
+                    pkg = package
+                else:
+                    raise ValueError(f"package {package} not recognized")
 
-        if self.setup_cmds:
-            cmd = f"{self._activate_cmd} && {self.setup_cmds.join(' && ')}"
-            system.run([cmd])
+                logger.info(f"Installing package: {str(pkg)}")
+                pkg._install(self)
 
-    def install(self):
-        pass  # TODO [CC]
+        return (
+            self.run(f"{self._activate_cmd} && {self.setup_cmds.join(' && ')}")
+            if self.setup_cmds
+            else None
+        )
 
     @property
     def _run_cmd(self):
