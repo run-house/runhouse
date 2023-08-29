@@ -33,13 +33,13 @@ def test_reload_blob_with_name(blob):
     name = "my_blob"
     blob.save(name)
     original_system = str(blob.system)
-    original_data_str = str(blob.fetch().data)
+    original_data_str = str(blob.fetch())
 
     del blob
 
     reloaded_blob = rh.blob(name=name)
     assert str(reloaded_blob.system) == str(original_system)
-    reloaded_data = reloaded_blob.fetch().data
+    reloaded_data = reloaded_blob.fetch()
     assert reloaded_data[1] == "test"
     assert str(reloaded_data) == original_data_str
 

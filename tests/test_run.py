@@ -29,7 +29,7 @@ def test_read_prov_info(summer_func):
     remote_res = summer_func.remote(a=1, b=2)
     assert isinstance(remote_res, rh.Blob)
     assert remote_res.name in summer_func.system.keys()
-    assert remote_res.fetch.data == 3
+    assert remote_res.fetch() == 3
     stdout = remote_res.provenance.stdout()
     pprint(stdout)
     assert "Calling method call on module summer_func" in stdout
@@ -46,11 +46,11 @@ def test_get_or_call_from_cache(summer_func):
     summer_func.system.delete(run_name)
 
     run_output = summer_func.get_or_call(run_name, a=1, b=2, load=False)
-    assert run_output.fetch.data == 3
+    assert run_output.fetch() == 3
     assert run_name in summer_func.system.keys()
 
     run_output = summer_func.get_or_call(run_name, a=10, b=10, load=False)
-    assert run_output.fetch.data == 3
+    assert run_output.fetch() == 3
 
     summer_func.system.delete(run_name)
     # Asser than an exception is thrown if the wrong args are passed in

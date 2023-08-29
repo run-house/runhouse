@@ -190,7 +190,7 @@ class HTTPClient:
     def put_resource(self, resource, env=None, state=None, dryrun=False):
         if env and not isinstance(env, str):
             env = _get_env_from(env)
-            env = env.name
+            env = env.name or env.env_name
         return self.request(
             "resource",
             req_type="post",

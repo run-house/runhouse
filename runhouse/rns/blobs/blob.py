@@ -5,6 +5,7 @@ from runhouse.rns.envs.env import Env
 
 from runhouse.rns.hardware.cluster import Cluster
 from runhouse.rns.module import Module
+from runhouse.rns.utils.env import _get_env_from
 from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
 from runhouse.rns.utils.names import _generate_default_name, _generate_default_path
 
@@ -102,12 +103,24 @@ class Blob(Module):
         if self.data is not None:
             return True
 
+    def resolved_state(self, _state_dict=None):
+        """Return the resolved state of the blob, which is the data.
+
+        Primarily used to define the behavior of the ``fetch`` method.
+
+        Example:
+            >>> blob = rh.blob(data)
+            >>> blob.resolved_state()
+        """
+        return self.data
+
 
 def blob(
     data: [Any] = None,
     name: Optional[str] = None,
     path: Optional[str] = None,
     system: Optional[str] = None,
+    env: Optional[Union[str, Env]] = None,
     data_config: Optional[Dict] = None,
     load: bool = True,
     dryrun: bool = False,
@@ -170,11 +183,12 @@ def blob(
             pass
 
     system = _get_cluster_from(system or _current_cluster(key="config"), dryrun=dryrun)
+    env = env or _get_env_from(env)
 
     if (not system or isinstance(system, Cluster)) and not path and data_config is None:
         # Blobs must be named, or we don't have a key for the kv store
         name = name or _generate_default_name(prefix="blob")
-        new_blob = Blob(name=name, dryrun=dryrun).to(system)
+        new_blob = Blob(name=name, dryrun=dryrun).to(system, env)
         if data is not None:
             new_blob.data = data
         return new_blob
@@ -183,9 +197,17 @@ def blob(
 
     from runhouse.rns.blobs.file import File
 
+    name = name or _generate_default_name(prefix="file")
     new_blob = File(
-        name=name, path=path, system=system, data_config=data_config, dryrun=dryrun
+        name=name,
+        path=path,
+        system=system,
+        env=env,
+        data_config=data_config,
+        dryrun=dryrun,
     )
+    if isinstance(system, Cluster):
+        system.put_resource(new_blob)
     if data is not None:
         new_blob.write(data)
     return new_blob

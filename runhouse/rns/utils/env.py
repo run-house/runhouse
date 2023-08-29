@@ -1,4 +1,5 @@
-import re
+import logging
+import shlex
 import subprocess
 
 from pathlib import Path
@@ -97,16 +98,26 @@ def _get_conda_yaml(conda_env=None):
 
 
 def _env_vars_from_file(env_file):
-    env_file = Path(env_file) if isinstance(env_file, str) else env_file
-    if not env_file.exists():
-        raise FileNotFoundError(f"Can not find provided env file: {env_file}")
+    try:
+        from dotenv import dotenv_values, find_dotenv
+    except ImportError:
+        raise ImportError(
+            "`dotenv` package is needed. You can install it with `pip install python-dotenv`."
+        )
 
-    env_vars_dict = {}
-    with open(env_file) as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                key, value = re.split("\s*=\s*", line, maxsplit=1)
-                env_vars_dict[key] = value
+    dotenv_path = find_dotenv(str(env_file), usecwd=True)
+    env_vars = dotenv_values(dotenv_path)
+    return dict(env_vars)
 
-    return env_vars_dict
+
+def _install_conda():
+    if subprocess.call(shlex.split("conda --version")) != 0:
+        logging.info("Conda is not installed")
+        subprocess.call(
+            "wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh",
+            shell=True,
+        )
+        subprocess.call("bash ~/miniconda.sh -b -p ~/miniconda", shell=True)
+        subprocess.call("source $HOME/miniconda3/bin/activate", shell=True)
+        if subprocess.call(shlex.split("conda --version")) != 0:
+            raise RuntimeError("Could not install Conda.")

@@ -67,6 +67,11 @@ LOCAL_METHODS = [
     "from_name",
     "history",
     "is_local",
+    "remote",
+    "local",
+    "resolve",
+    "_resolve",
+    "resolved_state",
     "fetch",
     "fetch_async",
     "name",
@@ -115,6 +120,7 @@ class Module(Resource):
             self._env.working_dir = self._env.working_dir or "./"
             cls_pointers = Module._extract_pointers(self.__class__, reqs=self._env.reqs)
         self._cls_pointers = cls_pointers
+        self._resolve = False
 
     @property
     def config_for_rns(self):
@@ -131,7 +137,8 @@ class Module(Resource):
             self._resource_string_for_subconfig(self.env) if self.env else None
         )
         if self._cls_pointers:
-            config["cls_pointers"] = self._cls_pointers
+            # For some reason sometimes this is coming back as a string, so we force it into a tuple
+            config["cls_pointers"] = tuple(self._cls_pointers)
         return config
 
     @classmethod
@@ -259,6 +266,9 @@ class Module(Resource):
             >>> cluster_module = module.to(my_cluster)
         """
         if system == self.system and env == self.env:
+            if name and not self.name == name:
+                # TODO return duplicate object under new name, don't rename
+                self.rename(name)
             return self
 
         if system == "here":
@@ -447,6 +457,14 @@ class Module(Resource):
                     **kwargs,
                 )
 
+            def local(self, *args, **kwargs):
+                """Allows us to call a function with fn.local(*args) instead of fn(*args, local=True)"""
+                return self.__call__(
+                    *args,
+                    local=True,
+                    **kwargs,
+                )
+
         return RemoteMethodWrapper()
 
     def __setattr__(self, key, value):
@@ -481,34 +499,120 @@ class Module(Resource):
             return self
 
     @property
-    def fetch(self):
+    def remote(self):
         """Helper property to allow for access to remote properties, both public and private. Returning functions
         is not advised.
 
         Example:
-            >>> my_module.fetch.my_property
-            >>> my_module.fetch._my_private_property
+            >>> my_module.remote.my_property
+            >>> my_module.remote._my_private_property
+            >>> my_module.remote.size = 14
         """
-        # TODO is remote a better name?
         system = super().__getattribute__("_system")
         name = super().__getattribute__("_name")
+
+        outer_super_gettattr = super().__getattribute__
+        outer_super_setattr = super().__setattr__
 
         class RemotePropertyWrapper:
             @classmethod
             def __getattribute__(cls, item):
+                if not isinstance(system, Cluster) or not name:
+                    return outer_super_gettattr(item)
+
                 if isinstance(system, Cluster) and name and system.on_this_cluster():
                     obj_store_obj = obj_store.get(name, check_other_envs=True)
                     if obj_store_obj:
                         return obj_store_obj.__getattribute__(item)
                     else:
                         return self.__getattribute__(item)
+
                 return system.call(name, item, stream_logs=False)
+
+            @classmethod
+            def __setattr__(cls, key, value):
+                if (
+                    not isinstance(system, Cluster)
+                    or not name
+                    or system.on_this_cluster()
+                ):
+                    return outer_super_setattr(key, value)
+
+                return system.call(
+                    module_name=name,
+                    method_name=key,
+                    new_value=value,
+                    stream_logs=False,
+                )
 
             @classmethod
             def __call__(cls, *args, **kwargs):
                 return system.get(name, *args, **kwargs)
 
         return RemotePropertyWrapper()
+
+    @property
+    def local(self):
+        """Helper property to allow for access to local properties, both public and private.
+
+        Example:
+            >>> my_module.local.my_property
+            >>> my_module.local._my_private_property
+
+            >>> my_module.local.size = 14
+        """
+        outer_super_gettattr = super().__getattribute__
+        outer_super_setattr = super().__setattr__
+
+        class LocalPropertyWrapper:
+            @classmethod
+            def __getattribute__(cls, item):
+                return outer_super_gettattr(item)
+
+            @classmethod
+            def __setattr__(cls, key, value):
+                return outer_super_setattr(key, value)
+
+        return LocalPropertyWrapper()
+
+    def fetch(self, item: str = None, stream_logs: bool = False):
+        """Helper method to allow for access to remote state, both public and private. Fetching functions
+        is not advised. `system.get(module.name).resolved_state()` is roughly equivalent to `module.fetch()`.
+
+        Example:
+            >>> my_module.fetch("my_property")
+            >>> my_module.fetch("my_private_property")
+
+            >>> MyRemoteClass = rh.module(my_class).to(system)
+            >>> MyRemoteClass(*args).fetch() # Returns a my_class instance, populated with the remote state
+
+            >>> my_blob.fetch() # Returns the data of the blob, due to overloaded ``resolved_state`` method
+
+            >>> class MyModule(rh.Module):
+                    # ...
+            >>> MyModule(*args).to(system).fetch() # Returns the full remote module, including private and public state
+        """
+        system = super().__getattribute__("_system")
+        name = super().__getattribute__("_name")
+
+        if item is not None:
+            if not isinstance(system, Cluster) or not name:
+                return super().__getattribute__(item)
+
+            if isinstance(system, Cluster) and name and system.on_this_cluster():
+                try:
+                    obj_store_obj = obj_store.get(
+                        name, check_other_envs=True, default=KeyError
+                    )
+                    return obj_store_obj.__getattribute__(item)
+                except KeyError:
+                    return self.__getattribute__(item)
+
+            return system.call(name, item, stream_logs=stream_logs)
+        else:
+            if not isinstance(system, Cluster) or not name:
+                return self.resolved_state()
+            return system.get(name, stream_logs=stream_logs).resolved_state()
 
     async def fetch_async(
         self, key: str, remote: bool = False, stream_logs: bool = False
@@ -584,6 +688,55 @@ class Module(Resource):
 
         loop = asyncio.get_event_loop()
         return await asyncio.create_task(async_call())
+
+    def resolve(self):
+        """Specify that the module should resolve to a particular state when passed into a remote method. This is
+        useful if you want to revert the module's state to some "Runhouse-free" state once it is passed into a
+        Runhouse-unaware function. For example, if you call a Runhouse-unaware function with `.remote()`,
+        you will be returned a Blob which wraps your data. If you want to pass that Blob into another function
+        that operates on the original data (e.g. a function that takes a numpy array), you can call
+        `my_second_fn(my_blob.resolve())`, and `my_blob` will be replaced with the contents of its `.data` on the
+        cluster before being passed into `my_second_fn`.
+
+        Resolved state is defined by the `resolved_state` method. By default, modules created with the
+        `module` factory constructor will be resolved to their original non-module-wrapped class (or best attempt).
+        Modules which are defined as a subclass of `Module` will be returned as-is, as they have no other
+        "original class."
+
+        Example:
+            >>> my_module = rh.module(my_class)
+            >>> my_remote_fn(my_module.resolve()) # my_module will be replaced with the original class `my_class`
+
+            >>> my_result_blob = my_remote_fn.remote(args)
+            >>> my_other_remote_fn(my_result_blob.resolve()) # my_result_blob will be replaced with its data
+
+        """
+        self._resolve = True
+        return self
+
+    def resolved_state(self):
+        """Return the resolved state of the module. By default, this is the original class of the module if it was
+        created with the `module` factory constructor."""
+        if not self._cls_pointers:
+            self._resolve = False
+            return self
+
+        (module_path, module_name, class_name) = self._cls_pointers
+        original_class = self._get_obj_from_pointers(
+            module_path, module_name, class_name
+        )
+        if issubclass(original_class, Module):
+            self._resolve = False
+            return self
+
+        if not self.__dict__:
+            # This is a non-instantiated Module, i.e. represents a class rather than an instance
+            return original_class
+
+        new_module = original_class.__new__(original_class)
+        # TODO pop out any attributes that are not in the original class?
+        new_module.__dict__ = self.__dict__
+        return new_module
 
     def _save_sub_resources(self):
         if isinstance(self.system, Resource):
@@ -792,8 +945,8 @@ def module(
         - Setting attributes, both public and private, will be executed remotely, with the new values only being
             set in the remote module and not the local one. This excludes any methods or attribtes of the Module class
             proper (e.g. ``system`` or ``name``), which will be set locally.
-        - Attributes, private properties, and the full resource can be fetched over rpc using the ``.fetch`` property,
-            e.g. ``model.fetch.weights``, ``model.fetch.__dict__``, ``model.fetch()``.
+        - Attributes, private properties can be fetched with the ``remote`` property, and the full resource can be
+            fetched using ``.fetch()``, e.g. ``model.remote.weights``, ``model.remote.__dict__``, ``model.fetch()``.
         - When a module is sent to a cluster, it's public attribtes are serialized, sent over, and repopulated in the
             remote instance. This means that any changes to the module's attributes will not be reflected in the remote
 
@@ -835,7 +988,7 @@ def module(
         >>>
         >>> model = Model(model_id="bert-base-uncased", device="cuda", system="my_gpu", env="my_env")
         >>> model.predict("Hello world!")   # Runs on system in env
-        >>> tok = model.fetch.tokenizer     # Returns remote tokenizer
+        >>> tok = model.remote.tokenizer     # Returns remote tokenizer
         >>> model_id = model.model_id       # Returns local model_id (not remote)
         >>> model.fetch()                   # Returns full remote module, including model and tokenizer
         >>>
