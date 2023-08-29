@@ -318,25 +318,18 @@ def ondemand_cpu_cluster():
 
 @pytest.fixture(scope="session")
 def sm_cluster():
-    # Note: providing a job name for easy deletion with Github Actions
     name = "rh-sagemaker"
-    c = (
-        rh.sagemaker_cluster(name=name, profile="sagemaker", job_name=name)
-        .up_if_not()
-        .save()
-    )
+    c = rh.sagemaker_cluster(name=name, profile="sagemaker").up_if_not().save()
+    c.install_packages(["pytest"])
+
     return c
 
 
 @pytest.fixture(scope="session")
 def other_sm_cluster():
     name = "rh-sagemaker-2"
-    # Note: providing a job name for easy deletion with Github Actions
-    c = (
-        rh.sagemaker_cluster(name=name, profile="sagemaker", job_name=name)
-        .up_if_not()
-        .save()
-    )
+    c = rh.sagemaker_cluster(name=name, profile="sagemaker").up_if_not().save()
+    c.install_packages(["pytest"])
     return c
 
 
@@ -349,6 +342,7 @@ def sm_gpu_cluster():
         .up_if_not()
         .save()
     )
+    c.install_packages(["pytest"])
 
     return c
 

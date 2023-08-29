@@ -29,12 +29,13 @@ if [[ "$instance_status" != "Online" ]]; then
   exit 1
 fi
 
-if [ "$GENERATE_NEW_KEYS" = true ]; then
-  echo "Generating $SSH_KEY and uploading public key to $SSH_AUTHORIZED_KEYS"
+if [ "$GENERATE_NEW_KEYS" = "True" ]; then
+  echo "Generating new $SSH_KEY and uploading public key to $SSH_AUTHORIZED_KEYS"
 
   echo 'yes' | ssh-keygen -f "${SSH_KEY}" -N ''
   cat "${SSH_KEY}.pub"
   aws s3 cp "${SSH_KEY}.pub" "${SSH_AUTHORIZED_KEYS}"
+  chmod 600 "${SSH_KEY}"
 fi
 
 CURRENT_REGION=$(aws configure list | grep region | awk '{print $2}')

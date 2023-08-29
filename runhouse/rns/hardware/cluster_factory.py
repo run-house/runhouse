@@ -162,6 +162,7 @@ def sagemaker_cluster(
     role: str = None,
     profile: str = None,
     ssh_key_path: str = None,
+    instance_id: str = None,
     instance_type: str = None,
     instance_count: int = None,
     image_uri: str = None,
@@ -187,6 +188,8 @@ def sagemaker_cluster(
         ssh_key_path (str, optional): Path to SSH key to use for connecting to the cluster. If not provided, will
             first look for the SageMaker default key store in path ``~/.ssh/sagemaker-ssh-gw`` before creating
             a new one.
+        instance_id (str, optional): ID of the AWS instance to use for the cluster. SageMaker does not expose
+            IP addresses of its instance, so we use an instance ID as a unique identifier for the cluster.
         instance_type (str, optional): Type of AWS instance to use for the cluster. More info on supported
             instance options `here <https://aws.amazon.com/sagemaker/pricing/instance-types>`_.
             (Default: ``ml.m5.large``.)
@@ -239,6 +242,7 @@ def sagemaker_cluster(
             role=role,
             profile=profile,
             ssh_key_path=ssh_key_path,
+            instance_id=instance_id,
             image_uri=image_uri,
             estimator=estimator,
             instance_type=instance_type,
@@ -268,6 +272,7 @@ def sagemaker_cluster(
         ssh_key_path=ssh_key_path,
         estimator=estimator,
         job_name=job_name,
+        instance_id=instance_id,
         instance_type=instance_type,
         instance_count=instance_count,
         image_uri=image_uri,

@@ -208,16 +208,15 @@ def test_create_and_run_sagemaker_training_job(sm_source_dir, sm_entry_point):
 
 @pytest.mark.sagemakertest
 def test_stable_diffusion_on_sm_gpu(sm_gpu_cluster):
+    # Note: Default image used on the cluster will already have torch installed
     sd_generate = (
         rh.function(sd_generate_image)
         .to(
             sm_gpu_cluster,
             env=[
-                "torch==2.0.0",
                 "diffusers",
                 "transformers",
                 "accelerate",
-                "pytest",
             ],
         )
         .save("sd_generate")

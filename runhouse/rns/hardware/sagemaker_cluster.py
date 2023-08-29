@@ -60,6 +60,7 @@ class SageMakerCluster(Cluster):
         role: str = None,
         profile: str = None,
         ssh_key_path: str = None,
+        instance_id: str = None,
         instance_type: str = None,
         instance_count: int = None,
         image_uri: str = None,
@@ -95,7 +96,7 @@ class SageMakerCluster(Cluster):
         self._estimator_source_dir = kwargs.get("estimator_source_dir")
         self._estimator_framework = kwargs.get("estimator_framework")
 
-        self.instance_id = kwargs.get("instance_id")
+        self.instance_id = instance_id
         self.job_name = job_name
 
         self.autostop_mins = (
@@ -324,7 +325,6 @@ class SageMakerCluster(Cluster):
         if not self.is_up():
             self.estimator = None
             self.address = None
-            self.job_name = None
             self.instance_id = None
             self.up()
         return self
@@ -367,6 +367,14 @@ class SageMakerCluster(Cluster):
             If set to -1, keep cluster warm indefinitely. (Default: `-1`)
         """
         self._update_autostop(autostop_mins)
+
+    def __getstate__(self):
+        """Delete non-serializable elements (e.g. sagemaker session object) before pickling."""
+        state = self.__dict__.copy()
+        state["_sagemaker_session"] = None
+        state["client"] = None
+        state["_rpc_tunnel"] = None
+        return state
 
     @contextlib.contextmanager
     def pause_autostop(self):
@@ -551,10 +559,17 @@ class SageMakerCluster(Cluster):
                     # SageMaker populates the /etc/environment for setting env vars which may be corrupt -
                     # if this happens create a new empty env file for now and re-install the cuda toolkit to ensure
                     # nvcc is properly configured
+                    cuda_home = "/usr/local/cuda"
+                    path = f"{cuda_home}/bin:$PATH"
+                    ld_library_path = f"{cuda_home}/lib64:$LD_LIBRARY_PATH"
                     self._run_commands_with_ssh(
                         commands=[
                             "sudo mv /etc/environment /etc/environment_broken "
-                            f"&& sudo touch /etc/environment && sudo apt install nvidia-cuda-toolkit -y && {command}"
+                            "&& sudo touch /etc/environment "
+                            f"&& export CUDA_HOME={cuda_home} "
+                            f"&& export PATH={path} "
+                            f"&& export LD_LIBRARY_PATH={ld_library_path} "
+                            f"&& {command}"
                         ],
                         cmd_prefix=cmd_prefix,
                         stream_logs=stream_logs,
