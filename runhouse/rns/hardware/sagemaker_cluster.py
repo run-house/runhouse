@@ -181,7 +181,7 @@ class SageMakerCluster(Cluster):
         if self._ssh_key_path:
             return os.path.expanduser(self._ssh_key_path)
 
-        # Default path to the SSH key
+        # Default path to the private SSH key
         return os.path.expanduser("~/.ssh/sagemaker-ssh-gw")
 
     @ssh_key_path.setter
@@ -243,7 +243,7 @@ class SageMakerCluster(Cluster):
             return self.DEFAULT_REGION
 
     @property
-    def ssh_authorized_keys_path(self):
+    def s3_keys_path(self):
         """Path to public key stored for the cluster on S3. When initializing the cluster, the public key
         is copied by default to this location."""
         return f"s3://{self.default_bucket}/ssh-authorized-keys/"
@@ -284,16 +284,17 @@ class SageMakerCluster(Cluster):
 
                 self.client.check_server(cluster_config=cluster_config)
                 logger.info(f"Server {self.instance_id} is up.")
-            except Exception as e:
-                logger.warning(f"Could not connect to {self.instance_id}: {e}")
+            except:
                 if restart_server:
                     logger.info(
                         f"Server {self.instance_id} is up, but the HTTP server may not be up."
                     )
+                    # https://github.com/yaml/pyyaml/issues/724#issuecomment-1638636728
                     self.run(
                         [
-                            "sudo apt-get install screen -y && sudo apt-get install rsync -y "
-                            "&& sudo apt-get install python3-pip -y && python3 -m pip install protobuf==3.20.3",
+                            "sudo apt-get install screen -y "
+                            "&& sudo apt-get install rsync -y && sudo apt-get install python3-pip -y "
+                            "&& python3 -m pip install protobuf==3.20.3 && python3 -m pip install 'cython<3.0.0'",
                         ]
                     )
                     self.restart_server(
@@ -323,7 +324,6 @@ class SageMakerCluster(Cluster):
             >>> rh.sagemaker_cluster("sagemaker-cluster").up_if_not()
         """
         if not self.is_up():
-            self.estimator = None
             self.address = None
             self.instance_id = None
             self.up()
@@ -399,65 +399,74 @@ class SageMakerCluster(Cluster):
     # SSH APIs
     # -------------------------------------------------------
     def ssh_tunnel(
-        self, local_port=None, remote_port=None, num_ports_to_try: int = 0, retry=True
+        self, local_port, remote_port=None, num_ports_to_try: int = 0, retry=True
     ) -> Tuple[SSHTunnelForwarder, int]:
+        connected = False
+        ssh_tunnel = None
+        ssh_port = self._ssh_port
+        num_ports_initial = num_ports_to_try
 
-        # Check if a connection has already been set up for this cluster to avoid collisions with other active clusters
-        existing_tunnels = open_cluster_tunnels.get(self.instance_id, {})
-        if existing_tunnels:
-            self._local_port = existing_tunnels[0].local_bind_port
-            self._ssh_port = existing_tunnels[0].ssh_port
-
-        try:
-            remote_bind_addresses = ("127.0.0.1", self._local_port)
-            local_bind_addresses = ("", self._local_port)
-
-            ssh_tunnel = SSHTunnelForwarder(
-                (self.DEFAULT_HOST, self._ssh_port),
-                ssh_username=self.DEFAULT_USER,
-                ssh_pkey=self.ssh_key_path,
-                remote_bind_address=remote_bind_addresses,
-                local_bind_address=local_bind_addresses,
-                set_keepalive=1,
-            )
-
-            # Start the SSH tunnel
-            ssh_tunnel.start()
-
-            logger.info(f"Successfully created SSH tunnel with {self.name}")
-
-            # Update the SSH config for the cluster with the connected SSH port
-            self._add_or_update_ssh_config_entry()
-
-        except Exception as e:
-            # The session created via SSM when the cluster was launched may no longer be active
-            # First try to refresh the session before trying to create the SSH tunnel again
-            if not retry:
+        while not connected:
+            if num_ports_to_try == 0:
                 raise ConnectionError(
-                    f"Failed to create SSH tunnel even after refreshing the SSM session: {e}"
+                    f"Failed to create SSH tunnel with {self.name} after {num_ports_initial} attempts "
+                    f"(cluster status=`{self.status().get('TrainingJobStatus')}`). Make sure the public key in "
+                    f"local path: {self.ssh_key_path} matches the key stored in bucket: {self.s3_keys_path}, "
+                    f"that some ports in ranges {self._ssh_port} - {self._ssh_port + num_ports_initial} "
+                    f"and {self._local_port} - {self._local_port + num_ports_initial} are available, "
+                    f"and that AWS CLI V2 is installed. "
                 )
 
-            # Update the ports to use for the SSH tunnel when refreshing the session - find a pair of available ports
-            self._set_available_ports()
+            try:
+                # Continue with the creation of the SSHTunnelForwarder object
+                remote_bind_addresses = ("127.0.0.1", remote_port or local_port)
+                local_bind_addresses = ("", local_port)
 
-            # Refresh the SSM session before trying to create the SSH tunnel again
-            self._refresh_ssm_session_with_cluster()
-            ssh_tunnel, local_port = self.ssh_tunnel(
-                self._local_port, remote_port, num_ports_to_try, retry=False
-            )
+                ssh_tunnel = SSHTunnelForwarder(
+                    (self.DEFAULT_HOST, ssh_port),
+                    ssh_username=self.DEFAULT_USER,
+                    ssh_pkey=self.ssh_key_path,
+                    remote_bind_address=remote_bind_addresses,
+                    local_bind_address=local_bind_addresses,
+                    set_keepalive=1800,
+                )
 
-            if ssh_tunnel and (ssh_tunnel.is_active and ssh_tunnel.is_alive):
-                # SSM session refresh succeeded, no need to try other ports
-                return ssh_tunnel, self._local_port
+                # Start the SSH tunnel
+                ssh_tunnel.start()
+                connected = True
 
-        # Make sure we add here in case we don't go through ``connect_server_client``
-        open_cluster_tunnels[self.instance_id] = (
-            ssh_tunnel,
-            self._ssh_port,
-            1,
-        )
+                logger.info(
+                    "SSH connection has been successfully created with the cluster"
+                )
 
-        return ssh_tunnel, self._local_port
+                # Update the SSH config for the cluster with the connected SSH port
+                self._add_or_update_ssh_config_entry()
+
+                # Update the SSH and local ports once connection has been established
+                self._ssh_port = ssh_port
+                self._local_port = local_port
+
+            except:
+                # The SSM may no longer be active or the ports may already be in use
+                # First try to refresh the session, if that fails then try connecting with different ports
+                if retry:
+                    # Refresh the SSM session before trying to create the SSH tunnel again
+                    self._refresh_ssm_session_with_cluster()
+                    ssh_tunnel, local_port = self.ssh_tunnel(
+                        local_port, remote_port, num_ports_to_try, retry=False
+                    )
+                    if ssh_tunnel and (ssh_tunnel.is_active and ssh_tunnel.is_alive):
+                        # SSM session refresh succeeded, no need to try connecting on other ports
+                        return ssh_tunnel, local_port
+
+                # If the refresh didn't work try connecting with a different port - could be that the port
+                # is already taken
+                local_port += 1
+                ssh_port += 1
+                num_ports_to_try -= 1
+                pass
+
+        return ssh_tunnel, local_port
 
     def ssh(self):
         """SSH into the cluster.
@@ -465,9 +474,13 @@ class SageMakerCluster(Cluster):
         Example:
             >>> rh.sagemaker_cluster(name="sagemaker-cluster").ssh()
         """
+        if self.instance_id not in open_cluster_tunnels:
+            # Make sure SSM session and SSH tunnels are up before running the command
+            self.connect_server_client()
+
         head_fd, worker_fd = pty.openpty()
         ssh_process = subprocess.Popen(
-            ["ssh", self.name],
+            ["ssh", "-o", "StrictHostKeyChecking=no", self.name],
             stdin=worker_fd,
             stdout=worker_fd,
             stderr=worker_fd,
@@ -530,9 +543,9 @@ class SageMakerCluster(Cluster):
                     return_codes.append((255, "", str(e)))
             else:
                 if self.instance_id not in open_cluster_tunnels:
-                    # Make sure tunnel is up before running commands (e.g. is calling ``restart_server`` right after
-                    # loading the cluster)
-                    self.ssh_tunnel()
+                    # Make sure tunnel is up before running commands (e.g. calling ``restart_server`` right after
+                    # loading the cluster with dryrun)
+                    self.connect_server_client()
 
                 # Host can be replaced with name (as reflected in the ~/.ssh/config file)
                 runner = SkySSHRunner(
@@ -557,7 +570,7 @@ class SageMakerCluster(Cluster):
                     # leads to an error which looks something like: "installed install-info package post-installation
                     # script subprocess returned error exit status 2"
                     # SageMaker populates the /etc/environment for setting env vars which may be corrupt -
-                    # if this happens create a new empty env file for now and re-install the cuda toolkit to ensure
+                    # if this happens create a new empty env file for now and ensure
                     # nvcc is properly configured
                     cuda_home = "/usr/local/cuda"
                     path = f"{cuda_home}/bin:$PATH"
@@ -610,10 +623,10 @@ class SageMakerCluster(Cluster):
             # No estimator provided, use the Runhouse custom estimator (using PyTorch by default)
             estimator_dict = {
                 "instance_count": self.instance_count,
-                "framework_version": "1.9.1",
-                "py_version": "py38",
                 "role": self.role,
                 "image_uri": self.image_uri,
+                "framework_version": "2.0.1",
+                "py_version": "py310",
                 "entry_point": default_entry_point,
                 "source_dir": default_source_dir,
                 "instance_type": self.instance_type,
@@ -642,6 +655,9 @@ class SageMakerCluster(Cluster):
         self.address = self.instance_id
 
         logger.info(f"New SageMaker instance started with ID: {self.instance_id}")
+
+        # Remove stale entries from the known hosts file
+        self._filter_known_hosts()
 
         logger.info("Creating session with cluster via SSM")
         self._create_ssm_session_with_cluster()
@@ -679,80 +695,92 @@ class SageMakerCluster(Cluster):
 
         self._start_instance()
 
-    def _create_ssm_session_with_cluster(self):
-        """Create a long-lived session with the cluster. Runs a command to either use existing SSH key or generate a
-        new one needed to authorize the connection with the cluster via the AWS SSM.
-        This command is run once when initially upping the cluster and stores the ssh port and local HTTP ports
-        which are forwarded from the localhost to the cluster (and can be re-used for subsequent connections)."""
-        # Note: to view all active sessions: ``aws ssm describe-sessions --state Active``
+    def _create_ssm_session_with_cluster(self, num_ports_to_try: int = 5):
+        """Create a session with the cluster. Runs a bash script containing a series of commands which use existing
+        SSH keys or generate new ones needed to authorize the connection with the cluster via the AWS SSM.
+        These commands are run when the cluster is initially provisioned, or for subsequent connections if the session
+        is longer active. Once finished, the SSH port and HTTP port will be bound to processes on
+        localhost which are forwarded to the cluster."""
         # https://github.com/aws-samples/sagemaker-ssh-helper/tree/main#forwarding-tcp-ports-over-ssh-tunnel
         base_command = self._load_base_command_for_ssm_session()
-
-        # Find and set the first available pair of the HTTP port and SSH port to use for port forwarding to the cluster
-        # E.g. HTTP --> 50052, SSH --> 11022
-        self._set_available_ports()
-        logger.info(
-            f"Creating initial SSM session using ports {self._ssh_port} and {self._local_port}"
-        )
 
         # Ports to forward from local host to the cluster
         extra_ssh_args = self.extra_ssh_args
         command = f"{base_command} {extra_ssh_args}"
 
-        try:
-            logger.info(f"Running command: {command}")
+        connected = False
+        while not connected:
+            extra_ssh_args = self.extra_ssh_args
+            command = f"{base_command} {extra_ssh_args}"
 
-            # Define an event to signal completion of the SSH tunnel setup
-            tunnel_setup_complete = threading.Event()
+            try:
+                if num_ports_to_try == 0:
+                    raise ConnectionError(
+                        f"Failed to create SSM session and connect to {self.name} after repeated attempts."
+                        f"Make sure SSH keys exist in local path: {self.ssh_key_path}. The public key must "
+                        f"also match the key stored remotely in s3 bucket: {self.s3_keys_path}"
+                    )
 
-            # Manually allocate a pseudo-terminal to prevent a "pseudo-terminal not allocated" error
-            head_fd, worker_fd = pty.openpty()
+                logger.info(f"Running command: {command}")
 
-            def ssm_session_and_port_forwarding():
-                # Execute the command with the pseudo-terminal in a separate thread
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stdin=subprocess.PIPE,
+                # Define an event to signal completion of the SSH tunnel setup
+                tunnel_setup_complete = threading.Event()
+
+                # Manually allocate a pseudo-terminal to prevent a "pseudo-terminal not allocated" error
+                head_fd, worker_fd = pty.openpty()
+
+                def ssm_session_and_port_forwarding():
+                    # Execute the command with the pseudo-terminal in a separate thread
+                    process = subprocess.Popen(
+                        command,
+                        shell=True,
+                        stdout=subprocess.PIPE,
+                        stdin=subprocess.PIPE,
+                    )
+
+                    # Close the worker file descriptor as we don't need it
+                    os.close(worker_fd)
+
+                    # Close the master file descriptor after reading the output
+                    os.close(head_fd)
+
+                    # Wait for the process to complete and collect its return code
+                    process.wait()
+
+                    # Signal that the tunnel setup is complete
+                    tunnel_setup_complete.set()
+
+                tunnel_thread = threading.Thread(target=ssm_session_and_port_forwarding)
+                tunnel_thread.daemon = True  # Set the thread as a daemon, so it won't block the main thread
+
+                # Start the SSH tunnel thread
+                tunnel_thread.start()
+
+                # Give time for the SSM session to start, SSH keys to be copied onto the cluster, and the SSH port
+                # forwarding command to run
+                tunnel_setup_complete.wait(timeout=20)
+
+                if not self._ports_are_in_use():
+                    # Command should bind SSH port and HTTP port on localhost, if this is not the case try re-running
+                    # the bash script with a different set of ports
+                    raise ConnectionError
+
+                # Update the SSH config for the cluster with the connected SSH port
+                self._add_or_update_ssh_config_entry()
+
+                connected = True
+
+                logger.info(
+                    f"Created SSM session using ports {self._ssh_port} and {self._local_port}. "
+                    f"All active sessions can be viewed with: ``aws ssm describe-sessions --state Active``"
                 )
 
-                # Close the worker file descriptor as we don't need it
-                os.close(worker_fd)
-
-                # Close the master file descriptor after reading the output
-                os.close(head_fd)
-
-                # Wait for the process to complete and collect its return code
-                process.wait()
-
-                # Signal that the tunnel setup is complete
-                tunnel_setup_complete.set()
-
-            tunnel_thread = threading.Thread(target=ssm_session_and_port_forwarding)
-
-            # Set the thread as a daemon, so it won't block the main thread
-            tunnel_thread.daemon = True
-
-            # Start the SSH tunnel thread
-            tunnel_thread.start()
-
-            # Give time for the SSM session to start, SSH keys to be copied onto the cluster, and the SSH port
-            # forwarding command to run
-            tunnel_setup_complete.wait(timeout=20)
-
-            # At this point should see ports bound to processes on localhost - for example:
-            # ❯ lsof -i:11022,50052
-            # COMMAND   PID   USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
-            # ssh     71343 my-user    3u  IPv4 0xcf81f230783e1f1d      0t0  TCP localhost:50052 (LISTEN)
-            # ssh     71343 my-user    6u  IPv4 0xcf81f23073f07f6d      0t0  TCP localhost:11022 (LISTEN)
-            if not self._ports_are_in_use():
-                raise RuntimeError(
-                    f"Failed to set up port forwarding for SSH port {self._ssh_port} and HTTP port {self._local_port}"
-                )
-
-        except subprocess.CalledProcessError as e:
-            raise e
+            except (ConnectionError, subprocess.CalledProcessError):
+                # Try re-running with updated the ports - possible the ports are already in use
+                self._local_port += 1
+                self._ssh_port += 1
+                num_ports_to_try -= 1
+                pass
 
     def _start_instance(self):
         """Call the SageMaker CreateTrainingJob API to start the training job on the cluster."""
@@ -767,6 +795,8 @@ class SageMakerCluster(Cluster):
             raise e
 
     def _load_base_command_for_ssm_session(self) -> str:
+        """Bash script command for creating the SSM session and uploading the SSH keys to the cluster. Will try
+        reusing existing keys locally if they exist, otherwise will generate new ones."""
         ssh_key_path = self.ssh_key_path
 
         # Run script which creates a new SSM session with the cluster (and optionally generates new SSH keys)
@@ -775,9 +805,11 @@ class SageMakerCluster(Cluster):
         )
         os.chmod(script_path, 0o755)
 
+        authorized_key_path = self.s3_keys_path
+
         base_command = (
             f'bash {script_path} "{self.instance_id}" '
-            f'"{self.ssh_authorized_keys_path}" "{ssh_key_path}" "{self.default_region}"'
+            f'"{authorized_key_path}" "{ssh_key_path}" "{self.default_region}"'
         )
 
         if os.path.exists(ssh_key_path):
@@ -788,21 +820,27 @@ class SageMakerCluster(Cluster):
             )
             return f"{base_command} False"
         else:
-            # Run script which generates new SSH keys and copies public key to s3 before creating the SSM session
-            logger.info(
-                f"Generating new SSH keys for the cluster, uploading them to s3 in "
-                f"path: {self.ssh_authorized_keys_path}"
+            logger.warning(
+                f"No keys found in path: {ssh_key_path}. Generating new keys and uploading the new public key to s3 "
+                f"bucket: {authorized_key_path}"
             )
             return f"{base_command} True"
 
     def _refresh_ssm_session_with_cluster(self):
         """Reconnect to the cluster via the AWS SSM. This bypasses the step of creating a new SSH key which was already
-        done when upping the cluster."""
+        done when upping the cluster. Note: this assumes the session has previously been created, which we do when
+        the cluster has been upped.
+
+        To view all sessions: ``aws ssm describe-sessions --state Active``
+        """
         # https://github.com/aws-samples/sagemaker-ssh-helper/blob/main/sagemaker_ssh_helper/sm-connect-ssh-proxy
         script_path = pkg_resources.resource_filename(
             "runhouse", "scripts/sagemaker_cluster/refresh-ssm-session.sh"
         )
         os.chmod(script_path, 0o755)
+
+        # Remove stale entries from the known hosts file
+        self._filter_known_hosts()
 
         try:
             subprocess.Popen(
@@ -818,18 +856,11 @@ class SageMakerCluster(Cluster):
             )
 
             # Wait for the aws ssm + ssh port forwarding commands in the script to complete
-            time.sleep(5)
+            # NOTE: depending on which region the cluster is located there may be some latency here
+            time.sleep(6)
 
-            if not self._ports_are_in_use():
-                raise RuntimeError(
-                    f"Failed to set up port forwarding on ports {self._ssh_port} and {self._local_port}"
-                )
-
-        except (RuntimeError, subprocess.CalledProcessError):
-            logger.warning(
-                "Could not refresh existing session, creating a new SSM session from scratch"
-            )
-            return self._create_ssm_session_with_cluster()
+        except subprocess.CalledProcessError as e:
+            raise e
 
     # -------------------------------------------------------
     # Helpers
@@ -1009,7 +1040,7 @@ class SageMakerCluster(Cluster):
                 import runhouse
 
                 _install_url = f"runhouse=={runhouse.__version__}"
-            rh_install_cmd = f"python3 -m install {_install_url}"
+            rh_install_cmd = f"python3 -m pip install {_install_url}"
 
         install_cmd = (
             f"{env._activate_cmd} && {rh_install_cmd}" if env else rh_install_cmd
@@ -1075,7 +1106,7 @@ class SageMakerCluster(Cluster):
 
         cuda_version = "cu118-" if image_type == "gpu" else ""
         image_url = (
-            f"{self.ECR_URL}/pytorch-training:2.0.0-{image_type}-py310-{cuda_version}"
+            f"{self.ECR_URL}/pytorch-training:2.0.1-{image_type}-py310-{cuda_version}"
             f"ubuntu20.04-sagemaker"
         )
 
@@ -1092,18 +1123,6 @@ class SageMakerCluster(Cluster):
     # -------------------------------------------------------
     # Port Management
     # -------------------------------------------------------
-    def _set_available_ports(self):
-        """Find the first pair of available ports to use for port forwarding from localhost to the cluster.
-        Start with the default ports (50052 for HTTP server and 11022 for SSH) and increment until a pair of
-        ports is found which are not in use."""
-        while True:
-            try:
-                self._bind_ports_to_localhost()
-                return self._ssh_port, self._local_port
-            except OSError:
-                self._ssh_port += 1
-                self._local_port += 1
-
     def _ports_are_in_use(self) -> bool:
         """Check if the ports used for port forwarding from localhost to the cluster are in use."""
         try:

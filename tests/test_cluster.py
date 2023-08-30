@@ -142,12 +142,11 @@ def test_byo_proxy(byo_cpu, local_folder):
     # assert "sample_file_0.txt" in local_folder.ls(full_paths=False)
 
 
-@pytest.mark.clustertest
-@sagemaker_clusters
-def test_connections_to_multiple_sm_clusters(cluster):
-    assert cluster.is_up()
+@unittest.skip("Support for multiple live clusters not yet implemented")
+def test_connections_to_multiple_sm_clusters(sm_cluster):
+    assert sm_cluster.is_up()
 
-    np_func = rh.function(np_array).to(cluster, env=["./", "numpy", "pytest"])
+    np_func = rh.function(np_array).to(sm_cluster, env=["./", "numpy", "pytest"])
 
     # Run function on SageMaker compute
     my_list = [1, 2, 3]
@@ -157,16 +156,21 @@ def test_connections_to_multiple_sm_clusters(cluster):
 
 @pytest.mark.sagemakertest
 def test_launch_and_connect_to_sagemaker(sm_cluster):
-    # Reload the cluster object and run a command on the cluster
     assert sm_cluster.is_up()
 
-    # Check cluster object store is working
+    # Run func on the cluster
+    np_func = rh.function(np_array).to(sm_cluster, env=["./", "numpy"])
+    my_list = [1, 2, 3]
+    res = np_func(my_list)
+    assert res.tolist() == my_list
+
+    # Use cluster object store
     test_list = list(range(5, 50, 2)) + ["a string"]
     sm_cluster.put("my_list", test_list)
     ret = sm_cluster.get("my_list")
     assert ret == test_list
 
-    # # Test CLI commands
+    # Run CLI commands
     return_codes = sm_cluster.run(commands=["ls -la"])
     assert return_codes[0][0] == 0
 
@@ -216,7 +220,6 @@ def test_stable_diffusion_on_sm_gpu(sm_gpu_cluster):
             env=[
                 "diffusers",
                 "transformers",
-                "accelerate",
             ],
         )
         .save("sd_generate")

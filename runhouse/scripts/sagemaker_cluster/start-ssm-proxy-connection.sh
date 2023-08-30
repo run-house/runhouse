@@ -38,9 +38,6 @@ if [ "$GENERATE_NEW_KEYS" = "True" ]; then
   chmod 600 "${SSH_KEY}"
 fi
 
-CURRENT_REGION=$(aws configure list | grep region | awk '{print $2}')
-echo "Will use AWS Region: $CURRENT_REGION"
-
 AWS_CLI_VERSION=$(aws --version)
 echo "AWS CLI version (**Note: Must be v2**): $AWS_CLI_VERSION"
 
@@ -49,7 +46,7 @@ echo "Running SSM commands at region ${CURRENT_REGION} to copy public key to ${I
 # Copy the public key from the s3 bucket to the authorized_keys.d directory on the cluster
 cp_command="aws s3 cp --recursive \"${SSH_AUTHORIZED_KEYS}\" /root/.ssh/authorized_keys.d/"
 
-# Copy the SSH public key onto the cluster
+# Copy the SSH public key onto the cluster to the root directory, then copy from the root to /etc
 send_command=$(aws ssm send-command \
     --region "${CURRENT_REGION}" \
     --instance-ids "${INSTANCE_ID}" \
@@ -57,7 +54,6 @@ send_command=$(aws ssm send-command \
     --comment "Copy public key for SSH helper" \
     --timeout-seconds 30 \
     --parameters "commands=[
-        'aws sts get-caller-identity',
         'mkdir -p /root/.ssh/authorized_keys.d/',
         '$cp_command',
         'ls -la /root/.ssh/authorized_keys.d/',
@@ -68,6 +64,28 @@ send_command=$(aws ssm send-command \
     --output json)
 
 json_value_regexp='s/^[^"]*".*": \"\(.*\)\"[^"]*/\1/'
+
+cp_command="cp -r /root/.ssh/authorized_keys.d/* /etc/ssh/authorized_keys.d"
+echo "Copying keys from root folder to etc folder: $cp_command"
+
+send_command=$(aws ssm send-command \
+    --region "${CURRENT_REGION}" \
+    --instance-ids "${INSTANCE_ID}" \
+    --document-name "AWS-RunShellScript" \
+    --comment "Copy public key to /etc/ssh folder on cluster" \
+    --timeout-seconds 30 \
+    --parameters "commands=[
+        'mkdir -p /etc/ssh/authorized_keys.d/',
+        '$cp_command',
+        'ls -la /etc/ssh/authorized_keys.d/',
+        'cat /etc/ssh/authorized_keys.d/* > /etc/ssh/authorized_keys',
+        'ls -la /etc/ssh/authorized_keys'
+      ]" \
+    --no-cli-pager --no-paginate \
+    --output json)
+
+json_value_regexp='s/^[^"]*".*": \"\(.*\)\"[^"]*/\1/'
+
 
 send_command=$(echo "$send_command" | python -m json.tool)
 command_id=$(echo "$send_command" | grep "CommandId" | sed -e "$json_value_regexp")

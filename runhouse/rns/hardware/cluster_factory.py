@@ -1,3 +1,4 @@
+import os
 import warnings
 from typing import Dict, List, Optional, Union
 
@@ -185,9 +186,9 @@ def sagemaker_cluster(
         profile (str, optional): AWS profile to use for the cluster. If provided instead of a ``role``, will lookup
             the role ARN associated with the profile in the local AWS credentials.
             If not provided, will use the default profile.
-        ssh_key_path (str, optional): Path to SSH key to use for connecting to the cluster. If not provided, will
-            first look for the SageMaker default key store in path ``~/.ssh/sagemaker-ssh-gw`` before creating
-            a new one.
+        ssh_key_path (str, optional): Path to private SSH key to use for connecting to the cluster. If not provided,
+            will look for the key in path ``~/.ssh/sagemaker-ssh-gw``. If not found will generate new keys and
+            upload the public key to the default s3 bucket for the Role ARN.
         instance_id (str, optional): ID of the AWS instance to use for the cluster. SageMaker does not expose
             IP addresses of its instance, so we use an instance ID as a unique identifier for the cluster.
         instance_type (str, optional): Type of AWS instance to use for the cluster. More info on supported
@@ -237,6 +238,7 @@ def sagemaker_cluster(
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.sagemaker_cluster(name="sagemaker-cluster")
     """
+    ssh_key_path = os.path.expanduser(ssh_key_path) if ssh_key_path else None
     if name:
         alt_options = dict(
             role=role,

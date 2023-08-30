@@ -318,8 +318,15 @@ def ondemand_cpu_cluster():
 
 @pytest.fixture(scope="session")
 def sm_cluster():
-    name = "rh-sagemaker"
-    c = rh.sagemaker_cluster(name=name, profile="sagemaker").up_if_not().save()
+    c = (
+        rh.sagemaker_cluster(
+            name="rh-sagemaker",
+            role="arn:aws:iam::172657097474:role/service-role/AmazonSageMaker-ExecutionRole-20230717T192142",
+        )
+        .up_if_not()
+        .save()
+    )
+
     c.install_packages(["pytest"])
 
     return c
@@ -327,8 +334,11 @@ def sm_cluster():
 
 @pytest.fixture(scope="session")
 def other_sm_cluster():
-    name = "rh-sagemaker-2"
-    c = rh.sagemaker_cluster(name=name, profile="sagemaker").up_if_not().save()
+    c = (
+        rh.sagemaker_cluster(name="rh-sagemaker-2", profile="sagemaker")
+        .up_if_not()
+        .save()
+    )
     c.install_packages(["pytest"])
     return c
 
