@@ -486,12 +486,14 @@ class Cluster(Resource):
         _rh_install_url: str = None,
         resync_rh: bool = True,
         restart_ray: bool = True,
+        env_activate_cmd: str = None,
     ):
         """Restart the RPC server.
 
         Args:
             resync_rh (bool): Whether to resync runhouse. (Default: ``True``)
             restart_ray (bool): Whether to restart Ray. (Default: ``True``)
+            env_activate_cmd (str, optional): Command for activating the server's base environment.
 
         Example:
             >>> rh.cluster("rh-cpu").restart_server()
@@ -500,8 +502,9 @@ class Cluster(Resource):
 
         if resync_rh:
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
-
         cmd = self.CLI_RESTART_CMD + (" --no-restart-ray" if not restart_ray else "")
+        if env_activate_cmd:
+            cmd = f"{env_activate_cmd} && {cmd}"
         status_codes = self.run(commands=[cmd])
         if not status_codes[0][0] == 0:
             raise ValueError(f"Failed to restart server {self.name}.")

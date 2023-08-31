@@ -191,8 +191,8 @@ def test_create_and_run_sagemaker_training_job(sm_source_dir, sm_entry_point):
         role=os.getenv("AWS_ROLE_ARN"),
         # Script can sit anywhere in the file system
         source_dir=sm_source_dir,
-        framework_version="1.9.1",
-        py_version="py38",
+        framework_version="2.1.0",
+        py_version="py310",
         instance_count=1,
         instance_type="ml.m5.large",
         # https://docs.aws.amazon.com/sagemaker/latest/dg/train-warm-pools.html

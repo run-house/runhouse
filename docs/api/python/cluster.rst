@@ -41,8 +41,8 @@ Runhouse currently supports two core usage paths for SageMaker clusters:
 
 - **Compute backend**: You can use SageMaker as a compute backend, just as you would a
   :ref:`BYO (bring-your-own) <Cluster Class>` or an :ref:`on-demand cluster <OnDemandCluster Class>` cluster.
-  Runhouse will facilitate the creation of the SageMaker compute and will handle the creation of an SSH
-  connection to the instance. You can then use the instance as you would any other compute backend.
+  Runhouse will handle launching up the SageMaker compute and creating the SSH connection
+  to the cluster.
 
 - **Dedicated training jobs**: You can use a SageMakerCluster class to run a training job on SageMaker compute.
   To do so, you will need to provide an
@@ -54,7 +54,7 @@ Runhouse currently supports two core usage paths for SageMaker clusters:
     create create SageMaker endpoints and access AWS resources.
 
     Please see the :ref:`SageMaker Clusters <SageMaker Clusters>` section for more specific instructions and
-    requirements for setting up the cluster.
+    requirements for providing the role and setting up the cluster.
 
 .. autoclass:: runhouse.SageMakerCluster
    :members:
@@ -102,9 +102,9 @@ configuring the SageMaker IAM role with the
 
 **IAM Role**
 
-In order to use a :ref:`SageMaker Cluster`, you must grant SageMaker the necessary permissions with an IAM role, which
+In order to launch a cluster, you must grant SageMaker the necessary permissions with an IAM role, which
 can be provided either by name or by full ARN. You can also specify a profile explicitly or
-with the :code:`AWS_PROFILE` environment variable which includes the relevant role.
+with the :code:`AWS_PROFILE` environment variable.
 
 For example, let's say your local :code:`~/.aws/config` file contains:
 
@@ -115,10 +115,10 @@ For example, let's say your local :code:`~/.aws/config` file contains:
     region = us-east-1
     source_profile = default
 
-There are several ways to provide the necessary credentials for initializing the cluster:
+There are several ways to provide the necessary credentials when :ref:`initializing the cluster <SageMaker Factory Method>`:
 
 - Providing the AWS profile name: :code:`profile="sagemaker"`
-- Providing the AWS Role ARN: :code:`role="arn:aws:iam::123456789:role/service-role/AmazonSageMaker-ExecutionRole-20230717T192142"`
+- Providing the AWS Role ARN directly: :code:`role="arn:aws:iam::123456789:role/service-role/AmazonSageMaker-ExecutionRole-20230717T192142"`
 - Environment Variable: setting :code:`AWS_PROFILE` to :code:`"sagemaker"`
 
 .. note::
@@ -153,11 +153,11 @@ To confirm the installation succeeded, run ``aws --version`` in the command line
 The AWS Systems Manager service is used to create SSH tunnels with the SageMaker cluster.
 
 To install the AWS Session Manager Plugin, please see the `AWS docs <https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html>`_
-or `SageMaker SSH Helper <https://https://github.com/aws-samples/sagemaker-ssh-helper>`_. The SSH Helper package
+or `SageMaker SSH Helper <https://github.com/aws-samples/sagemaker-ssh-helper#step-4-connect-over-ssm>`_. The SSH Helper package
 simplifies the process of creating SSH tunnels with SageMaker clusters. It is installed by default if
-you are using the SageMaker dependency: :code:`pip install runhouse[sagemaker]`.
+you are installing Runhouse with the SageMaker dependency: :code:`pip install runhouse[sagemaker]`.
 
-You can install the Session Manager using the command:
+You can also install the Session Manager by running the CLI command:
 
 .. code-block:: cli
 

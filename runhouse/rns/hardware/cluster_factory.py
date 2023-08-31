@@ -185,7 +185,7 @@ def sagemaker_cluster(
             `here <https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-roles.html>`_.
         profile (str, optional): AWS profile to use for the cluster. If provided instead of a ``role``, will lookup
             the role ARN associated with the profile in the local AWS credentials.
-            If not provided, will use the default profile.
+            If not provided, will use the ``default`` profile.
         ssh_key_path (str, optional): Path to private SSH key to use for connecting to the cluster. If not provided,
             will look for the key in path ``~/.ssh/sagemaker-ssh-gw``. If not found will generate new keys and
             upload the public key to the default s3 bucket for the Role ARN.
@@ -204,14 +204,13 @@ def sagemaker_cluster(
             <https://sagemaker.readthedocs.io/en/stable/frameworks/pytorch/using_pytorch.html#create-an-estimator>`_.
         autostop_mins (int, optional): Number of minutes to keep the cluster up after inactivity,
             or ``-1`` to keep cluster up indefinitely. Note that this will keep the cluster up even if a dedicated
-            job has finished running or failed.
+            training job has finished running or failed.
         connection_wait_time (int, optional): Amount of time to wait inside the SageMaker cluster before
             continuing with normal execution. Useful if you want to connect before a dedicated job starts
             (e.g. training). If you don't want to wait, set it to ``0``.
             If no estimator is provided, will default to ``0``.
-        job_name (str, optional): Name to provide for a training job.
-            If not provided with an estimator, will generate a default job name based on the
-            image name and current timestamp (e.g. ``pytorch-training-2023-08-28-20-57-55-113``).
+        job_name (str, optional): Name to provide for a training job. If not provided will generate a default name
+            based on the image name and current timestamp (e.g. ``pytorch-training-2023-08-28-20-57-55-113``).
         dryrun (bool): Whether to create the SageMakerCluster if it doesn't exist, or load a SageMakerCluster object
             as a dryrun.
             (Default: ``False``)

@@ -45,6 +45,7 @@ class SageMakerCluster(Cluster):
     DEFAULT_REGION = "us-east-1"
     DEFAULT_USER = "root"
     ECR_URL = "763104351884.dkr.ecr.us-east-1.amazonaws.com"
+    ENV_ACTIVATE_CMD = "source /opt/conda/bin/activate"
 
     # Default path for any estimator source code copied onto the cluster
     ESTIMATOR_SRC_CODE_PATH = "/opt/ml/code"
@@ -289,15 +290,17 @@ class SageMakerCluster(Cluster):
                     logger.info(
                         f"Server {self.instance_id} is up, but the HTTP server may not be up."
                     )
-                    # https://github.com/yaml/pyyaml/issues/724#issuecomment-1638636728
-                    a = self.run(
+                    self.run(
                         [
                             "sudo apt-get install screen -y "
                             "&& sudo apt-get install rsync -y"
                         ]
                     )
-                    print(a)
-                    self.restart_server(resync_rh=True, restart_ray=True)
+                    self.restart_server(
+                        resync_rh=True,
+                        restart_ray=True,
+                        env_activate_cmd=self.ENV_ACTIVATE_CMD,
+                    )
                     logger.info(f"Checking server {self.instance_id} again.")
 
                     self.client.check_server(cluster_config=cluster_config)
@@ -467,8 +470,11 @@ class SageMakerCluster(Cluster):
 
         return ssh_tunnel, local_port
 
-    def ssh(self):
+    def ssh(self, interactive: bool = True):
         """SSH into the cluster.
+
+        Args:
+            interactive (bool): Whether to start an interactive shell or not (Default: ``True``).
 
         Example:
             >>> rh.sagemaker_cluster(name="sagemaker-cluster").ssh()
@@ -476,6 +482,10 @@ class SageMakerCluster(Cluster):
         if self.instance_id not in open_cluster_tunnels:
             # Make sure SSM session and SSH tunnels are up before running the command
             self.connect_server_client()
+
+        if not interactive:
+            logger.info(f"Created SSH tunnel with {self.name}")
+            return
 
         head_fd, worker_fd = pty.openpty()
         ssh_process = subprocess.Popen(
@@ -851,7 +861,7 @@ class SageMakerCluster(Cluster):
 
             # Wait for the aws ssm + ssh port forwarding commands in the script to complete
             # NOTE: depending on which region the cluster is located there may be some latency here
-            time.sleep(6)
+            time.sleep(10)
 
         except subprocess.CalledProcessError as e:
             raise e
@@ -1012,6 +1022,11 @@ class SageMakerCluster(Cluster):
 
         local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
 
+        # **Note** temp patch to handle PyYAML errors: https://github.com/yaml/pyyaml/issues/724
+        base_rh_install_cmd = (
+            f"{self.ENV_ACTIVATE_CMD} && python3 -m pip install 'cython<3.0.0'"
+        )
+
         # Check if runhouse is installed from source and has setup.py
         if (
             not _install_url
@@ -1028,18 +1043,20 @@ class SageMakerCluster(Cluster):
                 up=True,
                 contents=True,
             )
-            rh_install_cmd = "python3 -m pip install ./runhouse"
+
+            rh_install_cmd = (
+                f"{base_rh_install_cmd} && python3 -m pip install ./runhouse[sagemaker]"
+            )
         else:
             if not _install_url:
                 import runhouse
 
                 _install_url = f"runhouse[sagemaker]=={runhouse.__version__}"
-            rh_install_cmd = f"python3 -m pip install {_install_url}"
+            rh_install_cmd = (
+                f"{base_rh_install_cmd} && python3 -m pip install {_install_url}"
+            )
 
-        install_cmd = (
-            f"{env._activate_cmd} && {rh_install_cmd}" if env else rh_install_cmd
-        )
-        status_codes = self.run([install_cmd])
+        status_codes = self.run([rh_install_cmd])
 
         if status_codes[0][0] != 0:
             raise ValueError(
