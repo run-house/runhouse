@@ -88,11 +88,11 @@ class HTTPServer:
             # Get `ray status` from command line
             status = subprocess.check_output(["ray", "status"]).decode("utf-8")
 
-            from runhouse import here
+            import runhouse
             from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
 
             # Reset here in case it was set before the config was written down, making here=="file"
-            here = _get_cluster_from(_current_cluster("config"))
+            runhouse.here = _get_cluster_from(_current_cluster("config"))
 
             return Response(data=pickle_b64(status), output_type=OutputType.RESULT)
         except Exception as e:
@@ -549,10 +549,7 @@ if __name__ == "__main__":
         "--conda_env", type=str, default=None, help="Conda env to run server in"
     )
     parse_args = parser.parse_args()
-
     port = parse_args.port
-    logger.info(f"Starting HTTP server on port: {port}")
-
     conda_name = parse_args.conda_env
     import uvicorn
 

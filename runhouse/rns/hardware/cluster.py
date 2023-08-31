@@ -499,7 +499,7 @@ class Cluster(Resource):
         logger.info(f"Restarting HTTP server on {self.name}.")
 
         if resync_rh:
-            self._sync_runhouse_to_cluster(_install_url=_rh_install_url, env=env)
+            self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
 
         cmd = self.CLI_RESTART_CMD + (" --no-restart-ray" if not restart_ray else "")
         status_codes = self.run(commands=[cmd])

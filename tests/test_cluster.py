@@ -8,7 +8,7 @@ import pytest
 import runhouse as rh
 from runhouse.rns.hardware import OnDemandCluster
 
-from .conftest import cpu_clusters, sagemaker_clusters, summer
+from .conftest import cpu_clusters, summer
 
 
 def is_on_cluster(cluster):

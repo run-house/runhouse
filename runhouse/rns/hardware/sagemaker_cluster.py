@@ -290,12 +290,13 @@ class SageMakerCluster(Cluster):
                         f"Server {self.instance_id} is up, but the HTTP server may not be up."
                     )
                     # https://github.com/yaml/pyyaml/issues/724#issuecomment-1638636728
-                    self.run(
+                    a = self.run(
                         [
                             "sudo apt-get install screen -y "
                             "&& sudo apt-get install rsync -y"
                         ]
                     )
+                    print(a)
                     self.restart_server(resync_rh=True, restart_ray=True)
                     logger.info(f"Checking server {self.instance_id} again.")
 
@@ -322,6 +323,7 @@ class SageMakerCluster(Cluster):
         """
         if not self.is_up():
             self.address = None
+            self.job_name = None
             self.instance_id = None
             self.up()
         return self
@@ -1031,7 +1033,7 @@ class SageMakerCluster(Cluster):
             if not _install_url:
                 import runhouse
 
-                _install_url = f"runhouse=={runhouse.__version__}"
+                _install_url = f"runhouse[sagemaker]=={runhouse.__version__}"
             rh_install_cmd = f"python3 -m pip install {_install_url}"
 
         install_cmd = (

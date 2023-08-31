@@ -17,7 +17,7 @@ Installation
 
 Runhouse can be installed with:
 
-.. code:: python
+.. code:: ipython3
 
     !pip install runhouse
 
@@ -36,9 +36,14 @@ etc.):
 
 To import runhouse:
 
-.. code:: python
+.. code:: ipython3
 
     import runhouse as rh
+
+.. code:: ipython3
+
+    # Optional: to sync over secrets from your Runhouse account
+    # !runhouse login
 
 Cluster Setup
 -------------
@@ -55,24 +60,24 @@ Bring-Your-Own Cluster
 ~~~~~~~~~~~~~~~~~~~~~~
 
 If you are using an existing, on-prem cluster, no additional setup is
-needed. Just have your cluster IP address and path to SSH credentials
-ready:
+needed. Just have your cluster IP address and path to SSH credentials or
+password ready:
 
-.. code:: python
+.. code:: ipython3
 
     # using private key
     cluster = rh.cluster(
-                name="cpu-cluster",
-                ips=['<ip of the cluster>'],
-                ssh_creds={'ssh_user': '<user>', 'ssh_private_key':'<path_to_key>'},
-            )
+                  name="cpu-cluster",
+                  ips=['<ip of the cluster>'],
+                  ssh_creds={'ssh_user': '<user>', 'ssh_private_key':'<path_to_key>'},
+              )
 
     # using password
     cluster = rh.cluster(
-                name="cpu-cluster",
-                ips=['<ip of the cluster>'],
-                ssh_creds={'ssh_user': '<user>', 'password':'******'},
-            )
+                  name="cpu-cluster",
+                  ips=['<ip of the cluster>'],
+                  ssh_creds={'ssh_user': '<user>', 'password':'******'},
+              )
 
 On-Demand Cluster
 ~~~~~~~~~~~~~~~~~
@@ -93,13 +98,12 @@ cloud clusters, you can either:
 2. Use Runhouse’s Secrets API to sync your secrets down into the
    appropriate local config.
 
-.. code:: python
+.. code:: ipython3
 
     # SkyPilot CLI
     !sky check
 
-
-.. code:: python
+.. code:: ipython3
 
     # Runhouse Secrets
     # Lambda Labs:
@@ -120,21 +124,22 @@ cloud clusters, you can either:
 To check that the provider credentials are properly configured locally,
 run ``sky check`` to confirm that the cloud provider is enabled
 
-.. code:: python
+.. code:: ipython3
 
     !sky check
 
-To create a cluster instance, use the ``rh.ondemand_cluster()`` factory function.
-We go more in depth about how to launch the cluster, and run a function
-on it later in this tutorial.
+To create a cluster instance, use the ``rh.cluster()`` factory function
+for an existing cluster, or ``rh.ondemand_cluster`` for an on-demand
+cluster. We go more in depth about how to launch the cluster, and run a
+function on it later in this tutorial.
 
-.. code:: python
+.. code:: ipython3
 
     cluster = rh.ondemand_cluster(
                   name="cpu-cluster",
                   instance_type="CPU:8",
                   provider="cheapest",      # options: "AWS", "GCP", "Azure", "Lambda", or "cheapest"
-              )
+              ).save()
 
 SageMaker Cluster
 ~~~~~~~~~~~~~~~~~
@@ -195,7 +200,7 @@ Vault <https://www.vaultproject.io/>`__ (an industry standard for
 secrets management), never on our API servers, and our APIs simply call
 into Vault’s APIs.
 
-.. code:: python
+.. code:: ipython3
 
     !runhouse login
     # or
@@ -213,7 +218,7 @@ Please first make sure that you have successfully followed the
 Installation and Cluster Setup sections above prior to running this
 example.
 
-.. code:: python
+.. code:: ipython3
 
     import runhouse as rh
 
@@ -223,7 +228,7 @@ Running local functions on remote hardware
 First let’s define a simple local function which returns the number of
 CPUs available.
 
-.. code:: python
+.. code:: ipython3
 
     def num_cpus():
         import multiprocessing
@@ -236,7 +241,7 @@ CPUs available.
 
 .. parsed-literal::
 
-    'Num cpus: 2'
+    'Num cpus: 10'
 
 
 
@@ -246,7 +251,7 @@ SSH credentials, or a cluster associated with supported Cloud account
 (AWS, GCP, Azure, LambdaLabs), where it is automatically launched (and
 optionally terminated) for you.
 
-.. code:: python
+.. code:: ipython3
 
     # Using an existing, bring-your-own cluster
     cluster = rh.cluster(
@@ -256,19 +261,11 @@ optionally terminated) for you.
               )
 
     # Using a Cloud provider
-    cluster = rh.ondemand_cluster(
+    cluster = rh.cluster(
                   name="cpu-cluster",
                   instance_type="CPU:8",
                   provider="cheapest",      # options: "AWS", "GCP", "Azure", "Lambda", or "cheapest"
               )
-
-
-.. parsed-literal::
-
-    INFO | 2023-05-05 14:02:33,950 | Loaded Runhouse config from /root/.rh/config.yaml
-    INFO | 2023-05-05 14:02:33,956 | Attempting to load config for /carolineechen/cpu-cluster from RNS.
-    INFO | 2023-05-05 14:02:34,754 | No config found in RNS: {'detail': 'Resource does not exist'}
-
 
 If using a cloud cluster, we can launch the cluster with ``.up()`` or
 ``.up_if_not()``.
@@ -276,7 +273,7 @@ If using a cloud cluster, we can launch the cluster with ``.up()`` or
 Note that it may take a few minutes for the cluster to be launched
 through the Cloud provider and set up dependencies.
 
-.. code:: python
+.. code:: ipython3
 
     cluster.up_if_not()
 
@@ -288,31 +285,59 @@ function with the cluster. Now, whenever we call this new function, just
 as we would call any other Python function, it runs on the cluster
 instead of local.
 
-.. code:: python
+.. code:: ipython3
 
     num_cpus_cluster = rh.function(name="num_cpus_cluster", fn=num_cpus).to(system=cluster, reqs=["./"])
 
 
 .. parsed-literal::
 
-    INFO | 2023-05-05 14:31:58,659 | Attempting to load config for /carolineechen/num_cpus_cluster from RNS.
-    INFO | 2023-05-05 14:31:59,470 | No config found in RNS: {'detail': 'Resource does not exist'}
-    INFO | 2023-05-05 14:31:59,473 | Writing out function function to /content/num_cpus_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
-    INFO | 2023-05-05 14:31:59,476 | Setting up Function on cluster.
-    INFO | 2023-05-05 14:31:59,479 | Copying local package content to cluster <cpu-cluster>
-    INFO | 2023-05-05 14:32:04,026 | Installing packages on cluster cpu-cluster: ['./']
-    INFO | 2023-05-05 14:32:04,402 | Function setup complete.
+    INFO | 2023-08-29 03:03:52.826786 | Writing out function function to /Users/caroline/Documents/runhouse/runhouse/docs/notebooks/basics/num_cpus_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
+    /Users/caroline/Documents/runhouse/runhouse/runhouse/rns/function.py:106: UserWarning: ``reqs`` and ``setup_cmds`` arguments has been deprecated. Please use ``env`` instead.
+      warnings.warn(
+    INFO | 2023-08-29 03:03:52.832445 | Setting up Function on cluster.
+    INFO | 2023-08-29 03:03:53.271019 | Connected (version 2.0, client OpenSSH_8.2p1)
+    INFO | 2023-08-29 03:03:53.546892 | Authentication (publickey) successful!
+    INFO | 2023-08-29 03:03:53.557504 | Checking server cpu-cluster
+    INFO | 2023-08-29 03:03:54.942843 | Server cpu-cluster is up.
+    INFO | 2023-08-29 03:03:54.948097 | Copying package from file:///Users/caroline/Documents/runhouse/runhouse to: cpu-cluster
+    INFO | 2023-08-29 03:03:56.480770 | Calling env_20230829_030349.install
 
 
-.. code:: python
+.. parsed-literal::
+
+    base servlet: Calling method install on module env_20230829_030349
+    Installing package: Package: runhouse
+    Installing Package: runhouse with method reqs.
+    reqs path: runhouse/requirements.txt
+    pip installing requirements from runhouse/requirements.txt with: -r runhouse/requirements.txt
+    Running: /opt/conda/bin/python3.10 -m pip install -r runhouse/requirements.txt
+
+
+.. parsed-literal::
+
+    INFO | 2023-08-29 03:03:58.230209 | Time to call env_20230829_030349.install: 1.75 seconds
+    INFO | 2023-08-29 03:03:58.462054 | Function setup complete.
+
+
+.. code:: ipython3
 
     num_cpus_cluster()
 
 
 .. parsed-literal::
 
-    INFO | 2023-05-05 14:32:06,397 | Running num_cpus_cluster via gRPC
-    INFO | 2023-05-05 14:32:06,766 | Time to send message: 0.37 seconds
+    INFO | 2023-08-29 03:04:01.105011 | Calling num_cpus_cluster.call
+
+
+.. parsed-literal::
+
+    base servlet: Calling method call on module num_cpus_cluster
+
+
+.. parsed-literal::
+
+    INFO | 2023-08-29 03:04:01.384439 | Time to call num_cpus_cluster.call: 0.28 seconds
 
 
 
@@ -330,28 +355,18 @@ Runhouse supports saving down the metadata and configs for resources
 like clusters and functions, so that you can load them from a different
 environment, or share it with your collaborators.
 
-.. code:: python
+.. code:: ipython3
 
     num_cpus_cluster.save()
 
 
 .. parsed-literal::
 
-    INFO | 2023-05-05 14:32:31,248 | Saving config to RNS: {'name': '/carolineechen/cpu-cluster', 'resource_type': 'cluster', 'resource_subtype': 'OnDemandCluster', 'instance_type': 'CPU:8', 'num_instances': None, 'provider': 'cheapest', 'autostop_mins': 30, 'use_spot': False, 'image_id': None, 'region': None, 'sky_state': {'name': 'cpu-cluster', 'launched_at': 1683295614, 'handle': {'cluster_name': 'cpu-cluster', 'cluster_yaml': '~/.sky/generated/cpu-cluster.yml', 'head_ip': '3.87.203.10', 'launched_nodes': 1, 'launched_resources': {'cloud': 'AWS', 'instance_type': 'm6i.2xlarge', 'use_spot': False, 'disk_size': 256, 'region': 'us-east-1', 'zone': 'us-east-1a'}}, 'last_use': '/usr/local/lib/python3.10/dist-packages/ipykernel_launcher.py -f /root/.local/share/jupyter/runtime/kernel-729e54ec-f20d-48a4-8603-099468cb0df6.json', 'status': 'UP', 'autostop': 30, 'to_down': True, 'owner': 'AIDASQMZKHMBGKPSNXGMZ', 'metadata': {}, 'cluster_hash': 'b5ff32eb-425d-42af-ac6c-801be1f399de', 'public_key': '~/.ssh/sky-key.pub', 'ssh_creds': {'ssh_user': 'ubuntu', 'ssh_private_key': '~/.ssh/sky-key', 'ssh_control_name': 'cpu-cluster', 'ssh_proxy_command': None}}}
-    INFO | 2023-05-05 14:32:32,079 | Config updated in RNS for Runhouse URI <resource/carolineechen:cpu-cluster>
-    INFO | 2023-05-05 14:32:32,083 | Saving config to RNS: {'name': '/carolineechen/num_cpus_cluster', 'resource_type': 'function', 'resource_subtype': 'Function', 'system': '/carolineechen/cpu-cluster', 'reqs': ['./'], 'setup_cmds': [], 'fn_pointers': ('content', 'num_cpus_fn', 'num_cpus')}
-    INFO | 2023-05-05 14:32:32,871 | Saving new resource in RNS for Runhouse URI <resource/carolineechen:num_cpus_cluster>
+    <runhouse.rns.function.Function at 0x104634ee0>
 
 
 
-
-.. parsed-literal::
-
-    <runhouse.rns.function.Function at 0x7fb3b7ca1ff0>
-
-
-
-.. code:: python
+.. code:: ipython3
 
     num_cpus_cluster.share(
         users=["<email_to_runhouse_account>"],
@@ -362,7 +377,7 @@ Now, you, or whoever you shared it with, can reload this function from
 anther dev environment (like a different Colab, local, or on a cluster),
 as long as you are logged in to your Runhouse account.
 
-.. code:: python
+.. code:: ipython3
 
     reloaded_function = rh.function(name="num_cpus_cluster")
     reloaded_function()
@@ -370,14 +385,19 @@ as long as you are logged in to your Runhouse account.
 
 .. parsed-literal::
 
-    INFO | 2023-05-05 14:32:34,922 | Attempting to load config for /carolineechen/num_cpus_cluster from RNS.
-    INFO | 2023-05-05 14:32:35,708 | Attempting to load config for /carolineechen/cpu-cluster from RNS.
-    INFO | 2023-05-05 14:32:36,785 | Setting up Function on cluster.
-    INFO | 2023-05-05 14:32:48,041 | Copying local package content to cluster <cpu-cluster>
-    INFO | 2023-05-05 14:32:50,491 | Installing packages on cluster cpu-cluster: ['./']
-    INFO | 2023-05-05 14:32:50,862 | Function setup complete.
-    INFO | 2023-05-05 14:32:50,863 | Running num_cpus_cluster via gRPC
-    INFO | 2023-05-05 14:32:51,271 | Time to send message: 0.41 seconds
+    INFO | 2023-08-29 03:04:24.820884 | Checking server cpu-cluster
+    INFO | 2023-08-29 03:04:25.850301 | Server cpu-cluster is up.
+    INFO | 2023-08-29 03:04:25.852478 | Calling num_cpus_cluster.call
+
+
+.. parsed-literal::
+
+    base servlet: Calling method call on module num_cpus_cluster
+
+
+.. parsed-literal::
+
+    INFO | 2023-08-29 03:04:26.127098 | Time to call num_cpus_cluster.call: 0.27 seconds
 
 
 
@@ -393,9 +413,16 @@ Terminate the Cluster
 
 To terminate the cluster, you can run:
 
-.. code:: python
+.. code:: ipython3
 
     cluster.teardown()
+
+
+
+.. raw:: html
+
+    <pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace"><span style="color: #008000; text-decoration-color: #008000">⠇</span> <span style="color: #008080; text-decoration-color: #008080; font-weight: bold">Terminating </span><span style="color: #008000; text-decoration-color: #008000; font-weight: bold">cpu-cluster</span>
+    </pre>
 
 
 Summary
