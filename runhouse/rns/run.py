@@ -337,24 +337,14 @@ class Run(Resource):
         stdout_path = self._stdout_path
         logger.info(f"Reading stdout from path: {stdout_path}")
 
-        return (
-            self._load_blob_from_path(path=stdout_path)
-            .fetch(deserialize=False)
-            .decode()
-            .strip()
-        )
+        return self._load_blob_from_path(path=stdout_path).fetch().decode().strip()
 
     def stderr(self) -> str:
         """Read the stderr saved on the system for the Run."""
         stderr_path = self._stderr_path
         logger.info(f"Reading stderr from path: {stderr_path}")
 
-        return (
-            self._load_blob_from_path(stderr_path)
-            .fetch(deserialize=False)
-            .decode()
-            .strip()
-        )
+        return self._load_blob_from_path(stderr_path).fetch().decode().strip()
 
     def _fn_inputs_path(self) -> str:
         """Path to the pickled inputs used for the function which are saved on the system."""

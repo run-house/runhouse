@@ -146,7 +146,11 @@ class File(Blob):
         """
         self.local._cached_data = self._folder.get(self._filename)
         if deserialize:
-            self.local._cached_data = pickle.loads(self._cached_data)
+            try:
+                deserialized_data = pickle.loads(self._cached_data)
+            except pickle.UnpicklingError:
+                deserialized_data = self._cached_data
+            self.local._cached_data = deserialized_data
         return self._cached_data
 
     def _save_sub_resources(self):
