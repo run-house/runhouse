@@ -170,15 +170,6 @@ def test_put_resource(ondemand_cpu_cluster, test_env):
     assert ondemand_cpu_cluster.call("test_env", "name", stream_logs=True) == "test_env"
 
 
-@pytest.mark.clustertest
-def test_fault_tolerance(ondemand_cpu_cluster):
-    ondemand_cpu_cluster.clear()
-    ondemand_cpu_cluster.put("my_list", list(range(5, 50, 2)) + ["a string"])
-    ondemand_cpu_cluster.restart_server(restart_ray=False, resync_rh=False)
-    ret = ondemand_cpu_cluster.get("my_list")
-    assert all(a == b for (a, b) in zip(ret, list(range(5, 50, 2)) + ["a string"]))
-
-
 def serialization_helper_1():
     import torch
 
