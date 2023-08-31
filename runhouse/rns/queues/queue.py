@@ -9,8 +9,8 @@ class Queue(Module):
     RESOURCE_TYPE = "queue"
     DEFAULT_CACHE_FOLDER = ".cache/runhouse/queues"
 
-    """Simple dict wrapper to act as key-value/object storage. Wrapping this in an actor allows us to
-    access it across Ray processes and nodes, and even keep some things pinned to Python memory."""
+    """Simple dict wrapper to act as a queue. Wrapping this in an actor allows us to access
+    it across Ray processes and nodes, and even keep some things pinned to Python memory."""
 
     def __init__(
         self,

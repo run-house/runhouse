@@ -264,7 +264,6 @@ class Module(Resource):
         Example:
             >>> local_module = rh.module(my_class)
             >>> cluster_module = local_module.to("my_cluster")
-            >>> cluster_module = module.to(my_cluster)
         """
         if system == self.system and env == self.env:
             if name and not self.name == name:
@@ -333,6 +332,12 @@ class Module(Resource):
         env: Optional[Union[str, List[str], Env]] = None,
         name: Optional[str] = None,
     ):
+        """Check if the module already exists on the cluster, and if so return the module object.
+        If note, put the module on the cluster and return the remote module.
+
+        Example:
+            >>> remote_df = Model().get_or_to(my_cluster, name="remote_model")
+        """
         name = self.name or name
         if not name:
             raise ValueError(
@@ -763,6 +768,7 @@ class Module(Resource):
         name: str = None,
         overwrite: bool = True,
     ):
+        """Register the resource and save to local working_dir config and RNS config store."""
         # Need to override Resource's save to handle key changes in the obj store
         # Also check that this is a Blob and not a File
         if name and not self.name == name:
@@ -936,21 +942,20 @@ def module(
 
     The behavior of Modules (and subclasses thereof) is as follows:
         - Any callable public method of the module is intercepted and executed remotely over rpc, with exception of
-            certain functions Python doesn't make interceptable (e.g. __call__, __init__), and methods of the Module
-            class (e.g. ``to``, ``fetch``, etc.). Properties and private methods are not intercepted, and will be
-            executed locally.
+          certain functions Python doesn't make interceptable (e.g. __call__, __init__), and methods of the Module
+          class (e.g. ``to``, ``fetch``, etc.). Properties and private methods are not intercepted, and will be
+          executed locally.
         - Any method which executes remotely may be called normally, e.g. ``model.forward(x)``, or asynchronously,
-            e.g. ``key = model.forward.run(x)`` (which returns a key to retrieve the result with
-            ``cluster.get(key)``), or with ``run_obj = model.train.remote(x)``, which runs synchronously but returns
-            a remote object to avoid passing heavy results back over the network.
+          e.g. ``key = model.forward.run(x)`` (which returns a key to retrieve the result with
+          ``cluster.get(key)``), or with ``run_obj = model.train.remote(x)``, which runs synchronously but returns
+          a remote object to avoid passing heavy results back over the network.
         - Setting attributes, both public and private, will be executed remotely, with the new values only being
-            set in the remote module and not the local one. This excludes any methods or attribtes of the Module class
-            proper (e.g. ``system`` or ``name``), which will be set locally.
+          set in the remote module and not the local one. This excludes any methods or attribtes of the Module class
+          proper (e.g. ``system`` or ``name``), which will be set locally.
         - Attributes, private properties can be fetched with the ``remote`` property, and the full resource can be
-            fetched using ``.fetch()``, e.g. ``model.remote.weights``, ``model.remote.__dict__``, ``model.fetch()``.
+          fetched using ``.fetch()``, e.g. ``model.remote.weights``, ``model.remote.__dict__``, ``model.fetch()``.
         - When a module is sent to a cluster, it's public attribtes are serialized, sent over, and repopulated in the
-            remote instance. This means that any changes to the module's attributes will not be reflected in the remote
-
+          remote instance. This means that any changes to the module's attributes will not be reflected in the remote
 
 
     Args:
@@ -998,7 +1003,7 @@ def module(
         >>> other_model = Model(model_id="bert-base-uncased", device="cuda").to("my_gpu", "my_env")
         >>>
         >>> # Another method: Create a module from an existing class which is not a subclass of Module
-        >>> RemoteModel = rh.module(cls=BERTModel, model_id="remote_model", system="my_gpu", env="my_env")
+        >>> RemoteModel = rh.module(cls=BERTModel, system="my_gpu", env="my_env")
         >>> remote_model = RemoteModel(model_id="bert-base-uncased", device="cuda")
         >>> remote_model.predict("Hello world!")  # Runs on system in env
         >>>

@@ -21,6 +21,9 @@ class GitPackage(Package):
     ):
         """
         Runhouse Github Package resource.
+
+        .. note::
+            To create a git package, please use the factory method :func:`git_package` or :func:`package`.
         """
         super().__init__(
             name=name,

@@ -41,6 +41,9 @@ class Package(Resource):
     ):
         """
         Runhouse Package resource.
+
+        .. note::
+            To create a git package, please use the factory method :func:`package`.
         """
         super().__init__(
             name=name,
