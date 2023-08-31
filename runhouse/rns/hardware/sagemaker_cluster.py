@@ -293,13 +293,10 @@ class SageMakerCluster(Cluster):
                     self.run(
                         [
                             "sudo apt-get install screen -y "
-                            "&& sudo apt-get install rsync -y && sudo apt-get install python3-pip -y "
-                            "&& python3 -m pip install protobuf==3.20.3 && python3 -m pip install 'cython<3.0.0'",
+                            "&& sudo apt-get install rsync -y"
                         ]
                     )
-                    self.restart_server(
-                        resync_rh=True, restart_ray=True, port=self._local_port
-                    )
+                    self.restart_server(resync_rh=True, restart_ray=True)
                     logger.info(f"Checking server {self.instance_id} again.")
 
                     self.client.check_server(cluster_config=cluster_config)
@@ -569,19 +566,14 @@ class SageMakerCluster(Cluster):
                     # **NOTE**: there seems to be an issue with some SageMaker GPUs post installation script which
                     # leads to an error which looks something like: "installed install-info package post-installation
                     # script subprocess returned error exit status 2"
-                    # SageMaker populates the /etc/environment for setting env vars which may be corrupt -
-                    # if this happens create a new empty env file for now and ensure
-                    # nvcc is properly configured
-                    cuda_home = "/usr/local/cuda"
-                    path = f"{cuda_home}/bin:$PATH"
-                    ld_library_path = f"{cuda_home}/lib64:$LD_LIBRARY_PATH"
+                    # https://askubuntu.com/questions/1034961/cant-upgrade-error-etc-environment-source-not-found-and-error-processin
+                    # /etc/environment file may also be corrupt, replacing with an empty file allows
+                    # subsequent python commands to run
                     self._run_commands_with_ssh(
                         commands=[
-                            "sudo mv /etc/environment /etc/environment_broken "
+                            "cd /var/lib/dpkg/info && sudo rm *.postinst "
+                            "&& sudo mv /etc/environment /etc/environment_broken "
                             "&& sudo touch /etc/environment "
-                            f"&& export CUDA_HOME={cuda_home} "
-                            f"&& export PATH={path} "
-                            f"&& export LD_LIBRARY_PATH={ld_library_path} "
                             f"&& {command}"
                         ],
                         cmd_prefix=cmd_prefix,
@@ -758,7 +750,7 @@ class SageMakerCluster(Cluster):
 
                 # Give time for the SSM session to start, SSH keys to be copied onto the cluster, and the SSH port
                 # forwarding command to run
-                tunnel_setup_complete.wait(timeout=20)
+                tunnel_setup_complete.wait(timeout=30)
 
                 if not self._ports_are_in_use():
                     # Command should bind SSH port and HTTP port on localhost, if this is not the case try re-running
@@ -1146,6 +1138,8 @@ class SageMakerCluster(Cluster):
     def _filter_known_hosts(self):
         """To prevent host key collisions in the ~/.ssh/known_hosts file, remove any existing entries of localhost"""
         known_hosts = self.hosts_path
+        if not os.path.exists(known_hosts):
+            return
         valid_hosts = []
         with open(known_hosts, "r") as f:
             for line in f:

@@ -101,6 +101,7 @@ extras_require = {
         "sagemaker==2.135.0",  # SkyPilot depends on PyYAML<=5.3.1, which is incompatible with sagemaker>=2.135.0
         "paramiko>=3.2.0",
         "boto3>=1.26.131,<2.0",
+        "cython<3.0.0",  # https://github.com/yaml/pyyaml/issues/724
     ],
 }
 

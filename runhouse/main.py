@@ -9,7 +9,6 @@ from rich.console import Console
 import runhouse.rns.login
 
 from runhouse import __version__, cluster, configs
-from runhouse.servers.http.http_server import HTTPServer
 
 # create an explicit Typer application
 app = typer.Typer(add_completion=False)
@@ -120,14 +119,13 @@ def load_cluster(cluster_name: str):
         c._update_from_sky_status(dryrun=True)
 
 
-def _start_server(restart, restart_ray, screen, port, create_logfile=True):
+def _start_server(restart, restart_ray, screen, create_logfile=True):
     from runhouse.rns.hardware.cluster import Cluster
 
     cmds = Cluster._start_server_cmds(
         restart=restart,
         restart_ray=restart_ray,
         screen=screen,
-        port=port,
         create_logfile=create_logfile,
     )
 
@@ -151,17 +149,10 @@ def _start_server(restart, restart_ray, screen, port, create_logfile=True):
 def start(
     restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
     screen: bool = typer.Option(False, help="Start the server in a screen"),
-    port: int = typer.Option(
-        HTTPServer.DEFAULT_PORT, help="Port for the HTTP server to run on"
-    ),
 ):
     """Start the HTTP server on the cluster."""
     _start_server(
-        restart=False,
-        restart_ray=restart_ray,
-        screen=screen,
-        port=port,
-        create_logfile=True,
+        restart=False, restart_ray=restart_ray, screen=screen, create_logfile=True
     )
 
 
@@ -177,21 +168,17 @@ def restart(
         False,
         help="Resync the Runhouse package. Only relevant when restarting remotely.",
     ),
-    port: int = typer.Option(
-        HTTPServer.DEFAULT_PORT, help="Port for the HTTP server to run on"
-    ),
 ):
     """Restart the HTTP server on the cluster."""
     if name:
         c = cluster(name=name)
-        c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray, port=port)
+        c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray)
         return
 
     _start_server(
         restart=True,
         restart_ray=restart_ray,
         screen=screen,
-        port=port,
         create_logfile=True,
     )
 
