@@ -201,12 +201,12 @@ def test_remotes(cluster):
     pid_fn = rh.function(getpid, system=cluster)
 
     pid_key = pid_fn.run()
-    pid_res = cluster.get(pid_key)
+    pid_res = cluster.get(pid_key).fetch()
     assert pid_res > 0
 
     # Test passing a remote into a normal call
     pid_blob = pid_fn.remote()
-    pid_res = cluster.get(pid_blob.name)
+    pid_res = cluster.get(pid_blob.name).fetch()
     assert pid_res > 0
     pid_res = pid_blob.fetch()
     assert pid_res > 0
