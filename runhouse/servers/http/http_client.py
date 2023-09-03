@@ -64,8 +64,9 @@ class HTTPClient:
             raise ValueError(
                 f"Error calling {endpoint} on server: {response.content.decode()}"
             )
-        output_type = response.json()["output_type"]
-        return handle_response(response.json(), output_type, err_str)
+        resp_json = response.json()
+        output_type = resp_json["output_type"]
+        return handle_response(resp_json, output_type, err_str)
 
     def check_server(self, cluster_config=None):
         self.request(

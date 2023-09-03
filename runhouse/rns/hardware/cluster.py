@@ -4,6 +4,7 @@ import logging
 import os
 import pkgutil
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -29,9 +30,9 @@ class Cluster(Resource):
     RESOURCE_TYPE = "cluster"
     REQUEST_TIMEOUT = 5  # seconds
 
-    SERVER_LOGFILE = "~/.rh/server.log"
+    SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
     CLI_RESTART_CMD = "runhouse restart"
-    SERVER_START_CMD = "python3 -m runhouse.servers.http.http_server"
+    SERVER_START_CMD = f"{sys.executable} -m runhouse.servers.http.http_server"
     SERVER_STOP_CMD = f'pkill -f "{SERVER_START_CMD}"'
     # 2>&1 redirects stderr to stdout
     START_SCREEN_CMD = (
@@ -70,10 +71,6 @@ class Cluster(Resource):
         self._rpc_tunnel = None
         self.client = None
 
-        if not dryrun and self.address:
-            # OnDemandCluster will start ray itself, but will also set address later, so won't reach here.
-            self.check_server()
-
     def save_config_to_cluster(self):
         import json
 
@@ -98,6 +95,10 @@ class Cluster(Resource):
             from runhouse.rns.hardware import OnDemandCluster
 
             return OnDemandCluster(**config, dryrun=dryrun)
+        elif resource_subtype == "SageMakerCluster":
+            from runhouse.rns.hardware import SageMakerCluster
+
+            return SageMakerCluster(**config, dryrun=dryrun)
         else:
             raise ValueError(f"Unknown cluster type {resource_subtype}")
 
@@ -306,7 +307,7 @@ class Cluster(Resource):
 
     # ----------------- RPC Methods ----------------- #
 
-    def connect_server_client(self, tunnel=True, force_reconnect=False):
+    def connect_server_client(self, force_reconnect=False):
         if not self.address:
             raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
 
@@ -398,7 +399,7 @@ class Cluster(Resource):
                     )
                     self.restart_server()
                     for i in range(5):
-                        logger.info(f"Checking server {self.name} again [{i+1}/5].")
+                        logger.info(f"Checking server {self.name} again [{i + 1}/5].")
                         try:
                             self.client.check_server(cluster_config=cluster_config)
                             logger.info(f"Server {self.name} is up.")
@@ -462,23 +463,6 @@ class Cluster(Resource):
 
         return ssh_tunnel, local_port
 
-    # import paramiko
-    # ssh = paramiko.SSHClient()
-    # ssh.load_system_host_keys()
-    # ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    # from pathlib import Path
-    # ssh.connect(self.address,
-    #             username=creds['ssh_user'],
-    #             key_filename=str(Path(creds['ssh_private_key']).expanduser())
-    #             )
-    # transport = ssh.get_transport()
-    # transport.request_port_forward('', local_port)
-    # ssh_tunnel = transport.open_channel("direct-tcpip", ("localhost", local_port),
-    #                                     (self.address, remote_port or local_port))
-    # if ssh_tunnel.is_active():
-    #     connected = True
-    #     print(f"SSH tunnel is open to {self.address}:{local_port}")
-
     @classmethod
     def _start_server_cmds(cls, restart, restart_ray, screen, create_logfile):
         cmds = []
@@ -502,13 +486,14 @@ class Cluster(Resource):
         _rh_install_url: str = None,
         resync_rh: bool = True,
         restart_ray: bool = True,
+        env_activate_cmd: str = None,
     ):
         """Restart the RPC server.
 
         Args:
-            resync_rh (bool): Whether to resync runhouse. (Default: True)
-            restart_ray (bool): Whether to restart Ray. (Default: False)
-
+            resync_rh (bool): Whether to resync runhouse. (Default: ``True``)
+            restart_ray (bool): Whether to restart Ray. (Default: ``True``)
+            env_activate_cmd (str, optional): Command to activate the environment on the server. (Default: ``None``)
         Example:
             >>> rh.cluster("rh-cpu").restart_server()
         """
@@ -516,8 +501,10 @@ class Cluster(Resource):
 
         if resync_rh:
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
-
         cmd = self.CLI_RESTART_CMD + (" --no-restart-ray" if not restart_ray else "")
+
+        cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd
+
         status_codes = self.run(commands=[cmd])
         if not status_codes[0][0] == 0:
             raise ValueError(f"Failed to restart server {self.name}.")
@@ -958,7 +945,7 @@ class Cluster(Resource):
         """Remove conda env from the cluster.
 
         Example:
-            >>> rh.cluster("rh-cpu").remove_conda_env("my_conda_env")
+            >>> rh.ondemand_cluster("rh-cpu").remove_conda_env("my_conda_env")
         """
         env_name = env if isinstance(env, str) else env.env_name
         self.run([f"conda env remove -n {env_name}"])

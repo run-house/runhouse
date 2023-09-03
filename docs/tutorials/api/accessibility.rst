@@ -241,7 +241,7 @@ the resource factory method, passing in only the name.
 
 .. code:: ipython3
 
-    rh.cluster(name="~/aws_cluster")
+    rh.ondemand_cluster(name="~/aws_cluster")
 
 
 .. parsed-literal::

@@ -8,6 +8,7 @@ from runhouse.rh_config import configs, rns_client
 # Configure the logger once
 logging.config.dictConfig(LOGGING_CONFIG)
 
+
 disable_data_collection = configs.get("disable_data_collection", False)
 if not disable_data_collection:
     import sentry_sdk

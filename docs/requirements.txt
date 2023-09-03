@@ -11,4 +11,5 @@ pyarrow==9.0.0
 Pint==0.20.1
 chardet==4.0.0
 ray<=2.4.0,>=2.2.0
+sagemaker
 sphinxcontrib-serializinghtml==1.1.5

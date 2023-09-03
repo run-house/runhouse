@@ -73,7 +73,6 @@ install_requires = [
     "sentry-sdk",
     "fastapi",
     "uvicorn",
-    "sentry_sdk",
     "pyOpenSSL>=21.1.0",
 ]
 
@@ -96,6 +95,13 @@ extras_require = {
     "azure": ["azure-cli==2.31.0", "azure-core"],
     "gcp": ["google-api-python-client", "google-cloud-storage", "gcsfs"],
     "docker": ["docker"],
+    "sagemaker": [
+        # https://github.com/aws-samples/sagemaker-ssh-helper
+        "sagemaker_ssh_helper",
+        "sagemaker==2.135.0",  # SkyPilot depends on PyYAML<=5.3.1, which is incompatible with sagemaker>=2.135.0
+        "paramiko>=3.2.0",
+        "boto3>=1.26.131,<2.0",
+    ],
 }
 
 extras_require["all"] = sum(extras_require.values(), [])

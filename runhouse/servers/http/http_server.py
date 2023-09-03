@@ -502,7 +502,7 @@ class HTTPServer:
 
             sky_ray_data = Secrets.read_yaml_file(HTTPServer.SKY_YAML)
         except FileNotFoundError:
-            # For on prem clusters we won't have sky data
+            # For non on-demand clusters we won't have sky data
             return {}
 
         provider = sky_ray_data["provider"]

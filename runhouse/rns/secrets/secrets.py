@@ -223,11 +223,9 @@ class Secrets:
         # Extract secrets from default paths
         configured_secrets: dict = cls.load_provider_secrets(providers=providers)
 
-        if not configured_secrets or len(configured_secrets) < len(enabled_providers):
+        if not configured_secrets or len(configured_secrets) < len(providers):
             # If no secrets found in the enabled providers' credentials files check if they exist in Vault
-            missing_providers = list(
-                set(enabled_providers) - set(list(configured_secrets))
-            )
+            missing_providers = list(set(providers) - set(list(configured_secrets)))
             secrets_for_missing_providers: dict = cls.download_into_env(
                 save_locally=False, providers=missing_providers
             )

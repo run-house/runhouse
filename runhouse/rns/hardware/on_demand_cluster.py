@@ -219,7 +219,7 @@ class OnDemandCluster(Cluster):
         """Whether the cluster is up.
 
         Example:
-            >>> rh.cluster("rh-cpu").is_up()
+            >>> rh.ondemand_cluster("rh-cpu").is_up()
         """
         self._update_from_sky_status(dryrun=False)
         return self.address is not None
@@ -250,7 +250,7 @@ class OnDemandCluster(Cluster):
             For more information see SkyPilot's :code:`ResourceHandle` `class <https://github.com/skypilot-org/skypilot/blob/0c2b291b03abe486b521b40a3069195e56b62324/sky/backends/cloud_vm_ray_backend.py#L1457>`_.
 
         Example:
-            >>> status = rh.cluster("rh-cpu").status()
+            >>> status = rh.ondemand_cluster("rh-cpu").status()
         """  # noqa
         # return backend_utils._refresh_cluster_record(
         #     self.name, force_refresh=refresh, acquire_per_cluster_status_lock=False
@@ -283,7 +283,7 @@ class OnDemandCluster(Cluster):
         """Up the cluster.
 
         Example:
-            >>> rh.cluster("rh-cpu").up()
+            >>> rh.ondemand_cluster("rh-cpu").up()
         """
         if self.provider in ["aws", "gcp", "azure", "lambda", "cheapest"]:
             task = sky.Task(
@@ -348,7 +348,7 @@ class OnDemandCluster(Cluster):
 
         Args:
             autostop_mins (int): Amount of time (in min) to keep the cluster warm after inactivity.
-            If set to -1, keep cluster warm indefinitely. (Default: `-1`)
+                If set to -1, keep cluster warm indefinitely. (Default: `-1`)
         """
         sky.autostop(self.name, autostop_mins, down=True)
         self.autostop_mins = autostop_mins
@@ -357,7 +357,7 @@ class OnDemandCluster(Cluster):
         """Teardown cluster.
 
         Example:
-            >>> rh.cluster("rh-cpu").teardown()
+            >>> rh.ondemand_cluster("rh-cpu").teardown()
         """
         # Stream logs
         sky.down(self.name)
@@ -367,7 +367,7 @@ class OnDemandCluster(Cluster):
         """Teardown cluster and delete it from configs.
 
         Example:
-            >>> rh.cluster("rh-cpu").teardown_and_delete()
+            >>> rh.ondemand_cluster("rh-cpu").teardown_and_delete()
         """
         self.teardown()
         rns_client.delete_configs()
@@ -377,8 +377,8 @@ class OnDemandCluster(Cluster):
         """Context manager to temporarily pause autostop.
 
         Example:
-            >>> with cluster.pause_autostop():
-            >>>     cluster.run(["python train.py"])
+            >>> with rh.ondemand_cluster.pause_autostop():
+            >>>     rh.ondemand_cluster.run(["python train.py"])
         """
         sky.autostop(self.name, idle_minutes=-1)
         yield
@@ -391,7 +391,7 @@ class OnDemandCluster(Cluster):
         """Retrieve SSH key for the cluster.
 
         Example:
-            >>> ssh_priv_key = rh.cluster("rh-cpu").cluster_ssh_key("~/.ssh/id_rsa")
+            >>> ssh_priv_key = rh.ondemand_cluster("rh-cpu").cluster_ssh_key("~/.ssh/id_rsa")
         """
         try:
             f = open(path_to_file, "r")
@@ -404,7 +404,7 @@ class OnDemandCluster(Cluster):
         """Retrieve SSH creds for the cluster.
 
         Example:
-            >>> credentials = rh.cluster("rh-cpu").ssh_creds()
+            >>> credentials = rh.ondemand_cluster("rh-cpu").ssh_creds()
         """
         if self._ssh_creds:
             return self._ssh_creds
@@ -423,6 +423,6 @@ class OnDemandCluster(Cluster):
         """SSH into the cluster.
 
         Example:
-            >>> rh.cluster("rh-cpu").ssh()
+            >>> rh.ondemand_cluster("rh-cpu").ssh()
         """
         subprocess.run(["ssh", f"{self.name}"])

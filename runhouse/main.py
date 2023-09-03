@@ -176,7 +176,10 @@ def restart(
         return
 
     _start_server(
-        restart=True, restart_ray=restart_ray, screen=screen, create_logfile=True
+        restart=True,
+        restart_ray=restart_ray,
+        screen=screen,
+        create_logfile=True,
     )
 
 

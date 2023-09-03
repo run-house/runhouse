@@ -30,6 +30,7 @@ etc.):
    $ pip install "runhouse[aws]"
    $ pip install "runhouse[gcp]"
    $ pip install "runhouse[azure]"
+   $ pip install "runhouse[sagemaker]"
    # Or
    $ pip install "runhouse[all]"
 
@@ -77,6 +78,10 @@ password ready:
                   ips=['<ip of the cluster>'],
                   ssh_creds={'ssh_user': '<user>', 'password':'******'},
               )
+
+.. note::
+
+    For more information see the :ref:`Cluster Class` section.
 
 On-Demand Cluster
 ~~~~~~~~~~~~~~~~~
@@ -140,12 +145,42 @@ function on it later in this tutorial.
                   provider="cheapest",      # options: "AWS", "GCP", "Azure", "Lambda", or "cheapest"
               ).save()
 
+.. note::
+
+    For more information and hardware setup see the :ref:`OnDemandCluster Class` section.
+
+SageMaker Cluster
+~~~~~~~~~~~~~~~~~
+
+Runhouse facilitates easy access to existing or new SageMaker compute.
+Just provide your SageMaker execution role ARN or have it configured in your local environment.
+
+.. code:: python
+
+    # Launch a new SageMaker instance and keep it up indefinitely
+    cluster = rh.sagemaker_cluster(name='sm-cluster', profile="sagemaker").save()
+
+    # Running a training job with a provided Estimator
+    pytorch_estimator = PyTorch(entry_point='train.py',
+                                role='arn:aws:iam::123456789012:role/MySageMakerRole',
+                                source_dir='/Users/myuser/dev/sagemaker',
+                                framework_version='1.8.1',
+                                py_version='py36',
+                                instance_type='ml.p3.2xlarge')
+
+    cluster = rh.sagemaker_cluster(name='sagemaker-cluster',
+                                   estimator=pytorch_estimator).save()
+
+.. note::
+
+    For more information and hardware setup see the :ref:`SageMakerCluster Class` section.
+
 Secrets and Portability
 -----------------------
 
 Using Runhouse with only the OSS Python package is perfectly fine, but
 you can unlock some unique portability features by creating an (always
-free) `account <https://api.run.house/>`__ and saving down your secrets
+free) `account <https://www.run.house/>`__ and saving down your secrets
 and/or resource metadata there.
 
 Think of the OSS-package-only experience as akin to Microsoft Office,
