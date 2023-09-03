@@ -348,7 +348,7 @@ class OnDemandCluster(Cluster):
 
         Args:
             autostop_mins (int): Amount of time (in min) to keep the cluster warm after inactivity.
-            If set to -1, keep cluster warm indefinitely. (Default: `-1`)
+                If set to -1, keep cluster warm indefinitely. (Default: `-1`)
         """
         sky.autostop(self.name, autostop_mins, down=True)
         self.autostop_mins = autostop_mins

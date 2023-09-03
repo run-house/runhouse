@@ -356,7 +356,7 @@ class Cluster(Resource):
         else:
             self.client = HTTPClient(host="127.0.0.1", port=connected_port)
 
-    def check_server(self, restart_server=True, env=None):
+    def check_server(self, restart_server=True):
         if self.on_this_cluster():
             return
 
@@ -493,8 +493,7 @@ class Cluster(Resource):
         Args:
             resync_rh (bool): Whether to resync runhouse. (Default: ``True``)
             restart_ray (bool): Whether to restart Ray. (Default: ``True``)
-            env_activate_cmd (str, optional): Command for activating the server's base environment.
-
+            env_activate_cmd (str, optional): Command to activate the environment on the server. (Default: ``None``)
         Example:
             >>> rh.cluster("rh-cpu").restart_server()
         """
@@ -503,8 +502,9 @@ class Cluster(Resource):
         if resync_rh:
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
         cmd = self.CLI_RESTART_CMD + (" --no-restart-ray" if not restart_ray else "")
-        if env_activate_cmd:
-            cmd = f"{env_activate_cmd} && {cmd}"
+
+        cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd
+
         status_codes = self.run(commands=[cmd])
         if not status_codes[0][0] == 0:
             raise ValueError(f"Failed to restart server {self.name}.")

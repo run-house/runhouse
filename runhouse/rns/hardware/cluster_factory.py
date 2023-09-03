@@ -1,4 +1,3 @@
-import os
 import warnings
 from typing import Dict, List, Optional, Union
 
@@ -186,9 +185,9 @@ def sagemaker_cluster(
         profile (str, optional): AWS profile to use for the cluster. If provided instead of a ``role``, will lookup
             the role ARN associated with the profile in the local AWS credentials.
             If not provided, will use the ``default`` profile.
-        ssh_key_path (str, optional): Path to private SSH key to use for connecting to the cluster. If not provided,
-            will look for the key in path ``~/.ssh/sagemaker-ssh-gw``. If not found will generate new keys and
-            upload the public key to the default s3 bucket for the Role ARN.
+        ssh_key_path (str, optional): Path (relative or absolute) to private SSH key to use for connecting to
+            the cluster. If not provided, will look for the key in path ``~/.ssh/sagemaker-ssh-gw``.
+            If not found will generate new keys and upload the public key to the default s3 bucket for the Role ARN.
         instance_id (str, optional): ID of the AWS instance to use for the cluster. SageMaker does not expose
             IP addresses of its instance, so we use an instance ID as a unique identifier for the cluster.
         instance_type (str, optional): Type of AWS instance to use for the cluster. More info on supported
@@ -203,8 +202,8 @@ def sagemaker_cluster(
             More info on creating an estimator `here
             <https://sagemaker.readthedocs.io/en/stable/frameworks/pytorch/using_pytorch.html#create-an-estimator>`_.
         autostop_mins (int, optional): Number of minutes to keep the cluster up after inactivity,
-            or ``-1`` to keep cluster up indefinitely. Note that this will keep the cluster up even if a dedicated
-            training job has finished running or failed.
+            or ``-1`` to keep cluster up indefinitely. *Note: this will keep the cluster up even if a dedicated
+            training job has finished running or failed*.
         connection_wait_time (int, optional): Amount of time to wait inside the SageMaker cluster before
             continuing with normal execution. Useful if you want to connect before a dedicated job starts
             (e.g. training). If you don't want to wait, set it to ``0``.
@@ -237,7 +236,9 @@ def sagemaker_cluster(
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.sagemaker_cluster(name="sagemaker-cluster")
     """
-    ssh_key_path = os.path.expanduser(ssh_key_path) if ssh_key_path else None
+    ssh_key_path = (
+        SageMakerCluster._relative_ssh_path(ssh_key_path) if ssh_key_path else None
+    )
     if name:
         alt_options = dict(
             role=role,

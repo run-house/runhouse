@@ -29,11 +29,11 @@ try:
 except ImportError:
     pass
 
-from sshtunnel import SSHTunnelForwarder
+from sshtunnel import BaseSSHTunnelForwarderError, SSHTunnelForwarder
 
 from runhouse.rh_config import configs, open_cluster_tunnels, rns_client
 from runhouse.rns.hardware.cluster import Cluster
-from runhouse.rns.utils.api import is_jsonable
+from runhouse.rns.utils.api import is_jsonable, resolve_absolute_path
 from runhouse.rns.utils.hardware import SkySSHRunner
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,6 @@ class SageMakerCluster(Cluster):
     DEFAULT_REGION = "us-east-1"
     DEFAULT_USER = "root"
     ECR_URL = "763104351884.dkr.ecr.us-east-1.amazonaws.com"
-    ENV_ACTIVATE_CMD = "source /opt/conda/bin/activate"
 
     # Default path for any estimator source code copied onto the cluster
     ESTIMATOR_SRC_CODE_PATH = "/opt/ml/code"
@@ -179,11 +178,12 @@ class SageMakerCluster(Cluster):
 
     @property
     def ssh_key_path(self):
+        """Relative path to the private SSH key used to connect to the cluster."""
         if self._ssh_key_path:
-            return os.path.expanduser(self._ssh_key_path)
+            return self._relative_ssh_path(self._ssh_key_path)
 
-        # Default path to the private SSH key
-        return os.path.expanduser("~/.ssh/sagemaker-ssh-gw")
+        # Default path
+        return "~/.ssh/sagemaker-ssh-gw"
 
     @ssh_key_path.setter
     def ssh_key_path(self, ssh_key_path):
@@ -255,7 +255,7 @@ class SageMakerCluster(Cluster):
         return self._sagemaker_session.default_bucket()
 
     @property
-    def extra_ssh_args(self):
+    def _extra_ssh_args(self):
         """Extra SSH arguments to be used when connecting to the cluster."""
         # Note - port 12345 can be used for Python Debug Server: "-R localhost:12345:localhost:12345"
         # https://github.com/aws-samples/sagemaker-ssh-helper#remote-debugging-with-pycharm-debug-server-over-ssh
@@ -263,6 +263,32 @@ class SageMakerCluster(Cluster):
             f"-L localhost:{self._local_port}:localhost:{self._local_port} "
             f"-L localhost:{self._ssh_port}:localhost:22"
         )
+
+    @property
+    def _env_activate_cmd(self):
+        """Prefix for commands run on the cluster. Ensure we are running all commands in the conda environment
+        and not the system default python."""
+        # TODO [JL] Can SageMaker handle this for us?
+        return "source /opt/conda/bin/activate"
+
+    @property
+    def _abs_ssh_key_path(self):
+        return resolve_absolute_path(self.ssh_key_path)
+
+    @classmethod
+    def _relative_ssh_path(cls, ssh_path: str):
+        """Convert to rel path if not already one."""
+        if ssh_path.startswith("~"):
+            return ssh_path
+
+        # Convert to a relative path
+        relative_path = os.path.relpath(ssh_path, os.path.expanduser("~"))
+        relative_path = relative_path.replace("\\", "/")
+
+        if not relative_path.startswith("~"):
+            relative_path = f"~/{relative_path}"
+
+        return relative_path
 
     # -------------------------------------------------------
     # Cluster State & Lifecycle Methods
@@ -296,10 +322,11 @@ class SageMakerCluster(Cluster):
                             "&& sudo apt-get install rsync -y"
                         ]
                     )
+                    # Restart the server inside the base conda env
                     self.restart_server(
                         resync_rh=True,
                         restart_ray=True,
-                        env_activate_cmd=self.ENV_ACTIVATE_CMD,
+                        env_activate_cmd=self._env_activate_cmd,
                     )
                     logger.info(f"Checking server {self.instance_id} again.")
 
@@ -365,8 +392,8 @@ class SageMakerCluster(Cluster):
         """Keep the cluster warm for given number of minutes after inactivity.
 
         Args:
-            autostop_mins (int): Amount of time (in min) to keep the cluster warm after inactivity.
-            If set to -1, keep cluster warm indefinitely. (Default: `-1`)
+            autostop_mins (int): Amount of time (in minutes) to keep the cluster warm after inactivity.
+                If set to ``-1``, keep cluster warm indefinitely. (Default: ``-1``)
         """
         self._update_autostop(autostop_mins)
 
@@ -403,70 +430,40 @@ class SageMakerCluster(Cluster):
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0, retry=True
     ) -> Tuple[SSHTunnelForwarder, int]:
-        connected = False
-        ssh_tunnel = None
-        ssh_port = self._ssh_port
-        num_ports_initial = num_ports_to_try
+        try:
+            remote_bind_addresses = ("127.0.0.1", local_port)
+            local_bind_addresses = ("", local_port)
 
-        while not connected:
-            if num_ports_to_try == 0:
-                raise ConnectionError(
-                    f"Failed to create SSH tunnel with {self.name} after {num_ports_initial} attempts "
-                    f"(cluster status=`{self.status().get('TrainingJobStatus')}`). Make sure the public key in "
-                    f"local path: {self.ssh_key_path} matches the key stored in bucket: {self.s3_keys_path}, "
-                    f"that some ports in ranges {self._ssh_port} - {self._ssh_port + num_ports_initial} "
-                    f"and {self._local_port} - {self._local_port + num_ports_initial} are available, "
-                    f"and that AWS CLI V2 is installed. "
-                )
+            ssh_tunnel = SSHTunnelForwarder(
+                (self.DEFAULT_HOST, self._ssh_port),
+                ssh_username=self.DEFAULT_USER,
+                ssh_pkey=self._abs_ssh_key_path,
+                remote_bind_address=remote_bind_addresses,
+                local_bind_address=local_bind_addresses,
+                set_keepalive=1800,
+            )
 
-            try:
-                # Continue with the creation of the SSHTunnelForwarder object
-                remote_bind_addresses = ("127.0.0.1", remote_port or local_port)
-                local_bind_addresses = ("", local_port)
+            # Start the SSH tunnel
+            ssh_tunnel.start()
 
-                ssh_tunnel = SSHTunnelForwarder(
-                    (self.DEFAULT_HOST, ssh_port),
-                    ssh_username=self.DEFAULT_USER,
-                    ssh_pkey=self.ssh_key_path,
-                    remote_bind_address=remote_bind_addresses,
-                    local_bind_address=local_bind_addresses,
-                    set_keepalive=1800,
-                )
+            # Update the SSH config for the cluster with the connected SSH port
+            self._add_or_update_ssh_config_entry()
 
-                # Start the SSH tunnel
-                ssh_tunnel.start()
-                connected = True
+            logger.info("SSH connection has been successfully created with the cluster")
 
-                logger.info(
-                    "SSH connection has been successfully created with the cluster"
-                )
+        except BaseSSHTunnelForwarderError as e:
+            if not retry:
+                # Failed to create the SSH tunnel object even after successfully refreshing the SSM session
+                raise e
 
-                # Update the SSH config for the cluster with the connected SSH port
-                self._add_or_update_ssh_config_entry()
+            # Refresh the SSM session, which should bind the HTTP and SSH ports to localhost which are forwarded
+            # to the cluster
+            self._refresh_ssm_session_with_cluster(num_ports_to_try)
 
-                # Update the SSH and local ports once connection has been established
-                self._ssh_port = ssh_port
-                self._local_port = local_port
-
-            except:
-                # The SSM may no longer be active or the ports may already be in use
-                # First try to refresh the session, if that fails then try connecting with different ports
-                if retry:
-                    # Refresh the SSM session before trying to create the SSH tunnel again
-                    self._refresh_ssm_session_with_cluster()
-                    ssh_tunnel, local_port = self.ssh_tunnel(
-                        local_port, remote_port, num_ports_to_try, retry=False
-                    )
-                    if ssh_tunnel and (ssh_tunnel.is_active and ssh_tunnel.is_alive):
-                        # SSM session refresh succeeded, no need to try connecting on other ports
-                        return ssh_tunnel, local_port
-
-                # If the refresh didn't work try connecting with a different port - could be that the port
-                # is already taken
-                local_port += 1
-                ssh_port += 1
-                num_ports_to_try -= 1
-                pass
+            # Retry creating the SSH tunnel once the session has been refreshed
+            return self.ssh_tunnel(
+                local_port, remote_port, num_ports_to_try, retry=False
+            )
 
         return ssh_tunnel, local_port
 
@@ -479,12 +476,15 @@ class SageMakerCluster(Cluster):
         Example:
             >>> rh.sagemaker_cluster(name="sagemaker-cluster").ssh()
         """
+
         if self.instance_id not in open_cluster_tunnels:
             # Make sure SSM session and SSH tunnels are up before running the command
             self.connect_server_client()
 
         if not interactive:
-            logger.info(f"Created SSH tunnel with {self.name}")
+            logger.info(
+                f"Created SSH tunnel with the cluster. To SSH into the cluster, run: `ssh {self.name}`"
+            )
             return
 
         head_fd, worker_fd = pty.openpty()
@@ -560,7 +560,7 @@ class SageMakerCluster(Cluster):
                 runner = SkySSHRunner(
                     self.name,
                     ssh_user=self.DEFAULT_USER,
-                    ssh_private_key=self.ssh_key_path,
+                    ssh_private_key=self._abs_ssh_key_path,
                 )
                 command = f"{cmd_prefix} {command}" if cmd_prefix else command
                 logger.info(f"Running command on {self.name}: {command}")
@@ -575,7 +575,7 @@ class SageMakerCluster(Cluster):
                     return_code != 0
                     and "dpkg: error processing package install-info" in stdout
                 ):
-                    # **NOTE**: there seems to be an issue with some SageMaker GPUs post installation script which
+                    # **NOTE**: there may be issues with some SageMaker GPUs post installation script which
                     # leads to an error which looks something like: "installed install-info package post-installation
                     # script subprocess returned error exit status 2"
                     # https://askubuntu.com/questions/1034961/cant-upgrade-error-etc-environment-source-not-found-and-error-processin
@@ -709,19 +709,19 @@ class SageMakerCluster(Cluster):
         base_command = self._load_base_command_for_ssm_session()
 
         # Ports to forward from local host to the cluster
-        extra_ssh_args = self.extra_ssh_args
+        extra_ssh_args = self._extra_ssh_args
         command = f"{base_command} {extra_ssh_args}"
 
         connected = False
         while not connected:
-            extra_ssh_args = self.extra_ssh_args
+            extra_ssh_args = self._extra_ssh_args
             command = f"{base_command} {extra_ssh_args}"
 
             try:
                 if num_ports_to_try == 0:
                     raise ConnectionError(
                         f"Failed to create SSM session and connect to {self.name} after repeated attempts."
-                        f"Make sure SSH keys exist in local path: {self.ssh_key_path}. The public key must "
+                        f"Make sure SSH keys exist in local path: {self._abs_ssh_key_path}. The public key must "
                         f"also match the key stored remotely in s3 bucket: {self.s3_keys_path}"
                     )
 
@@ -767,6 +767,10 @@ class SageMakerCluster(Cluster):
                 if not self._ports_are_in_use():
                     # Command should bind SSH port and HTTP port on localhost, if this is not the case try re-running
                     # the bash script with a different set of ports
+                    # E.g. ❯ lsof -i:11022,50052
+                    # COMMAND   PID   USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+                    # ssh     97115 myuser    3u  IPv4 0xcf81f230786cc9fd      0t0  TCP localhost:50052 (LISTEN)
+                    # ssh     97115 myuser    6u  IPv4 0xcf81f230786eff6d      0t0  TCP localhost:11022 (LISTEN)
                     raise ConnectionError
 
                 # Update the SSH config for the cluster with the connected SSH port
@@ -801,7 +805,7 @@ class SageMakerCluster(Cluster):
     def _load_base_command_for_ssm_session(self) -> str:
         """Bash script command for creating the SSM session and uploading the SSH keys to the cluster. Will try
         reusing existing keys locally if they exist, otherwise will generate new ones."""
-        ssh_key_path = self.ssh_key_path
+        ssh_key_path = self._abs_ssh_key_path
 
         # Run script which creates a new SSM session with the cluster (and optionally generates new SSH keys)
         script_path = pkg_resources.resource_filename(
@@ -816,7 +820,7 @@ class SageMakerCluster(Cluster):
             f'"{authorized_key_path}" "{ssh_key_path}" "{self.default_region}"'
         )
 
-        if os.path.exists(ssh_key_path):
+        if Path(ssh_key_path).exists():
             # Run script to create SSM session and connect to the cluster using existing SSH keys
             # Script copies the existing public key to the cluster
             logger.info(
@@ -830,7 +834,7 @@ class SageMakerCluster(Cluster):
             )
             return f"{base_command} True"
 
-    def _refresh_ssm_session_with_cluster(self):
+    def _refresh_ssm_session_with_cluster(self, num_ports_to_try: int = 5):
         """Reconnect to the cluster via the AWS SSM. This bypasses the step of creating a new SSH key which was already
         done when upping the cluster. Note: this assumes the session has previously been created, which we do when
         the cluster has been upped.
@@ -843,28 +847,59 @@ class SageMakerCluster(Cluster):
         )
         os.chmod(script_path, 0o755)
 
-        # Remove stale entries from the known hosts file
+        # Remove stale entries from the known hosts file - this is import for avoiding collisions when
+        # subsequent clusters are created as the IP address is added to the file as: [localhost]:11022
         self._filter_known_hosts()
 
-        try:
-            subprocess.Popen(
-                [
-                    script_path,
-                    self.instance_id,
-                    self.ssh_key_path,
-                    self.default_region,
-                ]
-                + shlex.split(self.extra_ssh_args),
-                stdout=subprocess.PIPE,
-                stdin=subprocess.PIPE,
-            )
+        num_ports_initial = num_ports_to_try
+        connected = False
+        ssh_key_path = self._abs_ssh_key_path
 
-            # Wait for the aws ssm + ssh port forwarding commands in the script to complete
-            # NOTE: depending on which region the cluster is located there may be some latency here
-            time.sleep(10)
+        while not connected:
+            command = [
+                script_path,
+                self.instance_id,
+                ssh_key_path,
+                self.default_region,
+            ] + shlex.split(self._extra_ssh_args)
 
-        except subprocess.CalledProcessError as e:
-            raise e
+            if num_ports_to_try == 0:
+                raise ConnectionError(
+                    f"Failed to create connection with {self.name} after {num_ports_initial} attempts "
+                    f"(cluster status=`{self.status().get('TrainingJobStatus')}`). Make sure the public key in "
+                    f"local path: {ssh_key_path} matches the key stored in bucket: {self.s3_keys_path}, "
+                    f"that a connection to another SageMaker cluster is not already active, "
+                    f"and that AWS CLI V2 is installed. If the problem persists, try running the command "
+                    f"to create the session manually: `bash {' '.join(command)}`"
+                )
+
+            try:
+                subprocess.Popen(
+                    command,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    stdin=subprocess.PIPE,
+                )
+
+                # Give enough time for the aws ssm + ssh port forwarding commands in the script to complete
+                # Better to wait a few more seconds than to restart the HTTP server and Ray on the cluster unnecessarily
+                time.sleep(8)
+
+                if not self._ports_are_in_use():
+                    # Command should bind SSH port and HTTP port on localhost, if this is not the case try re-running
+                    # with different ports
+                    raise socket.error
+
+                connected = True
+                logger.info(f"Successfully refreshed SSM session with {self.name}")
+
+            except socket.error:
+                # If the refresh didn't work try connecting with a different port - could be that the port
+                # is already taken
+                self._local_port += 1
+                self._ssh_port += 1
+                num_ports_to_try -= 1
+                pass
 
     # -------------------------------------------------------
     # Helpers
@@ -876,8 +911,8 @@ class SageMakerCluster(Cluster):
         command = (
             f"rsync -rvh --exclude='.git' --exclude='venv*/' --exclude='dist/' --exclude='docs/' "
             f"--exclude='__pycache__/' --exclude='.*' "
-            f"--include='.rh/' -e 'ssh -o StrictHostKeyChecking=no -i {self.ssh_key_path} -p {self._ssh_port}' "
-            f"{source} root@localhost:{dest}"
+            f"--include='.rh/' -e 'ssh -o StrictHostKeyChecking=no "
+            f"-i {self._abs_ssh_key_path} -p {self._ssh_port}' {source} root@localhost:{dest}"
         )
 
         logger.info(f"Syncing {source} to: {dest} on cluster")
@@ -1024,7 +1059,7 @@ class SageMakerCluster(Cluster):
 
         # **Note** temp patch to handle PyYAML errors: https://github.com/yaml/pyyaml/issues/724
         base_rh_install_cmd = (
-            f"{self.ENV_ACTIVATE_CMD} && python3 -m pip install 'cython<3.0.0'"
+            f"{self._env_activate_cmd} && python3 -m pip install 'cython<3.0.0'"
         )
 
         # Check if runhouse is installed from source and has setup.py
@@ -1155,10 +1190,13 @@ class SageMakerCluster(Cluster):
     # SSH config
     # -------------------------------------------------------
     def _filter_known_hosts(self):
-        """To prevent host key collisions in the ~/.ssh/known_hosts file, remove any existing entries of localhost"""
+        """To prevent host key collisions in the ~/.ssh/known_hosts file, remove any existing entries of localhost.
+        Since the connection to the cluster is made via localhost, remove stale entries"""
         known_hosts = self.hosts_path
-        if not os.path.exists(known_hosts):
+        if not Path(known_hosts).exists():
+            # e.g. in a collab or notebook environment
             return
+
         valid_hosts = []
         with open(known_hosts, "r") as f:
             for line in f:
@@ -1181,7 +1219,7 @@ class SageMakerCluster(Cluster):
             # Added by Runhouse for SageMaker SSH Support
             Host {name or self.name}
               HostName {hostname or self.DEFAULT_HOST}
-              IdentityFile {identity_file or self.ssh_key_path}
+              IdentityFile {identity_file or self._abs_ssh_key_path}
               Port {port}
               User {user or self.DEFAULT_USER}
         """

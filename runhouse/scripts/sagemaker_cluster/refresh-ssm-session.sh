@@ -2,7 +2,7 @@
 
 # Note: Adapted from: https://github.com/aws-samples/sagemaker-ssh-helper/blob/main/sagemaker_ssh_helper/sm-connect-ssh-proxy
 # This skips creating SSH keys and storing them in S3, which happened when the cluster was initially upped
-# and does not need to be repeated when the cluster is reloaded.
+# and does not need to be repeated when reconnecting with the cluster.
 
 INSTANCE_ID="$1"
 SSH_KEY="$2"

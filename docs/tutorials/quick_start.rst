@@ -79,6 +79,10 @@ password ready:
                   ssh_creds={'ssh_user': '<user>', 'password':'******'},
               )
 
+.. note::
+
+    For more information see the :ref:`Cluster Class` section.
+
 On-Demand Cluster
 ~~~~~~~~~~~~~~~~~
 
@@ -141,12 +145,15 @@ function on it later in this tutorial.
                   provider="cheapest",      # options: "AWS", "GCP", "Azure", "Lambda", or "cheapest"
               ).save()
 
+.. note::
+
+    For more information and hardware setup see the :ref:`OnDemandCluster Class` section.
+
 SageMaker Cluster
 ~~~~~~~~~~~~~~~~~
 
 Runhouse facilitates easy access to existing or new SageMaker compute.
 Just provide your SageMaker execution role ARN or have it configured in your local environment.
-For more information on support SageMaker usage paths, see the :ref:`SageMakerCluster Class`.
 
 .. code:: python
 
@@ -166,10 +173,7 @@ For more information on support SageMaker usage paths, see the :ref:`SageMakerCl
 
 .. note::
 
-    When providing an `estimator <https://sagemaker.readthedocs.io/en/stable/api/training/estimators.html>`_,
-    Runhouse will keep the cluster up even after a failure or after the
-    job has completed, based on the provided ``autotstop_mins``. More info in the :ref:`SageMaker Factory Method`.
-
+    For more information and hardware setup see the :ref:`SageMakerCluster Class` section.
 
 Secrets and Portability
 -----------------------

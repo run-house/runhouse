@@ -21,6 +21,14 @@ Cluster Class
 
     .. automethod:: __init__
 
+
+Hardware Setup
+--------------
+
+No additional setup is required. You will just need to have the IP address for the cluster
+and the path to SSH credentials ready to be used for the cluster initialization.
+
+
 OnDemandCluster Class
 ~~~~~~~~~~~~~~~~~~~~~
 A OnDemandCluster is a cluster that uses SkyPilot functionality underneath to handle
@@ -31,6 +39,24 @@ various cluster properties.
    :exclude-members:
 
     .. automethod:: __init__
+
+Hardware Setup
+------------------
+
+On-Demand clusters use SkyPilot to automatically spin up and down clusters on the cloud. You will
+need to first set up cloud access on your local machine:
+
+Run ``sky check`` to see which cloud providers are enabled, and how to set up cloud credentials for each of the
+providers.
+
+.. code-block:: cli
+
+    sky check
+
+For a more in depth tutorial on setting up individual cloud credentials, you can refer to
+`SkyPilot setup docs <https://skypilot.readthedocs.io/en/latest/getting-started/installation.html#cloud-account-setup>`_.
+
+
 
 
 SageMakerCluster Class
@@ -53,7 +79,7 @@ Runhouse currently supports two core usage paths for SageMaker clusters:
     Runhouse requires an AWS IAM role (either name or full ARN) whose credentials have adequate permissions to
     create create SageMaker endpoints and access AWS resources.
 
-    Please see the :ref:`SageMaker Clusters <SageMaker Clusters>` section for more specific instructions and
+    Please see :ref:`Hardware Setup` for more specific instructions and
     requirements for providing the role and setting up the cluster.
 
 .. autoclass:: runhouse.SageMakerCluster
@@ -62,45 +88,16 @@ Runhouse currently supports two core usage paths for SageMaker clusters:
 
     .. automethod:: __init__
 
-
-SageMaker Factory Method
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autofunction:: runhouse.sagemaker_cluster
-
-
 Hardware Setup
-~~~~~~~~~~~~~~
+--------------
 
-BYO Clusters
-------------
-No additional setup is required. You will just need to have the IP address for the cluster
-and the path to SSH credentials ready to be used for the cluster initialization.
-
-On-Demand Clusters
-------------------
-
-On-Demand clusters use SkyPilot to automatically spin up and down clusters on the cloud. You will
-need to first set up cloud access on your local machine:
-
-Run ``sky check`` to see which cloud providers are enabled, and how to set up cloud credentials for each of the
-providers.
-
-.. code-block:: cli
-
-    sky check
-
-For a more in depth tutorial on setting up individual cloud credentials, you can refer to
-`SkyPilot setup docs <https://skypilot.readthedocs.io/en/latest/getting-started/installation.html#cloud-account-setup>`_.
-
-SageMaker Clusters
-------------------
+IAM Role
+^^^^^^^^
 
 SageMaker clusters require `AWS CLI V2 <https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html>`_ and
 configuring the SageMaker IAM role with the
 `AWS Systems Manager <https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent.html>`_.
 
-**IAM Role**
 
 In order to launch a cluster, you must grant SageMaker the necessary permissions with an IAM role, which
 can be provided either by name or by full ARN. You can also specify a profile explicitly or
@@ -132,10 +129,13 @@ There are several ways to provide the necessary credentials when :ref:`initializ
     More info on estimators `here <https://sagemaker.readthedocs.io/en/stable/api/training/estimators.html>`_.
 
 Please see the `AWS docs <https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-roles.html>`_ for further
-instructions on creating and configuring the role.
+instructions on creating and configuring an ARN Role.
 
 
-**AWS CLI V2**
+AWS CLI V2
+^^^^^^^^^^
+
+Runhouse requires the AWS CLI V2 to be installed on your local machine.
 
 - `Uninstall <https://docs.aws.amazon.com/cli/latest/userguide/cliv2-migration-instructions.html#cliv2-migration-instructions-migrate>`_ AWS CLI V1
 
@@ -148,8 +148,8 @@ To confirm the installation succeeded, run ``aws --version`` in the command line
 
     aws-cli/2.13.8 Python/3.11.4 Darwin/21.3.0 source/arm64 prompt/off
 
-**SSM Setup**
-
+SSM Setup
+^^^^^^^^^
 The AWS Systems Manager service is used to create SSH tunnels with the SageMaker cluster.
 
 To install the AWS Session Manager Plugin, please see the `AWS docs <https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html>`_
@@ -165,3 +165,9 @@ You can also install the Session Manager by running the CLI command:
 
 To configure your SageMaker IAM role with the AWS Systems Manager, please
 refer to `these instructions <https://github.com/aws-samples/sagemaker-ssh-helper/blob/main/IAM_SSM_Setup.md>`_.
+
+
+SageMaker Factory Method
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autofunction:: runhouse.sagemaker_cluster
