@@ -80,16 +80,12 @@ install_requires = [
 # packages dependencies are changed.
 extras_require = {
     "aws": [
-        # Context on why these versions are strict: https://github.com/fsspec/s3fs/issues/674
-        # and https://github.com/aio-libs/aiobotocore/issues/983
+        # https://github.com/aio-libs/aiobotocore/issues/983
         # If you don't want to use these exact versions of awscli, boto3, botocore, or aibotocore, you can
-        # install runhouse without the aws extras, install your desired versions of
-        # awscli and boto3, and *then* pip install --upgrade s3fs last (which will revert the botocore version back to
-        # 1.27.52, which s3fs needs, and everything else will still work).
+        # install runhouse without the aws extras, then install your desired versions of awscli and boto3
         "awscli==1.25.60",
         "boto3==1.24.59",
         "pycryptodome==3.12.0",
-        "s3fs==2023.1.0",
         "fsspec==2023.1.0",
     ],
     "azure": ["azure-cli==2.31.0", "azure-core"],

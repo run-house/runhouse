@@ -22,7 +22,7 @@ jobs:
 
       - name: Install python packages & dependencies
         run: |
-          pip install runhouse pytest tqdm datasets dask s3fs
+          pip install runhouse pytest tqdm datasets dask
 
       - name: Run all local tests
         run: |

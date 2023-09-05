@@ -53,7 +53,6 @@ pip install pytest
 Additional optional packages to install to run related tests:
 
 aws related tests
-* `s3fs==2023.1.0`
 * `awscli==1.25.60`
 * `boto3==1.24.59`
 * `pycryptodome==3.12.0`

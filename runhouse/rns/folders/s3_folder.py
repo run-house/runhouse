@@ -12,15 +12,6 @@ class S3Folder(Folder):
     DEFAULT_FS = "s3"
 
     def __init__(self, dryrun: bool, **kwargs):
-        from s3fs import S3FileSystem
-
-        # s3fs normally caches directory listings, because these lookups can be expensive.
-        # Turn off this caching system to force refresh on every access
-        S3FileSystem.clear_instance_cache()
-
-        self.s3 = S3FileSystem(anon=False)
-        self.s3.invalidate_cache()
-
         super().__init__(dryrun=dryrun, **kwargs)
 
     @staticmethod
