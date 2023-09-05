@@ -918,7 +918,6 @@ def _module_subclass_factory(cls, pointers, signature=None):
         new_module.dryrun = dryrun
         if not new_module.dryrun:
             new_module.system.put_resource(new_module)
-            new_module._remote_init(*args, **kwargs)
 
         return new_module
 

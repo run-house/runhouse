@@ -509,6 +509,93 @@ it is run on. You can refer to `Runhouse Logging
 Docs <https://runhouse-docs.readthedocs-hosted.com/en/latest/debugging_logging.html>`__
 for more information on accessing these logs.
 
+Modules
+-------
+
+In addition to running basic functions remotely, Runhouse lets you
+define classes that live and are run remotely, through the Module API.
+
+Converting existing class to Runhouse Module
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you have an existing non-Runhouse class that you would like to run
+remotely, you can do so as follows:
+
+::
+
+   from package import Model
+
+   RemoteModel = rh.module(cls=Model, system=cluster)
+   remote_model = RemoteModel(model_id="bert-base-uncased", device="cuda")
+   remote_model.predict("Hello world!")  # Runs on cluster
+
+Creating your own Runhouse Module
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To construct your own Runhouse Module class, simply subclass your class
+with ``rh.Module``, instantiate it locally, and then send it over to
+your cluster.
+
+Note that because this class is constructed locally prior to being sent
+over to a remote cluster, if there is a computationally heavy operation
+such as loading a dataset or model that we only want to be done
+remotely, it should be wrapped in a function and run remotely. One way
+of doing so is through lazy initialization, as in the data property of
+the module below.
+
+::
+
+   # pid_module.py
+
+   import os
+   import runhouse as rh
+
+   class PIDModule(rh.Module):
+       def __init__(self, a: int=0):
+           super().__init__()
+           self.a = a
+
+       @property
+       def data(self):
+           if not hasattr(self, '_data'):
+               self._data = load_dataset()
+           return self._data
+
+       def getpid(self):
+           return os.getpid() + self.a
+
+When working in a notebook setting, we define the class in another file,
+``pid_module.py``, and load in the module for use below. For Python
+scripts, the class can be defined in the same file as the script.
+
+.. code:: ipython3
+
+    from pid_module import PIDModule
+
+    remote_module = PIDModule(a=5).to(cluster)
+    remote_module.getpid()
+
+
+.. parsed-literal::
+
+    INFO | 2023-09-05 19:57:10.034443 | Calling PIDModule.getpid
+
+
+.. parsed-literal::
+
+    base servlet: Calling method getpid on module PIDModule
+
+
+.. parsed-literal::
+
+    INFO | 2023-09-05 19:57:10.308916 | Time to call PIDModule.getpid: 0.27 seconds
+
+
+.. parsed-literal::
+
+    21806
+
+
 Env + Packages
 --------------
 
@@ -710,8 +797,8 @@ the cluster:
     # install additional package on given env
     cluster.install_packages(["pandas"], env=conda_env)
 
-Putting it all together – Cluster, Function, Env
-------------------------------------------------
+Putting it all together – Cluster, Function/Module, Env
+-------------------------------------------------------
 
 Now that we understand how clusters, functions, and
 packages/environments work, we can go on to implement more complex
