@@ -226,7 +226,7 @@ class Package(Resource):
         try:
             subprocess.check_call(["nvidia-smi"])
             return cuda_version
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, FileNotFoundError):
             return "cpu"
 
     @staticmethod
