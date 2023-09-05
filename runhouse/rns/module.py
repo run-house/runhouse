@@ -102,9 +102,6 @@ class Module(Resource):
     ):
         """
         Runhouse Module object
-
-        .. note::
-                To build a Module, please use the factory method :func:`module`.
         """
         super().__init__(name=name, dryrun=dryrun, provenance=provenance, **kwargs)
         self._system = _get_cluster_from(
@@ -219,7 +216,7 @@ class Module(Resource):
     def env(self, new_env: Optional[Union[str, Env]]):
         self._env = _get_env_from(new_env)
 
-    def remote_init(self, *args, **kwargs):
+    def _remote_init(self, *args, **kwargs):
         """A method which you can overload and will be called remotely on the cluster upon initialization there,
         in case you want to do certain initialization activities on the cluster only. For example, if you want
         to load a model or dataset and send it to GPU, you probably don't want to do those locally and send the
@@ -332,7 +329,7 @@ class Module(Resource):
         name: Optional[str] = None,
     ):
         """Check if the module already exists on the cluster, and if so return the module object.
-        If note, put the module on the cluster and return the remote module.
+        If not, put the module on the cluster and return the remote module.
 
         Example:
             >>> remote_df = Model().get_or_to(my_cluster, name="remote_model")
@@ -594,7 +591,8 @@ class Module(Resource):
             >>> my_blob.fetch() # Returns the data of the blob, due to overloaded ``resolved_state`` method
 
             >>> class MyModule(rh.Module):
-                    # ...
+            >>>     # ...
+            >>>
             >>> MyModule(*args).to(system).fetch() # Returns the full remote module, including private and public state
         """
         system = super().__getattribute__("_system")
@@ -697,15 +695,15 @@ class Module(Resource):
     def resolve(self):
         """Specify that the module should resolve to a particular state when passed into a remote method. This is
         useful if you want to revert the module's state to some "Runhouse-free" state once it is passed into a
-        Runhouse-unaware function. For example, if you call a Runhouse-unaware function with `.remote()`,
+        Runhouse-unaware function. For example, if you call a Runhouse-unaware function with ``.remote()``,
         you will be returned a Blob which wraps your data. If you want to pass that Blob into another function
         that operates on the original data (e.g. a function that takes a numpy array), you can call
-        `my_second_fn(my_blob.resolve())`, and `my_blob` will be replaced with the contents of its `.data` on the
-        cluster before being passed into `my_second_fn`.
+        ``my_second_fn(my_blob.resolve())``, and ``my_blob`` will be replaced with the contents of its ``.data`` on the
+        cluster before being passed into ``my_second_fn``.
 
-        Resolved state is defined by the `resolved_state` method. By default, modules created with the
-        `module` factory constructor will be resolved to their original non-module-wrapped class (or best attempt).
-        Modules which are defined as a subclass of `Module` will be returned as-is, as they have no other
+        Resolved state is defined by the ``resolved_state`` method. By default, modules created with the
+        ``rh.module`` factory constructor will be resolved to their original non-module-wrapped class (or best attempt).
+        Modules which are defined as a subclass of ``Module`` will be returned as-is, as they have no other
         "original class."
 
         Example:
@@ -721,7 +719,7 @@ class Module(Resource):
 
     def resolved_state(self):
         """Return the resolved state of the module. By default, this is the original class of the module if it was
-        created with the `module` factory constructor."""
+        created with the ``module`` factory constructor."""
         if not self._cls_pointers:
             self._resolve = False
             return self
@@ -903,7 +901,7 @@ def _module_subclass_factory(cls, pointers, signature=None):
         # This allows a class which is already on the cluster to construct an instance of itself with a factory
         # method, e.g. my_module = MyModuleCls.factory_constructor(*args, **kwargs)
         if self.system and self.system.on_this_cluster():
-            self.remote_init(*args, **kwargs)
+            self._remote_init(*args, **kwargs)
 
     def __call__(
         self,
@@ -920,7 +918,7 @@ def _module_subclass_factory(cls, pointers, signature=None):
         new_module.dryrun = dryrun
         if not new_module.dryrun:
             new_module.system.put_resource(new_module)
-            new_module.remote_init(*args, **kwargs)
+            new_module._remote_init(*args, **kwargs)
 
         return new_module
 
@@ -975,22 +973,35 @@ def module(
     Example:
         >>> import runhouse as rh
         >>> import transformers
-        >>> import json
         >>>
+        >>> # Sample rh.Module class
         >>> class Model(rh.Module):
         >>>    def __init__(self, model_id, device="cpu", system=None, env=None):
+        >>>        # Note that the code here will be run in your local environment prior to being sent to
+        >>>        # to a cluster. For loading large models/datasets that are only meant to be used remotely,
+        >>>        # we recommend using lazy initialization (see tokenizer and model attributes below).
         >>>        super().__init__(system=system, env=env)
         >>>        self.model_id = model_id
         >>>        self.device = device
         >>>
-        >>>    def remote_init(self):
-        >>>        self.tokenizer = transformers.AutoTokenizer.from_pretrained(self.model_id)
-        >>>        self.model = transformers.AutoModel.from_pretrained(self.model_id).to(self.device)
+        >>>    @property
+        >>>    def tokenizer(self):
+        >>>        # Lazily initialize the tokenizer remotely only when it is needed
+        >>>        if not hasattr(self, '_tokenizer'):
+        >>>            self._tokenizer = transformers.AutoTokenizer.from_pretrained(self.model_id)
+        >>>        return self._tokenizer
+        >>>
+        >>>    @property
+        >>>    def model(self):
+        >>>        if not hasattr(self, '_model'):
+        >>>            self._model = transformers.AutoModel.from_pretrained(self.model_id).to(self.device)
+        >>>        return self._model
         >>>
         >>>    def predict(self, x):
         >>>        x = self.tokenizer(x, return_tensors="pt")
         >>>        return self.model(x)
-        >>>
+
+        >>> # Creating rh.Module instance
         >>> model = Model(model_id="bert-base-uncased", device="cuda", system="my_gpu", env="my_env")
         >>> model.predict("Hello world!")   # Runs on system in env
         >>> tok = model.remote.tokenizer     # Returns remote tokenizer
@@ -998,14 +1009,13 @@ def module(
         >>> model.fetch()                   # Returns full remote module, including model and tokenizer
         >>>
         >>> # You can also create a model locally and then send it to a cluster with .to
-        >>> # remote_init will not be called until the model lands on a cluster
         >>> other_model = Model(model_id="bert-base-uncased", device="cuda").to("my_gpu", "my_env")
         >>>
-        >>> # Another method: Create a module from an existing class which is not a subclass of Module
+        >>> # Another method: Create a module instance from an existing non-Module class using rh.module()
         >>> RemoteModel = rh.module(cls=BERTModel, system="my_gpu", env="my_env")
         >>> remote_model = RemoteModel(model_id="bert-base-uncased", device="cuda")
         >>> remote_model.predict("Hello world!")  # Runs on system in env
-        >>>
+
         >>> # Loading a module
         >>> my_local_module = rh.module(name="~/my_module")
         >>> my_s3_module = rh.module(name="@/my_module")
