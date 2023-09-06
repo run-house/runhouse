@@ -7,7 +7,7 @@ import pytest
 import runhouse as rh
 
 from runhouse import Cluster
-from runhouse.rh_config import configs
+from runhouse.globals import configs
 
 from .conftest import cpu_clusters
 

@@ -116,7 +116,6 @@ class slow_numpy_array:
 @pytest.mark.parametrize("env", [None])
 def test_stateful_generator(ondemand_cpu_cluster, env):
     # We need this here just to make sure the "tests" module is synced over
-    # TODO remove when we add support for rh.Module
     rh.function(fn=do_printing_and_logging, system=ondemand_cpu_cluster)
     ondemand_cpu_cluster.put("slow_numpy_array", slow_numpy_array(), env=env)
     for val in ondemand_cpu_cluster.call(

@@ -6,7 +6,7 @@ from typing import List
 import pytest
 
 import runhouse as rh
-from runhouse.rns.hardware import OnDemandCluster
+from runhouse.resources.hardware import OnDemandCluster
 
 from .conftest import cpu_clusters, summer
 
@@ -116,7 +116,7 @@ def test_byo_cluster(byo_cpu, local_folder):
 
 @pytest.mark.clustertest
 def test_byo_proxy(byo_cpu, local_folder):
-    rh.rh_config.open_cluster_tunnels.pop(byo_cpu.address)
+    rh.globals.open_cluster_tunnels.pop(byo_cpu.address)
     byo_cpu.client = None
     # byo_cpu._rpc_tunnel.close()
     byo_cpu._rpc_tunnel = None

@@ -1,8 +1,8 @@
 from datetime import datetime
 from pathlib import Path
 
-from runhouse.rh_config import configs, rns_client
-from runhouse.rns.utils.hardware import _get_cluster_from
+from runhouse.globals import configs, rns_client
+from runhouse.resources.hardware.utils import _get_cluster_from
 
 DEFAULT_LOCAL_FOLDER = f"{Path.cwd()}/"
 DEFAULT_CLUSTER_FS_FOLDER = (
@@ -34,7 +34,7 @@ def _generate_default_path(cls, name, system):
     3. If the system is a remote object store, save to the default object store folder
     """
 
-    from runhouse.rns.hardware import Cluster
+    from runhouse.resources.hardware import Cluster
 
     system = _get_cluster_from(system)
 

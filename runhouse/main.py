@@ -120,7 +120,7 @@ def load_cluster(cluster_name: str):
 
 
 def _start_server(restart, restart_ray, screen, create_logfile=True):
-    from runhouse.rns.hardware.cluster import Cluster
+    from runhouse.resources.hardware.cluster import Cluster
 
     cmds = Cluster._start_server_cmds(
         restart=restart,

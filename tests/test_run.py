@@ -376,7 +376,7 @@ def test_delete_cli_run_from_rns():
 
 @unittest.skip("Not implemented yet.")
 def test_create_local_ctx_manager_run(summer_func, ondemand_cpu_cluster):
-    from runhouse.rh_config import rns_client
+    from runhouse.globals import rns_client
 
     ctx_mgr_func = "my_ctx_mgr_func"
 

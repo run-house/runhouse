@@ -5,7 +5,7 @@ import pytest
 
 import runhouse as rh
 import sky
-from runhouse.rh_config import configs
+from runhouse.globals import configs
 
 
 def add_secrets_to_vault(headers):

@@ -15,7 +15,6 @@ from runhouse.rns.utils.api import (
     remove_null_values_from_dict,
     ResourceAccess,
 )
-from runhouse.rns.utils.hardware import _current_cluster
 
 logger = logging.getLogger(__name__)
 
@@ -259,6 +258,8 @@ class RNSClient:
     ) -> dict:
         if not name:
             return {}
+
+        from runhouse.resources.hardware.utils import _current_cluster
 
         rns_address = self.resolve_rns_path(name)
 
@@ -504,7 +505,7 @@ class RNSClient:
         return None
 
     def set_folder(self, path: str, create=False):
-        from runhouse.rns.folders import Folder, folder
+        from runhouse.resources.folders import Folder, folder
 
         if isinstance(path, Folder):
             abs_path = path.rns_address
@@ -528,7 +529,7 @@ class RNSClient:
         self.current_folder = self._prev_folders.pop(-1)
 
     def contents(self, name_or_path, full_paths):
-        from runhouse.rns.folders import folder
+        from runhouse.resources.folders import folder
 
         folder_url = self.locate(name_or_path)
         return folder(name=name_or_path, path=folder_url).resources(

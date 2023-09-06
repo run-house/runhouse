@@ -366,7 +366,7 @@ environment, or share it with your collaborators.
 
 .. parsed-literal::
 
-    <runhouse.rns.function.Function at 0x104634ee0>
+    <runhouse.resources.function.Function at 0x104634ee0>
 
 
 

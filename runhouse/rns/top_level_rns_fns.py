@@ -2,8 +2,9 @@ import logging
 import sys
 from typing import List
 
+from runhouse.globals import configs, rns_client
+
 from runhouse.logger import LOGGING_CONFIG
-from runhouse.rh_config import configs, rns_client
 
 # Configure the logger once
 logging.config.dictConfig(LOGGING_CONFIG)
@@ -63,7 +64,10 @@ def load(name: str, instantiate: bool = True, dryrun: bool = False):
 # This funny structure lets us use `rh.here` to get the current cluster
 def __getattr__(name):
     if name == "here":
-        from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
+        from runhouse.resources.hardware.utils import (
+            _current_cluster,
+            _get_cluster_from,
+        )
 
         config = _current_cluster(key="config")
         if not config:
@@ -142,7 +146,7 @@ def delete(resource_or_name: str):
 
 
 # -----------------  Pinning objects to cluster memory  -----------------
-from runhouse import rh_config
+from runhouse import globals
 
 
 def pin_to_memory(key: str, value):
@@ -173,7 +177,7 @@ def remove_pinned_object(key: str):
         "remove_pinned_object is deprecated, use `rh.here.delete` instead",
         DeprecationWarning,
     )
-    rh_config.obj_store.delete(key)
+    globals.obj_store.delete(key)
 
 
 def pinned_keys():
@@ -184,7 +188,7 @@ def pinned_keys():
         "pinned_keys is deprecated, use `rh.here.keys` instead",
         DeprecationWarning,
     )
-    return rh_config.obj_store.keys()
+    return globals.obj_store.keys()
 
 
 def clear_pinned_memory():
@@ -195,4 +199,4 @@ def clear_pinned_memory():
         "clear_pinned_memory is deprecated, use `rh.here.clear` instead",
         DeprecationWarning,
     )
-    rh_config.obj_store.clear()
+    globals.obj_store.clear()
