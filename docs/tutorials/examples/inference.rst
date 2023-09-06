@@ -22,7 +22,7 @@ Table of Contents
 
 -  Hardware Setup
 -  Stable Diffusion on a Cloud GPU in 5 lines of code
--  Fast Stable Diffusion with Model Pinning
+-  Faster Stable Diffusion
 -  FLAN-T5 Stable Diffusion
 
 Hardware Setup
@@ -502,14 +502,20 @@ while the model actually runs on an A100/A10G in the cloud.
     # or by using the CLI commands `sky down gpu` or `sky down --all`
     # gpu.teardown()
 
-Fast Stable Diffusion with Model Pinning
--------------------------------------------
+Faster Stable Diffusion
+-----------------------
 
-In this section, we bring down the time to run Stable Diffusion by
-pinning the model to GPU memory using Runhouse.
+The previous function will load the pretrained model every time the
+function is run. In this section, we demonstrate two ways to reuse the
+loaded model on the GPU to bring down the time to run Stable Diffusion.
 
-The model will be pinned to memory in the first run, so speed-ups will
-only be observed in future runs.
+Load/Retrieve from Object Store
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The first approach uses ``rh.here.put()`` and ``rh.here.get()`` to save
+down and later retrieve the model from your Runhouse object store. The
+model will be still need to be loaded the first run to be put in memory,
+so speed-ups will only be observed in future runs.
 
 .. code:: python
 
@@ -852,6 +858,48 @@ only be observed in future runs.
         </div>
     </div>
     </div>
+
+
+Runhouse Module
+~~~~~~~~~~~~~~~
+
+The second approach constructs a Runhouse Module that maintains the
+model as a class variable. In notebook settings, we define this Module
+in another file and import it here.
+
+::
+
+    # sd_model.py
+
+   import runhouse as rh
+   import torch
+   from diffusers import StableDiffusionPipeline
+
+   class SDModel(rh.Module):
+
+       def __init__(self, model_id='stabilityai/stable-diffusion-2-base',
+                          dtype=torch.float16, revision="fp16", device="cuda"):
+           super().__init__()
+           self.model_id, self.dtype, self.revision, self.device = model_id, dtype, revision, device
+
+       @property
+       def pipeline(self):
+           if not hasattr(self, '_pipeline'):
+               self._pipeline = StableDiffusionPipeline.from_pretrained(self.model_id, torch_dtype=self.dtype, revision=self.revision).to(self.device)
+           return self._pipeline
+
+       def predict(self, prompt, num_images=1, steps=100, guidance_scale=7.5):
+           return self.pipeline(prompt, num_images_per_prompt=num_images,
+                                num_inference_steps=steps, guidance_scale=guidance_scale).images
+
+.. code:: python
+
+    from sd_model import SDModel
+
+    model = SDModel()
+    model_gpu = model.to(system=gpu)
+
+    module_images = model_gpu.predict('my_prompt', num_images=4, steps=50)
 
 
 FLAN-T5 Stable Diffusion
