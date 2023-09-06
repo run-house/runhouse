@@ -40,7 +40,7 @@ Hugging Face, Github, etc.) as well as SSH Keys and custom secrets, and
 stores them in Hashicorp Vault (and never on Runhouse servers).
 
 The
-`API <https://runhouse-docs.readthedocs-hosted.com/en/main/api/python/secrets.html>`__
+`API <https://www.run.house/docs/api/python/secrets>`__
 handles secrets interactions between
 
 * config files
@@ -73,6 +73,7 @@ new secrets from your environment.
 
 
 .. parsed-literal::
+    :class: code-output
 
     [<runhouse.rns.secrets.aws_secrets.AWSSecrets at 0x106743b20>,
      <runhouse.rns.secrets.azure_secrets.AzureSecrets at 0x1067439d0>,
@@ -95,6 +96,7 @@ new secrets from your environment.
 
 
 .. parsed-literal::
+    :class: code-output
 
     WARNING | 2023-06-21 08:03:55,081 | Received secrets ['azure'] which Runhouse did not auto-detect as configured. For cloud providers, you may want to run `sky check` to double check that they're enabled and to see instructions on how to enable them.
     INFO | 2023-06-21 08:03:55,084 | Getting secrets from Vault.
@@ -183,6 +185,7 @@ lives in the current folder.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-06-21 22:15:57,611 | Saving config for ~/aws_cluster to: /Users/caroline/Documents/runhouse/runhouse/rh/aws_cluster/config.json
 
@@ -190,6 +193,7 @@ lives in the current folder.
 
 
 .. parsed-literal::
+    :class: code-output
 
     <runhouse.rns.hardware.on_demand_cluster.OnDemandCluster at 0x1661c7040>
 
@@ -201,6 +205,7 @@ lives in the current folder.
 
 
 .. parsed-literal::
+    :class: code-output
 
     {
         "name": "~/aws_cluster",
@@ -227,6 +232,7 @@ the resource factory method, passing in only the name.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-06-21 22:20:03,710 | Loading config from local file /Users/caroline/Documents/runhouse/runhouse/rh/aws_cluster/config.json
 
@@ -234,6 +240,7 @@ the resource factory method, passing in only the name.
 
 
 .. parsed-literal::
+    :class: code-output
 
     <runhouse.rns.hardware.on_demand_cluster.OnDemandCluster at 0x1231023d0>
 
@@ -245,6 +252,7 @@ the resource factory method, passing in only the name.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-06-21 22:20:20,156 | Loading config from local file /Users/caroline/Documents/runhouse/runhouse/rh/aws_cluster/config.json
 
@@ -252,6 +260,7 @@ the resource factory method, passing in only the name.
 
 
 .. parsed-literal::
+    :class: code-output
 
     <runhouse.rns.hardware.on_demand_cluster.OnDemandCluster at 0x12324b400>
 
@@ -283,6 +292,7 @@ The following resource, whose name ``my_blob`` does not begin with
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-06-21 22:38:05,351 | Creating new s3 folder if it does not already exist in path: /runhouse-blob/d57201aa760b4893800c7e3782117b3b/carolineechen
     INFO | 2023-06-21 22:38:05,368 | Found credentials in shared credentials file: ~/.aws/credentials
@@ -294,6 +304,7 @@ The following resource, whose name ``my_blob`` does not begin with
 
 
 .. parsed-literal::
+    :class: code-output
 
     <runhouse.rns.blob.Blob at 0x16703ee80>
 
@@ -312,6 +323,7 @@ into!
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-06-21 22:38:10,598 | Attempting to load config for /carolineechen/my_blob from RNS.
     INFO | 2023-06-21 22:38:10,936 | Creating new s3 folder if it does not already exist in path: /runhouse-blob/d57201aa760b4893800c7e3782117b3b/carolineechen
@@ -321,6 +333,7 @@ into!
 
 
 .. parsed-literal::
+    :class: code-output
 
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
@@ -341,6 +354,7 @@ to notify them.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-06-21 22:38:14,252 | Attempting to load config for /carolineechen/my_blob from RNS.
 
@@ -348,5 +362,6 @@ to notify them.
 
 
 .. parsed-literal::
+    :class: code-output
 
     ({}, {'teammate1@email.com': 'write'})

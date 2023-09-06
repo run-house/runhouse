@@ -81,12 +81,14 @@ use ``.to()`` to send the folder to a remote cluster.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 19:45:52.597164 | Copying folder from file:///Users/caroline/Documents/runhouse/runhouse/docs/notebooks/basics/sample_folder to: cpu-cluster, with path: sample_folder
     INFO | 2023-08-29 19:45:54.633598 | Running command on cpu-cluster: ls sample_folder
 
 
 .. parsed-literal::
+    :class: code-output
 
     0.txt
     1.txt
@@ -98,6 +100,7 @@ use ``.to()`` to send the folder to a remote cluster.
 
 
 .. parsed-literal::
+    :class: code-output
 
     [(0, '0.txt\n1.txt\n2.txt\n3.txt\n4.txt\n', '')]
 
@@ -112,6 +115,7 @@ You can also send the folder to file storage, such as S3, GS, and Azure.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 19:47:47.618511 | Copying folder from file:///Users/caroline/Documents/runhouse/runhouse/docs/notebooks/basics/sample_folder to: s3, with path: /runhouse-folder/a6f195296945409da432b2981f984ae7
     INFO | 2023-08-29 19:47:47.721743 | Found credentials in shared credentials file: ~/.aws/credentials
@@ -121,6 +125,7 @@ You can also send the folder to file storage, such as S3, GS, and Azure.
 
 
 .. parsed-literal::
+    :class: code-output
 
     ['0.txt', '1.txt', '2.txt', '3.txt', '4.txt']
 
@@ -165,6 +170,7 @@ bucket using Runhouse.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 19:55:29.834000 | Found credentials in shared credentials file: ~/.aws/credentials
 
@@ -176,6 +182,7 @@ bucket using Runhouse.
 
 
 .. parsed-literal::
+    :class: code-output
 
      id grade
       1     a
@@ -196,12 +203,14 @@ To sync over and save the table to a remote cluster, or to local
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 19:59:39.456856 | Copying folder from s3://runhouse-table/sample_table to: cpu-cluster, with path: ~/.cache/runhouse/82d19ef56425409fb92e5d4dfcd389e2
     INFO | 2023-08-29 19:59:39.458405 | Running command on cpu-cluster: aws --version >/dev/null 2>&1 || pip3 install awscli && aws s3 sync --no-follow-symlinks s3://runhouse-table/sample_table ~/.cache/runhouse/82d19ef56425409fb92e5d4dfcd389e2
 
 
 .. parsed-literal::
+    :class: code-output
 
     download: s3://runhouse-table/sample_table/d68a64f755014c049b6e97b120db5d0f.parquet to .cache/runhouse/82d19ef56425409fb92e5d4dfcd389e2/d68a64f755014c049b6e97b120db5d0f.parquet
     download: s3://runhouse-table/sample_table/ebf7bbc1b22e4172b162b723b4b234f2.parquet to .cache/runhouse/82d19ef56425409fb92e5d4dfcd389e2/ebf7bbc1b22e4172b162b723b4b234f2.parquet
@@ -217,6 +226,7 @@ To sync over and save the table to a remote cluster, or to local
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 19:59:49.336813 | Copying folder from s3://runhouse-table/sample_table to: file, with path: /Users/caroline/Documents/runhouse/runhouse/docs/notebooks/basics/sample_table
 
@@ -241,6 +251,7 @@ necessarily in an iterable format.
 
 
 .. parsed-literal::
+    :class: code-output
 
        id grade
     0   1     a
@@ -280,6 +291,7 @@ can be written down or synced to systems.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 20:57:10.570715 | Creating new file folder if it does not already exist in path: /Users/caroline/Documents/runhouse/runhouse
 
@@ -315,6 +327,7 @@ To get the contents from a blob, use ``.fetch()``:
 
 
 .. parsed-literal::
+    :class: code-output
 
     '[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]'
 
@@ -323,7 +336,7 @@ To get the contents from a blob, use ``.fetch()``:
 Now that you understand the basics, feel free to play around with more
 complicated scenarios! You can also check out our additional API and
 example usage tutorials on our `docs
-site <https://runhouse-docs.readthedocs-hosted.com/en/latest/index.html>`__.
+site <https://www.run.house/docs>`__.
 
 Cluster Termination
 -------------------

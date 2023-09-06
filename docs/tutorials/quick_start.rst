@@ -244,6 +244,7 @@ CPUs available.
 
 
 .. parsed-literal::
+    :class: code-output
 
     'Num cpus: 10'
 
@@ -295,6 +296,7 @@ instead of local.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 03:03:52.826786 | Writing out function function to /Users/caroline/Documents/runhouse/runhouse/docs/notebooks/basics/num_cpus_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
     /Users/caroline/Documents/runhouse/runhouse/runhouse/rns/function.py:106: UserWarning: ``reqs`` and ``setup_cmds`` arguments has been deprecated. Please use ``env`` instead.
@@ -309,6 +311,7 @@ instead of local.
 
 
 .. parsed-literal::
+    :class: code-output
 
     base servlet: Calling method install on module env_20230829_030349
     Installing package: Package: runhouse
@@ -319,6 +322,7 @@ instead of local.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 03:03:58.230209 | Time to call env_20230829_030349.install: 1.75 seconds
     INFO | 2023-08-29 03:03:58.462054 | Function setup complete.
@@ -330,16 +334,19 @@ instead of local.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 03:04:01.105011 | Calling num_cpus_cluster.call
 
 
 .. parsed-literal::
+    :class: code-output
 
     base servlet: Calling method call on module num_cpus_cluster
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 03:04:01.384439 | Time to call num_cpus_cluster.call: 0.28 seconds
 
@@ -347,6 +354,7 @@ instead of local.
 
 
 .. parsed-literal::
+    :class: code-output
 
     'Num cpus: 8'
 
@@ -365,6 +373,7 @@ environment, or share it with your collaborators.
 
 
 .. parsed-literal::
+    :class: code-output
 
     <runhouse.rns.function.Function at 0x104634ee0>
 
@@ -388,6 +397,7 @@ as long as you are logged in to your Runhouse account.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 03:04:24.820884 | Checking server cpu-cluster
     INFO | 2023-08-29 03:04:25.850301 | Server cpu-cluster is up.
@@ -395,11 +405,13 @@ as long as you are logged in to your Runhouse account.
 
 
 .. parsed-literal::
+    :class: code-output
 
     base servlet: Calling method call on module num_cpus_cluster
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 03:04:26.127098 | Time to call num_cpus_cluster.call: 0.27 seconds
 
@@ -407,6 +419,7 @@ as long as you are logged in to your Runhouse account.
 
 
 .. parsed-literal::
+    :class: code-output
 
     'Num cpus: 8'
 

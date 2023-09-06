@@ -4,7 +4,7 @@
 [![Twitter](https://img.shields.io/twitter/url/https/twitter.com/runhouse_.svg?style=social&label=@runhouse_)](https://twitter.com/runhouse_)
 
 [![Website](https://img.shields.io/badge/run.house-green)](https://www.run.house)
-[![Docs](https://img.shields.io/badge/docs-blue)](https://runhouse-docs.readthedocs-hosted.com/en/latest/index.html)
+[![Docs](https://img.shields.io/badge/docs-blue)](https://www.run.house/docs)
 [![Den](https://img.shields.io/badge/runhouse_den-purple)](https://www.run.house/login)
 
 
@@ -113,7 +113,7 @@ Notebooks, scripts, pipeline nodes, etc. are all fair game.
 
 ## 🐣 Getting Started
 
-Please see the [Getting Started guide](https://runhouse-docs.readthedocs-hosted.com/en/latest/tutorials/quick_start.html).
+Please see the [Getting Started guide](https://www.run.house/docs/tutorials/quick_start).
 
 tldr;
 ```commandline
@@ -181,7 +181,7 @@ Please reach out (first name at run.house) to contribute or share feedback!
 
 ## 👨‍🏫 Learn More
 
-[**Docs**](https://runhouse-docs.readthedocs-hosted.com/en/latest/index.html):
+[**Docs**](https://www.run.house/docs):
 Detailed API references, basic API examples and walkthroughs, end-to-end tutorials, and high-level architecture overview.
 
 [**Funhouse Repo**](https://github.com/run-house/funhouse): Standalone Runhouse apps to try out fun ML ideas,

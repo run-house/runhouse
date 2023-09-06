@@ -506,7 +506,7 @@ To stream logs to local during the remote function call, pass in
 
 Function logs are also automatically output onto a log file on cluster
 it is run on. You can refer to `Runhouse Logging
-Docs <https://runhouse-docs.readthedocs-hosted.com/en/latest/debugging_logging.html>`__
+Docs <https://www.run.house/docs/debugging_logging>`__
 for more information on accessing these logs.
 
 Modules
@@ -577,21 +577,25 @@ scripts, the class can be defined in the same file as the script.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-09-05 19:57:10.034443 | Calling PIDModule.getpid
 
 
 .. parsed-literal::
+    :class: code-output
 
     base servlet: Calling method getpid on module PIDModule
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-09-05 19:57:10.308916 | Time to call PIDModule.getpid: 0.27 seconds
 
 
 .. parsed-literal::
+    :class: code-output
 
     21806
 
@@ -663,6 +667,7 @@ automatically set up (packages are installed) on the cluster.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 04:44:06.955053 | Copying package from file:///Users/caroline/Documents/runhouse/runhouse to: cpu-cluster
     INFO | 2023-08-29 04:44:08.250678 | Copying package from file:///Users/caroline/Documents/runhouse/runhouse to: cpu-cluster
@@ -670,17 +675,20 @@ automatically set up (packages are installed) on the cluster.
 
 
 .. parsed-literal::
+    :class: code-output
 
     base servlet: Calling method _set_env_vars on module env_20230829_044402
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 04:44:10.028261 | Time to call env_20230829_044402._set_env_vars: 0.29 seconds
     INFO | 2023-08-29 04:44:10.029212 | Calling env_20230829_044402.install
 
 
 .. parsed-literal::
+    :class: code-output
 
     base servlet: Calling method install on module env_20230829_044402
     Installing package: Package: numpy
@@ -704,6 +712,7 @@ automatically set up (packages are installed) on the cluster.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 04:44:19.111342 | Time to call env_20230829_044402.install: 9.08 seconds
 
@@ -748,18 +757,21 @@ As with the base env, we can set up a conda env on the cluster with:
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 04:48:21.600485 | Copying package from file:///Users/caroline/Documents/runhouse/runhouse to: cpu-cluster
     INFO | 2023-08-29 04:48:23.132095 | Calling new_env.install
 
 
 .. parsed-literal::
+    :class: code-output
 
     new_env servlet: Calling method install on module new_env
     Env already installed, skipping
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 04:48:24.358608 | Time to call new_env.install: 1.23 seconds
 
@@ -777,16 +789,19 @@ the cluster:
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 05:14:08.725396 | Running command on cpu-cluster: conda run -n new_env python3 -c "import numpy; print(numpy.__version__)"
 
 
 .. parsed-literal::
+    :class: code-output
 
     1.25.2
 
 
 .. parsed-literal::
+    :class: code-output
 
     [(0, '1.25.2\n\n', '')]
 
@@ -828,6 +843,7 @@ but can be outside the function if being used in a Python script.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 05:20:27.959315 | Writing out function function to /Users/caroline/Documents/runhouse/runhouse/docs/notebooks/basics/add_lists_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
     INFO | 2023-08-29 05:20:27.962973 | Setting up Function on cluster.
@@ -836,6 +852,7 @@ but can be outside the function if being used in a Python script.
 
 
 .. parsed-literal::
+    :class: code-output
 
     base servlet: Calling method install on module env_20230829_052021
     Installing package: Package: numpy
@@ -849,6 +866,7 @@ but can be outside the function if being used in a Python script.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 05:20:32.575986 | Time to call env_20230829_052021.install: 3.17 seconds
     INFO | 2023-08-29 05:20:32.774676 | Function setup complete.
@@ -856,11 +874,13 @@ but can be outside the function if being used in a Python script.
 
 
 .. parsed-literal::
+    :class: code-output
 
     base servlet: Calling method call on module add_lists
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 05:20:33.086075 | Time to call add_lists.call: 0.29 seconds
 
@@ -868,6 +888,7 @@ but can be outside the function if being used in a Python script.
 
 
 .. parsed-literal::
+    :class: code-output
 
     array([3, 5, 7])
 
@@ -876,7 +897,7 @@ but can be outside the function if being used in a Python script.
 Now that you understand the basics, feel free to play around with more
 complicated scenarios! You can also check out our additional API and
 example usage tutorials on our `docs
-site <https://runhouse-docs.readthedocs-hosted.com/en/latest/index.html>`__.
+site <https://www.run.house/docs>`__.
 
 Cluster Termination
 -------------------
