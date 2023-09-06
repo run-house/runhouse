@@ -37,6 +37,7 @@ Install Runhouse
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-06-08 18:12:34,980 | No auth token provided, so not using RNS API to save and load configs
     INFO | 2023-06-08 18:12:36,499 | NumExpr defaulting to 2 threads.
@@ -47,7 +48,7 @@ Hardware Setup
 
 If you’re not already familiar with setting up a Runhouse cluster,
 please first refer to `Cluster
-Setup <https://runhouse-docs.readthedocs-hosted.com/en/latest/tutorials/quick_start.html#cluster-setup>`__
+Setup <https://www.run.house/docs/tutorials/quick_start#cluster-setup>`__
 for a more introductory and in-depth walkthrough.
 
 .. code:: python
@@ -73,12 +74,14 @@ for a more introductory and in-depth walkthrough.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-06-08 18:30:56,926 | Attempting to load config for /carolineechen/rh-a10x from RNS.
 
 
 
 .. parsed-literal::
+    :class: code-output
 
     Output()
 
@@ -102,7 +105,7 @@ which means there’s no need to install anything locally either.
 
 For a more in-depth walkthrough of Runhouse’s function and env APIs,
 please refer to the `Compute API
-Tutorial <https://runhouse-docs.readthedocs-hosted.com/en/latest/tutorials/api/compute.html>`__.
+Tutorial <https://www.run.house/docs/tutorials/api/compute>`__.
 
 .. code:: python
 
@@ -134,6 +137,7 @@ Tutorial <https://runhouse-docs.readthedocs-hosted.com/en/latest/tutorials/api/c
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-06-08 18:43:59,993 | Writing out function function to /content/load_and_preprocess_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
     INFO | 2023-06-08 18:44:00,000 | Setting up Function on cluster.
@@ -164,6 +168,7 @@ Data API Tutorial for more information on that.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-06-08 18:52:55,092 | Running load_and_preprocess via HTTP
     INFO | 2023-06-08 18:52:55,191 | Time to call remote function: 0.1 seconds
@@ -233,6 +238,7 @@ Training from locally defined functions
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-06-08 18:53:03,726 | Writing out function function to /content/train_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
     INFO | 2023-06-08 18:53:03,730 | Setting up Function on cluster.
@@ -248,6 +254,7 @@ To run the function, call it as you would any Python function. Pass in the datas
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-06-08 18:53:21,114 | Running train via HTTP
     INFO | 2023-06-08 18:56:10,362 | Time to call remote function: 169.25 seconds
@@ -498,6 +505,7 @@ repo <https://github.com/huggingface/accelerate>`__.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-06-08 19:57:11,991 | Installing packages on cluster rh-a10x: ['GitPackage: https://github.com/huggingface/accelerate.git@v0.18.0']
 
@@ -542,6 +550,7 @@ inactivity.
 
 
 .. parsed-literal::
+    :class: code-output
 
     Terminating 1 cluster: rh-a10x. Proceed? [Y/n]: y
     [2K[1;36mTerminating 1 cluster[0m [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [35m  0%[0m [36m-:--:--[0m
