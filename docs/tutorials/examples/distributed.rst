@@ -45,8 +45,8 @@ On-Demand Cluster (AWS, Azure, GCP, or LambdaLabs)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For instructions on setting up cloud access for on-demand clusters,
-please refer to `Hardware
-Setup <https://runhouse-docs.readthedocs-hosted.com/en/stable/rh_primitives/cluster.html#hardware-setup>`__.
+please refer to `Cluster
+Setup <https://www.run.house/docs/tutorials/quick_start#cluster-setup>`__.
 
 .. code:: python
 

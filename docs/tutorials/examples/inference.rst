@@ -41,6 +41,7 @@ Install Runhouse
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-02-07 15:37:56,202 | Loaded Runhouse config from /root/.rh/config.yaml
     INFO | 2023-02-07 15:37:56,965 | NumExpr defaulting to 2 threads.
@@ -77,6 +78,7 @@ Install Runhouse
 
 
 .. parsed-literal::
+    :class: code-output
 
     Token: ··········
     Upload your local config to Runhouse? [y/N]: y
@@ -171,6 +173,7 @@ while the model actually runs on an A100/A10G in the cloud.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-02-07 16:10:42,374 | Running sd_generate via gRPC
     INFO | 2023-02-07 16:11:27,874 | Time to send message: 45.5 seconds
@@ -549,6 +552,7 @@ so speed-ups will only be observed in future runs.
 
 
 .. parsed-literal::
+    :class: code-output
 
     WARNING | 2023-02-07 16:29:32,700 | /usr/local/lib/python3.8/dist-packages/ipyplot/_utils.py:95: FutureWarning: The input object of type 'Image' is an array-like implementing one of the corresponding protocols (`__array__`, `__array_interface__` or `__array_struct__`); but not a sequence (or 0-D). In the future, this object will be coerced as if it was first converted using `np.array(obj)`. To retain the old behaviour, you have to either modify the type 'Image', or assign to an empty array created with `np.empty(correct_shape, dtype=object)`.
       return np.asarray(seq, dtype=type(seq[0]))
@@ -932,6 +936,7 @@ then pipe the outputs into our Stable Diffusion service.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-02-07 16:15:17,183 | Writing out function to /content/send_fn.py as functions serialized in notebooks are brittle. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
     WARNING | 2023-02-07 16:15:17,186 | You should name Functions that are created in notebooks to avoid naming collisions between the modules that are created to hold their functions (i.e. "send_fn.py" errors.
@@ -954,6 +959,7 @@ then pipe the outputs into our Stable Diffusion service.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-02-07 16:15:19,115 | Running causal_lm_generate via gRPC
     INFO | 2023-02-07 16:19:04,544 | Time to send message: 225.42 seconds
@@ -973,6 +979,7 @@ then pipe the outputs into our Stable Diffusion service.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-02-07 16:25:41,344 | Running sd_generate_pinned via gRPC
     INFO | 2023-02-07 16:26:20,268 | Time to send message: 38.92 seconds
