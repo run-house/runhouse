@@ -12,8 +12,12 @@ from runhouse.resources.hardware import (
     SageMakerCluster,
 )
 from runhouse.resources.kvstores.kvstore import KVStore
+from runhouse.resources.module import Module, module
+from runhouse.resources.packages import git_package, GitPackage, package, Package
 from runhouse.resources.provenance import Run, run, RunStatus, RunType
 from runhouse.resources.queues import Queue
+
+from runhouse.rns.secrets.secrets import Secrets
 
 from runhouse.rns.top_level_rns_fns import (
     current_folder,
@@ -28,7 +32,7 @@ from runhouse.rns.top_level_rns_fns import (
 )
 
 # Note these are global variables that are instantiated within globals.py:
-from .globals import configs
+from .globals import configs, obj_store
 
 from .rns.login import login, logout
 
