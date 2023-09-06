@@ -122,18 +122,21 @@ To run CLI or Python commands on the cluster:
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 03:35:44.910826 | Running command on cpu-cluster: pip install numpy && pip freeze | grep numpy
     Warning: Permanently added '34.205.23.213' (ED25519) to the list of known hosts.
 
 
 .. parsed-literal::
+    :class: code-output
 
     Requirement already satisfied: numpy in /opt/conda/lib/python3.10/site-packages (1.25.2)
     numpy==1.25.2
 
 
 .. parsed-literal::
+    :class: code-output
 
     [(0,
       'Requirement already satisfied: numpy in /opt/conda/lib/python3.10/site-packages (1.25.2)\nnumpy==1.25.2\n',
@@ -147,17 +150,20 @@ To run CLI or Python commands on the cluster:
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 03:35:50.911455 | Running command on cpu-cluster: python3 -c "import numpy; print(numpy.__version__)"
 
 
 .. parsed-literal::
+    :class: code-output
 
     1.25.2
 
 
 
 .. parsed-literal::
+    :class: code-output
 
     [(0, '1.25.2\n', '')]
 
@@ -221,6 +227,7 @@ wrap it using ``rh.function``, and specify ``system=cluster``.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 03:59:14.328987 | Writing out function function to /Users/caroline/Documents/runhouse/runhouse/docs/notebooks/basics/getpid_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
     INFO | 2023-08-29 03:59:14.332706 | Setting up Function on cluster.
@@ -234,6 +241,7 @@ wrap it using ``rh.function``, and specify ``system=cluster``.
 
 
 .. parsed-literal::
+    :class: code-output
 
     base servlet: Calling method install on module env_20230829_035913
     Installing package: Package: runhouse
@@ -244,6 +252,7 @@ wrap it using ``rh.function``, and specify ``system=cluster``.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 03:59:22.728154 | Time to call env_20230829_035913.install: 1.91 seconds
     INFO | 2023-08-29 03:59:22.981633 | Function setup complete.
@@ -259,22 +268,26 @@ and the function automatically runs on your specified hardware!
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 03:59:43.821391 | Calling getpid.call
 
 
 .. parsed-literal::
+    :class: code-output
 
     local function result: 7592
     base servlet: Calling method call on module getpid
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 03:59:44.078775 | Time to call getpid.call: 0.26 seconds
 
 
 .. parsed-literal::
+    :class: code-output
 
     remote function result: 1382396
 
@@ -303,6 +316,7 @@ to clone the repo ourselves or reimplement the function locally.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 04:00:01.870718 | Setting up Function on cluster.
     INFO | 2023-08-29 04:00:01.873021 | Copying package from file:///Users/caroline/Documents/runhouse/runhouse to: cpu-cluster
@@ -311,6 +325,7 @@ to clone the repo ourselves or reimplement the function locally.
 
 
 .. parsed-literal::
+    :class: code-output
 
     base servlet: Calling method install on module env_20230829_035957
     Installing package: GitPackage: https://github.com/run-house/runhouse.git@main
@@ -330,6 +345,7 @@ to clone the repo ourselves or reimplement the function locally.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 04:00:08.100045 | Time to call env_20230829_035957.install: 3.47 seconds
     INFO | 2023-08-29 04:00:08.275688 | Function setup complete.
@@ -341,16 +357,19 @@ to clone the repo ourselves or reimplement the function locally.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 04:00:12.015937 | Calling getpid.call
 
 
 .. parsed-literal::
+    :class: code-output
 
     base servlet: Calling method call on module getpid
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 04:00:12.285294 | Time to call getpid.call: 0.27 seconds
 
@@ -358,6 +377,7 @@ to clone the repo ourselves or reimplement the function locally.
 
 
 .. parsed-literal::
+    :class: code-output
 
     1382397
 
@@ -378,16 +398,19 @@ in notebooks without locking up the kernel.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 04:42:17.026532 | Calling getpid.call
 
 
 .. parsed-literal::
+    :class: code-output
 
     base servlet: Calling method call on module getpid
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 04:42:17.900012 | Time to call getpid.call: 0.87 seconds
 
@@ -395,6 +418,7 @@ in notebooks without locking up the kernel.
 
 
 .. parsed-literal::
+    :class: code-output
 
     <runhouse.rns.blobs.blob.Blob at 0x154dab3d0>
 
@@ -409,6 +433,7 @@ To retrieve the data from the returned remote object, you can call
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 04:42:18.626515 | Getting getpid_call_20230829_044209_708686
     INFO | 2023-08-29 04:42:18.780105 | Time to get getpid_call_20230829_044209_708686: 0.15 seconds
@@ -417,6 +442,7 @@ To retrieve the data from the returned remote object, you can call
 
 
 .. parsed-literal::
+    :class: code-output
 
     1382396
 
@@ -432,6 +458,7 @@ that can be used to retrieve the results and logs at a later point.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 04:42:20.182323 | Calling getpid.call
     INFO | 2023-08-29 04:42:20.318719 | Time to call getpid.call: 0.14 seconds
@@ -440,6 +467,7 @@ that can be used to retrieve the results and logs at a later point.
 
 
 .. parsed-literal::
+    :class: code-output
 
     'getpid_call_20230829_044212_868665'
 
@@ -454,6 +482,7 @@ To retrieve the result of the function run, you can call
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 04:42:28.747188 | Getting getpid_call_20230829_044212_868665
     INFO | 2023-08-29 04:42:28.875886 | Time to get getpid_call_20230829_044212_868665: 0.13 seconds
@@ -462,6 +491,7 @@ To retrieve the result of the function run, you can call
 
 
 .. parsed-literal::
+    :class: code-output
 
     1382396
 
@@ -482,16 +512,19 @@ To stream logs to local during the remote function call, pass in
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 04:43:17.812658 | Calling getpid.call
 
 
 .. parsed-literal::
+    :class: code-output
 
     base servlet: Calling method call on module getpid
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2023-08-29 04:43:18.107531 | Time to call getpid.call: 0.29 seconds
 
@@ -499,6 +532,7 @@ To stream logs to local during the remote function call, pass in
 
 
 .. parsed-literal::
+    :class: code-output
 
     1382396
 
