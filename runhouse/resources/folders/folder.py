@@ -50,7 +50,7 @@ class Folder(Resource):
         self,
         name: Optional[str] = None,
         path: Optional[str] = None,
-        system: Optional[str] = None,
+        system: Union[str, Cluster] = None,
         dryrun: bool = False,
         local_mount: bool = False,
         data_config: Optional[Dict] = None,

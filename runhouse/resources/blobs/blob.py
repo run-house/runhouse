@@ -135,6 +135,8 @@ def blob(
             We are working to add additional file system support. If providing a cluster, this must be a cluster object
             or name, and whether the data is saved to the object store or filesystem depends on whether a path is
             specified.
+        env (Optional[Env or str]): Environment for the blob. If left empty, defaults to base environment.
+            (Default: ``None``)
         data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler (in the case of
             saving the the filesystem).
         load (bool): Whether to try to load the Blob object from RNS. (Default: ``True``)
