@@ -216,7 +216,7 @@ class Run(Resource):
 
     def populate_init_provenance(self):
         self.creator = configs.get("username", None)
-        self.creation_stacktrace = "".join(traceback.format_stack(limit=11)[1:])
+        self.creation_stacktrace = "".join(self.traceback.format_stack(limit=11)[1:])
 
     @property
     def run_config(self):
@@ -587,12 +587,14 @@ def run(
 
     Args:
         name (Optional[str]): Name of the Run to load.
+        log_dest (Optional[str]): Whether to save the Run's logs to a file or stream them back. (Default: ``file``)
         path (Optional[str]): Path to the Run's dedicated folder on the system where the Run lives.
         system (Optional[str or Cluster]): File system or cluster name where the Run lives.
             If providing a file system this must be one of:
             [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
             We are working to add additional file system support.
         data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler for the folder.
+        load (bool): Whether to try reloading an existing Run from configs. (Default: ``True``)
         dryrun (bool): Whether to create the Blob if it doesn't exist, or load a Blob object as a dryrun.
             (Default: ``False``)
         **kwargs: Optional kwargs for the Run.

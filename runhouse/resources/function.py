@@ -33,7 +33,7 @@ class Function(Module):
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
-        Runhouse Function object. It comprises of the entrypoint, system/cluster,
+        Runhouse Function object. It is comprised of the entrypoint, system/cluster,
         and dependencies necessary to run the service.
 
         .. note::
@@ -44,13 +44,10 @@ class Function(Module):
         self.resources = resources or {}
         super().__init__(name=name, dryrun=dryrun, system=system, env=env, **kwargs)
 
-        # if not self.dryrun:
-        #     self = self.to(self.system, env=self.env)
-
     # ----------------- Constructor helper methods -----------------
 
-    @staticmethod
-    def from_config(config: dict, dryrun: bool = False):
+    @classmethod
+    def from_config(cls, config: dict, dryrun: bool = False):
         """Create a Function object from a config dictionary."""
         if isinstance(config["system"], dict):
             config["system"] = Cluster.from_config(config["system"], dryrun=dryrun)
@@ -297,7 +294,7 @@ class Function(Module):
         finally:
             if sync_package_on_close:
                 if sync_package_on_close == "./":
-                    sync_package_on_close = rh_config.rns_client.locate_working_dir()
+                    sync_package_on_close = globals.rns_client.locate_working_dir()
                 from .folders import folder
 
                 folder(system=self.system, path=sync_package_on_close).to("here")
@@ -381,12 +378,6 @@ class Function(Module):
             with module_path.open("w") as f:
                 f.write(source)
             return fn_pointers[0], module_path.stem, fn_pointers[2]
-            # from importlib.util import spec_from_file_location, module_from_spec
-            # spec = spec_from_file_location(config['name'], str(module_path))
-            # module = module_from_spec(spec)
-            # spec.loader.exec_module(module)
-            # new_fn = getattr(module, fn_pointers[2])
-            # fn_pointers = Function._extract_fn_paths(raw_fn=new_fn, reqs=config['reqs'])
 
 
 def function(
