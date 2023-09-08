@@ -346,6 +346,8 @@ class SageMakerCluster(Cluster):
         logger.info("Preparing to launch a new SageMaker cluster")
         self._launch_new_cluster()
 
+        return self
+
     def up_if_not(self):
         """Bring up the cluster if it is not up. No-op if cluster is already up.
 
@@ -397,6 +399,8 @@ class SageMakerCluster(Cluster):
                 If set to ``-1``, keep cluster warm indefinitely. (Default: ``-1``)
         """
         self._update_autostop(autostop_mins)
+
+        return self
 
     def __getstate__(self):
         """Delete non-serializable elements (e.g. sagemaker session object) before pickling."""

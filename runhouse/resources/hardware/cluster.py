@@ -136,6 +136,7 @@ class Cluster(Resource):
         logger.info(
             f"cluster.keep_warm will have no effect on self-managed cluster {self.name}."
         )
+        return self
 
     def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
         if not self.address:

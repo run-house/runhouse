@@ -343,6 +343,8 @@ class OnDemandCluster(Cluster):
         self._update_from_sky_status()
         self.restart_server(restart_ray=True)
 
+        return self
+
     def keep_warm(self, autostop_mins: int = -1):
         """Keep the cluster warm for given number of minutes after inactivity.
 
@@ -352,6 +354,8 @@ class OnDemandCluster(Cluster):
         """
         sky.autostop(self.name, autostop_mins, down=True)
         self.autostop_mins = autostop_mins
+
+        return self
 
     def teardown(self):
         """Teardown cluster.

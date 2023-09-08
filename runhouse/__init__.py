@@ -14,7 +14,7 @@ from runhouse.resources.hardware import (
 from runhouse.resources.kvstores.kvstore import KVStore
 from runhouse.resources.module import Module, module
 from runhouse.resources.packages import git_package, GitPackage, package, Package
-from runhouse.resources.provenance import Run, run, RunStatus, RunType
+from runhouse.resources.provenance import Run, run, RunStatus, RunType, capture_stdout
 from runhouse.resources.queues import Queue
 
 from runhouse.rns.secrets.secrets import Secrets

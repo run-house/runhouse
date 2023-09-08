@@ -215,26 +215,39 @@ class Module(Resource):
         self._env = _get_env_from(new_env)
 
     def _remote_init(self, *args, **kwargs):
-        """A method which you can overload and will be called remotely on the cluster upon initialization there,
-        in case you want to do certain initialization activities on the cluster only. For example, if you want
-        to load a model or dataset and send it to GPU, you probably don't want to do those locally and send the
-        state over to the cluster."""
-        if self._cls_pointers:
+        if len(self.__class__.__bases__) > 1:
+            module_cls = self.__class__.__bases__[1]
+        elif self._cls_pointers:
             (module_path, module_name, class_name) = self._cls_pointers
+            # Reload needs to be false here, because if we reload the class, the reloaded class actually doesn't
+            # match the class object of which self was a subclass, so we can't call super().__init__ on it within
+            # module_cls's __init__.
+            # We'd get "TypeError: super(type, obj): obj must be an instance or subtype of type"
             module_cls = self._get_obj_from_pointers(
-                module_path, module_name, class_name
+                module_path, module_name, class_name, reload=False
             )
-            module_cls.__init__(self, *args, **kwargs)
+        else:
+            module_cls = self.__class__
+
+        # Change around the MRO so that the module_cls is the first parent class, and Module is the second,
+        # so methods like .to default to the module_cls and not Module's when on the cluster.
+        # This is a small price to pay for matching PyTorch's .to API. If it creates too much craziness we can
+        # revisit.
+        class NewSubclass(module_cls, Module):
+            pass
+        self.__class__ = NewSubclass
+
+        module_cls.__init__(self, *args, **kwargs)
 
     @staticmethod
-    def _get_obj_from_pointers(module_path, module_name, obj_name):
+    def _get_obj_from_pointers(module_path, module_name, obj_name, reload=True):
         """Helper method to load a class or function from a module path, module name, and class name."""
         if module_path:
             abs_path = str((Path.home() / module_path).expanduser().resolve())
             sys.path.insert(0, abs_path)
             logger.debug(f"Appending {module_path} to sys.path")
 
-        if module_name in obj_store.imported_modules:
+        if module_name in obj_store.imported_modules and reload:
             importlib.invalidate_caches()
             obj_store.imported_modules[module_name] = importlib.reload(
                 obj_store.imported_modules[module_name]
@@ -308,13 +321,16 @@ class Module(Resource):
             if system.on_this_cluster():
                 new_module.pin()
             else:
-                # We only send over state for instances, not classes
+                # Exclude anything already being sent in the config and private module attributes
+                excluded_state_keys = (list(new_module.config_for_rns.keys()) +
+                                  ["_system", "_name", "_rns_folder", "dryrun", "_env", "_cls_pointers", "_resolve"])
                 state = {}
+                # We only send over state for instances, not classes
                 if not isinstance(self, type):
                     state = {
                         attr: val
                         for attr, val in self.__dict__.items()
-                        if attr[0] != "_" and attr not in new_module.config_for_rns
+                        if attr not in excluded_state_keys
                     }
                 system.put_resource(new_module, state, dryrun=True)
 
@@ -908,14 +924,13 @@ def _module_subclass_factory(cls, pointers, signature=None):
         name=None,
         **kwargs,
     ):
-        # TODO change setting logic to be "mod.local.x = 5" or "mod.remote.x = 5", with properties being remote by
-        # default and private methods being local by default for both setting and getting
         new_module = copy.copy(self)
         # Create a copy of the item on the cluster under the new name
         new_module.name = name or self.name
         new_module.dryrun = dryrun
         if not new_module.dryrun:
             new_module.system.put_resource(new_module)
+            new_module.system.call(new_module.name, "_remote_init", *args, **kwargs)
 
         return new_module
 

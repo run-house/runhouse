@@ -352,6 +352,8 @@ class Function(Module):
             autostop_mins = -1
         self.system.keep_warm(autostop_mins=autostop_mins)
 
+        return self
+
     @staticmethod
     def _handle_nb_fn(fn, fn_pointers, serialize_notebook_fn, name):
         """Handle the case where the user passes in a notebook function"""
