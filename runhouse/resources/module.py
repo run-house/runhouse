@@ -292,8 +292,10 @@ class Module(Resource):
         env = env or self.env
         env = _get_env_from(env)
 
-        if env and system:
-            env = env.to(system)
+        if system:
+            system.check_server()
+            if env:
+                env = env.to(system)
 
         # We need to backup the system here so the __getstate__ method of the cluster
         # doesn't wipe the client of this function's cluster when deepcopy copies it.

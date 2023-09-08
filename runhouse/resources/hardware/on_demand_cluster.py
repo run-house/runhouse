@@ -285,6 +285,9 @@ class OnDemandCluster(Cluster):
         Example:
             >>> rh.ondemand_cluster("rh-cpu").up()
         """
+        if self.on_this_cluster():
+            return self
+
         if self.provider in ["aws", "gcp", "azure", "lambda", "cheapest"]:
             task = sky.Task(
                 num_nodes=self.num_instances
