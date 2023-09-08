@@ -23,7 +23,7 @@ for different environments.
 
 Runhouse lets you:
 
-* Send functions and data to any of your compute or data infra, all in Python, and continue to
+* Send functions, classes, and data to any of your compute or data infra, all in Python, and continue to
   interact with them eagerly (there's no DAG) from your existing code and environment.
 * Share live and versioned resources across environments or teams, providing a unified layer for
   accessibility, visibility, and management across all your infra and providers.
