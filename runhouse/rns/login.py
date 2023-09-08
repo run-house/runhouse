@@ -2,7 +2,7 @@ import logging
 
 import typer
 
-from runhouse.rh_config import configs, rns_client
+from runhouse.globals import configs, rns_client
 
 logger = logging.getLogger(__name__)
 

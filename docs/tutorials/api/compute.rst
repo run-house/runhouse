@@ -420,7 +420,7 @@ in notebooks without locking up the kernel.
 .. parsed-literal::
     :class: code-output
 
-    <runhouse.rns.blobs.blob.Blob at 0x154dab3d0>
+    <runhouse.resources.blobs.blob.Blob at 0x154dab3d0>
 
 
 

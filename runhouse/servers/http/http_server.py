@@ -14,9 +14,9 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-from runhouse.rh_config import configs, env_servlets, rns_client
-from runhouse.rns.servlet import EnvServlet
+from runhouse.globals import configs, env_servlets, rns_client
 from runhouse.rns.utils.names import _generate_default_name
+from runhouse.servers.servlet import EnvServlet
 from ..http.http_utils import (
     b64_unpickle,
     DEFAULT_SERVER_PORT,
@@ -59,7 +59,7 @@ class HTTPServer:
             runtime_env=runtime_env,
         )
         env_servlets["base"] = base_env
-        from runhouse.rh_config import obj_store
+        from runhouse.globals import obj_store
 
         obj_store.set_name("server")
 
@@ -89,7 +89,10 @@ class HTTPServer:
             status = subprocess.check_output(["ray", "status"]).decode("utf-8")
 
             import runhouse
-            from runhouse.rns.utils.hardware import _current_cluster, _get_cluster_from
+            from runhouse.resources.hardware.utils import (
+                _current_cluster,
+                _get_cluster_from,
+            )
 
             # Reset here in case it was set before the config was written down, making here=="file"
             runhouse.here = _get_cluster_from(_current_cluster("config"))
@@ -168,7 +171,7 @@ class HTTPServer:
 
     @staticmethod
     def lookup_env_for_name(name, check_rns=False):
-        from runhouse.rh_config import obj_store
+        from runhouse.globals import obj_store
 
         env = obj_store.get_env(name)
         if env:
@@ -254,7 +257,7 @@ class HTTPServer:
             else:
                 message.key = module
                 # If this is a "get" call, don't wait for the result, it's either there or not.
-                from runhouse.rh_config import obj_store
+                from runhouse.globals import obj_store
 
                 if not obj_store.contains(message.key):
                     return Response(output_type=OutputType.NOT_FOUND, data=message.key)
@@ -314,7 +317,7 @@ class HTTPServer:
 
     @staticmethod
     def _get_results_and_logs_generator(key, env, stream_logs, remote=False, pop=False):
-        from runhouse.rh_config import obj_store
+        from runhouse.globals import obj_store
 
         open_logfiles = []
         waiting_for_results = True
@@ -428,7 +431,7 @@ class HTTPServer:
     @staticmethod
     @app.get("/keys")
     def get_keys(env: Optional[str] = None):
-        from runhouse.rh_config import obj_store
+        from runhouse.globals import obj_store
 
         if not env:
             return Response(

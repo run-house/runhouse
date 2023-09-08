@@ -195,7 +195,7 @@ lives in the current folder.
 .. parsed-literal::
     :class: code-output
 
-    <runhouse.rns.hardware.on_demand_cluster.OnDemandCluster at 0x1661c7040>
+    <runhouse.resources.hardware.on_demand_cluster.OnDemandCluster at 0x1661c7040>
 
 
 
@@ -242,7 +242,7 @@ the resource factory method, passing in only the name.
 .. parsed-literal::
     :class: code-output
 
-    <runhouse.rns.hardware.on_demand_cluster.OnDemandCluster at 0x1231023d0>
+    <runhouse.resources.hardware.on_demand_cluster.OnDemandCluster at 0x1231023d0>
 
 
 
@@ -262,7 +262,7 @@ the resource factory method, passing in only the name.
 .. parsed-literal::
     :class: code-output
 
-    <runhouse.rns.hardware.on_demand_cluster.OnDemandCluster at 0x12324b400>
+    <runhouse.resources.hardware.on_demand_cluster.OnDemandCluster at 0x12324b400>
 
 
 
@@ -306,7 +306,7 @@ The following resource, whose name ``my_blob`` does not begin with
 .. parsed-literal::
     :class: code-output
 
-    <runhouse.rns.blob.Blob at 0x16703ee80>
+    <runhouse.resources.blob.Blob at 0x16703ee80>
 
 
 

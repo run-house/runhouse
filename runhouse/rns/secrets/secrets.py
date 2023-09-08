@@ -10,7 +10,7 @@ import sky
 import typer
 import yaml
 
-from runhouse.rh_config import configs, rns_client
+from runhouse.globals import configs, rns_client
 from runhouse.rns.utils.api import load_resp_content, read_resp_data
 
 logger = logging.getLogger(__name__)

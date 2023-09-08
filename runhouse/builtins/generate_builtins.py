@@ -1,4 +1,4 @@
-from runhouse.rns.hardware.on_demand_cluster import OnDemandCluster
+from runhouse.resources.hardware.on_demand_cluster import OnDemandCluster
 
 rh_cpu = OnDemandCluster(name="^rh-cpu", instance_type="CPU:1", dryrun=False)
 rh_8_cpu = OnDemandCluster(name="^rh-8-cpu", instance_type="CPU:8", dryrun=False)

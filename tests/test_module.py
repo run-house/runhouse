@@ -94,9 +94,17 @@ def test_module_from_factory(ondemand_cpu_cluster, env):
     size = 3
     RemoteClass = rh.module(SlowNumpyArray).to(ondemand_cpu_cluster)
     remote_array = RemoteClass(size=size, name="remote_array1")
+
+    # Test that naming works properly, and "class" module was unaffacted
     assert remote_array.name == "remote_array1"
     assert RemoteClass.name == "SlowNumpyArray"
+
+    # Test that module was initialized correctly on the cluster
     assert remote_array.system == ondemand_cpu_cluster
+    assert remote_array.remote.size == size
+    assert all(remote_array.remote.arr == np.zeros(size))
+    assert remote_array.remote._hidden_1 == "hidden"
+
     results = []
     out = ""
     with rh.capture_stdout() as stdout:
@@ -167,6 +175,7 @@ class SlowPandas(rh.Module):
         super().__init__()
         self.size = size
         self.df = pd.DataFrame(np.zeros((self.size, self.size)))
+        self._hidden_1 = "hidden"
 
     def slow_iter(self):
         for i in range(self.size):
@@ -195,8 +204,15 @@ class SlowPandas(rh.Module):
 # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
 @pytest.mark.parametrize("env", [None])
 def test_module_from_subclass(ondemand_cpu_cluster, env):
-    remote_df = SlowPandas(size=3).to(ondemand_cpu_cluster, env)
+    size = 3
+    remote_df = SlowPandas(size=size).to(ondemand_cpu_cluster, env)
     assert remote_df.system == ondemand_cpu_cluster
+
+    # Test that module was initialized correctly on the cluster
+    assert remote_df.remote.size == size
+    assert len(remote_df.remote.df) == size
+    assert remote_df.remote._hidden_1 == "hidden"
+
     results = []
     # Capture stdout to check that it's working
     out = ""
@@ -219,7 +235,7 @@ def test_module_from_subclass(ondemand_cpu_cluster, env):
     print(remote_df.cpu_count(local=False))
     assert remote_df.cpu_count(local=False) == 2
 
-    # Properties
+    # Test setting and getting properties
     df = remote_df.remote.df
     assert isinstance(df, pd.DataFrame)
     assert df.shape == (3, 3)

@@ -4,8 +4,9 @@ import time
 
 import requests
 
-from runhouse.rns.resource import Resource
-from runhouse.rns.utils.env import _get_env_from
+from runhouse.resources.envs.utils import _get_env_from
+
+from runhouse.resources.resource import Resource
 from runhouse.servers.http.http_utils import handle_response, OutputType, pickle_b64
 
 logger = logging.getLogger(__name__)

@@ -5,7 +5,7 @@ Resources are the Runhouse abstraction for objects that can be saved, shared, an
 
 Resource Class
 ~~~~~~~~~~~~~~
-.. autoclass:: runhouse.rns.resource.Resource
+.. autoclass:: runhouse.resources.resource.Resource
    :members:
    :exclude-members:
 

@@ -8,8 +8,8 @@ import pytest
 
 import runhouse as rh
 import yaml
-from runhouse.rns.folders.folder import Folder
-from runhouse.rns.packages import Package
+from runhouse.resources.folders.folder import Folder
+from runhouse.resources.packages import Package
 
 from .conftest import cpu_clusters
 

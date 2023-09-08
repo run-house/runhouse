@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 import runhouse as rh
-from runhouse.rh_config import rns_client
+from runhouse.globals import rns_client
 
 
 @pytest.mark.rnstest
@@ -37,7 +37,7 @@ def test_set_folder(tmp_path):
 
     # TODO [DG] does this assume that the user must have runhouse in their home directory?
     assert rh.current_folder() == "~/tests"
-    assert (Path(rh.rh_config.rns_client.rh_directory) / "tests/bert_ft").exists()
+    assert (Path(rh.globals.rns_client.rh_directory) / "tests/bert_ft").exists()
     assert rh.exists("~/tests/bert_ft")
     rh.set_folder("@")
 
