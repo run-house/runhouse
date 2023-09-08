@@ -235,6 +235,7 @@ class Module(Resource):
         # revisit.
         class NewSubclass(module_cls, Module):
             pass
+
         self.__class__ = NewSubclass
 
         module_cls.__init__(self, *args, **kwargs)
@@ -322,8 +323,15 @@ class Module(Resource):
                 new_module.pin()
             else:
                 # Exclude anything already being sent in the config and private module attributes
-                excluded_state_keys = (list(new_module.config_for_rns.keys()) +
-                                  ["_system", "_name", "_rns_folder", "dryrun", "_env", "_cls_pointers", "_resolve"])
+                excluded_state_keys = list(new_module.config_for_rns.keys()) + [
+                    "_system",
+                    "_name",
+                    "_rns_folder",
+                    "dryrun",
+                    "_env",
+                    "_cls_pointers",
+                    "_resolve",
+                ]
                 state = {}
                 # We only send over state for instances, not classes
                 if not isinstance(self, type):
