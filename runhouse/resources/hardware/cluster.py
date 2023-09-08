@@ -132,6 +132,9 @@ class Cluster(Resource):
             self.up()
         return self
 
+    def up(self):
+        return self
+
     def keep_warm(self):
         logger.info(
             f"cluster.keep_warm will have no effect on self-managed cluster {self.name}."
@@ -360,18 +363,17 @@ class Cluster(Resource):
         if self.on_this_cluster():
             return
 
-        if not self.address:
-            # For OnDemandCluster, this initial check doesn't trigger a sky.status, which is slow.
-            # If cluster simply doesn't have an address we likely need to up it.
+        # For OnDemandCluster, this initial check doesn't trigger a sky.status, which is slow.
+        # If cluster simply doesn't have an address we likely need to up it.
+        if not self.address and not self.is_up():
             if not hasattr(self, "up"):
                 raise ValueError(
-                    "Cluster must have an ip address (i.e. be up) or have a reup_cluster method "
+                    "Cluster must have a host address (i.e. be up) or have a reup_cluster method "
                     "(e.g. OnDemandCluster)."
                 )
-            if not self.is_up():
-                # If this is a OnDemandCluster, before we up the cluster, run a sky.status to see if the cluster
-                # is already up but doesn't have an address assigned yet.
-                self.up_if_not()
+            # If this is a OnDemandCluster, before we up the cluster, run a sky.status to see if the cluster
+            # is already up but doesn't have an address assigned yet.
+            self.up_if_not()
 
         if not self.client:
             try:
