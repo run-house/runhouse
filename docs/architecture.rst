@@ -7,7 +7,8 @@ Runhouse Resources
 ~~~~~~~~~~~~~~~~~~
 
 Resources are the Runhouse primitive for objects that can be saved, shared, and reused. This can be split
-into compute resources (clusters, functions, environments, and runs) and data resources (folder, table, blob, etc).
+into compute resources (clusters, functions, modules, environments, and runs) and data resources
+(folder, table, blob, etc).
 
 Compute
 -------
@@ -20,9 +21,14 @@ debugging and accessibility interfaces built-in.
 
 * **Cluster**: A set of machines which can be sent code or data. Generally, they are Ray clusters under the hood.
 
-* **Environment**: A set of packages to be installed via HTTP on remote clusters.
+* **Environment**: An environment respresents a compute environment, consisting of packages and environment variables.
+  Each remote environment on a cluster is associated with a Ray Actor servlet, which handles all activities within the
+  environement (calling functions, installing packages, getting/putting objects).
 
-* **Functions**: Functions are associated with clusters and environments, and are executed using an HTTP endpoint.
+* **Function**: Functions are associated with clusters and environments, and are executed using an HTTP endpoint.
+
+* **Module**: Modules represent classes that can be sent to and used on remote clusters and environments. Modules
+  can live on remote hardware and its class methods called remotely, with
 
 Data
 -------
@@ -37,7 +43,9 @@ dig into provider-specific APIs.
 
 * **Table**: Provides convenient APIs for writing, partitioning, fetch, and stream various data types.
 
-* **Blob**: Represents a single serialized file stored in a particular system.
+* **Blob**: Represents a data object stored in a particular system.
+
+* **File**: Represents a file object stored in a particular system.
 
 Accessibility and Management
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
