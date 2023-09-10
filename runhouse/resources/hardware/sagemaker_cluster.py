@@ -1,5 +1,6 @@
 import configparser
 import contextlib
+import getpass
 import logging
 import os
 import pkgutil
@@ -16,10 +17,9 @@ import time
 from pathlib import Path
 from typing import Dict, Tuple, Union
 
-import pkg_resources
-
 try:
     import boto3
+    import paramiko
     import sagemaker
     from sagemaker.estimator import EstimatorBase
     from sagemaker.mxnet import MXNet
@@ -50,6 +50,7 @@ class SageMakerCluster(Cluster):
     # Default path for any estimator source code copied onto the cluster
     ESTIMATOR_SRC_CODE_PATH = "/opt/ml/code"
     ESTIMATOR_LOG_FILE = "sm_cluster.out"
+    SSH_KEY_FILE_NAME = "sagemaker-ssh-gw"
 
     DEFAULT_SSH_PORT = 11022
     DEFAULT_HTTP_PORT = 50052
@@ -184,7 +185,7 @@ class SageMakerCluster(Cluster):
             return self._relative_ssh_path(self._ssh_key_path)
 
         # Default path
-        return "~/.ssh/sagemaker-ssh-gw"
+        return f"~/.ssh/{self.SSH_KEY_FILE_NAME}"
 
     @ssh_key_path.setter
     def ssh_key_path(self, ssh_key_path):
@@ -264,6 +265,10 @@ class SageMakerCluster(Cluster):
             f"-L localhost:{self._local_port}:localhost:{self._local_port} "
             f"-L localhost:{self._ssh_port}:localhost:22"
         )
+
+    @property
+    def _ssh_public_key_path(self):
+        return f"{self._abs_ssh_key_path}.pub"
 
     @property
     def _env_activate_cmd(self):
@@ -612,9 +617,14 @@ class SageMakerCluster(Cluster):
         can be maintained even if the job fails, after it has completed, or if autostop is enabled.**"""
         # Note: these entry points must point to the existing local files
         default_entry_point = "launch_instance.py"
-        default_source_dir = pkg_resources.resource_filename(
-            "runhouse", "scripts/sagemaker_cluster"
-        )
+        full_module_name = f"scripts/sagemaker_cluster/{default_entry_point}"
+
+        entry_point_path = self._get_path_for_module(full_module_name)
+        source_dir_path = os.path.dirname(entry_point_path)
+
+        # Set default_entry_point and default_source_dir
+        default_source_dir = source_dir_path
+
         if self.estimator:
             # Save the original entry point and source dir to be used on the cluster for running the estimator
             self._estimator_entry_point = self.estimator.entry_point
@@ -809,35 +819,72 @@ class SageMakerCluster(Cluster):
 
     def _load_base_command_for_ssm_session(self) -> str:
         """Bash script command for creating the SSM session and uploading the SSH keys to the cluster. Will try
-        reusing existing keys locally if they exist, otherwise will generate new ones."""
-        ssh_key_path = self._abs_ssh_key_path
+        reusing existing keys locally if they exist, otherwise will generate new ones locally and copy them to s3."""
+        private_key_path = self._abs_ssh_key_path
+        public_key_path = self._ssh_public_key_path
 
-        # Run script which creates a new SSM session with the cluster (and optionally generates new SSH keys)
-        script_path = pkg_resources.resource_filename(
-            "runhouse", "scripts/sagemaker_cluster/start-ssm-proxy-connection.sh"
-        )
+        resource_name = "scripts/sagemaker_cluster/start-ssm-proxy-connection.sh"
+        script_path = self._get_path_for_module(resource_name)
+
         os.chmod(script_path, 0o755)
 
-        authorized_key_path = self.s3_keys_path
+        s3_key_path = self.s3_keys_path
 
         base_command = (
             f'bash {script_path} "{self.instance_id}" '
-            f'"{authorized_key_path}" "{ssh_key_path}" "{self.default_region}"'
+            f'"{s3_key_path}" "{private_key_path}" "{self.default_region}"'
         )
 
-        if Path(ssh_key_path).exists():
-            # Run script to create SSM session and connect to the cluster using existing SSH keys
-            # Script copies the existing public key to the cluster
-            logger.info(
-                f"Using existing SSH keys to connect to cluster from path: {ssh_key_path}"
-            )
-            return f"{base_command} False"
-        else:
+        boto3_session = boto3.Session(region_name=self.default_region)
+        s3_client = boto3_session.client("s3")
+
+        bucket = s3_key_path.split("/")[2]
+        key = "/".join(s3_key_path.split("/")[3:])
+
+        if Path(public_key_path).exists() and Path(private_key_path).exists():
+            # If the key pair exists locally, make sure the public key exists in s3 with no conflicts
+            with open(self._ssh_public_key_path, "r") as f:
+                public_key = f.read()
+
+            self._add_public_key_to_authorized_keys(s3_client, bucket, key, public_key)
+
+            return base_command
+
+        if not Path(private_key_path).exists():
+            # If no private key exists generate a new pair from scratch
             logger.warning(
-                f"No keys found in path: {ssh_key_path}. Generating new keys and uploading the new public key to s3 "
-                f"bucket: {authorized_key_path}"
+                f"No private key found in local path: {private_key_path}. Generating new key pairs locally and "
+                f"uploading the new public key to s3"
             )
-            return f"{base_command} True"
+            self._generate_ssh_key_pair(s3_client, bucket, key)
+
+            return base_command
+
+        if not Path(public_key_path).exists():
+            # See if public key exists in S3, if so use it locally
+            key_file_name = self._s3_key_path(key)
+            authorized_keys = self._load_authorized_keys(
+                s3_client, bucket, key_file_name
+            )
+            if authorized_keys:
+                # If a public key exists in S3, use it locally
+                matching_keys = self._find_matching_keys(authorized_keys)
+                if matching_keys:
+                    key_in_s3 = matching_keys[0]
+                    logger.info(
+                        f"Found public key saved in S3, using it locally and saving to path: {public_key_path}"
+                    )
+                    self._write_public_key(key_in_s3)
+                    return base_command
+
+            # If there is no public key generate a new key pair one and upload the public key to S3
+            logger.info(
+                "Creating a new SSH key pair locally and uploading the public key to S3"
+            )
+            private_key = paramiko.RSAKey(filename=private_key_path)
+            public_key = private_key.get_base64()
+            self._add_public_key_to_authorized_keys(s3_client, bucket, key, public_key)
+            return base_command
 
     def _refresh_ssm_session_with_cluster(self, num_ports_to_try: int = 5):
         """Reconnect to the cluster via the AWS SSM. This bypasses the step of creating a new SSH key which was already
@@ -847,9 +894,9 @@ class SageMakerCluster(Cluster):
         To view all sessions: ``aws ssm describe-sessions --state Active``
         """
         # https://github.com/aws-samples/sagemaker-ssh-helper/blob/main/sagemaker_ssh_helper/sm-connect-ssh-proxy
-        script_path = pkg_resources.resource_filename(
-            "runhouse", "scripts/sagemaker_cluster/refresh-ssm-session.sh"
-        )
+        full_module_name = "scripts/sagemaker_cluster/refresh-ssm-session.sh"
+        script_path = self._get_path_for_module(full_module_name)
+
         os.chmod(script_path, 0o755)
 
         # Remove stale entries from the known hosts file - this is import for avoiding collisions when
@@ -871,11 +918,12 @@ class SageMakerCluster(Cluster):
             if num_ports_to_try == 0:
                 raise ConnectionError(
                     f"Failed to create connection with {self.name} after {num_ports_initial} attempts "
-                    f"(cluster status=`{self.status().get('TrainingJobStatus')}`). Make sure the public key in "
-                    f"local path: {ssh_key_path} matches the key stored in bucket: {self.s3_keys_path}, "
-                    f"that a connection to another SageMaker cluster is not already active, "
-                    f"and that AWS CLI V2 is installed. If the problem persists, try running the command "
-                    f"to create the session manually: `bash {' '.join(command)}`"
+                    f"(cluster status=`{self.status().get('TrainingJobStatus')}`). Make sure private & public keys "
+                    f"exist in local path: {ssh_key_path} and {self._ssh_public_key_path}, and the public key exists "
+                    f"in the authorized keys file stored in bucket: {self.s3_keys_path}. If the connection still fails,"
+                    f" confirm that another SageMaker cluster is not already active, and that AWS CLI V2 is installed. "
+                    f"If the problem persists, try running the command to create the session "
+                    f"manually: `bash {' '.join(command)}`"
                 )
 
             try:
@@ -907,6 +955,106 @@ class SageMakerCluster(Cluster):
                 pass
 
     # -------------------------------------------------------
+    # SSH Key Management
+    # -------------------------------------------------------
+    def _generate_ssh_key_pair(self, s3_client, bucket, key):
+        """Create a new private / public key pairing needed for SSHing into the cluster."""
+        private_key_path = self._abs_ssh_key_path
+        ssh_key = paramiko.RSAKey.generate(bits=2048)
+
+        ssh_key.write_private_key_file(private_key_path)
+        os.chmod(private_key_path, 0o600)
+
+        # Set the comment for the public key to include username and hostname
+        comment = self._ssh_key_comment()
+        public_key = f"ssh-rsa {ssh_key.get_base64()} {comment}"
+
+        # Update the public key locally
+        self._write_public_key(public_key)
+
+        # Update the public key in s3
+        self._add_public_key_to_authorized_keys(s3_client, bucket, key, public_key)
+
+    def _find_matching_keys(self, authorized_keys):
+        """Find the public key for the current user in the authorized keys file."""
+        key_comment = self._ssh_key_comment()
+        pattern = re.compile(rf"^.*{re.escape(key_comment)}.*$", re.MULTILINE)
+
+        matching_keys = pattern.findall(authorized_keys)
+        return matching_keys
+
+    def _add_public_key_to_authorized_keys(
+        self, s3_client, bucket: str, key: str, public_key: str
+    ):
+        """Update the authorized keys file stored in S3. This file will get copied onto the cluster
+        when the SSM session is created. If a mismatch exists between the key stored locally and in S3, update
+        the local key to match the one in S3."""
+        key_name = self._s3_key_path(key)
+
+        authorized_keys = self._load_authorized_keys(s3_client, bucket, key_name)
+        if not authorized_keys:
+            logger.info(
+                f"No public keys found in S3: {self.s3_keys_path}. Creating and uploading a new file."
+            )
+            self.upload_key_to_s3(s3_client, bucket, key_name, public_key)
+            return
+
+        # Check if a key already exists for this user
+        matching_keys = self._find_matching_keys(authorized_keys)
+        if matching_keys:
+            key_in_s3 = matching_keys[0]
+            if key_in_s3 != public_key:
+                logger.warning(
+                    f"Public key in s3 does not match local public key. Updating local public key in "
+                    f"path: {self._ssh_public_key_path}"
+                )
+                self._write_public_key(key_in_s3)
+            return
+
+        # Add the public key to the existing authorized keys and save it back to S3
+        if authorized_keys:
+            authorized_keys += "\n"
+        authorized_keys += f"{public_key}\n"
+
+        logger.info("Adding public key to authorized keys for the cluster")
+        self.upload_key_to_s3(s3_client, bucket, key_name, authorized_keys)
+
+    def _ssh_key_comment(self):
+        return f"{getpass.getuser()}@{socket.gethostname()}"
+
+    def _s3_key_path(self, key):
+        """Path to the authorized keys file stored in the s3 bucket for the role associated with the cluster."""
+        return key + f"{self.SSH_KEY_FILE_NAME}.pub"
+
+    def _write_public_key(self, public_key: str):
+        """Update the public key stored locally."""
+        with open(self._ssh_public_key_path, "w") as f:
+            f.write(public_key)
+
+    def upload_key_to_s3(self, s3_client, bucket, key, body):
+        try:
+            s3_client.put_object(
+                Bucket=bucket,
+                Key=key,
+                Body=body,
+            )
+        except Exception as e:
+            raise e
+
+    def _load_authorized_keys(self, s3_client, bucket, key_name) -> Union[str, None]:
+        try:
+            response = s3_client.get_object(Bucket=bucket, Key=key_name)
+            existing_pub_keys = response["Body"].read().decode("utf-8")
+            return existing_pub_keys
+
+        except s3_client.exceptions.NoSuchKey:
+            # No authorized keys file exists in s3 for this role
+            return None
+
+        except Exception as e:
+            raise e
+
+    # -------------------------------------------------------
     # Helpers
     # -------------------------------------------------------
     def _rsync(self, source: str, dest: str, up: bool, contents: bool = False):
@@ -930,6 +1078,13 @@ class SageMakerCluster(Cluster):
             return self._ssh_wrapper.get_instance_ids()[0]
         except Exception as e:
             raise e
+
+    def _get_path_for_module(self, resource_name: str) -> str:
+        import importlib.resources as pkg_resources
+
+        package_name = "runhouse"
+        script_path = str(pkg_resources.files(package_name) / resource_name)
+        return script_path
 
     def _set_role_and_profile(self, role: str = None, profile: str = None):
         """Set the SageMaker role and profile used for launching and connecting to the SageMaker instance.
