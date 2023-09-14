@@ -84,34 +84,6 @@ def ssh(cluster_name: str, up: bool = typer.Option(False, help="Start the cluste
     c.ssh()
 
 
-@app.command()
-def cancel(
-    cluster_name: str,
-    run_key: str,
-    force: Optional[bool] = typer.Option(False, help="Force cancel"),
-    all: Optional[bool] = typer.Option(False, help="Cancel all jobs"),
-):
-    """Cancel a run on a cluster."""
-    c = cluster(name=cluster_name)
-    if all:
-        c.cancel_all(force=force)
-    else:
-        c.cancel(run_key, force=force)
-
-
-@app.command()
-def logs(
-    cluster_name: str,
-    run_key: str,
-    print_results: Optional[bool] = typer.Option(False, help="Print results"),
-):
-    """Get logs from a run on a cluster."""
-    c = cluster(name=cluster_name)
-    res = c.get(run_key, stream_logs=True)
-    if print_results:
-        console.print(res)
-
-
 def load_cluster(cluster_name: str):
     """Load a cluster from RNS into the local environment, e.g. to be able to ssh."""
     c = cluster(name=cluster_name)
