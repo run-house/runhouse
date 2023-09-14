@@ -27,11 +27,11 @@ Table of Contents
 Install Runhouse
 ----------------
 
-.. code:: python
+.. code:: ipython3
 
     !pip install runhouse
 
-.. code:: python
+.. code:: ipython3
 
     import runhouse as rh
 
@@ -51,7 +51,7 @@ please first refer to `Cluster
 Setup <https://www.run.house/docs/tutorials/quick_start#cluster-setup>`__
 for a more introductory and in-depth walkthrough.
 
-.. code:: python
+.. code:: ipython3
 
     # Optional, to sync over any hardware credentials and configs from your Runhouse account
     !runhouse login --yes
@@ -60,7 +60,7 @@ for a more introductory and in-depth walkthrough.
     # !sky check
 
 
-.. code:: python
+.. code:: ipython3
 
     # sample on-demand cluster, launched through Runhouse/SkyPilot
     gpu = rh.ondemand_cluster(name='rh-a10x', instance_type='g5.2xlarge', provider='aws').up_if_not()
@@ -107,7 +107,7 @@ For a more in-depth walkthrough of Runhouse’s function and env APIs,
 please refer to the `Compute API
 Tutorial <https://www.run.house/docs/tutorials/api/compute>`__.
 
-.. code:: python
+.. code:: ipython3
 
     def load_and_preprocess():
         from datasets import load_dataset
@@ -127,10 +127,8 @@ Tutorial <https://www.run.house/docs/tutorials/api/compute>`__.
         small_eval_dataset = tokenized_datasets["test"].shuffle(seed=42).select(range(1000))
         return [small_train_dataset, small_eval_dataset]
 
-.. code:: python
+.. code:: ipython3
 
-    # todo: think out the expected use case of reqs/env/etc
-    # should env be updated later on or just used here
     reqs = ["transformers", "datasets", "torch"]
 
     load_and_preprocess = rh.function(fn=load_and_preprocess).to(gpu, env=reqs)
@@ -162,7 +160,7 @@ If you’d like to save down your data to file storage (e.g. ``s3``,
 ``gcs``), Runhouse also has API support for that. Please refer to our
 Data API Tutorial for more information on that.
 
-.. code:: python
+.. code:: ipython3
 
     datasets_ref = load_and_preprocess.remote()
 
@@ -197,7 +195,7 @@ script.
 Training from locally defined functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code:: python
+.. code:: ipython3
 
     def train(hf_datasets):
         [small_train_dataset, small_eval_dataset] = hf_datasets
@@ -230,7 +228,7 @@ Training from locally defined functions
 
         trainer.train()
 
-.. code:: python
+.. code:: ipython3
 
     extra_reqs = ['evaluate', 'scikit-learn', 'accelerate']
 
@@ -248,7 +246,7 @@ Training from locally defined functions
 
 To run the function, call it as you would any Python function. Pass in the dataset reference, and optionally add `stream_logs=True` to see the logs locally.
 
-.. code:: python
+.. code:: ipython3
 
     train(datasets_ref, stream_logs=True)
 
@@ -483,7 +481,7 @@ directly run that on your remote compute as well.
 To sync over the working directory, you can create a Runhouse folder
 resource and send it over to the cluster.
 
-.. code:: python
+.. code:: ipython3
 
     rh.folder(path="local_folder_path", dest_path="remote_folder_path").to(gpu)
 
@@ -496,7 +494,7 @@ In this case, let’s say we’re trying to access and run
 from the `accelerate GitHub
 repo <https://github.com/huggingface/accelerate>`__.
 
-.. code:: python
+.. code:: ipython3
 
     git_package = rh.git_package(git_url='https://github.com/huggingface/accelerate.git',
                                 install_method='pip',
@@ -512,7 +510,7 @@ repo <https://github.com/huggingface/accelerate>`__.
 
 Additionally install any other necessary requirements to run the script.
 
-.. code:: python
+.. code:: ipython3
 
     reqs = ['evaluate', 'transformers', 'datasets==2.3.2', 'scipy', 'scikit-learn', 'tqdm', 'tensorboard', 'torch==1.12.0']
 
@@ -525,7 +523,7 @@ Additionally install any other necessary requirements to run the script.
 Now that we have the script and dependencies on the cluster, we can run
 the script using ``gpu.run([command])``
 
-.. code:: python
+.. code:: ipython3
 
     gpu.run(['python accelerate/examples/nlp_example.py'])
 
@@ -540,7 +538,7 @@ If you set up autostop for the cluster or in your configs (default to 30
 min), the cluster will automatically terminate after that period of
 inactivity.
 
-.. code:: python
+.. code:: ipython3
 
     # cli
     !sky down rh-a10x

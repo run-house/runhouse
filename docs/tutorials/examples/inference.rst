@@ -31,11 +31,11 @@ Hardware Setup
 Install Runhouse
 ~~~~~~~~~~~~~~~~
 
-.. code:: python
+.. code:: ipython3
 
     !pip install runhouse
 
-.. code:: python
+.. code:: ipython3
 
     import runhouse as rh
 
@@ -50,7 +50,7 @@ Install Runhouse
 [Optional] Login to Runhouse to load in secrets
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code:: python
+.. code:: ipython3
 
     rh.login(download_secrets=True, download_config=True, interactive=True)
 
@@ -102,11 +102,11 @@ using an on-demand AWS, GCP, Azure, LambdaLabs cluster, run the
 credentials for your specified cloud provider(s). You can rerun this
 command after setup to check that it has been set up correctly.
 
-.. code:: python
+.. code:: ipython3
 
     !sky check
 
-.. code:: python
+.. code:: ipython3
 
     # Uncomment if you're using GCP and running inside Colab!
     # !gcloud init
@@ -116,7 +116,7 @@ command after setup to check that it has been set up correctly.
 Depending on your cloud provider, uncomment out one of the following
 options to instantiate your ``rh-a10x``, and save it to your rh config.
 
-.. code:: python
+.. code:: ipython3
 
     # For GCP, Azure, or Lambda Labs
     # rh.ondemand_cluster(name='rh-a10x', instance_type='A100:1').save()
@@ -137,11 +137,11 @@ Stable Diffusion on a Cloud GPU in 5 lines of code
 We’ll use Runhouse to experiment with Stable Diffusion from your laptop,
 while the model actually runs on an A100/A10G in the cloud.
 
-.. code:: python
+.. code:: ipython3
 
     gpu = rh.cluster(name='rh-a10x')
 
-.. code:: python
+.. code:: ipython3
 
     def sd_generate(prompt, num_images=1, steps=100, guidance_scale=7.5, model_id='stabilityai/stable-diffusion-2-base'):
         # imports must be defined inside the function for notebook environments
@@ -151,20 +151,20 @@ while the model actually runs on an A100/A10G in the cloud.
         pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float16, revision='fp16').to('cuda')
         return pipe([prompt] * num_images, num_inference_steps=steps, guidance_scale=guidance_scale).images
 
-.. code:: python
+.. code:: ipython3
 
     generate_gpu = rh.function(fn=sd_generate).to(
         gpu,
         env=['./', 'torch --upgrade --extra-index-url https://download.pytorch.org/whl/cu117', 'diffusers', 'transformers']
     )
 
-.. code:: python
+.. code:: ipython3
 
     # for outputting images later
     !pip install ipyplot
     import ipyplot
 
-.. code:: python
+.. code:: ipython3
 
     rh_prompt = 'A digital illustration of a woman running on the roof of a house.'
     images = generate_gpu(rh_prompt, num_images=4, steps=50)
@@ -487,12 +487,12 @@ while the model actually runs on an A100/A10G in the cloud.
     </div>
 
 
-.. code:: python
+.. code:: ipython3
 
     # save the function to be reusable later on
     generate_gpu.save(name='sd_generate')
 
-.. code:: python
+.. code:: ipython3
 
     # By default, the GPU will terminate after 30 min of inactivity.
     # To keep it up to reuse it for the rest of the tutorials
@@ -520,7 +520,7 @@ down and later retrieve the model from your Runhouse object store. The
 model will be still need to be loaded the first run to be put in memory,
 so speed-ups will only be observed in future runs.
 
-.. code:: python
+.. code:: ipython3
 
     def sd_generate_pinned(prompt, num_images=1, steps=100, guidance_scale=7.5,
                            model_id='stabilityai/stable-diffusion-2-base',
@@ -540,13 +540,13 @@ so speed-ups will only be observed in future runs.
         return pipe(prompt, num_images_per_prompt=num_images,
                     num_inference_steps=steps, guidance_scale=guidance_scale).images
 
-.. code:: python
+.. code:: ipython3
 
     generate_pinned_gpu = rh.function(fn=sd_generate_pinned).to(gpu).save("sd_generate_pinned")
     my_prompt = 'A hot dog made of matcha powder.'
     matcha_images = generate_pinned_gpu(my_prompt, num_images=4, steps=50)
 
-.. code:: python
+.. code:: ipython3
 
     ipyplot.plot_images(matcha_images)
 
@@ -896,7 +896,7 @@ in another file and import it here.
            return self.pipeline(prompt, num_images_per_prompt=num_images,
                                 num_inference_steps=steps, guidance_scale=guidance_scale).images
 
-.. code:: python
+.. code:: ipython3
 
     from sd_model import SDModel
 
@@ -913,7 +913,7 @@ Here, we use FLAN-T5, a text-to-text generation model, to generate
 prompts for us. We’ll send a FLAN-T5 inference function to our GPU, and
 then pipe the outputs into our Stable Diffusion service.
 
-.. code:: python
+.. code:: ipython3
 
     def causal_lm_generate(prompt, model_id='google/flan-t5-xl', **model_kwargs):
         import runhouse as rh
@@ -930,7 +930,7 @@ then pipe the outputs into our Stable Diffusion service.
         outputs = model.generate(**inputs, **model_kwargs)
         return tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
-.. code:: python
+.. code:: ipython3
 
     flan_t5_generate = rh.function(fn=causal_lm_generate).to(gpu, env=['./'])
 
@@ -947,7 +947,7 @@ then pipe the outputs into our Stable Diffusion service.
     INFO | 2023-02-07 16:15:17,558 | Function setup complete.
 
 
-.. code:: python
+.. code:: ipython3
 
     my_prompt = "A detailed oil painting of"
     sequences = flan_t5_generate(my_prompt, max_new_tokens=100, min_length=20, temperature=2.0, repetition_penalty=3.0,
@@ -969,7 +969,7 @@ then pipe the outputs into our Stable Diffusion service.
     A detailed oil painting of the ancient greek god, who is believed to have given his sons and daughters knowledge of magic tricks in order for them to excel in their art (the sorcerers were known as oracles)
 
 
-.. code:: python
+.. code:: ipython3
 
     # We can directly access the function by the name we saved it by, even on a different environment or run
     saved_sd_generate = rh.function('sd_generate_pinned')

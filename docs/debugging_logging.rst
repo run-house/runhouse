@@ -16,7 +16,7 @@ You can ssh into the cluster with ``ssh cluster-name`` to access these logs.
 Alternatively, to see logs on your local machine while running a remote function, you can add the
 ``stream_logs=True`` argument to your function call.
 
-.. code:: python
+.. code:: ipython3
 
     remote_fn = rh.function(fn)
     fn(fn_args, stream_logs=True)

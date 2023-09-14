@@ -155,7 +155,7 @@ SageMaker Cluster
 Runhouse facilitates easy access to existing or new SageMaker compute.
 Just provide your SageMaker execution role ARN or have it configured in your local environment.
 
-.. code:: python
+.. code:: ipython3
 
     # Launch a new SageMaker instance and keep it up indefinitely
     cluster = rh.sagemaker_cluster(name='sm-cluster', profile="sagemaker").save()

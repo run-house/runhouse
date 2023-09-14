@@ -21,12 +21,12 @@ setup path.
 Install dependencies
 --------------------
 
-.. code:: python
+.. code:: ipython3
 
     !pip install accelerate
     !pip install runhouse
 
-.. code:: python
+.. code:: ipython3
 
     import runhouse as rh
 
@@ -48,7 +48,7 @@ For instructions on setting up cloud access for on-demand clusters,
 please refer to `Cluster
 Setup <https://www.run.house/docs/tutorials/quick_start#cluster-setup>`__.
 
-.. code:: python
+.. code:: ipython3
 
     # single V100 GPU
     # gpu = rh.ondemand_cluster(name="rh-v100", instance_type="V100:1").up_if_not()
@@ -67,7 +67,7 @@ On-Premise Cluster
 For an on-prem cluster, you can instantaite it as follows, filling in
 the IP address, ssh user and private key path.
 
-.. code:: python
+.. code:: ipython3
 
     # For an existing cluster
     # gpu = rh.cluster(ips=['<ip of the cluster>'],
@@ -92,7 +92,7 @@ in a string pointing to the GitHub function.
 For local functions, for instance if we had ``nlp_example.py`` in our
 directory, we can also simply import the function.
 
-.. code:: python
+.. code:: ipython3
 
     # if nlp_example.py is in local directory
     # from nlp_example import training_function
@@ -103,7 +103,7 @@ directory, we can also simply import the function.
 Next, define the dependencies necessary to run the imported training
 function using accelerate.
 
-.. code:: python
+.. code:: ipython3
 
     reqs = ['pip:./accelerate', 'transformers', 'datasets', 'evaluate','tqdm', 'scipy', 'scikit-learn', 'tensorboard',
             'torch --upgrade --extra-index-url https://download.pytorch.org/whl/cu117']
@@ -112,7 +112,7 @@ Now, we can put together the above components (gpu cluster, training
 function, and dependencies) to create our train function on remote
 hardware.
 
-.. code:: python
+.. code:: ipython3
 
     train_function_gpu = rh.function(
                               fn=training_function,
@@ -139,7 +139,7 @@ Launch Helper Function
 Here we define a helper function for launching accelerate training, and
 then send the function to run on our GPU as well
 
-.. code:: python
+.. code:: ipython3
 
     def launch_training(training_function, *args):
         from accelerate.utils import PrepareForLaunch, patch_environment
@@ -152,7 +152,7 @@ then send the function to run on our GPU as well
             launcher = PrepareForLaunch(training_function, distributed_type="MULTI_GPU")
             torch.multiprocessing.start_processes(launcher, args=args, nprocs=num_processes, start_method="spawn")
 
-.. code:: python
+.. code:: ipython3
 
     launch_training_gpu = rh.function(fn=launch_training).to(gpu)
 
@@ -173,7 +173,7 @@ Launch Distributed Training
 Now, we’re ready to launch distributed training on our self-hosted
 hardware!
 
-.. code:: python
+.. code:: ipython3
 
     import argparse
 
@@ -181,7 +181,7 @@ hardware!
     train_args = argparse.Namespace(cpu=False, mixed_precision='fp16')
     hps = {"lr": 2e-5, "num_epochs": 3, "seed": 42, "batch_size": 16}
 
-.. code:: python
+.. code:: ipython3
 
     launch_training_gpu(train_function_gpu, hps, train_args, stream_logs=True)
 
@@ -336,6 +336,6 @@ Terminate Cluster
 
 Once you are done using the cluster, you can terminate it as follows:
 
-.. code:: python
+.. code:: ipython3
 
     gpu.teardown()
