@@ -78,9 +78,16 @@ make clean html
 If updating or adding a notebook or colab file, please follow the following steps:
 
 * export the notebook into a `.ipynb` file, such as `<insert_notebook_name>.ipynb`
-* add/update the notebook file under `docs/notebooks`
+* add/update the notebook file under `docs/notebooks`, either in the `api` or `examples` folder
 * get the `.rst` formatted notebook using the CLI command `jupyter nbconvert --to rst <insert_notebook_name>.ipynb`
 * move the `.rst` file into the correct directory in the `docs` directory
+```
+mv docs/notebooks/.../<insert_notebook_name>.rst docs/tutorials/.../<insert_notebook_name>.rst
+```
+* run the `update_rst.py` script to update some rst syntax
+```
+python runhouse/scripts/docs/update_rst.py --files docs/tutorials/.../notebook_name.rst
+```
 * add the following lines under the rst file title to link out to the generated colab
 
 ```
