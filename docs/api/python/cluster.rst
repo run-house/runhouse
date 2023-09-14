@@ -22,8 +22,8 @@ Cluster Class
     .. automethod:: __init__
 
 
-Hardware Setup
---------------
+Cluster Hardware Setup
+----------------------
 
 No additional setup is required. You will just need to have the IP address for the cluster
 and the path to SSH credentials ready to be used for the cluster initialization.
@@ -40,8 +40,8 @@ various cluster properties.
 
     .. automethod:: __init__
 
-Hardware Setup
-------------------
+OnDemandCluster Hardware Setup
+------------------------------
 
 On-Demand clusters use SkyPilot to automatically spin up and down clusters on the cloud. You will
 need to first set up cloud access on your local machine:
@@ -57,8 +57,6 @@ For a more in depth tutorial on setting up individual cloud credentials, you can
 `SkyPilot setup docs <https://skypilot.readthedocs.io/en/latest/getting-started/installation.html#cloud-account-setup>`_.
 
 
-
-
 SageMakerCluster Class
 ~~~~~~~~~~~~~~~~~~~~~
 A SageMakerCluster is a cluster that uses a SageMaker instance under the hood.
@@ -66,8 +64,8 @@ A SageMakerCluster is a cluster that uses a SageMaker instance under the hood.
 Runhouse currently supports two core usage paths for SageMaker clusters:
 
 - **Compute backend**: You can use SageMaker as a compute backend, just as you would a
-  :ref:`BYO (bring-your-own) <Cluster Class>` or an :ref:`on-demand cluster <OnDemandCluster Class>` cluster.
-  Runhouse will handle launching up the SageMaker compute and creating the SSH connection
+  :ref:`BYO (bring-your-own) <Cluster Class>` or an :ref:`on-demand cluster <OnDemandCluster Class>`.
+  Runhouse will handle launching the SageMaker compute and creating the SSH connection
   to the cluster.
 
 - **Dedicated training jobs**: You can use a SageMakerCluster class to run a training job on SageMaker compute.
@@ -79,7 +77,7 @@ Runhouse currently supports two core usage paths for SageMaker clusters:
     Runhouse requires an AWS IAM role (either name or full ARN) whose credentials have adequate permissions to
     create create SageMaker endpoints and access AWS resources.
 
-    Please see :ref:`Hardware Setup` for more specific instructions and
+    Please see :ref:`SageMaker Hardware Setup` for more specific instructions and
     requirements for providing the role and setting up the cluster.
 
 .. autoclass:: runhouse.SageMakerCluster
@@ -88,8 +86,8 @@ Runhouse currently supports two core usage paths for SageMaker clusters:
 
     .. automethod:: __init__
 
-Hardware Setup
---------------
+SageMaker Hardware Setup
+------------------------
 
 IAM Role
 ^^^^^^^^
