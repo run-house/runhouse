@@ -98,3 +98,10 @@ html_show_sourcelink = False
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
+
+# Cache the webpages for up to a week and make them immutable.
+# This will allow Vercel’s Edge Network to cache the website’s content globally.
+# For more info: https://vercel.com/docs/edge-network/caching
+html_extra_headers = {
+    "Cache-Control": "public, max-age=604800, immutable"
+}
