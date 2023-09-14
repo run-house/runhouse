@@ -153,7 +153,7 @@ class EnvServlet:
             else:
                 # Method is a property, return the value
                 logger.info(
-                    f"Env {self.env_name} servlet: Getting property {method_name} on module {module_name}"
+                    f"{self.env_name} servlet: Getting property {method_name} on module {module_name}"
                 )
                 callable_method = False
 
@@ -173,7 +173,7 @@ class EnvServlet:
             if inspect.iscoroutinefunction(method):
                 # If method is a coroutine, we need to await it
                 logger.debug(
-                    f"Env {self.env_name} servlet: Method {method_name} on module {module_name} is a coroutine"
+                    f"{self.env_name} servlet: Method {method_name} on module {module_name} is a coroutine"
                 )
                 result = asyncio.run(method(*args, **kwargs))
             else:
@@ -420,7 +420,7 @@ class EnvServlet:
             obj = value
         else:
             obj = b64_unpickle(value)
-        logger.info(f"Message received from client to get object: {key}")
+        logger.info(f"Message received from client to put object: {key}")
         try:
             obj_store.put(key, obj)
             return Response(output_type=OutputType.SUCCESS)

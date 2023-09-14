@@ -176,7 +176,7 @@ class Cluster(Resource):
                 import runhouse
 
                 _install_url = f"runhouse=={runhouse.__version__}"
-            rh_install_cmd = f"pip install {_install_url}"
+            rh_install_cmd = f"python3 -m pip install {_install_url}"
 
         install_cmd = f"{env._run_cmd} {rh_install_cmd}" if env else rh_install_cmd
 
@@ -600,7 +600,7 @@ class Cluster(Resource):
     def _fsspec_sync(self, source: str, dest: str, up: bool):
         from runhouse.resources.folders import folder
 
-        logger.info(f"syncing files from {source} to {dest} using fsspec")
+        logger.info(f"Syncing files from {source} to {dest} using fsspec")
 
         f = folder(system=self, path="", dryrun=True)
         fs = f.fsspec_fs

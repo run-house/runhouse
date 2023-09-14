@@ -253,7 +253,7 @@ class Secrets:
                 f"Failed to copy some secrets onto the {cluster_name} cluster: {failed_to_add_secrets}"
             )
         else:
-            logger.info(f"Finished copying all secrets onto the {cluster_name} cluster")
+            logger.info(f"Finished copying secrets onto the {cluster_name} cluster")
 
     @classmethod
     def update(cls, provider: str, secrets: dict):
