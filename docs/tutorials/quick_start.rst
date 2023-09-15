@@ -196,10 +196,12 @@ up your local credentials again. To delete any local credentials or
 remove secrets from Runhouse, you can call ``runhouse logout`` or
 ``rh.logout()``.
 
-Some notes on security \* Our API servers only ever store light metadata
+Some notes on security: 
+- Our API servers only ever store light metadata
 about your resources (e.g. folder name, cloud provider, storage bucket,
 path). All actual data and compute stays inside your own cloud account
-and never hits our servers. \* Secrets are stored in `Hashicorp
+and never hits our servers. 
+- Secrets are stored in `Hashicorp
 Vault <https://www.vaultproject.io/>`__ (an industry standard for
 secrets management), never on our API servers, and our APIs simply call
 into Vault’s APIs.
@@ -218,8 +220,8 @@ compute APIs to run locally defined functions on a remote cluster
 launched through Runhouse, bridging the gap between local and remote.
 Additionally, save, reuse, and share any of your Runhouse Resources.
 
-Please first make sure that you have successfully followed the
-Installation and Cluster Setup sections above prior to running this
+Please first make sure that you have successfully followed the 
+`Installation <installation_>`_ and `Cluster Setup <cluster-setup_>`_ sections above prior to running this
 example.
 
 .. code:: ipython3
