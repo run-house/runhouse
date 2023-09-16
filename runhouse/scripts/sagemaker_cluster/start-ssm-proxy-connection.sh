@@ -10,14 +10,12 @@ INSTANCE_ID="$1"
 SSH_AUTHORIZED_KEYS="$2"
 SSH_KEY="$3"
 CURRENT_REGION="$4"
-GENERATE_NEW_KEYS="$5"
-shift 5
+shift 4
 PORT_FWD_ARGS=$*
 
 echo "INSTANCE_ID: $INSTANCE_ID"
 echo "SSH_AUTHORIZED_KEYS: $SSH_AUTHORIZED_KEYS"
 echo "CURRENT_REGION: $CURRENT_REGION"
-echo "GENERATE_NEW_KEYS: $GENERATE_NEW_KEYS"
 echo "PORT_FWD_ARGS: $PORT_FWD_ARGS"
 
 instance_status=$(aws ssm describe-instance-information --filters Key=InstanceIds,Values="$INSTANCE_ID" --query 'InstanceInformationList[0].PingStatus' --output text)
@@ -29,17 +27,15 @@ if [[ "$instance_status" != "Online" ]]; then
   exit 1
 fi
 
-if [ "$GENERATE_NEW_KEYS" = "True" ]; then
-  echo "Generating new $SSH_KEY and uploading public key to $SSH_AUTHORIZED_KEYS"
-
-  echo 'yes' | ssh-keygen -f "${SSH_KEY}" -N ''
-  cat "${SSH_KEY}.pub"
-  aws s3 cp "${SSH_KEY}.pub" "${SSH_AUTHORIZED_KEYS}"
-  chmod 600 "${SSH_KEY}"
-fi
-
 AWS_CLI_VERSION=$(aws --version)
-echo "AWS CLI version (**Note: Must be v2**): $AWS_CLI_VERSION"
+
+# Check if the AWS CLI version contains "aws-cli/2."
+if [[ $AWS_CLI_VERSION == *"aws-cli/2."* ]]; then
+  echo "AWS CLI version: $AWS_CLI_VERSION"
+else
+  echo "Error: AWS CLI version must be v2. Please update your AWS CLI version."
+  exit 1
+fi
 
 echo "Running SSM commands at region ${CURRENT_REGION} to copy public key to ${INSTANCE_ID}"
 
