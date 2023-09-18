@@ -878,9 +878,10 @@ class SageMakerCluster(Cluster):
         public_key_path = self._ssh_public_key_path
 
         if not Path(ssh_key_path).exists() and not Path(public_key_path).exists():
-            raise FileNotFoundError(
+            logger.warning(
                 f"SSH key pairs not found in paths: {ssh_key_path} and {public_key_path}"
             )
+            self._create_ssm_session_with_cluster()
 
         # https://github.com/aws-samples/sagemaker-ssh-helper/blob/main/sagemaker_ssh_helper/sm-connect-ssh-proxy
         full_module_name = "scripts/sagemaker_cluster/refresh-ssm-session.sh"
