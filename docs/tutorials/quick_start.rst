@@ -389,7 +389,7 @@ environment, or share it with your collaborators.
     )
 
 Now, you, or whoever you shared it with, can reload this function from
-anther dev environment (like a different Colab, local, or on a cluster),
+another dev environment (like a different Colab, local, or on a cluster),
 as long as you are logged in to your Runhouse account.
 
 .. code:: ipython3
