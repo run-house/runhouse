@@ -67,7 +67,7 @@ def test_invalid_fn_sync_run(summer_func, ondemand_cpu_cluster):
 
     try:
         summer_func.get_or_call(run_name="invalid_run")
-    except ray.exceptions.RayTaskError as e:
+    except (ray.exceptions.RayTaskError, TypeError) as e:
         assert (
             str(e.args[0])
             == "summer() missing 2 required positional arguments: 'a' and 'b'"

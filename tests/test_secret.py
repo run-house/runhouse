@@ -86,7 +86,7 @@ def test_upload_all_provider_secrets_to_vault():
 
 @pytest.mark.rnstest
 def test_add_ssh_secrets():
-    from runhouse.rns.secrets import SSHSecrets
+    from runhouse.rns.secrets.ssh_secrets import SSHSecrets
 
     provider = "ssh"
     # Save to local .ssh directory
@@ -114,7 +114,7 @@ def test_add_ssh_secrets():
 
 @pytest.mark.rnstest
 def test_add_github_secrets():
-    from runhouse.rns.secrets import GitHubSecrets
+    from runhouse.rns.secrets.github_secrets import GitHubSecrets
 
     provider = "github"
 
