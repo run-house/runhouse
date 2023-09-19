@@ -31,7 +31,8 @@ def test_roundtrip_performance(summer_func):
     times_list, avg_time = profile(lambda: summer_func(1, 5, stream_logs=False) == 6)
     print(f"Call without logs took {round(avg_time, 2)} ms: {times_list}")
 
-    call_url = "http://127.0.0.1:50052/call/summer_func/call/?serialization=None"
+    port = summer_func.system.client.port
+    call_url = f"http://127.0.0.1:{port}/call/summer_func/call/?serialization=None"
     times_list, avg_time = profile(
         lambda: requests.post(call_url, json={"args": [1, 2]}).json() == 3
     )

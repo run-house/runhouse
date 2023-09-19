@@ -992,7 +992,7 @@ def module(
     Returns:
         Module: The resulting module.
 
-    Example:
+    Example - creating a module by defining an rh.Module subclass:
         >>> import runhouse as rh
         >>> import transformers
         >>>
@@ -1026,17 +1026,22 @@ def module(
         >>> # Creating rh.Module instance
         >>> model = Model(model_id="bert-base-uncased", device="cuda", system="my_gpu", env="my_env")
         >>> model.predict("Hello world!")   # Runs on system in env
-        >>> tok = model.remote.tokenizer     # Returns remote tokenizer
+        >>> tok = model.remote.tokenizer    # Returns remote tokenizer
+        >>> id = model.local.model_id       # Returns local model_id, if any
         >>> model_id = model.model_id       # Returns local model_id (not remote)
         >>> model.fetch()                   # Returns full remote module, including model and tokenizer
         >>>
-        >>> # You can also create a model locally and then send it to a cluster with .to
+
+    Example - creating a Module from an existing class, via the rh.module() factory method:
         >>> other_model = Model(model_id="bert-base-uncased", device="cuda").to("my_gpu", "my_env")
         >>>
         >>> # Another method: Create a module instance from an existing non-Module class using rh.module()
         >>> RemoteModel = rh.module(cls=BERTModel, system="my_gpu", env="my_env")
         >>> remote_model = RemoteModel(model_id="bert-base-uncased", device="cuda")
         >>> remote_model.predict("Hello world!")  # Runs on system in env
+        >>>
+        >>> # You can also call remote class methods
+        >>> other_model = RemoteModel.get_model_size("bert-base-uncased")
 
         >>> # Loading a module
         >>> my_local_module = rh.module(name="~/my_module")
