@@ -198,10 +198,8 @@ remove secrets from Runhouse, you can call ``runhouse logout`` or
 
 Some notes on security:
 
-* Our API servers only ever store light metadata about your resources (e.g. folder name, cloud provider, storage bucket, path). All actual data and compute stays inside your own cloud account
-and never hits our servers.
-* Secrets are stored in `Hashicorp Vault <https://www.vaultproject.io/>`__ (an industry standard for secrets management), never on our API servers, and our APIs simply call
-into Vault’s APIs.
+* Our API servers only ever store light metadata about your resources (e.g. folder name, cloud provider, storage bucket, path). All actual data and compute stays inside your own cloud account and never hits our servers.
+* Secrets are stored in `Hashicorp Vault <https://www.vaultproject.io/>`__ (an industry standard for secrets management), never on our API servers, and our APIs simply call into Vault’s APIs.
 
 .. code:: ipython3
 
