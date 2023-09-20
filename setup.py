@@ -62,18 +62,20 @@ def parse_readme(readme: str) -> str:
 
 
 install_requires = [
-    "wheel",
-    "rich",
-    "fsspec<=2023.5.0",
-    "pyarrow",
-    "sshtunnel>=0.3.0",
-    "sshfs",
-    "typer",
-    "skypilot==0.3.3",
-    "sentry-sdk",
     "fastapi",
-    "uvicorn",
+    "fsspec<=2023.5.0",
+    "opentelemetry-instrumentation-fastapi",
+    "opentelemetry-sdk",
+    "pyarrow",
     "pyOpenSSL>=21.1.0",
+    "rich",
+    "sentry-sdk",
+    "skypilot==0.3.3",
+    "sshfs",
+    "sshtunnel>=0.3.0",
+    "typer",
+    "uvicorn",
+    "wheel",
 ]
 
 # NOTE: Change the templates/spot-controller.yaml.j2 file if any of the following

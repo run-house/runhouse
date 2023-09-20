@@ -12,6 +12,11 @@ import requests
 from fastapi import Body, FastAPI
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
+from opentelemetry import trace
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import InMemorySpanExporter
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 from runhouse.globals import configs, env_servlets, rns_client
@@ -184,6 +189,15 @@ class HTTPServer:
                 return resource_config["env"]
 
         return None
+
+    @staticmethod
+    @app.get("/spans")
+    def get_spans():
+        return {
+            "spans": [
+                span.to_readable_dict() for span in memory_exporter.get_finished_spans()
+            ]
+        }
 
     @staticmethod
     @app.post("/resource")
@@ -551,9 +565,38 @@ if __name__ == "__main__":
     parser.add_argument(
         "--conda_env", type=str, default=None, help="Conda env to run server in"
     )
+    parser.add_argument(
+        "--enable_local_span_collection",
+        type=bool,
+        default=None,
+        help="Enable local span collection",
+    )
     parse_args = parser.parse_args()
     port = parse_args.port
     conda_name = parse_args.conda_env
+
+    # If enable_local_span_collection flag is passed, setup the span exporter and related functionality
+    if parse_args.enable_local_span_collection:
+        trace.set_tracer_provider(TracerProvider())
+        memory_exporter = InMemorySpanExporter()
+        span_processor = trace.get_tracer_provider().add_span_processor(
+            trace.export.SimpleExportSpanProcessor(memory_exporter)
+        )
+        # Instrument the app object
+        FastAPIInstrumentor.instrument_app(app)
+
+        # Instrument the requests library
+        RequestsInstrumentor().instrument()
+
+        @app.get("/spans")
+        def get_spans():
+            return {
+                "spans": [
+                    span.to_readable_dict()
+                    for span in memory_exporter.get_finished_spans()
+                ]
+            }
+
     import uvicorn
 
     HTTPServer(conda_env=conda_name)
