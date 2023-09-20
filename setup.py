@@ -69,7 +69,7 @@ install_requires = [
     "sshtunnel>=0.3.0",
     "sshfs",
     "typer",
-    "skypilot==0.3.3",
+    "skypilot==0.4.0",
     "sentry-sdk",
     "fastapi",
     "uvicorn",
