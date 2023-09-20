@@ -26,7 +26,7 @@ def fs_str_rh_fn(folder):
 def test_from_cluster(cluster):
     rh.folder(path="./").to(cluster, path="my_new_tests_folder")
     tests_folder = rh.folder(system=cluster, path="my_new_tests_folder")
-    assert "my_new_tests_folder/test_folder.py" in tests_folder.ls()
+    assert "my_new_tests_folder/requirements.txt" in tests_folder.ls()
 
 
 @pytest.mark.awstest

@@ -29,15 +29,15 @@ class ObjStore:
         # This needs to be in a separate method so the HTTPServer actually
         # initalizes the obj_store, and it doesn't get created and destroyed when
         # nginx runs http_server.py as a module.
-        from runhouse.resources.kvstores import KVStore
+        from runhouse.resources.kvstores import Kvstore
 
         self.servlet_name = servlet_name or "base"
         num_gpus = ray.cluster_resources().get("GPU", 0)
         cuda_visible_devices = list(range(int(num_gpus)))
         os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
-        self._kv_store = KVStore()
+        self._kv_store = Kvstore()
         self._env_for_key = (
-            ray.remote(KVStore)
+            ray.remote(Kvstore)
             .options(
                 name="env_for_key",
                 get_if_exists=True,

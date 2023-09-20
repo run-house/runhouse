@@ -1,2 +1,2 @@
 # TODO Redis, Mongo, Feast, BigTable, DynamoDB, etc.
-from .kvstore import KVStore
+from .kvstore import Kvstore

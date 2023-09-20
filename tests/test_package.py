@@ -70,7 +70,7 @@ def test_share_git_package():
         access_type="read",
         notify_users=False,
     )
-    assert rh.exists(name_or_path="shared_git_package")
+    assert rh.exists(name="shared_git_package")
 
 
 @pytest.mark.rnstest

@@ -32,6 +32,7 @@ class Resource:
         - Compute Abstractions
             - Cluster :py:class:`.hardware.cluster.Cluster`
             - Function :py:class:`.function.Function`
+            - Module :py:class`.module.Module`
             - Package :py:class:`.packages.package.Package`
             - Env: :py:class:`.envs.env.Env`
 

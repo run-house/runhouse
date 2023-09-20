@@ -70,7 +70,7 @@ install_requires = [
     "pyOpenSSL>=21.1.0",
     "rich",
     "sentry-sdk",
-    "skypilot==0.3.3",
+    "skypilot==0.4.0",
     "sshfs",
     "sshtunnel>=0.3.0",
     "typer",

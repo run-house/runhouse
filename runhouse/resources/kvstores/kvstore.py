@@ -4,7 +4,7 @@ from runhouse import Cluster, Env
 from runhouse.resources.module import Module
 
 
-class KVStore(Module):
+class Kvstore(Module):
     RESOURCE_TYPE = "kvstore"
     DEFAULT_CACHE_FOLDER = ".cache/runhouse/kvstores"
 

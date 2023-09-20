@@ -56,7 +56,7 @@ There are three types of supported cluster types:
    :ref:`On-Demand Cluster` for instructions on first getting
    cloud credentials set up.
 
-3. **SageMaker Cluster**: Clusters that are created and managed
+3. **SageMaker Cluster (Alpha)**: Clusters that are created and managed
    through SageMaker, which can be used as a compute backend (just like BYO or On-Demand clusters)
    or for running dedicated training jobs. Please refer to the :ref:`SageMaker Cluster` section for instructions on
    getting setup with SageMaker.

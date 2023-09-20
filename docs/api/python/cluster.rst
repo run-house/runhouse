@@ -59,6 +59,11 @@ For a more in depth tutorial on setting up individual cloud credentials, you can
 
 SageMakerCluster Class
 ~~~~~~~~~~~~~~~~~~~~~
+.. note::
+
+    SageMaker support is an alpha and under active development. Please report any bugs or let us know of any
+    feature requests.
+
 A SageMakerCluster is a cluster that uses a SageMaker instance under the hood.
 
 Runhouse currently supports two core usage paths for SageMaker clusters:
