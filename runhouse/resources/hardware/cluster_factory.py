@@ -61,10 +61,6 @@ def cluster(
         )
 
     if "instance_type" in kwargs.keys():
-        warnings.warn(
-            "The `cluster` factory is intended to be used for static clusters. "
-            "If you would like to create an on-demand cluster, please use `rh.ondemand_cluster()` instead."
-        )
         return ondemand_cluster(name=name, **kwargs)
 
     if any(
