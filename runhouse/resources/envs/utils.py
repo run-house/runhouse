@@ -49,7 +49,7 @@ def _get_env_from(env):
         return Env(reqs=env, working_dir="./", name=Env.DEFAULT_NAME)
     elif isinstance(env, Dict):
         return Env.from_config(env)
-    elif isinstance(env, str) and rns_client.exists(env, resource_type="env"):
+    elif isinstance(env, str) and Env.DEFAULT_NAME not in env and rns_client.exists(env, resource_type="env"):
         return Env.from_name(env)
     return env
 
