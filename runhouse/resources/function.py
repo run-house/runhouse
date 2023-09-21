@@ -445,7 +445,9 @@ def function(
         warnings.warn(
             "``reqs`` argument has been deprecated. Please use ``env`` instead."
         )
-        env = Env(reqs=reqs, setup_cmds=setup_cmds, working_dir="./", name=Env.DEFAULT_NAME)
+        env = Env(
+            reqs=reqs, setup_cmds=setup_cmds, working_dir="./", name=Env.DEFAULT_NAME
+        )
     elif not isinstance(env, Env):
         env = _get_env_from(env) or Env(working_dir="./", name=Env.DEFAULT_NAME)
 

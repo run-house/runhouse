@@ -13,18 +13,18 @@ DEFAULT_BLOB_STORAGE_FOLDER = (
 )
 
 
-def _generate_default_name(prefix: str = None, precision: str = "s") -> str:
+def _generate_default_name(prefix: str = None, precision: str = "s", sep="_") -> str:
     """Name of the Run's parent folder which contains the Run's data (config, stdout, stderr, etc).
     If a name is provided, prepend that to the current timestamp to complete the folder name."""
     if precision == "d":
         timestamp_key = f"{datetime.now().strftime('%Y%m%d')}"
     elif precision == "s":
-        timestamp_key = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        timestamp_key = f"{datetime.now().strftime(f'%Y%m%d{sep}%H%M%S')}"
     elif precision == "ms":
-        timestamp_key = f"{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+        timestamp_key = f"{datetime.now().strftime(f'%Y%m%d{sep}%H%M%S{sep}%f')}"
     if prefix is None:
         return timestamp_key
-    return f"{prefix}_{timestamp_key}"
+    return f"{prefix}{sep}{timestamp_key}"
 
 
 def _generate_default_path(cls, name, system):

@@ -33,6 +33,7 @@ from sshtunnel import BaseSSHTunnelForwarderError, SSHTunnelForwarder
 
 from runhouse.globals import configs, open_cluster_tunnels, rns_client
 from runhouse.rns.utils.api import is_jsonable, resolve_absolute_path
+from runhouse.rns.utils.names import _generate_default_name
 
 from .cluster import Cluster
 from .utils import SkySSHRunner
@@ -101,8 +102,11 @@ class SageMakerCluster(Cluster):
         self._estimator_source_dir = kwargs.get("estimator_source_dir")
         self._estimator_framework = kwargs.get("estimator_framework")
 
-        self.instance_id = instance_id
         self.job_name = job_name
+        # Either use the user-provided instance_id, or look it up from the job_name
+        self.instance_id = instance_id or (
+            self._cluster_instance_id() if self.job_name else None
+        )
 
         self.autostop_mins = (
             autostop_mins
@@ -822,7 +826,10 @@ class SageMakerCluster(Cluster):
             logger.warning("No estimator found, cannot run job.")
             return
 
-        self.estimator.fit(wait=False, job_name=self.job_name)
+        self.estimator.fit(
+            wait=False,
+            job_name=self.job_name or _generate_default_name(self.name, sep="-"),
+        )
 
     def _load_base_command_for_ssm_session(self) -> str:
         """Bash script command for creating the SSM session and uploading the SSH keys to the cluster. Will try
@@ -1039,10 +1046,17 @@ class SageMakerCluster(Cluster):
     def _cluster_instance_id(self):
         """Get the instance ID of the cluster. This is the ID of the instance running the training job generated
         by SageMaker."""
-        try:
-            return self._ssh_wrapper.get_instance_ids()[0]
-        except Exception as e:
-            raise e
+        if self._ssh_wrapper:
+            # This is a hack to effectively do list.get(0, None)
+            return next(iter(self._ssh_wrapper.get_instance_ids()), None)
+
+        from sagemaker_ssh_helper.manager import SSMManager
+
+        ssm_manager = SSMManager(region_name=self.region)
+        ssm_manager.redo_attempts = 0
+        instance_ids = ssm_manager.get_training_instance_ids(self.job_name)
+        # This is a hack to effectively do list.get(0, None)
+        return next(iter(instance_ids), None)
 
     def _get_path_for_module(self, resource_name: str) -> str:
         import importlib.resources as pkg_resources
@@ -1178,7 +1192,7 @@ class SageMakerCluster(Cluster):
 
         # **Note** temp patch to handle PyYAML errors: https://github.com/yaml/pyyaml/issues/724
         base_rh_install_cmd = (
-            f"{self._env_activate_cmd} && python3 -m pip install 'cython<3.0.0'"
+            f'{self._env_activate_cmd} && python3 -m pip install "cython<3.0.0"'
         )
 
         # Check if runhouse is installed from source and has setup.py
