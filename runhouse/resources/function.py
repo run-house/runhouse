@@ -100,11 +100,11 @@ class Function(Module):
             warnings.warn(
                 "``reqs`` and ``setup_cmds`` arguments has been deprecated. Please use ``env`` instead."
             )
-            env = Env(reqs=reqs, setup_cmds=setup_cmds)
+            env = Env(reqs=reqs, setup_cmds=setup_cmds, name=Env.DEFAULT_NAME)
         elif env and isinstance(env, List):
-            env = Env(reqs=env, setup_cmds=setup_cmds)
+            env = Env(reqs=env, setup_cmds=setup_cmds, name=Env.DEFAULT_NAME)
         else:
-            env = env or self.env or Env()
+            env = env or self.env or Env(name=Env.DEFAULT_NAME)
             env = _get_env_from(env)
 
         if (
@@ -445,9 +445,9 @@ def function(
         warnings.warn(
             "``reqs`` argument has been deprecated. Please use ``env`` instead."
         )
-        env = Env(reqs=reqs, setup_cmds=setup_cmds, working_dir="./")
+        env = Env(reqs=reqs, setup_cmds=setup_cmds, working_dir="./", name=Env.DEFAULT_NAME)
     elif not isinstance(env, Env):
-        env = _get_env_from(env) or Env(working_dir="./")
+        env = _get_env_from(env) or Env(working_dir="./", name=Env.DEFAULT_NAME)
 
     fn_pointers = None
     if callable(fn):

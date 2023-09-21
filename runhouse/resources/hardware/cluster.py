@@ -202,7 +202,7 @@ class Cluster(Resource):
         from runhouse.resources.envs.env import Env
 
         self.check_server()
-        env = _get_env_from(env) or Env(name=env)
+        env = _get_env_from(env) or Env(name=env or Env.DEFAULT_NAME)
         env.reqs = env._reqs + reqs
         env.to(self)
 

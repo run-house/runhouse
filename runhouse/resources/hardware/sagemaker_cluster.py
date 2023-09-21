@@ -822,10 +822,7 @@ class SageMakerCluster(Cluster):
             logger.warning("No estimator found, cannot run job.")
             return
 
-        try:
-            self.estimator.fit(wait=False, job_name=self.job_name)
-        except Exception as e:
-            raise e
+        self.estimator.fit(wait=False, job_name=self.job_name)
 
     def _load_base_command_for_ssm_session(self) -> str:
         """Bash script command for creating the SSM session and uploading the SSH keys to the cluster. Will try
@@ -1000,14 +997,11 @@ class SageMakerCluster(Cluster):
 
     def _upload_key_to_s3(self, bucket, key, body):
         """Save a public key to the authorized file in the default bucket for given SageMaker role."""
-        try:
-            self._s3_client.put_object(
-                Bucket=bucket,
-                Key=key,
-                Body=body,
-            )
-        except Exception as e:
-            raise e
+        self._s3_client.put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=body,
+        )
 
     def _load_authorized_keys(self, bucket, auth_keys_file) -> Union[str, None]:
         """Load the authorized keys file for this AWS role stored in S3. If no file exists, return None."""
@@ -1149,27 +1143,23 @@ class SageMakerCluster(Cluster):
 
     def _stop_instance(self, delete_configs=True):
         """Stop the SageMaker instance. Optionally remove its config from RNS."""
-        try:
-            self._sagemaker_session.stop_training_job(job_name=self.job_name)
+        self._sagemaker_session.stop_training_job(job_name=self.job_name)
 
-            if not self.is_up():
-                raise Exception(f"Failed to stop cluster {self.name}")
+        if not self.is_up():
+            raise Exception(f"Failed to stop cluster {self.name}")
 
-            logger.info(f"Successfully stopped cluster {self.name}")
+        logger.info(f"Successfully stopped cluster {self.name}")
 
-            # Remove stale host key(s) from known hosts
-            self._filter_known_hosts()
+        # Remove stale host key(s) from known hosts
+        self._filter_known_hosts()
 
-            if delete_configs:
-                # Delete from RNS
-                rns_client.delete_configs(resource=self)
+        if delete_configs:
+            # Delete from RNS
+            rns_client.delete_configs(resource=self)
 
-                # Delete entry from ~/.ssh/config
-                self._delete_ssh_config_entry()
-                logger.info(f"Deleted cluster {self.name} from configs")
-
-        except Exception as e:
-            raise e
+            # Delete entry from ~/.ssh/config
+            self._delete_ssh_config_entry()
+            logger.info(f"Deleted cluster {self.name} from configs")
 
     def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
         if not self.instance_id:
