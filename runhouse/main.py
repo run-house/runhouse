@@ -4,6 +4,7 @@ import time
 import webbrowser
 from pathlib import Path
 from typing import Optional
+import sys
 
 import typer
 from rich.console import Console
@@ -129,6 +130,7 @@ def _start_server(
     )
 
     try:
+
         # Open and read the lines of the server logfile so we only print the most recent lines after starting
         f = None
         if screen and Path(Cluster.SERVER_LOGFILE).exists():
@@ -136,13 +138,34 @@ def _start_server(
             f.readlines()  # Discard these, they're from the previous times the server was started
 
         # We do these one by one so it's more obvious where the error is if there is one
-        for cmd in cmds:
+        for i, cmd in enumerate(cmds):
+
+            last_cmd = i == len(cmds)-1
+
+            # need to clean up this execution logic 
+            if last_cmd:
+                try:
+                    # consider cleaning up this command to parameterize it more
+                    new_str = f"nohup {sys.executable} -m runhouse.servers.http.http_server >> /home/sky/.rh/server.log 2>&1 &"
+                    console.print(f"Executing `{new_str}`")
+                    output = subprocess.run(new_str, shell=True, check=True)
+                    if output.returncode != 0:
+                        reg_output = subprocess.run(shlex.split(cmd), text=True)
+                        if reg_output.returncode != 0:
+                            console.print(f"Error while executing `{cmd}`")
+                            raise typer.Exit(1)
+                        return 
+                    return
+                except subprocess.CalledProcessError as e:
+                    print(f"Error: {e}")    
+
             console.print(f"Executing `{cmd}`")
             result = subprocess.run(shlex.split(cmd), text=True)
             # We don't want to raise an error if the server kill fails, as it may simply not be running
             if result.returncode != 0 and "pkill" not in cmd:
                 console.print(f"Error while executing `{cmd}`")
                 raise typer.Exit(1)
+            
 
         server_started_str = "Uvicorn running on"
         # Read and print the server logs until the

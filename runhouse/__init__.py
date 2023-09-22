@@ -10,6 +10,8 @@ from runhouse.resources.hardware import (
     OnDemandCluster,
     sagemaker_cluster,
     SageMakerCluster,
+    kubernetes_cluster,
+    KubernetesCluster
 )
 
 # WARNING: Any built-in module that is imported here must be capitalized followed by all lowercase, or we will
