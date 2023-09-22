@@ -74,9 +74,9 @@ class Cluster(Resource):
         import json
 
         config = self.config_for_rns
-        if "sky_state" in config.keys():
+        if "live_state" in config.keys():
             # a bunch of setup commands that mess up json dump
-            del config["sky_state"]
+            del config["live_state"]
         json_config = f"{json.dumps(config)}"
 
         self.run(
@@ -379,9 +379,9 @@ class Cluster(Resource):
             try:
                 self.connect_server_client()
                 cluster_config = self.config_for_rns
-                if "sky_state" in cluster_config.keys():
+                if "live_state" in cluster_config.keys():
                     # a bunch of setup commands that mess up json dump
-                    del cluster_config["sky_state"]
+                    del cluster_config["live_state"]
                 logger.info(f"Checking server {self.name}")
                 self.client.check_server(cluster_config=cluster_config)
                 logger.info(f"Server {self.name} is up.")
@@ -903,6 +903,8 @@ class Cluster(Resource):
         Example:
             >>> cpu.sync_secrets(providers=["aws", "lambda"])
         """
+        self.check_server()
+
         from runhouse import Secrets
 
         Secrets.to(system=self, providers=providers)

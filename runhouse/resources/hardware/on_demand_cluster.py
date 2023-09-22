@@ -30,6 +30,9 @@ class OnDemandCluster(Cluster):
         autostop_mins=None,
         use_spot=False,
         image_id=None,
+        memory=None,
+        disk_size=None,
+        open_ports=None,
         region=None,
         sky_state=None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
@@ -54,16 +57,19 @@ class OnDemandCluster(Cluster):
         self.use_spot = use_spot if use_spot is not None else configs.get("use_spot")
         self.image_id = image_id
         self.region = region
+        self.memory = memory
+        self.disk_size = disk_size
+        self.open_ports = open_ports
 
         self.address = None
         self.client = None
-        self.sky_state = sky_state
+        self.live_state = sky_state
 
         # Checks if state info is in local sky db, populates if so.
         status_dict = self.status(refresh=False)
         if status_dict:
             self._populate_connection_from_status_dict(status_dict)
-        elif self.sky_state:
+        elif self.live_state:
             self._save_sky_state()
 
         if not self.address and not dryrun:
@@ -88,7 +94,7 @@ class OnDemandCluster(Cluster):
                 "use_spot": self.use_spot,
                 "image_id": self.image_id,
                 "region": self.region,
-                "sky_state": self._get_sky_state(),
+                "live_state": self._get_sky_state(),
             }
         )
         return config
@@ -136,22 +142,25 @@ class OnDemandCluster(Cluster):
             )
 
     def _save_sky_state(self):
-        if not self.sky_state:
+        if not self.live_state:
             raise ValueError("No sky state to save")
 
         # if we're on this cluster, no need to save sky state
         current_cluster_name = _current_cluster("cluster_name")
-        if self.sky_state.get("handle", {}).get("cluster_name") == current_cluster_name:
+        if (
+            self.live_state.get("handle", {}).get("cluster_name")
+            == current_cluster_name
+        ):
             return
 
-        handle_info = self.sky_state.get("handle", {})
+        handle_info = self.live_state.get("handle", {})
 
         # If we already have the cluster in local sky db,
         # we don't need to save the state, just populate the connection info from the status
         if not sky.global_user_state.get_cluster_from_name(self.name):
             # Try running a command on the cluster before saving down the state into sky db
             self.address = handle_info.get("head_ip")
-            self._ssh_creds = self.sky_state["ssh_creds"]
+            self._ssh_creds = self.live_state["ssh_creds"]
 
             try:
                 self._ping(timeout=self.RECONNECT_TIMEOUT)
@@ -203,8 +212,8 @@ class OnDemandCluster(Cluster):
             self._update_from_sky_status(dryrun=self.dryrun)
 
     def __getstate__(self):
-        """Make sure sky_state is loaded in before pickling."""
-        self.sky_state = self._get_sky_state()
+        """Make sure live_state is loaded in before pickling."""
+        self.live_state = self._get_sky_state()
         return super().__getstate__()
 
     @staticmethod
@@ -319,7 +328,10 @@ class OnDemandCluster(Cluster):
                     and ":" in self.instance_type
                     and "CPU" in self.instance_type
                     else None,
-                    region=self.region,
+                    memory=self.memory,
+                    region=self.region or configs.get("default_region"),
+                    disk_size=self.disk_size,
+                    ports=self.open_ports,
                     image_id=self.image_id,
                     use_spot=self.use_spot,
                 )
@@ -416,8 +428,8 @@ class OnDemandCluster(Cluster):
         if self._ssh_creds:
             return self._ssh_creds
 
-        if not self.status(refresh=False) and self.sky_state:
-            # If this cluster was serialized and sent over the wire, it will have sky_state (we make sure of that
+        if not self.status(refresh=False) and self.live_state:
+            # If this cluster was serialized and sent over the wire, it will have live_state (we make sure of that
             # in __getstate__) but no yaml, and we need to save down the sky data to the sky db and local yaml
             self._save_sky_state()
         else:
