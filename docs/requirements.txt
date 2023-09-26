@@ -1,6 +1,9 @@
 chardet==4.0.0
 myst-parser==2.0.0
+opentelemetry-api==1.20.0
+opentelemetry-instrumentation==0.20b0
 opentelemetry-instrumentation-fastapi==0.41b0
+opentelemetry-instrumentation-requests==0.20b0
 opentelemetry-sdk==1.20.0
 pint==0.20.1
 pyarrow==9.0.0
