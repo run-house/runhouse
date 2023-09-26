@@ -16,7 +16,8 @@ from opentelemetry import trace
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import InMemorySpanExporter
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 from runhouse.globals import configs, env_servlets, rns_client
@@ -42,8 +43,36 @@ class HTTPServer:
     LOGGING_WAIT_TIME = 1
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
 
-    def __init__(self, conda_env=None, *args, **kwargs):
+    memory_exporter = None
+
+    def __init__(
+        self, conda_env=None, enable_local_span_collection=None, *args, **kwargs
+    ):
         runtime_env = {"conda": conda_env} if conda_env else {}
+
+        # If enable_local_span_collection flag is passed, setup the span exporter and related functionality
+        if enable_local_span_collection:
+            trace.set_tracer_provider(TracerProvider())
+            self.memory_exporter = InMemorySpanExporter()
+            trace.get_tracer_provider().add_span_processor(
+                SimpleSpanProcessor(self.memory_exporter)
+            )
+            # Instrument the app object
+            FastAPIInstrumentor.instrument_app(app)
+
+            # Instrument the requests library
+            RequestsInstrumentor().instrument()
+
+            @staticmethod
+            @app.get("/spans")
+            def get_spans():
+                print("Calling get_spans")
+                return {
+                    "spans": [
+                        span.to_json()
+                        for span in self.memory_exporter.get_finished_spans()
+                    ]
+                }
 
         if not ray.is_initialized():
             ray.init(
@@ -189,15 +218,6 @@ class HTTPServer:
                 return resource_config["env"]
 
         return None
-
-    @staticmethod
-    @app.get("/spans")
-    def get_spans():
-        return {
-            "spans": [
-                span.to_readable_dict() for span in memory_exporter.get_finished_spans()
-            ]
-        }
 
     @staticmethod
     @app.post("/resource")
@@ -574,30 +594,12 @@ if __name__ == "__main__":
     parse_args = parser.parse_args()
     port = parse_args.port
     conda_name = parse_args.conda_env
-
-    # If enable_local_span_collection flag is passed, setup the span exporter and related functionality
-    if parse_args.enable_local_span_collection:
-        trace.set_tracer_provider(TracerProvider())
-        memory_exporter = InMemorySpanExporter()
-        span_processor = trace.get_tracer_provider().add_span_processor(
-            trace.export.SimpleExportSpanProcessor(memory_exporter)
-        )
-        # Instrument the app object
-        FastAPIInstrumentor.instrument_app(app)
-
-        # Instrument the requests library
-        RequestsInstrumentor().instrument()
-
-        @app.get("/spans")
-        def get_spans():
-            return {
-                "spans": [
-                    span.to_readable_dict()
-                    for span in memory_exporter.get_finished_spans()
-                ]
-            }
+    should_enable_local_span_collection = parse_args.enable_local_span_collection
 
     import uvicorn
 
-    HTTPServer(conda_env=conda_name)
+    HTTPServer(
+        conda_env=conda_name,
+        enable_local_span_collection=should_enable_local_span_collection,
+    )
     uvicorn.run(app, host="127.0.0.1", port=port)

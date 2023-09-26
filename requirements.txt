@@ -1,6 +1,8 @@
 fastapi
 fsspec<=2023.5.0
+opentelemetry-instrumentation
 opentelemetry-instrumentation-fastapi
+opentelemetry-instrumentation-requests
 opentelemetry-sdk
 pyarrow
 pyopenssl>=21.1.0
