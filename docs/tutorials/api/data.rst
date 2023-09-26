@@ -20,7 +20,7 @@ Install Runhouse and Setup Cluster
 
 .. code:: ipython3
 
-    !pip install runhouse[aws]
+    !pip install "runhouse[aws]"
 
 .. code:: ipython3
 
