@@ -35,6 +35,7 @@ class OnDemandCluster(Cluster):
         open_ports=None,
         region=None,
         sky_state=None,
+        live_state=None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
@@ -63,7 +64,8 @@ class OnDemandCluster(Cluster):
 
         self.address = None
         self.client = None
-        self.live_state = sky_state
+        # TODO remove after 0.0.13
+        self.live_state = sky_state or live_state
 
         # Checks if state info is in local sky db, populates if so.
         status_dict = self.status(refresh=False)
