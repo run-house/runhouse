@@ -69,7 +69,6 @@ def cluster(
             "role",
             "estimator",
             "instance_type",
-            "autostop_mins",
             "connection_wait_time",
             "instance_count",
         ]
@@ -93,10 +92,15 @@ def ondemand_cluster(
     use_spot: bool = False,
     image_id: Optional[str] = None,
     region: Optional[str] = None,
+    memory: Union[int, str, None] = None,
+    disk_size: Union[int, str, None] = None,
+    open_ports: Union[int, str, List[int], None] = None,
     dryrun: bool = False,
 ) -> OnDemandCluster:
     """
-    Builds an instance of :class:`OnDemandCluster`.
+    Builds an instance of :class:`OnDemandCluster`. Note that image_id, region, memory, disk_size, and open_ports
+    are all passed through to SkyPilot's Resource constructor:
+    https://skypilot.readthedocs.io/en/latest/reference/api.html#resources
 
     Args:
         name (str): Name for the cluster, to re-use later on.
@@ -109,6 +113,10 @@ def ondemand_cluster(
         use_spot (bool, optional): Whether or not to use spot instance.
         image_id (str, optional): Custom image ID for the cluster.
         region (str, optional): The region to use for the cluster.
+        memory (int or str, optional): Amount of memory to use for the cluster, e.g. "16" or "16+".
+        disk_size (int or str, optional): Amount of disk space to use for the cluster, e.g. "100" or "100+".
+        open_ports (int or str or List[int], optional): Ports to open in the cluster's security group. Note
+            that you are responsible for ensuring that the applications listening on these ports are secure.
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
 
@@ -130,9 +138,25 @@ def ondemand_cluster(
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.ondemand_cluster(name="rh-4-a100s")
     """
-    if name and not any([instance_type, num_instances, provider, image_id, region]):
-        # If only the name is provided and dryrun is set to True
-        return Cluster.from_name(name, dryrun)
+    if name:
+        alt_options = dict(
+            instance_type=instance_type,
+            num_instances=num_instances,
+            provider=provider,
+            region=region,
+            image_id=image_id,
+            memory=memory,
+            disk_size=disk_size,
+            open_ports=open_ports,
+        )
+        # Filter out None/default values
+        alt_options = {k: v for k, v in alt_options.items() if v is not None}
+        try:
+            c = Cluster.from_name(name, dryrun, alt_options=alt_options)
+            if c:
+                return c
+        except ValueError:
+            pass
 
     if name in RESERVED_SYSTEM_NAMES:
         raise ValueError(
@@ -148,6 +172,9 @@ def ondemand_cluster(
         use_spot=use_spot,
         image_id=image_id,
         region=region,
+        memory=memory,
+        disk_size=disk_size,
+        open_ports=open_ports,
         name=name,
         dryrun=dryrun,
     )

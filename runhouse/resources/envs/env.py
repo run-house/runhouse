@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class Env(Resource):
     RESOURCE_TYPE = "env"
+    DEFAULT_NAME = "base_env"
 
     def __init__(
         self,

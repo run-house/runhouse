@@ -109,7 +109,7 @@ class Module(Resource):
         is_builtin = hasattr(sys.modules["runhouse"], self.__class__.__qualname__)
         if not cls_pointers and not is_builtin:
             # When creating a module as a subclass of rh.Module, we need to collect pointers here
-            self._env = env or Env()
+            self._env = env or Env(name=Env.DEFAULT_NAME)
             # If we're creating pointers, we're also local to the class definition and package, so it should be
             # set as the workdir (we can do this in a fancier way later)
             self._env.working_dir = self._env.working_dir or "./"
@@ -1054,7 +1054,7 @@ def module(
     system = _get_cluster_from(system or _current_cluster(key="config"), dryrun=dryrun)
 
     if not isinstance(env, Env):
-        env = _get_env_from(env) or Env()
+        env = _get_env_from(env) or Env(name=Env.DEFAULT_NAME)
         env.working_dir = env.working_dir or "./"
 
     pointers = Module._extract_pointers(cls, env.reqs)

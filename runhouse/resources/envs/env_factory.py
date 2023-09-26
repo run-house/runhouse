@@ -64,7 +64,7 @@ def env(
             setup_cmds=setup_cmds,
             env_vars=env_vars,
             working_dir=working_dir,
-            name=name,
+            name=name or conda_yaml["name"],
             dryrun=dryrun,
         )
 
@@ -73,7 +73,7 @@ def env(
         setup_cmds=setup_cmds,
         env_vars=env_vars,
         working_dir=working_dir,
-        name=name,
+        name=name or Env.DEFAULT_NAME,
         dryrun=dryrun,
     )
 

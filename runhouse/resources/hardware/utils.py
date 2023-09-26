@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import sky.utils.command_runner as cr
 
 import yaml
+from sky.skylet import log_lib
 
 from sky.utils.command_runner import ssh_options_list, SSHCommandRunner, SshMode
 
@@ -97,9 +98,97 @@ class SkySSHRunner(SSHCommandRunner):
             + ssh_options_list(
                 self.ssh_private_key,
                 self.ssh_control_name,
+                port=None,
                 ssh_proxy_command=self._ssh_proxy_command,
             )
             + [f"{self.ssh_user}@{self.ip}"]
+        )
+
+    def run(
+        self,
+        cmd: Union[str, List[str]],
+        *,
+        require_outputs: bool = False,
+        port_forward: Optional[List[int]] = None,
+        # Advanced options.
+        log_path: str = os.devnull,
+        # If False, do not redirect stdout/stderr to optimize performance.
+        process_stream: bool = True,
+        stream_logs: bool = True,
+        ssh_mode: SshMode = SshMode.NON_INTERACTIVE,
+        separate_stderr: bool = False,
+        **kwargs,
+    ) -> Union[int, Tuple[int, str, str]]:
+        """This is identical to the SkyPilot command runner, other than logging the full command to be run
+        before running it."""
+        base_ssh_command = self._ssh_base_command(
+            ssh_mode=ssh_mode, port_forward=port_forward
+        )
+        if ssh_mode == SshMode.LOGIN:
+            assert isinstance(cmd, list), "cmd must be a list for login mode."
+            command = base_ssh_command + cmd
+            proc = subprocess_utils.run(command, shell=False, check=False)
+            return proc.returncode, "", ""
+        if isinstance(cmd, list):
+            cmd = " ".join(cmd)
+
+        log_dir = os.path.expanduser(os.path.dirname(log_path))
+        os.makedirs(log_dir, exist_ok=True)
+        # We need this to correctly run the cmd, and get the output.
+        command = [
+            "bash",
+            "--login",
+            "-c",
+            # Need this `-i` option to make sure `source ~/.bashrc` work.
+            "-i",
+        ]
+
+        command += [
+            shlex.quote(
+                f"true && source ~/.bashrc && export OMP_NUM_THREADS=1 "
+                f"PYTHONWARNINGS=ignore && ({cmd})"
+            ),
+        ]
+        if not separate_stderr:
+            command.append("2>&1")
+        if not process_stream and ssh_mode == SshMode.NON_INTERACTIVE:
+            command += [
+                # A hack to remove the following bash warnings (twice):
+                #  bash: cannot set terminal process group
+                #  bash: no job control in this shell
+                "| stdbuf -o0 tail -n +5",
+                # This is required to make sure the executor of command can get
+                # correct returncode, since linux pipe is used.
+                "; exit ${PIPESTATUS[0]}",
+            ]
+
+        command_str = " ".join(command)
+        command = base_ssh_command + [shlex.quote(command_str)]
+
+        executable = None
+        if not process_stream:
+            if stream_logs:
+                command += [
+                    f"| tee {log_path}",
+                    # This also requires the executor to be '/bin/bash' instead
+                    # of the default '/bin/sh'.
+                    "; exit ${PIPESTATUS[0]}",
+                ]
+            else:
+                command += [f"> {log_path}"]
+            executable = "/bin/bash"
+
+        # This log should be the only difference between our command
+        logging.info(f"Running command: {' '.join(command)}")
+        return log_lib.run_with_log(
+            " ".join(command),
+            log_path,
+            require_outputs=require_outputs,
+            stream_logs=stream_logs,
+            process_stream=process_stream,
+            shell=True,
+            executable=executable,
+            **kwargs,
         )
 
     def tunnel(self, local_port, remote_port):
@@ -107,6 +196,7 @@ class SkySSHRunner(SSHCommandRunner):
             ssh_mode=SshMode.NON_INTERACTIVE, port_forward=[(local_port, remote_port)]
         )
         command = " ".join(base_cmd + ["tail"])
+        logger.info(f"Running command: {command}")
         proc = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE)
 
         time.sleep(3)
