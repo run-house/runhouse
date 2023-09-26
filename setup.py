@@ -64,7 +64,10 @@ def parse_readme(readme: str) -> str:
 install_requires = [
     "fastapi",
     "fsspec<=2023.5.0",
+    "opentelemetry-api",
+    "opentelemetry-instrumentation",
     "opentelemetry-instrumentation-fastapi",
+    "opentelemetry-instrumentation-requests",
     "opentelemetry-sdk",
     "pyarrow",
     "pyOpenSSL>=21.1.0",

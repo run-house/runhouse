@@ -12,12 +12,7 @@ import requests
 from fastapi import Body, FastAPI
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
-from opentelemetry import trace
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.requests import RequestsInstrumentor
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 from runhouse.globals import configs, env_servlets, rns_client
@@ -52,6 +47,15 @@ class HTTPServer:
 
         # If enable_local_span_collection flag is passed, setup the span exporter and related functionality
         if enable_local_span_collection:
+            from opentelemetry import trace
+            from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+            from opentelemetry.instrumentation.requests import RequestsInstrumentor
+            from opentelemetry.sdk.trace import TracerProvider
+            from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+            from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+                InMemorySpanExporter,
+            )
+
             trace.set_tracer_provider(TracerProvider())
             self.memory_exporter = InMemorySpanExporter()
             trace.get_tracer_provider().add_span_processor(
