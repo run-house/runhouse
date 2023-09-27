@@ -31,7 +31,6 @@ logger = logging.getLogger(__name__)
 
 
 class EnvServlet:
-    DEFAULT_PORT = 50052
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     LOGGING_WAIT_TIME = 1.0
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
