@@ -601,7 +601,7 @@ class Module(Resource):
 
         return LocalPropertyWrapper()
 
-    def fetch(self, item: str = None, stream_logs: bool = False):
+    def fetch(self, item: str = None, stream_logs: bool = False, **kwargs):
         """Helper method to allow for access to remote state, both public and private. Fetching functions
         is not advised. `system.get(module.name).resolved_state()` is roughly equivalent to `module.fetch()`.
 
@@ -638,8 +638,8 @@ class Module(Resource):
             return system.call(name, item, stream_logs=stream_logs)
         else:
             if not isinstance(system, Cluster) or not name:
-                return self.resolved_state()
-            return system.get(name, stream_logs=stream_logs).resolved_state()
+                return self.resolved_state(**kwargs)
+            return system.get(name, stream_logs=stream_logs).resolved_state(**kwargs)
 
     async def fetch_async(
         self, key: str, remote: bool = False, stream_logs: bool = False

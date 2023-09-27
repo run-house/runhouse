@@ -131,22 +131,25 @@ class File(Blob):
             return new_blob
 
         new_file = copy.copy(self)
-        new_file.local._folder = self._folder.to(
-            system=system, path=path, data_config=data_config
+        new_file.local._folder = folder(
+            path=str(Path(path).parent) if path is not None else path,
+            system=system,
+            data_config=data_config,
         )
+        new_file.write(self.fetch(mode="r"), serialize=False)
         return new_file
 
-    def resolved_state(self, deserialize: bool = True):
+    def resolved_state(self, deserialize: bool = True, mode: str = "rb"):
         """Return the data for the user to deserialize. Primarily used to define the behavior of the ``fetch`` method.
 
         Example:
             >>> data = file.fetch()
         """
-        self.local._cached_data = self._folder.get(self._filename)
+        self.local._cached_data = self._folder.get(self._filename, mode=mode)
         if deserialize:
             try:
                 deserialized_data = pickle.loads(self._cached_data)
-            except pickle.UnpicklingError:
+            except (pickle.UnpicklingError, TypeError):
                 deserialized_data = self._cached_data
             self.local._cached_data = deserialized_data
         return self._cached_data
@@ -155,7 +158,7 @@ class File(Blob):
         if isinstance(self.system, Cluster):
             self.system.save()
 
-    def write(self, data, serialize: bool = True):
+    def write(self, data, serialize: bool = True, mode: str = "wb"):
         """Save the underlying file to its specified fsspec URL.
 
         Example:
@@ -164,12 +167,7 @@ class File(Blob):
         self._folder.mkdir()
         if serialize:
             data = pickle.dumps(data)
-        elif not isinstance(data, bytes):
-            # Avoid TypeError: a bytes-like object is required
-            raise TypeError(
-                f"Cannot save file with data of type {type(data)}, data must be serialized or set serialize=True"
-            )
-        with self.open(mode="wb") as f:
+        with self.open(mode=mode) as f:
             f.write(data)
         return self
 
