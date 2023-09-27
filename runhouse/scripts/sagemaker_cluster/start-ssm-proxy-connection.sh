@@ -20,10 +20,10 @@ echo "PORT_FWD_ARGS: $PORT_FWD_ARGS"
 
 instance_status=$(aws ssm describe-instance-information --filters Key=InstanceIds,Values="$INSTANCE_ID" --query 'InstanceInformationList[0].PingStatus' --output text)
 
-echo "Instance status: $instance_status"
+echo "Cluster status: $instance_status"
 
 if [[ "$instance_status" != "Online" ]]; then
-  echo "Error: Instance is offline."
+  echo "Error: Cluster is offline."
   exit 1
 fi
 

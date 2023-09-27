@@ -10,6 +10,25 @@ CURRENT_REGION="$3"
 shift 3
 PORT_FWD_ARGS=$*
 
+instance_status=$(aws ssm describe-instance-information --filters Key=InstanceIds,Values="$INSTANCE_ID" --query 'InstanceInformationList[0].PingStatus' --output text)
+
+echo "Cluster status: $instance_status"
+
+if [[ "$instance_status" != "Online" ]]; then
+  echo "Error: Cluster is offline."
+  exit 1
+fi
+
+AWS_CLI_VERSION=$(aws --version)
+
+# Check if the AWS CLI version contains "aws-cli/2."
+if [[ $AWS_CLI_VERSION == *"aws-cli/2."* ]]; then
+  echo "AWS CLI version: $AWS_CLI_VERSION"
+else
+  echo "Error: AWS CLI version must be v2. Please update your AWS CLI version."
+  exit 1
+fi
+
 echo "Starting SSH over SSM proxy"
 
 proxy_command="aws ssm start-session\
