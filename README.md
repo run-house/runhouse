@@ -46,7 +46,7 @@ layer for accessibility, visibility, and management across all your infra and pr
 This allows you to:
 * Call your preprocessing, training, and inference each on different hardware from
 inside a single notebook or script
-* Slot that script into a single orchestrator node rather than translate it into an ML pipeline DAG of docker images
+* Slot that script into a single orchestrator node rather than translate it into an ML pipeline DAG of Docker images
 * Share any of those services or data artifacts with your team instantly, and update them over time
 
 ![img.png](https://raw.githubusercontent.com/run-house/runhouse/main/docs/assets/img.png)
