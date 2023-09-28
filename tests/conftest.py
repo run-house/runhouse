@@ -577,3 +577,45 @@ def create_gcs_bucket(bucket_name: str):
 
     gcs_store = GcsStore(name=bucket_name, source="")
     return gcs_store
+
+
+# ----------------- Docker -----------------
+
+
+def run_shell_command(subprocess, cmd: list[str]):
+    # Run the command and wait for it to complete
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print(result.stdout)
+
+    # Check for success
+    assert result.returncode == 0
+
+
+@pytest.fixture
+def local_docker():
+    import subprocess
+
+    # Requirement: need to install Docker on your machine
+
+    # Build the Docker image
+    run_shell_command(
+        subprocess, ['docker build --pull --rm -f "../Dockerfile" -t runhouse:start ..']
+    )
+
+    # Run the Docker image
+    run_shell_command(
+        subprocess,
+        [
+            "docker run --rm --shm-size=3gb -it -p 50052:50052 -p 6379:6379 -p 52365:52365 runhouse:start"
+        ],
+    )
+
+    # Runhouse commands can now be run locally
+    rh.configs.disable_data_collection()  # Workaround until we remove the usage of GCSClient from our code
+    c = rh.cluster(
+        name="local-docker", host="localhost:50052", ssh_creds={"ssh_user": "root"}
+    )
+    c.up_if_not()
+    c.check_server()
