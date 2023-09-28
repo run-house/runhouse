@@ -4,39 +4,135 @@ import logging
 import subprocess
 import time
 import traceback
+from functools import wraps
 from pathlib import Path
 from typing import Optional
 
 import ray
 import requests
-from fastapi import Body, FastAPI
+from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-from runhouse.globals import configs, env_servlets, rns_client
+from runhouse.globals import configs, env_servlets, obj_store, rns_client
+from runhouse.rns.utils.api import load_resp_content
 from runhouse.rns.utils.names import _generate_default_name
-from runhouse.servers.servlet import EnvServlet
-from ..http.http_utils import (
+from runhouse.servers.http.http_utils import (
     b64_unpickle,
     DEFAULT_SERVER_HOST,
     DEFAULT_SERVER_PORT,
+    HTTPSConfig,
     Message,
     OutputType,
     pickle_b64,
     Response,
 )
+from runhouse.servers.servlet import EnvServlet
 
 logger = logging.getLogger(__name__)
 
+
 app = FastAPI()
+
+
+def validate_user(func):
+    """If using an HTTPS server, validate the user's Runhouse token before continuing with the API request execution"""
+
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        request: Request = kwargs.get("request")
+        is_https: bool = request.url.scheme == "https"
+        get_cert: bool = func.__name__ == "get_cert"
+        use_den_auth: bool = HTTPServer.DEN_AUTH
+
+        if not get_cert and not is_https and not use_den_auth:
+            # Skip validation if not using HTTPS or not requesting the TLS cert or not validating the user's token
+            return func(*args, **kwargs)
+
+        token = request.headers.get("Authorization", "").split("Bearer ")[-1]
+        if not token:
+            raise HTTPException(
+                status_code=404,
+                detail="No token found in request auth headers. Expected in "
+                f"format: {json.dumps({'Authorization': 'Bearer <token>'})}",
+            )
+
+        if use_den_auth or get_cert:
+            resp = requests.get(
+                f"{rns_client.api_server_url}/user",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            if resp.status_code != 200:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Failed to validate Runhouse user: {load_resp_content(resp)}",
+                )
+
+            # Note: currently providing cluster level access, not at the resource level
+            # but will be used in the future for validating access to other resources if provided in the request
+            resource_uri = request.path_params.get("uri")
+            if resource_uri:
+                # Reformat the resource uri to be a valid RNS address
+                resource_uri = rns_client.uri_param_to_rns_address(resource_uri)
+                # Check whether user has access to the resource if a resource uri is provided in the request
+                user_data = json.loads(resp.content)
+                username = user_data.get("data", {}).get("username")
+
+                verify_resource_access(token, resource_uri, username)
+
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+def verify_resource_access(token: str, resource_uri: str, username: str) -> None:
+    """Verify the user has access to a particular resource. Use KV store cache to check before pinging Den for the most
+    current list of resources the user has access to."""
+    cached_resources = obj_store.get(username)
+    logger.info(f"Cached resources for user: {username}")
+
+    if cached_resources and resource_uri in cached_resources:
+        # Cache hit
+        return
+
+    # fetch the resources from Den to see if there is a cache miss
+    resp = requests.get(
+        f"{rns_client.api_server_url}/resource",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    if resp.status_code != 200:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Failed to load resources: {load_resp_content(resp)}",
+        )
+
+    # Cache the user's list of resources
+    # Note: by caching to the cluster object store, this will only persist for as long as the server is up
+    # and will be killed when the server is terminated or restarted
+    resp_data = json.loads(resp.content)
+    all_resources = [resource["name"] for resource in resp_data["data"]]
+
+    # Update the cache with the latest list of resources
+    obj_store.put(username, all_resources)
+
+    logger.info(
+        f"Updated cache with {len(all_resources)} resources for user: {username}"
+    )
+
+    if resource_uri not in all_resources:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Could not validate access to resource: {resource_uri}",
+        )
 
 
 class HTTPServer:
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     LOGGING_WAIT_TIME = 1
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
+    DEN_AUTH = False
 
     memory_exporter = None
 
@@ -69,7 +165,8 @@ class HTTPServer:
 
             @staticmethod
             @app.get("/spans")
-            def get_spans():
+            @validate_user
+            def get_spans(request: Request):
                 print("Calling get_spans")
                 return {
                     "spans": [
@@ -108,8 +205,28 @@ class HTTPServer:
         set_last_active_time_to_now()
 
     @staticmethod
+    @app.get("/cert/{uri}")
+    @validate_user
+    def get_cert(request: Request):
+        """Download the certificate file for this server necessary for enabling HTTPS.
+        User must have access to the resource in order to download the certificate."""
+        try:
+            with open(HTTPSConfig.CERT_FILE_PATH, "rb") as cert_file:
+                cert = cert_file.read()
+            return Response(data=pickle_b64(cert), output_type=OutputType.RESULT)
+
+        except Exception as e:
+            logger.exception(e)
+            return Response(
+                error=pickle_b64(e),
+                traceback=pickle_b64(traceback.format_exc()),
+                output_type=OutputType.EXCEPTION,
+            )
+
+    @staticmethod
     @app.post("/check")
-    def check_server(message: Message):
+    @validate_user
+    def check_server(request: Request, message: Message):
         HTTPServer.register_activity()
         cluster_config = message.data
         try:
@@ -127,6 +244,8 @@ class HTTPServer:
             status = subprocess.check_output(["ray", "status"]).decode("utf-8")
 
             import runhouse
+
+            # Reset here in case it was set before the config was written down, making here=="file"
             from runhouse.resources.hardware.utils import (
                 _current_cluster,
                 _get_cluster_from,
@@ -225,7 +344,8 @@ class HTTPServer:
 
     @staticmethod
     @app.post("/resource")
-    def put_resource(message: Message):
+    @validate_user
+    def put_resource(request: Request, message: Message):
         # if resource is env and not yet a servlet, construct env servlet
         if message.env and message.env not in env_servlets.keys():
             resource = b64_unpickle(message.data)[0]
@@ -254,7 +374,10 @@ class HTTPServer:
 
     @staticmethod
     @app.post("/{module}/{method}")
-    def call_module_method(module, method=None, message: dict = Body(...)):
+    @validate_user
+    def call_module_method(
+        request: Request, module, method=None, message: dict = Body(...)
+    ):
         # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
@@ -266,9 +389,7 @@ class HTTPServer:
                 Message(stream_logs=False, key=module) if not method else Message()
             )
             env = message.env or HTTPServer.lookup_env_for_name(module)
-            persist = (
-                message.run_async or message.remote or message.save
-            ) or not method
+            persist = message.run_async or message.remote or message.save or not method
             if method:
                 # TODO fix the way we generate runkeys, it's ugly
                 message.key = message.key or _generate_default_name(
@@ -440,35 +561,40 @@ class HTTPServer:
 
     @staticmethod
     @app.post("/object")
-    def put_object(message: Message):
+    @validate_user
+    def put_object(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
             "put_object", [message.key, message.data], env=message.env, create=True
         )
 
     @staticmethod
     @app.put("/object")
-    def rename_object(message: Message):
+    @validate_user
+    def rename_object(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
             "rename_object", [message], env=message.env
         )
 
     @staticmethod
     @app.delete("/object")
-    def delete_obj(message: Message):
+    @validate_user
+    def delete_obj(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
             "delete_obj", [message], env=message.env, lookup_env_for_name=message.key
         )
 
     @staticmethod
     @app.post("/cancel")
-    def cancel_run(message: Message):
+    @validate_user
+    def cancel_run(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
             "cancel_run", [message], env=message.env, lookup_env_for_name=message.key
         )
 
     @staticmethod
     @app.get("/keys")
-    def get_keys(env: Optional[str] = None):
+    @validate_user
+    def get_keys(request: Request, env: Optional[str] = None):
         from runhouse.globals import obj_store
 
         if not env:
@@ -479,14 +605,17 @@ class HTTPServer:
 
     @staticmethod
     @app.post("/secrets")
-    def add_secrets(message: Message):
+    @validate_user
+    def add_secrets(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
             "add_secrets", [message], env=message.env, create=True
         )
 
     @staticmethod
     @app.post("/call/{module}/{method}")
+    @validate_user
     async def call(
+        request: Request,
         module,
         method=None,
         args: dict = Body(),
@@ -568,7 +697,7 @@ class HTTPServer:
 
         payload = json.dumps(payload)
         resp = requests.post(
-            f"{configs.get('api_server_url')}/admin/logs", data=json.dumps(payload)
+            f"{rns_client.api_server_url}/admin/logs", data=json.dumps(payload)
         )
 
         if resp.status_code == 405:
@@ -582,6 +711,8 @@ class HTTPServer:
 
 
 if __name__ == "__main__":
+    import uvicorn
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--host", type=str, default=DEFAULT_SERVER_HOST, help="Host to run server on"
@@ -590,24 +721,57 @@ if __name__ == "__main__":
         "--port", type=int, default=DEFAULT_SERVER_PORT, help="Port to run server on"
     )
     parser.add_argument(
-        "--conda_env", type=str, default=None, help="Conda env to run server in"
+        "--conda-env", type=str, default=None, help="Conda env to run server in"
     )
     parser.add_argument(
-        "--enable_local_span_collection",
+        "--enable-local-span-collection",
         type=bool,
         default=None,
         help="Enable local span collection",
     )
+    parser.add_argument(
+        "--use-https",
+        action="store_true",  # if providing --use-https will be set to True
+        help="Start an HTTPS server with new TSL certs",
+    )
+    parser.add_argument(
+        "--use-den-auth",
+        action="store_true",  # if providing --use-den-auth will be set to True
+        help="Whether to authenticate requests with a Runhouse token",
+    )
+
     parse_args = parser.parse_args()
     host = parse_args.host
     port = parse_args.port
     conda_name = parse_args.conda_env
     should_enable_local_span_collection = parse_args.enable_local_span_collection
-
-    import uvicorn
+    use_https = parse_args.use_https
+    den_auth = parse_args.use_den_auth
 
     HTTPServer(
         conda_env=conda_name,
         enable_local_span_collection=should_enable_local_span_collection,
     )
-    uvicorn.run(app, host=host, port=port)
+
+    # Can set at class level since this is being defined once when the server is launched
+    HTTPServer.DEN_AUTH = den_auth
+
+    if use_https:
+        logger.info(f"Launching HTTPS server (den_auth={den_auth})")
+        ssl_keyfile = HTTPSConfig.PRIVATE_KEY_PATH
+        ssl_certfile = HTTPSConfig.CERT_FILE_PATH
+
+        if not Path(ssl_keyfile).exists() and not Path(ssl_certfile).exists():
+            logger.info("Generating new certs on the cluster")
+            HTTPSConfig.generate_certs()
+
+        uvicorn.run(
+            app,
+            host=host,
+            port=port,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile,
+        )
+    else:
+        logger.info(f"Launching HTTP server (den_auth={den_auth})")
+        uvicorn.run(app, host=host, port=port)

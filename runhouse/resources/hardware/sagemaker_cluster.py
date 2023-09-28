@@ -17,6 +17,8 @@ import time
 from pathlib import Path
 from typing import Dict, Tuple, Union
 
+from .cluster import ServerConnectionType
+
 try:
     import boto3
     import paramiko
@@ -73,6 +75,10 @@ class SageMakerCluster(Cluster):
         connection_wait_time: int = None,
         estimator: Union["EstimatorBase", Dict] = None,
         job_name: str = None,
+        server_host: str = None,
+        server_port: int = None,
+        server_connection_type: Union[ServerConnectionType, str] = None,
+        den_auth: bool = False,
         dryrun=False,
         **kwargs,
     ):
@@ -84,8 +90,17 @@ class SageMakerCluster(Cluster):
         .. note::
             To build a cluster, please use the factory method :func:`sagemaker_cluster`.
         """
-        super().__init__(name=name, ssh_creds={}, dryrun=dryrun)
+        super().__init__(
+            name=name,
+            ssh_creds={},
+            server_host=server_host,
+            server_port=server_port,
+            server_connection_type=server_connection_type,
+            den_auth=den_auth,
+            dryrun=dryrun,
+        )
         self._connection_wait_time = connection_wait_time
+        self._server_connection_type = server_connection_type
         self._instance_type = instance_type
         self._instance_count = instance_count
         self._region = region
@@ -264,6 +279,24 @@ class SageMakerCluster(Cluster):
     @region.setter
     def region(self, region):
         self._region = region
+
+    @property
+    def server_connection_type(self) -> str:
+        if (
+            self._server_connection_type is None
+            or self._server_connection_type == ServerConnectionType.NONE.value
+        ):
+            # For SageMaker we need to create an SSH tunnel, so use SSH by default
+            return ServerConnectionType.SSH.value
+
+        if isinstance(self._server_connection_type, str):
+            return self._server_connection_type.lower()
+
+        return self._server_connection_type.value
+
+    @server_connection_type.setter
+    def server_connection_type(self, server_connection_type):
+        self._server_connection_type = server_connection_type
 
     @property
     def default_bucket(self):
@@ -1190,6 +1223,9 @@ class SageMakerCluster(Cluster):
             # Delete entry from ~/.ssh/config
             self._delete_ssh_config_entry()
             logger.info(f"Deleted cluster {self.name} from configs")
+
+            # Delete the local SSL cert directory
+            self._delete_ssl_cert_dir()
 
     def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
         if not self.instance_id:

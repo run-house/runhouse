@@ -3,7 +3,7 @@ from typing import Dict, List, Optional, Union
 
 from runhouse.resources.hardware.utils import RESERVED_SYSTEM_NAMES
 
-from .cluster import Cluster
+from .cluster import Cluster, ServerConnectionType
 from .on_demand_cluster import OnDemandCluster
 from .sagemaker_cluster import SageMakerCluster
 
@@ -13,6 +13,10 @@ def cluster(
     name: str,
     host: Union[str, List[str]] = None,
     ssh_creds: Optional[dict] = None,
+    server_port: int = None,
+    server_host: int = None,
+    server_connection_type: Union[ServerConnectionType, str] = None,
+    den_auth: bool = False,
     dryrun: bool = False,
     **kwargs,
 ) -> Union[Cluster, OnDemandCluster, SageMakerCluster]:
@@ -24,6 +28,15 @@ def cluster(
         host (str or List[str], optional): Hostname, IP address, or list of IP addresses for the BYO cluster.
         ssh_creds (dict, optional): Dictionary mapping SSH credentials.
             Example: ``ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'}``
+        server_port (bool, optional): Port to use for the server. (Default: ``50052``).
+        server_host (bool, optional): Host to use for the server. (Default: ``127.0.0.1``).
+        server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
+            API server. ``ssh`` will use start with server with HTTP via port forwarding. ``tls`` will start the server
+            with HTTPS using TLS certs. ``none`` will start the server with HTTP without using any
+            port forwarding.
+        den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
+            requests with a Runhouse token provided in the auth headers of the request with the format:
+            ``{"Authorization": "Bearer <token>"}``. (Default: ``False``).
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
 
@@ -50,8 +63,19 @@ def cluster(
             "``ips`` argument has been deprecated. Please use ``host`` to refer to the cluster IPs or host instead."
         )
 
-    if name and host is None and ssh_creds is None and not kwargs:
-        # If only the name is provided and dryrun is set to True
+    if name and all(
+        x is None
+        for x in [
+            host,
+            ssh_creds,
+            server_port,
+            server_host,
+            server_connection_type,
+            den_auth,
+            kwargs,
+        ]
+    ):
+        # If only the name is provided
         return Cluster.from_name(name, dryrun)
 
     if name in RESERVED_SYSTEM_NAMES:
@@ -79,7 +103,16 @@ def cluster(
         )
         return sagemaker_cluster(name=name, **kwargs)
 
-    return Cluster(ips=host, ssh_creds=ssh_creds, name=name, dryrun=dryrun)
+    return Cluster(
+        ips=host,
+        ssh_creds=ssh_creds,
+        name=name,
+        server_host=server_host,
+        server_port=server_port,
+        server_connection_type=server_connection_type,
+        den_auth=den_auth,
+        dryrun=dryrun,
+    )
 
 
 # OnDemandCluster factory method
@@ -95,6 +128,10 @@ def ondemand_cluster(
     memory: Union[int, str, None] = None,
     disk_size: Union[int, str, None] = None,
     open_ports: Union[int, str, List[int], None] = None,
+    server_port: int = None,
+    server_host: int = None,
+    server_connection_type: Union[ServerConnectionType, str] = None,
+    den_auth: bool = False,
     dryrun: bool = False,
 ) -> OnDemandCluster:
     """
@@ -117,6 +154,15 @@ def ondemand_cluster(
         disk_size (int or str, optional): Amount of disk space to use for the cluster, e.g. "100" or "100+".
         open_ports (int or str or List[int], optional): Ports to open in the cluster's security group. Note
             that you are responsible for ensuring that the applications listening on these ports are secure.
+        server_port (bool, optional): Port to use for the server. (Default: ``50052``).
+        server_host (bool, optional): Host to use for the server. (Default: ``127.0.0.1``).
+        server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
+            API server. ``ssh`` will use start with server with HTTP via port forwarding. ``tls`` will start the server
+            with HTTPS using TLS certs. ``none`` will start the server with HTTP without using any
+            port forwarding.
+        den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
+            requests with a Runhouse token provided in the auth headers of the request with the format:
+            ``{"Authorization": "Bearer <token>"}``. (Default: ``False``).
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
 
@@ -148,6 +194,10 @@ def ondemand_cluster(
             memory=memory,
             disk_size=disk_size,
             open_ports=open_ports,
+            server_host=server_host,
+            server_port=server_port,
+            server_connection_type=server_connection_type,
+            den_auth=den_auth,
         )
         # Filter out None/default values
         alt_options = {k: v for k, v in alt_options.items() if v is not None}
@@ -175,6 +225,10 @@ def ondemand_cluster(
         memory=memory,
         disk_size=disk_size,
         open_ports=open_ports,
+        server_host=server_host,
+        server_port=server_port,
+        server_connection_type=server_connection_type,
+        den_auth=den_auth,
         name=name,
         dryrun=dryrun,
     )
@@ -193,6 +247,10 @@ def sagemaker_cluster(
     connection_wait_time: int = None,
     estimator: Union["sagemaker.estimator.EstimatorBase", Dict] = None,
     job_name: str = None,
+    server_port: int = None,
+    server_host: int = None,
+    server_connection_type: Union[ServerConnectionType, str] = None,
+    den_auth: bool = False,
     dryrun: bool = False,
 ) -> SageMakerCluster:
     """
@@ -233,6 +291,15 @@ def sagemaker_cluster(
             If no estimator is provided, will default to ``0``.
         job_name (str, optional): Name to provide for a training job. If not provided will generate a default name
             based on the image name and current timestamp (e.g. ``pytorch-training-2023-08-28-20-57-55-113``).
+        server_port (bool, optional): Port to use for the server. (Default: ``50052``).
+        server_host (bool, optional): Host to use for the server. (Default: ``127.0.0.1``).
+        server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
+            API server. ``ssh`` will use start with server with HTTP via port forwarding. ``tls`` will start the server
+            with HTTPS using TLS certs. ``none`` will start the server with HTTP without using any
+            port forwarding.
+        den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
+            requests with a Runhouse token provided in the auth headers of the request with the format:
+            ``{"Authorization": "Bearer <token>"}``. (Default: ``False``).
         dryrun (bool): Whether to create the SageMakerCluster if it doesn't exist, or load a SageMakerCluster object
             as a dryrun.
             (Default: ``False``)
@@ -273,6 +340,10 @@ def sagemaker_cluster(
             instance_type=instance_type,
             job_name=job_name,
             instance_count=instance_count,
+            server_host=server_host,
+            server_port=server_port,
+            server_connection_type=server_connection_type,
+            den_auth=den_auth,
         )
         # Filter out None/default values
         alt_options = {k: v for k, v in alt_options.items() if v is not None}
@@ -302,5 +373,9 @@ def sagemaker_cluster(
         image_uri=image_uri,
         autostop_mins=autostop_mins,
         connection_wait_time=connection_wait_time,
+        server_host=server_host,
+        server_port=server_port,
+        server_connection_type=server_connection_type,
+        den_auth=den_auth,
         dryrun=dryrun,
     )

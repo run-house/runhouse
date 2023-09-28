@@ -1,11 +1,12 @@
 import copy
 import unittest
-from typing import List
+from pathlib import Path
 
 import pytest
 
 import runhouse as rh
 from runhouse.resources.hardware import OnDemandCluster
+from runhouse.resources.hardware.cluster import ServerConnectionType
 
 from ..conftest import cpu_clusters, summer
 
@@ -14,7 +15,7 @@ def is_on_cluster(cluster):
     return cluster.on_this_cluster()
 
 
-def np_array(num_list: List[int]):
+def np_array(num_list: list):
     import numpy as np
 
     return np.array(num_list)
@@ -114,6 +115,21 @@ def test_byo_cluster(byo_cpu, local_folder):
 
 
 @pytest.mark.clustertest
+def test_byo_cluster_with_https(byo_cpu):
+    tls_connection = ServerConnectionType.TLS.value
+    byo_cpu.server_connection_type = tls_connection
+    byo_cpu.restart_server()
+
+    assert byo_cpu.server_connection_type == tls_connection
+
+    local_cert_path = byo_cpu._cert_file_path
+    assert Path(local_cert_path).exists()
+
+    # Confirm we can send https requests to the cluster
+    byo_cpu.install_packages(["numpy"])
+
+
+@pytest.mark.clustertest
 def test_byo_proxy(byo_cpu, local_folder):
     rh.globals.open_cluster_tunnels.pop(byo_cpu.address)
     byo_cpu.client = None
@@ -139,6 +155,50 @@ def test_byo_proxy(byo_cpu, local_folder):
     # TODO: uncomment out when in-mem lands
     # local_folder = local_folder.to(byo_cpu)
     # assert "sample_file_0.txt" in local_folder.ls(full_paths=False)
+
+
+@pytest.mark.clustertest
+def test_cluster_with_https(ondemand_cpu_cluster):
+    # After launching the cluster with the existing fixture, restart the server on the cluster using HTTPS
+    # By setting open ports we will use HTTPS by default
+    ondemand_cpu_cluster.open_ports = [7860]
+    ondemand_cpu_cluster.restart_server()
+
+    assert ondemand_cpu_cluster.server_connection_type
+
+    local_cert_path = ondemand_cpu_cluster._cert_file_path
+    assert Path(local_cert_path).exists()
+
+    # Confirm we can send https requests to the cluster
+    ondemand_cpu_cluster.install_packages(["gradio"])
+
+
+@pytest.mark.clustertest
+def test_cluster_with_den_auth(ondemand_cpu_cluster):
+    from runhouse.globals import configs
+
+    ondemand_cpu_cluster.den_auth = True
+    ondemand_cpu_cluster.restart_server()
+
+    # Create an invalid token, confirm the server does not accept the request
+    orig_token = configs.get("token")
+
+    cluster_config = ondemand_cpu_cluster.config_for_rns
+
+    # Request should return 200 with valid token
+    ondemand_cpu_cluster.client.check_server(cluster_config)
+
+    configs.set("token", "abcd123")
+
+    # Request should raise an exception with an invalid token
+    try:
+        ondemand_cpu_cluster.client.check_server(cluster_config)
+    except ValueError as e:
+        assert "Invalid or expired token" in str(e)
+
+    configs.set("token", orig_token)
+
+    assert True
 
 
 if __name__ == "__main__":

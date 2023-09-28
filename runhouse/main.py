@@ -91,7 +91,15 @@ def load_cluster(cluster_name: str):
         c._update_from_sky_status(dryrun=True)
 
 
-def _start_server(restart, restart_ray, screen, create_logfile=True, host=None):
+def _start_server(
+    restart,
+    restart_ray,
+    screen,
+    create_logfile=True,
+    host=None,
+    use_https=False,
+    den_auth=False,
+):
     from runhouse.resources.hardware.cluster import Cluster
 
     cmds = Cluster._start_server_cmds(
@@ -100,6 +108,8 @@ def _start_server(restart, restart_ray, screen, create_logfile=True, host=None):
         screen=screen,
         create_logfile=create_logfile,
         host=host,
+        use_https=use_https,
+        den_auth=den_auth,
     )
 
     try:
@@ -126,14 +136,22 @@ def start(
         None,
         help="Custom server host address e.g. 0.0.0.0. Default is `None` and the server would start on 127.0.0.1",
     ),
+    use_https: bool = typer.Option(
+        False, help="Start an HTTPS server with TLS verification"
+    ),
+    use_den_auth: bool = typer.Option(
+        False, help="Whether to authenticate requests with a Runhouse token"
+    ),
 ):
-    """Start the HTTP server on the cluster."""
+    """Start the HTTP or HTTPS server on the cluster."""
     _start_server(
         restart=False,
         restart_ray=restart_ray,
         screen=screen,
         create_logfile=True,
         host=host,
+        use_https=use_https,
+        den_auth=use_den_auth,
     )
 
 
@@ -153,6 +171,12 @@ def restart(
         None,
         help="Custom server host address e.g. 0.0.0.0. Default is `None` and the server would start on 127.0.0.1",
     ),
+    use_https: bool = typer.Option(
+        False, help="Start an HTTPS server with TLS verification"
+    ),
+    use_den_auth: bool = typer.Option(
+        False, help="Whether to authenticate requests with a Runhouse token"
+    ),
 ):
     """Restart the HTTP server on the cluster."""
     if name:
@@ -166,6 +190,8 @@ def restart(
         screen=screen,
         create_logfile=True,
         host=host,
+        use_https=use_https,
+        den_auth=use_den_auth,
     )
 
 

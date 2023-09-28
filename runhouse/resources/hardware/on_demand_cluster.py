@@ -2,7 +2,7 @@ import contextlib
 import logging
 import subprocess
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 import sky
 import yaml
@@ -10,7 +10,7 @@ from sky.backends import backend_utils, CloudVmRayBackend
 
 from runhouse.globals import configs, rns_client
 
-from .cluster import Cluster
+from .cluster import Cluster, ServerConnectionType
 from .utils import _current_cluster
 
 logger = logging.getLogger(__name__)
@@ -33,6 +33,10 @@ class OnDemandCluster(Cluster):
         memory=None,
         disk_size=None,
         open_ports=None,
+        server_host: str = None,
+        server_port: int = None,
+        server_connection_type: Union[ServerConnectionType, str] = None,
+        den_auth: bool = False,
         region=None,
         sky_state=None,
         live_state=None,
@@ -45,7 +49,15 @@ class OnDemandCluster(Cluster):
             To build a cluster, please use the factory method :func:`cluster`.
         """
 
-        super().__init__(name=name, dryrun=dryrun)
+        self.open_ports = open_ports
+        super().__init__(
+            name=name,
+            server_host=server_host,
+            server_port=server_port,
+            server_connection_type=server_connection_type,
+            den_auth=den_auth,
+            dryrun=dryrun,
+        )
 
         self.instance_type = instance_type
         self.num_instances = num_instances
@@ -60,10 +72,10 @@ class OnDemandCluster(Cluster):
         self.region = region
         self.memory = memory
         self.disk_size = disk_size
-        self.open_ports = open_ports
 
         self.address = None
         self.client = None
+
         # TODO remove after 0.0.13
         self.live_state = sky_state or live_state
 
@@ -392,6 +404,7 @@ class OnDemandCluster(Cluster):
         """
         self.teardown()
         rns_client.delete_configs()
+        self._delete_ssl_cert_dir()
 
     @contextlib.contextmanager
     def pause_autostop(self):

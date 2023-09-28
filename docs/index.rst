@@ -82,7 +82,7 @@ Table of Contents
 
    debugging_logging
    troubleshooting
-   data_collection
+   auth_and_data_collection
    Source Code <https://github.com/run-house/runhouse>
    REST API Guide <https://api.run.house/docs>
    Dashboard <https://www.run.house/dashboard>

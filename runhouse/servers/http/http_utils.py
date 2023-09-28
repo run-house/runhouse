@@ -1,8 +1,18 @@
 import codecs
+import datetime
+import ipaddress
 import logging
+import os
 import re
 import sys
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
 
 from pydantic import BaseModel
 from ray import cloudpickle as pickle
@@ -48,6 +58,83 @@ class OutputType:
     RESULT_STREAM = "result_stream"
     SUCCESS_STREAM = "success_stream"  # No output, but with generators
     CONFIG = "config"
+
+
+class HTTPSConfig:
+    CERT_NAME = "rh_server.crt"
+    PRIVATE_KEY_NAME = "rh_server.key"
+    # Using the root directory instead of handling potential permissions issues with system SSL directories
+    CERT_DIR_PATH = str(Path("~/ssl").expanduser())
+
+    CERT_FILE_PATH = f"{CERT_DIR_PATH}/certs/{CERT_NAME}"
+    PRIVATE_KEY_PATH = f"{CERT_DIR_PATH}/private/{PRIVATE_KEY_NAME}"
+
+    TOKEN_VALIDITY_DAYS = 365
+
+    @classmethod
+    def generate_certs(cls):
+        """Create a self-signed SSL certificate. This won't be verified by a CA, but the connection will
+        still be encrypted."""
+        # Generate the private key
+        private_key = rsa.generate_private_key(
+            public_exponent=65537, key_size=2048, backend=default_backend()
+        )
+
+        # Create a self-signed certificate
+        subject = issuer = x509.Name(
+            [x509.NameAttribute(NameOID.COMMON_NAME, "run.house")]
+        )
+
+        # Add Subject Alternative Name extension
+        san = x509.SubjectAlternativeName(
+            [
+                x509.DNSName("run.house"),
+                x509.DNSName("localhost"),
+                x509.IPAddress(ipaddress.IPv4Address("127.0.0.1")),
+            ]
+        )
+
+        cert = (
+            x509.CertificateBuilder()
+            .subject_name(subject)
+            .issuer_name(issuer)
+            .public_key(private_key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(datetime.datetime.utcnow())
+            .not_valid_after(
+                datetime.datetime.utcnow()
+                + datetime.timedelta(days=cls.TOKEN_VALIDITY_DAYS)
+            )
+            .add_extension(san, critical=False)
+            .sign(private_key, hashes.SHA256(), default_backend())
+        )
+
+        cls._write_cert_files(private_key, cert)
+
+    @classmethod
+    def _write_cert_files(cls, private_key, cert):
+        """Save the private key and cert files to the cluster's file system."""
+        # Ensure the directories exist and have the correct permissions
+        os.makedirs(f"{cls.CERT_DIR_PATH}/certs", mode=0o755, exist_ok=True)
+        os.makedirs(f"{cls.CERT_DIR_PATH}/private", mode=0o750, exist_ok=True)
+
+        Path(cls.CERT_DIR_PATH).mkdir(parents=True, exist_ok=True)
+        with open(cls.PRIVATE_KEY_PATH, "wb") as key_file:
+            key_file.write(
+                private_key.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.TraditionalOpenSSL,
+                    encryption_algorithm=serialization.NoEncryption(),
+                )
+            )
+
+        # Save the certificate to a file (server.crt)
+        with open(cls.CERT_FILE_PATH, "wb") as cert_file:
+            cert_file.write(cert.public_bytes(encoding=serialization.Encoding.PEM))
+
+        logger.info(
+            f"Certificate and private key files generated successfully in path: {cls.CERT_DIR_PATH}"
+        )
 
 
 def pickle_b64(picklable):

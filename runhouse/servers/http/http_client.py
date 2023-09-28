@@ -1,8 +1,11 @@
 import json
 import logging
+import os
 import time
 
 import requests
+
+from runhouse.globals import rns_client
 
 from runhouse.resources.envs.utils import _get_env_from
 
@@ -21,10 +24,19 @@ class HTTPClient:
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     CHECK_TIMEOUT_SEC = 10
 
-    def __init__(self, host, port=DEFAULT_PORT, auth=None):
+    def __init__(
+        self, host: str, port: int, auth=None, cert_path=None, use_https=False
+    ):
         self.host = host
         self.port = port
         self.auth = auth
+        self.cert_path = cert_path
+        self.use_https = use_https
+
+    def _formatted_url(self, endpoint: str):
+        """Use HTTPS to authenticate the user with RNS if ports are specified and a token is provided"""
+        prefix = "https" if self.use_https else "http"
+        return f"{prefix}://{self.host}:{self.port}/{endpoint}"
 
     def request(
         self,
@@ -37,6 +49,7 @@ class HTTPClient:
         key=None,
         err_str=None,
         timeout=None,
+        verify=None,
     ):
         req_fn = (
             requests.get
@@ -50,7 +63,7 @@ class HTTPClient:
         endpoint = endpoint.strip("/")
         endpoint = (endpoint + "/") if "?" not in endpoint else endpoint
         response = req_fn(
-            f"http://{self.host}:{self.port}/{endpoint}",
+            self._formatted_url(endpoint),
             json={
                 "data": data,
                 "env": env,
@@ -60,6 +73,8 @@ class HTTPClient:
             },
             timeout=timeout,
             auth=self.auth,
+            headers=rns_client.request_headers,
+            verify=self.cert_path if verify is None else verify,
         )
         if response.status_code != 200:
             raise ValueError(
@@ -76,6 +91,12 @@ class HTTPClient:
             data=json.dumps(cluster_config, indent=4),
             timeout=self.CHECK_TIMEOUT_SEC,
         )
+
+    def get_certificate(self, cluster_uri: str):
+        cert: bytes = self.request(f"cert/{cluster_uri}", req_type="get", verify=False)
+        os.makedirs(os.path.dirname(self.cert_path), exist_ok=True)
+        with open(self.cert_path, "wb") as file:
+            file.write(cert)
 
     def call_module_method(
         self,
@@ -101,7 +122,7 @@ class HTTPClient:
             + (f".{method_name}" if method_name else "")
         )
         res = requests.post(
-            f"http://{self.host}:{self.port}/{module_name}/{method_name}/",
+            self._formatted_url(f"{module_name}/{method_name}"),
             json={
                 "data": pickle_b64([args, kwargs]),
                 "env": env,
@@ -112,6 +133,8 @@ class HTTPClient:
                 "run_async": run_async,
             },
             stream=not run_async,
+            headers=rns_client.request_headers,
+            verify=self.cert_path,  # Path to the self-signed certificate
         )
         if res.status_code != 200:
             raise ValueError(
@@ -192,8 +215,11 @@ class HTTPClient:
         if env and not isinstance(env, str):
             env = _get_env_from(env)
             env = env.name or env.env_name
+
+        resource_uri = rns_client.resource_uri(resource.name)
+
         return self.request(
-            "resource",
+            f"resource/{resource_uri}",
             req_type="post",
             # TODO wire up dryrun properly
             data=pickle_b64((resource.config_for_rns, state, resource.dryrun)),

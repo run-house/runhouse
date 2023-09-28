@@ -10,6 +10,7 @@ import sky.utils.command_runner as cr
 
 import yaml
 from sky.skylet import log_lib
+from sky.utils import subprocess_utils
 
 from sky.utils.command_runner import ssh_options_list, SSHCommandRunner, SshMode
 
