@@ -72,7 +72,7 @@ Install Runhouse
 
 .. raw:: html
 
-    <pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace"><span style="color: #808000; text-decoration-color: #808000; font-weight: bold">Retrieve your token 🔑 here to use 🏃 🏠 Runhouse for secrets and artifact management: </span><a href="https://api.run.house/dashboard/?option=token" target="_blank"><span style="color: #0000ff; text-decoration-color: #0000ff; text-decoration: underline">https://api.run.house</span></a>
+    <pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace"><span style="color: #808000; text-decoration-color: #808000; font-weight: bold">Retrieve your token 🔑 here to use 🏃 🏠 Runhouse for secrets and artifact management: </span><a href="https://run.house/account#token" target="_blank"><span style="color: #0000ff; text-decoration-color: #0000ff; text-decoration: underline">https://run.house/account#token</span></a>
     </pre>
 
 
