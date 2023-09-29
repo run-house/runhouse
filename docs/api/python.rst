@@ -90,3 +90,8 @@ secrets management, and never touches Runhouse servers. Please see
    :maxdepth: 1
 
    python/secrets
+
+.. toctree::
+   :maxdepth: 1
+
+   python/login

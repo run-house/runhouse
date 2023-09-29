@@ -3,7 +3,7 @@ Quick Start Guide
 
 .. raw:: html
 
-    <p><a href="https://colab.research.google.com/github/run-house/runhouse/blob/stable/docs/notebooks/basics/quick_start.ipynb">
+    <p><a href="https://colab.research.google.com/github/run-house/runhouse/blob/stable/docs/notebooks/api/quick_start.ipynb">
     <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 
@@ -180,7 +180,7 @@ Secrets and Portability
 
 Using Runhouse with only the OSS Python package is perfectly fine, but
 you can unlock some unique portability features by creating an (always
-free) `account <https://www.run.house/>`__ and saving down your secrets
+free) `account <https://www.run.house/account>`__ and saving down your secrets
 and/or resource metadata there.
 
 Think of the OSS-package-only experience as akin to Microsoft Office,
