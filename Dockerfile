@@ -13,4 +13,4 @@ EXPOSE 6379
 # Ray dashboard port
 EXPOSE 52365
 
-CMD ["runhouse", "start", "--custom-server-host", "0.0.0.0"]
+CMD ["runhouse", "start", "--host", "0.0.0.0"]
