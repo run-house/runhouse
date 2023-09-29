@@ -24,6 +24,20 @@ def login(
 ):
     """Login to Runhouse. Validates token provided, with options to upload or download stored secrets or config between
     local environment and Runhouse / Vault.
+
+    Args:
+        token (str): Runhouse token, can be found at https://www.run.house/account#token. If not provided, function will
+            interactively prompt for the token to be entered manually.
+        download_config (bool): Whether to download configs from your Runhouse account to local environment.
+        upload_config (bool): Whether to upload local configs into your Runhouse account.
+        download_secrets (bool): Whether to download secrets from your Runhouse account to local environment.
+        upload_secrets (bool): Whether to upload local secrets to your Runhouse account.
+        ret_token (bool): Whether to return your Runhouse token. (Default: False)
+        interactive (bool): Whether to interactively go through the login flow. ``token`` must be provided to
+            set this to False.
+
+    Returns:
+        Token if ``ret_token`` is set to True, otherwise nothing.
     """
     from runhouse import Secrets
 
@@ -125,8 +139,9 @@ def logout(
     delete_rh_config_file: bool = None,
     interactive: bool = None,
 ):
-    """Logout from Runhouse. Provides option to delete credentials from the Runhouse config and the underlying
-     credentials file. Token is also deleted from the config.
+    """
+    Logout from Runhouse. Provides option to delete credentials from the Runhouse config and the underlying
+    credentials file. Token is also deleted from the config.
 
     Args:
         delete_loaded_secrets (bool, optional): If True, deletes the provider credentials file. Defaults to None.
