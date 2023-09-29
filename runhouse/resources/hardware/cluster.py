@@ -466,9 +466,7 @@ class Cluster(Resource):
         return ssh_tunnel, local_port
 
     @classmethod
-    def _start_server_cmds(
-        cls, restart, restart_ray, screen, create_logfile, custom_server_host
-    ):
+    def _start_server_cmds(cls, restart, restart_ray, screen, create_logfile, host):
         cmds = []
         if restart:
             cmds.append(cls.SERVER_STOP_CMD)
@@ -483,8 +481,8 @@ class Cluster(Resource):
             cmds.append(cls.START_SCREEN_CMD)
         else:
             server_start_cmd = cls.SERVER_START_CMD
-            if custom_server_host is not None:
-                server_start_cmd += f" --host {custom_server_host}"
+            if host is not None:
+                server_start_cmd += f" --host {host}"
             logger.info(
                 f"Starting HTTP server using the following command: {server_start_cmd}."
             )
