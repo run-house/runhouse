@@ -20,6 +20,7 @@ from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.servlet import EnvServlet
 from ..http.http_utils import (
     b64_unpickle,
+    DEFAULT_SERVER_HOST,
     DEFAULT_SERVER_PORT,
     Message,
     OutputType,
@@ -583,6 +584,9 @@ class HTTPServer:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "--host", type=str, default=DEFAULT_SERVER_HOST, help="Host to run server on"
+    )
+    parser.add_argument(
         "--port", type=int, default=DEFAULT_SERVER_PORT, help="Port to run server on"
     )
     parser.add_argument(
@@ -595,6 +599,7 @@ if __name__ == "__main__":
         help="Enable local span collection",
     )
     parse_args = parser.parse_args()
+    host = parse_args.host
     port = parse_args.port
     conda_name = parse_args.conda_env
     should_enable_local_span_collection = parse_args.enable_local_span_collection
@@ -605,4 +610,4 @@ if __name__ == "__main__":
         conda_env=conda_name,
         enable_local_span_collection=should_enable_local_span_collection,
     )
-    uvicorn.run(app, host="127.0.0.1", port=port)
+    uvicorn.run(app, host=host, port=port)

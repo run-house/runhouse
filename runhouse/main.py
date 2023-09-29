@@ -91,7 +91,7 @@ def load_cluster(cluster_name: str):
         c._update_from_sky_status(dryrun=True)
 
 
-def _start_server(restart, restart_ray, screen, create_logfile=True):
+def _start_server(restart, restart_ray, screen, create_logfile=True, host=None):
     from runhouse.resources.hardware.cluster import Cluster
 
     cmds = Cluster._start_server_cmds(
@@ -99,6 +99,7 @@ def _start_server(restart, restart_ray, screen, create_logfile=True):
         restart_ray=restart_ray,
         screen=screen,
         create_logfile=create_logfile,
+        host=host,
     )
 
     try:
@@ -121,10 +122,18 @@ def _start_server(restart, restart_ray, screen, create_logfile=True):
 def start(
     restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
     screen: bool = typer.Option(False, help="Start the server in a screen"),
+    host: Optional[str] = typer.Option(
+        None,
+        help="Custom server host address e.g. 0.0.0.0. Default is `None` and the server would start on 127.0.0.1",
+    ),
 ):
     """Start the HTTP server on the cluster."""
     _start_server(
-        restart=False, restart_ray=restart_ray, screen=screen, create_logfile=True
+        restart=False,
+        restart_ray=restart_ray,
+        screen=screen,
+        create_logfile=True,
+        host=host,
     )
 
 
@@ -140,6 +149,10 @@ def restart(
         False,
         help="Resync the Runhouse package. Only relevant when restarting remotely.",
     ),
+    host: Optional[str] = typer.Option(
+        None,
+        help="Custom server host address e.g. 0.0.0.0. Default is `None` and the server would start on 127.0.0.1",
+    ),
 ):
     """Restart the HTTP server on the cluster."""
     if name:
@@ -152,6 +165,7 @@ def restart(
         restart_ray=restart_ray,
         screen=screen,
         create_logfile=True,
+        host=host,
     )
 
 
