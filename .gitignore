@@ -133,3 +133,6 @@ dmypy.json
 # IDE project files
 .idea/
 .vscode/
+
+# SSH secrets
+docker_user_passwd

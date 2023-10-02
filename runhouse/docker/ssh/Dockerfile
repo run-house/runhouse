@@ -1,9 +1,17 @@
 # Use the specified Python base image
 FROM python:3.9.15
 
+ARG DOCKER_USER_PASSWORD_FILE
+
 WORKDIR /app
 
 COPY . .
+
+# Create the password file
+RUN mkdir -p /app/ssh
+
+# Copy the password file into the image
+COPY $DOCKER_USER_PASSWORD_FILE /app/ssh/docker_user_password_file
 
 RUN pip install -e .
 
@@ -15,9 +23,9 @@ RUN apt-get update && \
     apt-get install -y openssh-server supervisor && \
     rm -rf /var/lib/apt/lists/*
 
-# Create a user for SSH access (using password: 123456)
+# Create a user for SSH access (using password from $DOCKER_USER_PASSWORD_FILE)
 RUN useradd -m rh-docker-user && \
-    echo "rh-docker-user:123456" | chpasswd && \
+    echo "rh-docker-user:$(cat /app/ssh/docker_user_password_file)" | chpasswd && \
     echo "PermitRootLogin no" >> /etc/ssh/sshd_config && \
     echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config
 
