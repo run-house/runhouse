@@ -29,7 +29,6 @@ class Function(Module):
         env: Optional[Env] = None,
         dryrun: bool = False,
         access: Optional[str] = None,
-        resources: Optional[dict] = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
@@ -41,7 +40,6 @@ class Function(Module):
         """
         self.fn_pointers = fn_pointers
         self.access = access or self.DEFAULT_ACCESS
-        self.resources = resources or {}
         super().__init__(name=name, dryrun=dryrun, system=system, env=env, **kwargs)
 
     # ----------------- Constructor helper methods -----------------
@@ -250,14 +248,9 @@ class Function(Module):
         config.update(
             {
                 "fn_pointers": self.fn_pointers,
-                "resources": self.resources,
             }
         )
         return config
-
-    def _save_sub_resources(self):
-        if isinstance(self.system, Cluster):
-            self.system.save()
 
     def send_secrets(self, providers: Optional[List[str]] = None):
         """Send secrets to the system.
@@ -387,7 +380,6 @@ def function(
     name: Optional[str] = None,
     system: Optional[Union[str, Cluster]] = None,
     env: Optional[Union[List[str], Env, str]] = None,
-    resources: Optional[dict] = None,
     dryrun: bool = False,
     load_secrets: bool = False,
     serialize_notebook_fn: bool = False,
@@ -405,8 +397,6 @@ def function(
             This can be either the string name of a Cluster object, or a Cluster object.
         env (Optional[List[str] or Env or str]): List of requirements to install on the remote cluster, or path to the
             requirements.txt file, or Env object or string name of an Env object.
-        resources (Optional[dict]): Optional number (int) of resources needed to run the Function on the Cluster.
-            Keys must be ``num_cpus`` and ``num_gpus``.
         dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
             (Default: ``False``)
         load_secrets (bool): Whether or not to send secrets; only applicable if `dryrun` is set to ``False``.
@@ -432,7 +422,7 @@ def function(
         >>> # Load function from above
         >>> reloaded_function = rh.function(name="my_func")
     """
-    if name and not any([fn, system, env, resources]):
+    if name and not any([fn, system, env]):
         # Try reloading existing function
         return Function.from_name(name, dryrun)
 
@@ -496,7 +486,6 @@ def function(
 
     new_function = Function(
         fn_pointers=fn_pointers,
-        resources=resources,
         access=Function.DEFAULT_ACCESS,
         name=name,
         dryrun=dryrun,

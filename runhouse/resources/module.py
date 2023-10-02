@@ -129,7 +129,11 @@ class Module(Resource):
             self._resource_string_for_subconfig(self.system) if self.system else None
         )
         config["env"] = (
-            self._resource_string_for_subconfig(self.env) if self.env else None
+            None
+            if not self.env
+            else self.env.config_for_rns
+            if self.env.name == Env.DEFAULT_NAME
+            else self._resource_string_for_subconfig(self.env)
         )
         if self._cls_pointers:
             # For some reason sometimes this is coming back as a string, so we force it into a tuple
@@ -768,7 +772,7 @@ class Module(Resource):
     def _save_sub_resources(self):
         if isinstance(self.system, Resource):
             self.system.save()
-        if isinstance(self.env, Resource):
+        if isinstance(self.env, Resource) and self.env.name != Env.DEFAULT_NAME:
             self.env.save()
 
     def rename(self, name: str):
