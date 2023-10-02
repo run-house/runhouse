@@ -69,6 +69,7 @@ class Cluster(Resource):
         self.ips = ips
         self._rpc_tunnel = None
         self.client = None
+        self._rh_version = None
 
     def save_config_to_cluster(self):
         import json
@@ -414,6 +415,15 @@ class Cluster(Resource):
                                 print(error)
                             time.sleep(5)
                 raise ValueError(f"Could not connect to cluster <{self.name}>")
+
+        import runhouse
+
+        if not runhouse.__version__ == self._rh_version:
+            logger.warning(
+                f"Server was started with Runhouse version ({self._rh_version}), "
+                f"but local Runhouse version is ({runhouse.__version__})"
+            )
+
         return
 
     def ssh_tunnel(
@@ -512,6 +522,12 @@ class Cluster(Resource):
             raise ValueError(f"Failed to restart server {self.name}.")
         # As of 2023-15-May still seems we need this.
         time.sleep(5)
+
+        rh_version = self.run_python(
+            ["import runhouse", "print(runhouse.__version__)"]
+        )[0][1].strip()
+        self._rh_version = rh_version
+
         return status_codes
 
     @contextlib.contextmanager
