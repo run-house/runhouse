@@ -1,6 +1,6 @@
 # Prerequisites: Start a local Docker image with Runhouse installed using the following commands:
 #   $ docker build --pull --rm -f \"Dockerfile\" \
-#       --build-arg DOCKER_USER_PASSWORD_FILE=/etc/ssh/docker_user_passwd \
+#       --build-arg DOCKER_USER_PASSWORD_FILE=docker_user_passwd \
 #       -t runhouse:start .
 #   $ docker run --rm --shm-size=3gb -it -p 50052:50052 -p 6379:6379 -p 52365:52365 -p 22:22 \
 #       runhouse:start

@@ -601,14 +601,19 @@ def local_docker():
 
     # Build the Docker image
     run_shell_command(
-        subprocess, ['docker build --pull --rm -f "../Dockerfile" -t runhouse:start ..']
+        subprocess,
+        [
+            "docker build --pull --rm -f '../Dockerfile' "
+            "--build-arg DOCKER_USER_PASSWORD_FILE=docker_user_passwd "
+            "-t runhouse:start .."
+        ],
     )
 
     # Run the Docker image
     run_shell_command(
         subprocess,
         [
-            "docker run --rm --shm-size=3gb -it -p 50052:50052 -p 6379:6379 -p 52365:52365 runhouse:start"
+            "docker run --rm --shm-size=3gb -it -p 50052:50052 -p 6379:6379 -p 52365:52365 -p 22:22 runhouse:start"
         ],
     )
 
