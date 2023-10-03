@@ -84,6 +84,7 @@ class SageMakerCluster(Cluster):
         .. note::
             To build a cluster, please use the factory method :func:`sagemaker_cluster`.
         """
+        super().__init__(name=name, ssh_creds={}, dryrun=dryrun)
         self._connection_wait_time = connection_wait_time
         self._instance_type = instance_type
         self._instance_count = instance_count
@@ -116,7 +117,11 @@ class SageMakerCluster(Cluster):
 
         self.estimator = self._load_estimator(estimator)
 
-        self.role, self.profile = self._load_role_and_profile(role, profile)
+        self.role, self.profile = (
+            self._load_role_and_profile(role, profile)
+            if not dryrun
+            else (role, profile)
+        )
         logger.info(
             f"Using SageMaker execution role: `{self.role}` and profile: `{self.profile}`"
         )
@@ -124,7 +129,7 @@ class SageMakerCluster(Cluster):
         self.image_uri = self._load_image_uri(image_uri)
 
         # Note: Setting instance ID as cluster IP for compatibility with Cluster parent class methods
-        super().__init__(name=name, ips=[self.instance_id], ssh_creds={}, dryrun=dryrun)
+        self.address = self.instance_id
 
     @property
     def config_for_rns(self):
@@ -323,8 +328,9 @@ class SageMakerCluster(Cluster):
         if self.on_this_cluster():
             return
 
-        if not self.instance_id:
-            raise ValueError(f"SageMaker cluster {self.name} has no instance ID")
+        if not self.instance_id or not self.is_up():
+            logger.info(f"Cluster {self.name} is not up, bringing it up now.")
+            self.up_if_not()
 
         if not self.client:
             cluster_config = self.config_for_rns
@@ -1088,14 +1094,24 @@ class SageMakerCluster(Cluster):
                 )
 
         # Create a sagemaker session using the profile provided
-        self._boto_session = boto3.Session(region_name=self.DEFAULT_REGION)
-        self._s3_client = self._boto_session.client("s3")
-        self._sagemaker_session = self._load_sagemaker_session()
+        try:
+            self._boto_session = boto3.Session(
+                region_name=self.DEFAULT_REGION, profile_name=profile
+            )
+            self._s3_client = self._boto_session.client("s3")
+            self._sagemaker_session = self._load_sagemaker_session()
 
-        # If no role explicitly provided, use sagemaker to get it via the profile
-        role = role or sagemaker.get_execution_role(
-            sagemaker_session=self._sagemaker_session
-        )
+            # If no role explicitly provided, use sagemaker to get it via the profile
+            role = role or sagemaker.get_execution_role(
+                sagemaker_session=self._sagemaker_session
+            )
+        except Exception as e:
+            if self.on_this_cluster():
+                # If we're on the cluster, we may not have the profile or role saved locally, but should still be able
+                # to create the cluster object (e.g. for rh.here).
+                pass
+            else:
+                raise e
 
         return role, profile
 

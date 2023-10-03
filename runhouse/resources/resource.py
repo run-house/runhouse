@@ -212,6 +212,8 @@ class Resource:
                     config[key]
                 ):
                     return None
+            else:
+                return None
         return config
 
     @classmethod
