@@ -1,5 +1,4 @@
-# Use the specified Python base image
-FROM python:3.9.15
+FROM python:3.9.15-slim-buster
 
 ARG DOCKER_USER_PASSWORD_FILE
 
