@@ -605,8 +605,7 @@ def local_docker_http_server():
     run_shell_command(
         subprocess,
         [
-            "docker build --pull --rm -f '../Dockerfile' "
-            "--build-arg DOCKER_USER_PASSWORD_FILE=docker_user_passwd "
+            "docker build --pull --rm -f '../docker/httpserver/Dockerfile' "
             "-t runhouse:httpserver .."
         ],
     )
@@ -615,7 +614,7 @@ def local_docker_http_server():
     run_shell_command(
         subprocess,
         [
-            "docker run --rm --shm-size=3gb -it -p 50052:50052 -p 6379:6379 -p 52365:52365 -p 22:22 runhouse:start"
+            "docker run --rm --shm-size=3gb -it -p 50052:50052 -p 6379:6379 -p 52365:52365 runhouse:httpserver"
         ],
     )
 
@@ -639,16 +638,12 @@ def local_docker():
     # Requirements:
     # =============
     # Install Docker
-    # Install sshpass: curl -L \
-    #   https://raw.githubusercontent.com/kadwanev/bigboybrew/master/Library/Formula/sshpass.rb > sshpass.rb \
-    #   && brew install sshpass.rb && rm sshpass.rb
 
     # Build the Docker image
     run_shell_command(
         subprocess,
         [
-            "docker build --pull --rm -f '../Dockerfile' "
-            "--build-arg DOCKER_USER_PASSWORD_FILE=docker_user_passwd "
+            "docker build --pull --rm -f '../docker/rhserver/Dockerfile' "
             "-t runhouse:start .."
         ],
     )
@@ -657,7 +652,7 @@ def local_docker():
     run_shell_command(
         subprocess,
         [
-            "docker run --rm --shm-size=3gb -it -p 50052:50052 -p 6379:6379 -p 52365:52365 -p 22:22 runhouse:start"
+            "docker run --rm --shm-size=3gb -it -p 50052:50052 -p 6379:6379 -p 52365:52365 runhouse:start"
         ],
     )
 
@@ -687,7 +682,7 @@ def local_docker_ssh():
     run_shell_command(
         subprocess,
         [
-            "docker build --pull --rm -f '../Dockerfile' "
+            "docker build --pull --rm -f '../docker/rhserverssh/Dockerfile' "
             "--build-arg DOCKER_USER_PASSWORD_FILE=docker_user_passwd "
             "-t runhouse:ssh .."
         ],
@@ -697,7 +692,7 @@ def local_docker_ssh():
     run_shell_command(
         subprocess,
         [
-            "docker run --rm --shm-size=3gb -it -p 50052:50052 -p 6379:6379 -p 52365:52365 -p 22:22 runhouse:start"
+            "docker run --rm --shm-size=3gb -it -p 50052:50052 -p 6379:6379 -p 52365:52365 -p 22:22 runhouse:ssh"
         ],
     )
 
