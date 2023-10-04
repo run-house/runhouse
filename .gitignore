@@ -134,5 +134,10 @@ dmypy.json
 .idea/
 .vscode/
 
+# Config files
+rh/local_function/config.json
+rh/local_conda_env/config.json
+rh/tests/bert_ft/config.json
+
 # SSH secrets
 docker_user_passwd

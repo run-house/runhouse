@@ -1,4 +1,5 @@
-FROM python:3.9.15-slim-buster
+# Nvidia/CUDA on Ubuntu based image
+FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04
 
 ARG DOCKER_USER_PASSWORD_FILE
 
@@ -9,6 +10,11 @@ COPY . .
 # Create the password file
 RUN mkdir -p /app/ssh
 
+# Install the required packages
+RUN apt-get update && \
+    apt-get install -y gcc python3-dev openssh-server supervisor && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy the password file into the image
 COPY $DOCKER_USER_PASSWORD_FILE /app/ssh/docker_user_password_file
 
@@ -16,11 +22,6 @@ RUN pip install -e .
 
 # Create the privilege separation directory required by sshd
 RUN mkdir -p /run/sshd
-
-# Install SSH server and supervisord
-RUN apt-get update && \
-    apt-get install -y openssh-server supervisor && \
-    rm -rf /var/lib/apt/lists/*
 
 # Create a user for SSH access (using password from $DOCKER_USER_PASSWORD_FILE)
 RUN useradd -m rh-docker-user && \

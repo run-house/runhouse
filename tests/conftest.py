@@ -594,7 +594,51 @@ def run_shell_command(subprocess, cmd: list[str]):
 
 
 @pytest.fixture
-def local_docker_http_server():
+def local_docker_slim():
+    import subprocess
+
+    # Requirements:
+    # =============
+    # Install Docker
+
+    # Build the Docker image
+    run_shell_command(
+        subprocess,
+        [
+            "docker build --pull --rm -f '../docker/slim/Dockerfile' "
+            "-t runhouse:start .."
+        ],
+    )
+
+    # Run the Docker image
+    run_shell_command(
+        subprocess,
+        [
+            "docker run --rm --shm-size=3gb -it -p 50052:50052 -p 6379:6379 -p 52365:52365 -p 22:22 runhouse:start"
+        ],
+    )
+
+    # Runhouse commands can now be run locally
+    rh.configs.disable_data_collection()  # Workaround until we remove the usage of GCSClient from our code
+    c = rh.cluster(
+        name="local-docker-slim",
+        host="localhost:50052",
+        ssh_creds={"ssh_user": "root"},
+    )
+    c.check_server()
+
+    # Yield the cluster
+    yield c
+
+    # Stop the Docker container
+    run_shell_command(
+        subprocess,
+        ["docker rm -f runhouse:start"],
+    )
+
+
+@pytest.fixture
+def local_docker_http_server_with_telemetry():
     import subprocess
 
     # Requirements:
@@ -625,83 +669,13 @@ def local_docker_http_server():
         host="localhost:50052",
         ssh_creds={"ssh_user": "root"},
     )
-    c.up_if_not()
+    c.check_server()
 
     # Yield the cluster
     yield c
 
-
-@pytest.fixture
-def local_docker():
-    import subprocess
-
-    # Requirements:
-    # =============
-    # Install Docker
-
-    # Build the Docker image
+    # Stop the Docker container
     run_shell_command(
         subprocess,
-        [
-            "docker build --pull --rm -f '../docker/rhserver/Dockerfile' "
-            "-t runhouse:start .."
-        ],
+        ["docker rm -f runhouse:httpserver"],
     )
-
-    # Run the Docker image
-    run_shell_command(
-        subprocess,
-        [
-            "docker run --rm --shm-size=3gb -it -p 50052:50052 -p 6379:6379 -p 52365:52365 runhouse:start"
-        ],
-    )
-
-    # Runhouse commands can now be run locally
-    rh.configs.disable_data_collection()  # Workaround until we remove the usage of GCSClient from our code
-    c = rh.cluster(
-        name="local-docker", host="localhost:50052", ssh_creds={"ssh_user": "root"}
-    )
-    c.up_if_not()
-
-    # Yield the cluster
-    yield c
-
-
-@pytest.fixture
-def local_docker_ssh():
-    import subprocess
-
-    # Requirements:
-    # =============
-    # Install Docker
-    # Install sshpass: curl -L \
-    #   https://raw.githubusercontent.com/kadwanev/bigboybrew/master/Library/Formula/sshpass.rb > sshpass.rb \
-    #   && brew install sshpass.rb && rm sshpass.rb
-
-    # Build the Docker image
-    run_shell_command(
-        subprocess,
-        [
-            "docker build --pull --rm -f '../docker/rhserverssh/Dockerfile' "
-            "--build-arg DOCKER_USER_PASSWORD_FILE=docker_user_passwd "
-            "-t runhouse:ssh .."
-        ],
-    )
-
-    # Run the Docker image
-    run_shell_command(
-        subprocess,
-        [
-            "docker run --rm --shm-size=3gb -it -p 50052:50052 -p 6379:6379 -p 52365:52365 -p 22:22 runhouse:ssh"
-        ],
-    )
-
-    # Runhouse commands can now be run locally
-    rh.configs.disable_data_collection()  # Workaround until we remove the usage of GCSClient from our code
-    c = rh.cluster(
-        name="local-docker-ssh", host="localhost:50052", ssh_creds={"ssh_user": "root"}
-    )
-    c.up_if_not()
-
-    # Yield the cluster
-    yield c

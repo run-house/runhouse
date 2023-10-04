@@ -1,3 +1,4 @@
+# HTTPServer with local span collection enabled
 FROM python:3.9.15-slim-buster
 
 WORKDIR /app
@@ -13,4 +14,4 @@ EXPOSE 6379
 # Ray dashboard port
 EXPOSE 52365
 
-CMD ["python", "-m", "runhouse.servers.http.http_server", "--host", "0.0.0.0", "--port", "50052"]
+CMD ["python", "-m", "runhouse.servers.http.http_server", "--enable_local_span_collection=True", "--host", "0.0.0.0", "--port", "50052"]
