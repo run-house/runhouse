@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 import textwrap
+import time
 
 import numpy as np
 import pandas as pd
@@ -593,28 +594,57 @@ def run_shell_command(subprocess, cmd: list[str]):
     assert result.returncode == 0
 
 
+def popen_shell_command(subprocess, command: list[str]):
+    process = subprocess.Popen(
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+    # Wait for 10 seconds before resuming execution
+    time.sleep(10)
+    return process
+
+
 @pytest.fixture
 def local_docker_slim():
     import subprocess
 
-    # Requirements:
-    # =============
-    # Install Docker
+    current_dir = os.getcwd()
+    dockerfile_path = os.path.join(current_dir, "runhouse/docker/slim/Dockerfile")
 
     # Build the Docker image
     run_shell_command(
         subprocess,
         [
-            "docker build --pull --rm -f '../docker/slim/Dockerfile' "
-            "-t runhouse:start .."
+            "docker",
+            "build",
+            "--pull",
+            "--rm",
+            "-f",
+            dockerfile_path,
+            "--build-arg",
+            "DOCKER_USER_PASSWORD_FILE=docker_user_passwd",
+            "-t",
+            "runhouse:start",
+            ".",
         ],
     )
 
     # Run the Docker image
-    run_shell_command(
+    popen_shell_command(
         subprocess,
         [
-            "docker run --rm --shm-size=3gb -it -p 50052:50052 -p 6379:6379 -p 52365:52365 -p 22:22 runhouse:start"
+            "docker",
+            "run",
+            "--rm",
+            "--shm-size=3gb",
+            "-p",
+            "50052:50052",
+            "-p",
+            "6379:6379",
+            "-p",
+            "52365:52365",
+            "-p",
+            "22:22",
+            "runhouse:start",
         ],
     )
 
@@ -633,49 +663,5 @@ def local_docker_slim():
     # Stop the Docker container
     run_shell_command(
         subprocess,
-        ["docker rm -f runhouse:start"],
-    )
-
-
-@pytest.fixture
-def local_docker_http_server_with_telemetry():
-    import subprocess
-
-    # Requirements:
-    # =============
-    # Install Docker
-
-    # Build the Docker image
-    run_shell_command(
-        subprocess,
-        [
-            "docker build --pull --rm -f '../docker/httpserver/Dockerfile' "
-            "-t runhouse:httpserver .."
-        ],
-    )
-
-    # Run the Docker image
-    run_shell_command(
-        subprocess,
-        [
-            "docker run --rm --shm-size=3gb -it -p 50052:50052 -p 6379:6379 -p 52365:52365 runhouse:httpserver"
-        ],
-    )
-
-    # Runhouse commands can now be run locally
-    rh.configs.disable_data_collection()  # Workaround until we remove the usage of GCSClient from our code
-    c = rh.cluster(
-        name="local-docker-http-server",
-        host="localhost:50052",
-        ssh_creds={"ssh_user": "root"},
-    )
-    c.check_server()
-
-    # Yield the cluster
-    yield c
-
-    # Stop the Docker container
-    run_shell_command(
-        subprocess,
-        ["docker rm -f runhouse:httpserver"],
+        ["docker", "rm", "-f", "runhouse:start"],
     )

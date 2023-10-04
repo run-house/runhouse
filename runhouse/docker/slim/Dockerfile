@@ -1,4 +1,4 @@
-# Debian / Ubuntu based image
+# Debian based image (should work for Ubuntu as well)
 FROM python:3.9.15-slim
 
 ARG DOCKER_USER_PASSWORD_FILE
@@ -7,15 +7,18 @@ WORKDIR /app
 
 COPY . .
 
-# Create the password file
+# Create the password file directory
 RUN mkdir -p /app/ssh
 
 # Install the required packages
-RUN apt-get update && \
-    apt-get install -y gcc python3-dev openssh-server rsync supervisor && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get update --allow-insecure-repositories && \
+    apt-get install -y --no-install-recommends gcc python3-dev openssh-server rsync supervisor && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Copy the password file into the image
+# TODO(denis): check if the password file doesn't exist, if that's the case,
+# generate a new password and save it to the file.
 COPY $DOCKER_USER_PASSWORD_FILE /app/ssh/docker_user_password_file
 
 RUN pip install -e .
