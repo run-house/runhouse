@@ -3,6 +3,12 @@ import logging
 import typer
 
 from runhouse.globals import configs, rns_client
+from runhouse.resources.secrets.functions import (
+    _get_local_secrets,
+    delete_secrets,
+    upload_local_secrets,
+    write_secrets,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +45,6 @@ def login(
     Returns:
         Token if ``ret_token`` is set to True, otherwise nothing.
     """
-    from runhouse import Secrets
-
     all_options_set = token and not any(
         arg is None
         for arg in (download_config, upload_config, download_secrets, upload_secrets)
@@ -127,10 +131,10 @@ def login(
         configs.set("default_folder", defaults["default_folder"])
 
     if download_secrets:
-        Secrets.download_into_env()
+        write_secrets()
 
     if upload_secrets:
-        Secrets.extract_and_upload(interactive=interactive)
+        upload_local_secrets()
 
     logger.info("Successfully logged into Runhouse.")
     if ret_token:
@@ -154,29 +158,39 @@ def logout(
     Returns:
         None
     """
-    from runhouse import Secrets
-
     interactive_session: bool = (
         interactive if interactive is not None else is_interactive()
     )
 
-    for (provider_name, _) in configs.get("secrets", {}).items():
-        if provider_name == "ssh":
-            logger.info(
-                "Automatic deletion for local SSH credentials file is not supported. "
-                "Please manually delete it if you would like to remove it"
+    if interactive_session:
+        local_secrets = _get_local_secrets().keys()
+        for name in local_secrets:
+            delete_local_secrets = typer.confirm(
+                f"Delete credentials file for secret {name}?"
             )
-            continue
+            delete_secrets(file=delete_local_secrets)
+    elif delete_loaded_secrets:
+        delete_secrets()
+    else:
+        delete_secrets(file=False)
 
-        if interactive_session:
-            delete_loaded_secrets = typer.confirm(
-                f"Delete credentials file for {provider_name}?"
-            )
+    # for (provider_name, _) in configs.get("secrets", {}).items():
+    #     if provider_name == "ssh":
+    #         logger.info(
+    #             "Automatic deletion for local SSH credentials file is not supported. "
+    #             "Please manually delete it if you would like to remove it"
+    #         )
+    #         continue
 
-        if delete_loaded_secrets:
-            Secrets.delete_from_local_env(providers=[provider_name])
-        else:
-            configs.delete(provider_name)
+    #     if interactive_session:
+    #         delete_loaded_secrets = typer.confirm(
+    #             f"Delete credentials file for {provider_name}?"
+    #         )
+
+    #     if delete_loaded_secrets:
+    #         Secrets.delete_from_local_env(providers=[provider_name])
+    #     else:
+    #         configs.delete(provider_name)
 
     # Delete token and username/default folder from rh config file
     configs.delete(key="token")

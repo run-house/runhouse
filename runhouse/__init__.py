@@ -19,9 +19,16 @@ from runhouse.resources.module import Module, module
 from runhouse.resources.packages import git_package, GitPackage, package, Package
 from runhouse.resources.provenance import capture_stdout, Run, run, RunStatus, RunType
 from runhouse.resources.queues import Queue
+from runhouse.resources.secrets import (
+    cluster_secret,
+    env_secret,
+    EnvSecret,
+    provider_secret,
+    ProviderSecret,
+    secret,
+    Secret,
+)
 from runhouse.resources.tables import Table, table
-
-from runhouse.rns.secrets.secrets import Secrets
 
 from runhouse.rns.top_level_rns_fns import (
     current_folder,
