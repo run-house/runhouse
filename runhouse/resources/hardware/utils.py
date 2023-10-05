@@ -65,9 +65,10 @@ class SkySSHRunner(SSHCommandRunner):
         ssh_private_key=None,
         ssh_control_name=None,
         ssh_proxy_command=None,
+        disable_control_master: Optional[bool] = False
     ):
         super().__init__(
-            ip, ssh_user, ssh_private_key, ssh_control_name, ssh_proxy_command
+            ip, ssh_user, ssh_private_key, ssh_control_name, ssh_proxy_command, disable_control_master
         )
         self._tunnel_procs = []
 

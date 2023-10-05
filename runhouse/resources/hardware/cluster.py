@@ -98,6 +98,10 @@ class Cluster(Resource):
             from .sagemaker_cluster import SageMakerCluster
 
             return SageMakerCluster(**config, dryrun=dryrun)
+        elif resource_subtype == "KubernetesCluster":
+            from .kubernetes_cluster import KubernetesCluster
+
+            return KubernetesCluster(**config, dryrun=dryrun)
         else:
             raise ValueError(f"Unknown cluster type {resource_subtype}")
 
