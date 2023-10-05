@@ -3,6 +3,7 @@ import unittest
 import pytest
 
 
+@pytest.mark.dockertest
 @pytest.mark.httpservertest
 def test_cluster_is_up(local_docker_slim):
     cluster = local_docker_slim
