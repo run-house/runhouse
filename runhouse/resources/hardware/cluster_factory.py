@@ -4,9 +4,9 @@ from typing import Dict, List, Optional, Union
 from runhouse.resources.hardware.utils import RESERVED_SYSTEM_NAMES
 
 from .cluster import Cluster
+from .kubernetes_cluster import KubernetesCluster
 from .on_demand_cluster import OnDemandCluster
 from .sagemaker_cluster import SageMakerCluster
-from .kubernetes_cluster import KubernetesCluster
 
 
 # Cluster factory method
@@ -180,6 +180,7 @@ def ondemand_cluster(
         dryrun=dryrun,
     )
 
+
 # KubernetesCluster factory method
 def kubernetes_cluster(
     name: str,
@@ -191,7 +192,6 @@ def kubernetes_cluster(
     image_id: Optional[str] = None,
     region: Optional[str] = None,
     dryrun: bool = False,
-
     namespace: str = "default",
     num_workers: int = None,
     cpus: int = None,
@@ -215,6 +215,14 @@ def kubernetes_cluster(
         region (str, optional): The region to use for the cluster.
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
+        namespace (str, optional): The namespace to use for the cluster. (Default: ``default``)
+        num_workers (int, optional): The number of workers to use for the cluster. (Default: ``None``)
+        cpus (int, optional): The number of CPUs to use for the cluster. (Default: ``None``)
+        memory (int, optional): The amount of memory to allocate for the cluster. (Default: ``None``)
+        num_gpus (int, optional): The number of GPUs to use for the cluster. (Default: ``None``)
+        head_cpus (int, optional): The number of CPUs to use for the head node. (Default: ``None``)
+        head_memory (int, optional): The amount of memory to allocate for the head node. (Default: ``None``)
+
     Returns:
         KubernetesCluster: The resulting cluster.
     Example:
@@ -223,14 +231,22 @@ def kubernetes_cluster(
         >>> cluster = rh.kubernetes_cluster(
         >>>            name="cpu-cluster-test",
         >>>            instance_type="CPU:1",
-        >>>            provider="kubernetes",      
+        >>>            provider="kubernetes",
         >>>        )
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.kubernetes_cluster(name="rh-4-a100s")
     """
-    if name and not any([instance_type, num_instances, provider, image_id, region]):
-        # If only the name is provided and dryrun is set to True
-        return Cluster.from_name(name, dryrun)
+    if name:
+        # Filter out None/default values
+        alt_options = {
+            k: v for k, v in locals().items() if k != "name" and v is not None
+        }
+        try:
+            c = KubernetesCluster.from_name(name, dryrun, alt_options=alt_options)
+            if c:
+                return c
+        except ValueError:
+            pass
 
     if name in RESERVED_SYSTEM_NAMES:
         raise ValueError(
@@ -248,14 +264,13 @@ def kubernetes_cluster(
         region=region,
         name=name,
         dryrun=dryrun,
-
-        namespace = namespace,
-        num_workers = num_workers,
-        cpus = cpus,
-        memory = memory,
-        num_gpus = num_gpus,
-        head_cpus = head_cpus,
-        head_memory = head_memory
+        namespace=namespace,
+        num_workers=num_workers,
+        cpus=cpus,
+        memory=memory,
+        num_gpus=num_gpus,
+        head_cpus=head_cpus,
+        head_memory=head_memory,
     )
 
 

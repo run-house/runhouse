@@ -358,6 +358,29 @@ def sm_gpu_cluster():
 
 
 @pytest.fixture(scope="session")
+def k8s_cluster():
+    c = (
+        rh.kubernetes_cluster(
+            name="rh-k8s",
+            provider="kubernetes",
+            namespace="default",
+            # specify context, or namespace, actual EKS cluster, user. context or all three
+            num_workers=1,
+            cpus=1,
+            memory=2,
+            num_gpus=0,  # experimental: need to see how this really works
+            head_cpus=1,
+            head_memory=4,
+        )
+        .up_if_not()
+        .save()
+    )
+    c.install_packages(["pytest"])
+
+    return c
+
+
+@pytest.fixture(scope="session")
 def byo_cpu():
     # Spin up a new basic m5.xlarge EC2 instance
     c = (

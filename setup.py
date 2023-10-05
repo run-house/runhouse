@@ -105,6 +105,7 @@ extras_require = {
         "opentelemetry-instrumentation-requests",
         "opentelemetry-sdk",
     ],
+    "kubernetes": ["codeflare_sdk"],
 }
 
 extras_require["all"] = sum(extras_require.values(), [])
