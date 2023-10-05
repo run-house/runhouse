@@ -583,6 +583,17 @@ def create_gcs_bucket(bucket_name: str):
 # ----------------- Docker -----------------
 
 
+def run_shell_command_direct(subprocess, cmd: str):
+    # Run the command and wait for it to complete
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print(result.stdout)
+
+    # Check for success
+    assert result.returncode == 0
+
+
 def run_shell_command(subprocess, cmd: list[str]):
     # Run the command and wait for it to complete
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -661,7 +672,8 @@ def local_docker_slim():
     yield c
 
     # Stop the Docker container
-    run_shell_command(
-        subprocess,
-        ["docker", "rm", "-f", "runhouse:start"],
+    command = (
+        "docker ps --filter 'ancestor=runhouse:start' --latest --format '{{.ID}}' | "
+        "xargs -I {} docker rm -f {}"
     )
+    run_shell_command_direct(subprocess, command)
