@@ -547,7 +547,8 @@ Modules
 -------
 
 In addition to running basic functions remotely, Runhouse lets you
-define classes that live and are run remotely, through the Module API.
+define classes that live and are run remotely, through the 
+`Module API <https://www.run.house/docs/api/python/module>`__:
 
 Converting existing class to Runhouse Module
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
