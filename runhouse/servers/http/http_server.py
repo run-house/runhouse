@@ -595,7 +595,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--enable_local_span_collection",
         type=bool,
-        default=True,
+        default=None,
         help="Enable local span collection",
     )
     parse_args = parser.parse_args()
