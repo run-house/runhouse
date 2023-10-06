@@ -588,7 +588,8 @@ def run_shell_command_direct(subprocess, cmd: str):
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
     if result.returncode != 0:
-        print(result.stdout)
+        print("subprocess failed, stdout: " + result.stdout)
+        print("subprocess failed, stderr: " + result.stderr)
 
     # Check for success
     assert result.returncode == 0
@@ -599,7 +600,8 @@ def run_shell_command(subprocess, cmd: list[str]):
     result = subprocess.run(cmd, capture_output=True, text=True)
 
     if result.returncode != 0:
-        print(result.stdout)
+        print("subprocess failed, stdout: " + result.stdout)
+        print("subprocess failed, stderr: " + result.stderr)
 
     # Check for success
     assert result.returncode == 0
