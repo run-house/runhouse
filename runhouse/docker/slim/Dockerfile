@@ -21,6 +21,7 @@ RUN apt-get update --allow-insecure-repositories && \
 # generate a new password and save it to the file.
 COPY $DOCKER_USER_PASSWORD_FILE /app/ssh/docker_user_password_file
 
+RUN pip install runhouse[opentelemetry]
 RUN pip install -e .
 
 # Create the privilege separation directory required by sshd
