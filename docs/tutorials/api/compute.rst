@@ -28,7 +28,7 @@ Install Runhouse
 
     import runhouse as rh
 
-Optionally, to login to Runhouse to sync any secrets.
+Optionally, login to Runhouse to sync any secrets.
 
 .. code:: ipython3
 
