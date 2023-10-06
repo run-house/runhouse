@@ -16,9 +16,10 @@ RUN apt-get update --allow-insecure-repositories && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
+# Check if the password file exists, if not throw an error
+RUN if [ ! -f "$DOCKER_USER_PASSWORD_FILE" ]; then echo "Error: Password file ${DOCKER_USER_PASSWORD_FILE} does not exist. Please create it and make sure it contains a password to be used for ssh access into the Docker container." && exit 1; fi
+
 # Copy the password file into the image
-# TODO(denis): check if the password file doesn't exist, if that's the case,
-# generate a new password and save it to the file.
 COPY $DOCKER_USER_PASSWORD_FILE /app/ssh/docker_user_password_file
 
 RUN pip install runhouse[opentelemetry]
