@@ -50,11 +50,13 @@ class Function(Module):
     def from_config(cls, config: dict, dryrun: bool = False):
         """Create a Function object from a config dictionary."""
         if isinstance(config["system"], dict):
+            logger.info("CAME HERE NOWWWWWWW")
             config["system"] = Cluster.from_config(config["system"], dryrun=dryrun)
         if isinstance(config["env"], dict):
             config["env"] = Env.from_config(config["env"], dryrun=dryrun)
 
         config.pop("resource_subtype", None)
+        logger.info(f"PRINT: {config.keys()}")
         return Function(**config, dryrun=dryrun)
 
     @classmethod
@@ -62,12 +64,16 @@ class Function(Module):
         """Overload by child resources to load any resources they hold internally."""
         # TODO: Replace with _get_cluster_from?
         system = config["system"]
-        if isinstance(system, str):
-            config["system"] = globals.rns_client.load_config(name=system)
-            # if the system is set to a cluster
-            if not config["system"]:
-                raise Exception(f"No cluster config saved for {system}")
+        # if isinstance(system, str):
+        #     # config["system"] = globals.rns_client.load_config(name=system)
+        #     config["system"] = Cluster.from_config(config["system"], dryrun=dryrun)
+        #     x = config["system"]
+        #     logger.info(f"PRINT THIS: {x}")
+        #     # if the system is set to a cluster
+        #     if not config["system"]:
+        #         raise Exception(f"No cluster config saved for {system}")
 
+        config["system"] = Cluster.from_config(config["system"], dryrun=dryrun)
         config["env"] = _get_env_from(config["env"])
         return config
 
@@ -135,6 +141,8 @@ class Function(Module):
         # env.name = env.name or (new_function.name + "_env")
         new_env = env.to(new_function.system, force_install=force_install)
         new_function.env = new_env
+
+        
 
         new_function.dryrun = True
         system.put_resource(new_function, dryrun=True)

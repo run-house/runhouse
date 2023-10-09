@@ -98,6 +98,10 @@ class Cluster(Resource):
             from .sagemaker_cluster import SageMakerCluster
 
             return SageMakerCluster(**config, dryrun=dryrun)
+        elif resource_subtype == "KubernetesCluster":
+            from .kubernetes_cluster import KubernetesCluster
+
+            return KubernetesCluster(**config, dryrun=dryrun)
         else:
             raise ValueError(f"Unknown cluster type {resource_subtype}")
 
@@ -255,6 +259,10 @@ class Cluster(Resource):
         )
         if self.on_this_cluster():
             return obj_store.put(key=resource.name, value=resource, env=env)
+            
+
+        self.client = HTTPClient(host="127.0.0.1", port=DEFAULT_SERVER_PORT)
+        logger.info(f"TELL ME: {resource}")
         return self.client.put_resource(
             resource, state=state or {}, env=env, dryrun=dryrun
         )
@@ -379,6 +387,7 @@ class Cluster(Resource):
             try:
                 self.connect_server_client()
                 cluster_config = self.config_for_rns
+                logger.info(f"This is cluster config: {cluster_config.keys()}")
                 if "live_state" in cluster_config.keys():
                     # a bunch of setup commands that mess up json dump
                     del cluster_config["live_state"]

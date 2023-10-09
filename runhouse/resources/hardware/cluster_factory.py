@@ -6,6 +6,7 @@ from runhouse.resources.hardware.utils import RESERVED_SYSTEM_NAMES
 from .cluster import Cluster
 from .on_demand_cluster import OnDemandCluster
 from .sagemaker_cluster import SageMakerCluster
+from .kubernetes_cluster import KubernetesCluster
 
 
 # Cluster factory method
@@ -15,7 +16,7 @@ def cluster(
     ssh_creds: Optional[dict] = None,
     dryrun: bool = False,
     **kwargs,
-) -> Union[Cluster, OnDemandCluster, SageMakerCluster]:
+) -> Union[Cluster, OnDemandCluster, SageMakerCluster, KubernetesCluster]:
     """
     Builds an instance of :class:`Cluster`.
 
@@ -177,6 +178,84 @@ def ondemand_cluster(
         open_ports=open_ports,
         name=name,
         dryrun=dryrun,
+    )
+
+# KubernetesCluster factory method
+def kubernetes_cluster(
+    name: str,
+    instance_type: Optional[str] = None,
+    num_instances: Optional[int] = None,
+    provider: Optional[str] = None,
+    autostop_mins: Optional[int] = None,
+    use_spot: bool = False,
+    image_id: Optional[str] = None,
+    region: Optional[str] = None,
+    dryrun: bool = False,
+
+    namespace: str = "default",
+    num_workers: int = None,
+    cpus: int = None,
+    memory: int = None,
+    num_gpus: int = None,
+    head_cpus: int = None,
+    head_memory: int = None,
+) -> KubernetesCluster:
+    """
+    Builds an instance of :class:`KubernetesCluster`.
+    Args:
+        name (str): Name for the cluster, to re-use later on.
+        instance_type (int, optional): Type of cloud instance to use for the cluster. This could
+            be a Runhouse built-in type, or your choice of instance type.
+        num_instances (int, optional): Number of instances to use for the cluster.
+        provider (str, optional): Cloud provider to use for the cluster.
+        autostop_mins (int, optional): Number of minutes to keep the cluster up after inactivity,
+            or ``-1`` to keep cluster up indefinitely.
+        use_spot (bool, optional): Whether or not to use spot instance.
+        image_id (str, optional): Custom image ID for the cluster.
+        region (str, optional): The region to use for the cluster.
+        dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
+            (Default: ``False``)
+    Returns:
+        KubernetesCluster: The resulting cluster.
+    Example:
+        >>> import runhouse as rh
+        >>> # Kubernetes SkyPilot Cluster (KubernetesCluster)
+        >>> cluster = rh.kubernetes_cluster(
+        >>>            name="cpu-cluster-test",
+        >>>            instance_type="CPU:1",
+        >>>            provider="kubernetes",      
+        >>>        )
+        >>> # Load cluster from above
+        >>> reloaded_cluster = rh.kubernetes_cluster(name="rh-4-a100s")
+    """
+    if name and not any([instance_type, num_instances, provider, image_id, region]):
+        # If only the name is provided and dryrun is set to True
+        return Cluster.from_name(name, dryrun)
+
+    if name in RESERVED_SYSTEM_NAMES:
+        raise ValueError(
+            f"Cluster name {name} is a reserved name. Please use a different name which is not one of "
+            f"{RESERVED_SYSTEM_NAMES}."
+        )
+
+    return KubernetesCluster(
+        instance_type=instance_type,
+        provider=provider,
+        num_instances=num_instances,
+        autostop_mins=autostop_mins,
+        use_spot=use_spot,
+        image_id=image_id,
+        region=region,
+        name=name,
+        dryrun=dryrun,
+
+        namespace = namespace,
+        num_workers = num_workers,
+        cpus = cpus,
+        memory = memory,
+        num_gpus = num_gpus,
+        head_cpus = head_cpus,
+        head_memory = head_memory
     )
 
 

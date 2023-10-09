@@ -1,0 +1,19 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mcad-controller-ray-clusterrole
+rules:
+- apiGroups:
+  - ray.io
+  resources:
+  - rayclusters
+  - rayclusters/finalizers
+  - rayclusters/status
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
