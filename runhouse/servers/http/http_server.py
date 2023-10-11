@@ -6,7 +6,7 @@ import time
 import traceback
 from functools import wraps
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import ray
 import requests
@@ -16,8 +16,9 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-from runhouse.globals import configs, env_servlets, obj_store, rns_client
-from runhouse.rns.utils.api import load_resp_content
+from runhouse.globals import configs, env_servlets, rns_client
+from runhouse.resources.hardware.utils import _current_cluster, _get_cluster_from
+from runhouse.rns.utils.api import load_resp_content, ResourceAccess
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.http_utils import (
     b64_unpickle,
@@ -33,7 +34,6 @@ from runhouse.servers.servlet import EnvServlet
 
 logger = logging.getLogger(__name__)
 
-
 app = FastAPI()
 
 
@@ -45,6 +45,7 @@ def validate_user(func):
         request: Request = kwargs.get("request")
         is_https: bool = request.url.scheme == "https"
         get_cert: bool = func.__name__ == "get_cert"
+        func_call: bool = func.__name__ in ["call_module_method", "call"]
         use_den_auth: bool = HTTPServer.DEN_AUTH
 
         if not get_cert and not is_https and not use_den_auth:
@@ -59,7 +60,9 @@ def validate_user(func):
                 f"format: {json.dumps({'Authorization': 'Bearer <token>'})}",
             )
 
-        if use_den_auth or get_cert:
+        # Check if user's token has already been validated and saved to cache on the cluster
+        cached_resources: dict = HTTPServer.get(token)
+        if not cached_resources:
             resp = requests.get(
                 f"{rns_client.api_server_url}/user",
                 headers={"Authorization": f"Bearer {token}"},
@@ -70,34 +73,41 @@ def validate_user(func):
                     detail=f"Failed to validate Runhouse user: {load_resp_content(resp)}",
                 )
 
+        if use_den_auth or func_call:
             # Note: currently providing cluster level access, not at the resource level
             # but will be used in the future for validating access to other resources if provided in the request
-            resource_uri = request.path_params.get("uri")
-            if resource_uri:
-                # Reformat the resource uri to be a valid RNS address
-                resource_uri = rns_client.uri_param_to_rns_address(resource_uri)
-                # Check whether user has access to the resource if a resource uri is provided in the request
-                user_data = json.loads(resp.content)
-                username = user_data.get("data", {}).get("username")
-
-                verify_resource_access(token, resource_uri, username)
+            cluster_uri = _load_current_cluster(kwargs)
+            if cluster_uri is None:
+                logger.error(
+                    "Failed to load cluster RNS address. Make sure cluster config YAML has been saved "
+                    "on the cluster."
+                )
+                raise HTTPException(
+                    status_code=403,
+                    detail="Failed validate access to cluster",
+                )
+            verify_resource_access(token, cluster_uri, cached_resources, func_call)
 
         return func(*args, **kwargs)
 
     return wrapper
 
 
-def verify_resource_access(token: str, resource_uri: str, username: str) -> None:
-    """Verify the user has access to a particular resource. Use KV store cache to check before pinging Den for the most
-    current list of resources the user has access to."""
-    cached_resources = obj_store.get(username)
-    logger.info(f"Cached resources for user: {username}")
-
-    if cached_resources and resource_uri in cached_resources:
-        # Cache hit
+def verify_resource_access(
+    token: str, resource_uri: str, cached_resources: dict, func_call: bool
+) -> None:
+    """Verify the user has access to a particular resource. Use global HTTP Server cache to check before pinging
+    Den for the most current list of resources the user has access to."""
+    # e.g. {"/jlewitt1/bert-preproc": "read"}
+    resource_access_type = cached_resources.get(resource_uri)
+    if resource_access_type:
+        if func_call and resource_access_type != ResourceAccess.WRITE.value:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Write access is required for resource: {resource_uri}",
+            )
         return
 
-    # fetch the resources from Den to see if there is a cache miss
     resp = requests.get(
         f"{rns_client.api_server_url}/resource",
         headers={"Authorization": f"Bearer {token}"},
@@ -108,18 +118,16 @@ def verify_resource_access(token: str, resource_uri: str, username: str) -> None
             detail=f"Failed to load resources: {load_resp_content(resp)}",
         )
 
-    # Cache the user's list of resources
-    # Note: by caching to the cluster object store, this will only persist for as long as the server is up
-    # and will be killed when the server is terminated or restarted
     resp_data = json.loads(resp.content)
-    all_resources = [resource["name"] for resource in resp_data["data"]]
+    all_resources: dict = {
+        resource["name"]: resource["access_type"] for resource in resp_data["data"]
+    }
 
     # Update the cache with the latest list of resources
-    obj_store.put(username, all_resources)
+    # Note: This will only persist for as long as the server is up
+    HTTPServer.put(token, all_resources)
 
-    logger.info(
-        f"Updated cache with {len(all_resources)} resources for user: {username}"
-    )
+    logger.info(f"Updated cache with {len(all_resources)} resources for user")
 
     if resource_uri not in all_resources:
         raise HTTPException(
@@ -128,13 +136,27 @@ def verify_resource_access(token: str, resource_uri: str, username: str) -> None
         )
 
 
+def _load_current_cluster(kwargs) -> Union[str, None]:
+    current_cluster = _get_cluster_from(_current_cluster("config"))
+    if current_cluster:
+        return current_cluster.rns_address
+
+    # If no cluster config saved yet on the cluster try getting the cluster uri from the message object
+    # included in the request
+    message: Message = kwargs.get("message")
+    resource = json.loads(message.data)
+    return resource.get("name")
+
+
 class HTTPServer:
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     LOGGING_WAIT_TIME = 1
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
     DEN_AUTH = False
-
     memory_exporter = None
+
+    # NOTE: This is a temp in-mem cache, we will move this out into the object store for future permissions support
+    AUTH_CACHE = {}
 
     def __init__(
         self, conda_env=None, enable_local_span_collection=None, *args, **kwargs
@@ -200,16 +222,26 @@ class HTTPServer:
 
         HTTPServer.register_activity()
 
+    @classmethod
+    def get(cls, key) -> dict:
+        """Get resources associated with a particular user"""
+        return cls.AUTH_CACHE.get(key, {})
+
+    @classmethod
+    def put(cls, key, value):
+        """Update server cache with a user's resources and access type"""
+        cls.AUTH_CACHE[key] = value
+
     @staticmethod
     def register_activity():
         set_last_active_time_to_now()
 
     @staticmethod
-    @app.get("/cert/{uri}")
+    @app.get("/cert")
     @validate_user
-    def get_cert(request: Request):
+    def get_cert(request: Request, message: Message):
         """Download the certificate file for this server necessary for enabling HTTPS.
-        User must have access to the resource in order to download the certificate."""
+        User must have access to the cluster in order to download the certificate."""
         try:
             with open(HTTPSConfig.CERT_FILE_PATH, "rb") as cert_file:
                 cert = cert_file.read()
@@ -244,12 +276,6 @@ class HTTPServer:
             status = subprocess.check_output(["ray", "status"]).decode("utf-8")
 
             import runhouse
-
-            # Reset here in case it was set before the config was written down, making here=="file"
-            from runhouse.resources.hardware.utils import (
-                _current_cluster,
-                _get_cluster_from,
-            )
 
             # Reset here in case it was set before the config was written down, making here=="file"
             runhouse.here = _get_cluster_from(_current_cluster("config"))

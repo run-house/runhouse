@@ -572,7 +572,6 @@ class Cluster(Resource):
 
     @staticmethod
     def _add_flag_to_commands(flag, start_screen_cmd, server_start_cmd):
-        logger.info(f"Adding flag to command: {flag}")
         start_screen_cmd = start_screen_cmd.replace(
             server_start_cmd, server_start_cmd + flag
         )
@@ -664,10 +663,10 @@ class Cluster(Resource):
         if https_flag:
             rns_address = self.rns_address
             if not rns_address:
-                raise ValueError("Cluster must have a name if using https")
+                raise ValueError("Cluster must have a name if using HTTPS.")
 
             if not self.client:
-                logger.info("Reconnecting server client")
+                logger.info("Reconnecting server client. Server restarted with HTTPS.")
                 self.connect_server_client()
 
             # Update in case the server was previously launched with HTTP
@@ -675,8 +674,7 @@ class Cluster(Resource):
             self.client.cert_path = self._cert_file_path
 
             # Download certificate from the cluster (Note: user must have access to the cluster)
-            cluster_uri = rns_client.resource_uri(rns_address)
-            self.client.get_certificate(cluster_uri)
+            self.client.get_certificate(cluster_config=self.config_for_rns)
             logger.info(
                 f"Latest TLS certificate saved to local path: {self._cert_file_path}"
             )

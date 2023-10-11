@@ -92,8 +92,13 @@ class HTTPClient:
             timeout=self.CHECK_TIMEOUT_SEC,
         )
 
-    def get_certificate(self, cluster_uri: str):
-        cert: bytes = self.request(f"cert/{cluster_uri}", req_type="get", verify=False)
+    def get_certificate(self, cluster_config):
+        cert: bytes = self.request(
+            "cert",
+            req_type="get",
+            data=json.dumps(cluster_config, indent=4),
+            verify=False,
+        )
         os.makedirs(os.path.dirname(self.cert_path), exist_ok=True)
         with open(self.cert_path, "wb") as file:
             file.write(cert)

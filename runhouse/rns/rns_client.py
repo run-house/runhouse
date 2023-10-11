@@ -171,11 +171,6 @@ class RNSClient:
         return rns_address.replace("/", ":")
 
     @staticmethod
-    def uri_param_to_rns_address(uri_param: str):
-        """Convert resource uri format used in query back to rns address."""
-        return f"/{uri_param.replace(':', '/')}"
-
-    @staticmethod
     def local_to_remote_address(rns_address):
         return rns_address.replace("~", "@")
 

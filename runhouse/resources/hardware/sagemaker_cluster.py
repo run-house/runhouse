@@ -379,7 +379,7 @@ class SageMakerCluster(Cluster):
             except:
                 if restart_server:
                     logger.info(
-                        f"Server {self.instance_id} is up, but the HTTP server may not be up."
+                        f"Server {self.instance_id} is up, but the API server may not be up."
                     )
                     self.run(
                         [

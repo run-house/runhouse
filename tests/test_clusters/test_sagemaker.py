@@ -104,7 +104,7 @@ def test_stable_diffusion_on_sm_gpu(sm_gpu_cluster):
 @pytest.mark.sagemakertest
 def test_sm_cluster_with_https(sm_cluster):
     # After launching the cluster with the existing fixture, restart the server on the cluster using HTTPS
-    sm_cluster.server_connection_type = ServerConnectionType.TLS.value
+    sm_cluster.server_connection_type = "tls"
     sm_cluster.restart_server()
 
     assert sm_cluster.server_connection_type
