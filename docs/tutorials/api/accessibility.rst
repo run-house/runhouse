@@ -137,11 +137,13 @@ Runhouse stores user configs both locally in ``~/.rh/config.yaml`` and
 remotely in the Runhouse database, letting you preserve your same config
 across environments.
 
-Some configs to consider setting: \*
-``rh.configs.set('use_spot', True)``: Whether to use spot instances,
-which are cheaper but can be reclaimed at any time. This is ``False`` by
-default, because you’ll need to request spot quota from the cloud
-providers to use spot instances.
+Some configs to consider setting:
+
+
+-  ``rh.configs.set('use_spot', True)``: Whether to use spot instances,
+   which are cheaper but can be reclaimed at any time. This is ``False`` by
+   default, because you’ll need to request spot quota from the cloud
+   providers to use spot instances.
 
 -  ``rh.configs.set('default_autostop', 30)``: Default autostop time (or
    -1 for indefinitely) for the on-demand cluster, to dynamically stop
