@@ -128,23 +128,10 @@ class KubernetesCluster(cluser):
         """
         cluster_status = self.cluster_obj.status()
         return cluster_status[1]
-
-    def up(self):
-        """Up the cluster.
-
-        Example:
-            >>> rh.kubernetes_cluster(
-            >>>     name="cpu-cluster-test",
-            >>>     instance_type="CPU:1",
-            >>>     provider="kubernetes",      
-            >>> )
-        """
-        if self.on_this_cluster():
-            return self
-
-        # setup EKS K8s cluster for codeflare sdk usage
-
-        if not self.cluster_setup_complete:
+    
+    def install_k8s_operators(self):
+         
+         if not self.cluster_setup_complete:
 
             # Install Kuberay Operator (Ensure helm is installed locally)
             add_kuberay = f"helm repo add kuberay https://ray-project.github.io/kuberay-helm/"
@@ -191,17 +178,22 @@ class KubernetesCluster(cluser):
 
             self.cluster_setup_complete = True
 
-        # Clone down the codeflare-sdk. We cannot get it from PyPi bc we make changes in the SDK to enable non-Openshift K8s support
-        # clone_cf = f"git clone git@github.com:RohanSreerama5/codeflare-sdk.git"
 
-        # logger.info(f"Running {clone_cf}")
 
-        # cmd = f"{clone_cf}"
-        # try:
-        #     subprocess.run(cmd, shell=True, check=True)
-        # except subprocess.CalledProcessError as e:
-        #     print(f"Error: {e}")
+    def up(self):
+        """Up the cluster.
 
+        Example:
+            >>> rh.kubernetes_cluster(
+            >>>     name="cpu-cluster-test",
+            >>>     instance_type="CPU:1",
+            >>>     provider="kubernetes",      
+            >>> )
+        """
+        if self.on_this_cluster():
+            return self
+
+        
         cluster_name = self.name
 
         yaml_file_path = f'{cluster_name}.yaml'
