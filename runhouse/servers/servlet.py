@@ -50,12 +50,15 @@ class EnvServlet:
         set_last_active_time_to_now()
 
     def put_resource(self, message: Message):
+
+
         self.register_activity()
         try:
             resource_config, state, dryrun = b64_unpickle(message.data)
             # Resolve any sub-resources which are string references to resources already sent to this cluster.
             # We need to pop the resource's own name so it doesn't get resolved if it's already present in the
             # obj_store.
+            
             name = resource_config.pop("name")
             subtype = resource_config.pop("resource_subtype")
             resource_config = obj_store.get_obj_refs_dict(resource_config)
