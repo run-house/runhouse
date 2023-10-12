@@ -49,8 +49,6 @@ class HTTPClient:
         )
         endpoint = endpoint.strip("/")
         endpoint = (endpoint + "/") if "?" not in endpoint else endpoint
-
-
         response = req_fn(
             f"http://{self.host}:{self.port}/{endpoint}",
             json={
@@ -194,8 +192,6 @@ class HTTPClient:
         if env and not isinstance(env, str):
             env = _get_env_from(env)
             env = env.name or env.env_name
-
-       
         return self.request(
             "resource",
             req_type="post",

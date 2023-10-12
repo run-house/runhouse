@@ -29,7 +29,6 @@ class Function(Module):
         env: Optional[Env] = None,
         dryrun: bool = False,
         access: Optional[str] = None,
-        resources: Optional[dict] = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
@@ -41,7 +40,6 @@ class Function(Module):
         """
         self.fn_pointers = fn_pointers
         self.access = access or self.DEFAULT_ACCESS
-        self.resources = resources or {}
         super().__init__(name=name, dryrun=dryrun, system=system, env=env, **kwargs)
 
     # ----------------- Constructor helper methods -----------------
@@ -64,10 +62,9 @@ class Function(Module):
         system = config["system"]
         if isinstance(system, str):
             config["system"] = globals.rns_client.load_config(name=system)
-    
+            # if the system is set to a cluster
             if not config["system"]:
                 raise Exception(f"No cluster config saved for {system}")
-
 
         config["env"] = _get_env_from(config["env"])
         return config
@@ -134,12 +131,8 @@ class Function(Module):
         new_function.name = new_function.name or self.fn_pointers[2]
         # TODO
         # env.name = env.name or (new_function.name + "_env")
-
-
         new_env = env.to(new_function.system, force_install=force_install)
         new_function.env = new_env
-
-        
 
         new_function.dryrun = True
         system.put_resource(new_function, dryrun=True)
@@ -247,7 +240,6 @@ class Function(Module):
             >>> remote_fn_run = remote_fn.run()
             >>> remote_fn.get(remote_fn_run.name)
         """
-
         return self.system.get(run_key)
 
     @property
@@ -256,14 +248,9 @@ class Function(Module):
         config.update(
             {
                 "fn_pointers": self.fn_pointers,
-                "resources": self.resources,
             }
         )
         return config
-
-    def _save_sub_resources(self):
-        if isinstance(self.system, Cluster):
-            self.system.save()
 
     def send_secrets(self, providers: Optional[List[str]] = None):
         """Send secrets to the system.
@@ -393,7 +380,6 @@ def function(
     name: Optional[str] = None,
     system: Optional[Union[str, Cluster]] = None,
     env: Optional[Union[List[str], Env, str]] = None,
-    resources: Optional[dict] = None,
     dryrun: bool = False,
     load_secrets: bool = False,
     serialize_notebook_fn: bool = False,
@@ -411,8 +397,6 @@ def function(
             This can be either the string name of a Cluster object, or a Cluster object.
         env (Optional[List[str] or Env or str]): List of requirements to install on the remote cluster, or path to the
             requirements.txt file, or Env object or string name of an Env object.
-        resources (Optional[dict]): Optional number (int) of resources needed to run the Function on the Cluster.
-            Keys must be ``num_cpus`` and ``num_gpus``.
         dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
             (Default: ``False``)
         load_secrets (bool): Whether or not to send secrets; only applicable if `dryrun` is set to ``False``.
@@ -438,7 +422,7 @@ def function(
         >>> # Load function from above
         >>> reloaded_function = rh.function(name="my_func")
     """
-    if name and not any([fn, system, env, resources]):
+    if name and not any([fn, system, env]):
         # Try reloading existing function
         return Function.from_name(name, dryrun)
 
@@ -475,7 +459,6 @@ def function(
             r"https://github\.com/(?P<username>[^/]+)/(?P<repo_name>[^/]+)/blob/"
             r"(?P<branch_name>[^/]+)/(?P<path>[^:]+):(?P<func_name>.+)"
         )
-
         match = re.match(pattern, fn)
 
         if match:
@@ -503,7 +486,6 @@ def function(
 
     new_function = Function(
         fn_pointers=fn_pointers,
-        resources=resources,
         access=Function.DEFAULT_ACCESS,
         name=name,
         dryrun=dryrun,

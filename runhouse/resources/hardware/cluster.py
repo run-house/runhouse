@@ -215,7 +215,6 @@ class Cluster(Resource):
     ):
         """Get the result for a given key from the cluster's object store. To raise an error if the key is not found,
         use `cluster.get(key, default=KeyError)`."""
-
         self.check_server()
         if self.on_this_cluster():
             return obj_store.get(key, default=default)
@@ -250,7 +249,6 @@ class Cluster(Resource):
 
     def put_resource(self, resource: Resource, state=None, dryrun=False):
         """Put the given resource on the cluster's object store. Returns the key (important if name is not set)."""
-
         self.check_server()
         env = (
             resource.env
@@ -259,10 +257,8 @@ class Cluster(Resource):
             if resource.RESOURCE_TYPE == "env"
             else None
         )
-        if self.on_this_cluster(): # important line 
-            return obj_store.put(key=resource.name, value=resource, env=env) # key gets set here 
-            
-
+        if self.on_this_cluster():
+            return obj_store.put(key=resource.name, value=resource, env=env)
         return self.client.put_resource(
             resource, state=state or {}, env=env, dryrun=dryrun
         )
@@ -314,7 +310,7 @@ class Cluster(Resource):
 
     def on_this_cluster(self):
         """Whether this function is being called on the same cluster."""
-        return _current_cluster("name") == self.rns_address   # important: if you override it in k8s.py, u get this-39 == ~/this-39 so it yields False, don't override itc
+        return _current_cluster("name") == self.rns_address
 
     # ----------------- RPC Methods ----------------- #
 
@@ -387,7 +383,6 @@ class Cluster(Resource):
             try:
                 self.connect_server_client()
                 cluster_config = self.config_for_rns
-                
                 if "live_state" in cluster_config.keys():
                     # a bunch of setup commands that mess up json dump
                     del cluster_config["live_state"]
