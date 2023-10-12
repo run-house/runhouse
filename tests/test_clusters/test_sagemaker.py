@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 
 import runhouse as rh
-from runhouse.resources.hardware.cluster import ServerConnectionType
 
 from .test_cluster import np_array, sd_generate_image
 
@@ -106,8 +105,6 @@ def test_sm_cluster_with_https(sm_cluster):
     # After launching the cluster with the existing fixture, restart the server on the cluster using HTTPS
     sm_cluster.server_connection_type = "tls"
     sm_cluster.restart_server()
-
-    assert sm_cluster.server_connection_type
 
     local_cert_path = sm_cluster._cert_file_path
     assert Path(local_cert_path).exists()

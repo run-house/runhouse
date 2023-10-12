@@ -220,11 +220,8 @@ class HTTPClient:
         if env and not isinstance(env, str):
             env = _get_env_from(env)
             env = env.name or env.env_name
-
-        resource_uri = rns_client.resource_uri(resource.name)
-
         return self.request(
-            f"resource/{resource_uri}",
+            "resource",
             req_type="post",
             # TODO wire up dryrun properly
             data=pickle_b64((resource.config_for_rns, state, resource.dryrun)),
