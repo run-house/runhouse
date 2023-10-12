@@ -1,17 +1,12 @@
-# import sky
 from pathlib import Path
 import subprocess
 import logging
 import time
 import os
-
 import yaml
 
-# from runhouse.resources.hardware.on_demand_cluster import OnDemandCluster
 from runhouse.resources.hardware.cluster import Cluster as cluser
 from runhouse.servers.http import DEFAULT_SERVER_PORT, HTTPClient
-
-# from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +17,7 @@ class KubernetesCluster(cluser):
             name, 
             instance_type: str = None, 
             num_instances: int = None, 
-            provider: str = None, 
+            provider: str = "kubernetes", 
             dryrun=False, 
             autostop_mins=None, 
             use_spot=False, 
@@ -36,66 +31,66 @@ class KubernetesCluster(cluser):
             num_gpus: int = None,
             head_cpus: int = None,
             head_memory: int = None,
-            upped_cluster: bool = False,
             cluster_obj = None,
+            pod_name: str = None, # name of K8s pod head node is on 
+            kube_config_path: str = None,
+            cluster_setup_complete=False,
             **kwargs
     ):
         
-        # super().__init__(
-        #     name, 
-        #     instance_type, 
-        #     num_instances, 
-        #     provider, 
-        #     dryrun, 
-        #     autostop_mins, 
-        #     use_spot, 
-        #     image_id, 
-        #     region, 
-        #     sky_state, 
-        #     **kwargs
-        # )
-
-        
-
+        self.instance_type = instance_type
         self.namespace = namespace
         self.num_workers = num_workers
+        self.num_gpus = 0       # causes issues if you do not set this to an integer (codeflare related)
+        self.kube_config_path = kube_config_path
+        self.pod_name = pod_name
+        self.cluster_setup_complete = cluster_setup_complete
+       
         self.cpus = cpus
         self.memory = memory
-        self.num_gpus = num_gpus
+        
         self.head_cpus = head_cpus
         self.head_memory = head_memory
-        self.upped_cluster = upped_cluster
         self.provider = provider
+
+        if self.instance_type is not None and ":" in self.instance_type:
+            parts = self.instance_type.split(":")
+            compute_type = None
+            num_cores = None
+            if len(parts) == 2:
+                compute_type = parts[0].strip()
+                num_cores = int(parts[1].strip())
+
+            
+            if "CPU" in compute_type:
+                self.cpus = num_cores
+                if self.head_cpus is None: # user didn't explicitly set head_cpus 
+                    self.head_cpus = num_cores
+            elif "GPU" in compute_type: # experimental
+                self.num_gpus = num_cores
+
+
+        if self.head_memory is None: # user didn't explicitly set head_memory 
+            self.head_memory = self.memory
+
+        # If user does not specify head_cpus and head_memory we set it equal to cpus and memory
 
         
 
         super().__init__(name=name, ips=[self.namespace], ssh_creds={}, dryrun=dryrun)
 
-        check_pwd = f"pwd"
-        result = subprocess.run("pwd", shell=True, check=True, stdout=subprocess.PIPE, text=True)
-    
-        # Get the captured output as a string
-        pwd_output = result.stdout
-
-        if "ray" not in pwd_output:
-
-            install_cf = f"cd runhouse/resources/hardware/codeflare-sdk && pip install -e ."
-
-            logger.info(f"Running {install_cf}")
-
-
-            cmd = f"{install_cf}"
-            try:
-                subprocess.run(cmd, shell=True, check=True)
-            except subprocess.CalledProcessError as e:
-                print(f"Error: {e}")
-
+        # Setup codeflare-sdk on local
+        if not self.on_this_cluster(): # ensure this actually works
 
             from codeflare_sdk.cluster.cluster import Cluster, ClusterConfiguration
             from codeflare_sdk.cluster.auth import KubeConfigFileAuthentication
 
+            kube_config_path = None
+            if self.kube_config_path is not None:
+                kube_config_path = os.path.expanduser(self.kube_config_path)
+            else:
+                kube_config_path = os.path.expanduser("~/.kube/config")
 
-            kube_config_path = os.path.expanduser("~/.kube/config")
             auth = KubeConfigFileAuthentication(
                 kube_config_path = kube_config_path
             )
@@ -125,7 +120,14 @@ class KubernetesCluster(cluser):
 
             self.cluster_obj = cluster
 
+    def is_up(self) -> bool:
+        """Check if the cluster is up.
 
+        Example:
+            >>> rh.kubernetes_cluster("kubernetes-cluster").is_up()
+        """
+        cluster_status = self.cluster_obj.status()
+        return cluster_status[1]
 
     def up(self):
         """Up the cluster.
@@ -140,143 +142,89 @@ class KubernetesCluster(cluser):
         if self.on_this_cluster():
             return self
 
-        if self.provider in ["kubernetes"]:
+        # setup EKS K8s cluster for codeflare sdk usage
 
-            # setup EKS K8s cluster for codeflare sdk usage
+        if not self.cluster_setup_complete:
 
             # Install Kuberay Operator (Ensure helm is installed locally)
-            # add_kuberay = f"helm repo add kuberay https://ray-project.github.io/kuberay-helm/"
-            # logger.info(f"Running {add_kuberay}")
-            # cmd = f"{add_kuberay}"
-            # try:
-            #     subprocess.run(cmd, shell=True, check=True)
-            # except subprocess.CalledProcessError as e:
-            #     print(f"Error: {e}")
+            add_kuberay = f"helm repo add kuberay https://ray-project.github.io/kuberay-helm/"
+            logger.info(f"Running {add_kuberay}")
+            cmd = f"{add_kuberay}"
+            try:
+                subprocess.run(cmd, shell=True, check=True)
+            except subprocess.CalledProcessError as e:
+                print(f"Error: {e}")
 
-            # install_kuberay = f"helm install kuberay-operator kuberay/kuberay-operator"
-            # logger.info(f"Running {install_kuberay}")
-            # cmd = f"{install_kuberay}"
-            # try:
-            #     subprocess.run(cmd, shell=True, check=True)
-            # except subprocess.CalledProcessError as e:
-            #     print(f"Error: {e}")
+            install_kuberay = f"helm install kuberay-operator kuberay/kuberay-operator"
+            logger.info(f"Running {install_kuberay}")
+            cmd = f"{install_kuberay}"
+            try:
+                subprocess.run(cmd, shell=True, check=True)
+            except subprocess.CalledProcessError as e:
+                print(f"Error: {e}")
 
             # # Install Codeflare Operator (Ensure gnu sed is installed locally)
-            # clone_cf_operator = f"git clone git@github.com:RohanSreerama5/codeflare-operator.git"
-            # cd_cmd = f"cd codeflare-operator"
-            # make_install = f"make install -e SED=/opt/homebrew/opt/gnu-sed/libexec/gnubin/sed"
-            # make_deploy = f"make deploy -e SED=/opt/homebrew/opt/gnu-sed/libexec/gnubin/sed"
+            clone_cf_operator = f"git clone git@github.com:RohanSreerama5/codeflare-operator.git"
+            cd_cmd = f"cd codeflare-operator"
+            make_install = f"make install -e SED=/opt/homebrew/opt/gnu-sed/libexec/gnubin/sed"
+            make_deploy = f"make deploy -e SED=/opt/homebrew/opt/gnu-sed/libexec/gnubin/sed"
 
-            # logger.info(f"Running {clone_cf_operator} && {cd_cmd} && {make_install} && {make_deploy}")
+            logger.info(f"Running {clone_cf_operator} && {cd_cmd} && {make_install} && {make_deploy}")
 
-            # cmd = f"{clone_cf_operator} && {cd_cmd} && {make_install} && {make_deploy}"
-            # try:
-            #     subprocess.run(cmd, shell=True, check=True)
-            # except subprocess.CalledProcessError as e:
-            #     print(f"Error: {e}")
+            cmd = f"{clone_cf_operator} && {cd_cmd} && {make_install} && {make_deploy}"
+            try:
+                subprocess.run(cmd, shell=True, check=True)
+            except subprocess.CalledProcessError as e:
+                print(f"Error: {e}")
 
-            # # Setup permissions so Codeflare Operator can manage Ray clusters (Ensure kubectl is setup locally)
-            # perm_1 = f"kubectl apply -f mcad-controller-ray-clusterrole.yaml"
-            # perm_2 = f"kubectl apply -f mcad-controller-ray-clusterrolebinding.yaml"
+            # Setup permissions so Codeflare Operator can manage Ray clusters (Ensure kubectl is setup locally)
+            perm_1 = f"kubectl apply -f mcad-controller-ray-clusterrole.yaml"
+            perm_2 = f"kubectl apply -f mcad-controller-ray-clusterrolebinding.yaml"
 
-            # logger.info(f"Running {perm_1} && {perm_2}")
+            logger.info(f"Running {perm_1} && {perm_2}")
 
-            # cmd = f"{perm_1} && {perm_2}"
-            # try:
-            #     subprocess.run(cmd, shell=True, check=True)
-            # except subprocess.CalledProcessError as e:
-            #     print(f"Error: {e}")
+            cmd = f"{perm_1} && {perm_2}"
+            try:
+                subprocess.run(cmd, shell=True, check=True)
+            except subprocess.CalledProcessError as e:
+                print(f"Error: {e}")
 
-            # Clone down the codeflare-sdk. We cannot get it from PyPi bc we make changes in the SDK to enable non-Openshift K8s support
-            # clone_cf = f"git clone git@github.com:RohanSreerama5/codeflare-sdk.git"
+            self.cluster_setup_complete = True
 
-            # logger.info(f"Running {clone_cf}")
+        # Clone down the codeflare-sdk. We cannot get it from PyPi bc we make changes in the SDK to enable non-Openshift K8s support
+        # clone_cf = f"git clone git@github.com:RohanSreerama5/codeflare-sdk.git"
 
-            # cmd = f"{clone_cf}"
-            # try:
-            #     subprocess.run(cmd, shell=True, check=True)
-            # except subprocess.CalledProcessError as e:
-            #     print(f"Error: {e}")
+        # logger.info(f"Running {clone_cf}")
 
-            # Now we can deploy user Ray clusters
+        # cmd = f"{clone_cf}"
+        # try:
+        #     subprocess.run(cmd, shell=True, check=True)
+        # except subprocess.CalledProcessError as e:
+        #     print(f"Error: {e}")
 
-            # Import pieces from codeflare-sdk
-            # from codeflare_sdk.cluster.cluster import Cluster, ClusterConfiguration
-            # from codeflare_sdk.cluster.auth import KubeConfigFileAuthentication
+        cluster_name = self.name
 
-            # kube_config_path = os.path.expanduser("~/.kube/config")
-            # auth = KubeConfigFileAuthentication(
-            #     kube_config_path = kube_config_path
-            # )
-            # auth.load_kube_config()
+        yaml_file_path = f'{cluster_name}.yaml'
+        with open(yaml_file_path, 'r') as file:
+            yaml_dict = yaml.safe_load(file)
 
-            # # Create and configure our cluster object (and appwrapper)
-            # namespace = self.namespace
-            # cluster_name = self.name
-            # local_interactive = True
+        for item in yaml_dict['spec']['resources']['GenericItems'][:]:
+            if 'generictemplate' in item and item['generictemplate']['apiVersion'] == 'route.openshift.io/v1':
+                yaml_dict['spec']['resources']['GenericItems'].remove(item)
 
-            # logger.info(f"local interactive: {local_interactive}, name: {cluster_name}, namespace: {namespace}, num_workers: {self.num_workers}, min_cpus: {self.cpus}")
-            # logger.info(f"min_memory={self.memory}, num_gpus={self.num_gpus}, head_cpus={self.head_cpus}, head_memory={self.head_memory}")
+        modified_yaml_str = yaml.dump(yaml_dict, default_flow_style=False)
 
-            # cluster = Cluster(ClusterConfiguration(
-            #     local_interactive=local_interactive,
-            #     name=cluster_name,
-            #     namespace=namespace,
-            #     num_workers=self.num_workers,
-            #     min_cpus=self.cpus,
-            #     max_cpus=self.cpus,
-            #     min_memory=self.memory,
-            #     max_memory=self.memory,
-            #     num_gpus=self.num_gpus,
-            #     image="rayproject/ray:2.6.3", # needs to be set properly to ensure Ray version. currently Ray version is 2.7.0. needs to match client(local). This here is server's version
-            #     instascale=False,
-            #     head_cpus=self.head_cpus,
-            #     head_memory=self.head_memory # don't need to surface head_node specs to user for now 
-            #     # mcad=False 
-            # ))
-
-            cluster_name = self.name
-
-            yaml_file_path = f'{cluster_name}.yaml'
-            with open(yaml_file_path, 'r') as file:
-                yaml_dict = yaml.safe_load(file)
-
-            for item in yaml_dict['spec']['resources']['GenericItems'][:]:
-                if 'generictemplate' in item and item['generictemplate']['apiVersion'] == 'route.openshift.io/v1':
-                    yaml_dict['spec']['resources']['GenericItems'].remove(item)
-
-            modified_yaml_str = yaml.dump(yaml_dict, default_flow_style=False)
-
-            with open(yaml_file_path, 'w') as file:
-                file.write(modified_yaml_str)
-
-            # up the codeflare ray cluster 
-
-            if not self.upped_cluster:
-                self.upped_cluster = True
-                self.cluster_obj.up()
-                
-
-            # DO NOT use ray client to send functions 
-
-            # copy code to head node 
-            # send function to head_node 
-
-            self.cluster_obj.wait_ready(dashboard_check=False)
-
-            # self.cluster_obj = cluster
+        with open(yaml_file_path, 'w') as file:
+            file.write(modified_yaml_str)
 
 
-            # STOP HERE
+        # up the codeflare ray cluster 
+        self.cluster_obj.up()
 
+        self.cluster_obj.wait_ready(dashboard_check=False)
 
-            # take in a context here instead here instead
+        # take in a context here instead here instead
 
-
-        else:
-            raise ValueError(f"Cluster provider {self.provider} not supported.")
-
-        # self._update_from_sky_status()
         
         self.restart_server(restart_ray=True)
 
@@ -302,14 +250,15 @@ class KubernetesCluster(cluser):
 
         if resync_rh:
 
-            # sync_rh_cmd = "kubectl cp ../runhouse/ default/cpu-cluster-42-dc19-ray-head:runhouse"
-
-            # consider modifying this so that the kubernetes namespace is parameterized 
-            # also consider extracting the kubernetes pod name 
-
             # consider changing this to use kubectl get rayclusters instead 
+
+            # Get pod name
             command = f"kubectl get pods -n {self.namespace} | grep {self.name}-head"
             pod_name = None
+
+            logger.info("Obtaining name of K8s pod that the head node is running on")
+            logger.info(f"Running {command}")
+
             try:
                 
                 output = subprocess.check_output(command, shell=True, text=True)
@@ -323,10 +272,16 @@ class KubernetesCluster(cluser):
             except subprocess.CalledProcessError as e:
                 print(f"Error: {e}")
 
+
+            self.pod_name = pod_name
+
+
+            # Get pod's IP address
             kubectl_command = f"kubectl get pod {pod_name} -n default -o jsonpath='{{.status.podIP}}' | awk '{{print $1}}'"
 
+            logger.info("Obtaining IP address of K8s pod that your head node is running on")
             logger.info(f"Running {kubectl_command}")
-
+            
             pod_ip = None
 
             try:
@@ -345,67 +300,32 @@ class KubernetesCluster(cluser):
             except Exception as e:
                 print(f"Error: {e}")
 
+            # Set self.address to pod's IP address (this may not be neccesary to do)
             self.address = pod_ip
 
-            # sync_rh_cmd = f"kubectl cp ../../../../runhouse/ default/{pod_name}:runhouse"
+            # Sync runhouse code over to pod
             sync_rh_cmd = f"kubectl cp ../runhouse/ default/{pod_name}:runhouse"
-            
 
+            logger.info("Syncing runhouse code to cluster")
+            logger.info(f"Running: {sync_rh_cmd}")
+            
             cmd = f"{sync_rh_cmd}"
             try:
                 subprocess.run(cmd, shell=True, check=True)
             except subprocess.CalledProcessError as e:
                 print(f"Error: {e}")
 
-            # cur_name = f"this-16-worker-small-group-this-16-6z8zx"
-            # sync_rh_cmd = f"kubectl cp ../runhouse/ default/this-16-worker-small-group-this-16-6z8zx:runhouse"
             
-
-            # cmd = f"{sync_rh_cmd}"
-            # try:
-            #     subprocess.run(cmd, shell=True, check=True)
-            # except subprocess.CalledProcessError as e:
-            #     print(f"Error: {e}")
-
-            # logger.info(f"Ran {cmd}")
-
-            # copy runhouse to all worker nodes
-            # from kubernetes import client, config
-
-            # config.load_kube_config()
-            # api_instance = client.CoreV1Api()
-            # namespace = self.namespace
-            # pods = api_instance.list_namespaced_pod(namespace)
-
-            # for pod in pods.items:
-            #     if f"{self.name}-worker" in pod.metadata.name:
-            #         cp_cmd = f"kubectl cp ../runhouse/ default/{pod.metadata.name}:runhouse"
-            #         try:
-            #             subprocess.run(cp_cmd, shell=True, check=True)
-            #             # print("Standard Output:")
-            #             # print(result.stdout)
-            #             # print("Standard Error:")
-            #             # print(result.stderr)
-            #         except subprocess.CalledProcessError as e:
-            #             print(f"Error: {e}")
 
         install_rh_cmd = "pip install ./runhouse"
 
-        cmd_1 = self.CLI_RESTART_CMD + (" --no-restart-ray" if not restart_ray else "")
-        cmd_1 = f"{install_rh_cmd} && {cmd_1}"
+        restart_runhouse = self.CLI_RESTART_CMD + (" --no-restart-ray" if not restart_ray else "")
 
-        # status_codes = self.run(commands=[cmd_1])
-        # if not status_codes[0][0] == 0:
-        #     raise ValueError(f"Failed to restart server {self.name}.")
-        # # As of 2023-15-May still seems we need this.
-        # time.sleep(5)
-        # return status_codes
 
-        # better logging needed
-        
+        # Install runhouse via pip 
+        cmd = f"kubectl exec -n {self.namespace} {pod_name} -- {install_rh_cmd}"
 
-        cmd = f"kubectl exec -n {self.namespace} {pod_name} -- {cmd_1}"
-
+        logger.info("Installing runhouse python dependencies on the cluster")
         logger.info(f"Running {cmd} on {self.name}")
 
         try:
@@ -415,52 +335,75 @@ class KubernetesCluster(cluser):
             print(process.stdout)
 
         except subprocess.CalledProcessError as e:
-            # Print the error message and standard error (stderr)
             print(f"Error: {e}")
             print(f"Command Error Output on {self.name}:")
             print(e.stderr)
 
+        # Restart runhouse HTTP server
+        cmd = f"kubectl exec -n {self.namespace} {pod_name} -- {restart_runhouse}"
+
+        logger.info("Restarting the HTTP server on the cluster")
+        logger.info(f"Running {cmd} on {self.name}")
+
+        try:
+            process = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+            print(f"Command Output on {self.name}:")
+            print(process.stdout)
+
+        except subprocess.CalledProcessError as e:
+            print(f"Error: {e}")
+            print(f"Command Error Output on {self.name}:")
+            print(e.stderr)
+
+
+        # Set up port-forward from local to pod port 50052
+        command = f"kubectl port-forward {pod_name} 50052:{DEFAULT_SERVER_PORT}"
+
+        logger.info("Setting up port-forward")
+        logger.info(f"Running {command}")
+
+        try:
+            # Start the command in the background
+            process = subprocess.Popen(command, shell=True, text=True)
+
+        except subprocess.CalledProcessError as e:
+            # Check if the error message contains "Address already in use"
+            if "Address already in use" in str(e):
+                print("Port 50052 is already in use. Please free up the port.")
+            else:
+                print(f"An error occurred while running the command: {e}")
+
+
         return 
-
-
-    # def check_server(self, restart_server=True):
-    #     return
 
 
     def up_if_not(self):
         """Bring up the cluster if it is not up. No-op if cluster is already up.
 
         Example:
-            >>> rh.sagemaker_cluster("sagemaker-cluster").up_if_not()
+            >>> rh.kubernetes_cluster("kubernetes-cluster").up_if_not()
         """
         if not self.is_up():
             self.up()
         return self
 
-    def is_up(self) -> bool:
-        """Check if the cluster is up.
-
-        Example:
-            >>> rh.sagemaker_cluster("sagemaker-cluster").is_up()
-        """
-        #cluster_status = self.cluster_obj.status()
-        #return cluster_status[1]
-        return True
 
     def teardown(self):
-        """Teardown the SageMaker instance.
+        """Teardown the Kubernetes instance.
 
         Example:
-            >>> rh.sagemaker_cluster(name="sagemaker-cluster").teardown()
+            >>> rh.kubernetes_cluster(name="kubernetes-cluster").teardown()
         """
         self.cluster_obj.down()
+        self.address = None
 
     def status(self) -> dict:
         """
-        Get status of SageMaker cluster.
+        Get status of Kubernetes cluster.
 
         Example:
-            >>> status = rh.sagemaker_cluster("sagemaker-cluster").status()
+            >>> status = rh.kubernetes_cluster("kubernetes-cluster").status()
         """
         return self.cluster_obj.status()
 
@@ -487,28 +430,32 @@ class KubernetesCluster(cluser):
 
     @property
     def config_for_rns(self):
-        # config = super().config_for_rns
+        config = super().config_for_rns
 
-        config = {}
-
-        # Also store the ssh keys for the cluster in RNS
         config.update(
             {
-                "name": self.name,
                 "num_workers": self.num_workers,
                 "provider": self.provider,
+                "cpus": self.cpus,
                 "memory": self.memory,
                 "num_gpus": self.num_gpus,
                 "head_cpus": self.head_cpus,
-                "upped_cluster": self.upped_cluster,
-                "resource_subtype": "KubernetesCluster"
+                "head_memory": self.head_memory,
+                "namespace": self.namespace,
+                "pod_name": self.pod_name,
+                "kube_config_path": self.kube_config_path
 
             }
         )
         return config
 
-    # def _get_sky_state(self):
-    #     return
+    def shell(self): # experimental: requires testing 
+        cmd = f"kubectl exec -it {self.pod_name} -- /bin/bash"
+        try:
+            process = subprocess.run(cmd, shell=True, check=True, text=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error: {e}")
+
 
     
 

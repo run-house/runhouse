@@ -199,6 +199,8 @@ def kubernetes_cluster(
     num_gpus: int = None,
     head_cpus: int = None,
     head_memory: int = None,
+    pod_name: str = None,
+    kube_config_path: str = None
 ) -> KubernetesCluster:
     """
     Builds an instance of :class:`KubernetesCluster`.
@@ -255,7 +257,9 @@ def kubernetes_cluster(
         memory = memory,
         num_gpus = num_gpus,
         head_cpus = head_cpus,
-        head_memory = head_memory
+        head_memory = head_memory,
+        pod_name = pod_name,
+        kube_config_path = kube_config_path
     )
 
 
