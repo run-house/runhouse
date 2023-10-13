@@ -414,7 +414,23 @@ class KubernetesCluster(cluser):
         return
 
     def _rsync(self, source: str, dest: str, up: bool, contents: bool = False):
-        return
+        rm_rh_cmd = f"kubectl exec -n {self.namespace} {self.pod_name} -- rm -rf runhouse"
+        sync_rh_cmd = f"kubectl cp ../runhouse/ {self.namespace}/{self.pod_name}:runhouse"
+        logger.info("Syncing runhouse code to cluster (overriding rsync)")
+        logger.info(f"Running: {rm_rh_cmd}")
+            
+        cmd = f"{rm_rh_cmd}"
+        try:
+            subprocess.run(cmd, shell=True, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error: {e}")
+
+        cmd = f"{sync_rh_cmd}"
+        logger.info(f"Running: {sync_rh_cmd}")
+        try:
+            subprocess.run(cmd, shell=True, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error: {e}")
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
