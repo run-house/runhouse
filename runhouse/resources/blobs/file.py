@@ -1,4 +1,3 @@
-import copy
 import logging
 import pickle
 from pathlib import Path
@@ -130,13 +129,14 @@ class File(Blob):
             new_blob.data = data_backup
             return new_blob
 
-        new_file = copy.copy(self)
-        new_file.local._folder = folder(
-            path=str(Path(path).parent) if path is not None else path,
-            system=system,
-            data_config=data_config,
-        )
-        new_file.write(self.fetch(mode="r"), serialize=False)
+        new_file = file(path=path, system=system, data_config=data_config)
+        try:
+            new_file.write(
+                self.fetch(mode="r", deserialize=False), serialize=False, mode="w"
+            )
+        except UnicodeDecodeError:
+            new_file.write(self.fetch())
+
         return new_file
 
     def resolved_state(self, deserialize: bool = True, mode: str = "rb"):
