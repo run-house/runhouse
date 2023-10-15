@@ -122,7 +122,7 @@ def test_byo_cluster_with_https(byo_cpu):
 
     assert byo_cpu.server_connection_type == tls_connection
 
-    local_cert_path = byo_cpu._cert_file_path
+    local_cert_path = byo_cpu.cert_config.cert_path
     assert Path(local_cert_path).exists()
 
     # Confirm we can send https requests to the cluster
@@ -161,13 +161,11 @@ def test_byo_proxy(byo_cpu, local_folder):
 def test_cluster_with_https(ondemand_cpu_cluster):
     # After launching the cluster with the existing fixture, restart the server on the cluster using HTTPS
     # By setting open ports we will use HTTPS by default
-    ondemand_cpu_cluster.open_ports = [7860]
+    ondemand_cpu_cluster.server_connection_type = ServerConnectionType.TLS.value
     ondemand_cpu_cluster.restart_server()
 
-    assert ondemand_cpu_cluster.server_connection_type
-
-    local_cert_path = ondemand_cpu_cluster._cert_file_path
-    assert Path(local_cert_path).exists()
+    local_cert_path = ondemand_cpu_cluster.cert_config.cert_path
+    assert Path(local_cert_path).exists()  # check it exists on the clsiuter too
 
     # Confirm we can send https requests to the cluster
     ondemand_cpu_cluster.install_packages(["gradio"])
@@ -199,6 +197,30 @@ def test_cluster_with_den_auth(ondemand_cpu_cluster):
     configs.set("token", orig_token)
 
     assert True
+
+
+@pytest.mark.clustertest
+@unittest.skip("Not implemented yet.")
+def test_launch_server_with_custom_certs(ondemand_cpu_cluster):
+    pass
+
+
+@pytest.mark.clustertest
+@unittest.skip("Not implemented yet.")
+def test_launch_server_on_custom_port(ondemand_cpu_cluster):
+    pass
+
+
+@pytest.mark.clustertest
+@unittest.skip("Not implemented yet.")
+def test_launch_server_with_no_port_forwarding(ondemand_cpu_cluster):
+    pass
+
+
+@pytest.mark.clustertest
+@unittest.skip("Not implemented yet.")
+def test_launch_server_with_password(ondemand_cpu_cluster):
+    pass
 
 
 if __name__ == "__main__":

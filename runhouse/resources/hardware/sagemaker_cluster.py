@@ -34,7 +34,7 @@ except ImportError:
 from sshtunnel import BaseSSHTunnelForwarderError, SSHTunnelForwarder
 
 from runhouse.globals import configs, open_cluster_tunnels, rns_client
-from runhouse.rns.utils.api import is_jsonable, resolve_absolute_path
+from runhouse.rns.utils.api import is_jsonable, relative_ssh_path, resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 
 from .cluster import Cluster
@@ -57,7 +57,6 @@ class SageMakerCluster(Cluster):
     SSH_KEY_FILE_NAME = "sagemaker-ssh-gw"
 
     DEFAULT_SSH_PORT = 11022
-    DEFAULT_HTTP_PORT = 50052
     DEFAULT_CONNECTION_WAIT_TIME = 60  # seconds
 
     def __init__(
@@ -77,7 +76,8 @@ class SageMakerCluster(Cluster):
         job_name: str = None,
         server_host: str = None,
         server_port: int = None,
-        server_connection_type: Union[ServerConnectionType, str] = None,
+        ssl_keyfile: str = None,
+        ssl_certfile: str = None,
         den_auth: bool = False,
         dryrun=False,
         **kwargs,
@@ -95,12 +95,13 @@ class SageMakerCluster(Cluster):
             ssh_creds={},
             server_host=server_host,
             server_port=server_port,
-            server_connection_type=server_connection_type,
+            server_connection_type=ServerConnectionType.AWS_SSM.value,
+            ssl_certfile=ssl_certfile,
+            ssl_keyfile=ssl_keyfile,
             den_auth=den_auth,
             dryrun=dryrun,
         )
         self._connection_wait_time = connection_wait_time
-        self._server_connection_type = server_connection_type
         self._instance_type = instance_type
         self._instance_count = instance_count
         self._region = region
@@ -209,7 +210,7 @@ class SageMakerCluster(Cluster):
     def ssh_key_path(self):
         """Relative path to the private SSH key used to connect to the cluster."""
         if self._ssh_key_path:
-            return self._relative_ssh_path(self._ssh_key_path)
+            return relative_ssh_path(self._ssh_key_path)
 
         # Default relative path
         return f"~/.ssh/{self.SSH_KEY_FILE_NAME}"
@@ -281,24 +282,6 @@ class SageMakerCluster(Cluster):
         self._region = region
 
     @property
-    def server_connection_type(self) -> str:
-        if (
-            self._server_connection_type is None
-            or self._server_connection_type == ServerConnectionType.NONE.value
-        ):
-            # For SageMaker we need to create an SSH tunnel, so use SSH by default
-            return ServerConnectionType.SSH.value
-
-        if isinstance(self._server_connection_type, str):
-            return self._server_connection_type.lower()
-
-        return self._server_connection_type.value
-
-    @server_connection_type.setter
-    def server_connection_type(self, server_connection_type):
-        self._server_connection_type = server_connection_type
-
-    @property
     def default_bucket(self):
         """Default bucket to use for storing the cluster's authorized public keys."""
         return self._sagemaker_session.default_bucket()
@@ -338,21 +321,6 @@ class SageMakerCluster(Cluster):
     def _ssh_key_comment(self):
         """Username and hostname to be used as the comment for the public key."""
         return f"{getpass.getuser()}@{socket.gethostname()}"
-
-    @classmethod
-    def _relative_ssh_path(cls, ssh_path: str):
-        """Convert to a relative path if it is not already one."""
-        if ssh_path.startswith("~"):
-            return ssh_path
-
-        # Convert to a relative path
-        relative_path = os.path.relpath(ssh_path, os.path.expanduser("~"))
-        relative_path = relative_path.replace("\\", "/")
-
-        if not relative_path.startswith("~"):
-            relative_path = f"~/{relative_path}"
-
-        return relative_path
 
     # -------------------------------------------------------
     # Cluster State & Lifecycle Methods
@@ -835,7 +803,7 @@ class SageMakerCluster(Cluster):
                 if not self._ports_are_in_use():
                     # Command should bind SSH port and HTTP port on localhost, if this is not the case try re-running
                     # the bash script with a different set of ports
-                    # E.g. ❯ lsof -i:11022,50052
+                    # E.g. ❯ lsof -i:11022,32300
                     # COMMAND   PID   USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
                     # ssh     97115 myuser    3u  IPv4 0xcf81f230786cc9fd      0t0  TCP localhost:50052 (LISTEN)
                     # ssh     97115 myuser    6u  IPv4 0xcf81f230786eff6d      0t0  TCP localhost:11022 (LISTEN)
@@ -1223,9 +1191,6 @@ class SageMakerCluster(Cluster):
             # Delete entry from ~/.ssh/config
             self._delete_ssh_config_entry()
             logger.info(f"Deleted cluster {self.name} from configs")
-
-            # Delete the local SSL cert directory
-            self._delete_ssl_cert_dir()
 
     def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
         if not self.instance_id:

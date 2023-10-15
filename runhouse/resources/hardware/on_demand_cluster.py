@@ -2,7 +2,7 @@ import contextlib
 import logging
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Dict
 
 import sky
 import yaml
@@ -10,7 +10,7 @@ from sky.backends import backend_utils, CloudVmRayBackend
 
 from runhouse.globals import configs, rns_client
 
-from .cluster import Cluster, ServerConnectionType
+from .cluster import Cluster
 from .utils import _current_cluster
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,9 @@ class OnDemandCluster(Cluster):
         open_ports=None,
         server_host: str = None,
         server_port: int = None,
-        server_connection_type: Union[ServerConnectionType, str] = None,
+        server_connection_type: str = None,
+        ssl_keyfile: str = None,
+        ssl_certfile: str = None,
         den_auth: bool = False,
         region=None,
         sky_state=None,
@@ -55,6 +57,8 @@ class OnDemandCluster(Cluster):
             server_host=server_host,
             server_port=server_port,
             server_connection_type=server_connection_type,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile,
             den_auth=den_auth,
             dryrun=dryrun,
         )
@@ -404,7 +408,6 @@ class OnDemandCluster(Cluster):
         """
         self.teardown()
         rns_client.delete_configs()
-        self._delete_ssl_cert_dir()
 
     @contextlib.contextmanager
     def pause_autostop(self):

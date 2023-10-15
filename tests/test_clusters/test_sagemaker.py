@@ -106,7 +106,7 @@ def test_sm_cluster_with_https(sm_cluster):
     sm_cluster.server_connection_type = "tls"
     sm_cluster.restart_server()
 
-    local_cert_path = sm_cluster._cert_file_path
+    local_cert_path = sm_cluster.ssl_certfile
     assert Path(local_cert_path).exists()
 
     # Confirm we can send https requests to the cluster

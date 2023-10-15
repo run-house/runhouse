@@ -2,6 +2,7 @@ import warnings
 from typing import Dict, List, Optional, Union
 
 from runhouse.resources.hardware.utils import RESERVED_SYSTEM_NAMES
+from ...rns.utils.api import relative_ssh_path
 
 from .cluster import Cluster, ServerConnectionType
 from .on_demand_cluster import OnDemandCluster
@@ -16,6 +17,8 @@ def cluster(
     server_port: int = None,
     server_host: int = None,
     server_connection_type: Union[ServerConnectionType, str] = None,
+    ssl_keyfile: str = None,
+    ssl_certfile: str = None,
     den_auth: bool = False,
     dryrun: bool = False,
     **kwargs,
@@ -28,12 +31,16 @@ def cluster(
         host (str or List[str], optional): Hostname, IP address, or list of IP addresses for the BYO cluster.
         ssh_creds (dict, optional): Dictionary mapping SSH credentials.
             Example: ``ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'}``
-        server_port (bool, optional): Port to use for the server. (Default: ``50052``).
-        server_host (bool, optional): Host to use for the server. (Default: ``127.0.0.1``).
+        server_port (bool, optional): Port to use for the server. Default depends on whether the server is started with
+            HTTP (80), HTTPS (443), or via SSH with port forwarding (32300).
+        server_host (bool, optional): Host to use for the server. (Default: ``0.0.0.0``).
         server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
             API server. ``ssh`` will use start with server with HTTP via port forwarding. ``tls`` will start the server
             with HTTPS using TLS certs. ``none`` will start the server with HTTP without using any
-            port forwarding.
+            port forwarding. ``aws_ssm`` will start the server with HTTP using AWS SSM port forwarding. ``paramiko``
+            will use paramiko to create an SSH tunnel to the cluster.
+        ssl_keyfile(str, optional): Path to SSL key file to use for launching the API server with HTTPS.
+        ssl_certfile(str, optional): Path to SSL certificate file to use for launching the API server with HTTPS.
         den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
             requests with a Runhouse token provided in the auth headers of the request with the format:
             ``{"Authorization": "Bearer <token>"}``. (Default: ``False``).
@@ -63,6 +70,32 @@ def cluster(
             "``ips`` argument has been deprecated. Please use ``host`` to refer to the cluster IPs or host instead."
         )
 
+    if (
+        server_connection_type
+        and server_connection_type == ServerConnectionType.AWS_SSM.value
+    ):
+        raise ValueError(
+            f"Cluster does not support server connection type `{server_connection_type}`"
+        )
+
+    paramiko_conn = ServerConnectionType.PARAMIKO.value
+    if server_connection_type:
+        if ssh_creds and server_connection_type != paramiko_conn:
+            warnings.warn(
+                "SSH creds provided but server connection type not set to `paramiko`"
+            )
+    else:
+        if ssh_creds:
+            server_connection_type = paramiko_conn
+
+        elif server_host and "localhost" in server_host:
+            # If localhost is set to host don't need to create an SSH tunnel
+            server_connection_type = ServerConnectionType.NONE.value
+
+        else:
+            # If no open ports are specified launch server with SSH
+            server_connection_type = ServerConnectionType.SSH.value
+
     if name and all(
         x is None
         for x in [
@@ -71,6 +104,8 @@ def cluster(
             server_port,
             server_host,
             server_connection_type,
+            ssl_keyfile,
+            ssl_certfile,
             den_auth,
             kwargs,
         ]
@@ -110,6 +145,8 @@ def cluster(
         server_host=server_host,
         server_port=server_port,
         server_connection_type=server_connection_type,
+        ssl_keyfile=ssl_keyfile,
+        ssl_certfile=ssl_certfile,
         den_auth=den_auth,
         dryrun=dryrun,
     )
@@ -131,6 +168,8 @@ def ondemand_cluster(
     server_port: int = None,
     server_host: int = None,
     server_connection_type: Union[ServerConnectionType, str] = None,
+    ssl_keyfile: str = None,
+    ssl_certfile: str = None,
     den_auth: bool = False,
     dryrun: bool = False,
 ) -> OnDemandCluster:
@@ -154,12 +193,16 @@ def ondemand_cluster(
         disk_size (int or str, optional): Amount of disk space to use for the cluster, e.g. "100" or "100+".
         open_ports (int or str or List[int], optional): Ports to open in the cluster's security group. Note
             that you are responsible for ensuring that the applications listening on these ports are secure.
-        server_port (bool, optional): Port to use for the server. (Default: ``50052``).
-        server_host (bool, optional): Host to use for the server. (Default: ``127.0.0.1``).
+        server_port (bool, optional): Port to use for the server. Default depends on whether the server is started with
+            HTTP (80), HTTPS (443), or via SSH with port forwarding (32300).
+        server_host (bool, optional): Host to use for the server. (Default: ``0.0.0.0``).
         server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
             API server. ``ssh`` will use start with server with HTTP via port forwarding. ``tls`` will start the server
             with HTTPS using TLS certs. ``none`` will start the server with HTTP without using any
-            port forwarding.
+            port forwarding. ``aws_ssm`` will start the server with HTTP using AWS SSM port forwarding. ``paramiko``
+            will use paramiko to create an SSH tunnel to the cluster.
+        ssl_keyfile(str, optional): Path to SSL key file to use for launching the API server with HTTPS.
+        ssl_certfile(str, optional): Path to SSL certificate file to use for launching the API server with HTTPS.
         den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
             requests with a Runhouse token provided in the auth headers of the request with the format:
             ``{"Authorization": "Bearer <token>"}``. (Default: ``False``).
@@ -184,6 +227,31 @@ def ondemand_cluster(
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.ondemand_cluster(name="rh-4-a100s")
     """
+    if isinstance(server_connection_type, ServerConnectionType):
+        server_connection_type = server_connection_type.value
+
+    if server_connection_type:
+        if server_connection_type in [
+            ServerConnectionType.AWS_SSM.value,
+            ServerConnectionType.PARAMIKO.value,
+        ]:
+            raise ValueError(
+                f"OnDemand Cluster does not support server connection type `{server_connection_type}`"
+            )
+
+    else:
+        if open_ports and (server_port in open_ports and server_host != "localhost"):
+            # If open ports are specified launch server with HTTPS
+            server_connection_type = ServerConnectionType.TLS.value
+
+        elif server_host and "localhost" in server_host:
+            # If localhost is set to host don't need to create an SSH tunnel
+            return ServerConnectionType.NONE.value
+
+        else:
+            # If no open ports are specified launch server with SSH
+            server_connection_type = ServerConnectionType.SSH.value
+
     if name:
         alt_options = dict(
             instance_type=instance_type,
@@ -197,6 +265,8 @@ def ondemand_cluster(
             server_host=server_host,
             server_port=server_port,
             server_connection_type=server_connection_type,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile,
             den_auth=den_auth,
         )
         # Filter out None/default values
@@ -228,6 +298,8 @@ def ondemand_cluster(
         server_host=server_host,
         server_port=server_port,
         server_connection_type=server_connection_type,
+        ssl_keyfile=ssl_keyfile,
+        ssl_certfile=ssl_certfile,
         den_auth=den_auth,
         name=name,
         dryrun=dryrun,
@@ -250,6 +322,8 @@ def sagemaker_cluster(
     server_port: int = None,
     server_host: int = None,
     server_connection_type: Union[ServerConnectionType, str] = None,
+    ssl_keyfile: str = None,
+    ssl_certfile: str = None,
     den_auth: bool = False,
     dryrun: bool = False,
 ) -> SageMakerCluster:
@@ -291,12 +365,13 @@ def sagemaker_cluster(
             If no estimator is provided, will default to ``0``.
         job_name (str, optional): Name to provide for a training job. If not provided will generate a default name
             based on the image name and current timestamp (e.g. ``pytorch-training-2023-08-28-20-57-55-113``).
-        server_port (bool, optional): Port to use for the server. (Default: ``50052``).
-        server_host (bool, optional): Host to use for the server. (Default: ``127.0.0.1``).
+        server_port (bool, optional): Port to use for the server. Default depends on whether the server is started with
+            HTTP (80), HTTPS (443), or via SSH with port forwarding (32300).
+        server_host (bool, optional): Host to use for the server. (Default: ``localhost``).
         server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
-            API server. ``ssh`` will use start with server with HTTP via port forwarding. ``tls`` will start the server
-            with HTTPS using TLS certs. ``none`` will start the server with HTTP without using any
-            port forwarding.
+            API server. *Note: For SageMaker, only ``aws_ssm`` is currently valid as the server connection type.*
+        ssl_keyfile(str, optional): Path to SSL key file to use for launching the API server with HTTPS.
+        ssl_certfile(str, optional): Path to SSL certificate file to use for launching the API server with HTTPS.
         den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
             requests with a Runhouse token provided in the auth headers of the request with the format:
             ``{"Authorization": "Bearer <token>"}``. (Default: ``False``).
@@ -326,9 +401,19 @@ def sagemaker_cluster(
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.sagemaker_cluster(name="sagemaker-cluster")
     """
-    ssh_key_path = (
-        SageMakerCluster._relative_ssh_path(ssh_key_path) if ssh_key_path else None
-    )
+    ssh_key_path = relative_ssh_path(ssh_key_path) if ssh_key_path else None
+
+    if isinstance(server_connection_type, ServerConnectionType):
+        server_connection_type = server_connection_type.value
+
+    if (
+        server_connection_type is not None
+        and server_connection_type != ServerConnectionType.AWS_SSM.value
+    ):
+        raise ValueError(
+            "SageMaker Cluster currently requires a server connection type of `aws_ssm`."
+        )
+
     if name:
         alt_options = dict(
             role=role,
@@ -343,6 +428,8 @@ def sagemaker_cluster(
             server_host=server_host,
             server_port=server_port,
             server_connection_type=server_connection_type,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile,
             den_auth=den_auth,
         )
         # Filter out None/default values
@@ -377,5 +464,7 @@ def sagemaker_cluster(
         server_port=server_port,
         server_connection_type=server_connection_type,
         den_auth=den_auth,
+        ssl_keyfile=ssl_keyfile,
+        ssl_certfile=ssl_certfile,
         dryrun=dryrun,
     )

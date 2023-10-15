@@ -24,7 +24,7 @@ you may perform the following manual setup steps.
 
    .. code::
 
-        ssh user@host -L 50052:localhost:50052
+        ssh user@host -L 32300:localhost:32300
 
 3. Install Runhouse on the remote box using the same command as in step 1:
 

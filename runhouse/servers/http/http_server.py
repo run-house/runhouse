@@ -12,29 +12,39 @@ import ray
 import requests
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 from runhouse.globals import configs, env_servlets, rns_client
 from runhouse.resources.hardware.utils import _current_cluster, _get_cluster_from
-from runhouse.rns.utils.api import load_resp_content, ResourceAccess
+from runhouse.rns.utils.api import (
+    load_resp_content,
+    resolve_absolute_path,
+    ResourceAccess,
+)
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.http_utils import (
     b64_unpickle,
-    DEFAULT_SERVER_HOST,
-    DEFAULT_SERVER_PORT,
-    HTTPSConfig,
+    configure_nginx,
     Message,
     OutputType,
     pickle_b64,
     Response,
+    ServerCache,
+    TLSCertConfig,
 )
 from runhouse.servers.servlet import EnvServlet
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+# **NOTE**: This is a temp in-mem cache, we will move this out into the object store for future permissions support
+server_cache = ServerCache()
+
+global den_auth
 
 
 def validate_user(func):
@@ -44,12 +54,11 @@ def validate_user(func):
     async def wrapper(*args, **kwargs):
         request: Request = kwargs.get("request")
         is_https: bool = request.url.scheme == "https"
-        get_cert: bool = func.__name__ == "get_cert"
         func_call: bool = func.__name__ in ["call_module_method", "call"]
-        use_den_auth: bool = HTTPServer.DEN_AUTH
+        use_den_auth: bool = den_auth
 
-        if not get_cert and not is_https and not use_den_auth:
-            # Skip validation if not using HTTPS or not requesting the TLS cert or not validating the user's token
+        if not is_https and not use_den_auth:
+            # Skip validation if not using HTTPS or not validating the user's token
             return func(*args, **kwargs)
 
         token = request.headers.get("Authorization", "").split("Bearer ")[-1]
@@ -61,7 +70,7 @@ def validate_user(func):
             )
 
         # Check if user's token has already been validated and saved to cache on the cluster
-        cached_resources: dict = HTTPServer.get(token)
+        cached_resources: dict = server_cache.get_resources(token)
         if not cached_resources:
             resp = requests.get(
                 f"{rns_client.api_server_url}/user",
@@ -80,12 +89,13 @@ def validate_user(func):
             if cluster_uri is None:
                 logger.error(
                     "Failed to load cluster RNS address. Make sure cluster config YAML has been saved "
-                    "on the cluster."
+                    "on the cluster in path: ~/.rh/cluster_config.yaml"
                 )
                 raise HTTPException(
                     status_code=403,
                     detail="Failed validate access to cluster",
                 )
+
             verify_resource_access(token, cluster_uri, cached_resources, func_call)
 
         return func(*args, **kwargs)
@@ -125,7 +135,7 @@ def verify_resource_access(
 
     # Update the cache with the latest list of resources
     # Note: This will only persist for as long as the server is up
-    HTTPServer.put(token, all_resources)
+    server_cache.put_resources(token, all_resources)
 
     logger.info(f"Updated cache with {len(all_resources)} resources for user")
 
@@ -151,12 +161,10 @@ def _load_current_cluster(kwargs) -> Union[str, None]:
 class HTTPServer:
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     LOGGING_WAIT_TIME = 1
+    DEFAULT_APP_PORT = 32300  # Port where Fast API app is running
+    DEFAULT_SERVER_HOST = "0.0.0.0"  # "127.0.0.1"
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
-    DEN_AUTH = False
     memory_exporter = None
-
-    # NOTE: This is a temp in-mem cache, we will move this out into the object store for future permissions support
-    AUTH_CACHE = {}
 
     def __init__(
         self, conda_env=None, enable_local_span_collection=None, *args, **kwargs
@@ -222,29 +230,27 @@ class HTTPServer:
 
         HTTPServer.register_activity()
 
-    @classmethod
-    def get(cls, key) -> dict:
-        """Get resources associated with a particular user"""
-        return cls.AUTH_CACHE.get(key, {})
-
-    @classmethod
-    def put(cls, key, value):
-        """Update server cache with a user's resources and access type"""
-        cls.AUTH_CACHE[key] = value
-
     @staticmethod
     def register_activity():
         set_last_active_time_to_now()
 
     @staticmethod
     @app.get("/cert")
-    @validate_user
-    def get_cert(request: Request, message: Message):
+    def get_cert():
         """Download the certificate file for this server necessary for enabling HTTPS.
         User must have access to the cluster in order to download the certificate."""
         try:
-            with open(HTTPSConfig.CERT_FILE_PATH, "rb") as cert_file:
+            certs_config = TLSCertConfig()
+            cert_path = certs_config.cert_path
+
+            if not Path(cert_path).exists():
+                raise FileNotFoundError(
+                    f"No certificate found on cluster in path: {cert_path}"
+                )
+
+            with open(cert_path, "rb") as cert_file:
                 cert = cert_file.read()
+
             return Response(data=pickle_b64(cert), output_type=OutputType.RESULT)
 
         except Exception as e:
@@ -740,12 +746,8 @@ if __name__ == "__main__":
     import uvicorn
 
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--host", type=str, default=DEFAULT_SERVER_HOST, help="Host to run server on"
-    )
-    parser.add_argument(
-        "--port", type=int, default=DEFAULT_SERVER_PORT, help="Port to run server on"
-    )
+    parser.add_argument("--host", type=str, default=None, help="Host to run server on")
+    parser.add_argument("--port", type=int, default=None, help="Port to run server on")
     parser.add_argument(
         "--conda-env", type=str, default=None, help="Conda env to run server in"
     )
@@ -758,12 +760,34 @@ if __name__ == "__main__":
     parser.add_argument(
         "--use-https",
         action="store_true",  # if providing --use-https will be set to True
-        help="Start an HTTPS server with new TSL certs",
+        help="Start an HTTPS server with new TLS certs",
     )
     parser.add_argument(
         "--use-den-auth",
         action="store_true",  # if providing --use-den-auth will be set to True
         help="Whether to authenticate requests with a Runhouse token",
+    )
+    parser.add_argument(
+        "--ssl-keyfile",
+        type=str,
+        default=None,
+        help="Path to SSL key file to use for HTTPS",
+    )
+    parser.add_argument(
+        "--ssl-certfile",
+        type=str,
+        default=None,
+        help="Path to SSL cert file to use for HTTPS",
+    )
+    parser.add_argument(
+        "--force-reinstall",
+        action="store_true",  # if providing --force-reinstall will be set to True
+        help="Reconfigure NGINX and reinstall certs",
+    )
+    parser.add_argument(
+        "--skip-nginx",
+        action="store_true",  # if providing --skip-nginx will be set to True
+        help="Do not configure NGINX as a reverse proxy",
     )
 
     parse_args = parser.parse_args()
@@ -773,31 +797,77 @@ if __name__ == "__main__":
     should_enable_local_span_collection = parse_args.enable_local_span_collection
     use_https = parse_args.use_https
     den_auth = parse_args.use_den_auth
+    ssl_keyfile = parse_args.ssl_keyfile
+    ssl_certfile = parse_args.ssl_certfile
+    force_reinstall = parse_args.force_reinstall
+    skip_nginx = parse_args.skip_nginx
 
     HTTPServer(
         conda_env=conda_name,
         enable_local_span_collection=should_enable_local_span_collection,
     )
 
-    # Can set at class level since this is being defined once when the server is launched
-    HTTPServer.DEN_AUTH = den_auth
+    # Save down certs onto the cluster which is needed for NGINX
+    # Note: if starting with HTTP certs will be ignored
+    if ssl_keyfile and not Path(ssl_keyfile).exists():
+        raise FileNotFoundError(
+            f"Provided SSL key file not found on cluster in path: {ssl_keyfile}"
+        )
 
+    if ssl_certfile and not Path(ssl_certfile).exists():
+        raise FileNotFoundError(
+            f"Provided SSL cert file not found on cluster in path: {ssl_certfile}"
+        )
+
+    cert_config = TLSCertConfig()
+
+    ssl_keyfile = resolve_absolute_path(ssl_keyfile or cert_config.key_path)
+    ssl_certfile = resolve_absolute_path(ssl_certfile or cert_config.cert_path)
+
+    if not Path(ssl_keyfile).exists() and not Path(ssl_certfile).exists():
+        cert_config.generate_certs()
+        logger.info(
+            f"Generated new self-signed certs on the cluster in path: {cert_config.CERT_DIR} "
+            f"and {cert_config.PRIVATE_KEY_DIR}"
+        )
+
+    host = host or HTTPServer.DEFAULT_SERVER_HOST
+
+    # Note: running the FastAPI app on a higher, non-privileged port (8000) and using Nginx as a reverse
+    # proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the apps port.
     if use_https:
-        logger.info(f"Launching HTTPS server (den_auth={den_auth})")
-        ssl_keyfile = HTTPSConfig.PRIVATE_KEY_PATH
-        ssl_certfile = HTTPSConfig.CERT_FILE_PATH
+        https_port = port or HTTPServer.DEFAULT_APP_PORT
 
-        if not Path(ssl_keyfile).exists() and not Path(ssl_certfile).exists():
-            logger.info("Generating new certs on the cluster")
-            HTTPSConfig.generate_certs()
+        logger.info(
+            f"Launching HTTPS server with den_auth={den_auth} on host: {host} and port 443."
+        )
+        if not skip_nginx:
+            configure_nginx(https_port, force_reinstall)
+            logger.info(
+                f"NGINX will forward all traffic to app running on port {https_port}"
+            )
+
+        # https://fastapi.tiangolo.com/advanced/middleware/#httpsredirectmiddleware
+        app.add_middleware(HTTPSRedirectMiddleware)
 
         uvicorn.run(
             app,
             host=host,
-            port=port,
+            port=https_port,
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
         )
+
     else:
-        logger.info(f"Launching HTTP server (den_auth={den_auth})")
-        uvicorn.run(app, host=host, port=port)
+        http_port = port or HTTPServer.DEFAULT_APP_PORT
+
+        logger.info(
+            f"Launching HTTP server with den_auth={den_auth} on host: {host} and port 80."
+        )
+        if not skip_nginx:
+            configure_nginx(http_port, force_reinstall)
+            logger.info(
+                f"NGINX will forward all traffic to app running on port {http_port}"
+            )
+
+        uvicorn.run(app, host=host, port=http_port)

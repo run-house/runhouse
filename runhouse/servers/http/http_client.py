@@ -1,7 +1,8 @@
 import json
 import logging
-import os
 import time
+from pathlib import Path
+from typing import Dict, Union
 
 import requests
 
@@ -20,7 +21,6 @@ class HTTPClient:
     Client for cluster RPCs
     """
 
-    DEFAULT_PORT = 50052
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     CHECK_TIMEOUT_SEC = 10
 
@@ -49,8 +49,11 @@ class HTTPClient:
         key=None,
         err_str=None,
         timeout=None,
+        headers: Union[Dict, None] = None,
         verify=None,
     ):
+        # Support use case where we explicitly do not want to provide headers (e.g. requesting a cert)
+        headers = rns_client.request_headers if headers != {} else headers
         req_fn = (
             requests.get
             if req_type == "get"
@@ -73,7 +76,7 @@ class HTTPClient:
             },
             timeout=timeout,
             auth=self.auth,
-            headers=rns_client.request_headers,
+            headers=headers,
             verify=self.cert_path if verify is None else verify,
         )
         if response.status_code != 200:
@@ -92,14 +95,15 @@ class HTTPClient:
             timeout=self.CHECK_TIMEOUT_SEC,
         )
 
-    def get_certificate(self, cluster_config):
+    def get_certificate(self):
         cert: bytes = self.request(
             "cert",
             req_type="get",
-            data=json.dumps(cluster_config, indent=4),
             verify=False,
+            headers={},
         )
-        os.makedirs(os.path.dirname(self.cert_path), exist_ok=True)
+        # Create parent directory to store the cert
+        Path(self.cert_path).parent.mkdir(parents=True, exist_ok=True)
         with open(self.cert_path, "wb") as file:
             file.write(cert)
 
@@ -184,7 +188,7 @@ class HTTPClient:
 
                 return results_generator()
             elif output_type == OutputType.CONFIG:
-                # If this was a `.remote` call, we don't need to recreate the system and connection, which can be
+                # If this was a `.remote` call, we don't need to recreate the system and connection, which can beh
                 # slow, we can just set it explicitly.
                 if (
                     system

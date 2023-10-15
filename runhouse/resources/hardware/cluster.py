@@ -3,7 +3,6 @@ import copy
 import logging
 import os
 import pkgutil
-import shutil
 import subprocess
 import sys
 import threading
@@ -21,30 +20,39 @@ from runhouse.globals import obj_store, open_cluster_tunnels, rns_client
 from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware.utils import _current_cluster, SkySSHRunner
 from runhouse.resources.resource import Resource
+from runhouse.rns.utils.api import relative_ssh_path
 
 from runhouse.servers.http import HTTPClient
-from runhouse.servers.http.http_utils import HTTPSConfig
+from runhouse.servers.http.http_utils import TLSCertConfig
 
 logger = logging.getLogger(__name__)
 
 
 class ServerConnectionType(Enum):
-    """Enum to manage the type of connection Runhouse will make with the Runhouse API server started on the cluster.
-    ``ssh``: Use port forwarding to connect to the server.
-    ``tls``: Use port forwarding and start the server with HTTPS (using TLS certs).
-    ``none``: Do not use port forwarding, and start the server with HTTP (e.g. server host is ``localhost``).
+    """Manage the type of connection Runhouse will make with the API server started on the cluster.
+    ``ssh``: Use port forwarding to connect to the server, by default on port 32300.
+        The server will be started with HTTP on port 80.
+    ``tls``: Use port forwarding and start the server with HTTPS (using custom or fresh LS certs), by default
+        on port 443.
+    ``none``: Do not use port forwarding, and start the server with HTTP (e.g. server host is ``localhost``), by default
+        on port 80.
+    ``aws_ssm``: Use AWS SSM to connect to the server.
+    ``paramiko``: Use paramiko to connect to the server (e.g. if you provide a password with SSH credentials)
     """
 
     SSH = "ssh"
     TLS = "tls"
     NONE = "none"
+    AWS_SSM = "aws_ssm"
+    PARAMIKO = "paramiko"
 
 
 class Cluster(Resource):
     RESOURCE_TYPE = "cluster"
     REQUEST_TIMEOUT = 5  # seconds
-    DEFAULT_HOST = "127.0.0.1"
-    DEFAULT_HTTP_PORT = 50052
+    DEFAULT_HOST = "0.0.0.0"
+    LOCALHOST = "127.0.0.1"
+    DEFAULT_PORT = 32300
 
     SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
     CLI_RESTART_CMD = "runhouse restart"
@@ -68,7 +76,9 @@ class Cluster(Resource):
         ssh_creds: Dict = None,
         server_host: str = None,
         server_port: int = None,
-        server_connection_type: Union[ServerConnectionType, str] = None,
+        server_connection_type: str = None,
+        ssl_keyfile: str = None,
+        ssl_certfile: str = None,
         den_auth: bool = False,
         dryrun=False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
@@ -91,13 +101,22 @@ class Cluster(Resource):
         self._ssh_creds = ssh_creds
         self.ips = ips
         self._rpc_tunnel = None
-
-        self.server_host = server_host or self.DEFAULT_HOST
-        self.server_port = server_port or self.DEFAULT_HTTP_PORT
-        self._server_connection_type = server_connection_type
+        self._ssl_certfile = ssl_certfile
+        self._ssl_keyfile = ssl_keyfile
 
         self.client = None
         self.den_auth = den_auth
+        self.cert_config = TLSCertConfig(
+            cert_path=self.ssl_certfile, cluster_name=self.name
+        )
+
+        self.server_connection_type = server_connection_type
+        self.server_host = server_host or (
+            self.LOCALHOST
+            if self.server_connection_type == ServerConnectionType.SSH.value
+            else self.DEFAULT_HOST
+        )
+        self.server_port = server_port or self.DEFAULT_PORT
 
     def save_config_to_cluster(self):
         import json
@@ -141,35 +160,39 @@ class Cluster(Resource):
                 "server_port",
                 "server_host",
                 "server_connection_type",
+                "ssl_keyfile",
+                "ssl_certfile",
                 "den_auth",
             ],
         )
         if self.ips is not None:
             config["ssh_creds"] = self.ssh_creds()
+
         return config
 
     @property
-    def server_connection_type(self) -> str:
-        if self.open_ports:
-            # If open ports are specified launch server with HTTPS
-            return ServerConnectionType.TLS.value
+    def ssl_keyfile(self):
+        """Relative path to the SSL keyfile used to connect to the cluster."""
+        if self._ssl_keyfile:
+            return relative_ssh_path(file_path=self._ssl_keyfile)
 
-        if "localhost" in self.server_host:
-            # If localhost is set to host don't need to create an SSH tunnel
-            return ServerConnectionType.NONE.value
+    @ssl_keyfile.setter
+    def ssl_keyfile(self, ssl_keyfile):
+        self._ssl_keyfile = ssl_keyfile
 
-        if self._server_connection_type is None:
-            # Use port forwarding and launch server with HTTP
-            return ServerConnectionType.SSH.value
+    @property
+    def ssl_certfile(self):
+        """Path to the client certificate file needed if server on the cluster is launched with HTTPS. Uses an existing
+        cert if explicitly provided, otherwise uses the default one generated by Runhouse."""
+        return (
+            relative_ssh_path(file_path=self._ssl_certfile)
+            if self._ssl_certfile
+            else None
+        )
 
-        if isinstance(self._server_connection_type, str):
-            return self._server_connection_type.lower()
-
-        return self._server_connection_type.value
-
-    @server_connection_type.setter
-    def server_connection_type(self, server_connection_type):
-        self._server_connection_type = server_connection_type
+    @ssl_certfile.setter
+    def ssl_certfile(self, ssl_certfile):
+        self._ssl_certfile = ssl_certfile
 
     def is_up(self) -> bool:
         """Check if the cluster is up.
@@ -407,9 +430,9 @@ class Cluster(Resource):
             or self.server_connection_type != ServerConnectionType.NONE.value
             and ssh_tunnel is None
         ):
-            # Case 3: server host is not set to localhost or connection type of TLS or SSH is specified
+            # Case 3: server host is not set to localhost or connection type that is not "none" is specified
             self._rpc_tunnel, connected_port = self.ssh_tunnel(
-                HTTPClient.DEFAULT_PORT,
+                self.DEFAULT_PORT,
                 remote_port=self.server_port,
                 num_ports_to_try=5,
             )
@@ -427,14 +450,14 @@ class Cluster(Resource):
                 host=self.server_host,
                 port=connected_port,
                 auth=(creds.get("ssh_user"), creds.get("password")),
-                cert_path=self._cert_file_path,
+                cert_path=self.ssl_certfile,
                 use_https=self._use_https,
             )
         else:
             self.client = HTTPClient(
                 host=self.server_host,
                 port=connected_port,
-                cert_path=self._cert_file_path,
+                cert_path=self.ssl_certfile,
                 use_https=self._use_https,
             )
 
@@ -528,7 +551,7 @@ class Cluster(Resource):
                         ssh_password=creds.get("password"),
                         local_bind_address=("", local_port),
                         remote_bind_address=(
-                            "127.0.0.1",
+                            self.LOCALHOST,
                             remote_port or local_port,
                         ),
                         set_keepalive=1,
@@ -545,23 +568,8 @@ class Cluster(Resource):
         return ssh_tunnel, local_port
 
     @property
-    def _cert_file_path(self):
-        """Path to the client certificate file needed if server on the cluster is launched with HTTPS."""
-        return f"{self._cert_dir}/{HTTPSConfig.CERT_NAME}"
-
-    @property
-    def _cert_dir(self):
-        """Path to the directory where the client certificate file lives."""
-        return f"{HTTPSConfig.CERT_DIR_PATH}/{self.name}"
-
-    def _delete_ssl_cert_dir(self):
-        """Delete the local cert directory."""
-        if Path(self._cert_dir).exists():
-            shutil.rmtree(Path(self._cert_dir))
-
-    @property
     def _use_https(self) -> bool:
-        """Use HTTPS if server connection type is set to ``tls``"""
+        """Use HTTPS if server connection type is set to ``tls``, or if SSL certs are specified."""
         connection_type = self.server_connection_type
         tls_conn = ServerConnectionType.TLS.value
 
@@ -580,7 +588,19 @@ class Cluster(Resource):
 
     @classmethod
     def _start_server_cmds(
-        cls, restart, restart_ray, screen, create_logfile, host, use_https, den_auth
+        cls,
+        restart,
+        restart_ray,
+        screen,
+        create_logfile,
+        host,
+        port,
+        use_https,
+        den_auth,
+        ssl_keyfile,
+        ssl_certfile,
+        force_reinstall,
+        skip_nginx,
     ):
         cmds = []
         if restart:
@@ -593,18 +613,49 @@ class Cluster(Resource):
         server_start_cmd = cls.SERVER_START_CMD
         start_screen_cmd = cls.START_SCREEN_CMD
 
-        https_flag = " --use-https" if use_https else ""
-        if https_flag:
-            logger.info("Starting server with HTTPS.")
-            start_screen_cmd, server_start_cmd = cls._add_flag_to_commands(
-                https_flag, start_screen_cmd, server_start_cmd
-            )
-
         den_auth_flag = " --use-den-auth" if den_auth else ""
         if den_auth_flag:
             logger.info("Starting server with Den auth.")
             start_screen_cmd, server_start_cmd = cls._add_flag_to_commands(
                 den_auth_flag, start_screen_cmd, server_start_cmd
+            )
+
+        force_reinstall_flag = " --force-reinstall" if force_reinstall else ""
+        if force_reinstall_flag:
+            logger.info("Reinstalling NGINX and server configs.")
+            start_screen_cmd, server_start_cmd = cls._add_flag_to_commands(
+                force_reinstall_flag, start_screen_cmd, server_start_cmd
+            )
+
+        skip_nginx_flag = " --skip-nginx" if skip_nginx else ""
+        if skip_nginx_flag:
+            logger.info("Skipping NGINX configuration on the cluster.")
+            start_screen_cmd, server_start_cmd = cls._add_flag_to_commands(
+                skip_nginx_flag, start_screen_cmd, server_start_cmd
+            )
+
+        ssl_keyfile_flag = f" --ssl-keyfile {ssl_keyfile}" if ssl_keyfile else ""
+        if ssl_keyfile_flag:
+            logger.info(f"Using SSL keyfile in path: {ssl_keyfile}")
+            start_screen_cmd, server_start_cmd = cls._add_flag_to_commands(
+                ssl_keyfile_flag, start_screen_cmd, server_start_cmd
+            )
+
+        ssl_certfile_flag = f" --ssl-certfile {ssl_certfile}" if ssl_certfile else ""
+        if ssl_certfile_flag:
+            logger.info(f"Using SSL certfile in path: {ssl_certfile}")
+            start_screen_cmd, server_start_cmd = cls._add_flag_to_commands(
+                ssl_certfile_flag, start_screen_cmd, server_start_cmd
+            )
+
+        # Use HTTPS if explicitly specified or if SSL cert or keyfile path are provided
+        https_flag = (
+            " --use-https" if use_https or (ssl_keyfile or ssl_certfile) else ""
+        )
+        if https_flag:
+            logger.info("Starting server with HTTPS.")
+            start_screen_cmd, server_start_cmd = cls._add_flag_to_commands(
+                https_flag, start_screen_cmd, server_start_cmd
             )
 
         if screen:
@@ -615,10 +666,15 @@ class Cluster(Resource):
         else:
             if host is not None:
                 server_start_cmd += f" --host {host}"
+
+            if port is not None:
+                server_start_cmd += f" --port {port}"
+
             logger.info(
                 f"Starting HTTP server using the following command: {server_start_cmd}."
             )
             cmds.append(server_start_cmd)
+
         return cmds
 
     def restart_server(
@@ -642,13 +698,58 @@ class Cluster(Resource):
         if resync_rh:
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
 
-        # Start server with HTTPS if ``server_connection_type`` is ``tls``
+        custom_ssl_certfile = self.ssl_certfile
+        custom_ssl_keyfile = self.ssl_keyfile
+
+        # Note: Will have a default value if not explicitly provided
+        cert_path = self.cert_config.cert_path
+
+        if custom_ssl_certfile:
+            # Copy the specified cert onto the cluster
+            from runhouse import folder
+
+            cluster_cert_dir = self.cert_config.CERT_DIR
+            folder(path=Path(self.cert_config.cert_path).parent).to(
+                self, path=cluster_cert_dir
+            )
+
+            # Path to cert file stored on the cluster
+            cluster_cert_path = f"{cluster_cert_dir}/{self.cert_config.CERT_NAME}"
+            logger.info(
+                f"Copied TLS cert onto the cluster in path: {cluster_cert_path}"
+            )
+
+        if custom_ssl_keyfile:
+            # Copy the specified key file onto the cluster
+            from runhouse import folder
+
+            cluster_key_dir = self.cert_config.PRIVATE_KEY_DIR
+            folder(path=Path(self.cert_config.key_path).parent).to(
+                self, path=cluster_key_dir
+            )
+
+            # Path to key file stored on the cluster
+            cluster_key_path = f"{cluster_key_dir}/{self.cert_config.CERT_NAME}"
+
+            logger.info(
+                f"Copied TLS keyfile onto the cluster in path: {cluster_key_path}"
+            )
+
         https_flag = self._use_https
         cmd = (
             self.CLI_RESTART_CMD
             + (" --no-restart-ray" if not restart_ray else "")
             + (" --use-https" if https_flag else "")
             + (" --use-den-auth" if self.den_auth else "")
+            + (f" --host {self.server_host}" if self.server_host else "")
+            + (f" --port {self.server_port}" if self.server_port else "")
+            + (f" --ssl-keyfile {cluster_key_path}" if custom_ssl_keyfile else "")
+            + (f" --ssl-certfile {cluster_cert_path}" if custom_ssl_certfile else "")
+            + (
+                " --skip-nginx"
+                if self.server_connection_type == ServerConnectionType.NONE.value
+                else ""
+            )
         )
 
         cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd
@@ -671,12 +772,14 @@ class Cluster(Resource):
 
             # Update in case the server was previously launched with HTTP
             self.client.use_https = https_flag
-            self.client.cert_path = self._cert_file_path
+            self.client.cert_path = custom_ssl_certfile
 
-            # Download certificate from the cluster (Note: user must have access to the cluster)
-            self.client.get_certificate(cluster_config=self.config_for_rns)
+            if not Path(cert_path).exists():
+                # Download certificate from the cluster (Note: user must have access to the cluster)
+                self.client.get_certificate()
+
             logger.info(
-                f"Latest TLS certificate saved to local path: {self._cert_file_path}"
+                f"Latest TLS certificate for {self.name} saved to local path: {cert_path}"
             )
 
         return status_codes

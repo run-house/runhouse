@@ -97,8 +97,13 @@ def _start_server(
     screen,
     create_logfile=True,
     host=None,
+    port=None,
     use_https=False,
     den_auth=False,
+    ssl_keyfile=None,
+    ssl_certfile=None,
+    force_reinstall=False,
+    skip_nginx=False,
 ):
     from runhouse.resources.hardware.cluster import Cluster
 
@@ -108,8 +113,13 @@ def _start_server(
         screen=screen,
         create_logfile=create_logfile,
         host=host,
+        port=port,
         use_https=use_https,
         den_auth=den_auth,
+        ssl_keyfile=ssl_keyfile,
+        ssl_certfile=ssl_certfile,
+        force_reinstall=force_reinstall,
+        skip_nginx=skip_nginx,
     )
 
     try:
@@ -133,14 +143,19 @@ def start(
     restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
     screen: bool = typer.Option(False, help="Start the server in a screen"),
     host: Optional[str] = typer.Option(
-        None,
-        help="Custom server host address e.g. 0.0.0.0. Default is `None` and the server would start on 127.0.0.1",
+        None, help="Custom server host address. Default is `0.0.0.0`."
+    ),
+    port: Optional[str] = typer.Option(
+        None, help="Port for server. If not specified will start on 32300"
     ),
     use_https: bool = typer.Option(
         False, help="Start an HTTPS server with TLS verification"
     ),
     use_den_auth: bool = typer.Option(
         False, help="Whether to authenticate requests with a Runhouse token"
+    ),
+    skip_nginx: bool = typer.Option(
+        False, help="Whether to configure NGINX on the cluster as a reverse proxy"
     ),
 ):
     """Start the HTTP or HTTPS server on the cluster."""
@@ -150,8 +165,10 @@ def start(
         screen=screen,
         create_logfile=True,
         host=host,
+        port=port,
         use_https=use_https,
         den_auth=use_den_auth,
+        skip_nginx=skip_nginx,
     )
 
 
@@ -168,14 +185,28 @@ def restart(
         help="Resync the Runhouse package. Only relevant when restarting remotely.",
     ),
     host: Optional[str] = typer.Option(
-        None,
-        help="Custom server host address e.g. 0.0.0.0. Default is `None` and the server would start on 127.0.0.1",
+        None, help="Custom server host address. Default is `0.0.0.0`."
+    ),
+    port: Optional[str] = typer.Option(
+        None, help="Port for server. If not specified will start on 32300"
     ),
     use_https: bool = typer.Option(
         False, help="Start an HTTPS server with TLS verification"
     ),
     use_den_auth: bool = typer.Option(
         False, help="Whether to authenticate requests with a Runhouse token"
+    ),
+    ssl_keyfile: Optional[str] = typer.Option(
+        None, help="Path to custom SSL key file to use for enabling HTTPS"
+    ),
+    ssl_certfile: Optional[str] = typer.Option(
+        None, help="Path to custom SSL cert file to use for enabling HTTPS"
+    ),
+    force_reinstall: bool = typer.Option(
+        False, help="Whether to reinstall NGINX and other server configs on the cluster"
+    ),
+    skip_nginx: bool = typer.Option(
+        False, help="Whether to configure NGINX on the cluster as a reverse proxy"
     ),
 ):
     """Restart the HTTP server on the cluster."""
@@ -190,8 +221,13 @@ def restart(
         screen=screen,
         create_logfile=True,
         host=host,
+        port=port,
         use_https=use_https,
         den_auth=use_den_auth,
+        ssl_keyfile=ssl_keyfile,
+        ssl_certfile=ssl_certfile,
+        force_reinstall=force_reinstall,
+        skip_nginx=skip_nginx,
     )
 
 
