@@ -100,7 +100,7 @@ extras_require = {
     ],
     "opentelemetry": [
         "opentelemetry-api",
-        "opentelemetry-exporter-otlp-proto-grpc",
+        "opentelemetry-exporter-otlp-proto-http",
         "opentelemetry-instrumentation",
         "opentelemetry-instrumentation-fastapi",
         "opentelemetry-instrumentation-requests",
