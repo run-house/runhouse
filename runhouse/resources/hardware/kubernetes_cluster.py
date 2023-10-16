@@ -349,8 +349,13 @@ class KubernetesCluster(cluser):
             print(e.stderr)
 
 
+        self.port_forward()
+
+        return 
+    
+    def port_forward(self):
         # Set up port-forward from local to pod port 50052
-        command = f"kubectl port-forward {pod_name} 50052:{DEFAULT_SERVER_PORT}"
+        command = f"kubectl port-forward {self.pod_name} 50052:{DEFAULT_SERVER_PORT}"
 
         logger.info("Setting up port-forward")
         logger.info(f"Running {command}")
@@ -366,8 +371,7 @@ class KubernetesCluster(cluser):
             else:
                 print(f"An error occurred while running the command: {e}")
 
-
-        return 
+        return
 
 
     def up_if_not(self):
