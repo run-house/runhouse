@@ -27,7 +27,6 @@ from runhouse.rns.utils.api import (
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.http_utils import (
     b64_unpickle,
-    configure_nginx,
     Message,
     OutputType,
     pickle_b64,
@@ -35,6 +34,7 @@ from runhouse.servers.http.http_utils import (
     ServerCache,
     TLSCertConfig,
 )
+from runhouse.servers.nginx.config import NginxConfig
 from runhouse.servers.servlet import EnvServlet
 
 logger = logging.getLogger(__name__)
@@ -162,7 +162,8 @@ class HTTPServer:
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     LOGGING_WAIT_TIME = 1
     DEFAULT_APP_PORT = 32300  # Port where Fast API app is running
-    DEFAULT_SERVER_HOST = "0.0.0.0"  # "127.0.0.1"
+    # Allow external devices to access the app by default
+    DEFAULT_SERVER_HOST = "0.0.0.0"
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
     memory_exporter = None
 
@@ -746,8 +747,18 @@ if __name__ == "__main__":
     import uvicorn
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--host", type=str, default=None, help="Host to run server on")
-    parser.add_argument("--port", type=int, default=None, help="Port to run server on")
+    parser.add_argument(
+        "--host",
+        type=str,
+        default=None,
+        help=f"Host to run server on. By default will run on {HTTPServer.DEFAULT_SERVER_HOST}",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help=f"Port to run server on. By default will run on {HTTPServer.DEFAULT_APP_PORT}",
+    )
     parser.add_argument(
         "--conda-env", type=str, default=None, help="Conda env to run server in"
     )
@@ -782,12 +793,18 @@ if __name__ == "__main__":
     parser.add_argument(
         "--force-reinstall",
         action="store_true",  # if providing --force-reinstall will be set to True
-        help="Reconfigure NGINX and reinstall certs",
+        help="Reconfigure Nginx and reinstall certs",
     )
     parser.add_argument(
         "--skip-nginx",
         action="store_true",  # if providing --skip-nginx will be set to True
-        help="Do not configure NGINX as a reverse proxy",
+        help="Do not configure Nginx as a reverse proxy",
+    )
+    parser.add_argument(
+        "--address",
+        type=str,
+        default=None,
+        help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS",
     )
 
     parse_args = parser.parse_args()
@@ -801,14 +818,14 @@ if __name__ == "__main__":
     ssl_certfile = parse_args.ssl_certfile
     force_reinstall = parse_args.force_reinstall
     skip_nginx = parse_args.skip_nginx
+    address = parse_args.address
 
     HTTPServer(
         conda_env=conda_name,
         enable_local_span_collection=should_enable_local_span_collection,
     )
 
-    # Save down certs onto the cluster which is needed for NGINX
-    # Note: if starting with HTTP certs will be ignored
+    # Save down certs onto the cluster which is needed for Nginx and relevant when starting server with HTTPS
     if ssl_keyfile and not Path(ssl_keyfile).exists():
         raise FileNotFoundError(
             f"Provided SSL key file not found on cluster in path: {ssl_keyfile}"
@@ -824,14 +841,17 @@ if __name__ == "__main__":
     ssl_keyfile = resolve_absolute_path(ssl_keyfile or cert_config.key_path)
     ssl_certfile = resolve_absolute_path(ssl_certfile or cert_config.cert_path)
 
-    if not Path(ssl_keyfile).exists() and not Path(ssl_certfile).exists():
-        cert_config.generate_certs()
+    if force_reinstall or (
+        not Path(ssl_keyfile).exists() and not Path(ssl_certfile).exists()
+    ):
+        cert_config.generate_certs(address=address)
         logger.info(
-            f"Generated new self-signed certs on the cluster in path: {cert_config.CERT_DIR} "
+            f"Generated new self-signed certs on the cluster in paths: {cert_config.CERT_DIR} "
             f"and {cert_config.PRIVATE_KEY_DIR}"
         )
 
     host = host or HTTPServer.DEFAULT_SERVER_HOST
+    logger.info(f"Final host: {host}")
 
     # Note: running the FastAPI app on a higher, non-privileged port (8000) and using Nginx as a reverse
     # proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the apps port.
@@ -842,9 +862,15 @@ if __name__ == "__main__":
             f"Launching HTTPS server with den_auth={den_auth} on host: {host} and port 443."
         )
         if not skip_nginx:
-            configure_nginx(https_port, force_reinstall)
+            NginxConfig(
+                app_port=https_port,
+                force_reinstall=force_reinstall,
+                ssl_key_path=ssl_keyfile,
+                ssl_cert_path=ssl_certfile,
+                address=address,
+            ).configure()
             logger.info(
-                f"NGINX will forward all traffic to app running on port {https_port}"
+                f"Nginx will forward all traffic to the Runhouse API server running on port {https_port}"
             )
 
         # https://fastapi.tiangolo.com/advanced/middleware/#httpsredirectmiddleware
@@ -865,9 +891,15 @@ if __name__ == "__main__":
             f"Launching HTTP server with den_auth={den_auth} on host: {host} and port 80."
         )
         if not skip_nginx:
-            configure_nginx(http_port, force_reinstall)
+            NginxConfig(
+                app_port=http_port,
+                force_reinstall=force_reinstall,
+                ssl_key_path=ssl_keyfile,
+                ssl_cert_path=ssl_certfile,
+                address=address,
+            ).configure()
             logger.info(
-                f"NGINX will forward all traffic to app running on port {http_port}"
+                f"Nginx will forward all traffic to the Runhouse API server running on port {http_port}"
             )
 
         uvicorn.run(app, host=host, port=http_port)

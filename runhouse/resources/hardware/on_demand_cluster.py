@@ -50,8 +50,6 @@ class OnDemandCluster(Cluster):
         .. note::
             To build a cluster, please use the factory method :func:`cluster`.
         """
-
-        self.open_ports = open_ports
         super().__init__(
             name=name,
             server_host=server_host,
@@ -71,6 +69,8 @@ class OnDemandCluster(Cluster):
             if autostop_mins is not None
             else configs.get("default_autostop")
         )
+
+        self._open_ports = open_ports
         self.use_spot = use_spot if use_spot is not None else configs.get("use_spot")
         self.image_id = image_id
         self.region = region
@@ -116,6 +116,17 @@ class OnDemandCluster(Cluster):
             }
         )
         return config
+
+    @property
+    def open_ports(self):
+        open_ports = self._open_ports if self._open_ports else []
+        if self.server_port not in open_ports:
+            open_ports.append(self.server_port)
+        return open_ports
+
+    @open_ports.setter
+    def open_ports(self, open_ports):
+        self._open_ports = open_ports
 
     def _get_sky_state(self):
         config = sky.global_user_state.get_cluster_from_name(self.name)

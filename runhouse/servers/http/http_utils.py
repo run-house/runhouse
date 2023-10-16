@@ -62,7 +62,6 @@ class TLSCertConfig:
     CERT_NAME = "rh_server.crt"
     PRIVATE_KEY_NAME = "rh_server.key"
     TOKEN_VALIDITY_DAYS = 365
-    NGINX_CONFIG_PATH = "/etc/nginx/sites-available/fastapi"
     PRIVATE_KEY_DIR = "~/ssl/private"
     CERT_DIR = "~/ssl/certs"
 
@@ -122,7 +121,7 @@ class TLSCertConfig:
     def key_path(self, key_path):
         self._key_path = key_path
 
-    def generate_certs(self):
+    def generate_certs(self, address: str = None):
         """Create a self-signed SSL certificate. This won't be verified by a CA, but the connection will
         still be encrypted."""
         # Generate the private key
@@ -135,14 +134,16 @@ class TLSCertConfig:
             [x509.NameAttribute(NameOID.COMMON_NAME, "run.house")]
         )
 
+        subject_names = [
+            x509.DNSName("localhost"),
+            x509.IPAddress(ipaddress.IPv4Address("127.0.0.1")),
+        ]
+
+        if address is not None:
+            subject_names.append(x509.IPAddress(ipaddress.IPv4Address(address)))
+
         # Add Subject Alternative Name extension
-        san = x509.SubjectAlternativeName(
-            [
-                x509.DNSName("run.house"),
-                x509.DNSName("localhost"),
-                x509.IPAddress(ipaddress.IPv4Address("127.0.0.1")),
-            ]
-        )
+        san = x509.SubjectAlternativeName(subject_names)
 
         cert = (
             x509.CertificateBuilder()
@@ -192,73 +193,19 @@ class ServerCache:
     AUTH_CACHE = {}
 
     @classmethod
-    def get_resources(cls, key) -> dict:
-        """Get resources associated with a particular user"""
-        return cls.AUTH_CACHE.get(cls.hash_token(key), {})
+    def get_resources(cls, token: str) -> dict:
+        """Get resources associated with a particular user's token"""
+        return cls.AUTH_CACHE.get(cls.hash_token(token), {})
 
     @classmethod
-    def put_resources(cls, key, value):
+    def put_resources(cls, token, resources):
         """Update server cache with a user's resources and access type"""
-        cls.AUTH_CACHE[cls.hash_token(key)] = value
+        cls.AUTH_CACHE[cls.hash_token(token)] = resources
 
     @staticmethod
     def hash_token(token: str) -> str:
         """Hash the user's token to avoid storing them in plain text on the cluster."""
         return hashlib.sha256(token.encode()).hexdigest()
-
-
-def configure_nginx(app_port: int, force_reinstall: bool = False):
-    """Configure nginx to proxy requests to the Fast API HTTP server"""
-    import subprocess
-
-    result = subprocess.run(
-        ["sudo", "nginx", "-t", "-c", "/etc/nginx/nginx.conf"],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-    if result.returncode != 0:
-        raise RuntimeError(f"Error checking nginx config: {result.stderr}")
-
-    configured = (
-        "syntax is ok" in result.stderr and "test is successful" in result.stderr
-    )
-
-    if not force_reinstall and configured:
-        logger.info("NGINX is already configured")
-        return
-
-    result = subprocess.run(
-        "sudo apt update && "
-        "sudo apt install nginx -y && "
-        "sudo ln -s /etc/nginx/sites-available/fastapi /etc/nginx/sites-enabled && "
-        "sudo ufw allow 'Nginx Full' && "
-        "sudo rm /etc/nginx/sites-enabled/default ",
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"Error configuring nginx: {result.stderr}")
-
-    try:
-        config_path = TLSCertConfig.NGINX_CONFIG_PATH
-
-        with open(config_path, "r") as file:
-            file_contents = file.read()
-
-        # Use regex to replace the port
-        pattern = r"(http://localhost:)(\d+)"
-        replacement = r"\1" + str(app_port)
-        new_contents = re.sub(pattern, replacement, file_contents)
-
-        with open(config_path, "w") as file:
-            file.write(new_contents)
-
-    except Exception as e:
-        raise RuntimeError(f"Error configuring nginx: {e}")
 
 
 def pickle_b64(picklable):

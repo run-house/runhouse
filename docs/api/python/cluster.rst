@@ -184,11 +184,12 @@ Server Connection
 ~~~~~~~~~~~~~~~~~
 
 The below options can be specified with the ``server_connection_type`` parameter
-when :ref:`initializing a cluster <Cluster Factory Method>`:
+when :ref:`initializing a cluster <Cluster Factory Method>`. By default the Runhouse API server will
+be started on the cluster on port :code:`32300`.
 
-- ``ssh``: Connects to the cluster via port forwarding. The API server will be started with HTTP on port :code:`32300`.
-- ``tls``: Connects to the cluster via port forwarding and enforces verification via TLS certificates. The API server
-  will be started with HTTPS on port :code:`443`. Only users with a valid cert will be able to make requests to the API server.
+- ``ssh``: Connects to the cluster via an SSH tunnel.
+- ``tls``: Connects to the cluster via HTTPS on port :code:`443` and enforces verification via TLS certificates.
+  Only users with a valid cert will be able to make requests to the API server.
 - ``none``: Does not use any port forwarding or enforce any authentication. The API server will be started
   with HTTP on port :code:`80`.
 - ``aws_ssm``: Uses the
@@ -213,7 +214,10 @@ When :ref:`initializing a cluster <Cluster Factory Method>`, you can set the :co
 to enable token authentication. Runhouse will handle adding the token to each subsequent request as an auth header with
 format: :code:`{"Authorization": "Bearer <token>"}`
 
-Enabling TLS and `Runhouse Den <https://www.run.house/dashboard>`_ Auth for the API server makes it incredibly fast
+
+TLS Certificates
+----------------
+Enabling TLS and `Runhouse Den Dashboard <https://www.run.house/dashboard>`_ Auth for the API server makes it incredibly fast
 and easy to stand up a microservice with standard token authentication, allowing you to easily share Runhouse resources
 with collaborators, teams, customers, etc.
 
@@ -248,3 +252,14 @@ Let's illustrate this with a simple example:
 
     For more examples on using clusters and functions see
     the :ref:`Compute Guide <Compute: Clusters, Functions, Packages, & Envs>`.
+
+Nginx
+-----
+Runhouse gives you the option of using `Nginx <https://www.nginx.com/>`_ as a reverse proxy for the Runhouse API
+server, which is a Fast API launched with `Uvicorn <https://www.uvicorn.org/>`_. Using Nginx provides you with a safer
+and more conventional approach running the FastAPI app on a higher, non-privileged port (such as 32300, the default
+Runhouse port) and then use Nginx as a reverse proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the
+API server's port.
+
+Nginx is enabled by default when you launch a cluster with a specified :code:`server_connection_type` that is
+not :code:`none`.

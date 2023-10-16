@@ -104,6 +104,7 @@ def _start_server(
     ssl_certfile=None,
     force_reinstall=False,
     skip_nginx=False,
+    address=None,
 ):
     from runhouse.resources.hardware.cluster import Cluster
 
@@ -120,6 +121,7 @@ def _start_server(
         ssl_certfile=ssl_certfile,
         force_reinstall=force_reinstall,
         skip_nginx=skip_nginx,
+        address=address,
     )
 
     try:
@@ -155,7 +157,13 @@ def start(
         False, help="Whether to authenticate requests with a Runhouse token"
     ),
     skip_nginx: bool = typer.Option(
-        False, help="Whether to configure NGINX on the cluster as a reverse proxy"
+        False,
+        help="Whether to configure Nginx on the cluster as a reverse proxy. By default will install "
+        "and configure Nginx.",
+    ),
+    address: Optional[str] = typer.Option(
+        None,
+        help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS",
     ),
 ):
     """Start the HTTP or HTTPS server on the cluster."""
@@ -169,6 +177,7 @@ def start(
         use_https=use_https,
         den_auth=use_den_auth,
         skip_nginx=skip_nginx,
+        address=address,
     )
 
 
@@ -203,10 +212,16 @@ def restart(
         None, help="Path to custom SSL cert file to use for enabling HTTPS"
     ),
     force_reinstall: bool = typer.Option(
-        False, help="Whether to reinstall NGINX and other server configs on the cluster"
+        False, help="Whether to reinstall Nginx and other server configs on the cluster"
     ),
     skip_nginx: bool = typer.Option(
-        False, help="Whether to configure NGINX on the cluster as a reverse proxy"
+        False,
+        help="Whether to configure Nginx on the cluster as a reverse proxy. By default will install "
+        "and configure Nginx.",
+    ),
+    address: Optional[str] = typer.Option(
+        None,
+        help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS",
     ),
 ):
     """Restart the HTTP server on the cluster."""
@@ -228,6 +243,7 @@ def restart(
         ssl_certfile=ssl_certfile,
         force_reinstall=force_reinstall,
         skip_nginx=skip_nginx,
+        address=address,
     )
 
 

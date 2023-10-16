@@ -35,10 +35,10 @@ def cluster(
             HTTP (80), HTTPS (443), or via SSH with port forwarding (32300).
         server_host (bool, optional): Host to use for the server. (Default: ``0.0.0.0``).
         server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
-            API server. ``ssh`` will use start with server with HTTP via port forwarding. ``tls`` will start the server
-            with HTTPS using TLS certs. ``none`` will start the server with HTTP without using any
-            port forwarding. ``aws_ssm`` will start the server with HTTP using AWS SSM port forwarding. ``paramiko``
-            will use paramiko to create an SSH tunnel to the cluster.
+            API server. ``ssh`` will use start with server via an SSH tunnel. ``tls`` will start the server
+            with HTTPS on port 443 using TLS certs without an SSH tunnel. ``none`` will start the server with HTTP
+            without an SSH tunnel. ``aws_ssm`` will start the server with HTTP using AWS SSM port forwarding.
+            ``paramiko``will use paramiko to create an SSH tunnel to the cluster.
         ssl_keyfile(str, optional): Path to SSL key file to use for launching the API server with HTTPS.
         ssl_certfile(str, optional): Path to SSL certificate file to use for launching the API server with HTTPS.
         den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
@@ -70,31 +70,26 @@ def cluster(
             "``ips`` argument has been deprecated. Please use ``host`` to refer to the cluster IPs or host instead."
         )
 
-    if (
-        server_connection_type
-        and server_connection_type == ServerConnectionType.AWS_SSM.value
-    ):
-        raise ValueError(
-            f"Cluster does not support server connection type `{server_connection_type}`"
-        )
-
     paramiko_conn = ServerConnectionType.PARAMIKO.value
     if server_connection_type:
         if ssh_creds and server_connection_type != paramiko_conn:
-            warnings.warn(
+            raise ValueError(
                 "SSH creds provided but server connection type not set to `paramiko`"
+            )
+        if server_connection_type == ServerConnectionType.AWS_SSM.value:
+            raise ValueError(
+                f"Cluster does not support server connection type of `{server_connection_type}`"
             )
     else:
         if ssh_creds:
+            # TODO [JL] if password is provided
             server_connection_type = paramiko_conn
-
-        elif server_host and "localhost" in server_host:
-            # If localhost is set to host don't need to create an SSH tunnel
-            server_connection_type = ServerConnectionType.NONE.value
-
-        else:
-            # If no open ports are specified launch server with SSH
+        elif server_host in ["localhost", "127.0.0.1"]:
             server_connection_type = ServerConnectionType.SSH.value
+        elif ssl_certfile or ssl_keyfile:
+            server_connection_type = ServerConnectionType.TLS.value
+        else:
+            server_connection_type = ServerConnectionType.NONE.value
 
     if name and all(
         x is None
@@ -197,10 +192,10 @@ def ondemand_cluster(
             HTTP (80), HTTPS (443), or via SSH with port forwarding (32300).
         server_host (bool, optional): Host to use for the server. (Default: ``0.0.0.0``).
         server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
-            API server. ``ssh`` will use start with server with HTTP via port forwarding. ``tls`` will start the server
-            with HTTPS using TLS certs. ``none`` will start the server with HTTP without using any
-            port forwarding. ``aws_ssm`` will start the server with HTTP using AWS SSM port forwarding. ``paramiko``
-            will use paramiko to create an SSH tunnel to the cluster.
+            API server. ``ssh`` will use start with server via an SSH tunnel. ``tls`` will start the server
+            with HTTPS on port 443 using TLS certs without an SSH tunnel. ``none`` will start the server with HTTP
+            without an SSH tunnel. ``aws_ssm`` will start the server with HTTP using AWS SSM port forwarding.
+            ``paramiko``will use paramiko to create an SSH tunnel to the cluster.
         ssl_keyfile(str, optional): Path to SSL key file to use for launching the API server with HTTPS.
         ssl_certfile(str, optional): Path to SSL certificate file to use for launching the API server with HTTPS.
         den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
@@ -230,27 +225,21 @@ def ondemand_cluster(
     if isinstance(server_connection_type, ServerConnectionType):
         server_connection_type = server_connection_type.value
 
-    if server_connection_type:
-        if server_connection_type in [
-            ServerConnectionType.AWS_SSM.value,
-            ServerConnectionType.PARAMIKO.value,
-        ]:
-            raise ValueError(
-                f"OnDemand Cluster does not support server connection type `{server_connection_type}`"
-            )
+    if server_connection_type in [
+        ServerConnectionType.AWS_SSM.value,
+        ServerConnectionType.PARAMIKO.value,
+    ]:
+        raise ValueError(
+            f"OnDemand Cluster does not support server connection type `{server_connection_type}`"
+        )
 
-    else:
-        if open_ports and (server_port in open_ports and server_host != "localhost"):
-            # If open ports are specified launch server with HTTPS
-            server_connection_type = ServerConnectionType.TLS.value
-
-        elif server_host and "localhost" in server_host:
-            # If localhost is set to host don't need to create an SSH tunnel
-            return ServerConnectionType.NONE.value
-
-        else:
-            # If no open ports are specified launch server with SSH
+    if not server_connection_type:
+        if server_host in ["localhost", "127.0.0.1"]:
             server_connection_type = ServerConnectionType.SSH.value
+        elif open_ports or ssl_keyfile or ssl_certfile:
+            server_connection_type = ServerConnectionType.TLS.value
+        else:
+            server_connection_type = ServerConnectionType.NONE.value
 
     if name:
         alt_options = dict(
