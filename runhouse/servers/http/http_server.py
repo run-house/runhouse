@@ -12,6 +12,7 @@ import requests
 from fastapi import Body, FastAPI
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel, UrlStr, ValidationError
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
@@ -31,6 +32,12 @@ from ..http.http_utils import (
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+
+class OtlpParameters(BaseModel):
+    backend_url: UrlStr
+    username: str
+    password: str
 
 
 class HTTPServer:
@@ -90,6 +97,12 @@ class HTTPServer:
             self._collect_cluster_stats()
         except Exception as e:
             logger.error(f"Failed to collect cluster stats: {str(e)}")
+
+        try:
+            # Collect telemetry stats for the cluster
+            self._collect_telemetry_stats()
+        except Exception as e:
+            logger.error(f"Failed to collect cluster telemetry stats: {str(e)}")
 
         base_env = self.get_env_servlet(
             env_name="base",
@@ -515,6 +528,52 @@ class HTTPServer:
         HTTPServer._log_cluster_data(
             {**cluster_data, **sky_data},
             labels={"username": configs.get("username"), "environment": "prod"},
+        )
+
+    @staticmethod
+    def _collect_telemetry_stats():
+        """Collect telemetry stats and send them to the backend specified by the user"""
+        # if configs.get("disable_data_collection") is True:
+        #     return
+
+        from opentelemetry import trace
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+            OTLPSpanExporter,
+        )
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+        otlp_credentials = None
+        try:
+            otlp_credentials = OtlpParameters(
+                configs.get("otlp_endpoint_url"),
+                configs.get("otlp_username"),
+                configs.get("otlp_password"),
+            )
+        except ValidationError as e:
+            logger.error(
+                f"(Failed to init an OpenTelemetry exporter: {e}. Please check your that .rh config "
+                + "file or your env parameters contain values for otlp_endpoint_url, otlp_username "
+                + "and otlp_password. Current values: \n"
+                + "otlp_endpoint_url: {configs.get('otlp_endpoint_url')} \n"
+                + "otlp_username: {configs.get('otlp_username')} \n"
+                + "otlp_password: {configs.get('otlp_password')}) \n"
+            )
+
+        # Set the tracer provider and the exporter
+        trace.set_tracer_provider(TracerProvider())
+        otlp_exporter = OTLPSpanExporter(
+            endpoint=otlp_credentials.backend_url,
+            insecure=True,
+            credentials={
+                "username": otlp_credentials.username,
+                "password": otlp_credentials.password,
+            },
+        )
+
+        # Add the exporter to the tracer provider
+        trace.get_tracer_provider().add_span_processor(
+            BatchSpanProcessor(otlp_exporter)
         )
 
     @staticmethod
