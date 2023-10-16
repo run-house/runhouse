@@ -12,14 +12,14 @@ class ProviderSecret(Secret):
         self,
         name: Optional[str] = None,
         provider: Optional[str] = None,
-        secrets: Dict = {},
+        values: Dict = {},
         path: str = None,
         env_vars: Dict = {},
         dryrun: bool = False,
         **kwargs,
     ):
         """
-        Provider Secrets class.
+        Provider Secret class.
 
         .. note::
             To create a ProviderSecret, please use the factory method :func:`provider_secret`.
@@ -29,7 +29,7 @@ class ProviderSecret(Secret):
         path = path or self._DEFAULT_CREDENTIALS_PATH
         env_vars = env_vars or self._ENV_VARS
         super().__init__(
-            name=name, secrets=secrets, path=path, env_vars=env_vars, dryrun=dryrun
+            name=name, values=values, path=path, env_vars=env_vars, dryrun=dryrun
         )
 
     @property
@@ -45,5 +45,5 @@ class ProviderSecret(Secret):
 
     # TODO
     # def _from_provider():
-    #   uses built in provider tools to get secrets values
+    #   uses built in provider tools to get secret values
     #   ex/ aws uses boto3 session, lambda has lambda cloud client

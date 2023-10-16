@@ -10,7 +10,7 @@ from runhouse.resources.secrets.secret import Secret
 def secret(
     name: Optional[str] = None,
     provider: Optional[str] = None,
-    secrets: Optional[Dict] = None,
+    values: Optional[Dict] = None,
     path: Union[str, Path] = None,
     env_vars: Optional[Dict] = None,
     dryrun: bool = False,
@@ -20,9 +20,9 @@ def secret(
     Args:
         name (str, optional): Name to assign the secret resource.
         provider (str, optional): Provider associated with the secret, if any.
-        secrets (Dict, optional): Dictionary of secret key-value pairs.
-        path (str, optional): Path where the secrets are held.
-        env_vars (Dict , optional): Dictionary mapping secrets keys to the corresponding
+        values (Dict, optional): Dictionary of secret key-value pairs.
+        path (str, optional): Path where the secret values are held.
+        env_vars (Dict , optional): Dictionary mapping secret keys to the corresponding
             environment variable key.
         dryrun (bool, optional): Whether to create in dryrun mode. (Default: False)
 
@@ -30,19 +30,17 @@ def secret(
         Secret: The resulting Secret object.
 
     Example:
-        >>> rh.secret("in_memory_secret", secrets={"secret_key": "secret_val"})
+        >>> rh.secret("in_memory_secret", values={"secret_key": "secret_val"})
         >>> rh.secret("local_secret", path="secrets.json")
-        >>> rh.secret("env_secret", secrets={"access_key": "12345"}, env_vars={"access_key: "ACCESS_KEY"})
+        >>> rh.secret("env_secret", values={"access_key": "12345"}, env_vars={"access_key: "ACCESS_KEY"})
     """
     if not (name or provider):
-        raise ValueError(
-            "Either name or provider must be provided."
-        )  # TODO: not necessarily if env vars
+        raise ValueError("Either name or provider must be provided.")
     if provider:
-        return provider_secret(provider, name, secrets, path, env_vars, dryrun)
-    if name and not any([provider, secrets, path, env_vars, dryrun]):
+        return provider_secret(provider, name, values, path, env_vars, dryrun)
+    if name and not any([provider, values, path, env_vars, dryrun]):
         return Secret.from_name(name, dryrun)
-    return Secret(name, secrets, path, env_vars, dryrun)
+    return Secret(name, values, path, env_vars, dryrun)
 
 
 def cluster_secret():
@@ -50,9 +48,9 @@ def cluster_secret():
 
 
 def provider_secret(
-    provider,
+    provider: str = None,
     name: str = None,
-    secrets: Optional[Dict] = None,
+    values: Optional[Dict] = None,
     path: Union[str, Path] = None,
     env_vars: Optional[Dict] = None,
     dryrun: bool = False,
@@ -64,9 +62,9 @@ def provider_secret(
             Currently supported options are: ["aws", "gcp", "lambda"]
         name (str, optional): Name to assign the resource. If none is provided, resource name defaults to the
             provider name.
-        secrets (Dict, optional): Dictionary mapping of secrets keys and values.
-        path (str or Path, optional): Path where the secrets are held.
-        env_vars (Dict, optional): Dictionary mapping secrets keys to the corresponding
+        values (Dict, optional): Dictionary mapping of secret keys and values.
+        path (str or Path, optional): Path where the secret values are held.
+        env_vars (Dict, optional): Dictionary mapping secret keys to the corresponding
             environment variable key.
         dryrun (bool): Whether to creat in dryrun mode. (Default: False)
 
@@ -75,18 +73,30 @@ def provider_secret(
 
     Example:
         >>> aws_secret = rh.provider("aws")
-        >>> lamdba_secret = rh.provider("lambda", secrets={"api_key": "xxxxx"})
+        >>> lamdba_secret = rh.provider("lambda", values={"api_key": "xxxxx"})
     """
-    secret_class = _get_provider_class(provider)
+    # if not (name or provider):
+    #     raise ValueError(
+    #         "Either name or provider must be provided."
+    #     )
 
-    if not any([secrets, path]):
+    if not provider:
+        if not name:
+            raise ValueError("Either name or provider must be provided.")
+        if not any([values, path]):
+            return Secret.from_name(name)
+
+    secret_class = _get_provider_class(provider)
+    if not any([values, path]) and not (provider and name):
         return (
             secret_class.from_name(name) if name else secret_class.from_name(provider)
         )
+
+    # secret_class = _get_provider_class(provider)
     return secret_class(
         name=name,
         provider=provider,
-        secrets=secrets,
+        values=values,
         path=path,
         env_vars=env_vars,
         dryrun=dryrun,
@@ -95,7 +105,7 @@ def provider_secret(
 
 def env_secret(
     name: str = None,
-    secrets: Optional[Dict] = None,
+    values: Optional[Dict] = None,
     path: Union[str, Path] = None,
     env_vars: List[str] = None,
     dryrun: bool = False,
@@ -105,8 +115,8 @@ def env_secret(
     Args:
         name (str, optional): Name to assign the secret resource. If not provided, defautls
             to `"env_vars"`.
-        secrets (Dict, optional): Dictionary of secret key-value pairs. The key
-        path (str, optional): Path where the secrets are held.
+        values (Dict, optional): Dictionary of secret key-value pairs. The key
+        path (str, optional): Path where the secret values are held.
         env_vars (List , optional): Keys corresponding the environment variable keys.
         dryrun (bool, optional): Whether to create in dryrun mode. (Default: False)
 
@@ -115,15 +125,15 @@ def env_secret(
 
     Example:
         >>> rh.env_secret(path="~/.rh/.env")
-        >>> rh.env_secret(secrets={"PYTHONPATH": "usr/bin/conda"})
+        >>> rh.env_secret(values={"PYTHONPATH": "usr/bin/conda"})
         >>> rh.env_secret(env_vars=["PYTHONPATH"])
     """
-    if name and not any([secrets, path, env_vars]):
+    if name and not any([values, path, env_vars]):
         return EnvSecret.from_name(name, dryrun)
-    if (secrets and env_vars) and set(secrets.keys()) != set(env_vars):
+    if (values and env_vars) and set(values.keys()) != set(env_vars):
         raise Exception(
-            "`env_vars` should match the `secrets` keys if both parameters are provided."
+            "`env_vars` should match the `values` keys if both parameters are provided."
         )
-    if secrets:
-        env_vars = list(secrets.keys())
-    return EnvSecret(name, secrets, path, env_vars, dryrun)
+    if values:
+        env_vars = list(values.keys())
+    return EnvSecret(name, values, path, env_vars, dryrun)

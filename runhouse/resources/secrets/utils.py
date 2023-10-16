@@ -50,6 +50,15 @@ def _load_from_local(name):
     return config
 
 
+def _load_env_vars_from_path(path):
+    from dotenv import dotenv_values
+
+    path = os.path.expanduser(path)
+    if Path(path).exists():
+        return dotenv_values(path)
+    return {}
+
+
 def load_config(name, endpoint: str = USER_ENDPOINT):
     rns_address = rns_client.resolve_rns_path(name)
 

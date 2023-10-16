@@ -8,11 +8,11 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import requests
 
-from runhouse.globals import rns_client
+from runhouse.globals import configs, rns_client
 from runhouse.resources.blobs.file import File
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.resource import Resource
-from runhouse.resources.secrets.utils import load_config
+from runhouse.resources.secrets.utils import _load_env_vars_from_path, load_config
 from runhouse.rns.utils.api import load_resp_content, read_resp_data, ResourceAccess
 
 
@@ -30,7 +30,7 @@ class Secret(Resource):
     def __init__(
         self,
         name: Optional[str],
-        secrets: Dict = {},
+        values: Dict = {},
         path: str = None,
         env_vars: List = None,
         dryrun: bool = False,
@@ -43,11 +43,9 @@ class Secret(Resource):
             To create a Secret, please use one of the factory methods.
         """
         super().__init__(name=name, dryrun=dryrun)
-        self._secrets = secrets
+        self._values = values
         self.path = path
         self.env_vars = env_vars
-
-        # TODO: if secrets and path, write it down to the path?
 
     @staticmethod
     def from_config(config: dict, dryrun: bool = False):
@@ -83,7 +81,7 @@ class Secret(Resource):
         config = super().config_for_rns
         config.update(
             {
-                "secrets": self._secrets,
+                "values": self._values,
                 "path": self.path,
                 "env_vars": self.env_vars,
             }
@@ -91,25 +89,30 @@ class Secret(Resource):
         return config
 
     @property
-    def secrets(self):
+    def values(self):
         """
-        Extract secrets key-value pairs from the Secret object.
-        The order of operations for retrieving the secrets:
+        Extract secret key-value pairs from the Secret object.
+        The order of operations for retrieving the values:
 
-        - Secrets values if they were provided upon object instantiation
+        - Values if they were provided upon object instantiation
         - Extracted from the Secret path, if exists locally
         - Extracted from environment variables
         """
-        if self._secrets:
-            return self._secrets
+        if self._values:
+            return self._values
         if self.path:
-            secrets = self._from_path(self.path)
-            if secrets:
-                return secrets
+            values = self._from_path(self.path)
+            if values:
+                return values
         try:
             return self._from_env()
         except KeyError:
             return {}
+
+    def _add_to_rh_config(self):
+        if self.path:
+            path_config = {self.name: self.path}
+            configs.set_nested(key="secrets", value=path_config)
 
     # TODO: would be nice to add support for different format types here -- json, yaml [configparser]
     # and same for write function
@@ -117,59 +120,57 @@ class Secret(Resource):
         path = path or self.path or f"{self.DEFAULT_DIR}/{self.name}.json"
         if isinstance(path, File):
             try:
-                secrets = json.loads(path.fetch(mode="r"))
+                values = json.loads(path.fetch(mode="r"))
             except json.decoder.JSONDecodeError as e:
                 logger.error(
                     f"Error loading config from {path.path} on {path.system.name}: {e}"
                 )
                 return {}
-            return secrets
+            return values
         elif path and os.path.exists(os.path.expanduser(path)):
             with open(os.path.expanduser(path), "r") as f:
                 try:
-                    secrets = json.load(f)
+                    values = json.load(f)
                 except json.decoder.JSONDecodeError as e:
                     logger.error(f"Error loading config from {path}: {e}")
                     return {}
-            return secrets
+            return values
         return {}
 
-    # TODO: still need to add support for env path
     def _from_env(self, keys: List = None, env_vars: Dict = None):
-        secrets = {}
-        keys = keys or self.env_vars.keys()
+        values = {}
+        keys = keys or (self.env_vars.keys() if self.env_vars else {})
         env_vars = env_vars or self.env_vars or {key: key for key in keys}
 
         if not keys:
             return {}
 
         for key in keys:
-            secrets[key] = os.environ[env_vars[key]]
-        return secrets
+            values[key] = os.environ[env_vars[key]]
+        return values
 
     # TODO: refactor this code to reuse rns_client save_config code instead of rewriting
-    def save(self, secrets: bool = None):
+    def save(self, values: bool = True):
         """Save the secret config, into Vault if the user is logged in,
         or to local if not or if the resource is a local resource.
 
         Args:
-            secrets (bool, optional): Whether to save the secret values into the config.
-                By default, will save secrets only if the Secret was explicitly constructed
-                with secrets values passed in. If set to True, will extract secrets values
+            values (bool, optional): Whether to save the secret values into the config.
+                By default, will save secret values only if the Secret was explicitly constructed
+                with secret values passed in. If set to True, will extract secret values
                 (from path, env, etc) and save them in the config. If set to False, will
-                not save any secrets values, even if constructed with secrets values passed.
+                not save any secret values, even if constructed with secret values passed.
         """
         config = self.config_for_rns
         config["name"] = self.rns_address
-        if secrets and not config["secrets"]:
-            config["secrets"] = self.secrets
-        elif secrets is False:
-            config["secrets"] = {}
+        if values and not config["values"]:
+            config["values"] = self.values
+        elif values is False:
+            config["values"] = {}
 
         if self.rns_address.startswith("/"):
             logger.info(f"Saving config for {self.name} to Vault")
             payload = rns_client.resource_request_payload(config)
-            # resource_uri = rns_client.resource_uri(self.rns_address)
             resp = requests.put(
                 f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{self.name}",
                 data=json.dumps(payload),
@@ -186,26 +187,28 @@ class Secret(Resource):
                 json.dump(config, f, indent=4)
             logger.info(f"Saving config for {self.rns_address} to: {config_path}")
 
+        self._add_to_rh_config()
         return self
 
     def write(
         self,
         path: Union[str, Path] = None,
         keys: List[str] = None,
+        overwrite: bool = False,
     ):
-        """Write the secrets to local filepath.
+        """Write the secret values to local filepath.
 
         Args:
             path (Path or str, optional): Path to write down the secret to. If not provided, defaults
-                to the secrets path variable (if exists), or to a default location in the Runhouse directory.
-            keys (List[str], optional): List of keys corresponding to the secrets to write down.
-                If left empty, all secrets will be written down.
+                to the secret path variable (if exists), or to a default location in the Runhouse directory.
+            keys (List[str], optional): List of keys corresponding to the secret values to write down.
+                If left empty, all secret values will be written down.
 
         Returns:
             Secret object consisting of the given keys at the path.
 
         Example:
-            >>> secret.write()  # writes down secrets to secret.path
+            >>> secret.write()  # writes down secret values to secret.path
 
             >>> # writes down api_key key-value pair to "new/secrets/file"
             >>> secret.write(path="new/secrets/file", keys="api_key")
@@ -218,72 +221,223 @@ class Secret(Resource):
                 "the secret locally."
             )
 
-        secrets = {key: self.secrets[key] for key in keys} if keys else self.secrets
+        values = {key: self.values[key] for key in keys} if keys else self.values
 
         full_path = os.path.expanduser(path)
-        os.makedirs(os.path.dirname(full_path), exist_ok=True)
-        with open(full_path, "w") as f:
-            json.dump(secrets, f)
+        if os.path.exists(full_path) and not overwrite:
+            existing_values = self._from_path(full_path)
+            new_values = {}
+            for key in values.keys():
+                if key not in existing_values:
+                    new_values[key] = values[key]
+                elif values[key] != existing_values[key]:
+                    raise ValueError(
+                        f"Mismatch between secret values in {self.name} Secret Resource and "
+                        f"destination path {full_path}. Please provide a different destination file, "
+                        f"manually check/change the secret value, or set ``overwrite=True`` if you are "
+                        "confident of the change to the file."
+                    )
+            if new_values:
+                # TODO: check that this format still works correctly
+                with open(full_path, "a") as f:
+                    json.dump(new_values, f)
+        else:
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            with open(full_path, "w") as f:
+                json.dump(values, f)
 
         if not self.path:
             self.path = path
+            self._add_to_rh_config()
             return self
 
         new_secret = copy.deepcopy(self)
-        new_secret._secrets = secrets
+        new_secret._values = values
         new_secret.path = path
+        new_secret._add_to_rh_config()
         return new_secret
 
-    def write_env(
+    def write_env_vars(
         self,
-        path: str = None,
+        python_env: bool = False,
+        path: Union[str, Path] = None,
         keys: List[str] = None,
         env_vars: Dict = None,
+        overwrite: bool = False,  # TODO: not properly supported yet
     ):
-        """Write down the env into the path if provided, otherwise into Python os environment.
+        """
+        Write down the env vars to the path if provided, and into the Python os environment if
+        ``python_env`` is set to True.
 
         Args:
+            python_env (bool, optional): Whether to set Python os environment variables. (Default: False)
             path (str, optional): The path to write down the env variables to (such as .env file path).
-                If none is provided, secrets are saved into the Python os environment variables instead
-                of a file.
-            keys (List[str], optional): The keys corresponding to the secrets to write down.
+            keys (List[str], optional): The keys corresponding to the secret values to write down.
             env_vars (Dict, optional): The mapping of secret key to the corresponding environment
                 variable name.
+            overwrite (bool, optional): Whether to overwrite existing env vars with the same key in the
+                path or Python environment. Note that this is irrecoverable. (Default: False)
 
         Returns:
             Secret with the given keys and path, if provided.
 
         Example:
-            >>> secret.write_env(path="secret.env")
-            >>> secret.write_env(keys="api_key", env_vars={"api_key": "MY_API_KEY"})
+            >>> secret.write_env_vars(path="secret.env")
+            >>> secret.write_env_vars(keys="api_key", env_vars={"api_key": "MY_API_KEY"})
         """
-        pass
+        values = self.values
+        keys = keys or values.keys()
+        values = {key: values[key] for key in keys}
+        env_vars = env_vars or self.env_vars or {key: key for key in keys}
+
+        # TODO path is a File
+        if path:
+            path = os.path.expanduser(path)
+            if os.path.dirname(path):
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+            existing_keys = (
+                _load_env_vars_from_path(path).keys() if Path(path).exists() else {}
+            )
+            with open(path, "a+") as f:
+                for key in keys:
+                    if key not in existing_keys:
+                        f.write(f"\n{env_vars[key]}={values[key]}")
+                    elif overwrite:
+                        pass
+
+        if python_env:
+            existing_keys = dict(os.environ).keys()
+            for key in env_vars.keys():
+                if env_vars[key] not in existing_keys or overwrite:
+                    os.environ[env_vars[key]] = values[key]
 
     def delete_file(
         self,
         path: Union[str, Path, File] = None,
     ):
-        """Delete the secrets file.
+        """Delete the secret file.
 
         Args:
-            path (str, optional): Path to delete the secrets file from. If none is provided,
+            path (str, optional): Path to delete the secret file from. If none is provided,
                 deletes the path corresponding to the secret class.
 
         Example:
             >>> secret.delete_file()
         """
         path = path or self.path
+
         if isinstance(path, File):
             path.rm()
-        else:
+        elif path and os.path.exists(os.path.expanduser(path)):
             os.remove(os.path.expanduser(path))
+
+    def delete_env_vars(
+        self,
+        python_env: bool = False,
+        path: Union[str, Path] = None,
+        keys: List[str] = None,
+        env_vars: Dict = None,
+    ):
+        """
+        Delete the env vars to the path if provided, and from the Python os environment if
+        ``python_env`` is set to True.
+
+        Args:
+            python_env (bool, optional): Whether to remove the corresponding Python os environment variables.
+                (Default: False)
+            path (str, optional): The path to delete the env variables from (such as .env file path).
+            keys (List[str], optional): The keys corresponding to the secret values to remove. Must be a subset
+                of secret values keys. If none is provided, will delete the entire set of values keys corresponding
+                to the secret.
+            env_vars (Dict, optional): The mapping of secret key to the corresponding environment
+                variable name.
+
+        Returns:
+            Resulting secret with the given keys removed from it, or None if all keys are removed.
+
+        Example:
+            >>> secret.delete_env_vars(path="secret.env")
+            >>> secret.delete_env_vars(keys="api_key", env_vars={"api_key": "MY_API_KEY"})
+        """
+        values = self.values
+        del_keys = keys or values.keys()
+        values = {
+            key: values[key] for key in del_keys
+        }  # could be used to check not deleting conflicting stuff
+        env_vars = env_vars or self.env_vars or {key: key for key in del_keys}
+
+        if keys:
+            new_secret = copy.copy(self)
+
+        if python_env:
+            existing_keys = dict(os.environ).keys()
+            for key in env_vars.keys():
+                if key not in existing_keys:
+                    logger.warning(
+                        "Key {key} already does not exist in os.environ. Skipping deleting."
+                    )
+                elif os.environ[key] != values[key]:
+                    logger.warning(
+                        f"Secret value corresponding to {key} env var does not match the value in os.environ. "
+                        "Skipping deleting."
+                    )
+                else:
+                    del os.environ[key]
+                    if new_secret.env_vars and key in new_secret.env_vars:
+                        if isinstance(new_secret.env_vars, List):
+                            new_secret.env_vars.remove(key)
+                        else:  # dict
+                            del new_secret.env_vars[key]
+                    if new_secret._values and key in new_secret._values:
+                        del new_secret._values[key]
+
+        if path:
+            # TODO: add support for File type path
+            path = os.path.expanduser(path)
+            existing_env_vars = (
+                _load_env_vars_from_path(path) if Path(path).exists() else {}
+            )
+
+            if set(existing_env_vars.keys()) == set(env_vars.values()):
+                if isinstance(self.path, File):
+                    self.path.rm()
+                elif os.path.exists(os.path.expanduser(self.path)):
+                    os.remove(os.path.expanduser(self.path))
+                return None
+
+            for key in env_vars.keys():
+                if env_vars[key] not in existing_env_vars.keys():
+                    logger.warning(
+                        "Key {key} already does not exist in the file. Skipping deleting."
+                    )
+                elif existing_env_vars[env_vars[key]] != values[key]:
+                    logger.warning(
+                        f"Secret value corresponding to {key} env var does not match the value in the file. "
+                        "Skipping deleting."
+                    )
+                else:
+                    del existing_env_vars[env_vars[key]]
+                    if new_secret.env_vars and key in new_secret.env_vars:
+                        if isinstance(new_secret.env_vars, List):
+                            new_secret.env_vars.remove(key)
+                        else:  # dict
+                            del new_secret.env_vars[key]
+                    if new_secret._values and key in new_secret._values:
+                        del new_secret._values[key]
+
+            with open(path, "w") as f:
+                for original_key, original_value in existing_env_vars.items():
+                    f.write(f"\n{original_key}={original_value}")
+
+        if keys:
+            return new_secret
+        return None
 
     def _delete_local_config(self):
         config_path = f"~/.rh/secrets/{self.name}.json"
         os.remove(os.path.expanduser(config_path))
 
     def _delete_vault_config(self):
-        # resource_uri = rns_client.resource_uri(self.rns_address)
         resp = requests.delete(
             f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{self.name}",
             headers=rns_client.request_headers,
@@ -294,10 +448,10 @@ class Secret(Resource):
             )
 
     def delete(self, file: bool = False):
-        """Delete the secret config from Vault/local. Optionally also delete secrets file.
+        """Delete the secret config from Vault/local. Optionally also delete secret file.
 
         Args:
-            file (bool): Whether to also delete the file containing secrets values. (Default: False)
+            file (bool): Whether to also delete the file containing secret values. (Default: False)
         """
         if self.rns_address.startswith("/"):
             self._delete_vault_config()
@@ -305,6 +459,7 @@ class Secret(Resource):
             self._delete_local_config()
         if file:
             self.delete_file()
+        configs.delete_provider(self.name)
 
     # TODO: handle env -- vars or file
     def to(
@@ -315,27 +470,37 @@ class Secret(Resource):
         """Return a copy of the secret on a system.
 
         Args:
-            system (str or Cluster): Cluster to send the secrets to
-            path (str or Path): path on cluster to write down the secrets to. If not provided,
-                secrets are not written down.
+            system (str or Cluster): Cluster to send the secret to
+            path (str or Path): path on cluster to write down the secret values to.
+                If not provided, secret values are not written down.
 
         Example:
             >>> secret.to(my_cluster, path=secret.path)
         """
         system = _get_cluster_from(system)
-        key = system.put_resource(self)
+        if system.on_this_cluster():
+            if path:
+                self.write(path=path)
+                new_secret = copy.deepcopy(self)
+                new_secret.path = path
+                return new_secret
+            return self
 
+        key = system.put_resource(self)
         new_secret = copy.deepcopy(self)
 
         if path:
             from runhouse.resources.blobs.file import file
 
-            if self._secrets:
-                system.call(key, "write", path)
+            if self._values:
+                system.call(key, "write", path=path)
                 remote_file = file(path=path, system=system)
             else:
                 remote_file = file(path=self.path).to(system, path=path)
             new_secret.path = remote_file
+        else:
+            # TODO: should we write it down by default if the local secret has it written down?
+            new_secret.path = None
         return new_secret
 
     def is_local(self):
@@ -351,7 +516,9 @@ class Secret(Resource):
             f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{self.name}",
             headers=rns_client.request_headers,
         )
-        if read_resp_data(resp):
+        if resp.status_code != 200:
+            return False
+        if read_resp_data(resp)[self.name]:
             return True
         return False
 

@@ -381,7 +381,7 @@ def function(
     system: Optional[Union[str, Cluster]] = None,
     env: Optional[Union[List[str], Env, str]] = None,
     dryrun: bool = False,
-    load_secrets: bool = False,
+    load_secrets: bool = False,  # TODO [CC] support this for new secrets approach
     serialize_notebook_fn: bool = False,
     # args below are deprecated
     reqs: Optional[List[str]] = None,

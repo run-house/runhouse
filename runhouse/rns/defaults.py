@@ -3,7 +3,7 @@ import json
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 import yaml
@@ -162,6 +162,13 @@ class Defaults:
         if not res and key in self.BASE_DEFAULTS:
             res = self.BASE_DEFAULTS[key]
         return res
+
+    # TODO rename providers to secrets
+    def get_secrets_files(self, names: List[str] = None):
+        secrets_files = self.defaults_cache.get("secrets", {})
+        if names:
+            secrets_files = {name: secrets_files[name] for name in names}
+        return secrets_files
 
     def delete(self, key: str):
         """Remove a specific key from the config"""

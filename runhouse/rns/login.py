@@ -4,10 +4,9 @@ import typer
 
 from runhouse.globals import configs, rns_client
 from runhouse.resources.secrets.functions import (
-    _get_local_secrets,
-    delete_secrets,
-    upload_local_secrets,
-    write_secrets,
+    _logout_secrets,
+    _upload_local_secrets,
+    _write_secrets,
 )
 
 logger = logging.getLogger(__name__)
@@ -106,7 +105,7 @@ def login(
         upload_secrets = (
             upload_secrets
             if upload_secrets is not None
-            else typer.confirm("Upload your enabled cloud provider secrets to Vault?")
+            else typer.confirm("Upload your local secrets to Vault?")
         )
 
     if token:
@@ -131,10 +130,10 @@ def login(
         configs.set("default_folder", defaults["default_folder"])
 
     if download_secrets:
-        write_secrets()
+        _write_secrets()
 
     if upload_secrets:
-        upload_local_secrets()
+        _upload_local_secrets()
 
     logger.info("Successfully logged into Runhouse.")
     if ret_token:
@@ -163,16 +162,16 @@ def logout(
     )
 
     if interactive_session:
-        local_secrets = _get_local_secrets().keys()
+        local_secrets = configs.get_secrets_files().keys()
         for name in local_secrets:
             delete_local_secrets = typer.confirm(
                 f"Delete credentials file for secret {name}?"
             )
-            delete_secrets(file=delete_local_secrets)
+            _logout_secrets(names=[name], file=delete_local_secrets)
     elif delete_loaded_secrets:
-        delete_secrets()
+        _logout_secrets()
     else:
-        delete_secrets(file=False)
+        _logout_secrets(file=False)
 
     # for (provider_name, _) in configs.get("secrets", {}).items():
     #     if provider_name == "ssh":
