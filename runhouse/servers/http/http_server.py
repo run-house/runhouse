@@ -540,6 +540,8 @@ class HTTPServer:
         from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
             OTLPSpanExporter,
         )
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        from opentelemetry.instrumentation.requests import RequestsInstrumentor
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
@@ -575,6 +577,12 @@ class HTTPServer:
         trace.get_tracer_provider().add_span_processor(
             BatchSpanProcessor(otlp_exporter)
         )
+
+        # Instrument the app object
+        FastAPIInstrumentor.instrument_app(app)
+
+        # Instrument the requests library
+        RequestsInstrumentor().instrument()
 
     @staticmethod
     def _cluster_status_report():
