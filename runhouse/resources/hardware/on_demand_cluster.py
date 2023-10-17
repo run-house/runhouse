@@ -182,7 +182,9 @@ class OnDemandCluster(Cluster):
             yaml_path = self.relative_yaml_path(handle_info.get("cluster_yaml"))
             handle = CloudVmRayBackend.ResourceHandle(
                 cluster_name=self.name,
-                cluster_name_on_cloud=handle_info.get("cluster_name_on_cloud", self.name),
+                cluster_name_on_cloud=handle_info.get(
+                    "cluster_name_on_cloud", self.name
+                ),
                 cluster_yaml=str(Path(yaml_path).expanduser()),
                 launched_nodes=handle_info["launched_nodes"],
                 launched_resources=resources,
