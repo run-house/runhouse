@@ -62,8 +62,8 @@ class TLSCertConfig:
     CERT_NAME = "rh_server.crt"
     PRIVATE_KEY_NAME = "rh_server.key"
     TOKEN_VALIDITY_DAYS = 365
-    PRIVATE_KEY_DIR = "~/ssl/private"
-    CERT_DIR = "~/ssl/certs"
+    DEFAULT_PRIVATE_KEY_DIR = "~/ssl/private"
+    DEFAULT_CERT_DIR = "~/ssl/certs"
 
     def __init__(
         self,
@@ -86,12 +86,12 @@ class TLSCertConfig:
 
         if not self.cluster_name:
             # Default cert path when initializing on a cluster
-            return str(Path(f"{self.CERT_DIR}/{self.CERT_NAME}").expanduser())
+            return str(Path(f"{self.DEFAULT_CERT_DIR}/{self.CERT_NAME}").expanduser())
         else:
             # Default cert path when initializing locally
             return str(
                 Path(
-                    f"{self.CERT_DIR}/{self.cluster_name}/{self.CERT_NAME}"
+                    f"{self.DEFAULT_CERT_DIR}/{self.cluster_name}/{self.CERT_NAME}"
                 ).expanduser()
             )
 
@@ -101,25 +101,35 @@ class TLSCertConfig:
 
     @property
     def key_path(self):
-        if self._cert_path is not None:
-            return resolve_absolute_path(self._cert_path)
+        if self._key_path is not None:
+            return resolve_absolute_path(self._key_path)
 
         if not self.cluster_name:
             # Default cert path when initializing on a cluster
             return str(
-                Path(f"{self.PRIVATE_KEY_DIR}/{self.PRIVATE_KEY_NAME}").expanduser()
+                Path(
+                    f"{self.DEFAULT_PRIVATE_KEY_DIR}/{self.PRIVATE_KEY_NAME}"
+                ).expanduser()
             )
         else:
             # Default cert path when initializing locally
             return str(
                 Path(
-                    f"{self.PRIVATE_KEY_DIR}/{self.cluster_name}/{self.PRIVATE_KEY_NAME}"
+                    f"{self.DEFAULT_PRIVATE_KEY_DIR}/{self.cluster_name}/{self.PRIVATE_KEY_NAME}"
                 ).expanduser()
             )
 
     @key_path.setter
     def key_path(self, key_path):
         self._key_path = key_path
+
+    @property
+    def cert_dir(self):
+        return Path(self.cert_path).parent
+
+    @property
+    def key_dir(self):
+        return Path(self.key_path).parent
 
     def generate_certs(self, address: str = None):
         """Create a self-signed SSL certificate. This won't be verified by a CA, but the connection will
@@ -165,13 +175,8 @@ class TLSCertConfig:
     def _write_cert_files(self, private_key, cert):
         """Save the private key and cert files to the cluster's file system."""
         # Ensure the directories exist and have the correct permissions
-        Path(self.CERT_DIR).expanduser().mkdir(parents=True, mode=0o750, exist_ok=True)
-        Path(self.PRIVATE_KEY_DIR).expanduser().mkdir(
-            parents=True, mode=0o750, exist_ok=True
-        )
-        logger.info(
-            f"Creating directories for certs: {self.CERT_DIR} and {self.PRIVATE_KEY_DIR}"
-        )
+        self.cert_dir.expanduser().mkdir(parents=True, mode=0o750, exist_ok=True)
+        self.key_dir.expanduser().mkdir(parents=True, mode=0o750, exist_ok=True)
 
         with open(self.key_path, "wb") as key_file:
             key_file.write(
@@ -186,7 +191,9 @@ class TLSCertConfig:
         with open(self.cert_path, "wb") as cert_file:
             cert_file.write(cert.public_bytes(encoding=serialization.Encoding.PEM))
 
-        logger.info("Certificate and private key files generated successfully")
+        logger.info(
+            f"Certificate and private key files saved in paths: {self.cert_path} and {self.key_path}"
+        )
 
 
 class ServerCache:

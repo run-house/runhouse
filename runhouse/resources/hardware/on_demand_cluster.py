@@ -10,7 +10,7 @@ from sky.backends import backend_utils, CloudVmRayBackend
 
 from runhouse.globals import configs, rns_client
 
-from .cluster import Cluster
+from .cluster import Cluster, ServerConnectionType
 from .utils import _current_cluster
 
 logger = logging.getLogger(__name__)
@@ -120,7 +120,11 @@ class OnDemandCluster(Cluster):
     @property
     def open_ports(self):
         open_ports = self._open_ports if self._open_ports else []
-        if self.server_port not in open_ports:
+        if (
+            self.server_port not in open_ports
+            and self.server_connection_type != ServerConnectionType.SSH.value
+        ):
+            # Open the server port by default unless we are using SSH
             open_ports.append(self.server_port)
         return open_ports
 

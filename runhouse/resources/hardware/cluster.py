@@ -12,6 +12,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+
 # Filter out DeprecationWarnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -52,9 +53,11 @@ class ServerConnectionType(Enum):
 class Cluster(Resource):
     RESOURCE_TYPE = "cluster"
     REQUEST_TIMEOUT = 5  # seconds
+    DEFAULT_PORT = 32300
+
     DEFAULT_HOST = "0.0.0.0"
     LOCALHOST = "127.0.0.1"
-    DEFAULT_PORT = 32300
+    LOCAL_HOSTS = ["localhost", LOCALHOST]
 
     SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
     CLI_RESTART_CMD = "runhouse restart"
@@ -108,7 +111,9 @@ class Cluster(Resource):
         self.client = None
         self.den_auth = den_auth
         self.cert_config = TLSCertConfig(
-            cert_path=self.ssl_certfile, cluster_name=self.name
+            cert_path=self.ssl_certfile,
+            key_path=self.ssl_keyfile,
+            cluster_name=self.name,
         )
 
         self.server_connection_type = server_connection_type
@@ -169,14 +174,18 @@ class Cluster(Resource):
 
     @property
     def server_host(self):
-        if self._server_host:
-            return self._server_host
-
         if self.server_connection_type in [
             ServerConnectionType.SSH.value,
             ServerConnectionType.AWS_SSM.value,
         ]:
             # For SSH based methods launch the server on localhost
+            if self._server_host:
+                if self._server_host not in self.LOCAL_HOSTS:
+                    raise ValueError(
+                        "Server host must be set to `localhost` or `127.0.0.1` for SSH server connections"
+                    )
+                return self._server_host
+
             return self.LOCALHOST
 
         # Launch the server with 0.0.0.0 to expose traffic to the outside world
@@ -430,9 +439,9 @@ class Cluster(Resource):
             not in [ServerConnectionType.NONE.value, ServerConnectionType.TLS.value]
             and ssh_tunnel is None
         ):
-            # Case 3: server host is not set to localhost or connection type that requires an SSH tunnel
+            # Case 3: server connection requires SSH tunnel, but we don't have one up yet
             self._rpc_tunnel, connected_port = self.ssh_tunnel(
-                self.DEFAULT_PORT,
+                self.server_port,
                 remote_port=self.server_port,
                 num_ports_to_try=5,
             )
@@ -442,6 +451,11 @@ class Cluster(Resource):
             connected_port,
             tunnel_refcount + 1,
         )
+
+        if self._rpc_tunnel:
+            logger.info(
+                f"Connecting to server via SSH, port forwarding via port {connected_port}."
+            )
 
         use_https = self._use_https
         cert_path = self.cert_config.cert_path if use_https else None
@@ -572,7 +586,7 @@ class Cluster(Resource):
 
     @property
     def _use_https(self) -> bool:
-        """Use HTTPS if server connection type is set to ``tls``, or if SSL certs are specified."""
+        """Use HTTPS if server connection type is set to ``tls``"""
         connection_type = self.server_connection_type
         tls_conn = ServerConnectionType.TLS.value
 
@@ -714,13 +728,11 @@ class Cluster(Resource):
         cert_path = self.cert_config.cert_path
 
         if self.ssl_certfile:
-            # Copy the specified cert onto the cluster
+            # Copy the provided cert onto the cluster
             from runhouse import folder
 
-            cluster_cert_dir = self.cert_config.CERT_DIR
-            folder(path=Path(self.cert_config.cert_path).parent).to(
-                self, path=cluster_cert_dir
-            )
+            cluster_cert_dir = self.cert_config.DEFAULT_CERT_DIR
+            folder(path=self.cert_config.cert_dir).to(self, path=cluster_cert_dir)
 
             # Path to cert file stored on the cluster
             cluster_cert_path = f"{cluster_cert_dir}/{self.cert_config.CERT_NAME}"
@@ -729,16 +741,14 @@ class Cluster(Resource):
             )
 
         if self.ssl_keyfile:
-            # Copy the specified key file onto the cluster
+            # Copy the provided key onto the cluster
             from runhouse import folder
 
-            cluster_key_dir = self.cert_config.PRIVATE_KEY_DIR
-            folder(path=Path(self.cert_config.key_path).parent).to(
-                self, path=cluster_key_dir
-            )
+            cluster_key_dir = self.cert_config.DEFAULT_PRIVATE_KEY_DIR
+            folder(path=self.cert_config.key_dir).to(self, path=cluster_key_dir)
 
             # Path to key file stored on the cluster
-            cluster_key_path = f"{cluster_key_dir}/{self.cert_config.CERT_NAME}"
+            cluster_key_path = f"{cluster_key_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
 
             logger.info(
                 f"Copied TLS keyfile onto the cluster in path: {cluster_key_path}"
@@ -754,14 +764,15 @@ class Cluster(Resource):
             + (f" --port {self.server_port}" if self.server_port else "")
             + (f" --ssl-keyfile {cluster_key_path}" if self.ssl_keyfile else "")
             + (f" --ssl-certfile {cluster_cert_path}" if self.ssl_certfile else "")
-            + (
-                f" --address {self.server_address}"
-                if self.server_address != self.LOCALHOST
-                else ""
-            )
+            + f" --address {self.server_address}"
             + (
                 " --skip-nginx"
-                if self.server_connection_type == ServerConnectionType.NONE.value
+                if self.server_connection_type
+                in [
+                    ServerConnectionType.SSH.value,
+                    ServerConnectionType.AWS_SSM.value,
+                    ServerConnectionType.PARAMIKO.value,
+                ]
                 else ""
             )
         )
@@ -778,7 +789,7 @@ class Cluster(Resource):
         if https_flag:
             rns_address = self.rns_address
             if not rns_address:
-                raise ValueError("Cluster must have a name if using HTTPS.")
+                raise ValueError("Cluster must have a name in order to enable HTTPS.")
 
             if not self.client:
                 logger.info("Reconnecting server client. Server restarted with HTTPS.")

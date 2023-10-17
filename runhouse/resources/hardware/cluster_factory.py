@@ -31,9 +31,10 @@ def cluster(
         host (str or List[str], optional): Hostname, IP address, or list of IP addresses for the BYO cluster.
         ssh_creds (dict, optional): Dictionary mapping SSH credentials.
             Example: ``ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'}``
-        server_port (bool, optional): Port to use for the server. Default depends on whether the server is started with
-            HTTP (80), HTTPS (443), or via SSH with port forwarding (32300).
-        server_host (bool, optional): Host to use for the server. (Default: ``0.0.0.0``).
+        server_port (bool, optional): Port to use for the Runhouse API server. (Default: ``32300``).
+        server_host (bool, optional): Host to use for the server. If connecting to the server with an SSH connection,
+            use `localhost`` or ``127.0.0.1``, otherwise use ``0.0.0.0`` to expose the server to external
+            traffic (Default: ``0.0.0.0``).
         server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
             API server. ``ssh`` will use start with server via an SSH tunnel. ``tls`` will start the server
             with HTTPS on port 443 using TLS certs without an SSH tunnel. ``none`` will start the server with HTTP
@@ -72,6 +73,7 @@ def cluster(
 
     paramiko_conn = ServerConnectionType.PARAMIKO.value
     if server_connection_type:
+        # TODO [JL] if password is provided
         if ssh_creds and server_connection_type != paramiko_conn:
             raise ValueError(
                 "SSH creds provided but server connection type not set to `paramiko`"
@@ -82,9 +84,8 @@ def cluster(
             )
     else:
         if ssh_creds:
-            # TODO [JL] if password is provided
             server_connection_type = paramiko_conn
-        elif server_host in ["localhost", "127.0.0.1"]:
+        elif server_host in Cluster.LOCAL_HOSTS:
             server_connection_type = ServerConnectionType.SSH.value
         elif ssl_certfile or ssl_keyfile:
             server_connection_type = ServerConnectionType.TLS.value
@@ -188,9 +189,10 @@ def ondemand_cluster(
         disk_size (int or str, optional): Amount of disk space to use for the cluster, e.g. "100" or "100+".
         open_ports (int or str or List[int], optional): Ports to open in the cluster's security group. Note
             that you are responsible for ensuring that the applications listening on these ports are secure.
-        server_port (bool, optional): Port to use for the server. Default depends on whether the server is started with
-            HTTP (80), HTTPS (443), or via SSH with port forwarding (32300).
-        server_host (bool, optional): Host to use for the server. (Default: ``0.0.0.0``).
+        server_port (bool, optional): Port to use for the Runhouse API server. (Default: ``32300``).
+        server_host (bool, optional): Host to use for the server. If connecting to the server with an SSH connection,
+            use `localhost`` or ``127.0.0.1``, otherwise use ``0.0.0.0`` to expose the server to external
+            traffic (Default: ``0.0.0.0``).
         server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
             API server. ``ssh`` will use start with server via an SSH tunnel. ``tls`` will start the server
             with HTTPS on port 443 using TLS certs without an SSH tunnel. ``none`` will start the server with HTTP
@@ -234,7 +236,7 @@ def ondemand_cluster(
         )
 
     if not server_connection_type:
-        if server_host in ["localhost", "127.0.0.1"]:
+        if server_host in Cluster.LOCAL_HOSTS:
             server_connection_type = ServerConnectionType.SSH.value
         elif open_ports or ssl_keyfile or ssl_certfile:
             server_connection_type = ServerConnectionType.TLS.value
@@ -354,9 +356,10 @@ def sagemaker_cluster(
             If no estimator is provided, will default to ``0``.
         job_name (str, optional): Name to provide for a training job. If not provided will generate a default name
             based on the image name and current timestamp (e.g. ``pytorch-training-2023-08-28-20-57-55-113``).
-        server_port (bool, optional): Port to use for the server. Default depends on whether the server is started with
-            HTTP (80), HTTPS (443), or via SSH with port forwarding (32300).
-        server_host (bool, optional): Host to use for the server. (Default: ``localhost``).
+        server_port (bool, optional): Port to use for the Runhouse API server. (Default: ``32300``).
+        server_host (bool, optional): Host to use for the server.
+            *Note: For SageMaker, since we connect to the Runhouse API server via SSH, the only valid
+            host is localhost.*
         server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
             API server. *Note: For SageMaker, only ``aws_ssm`` is currently valid as the server connection type.*
         ssl_keyfile(str, optional): Path to SSL key file to use for launching the API server with HTTPS.
@@ -401,6 +404,11 @@ def sagemaker_cluster(
     ):
         raise ValueError(
             "SageMaker Cluster currently requires a server connection type of `aws_ssm`."
+        )
+
+    if server_host and server_host not in Cluster.LOCAL_HOSTS:
+        raise ValueError(
+            "SageMaker Cluster currently requires a server host of `localhost` or `127.0.0.1`"
         )
 
     if name:

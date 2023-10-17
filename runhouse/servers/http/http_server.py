@@ -814,8 +814,8 @@ if __name__ == "__main__":
     should_enable_local_span_collection = parse_args.enable_local_span_collection
     use_https = parse_args.use_https
     den_auth = parse_args.use_den_auth
-    ssl_keyfile = parse_args.ssl_keyfile
-    ssl_certfile = parse_args.ssl_certfile
+    parsed_ssl_keyfile = parse_args.ssl_keyfile
+    parsed_ssl_certfile = parse_args.ssl_certfile
     force_reinstall = parse_args.force_reinstall
     skip_nginx = parse_args.skip_nginx
     address = parse_args.address
@@ -826,35 +826,31 @@ if __name__ == "__main__":
     )
 
     # Save down certs onto the cluster which is needed for Nginx and relevant when starting server with HTTPS
-    if ssl_keyfile and not Path(ssl_keyfile).exists():
+    if parsed_ssl_keyfile and not Path(parsed_ssl_keyfile).exists():
         raise FileNotFoundError(
-            f"Provided SSL key file not found on cluster in path: {ssl_keyfile}"
+            f"No SSL key file found on cluster in path: {parsed_ssl_keyfile}"
         )
 
-    if ssl_certfile and not Path(ssl_certfile).exists():
+    if parsed_ssl_certfile and not Path(parsed_ssl_certfile).exists():
         raise FileNotFoundError(
-            f"Provided SSL cert file not found on cluster in path: {ssl_certfile}"
+            f"No SSL cert file found on cluster in path: {parsed_ssl_certfile}"
         )
 
     cert_config = TLSCertConfig()
+    ssl_keyfile = resolve_absolute_path(parsed_ssl_keyfile or cert_config.key_path)
+    ssl_certfile = resolve_absolute_path(parsed_ssl_certfile or cert_config.cert_path)
 
-    ssl_keyfile = resolve_absolute_path(ssl_keyfile or cert_config.key_path)
-    ssl_certfile = resolve_absolute_path(ssl_certfile or cert_config.cert_path)
-
-    if force_reinstall or (
-        not Path(ssl_keyfile).exists() and not Path(ssl_certfile).exists()
-    ):
+    if not Path(ssl_keyfile).exists() and not Path(ssl_certfile).exists():
         cert_config.generate_certs(address=address)
         logger.info(
-            f"Generated new self-signed certs on the cluster in paths: {cert_config.CERT_DIR} "
-            f"and {cert_config.PRIVATE_KEY_DIR}"
+            f"Generated new self-signed cert and keyfile on the cluster in paths: {cert_config.cert_path} "
+            f"and {cert_config.key_path}"
         )
 
     host = host or HTTPServer.DEFAULT_SERVER_HOST
-    logger.info(f"Final host: {host}")
 
     # Note: running the FastAPI app on a higher, non-privileged port (8000) and using Nginx as a reverse
-    # proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the apps port.
+    # proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the app's port.
     if use_https:
         https_port = port or HTTPServer.DEFAULT_APP_PORT
 
@@ -862,13 +858,19 @@ if __name__ == "__main__":
             f"Launching HTTPS server with den_auth={den_auth} on host: {host} and port 443."
         )
         if not skip_nginx:
-            NginxConfig(
+            nc = NginxConfig(
                 app_port=https_port,
                 force_reinstall=force_reinstall,
                 ssl_key_path=ssl_keyfile,
                 ssl_cert_path=ssl_certfile,
                 address=address,
-            ).configure()
+            )
+            nc.configure()
+
+            if parsed_ssl_keyfile or parsed_ssl_certfile:
+                # reload nginx in case the certs were updated
+                nc.reload()
+
             logger.info(
                 f"Nginx will forward all traffic to the Runhouse API server running on port {https_port}"
             )

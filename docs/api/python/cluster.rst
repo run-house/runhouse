@@ -241,11 +241,17 @@ Let's illustrate this with a simple example:
 
     # Remote function stub which lives on the cluster
     remote_func = rh.function(np_array).to(cpu, env=["numpy"])
-    my_list = [1,2,3]
+
+    # Save to Runhouse Den
+    remote_func.save()
+
+    # Share the function with another user
+    remote_func.share("user1@gmail.com")
+
 
     # Run function on cluster
-    # Note: only users with a Runhouse token and access to this cluster can call this function
-    res = remote_func(my_list)
+    # Note: only users with a Runhouse token and access to this function can run it
+    res = remote_func([1,2,3])
 
 
 .. note::

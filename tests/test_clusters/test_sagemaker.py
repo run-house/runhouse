@@ -114,7 +114,7 @@ def test_sm_cluster_with_https(sm_cluster):
 
 
 @pytest.mark.clustertest
-def test_sm_cluster_with_den_auth(sm_cluster):
+def test_restart_sm_cluster_with_den_auth(sm_cluster):
     from runhouse.globals import configs
 
     sm_cluster.den_auth = True
@@ -137,8 +137,6 @@ def test_sm_cluster_with_den_auth(sm_cluster):
         assert "Invalid or expired token" in str(e)
 
     configs.set("token", orig_token)
-
-    assert True
 
 
 if __name__ == "__main__":

@@ -121,8 +121,11 @@ class NginxConfig:
 
     def _build_template(self):
         logger.info("Building Nginx template for the Runhouse API server.")
+        # TODO [JL] need to be able to write to this directory, any other way to get around this?
         subprocess.run(
-            "sudo chmod o+w /etc/nginx/sites-available",
+            f"sudo chmod o+w /etc/nginx/sites-available && "
+            f"sudo chmod 600 {self.ssl_cert_path} && "
+            f"sudo chmod 600 {self.ssl_key_path}",
             shell=True,
             check=True,
             capture_output=True,
@@ -169,6 +172,7 @@ class NginxConfig:
             check=True,
             capture_output=True,
             text=True,
+            shell=True,
         )
         if result.returncode != 0:
             raise RuntimeError(f"Error configuring nginx: {result.stderr}")

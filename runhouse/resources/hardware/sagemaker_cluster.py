@@ -111,7 +111,7 @@ class SageMakerCluster(Cluster):
         self._ssh_wrapper = None
 
         # Keep track of the ports used for forwarding to the cluster
-        self._local_port = self.DEFAULT_HTTP_PORT
+        self._local_port = self.DEFAULT_PORT
         self._ssh_port = self.DEFAULT_SSH_PORT
 
         # Note: Relevant only if an estimator is explicitly provided
@@ -146,6 +146,9 @@ class SageMakerCluster(Cluster):
 
         # Note: Setting instance ID as cluster IP for compatibility with Cluster parent class methods
         self.address = self.instance_id
+
+        # Currently only supported for OnDemand clusters
+        self.open_ports = None
 
     @property
     def config_for_rns(self):
@@ -285,6 +288,12 @@ class SageMakerCluster(Cluster):
     def default_bucket(self):
         """Default bucket to use for storing the cluster's authorized public keys."""
         return self._sagemaker_session.default_bucket()
+
+    @property
+    def _use_https(self) -> bool:
+        """Use HTTPS if cert or private key file paths are provided."""
+        # Note: Since always connecting via SSM no need for HTTPS
+        return False
 
     @property
     def _extra_ssh_args(self):

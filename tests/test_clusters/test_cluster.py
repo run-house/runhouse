@@ -165,7 +165,7 @@ def test_cluster_with_https(ondemand_cpu_cluster):
     ondemand_cpu_cluster.restart_server()
 
     local_cert_path = ondemand_cpu_cluster.cert_config.cert_path
-    assert Path(local_cert_path).exists()  # check it exists on the clsiuter too
+    assert Path(local_cert_path).exists()  # check it exists on the cluster too
 
     # Confirm we can send https requests to the cluster
     ondemand_cpu_cluster.install_packages(["gradio"])
@@ -184,6 +184,7 @@ def test_cluster_with_den_auth(ondemand_cpu_cluster):
     cluster_config = ondemand_cpu_cluster.config_for_rns
 
     # Request should return 200 with valid token
+    ondemand_cpu_cluster.connect_server_client()
     ondemand_cpu_cluster.client.check_server(cluster_config)
 
     configs.set("token", "abcd123")
@@ -200,26 +201,53 @@ def test_cluster_with_den_auth(ondemand_cpu_cluster):
 
 
 @pytest.mark.clustertest
-@unittest.skip("Not implemented yet.")
-def test_launch_server_with_custom_certs(ondemand_cpu_cluster):
-    pass
+def test_start_server_with_custom_certs(ondemand_cpu_cluster):
+    # NOTE: to check certificate matching:
+    # openssl x509 -noout -modulus -in rh_server.crt | openssl md5
+    # openssl rsa -noout -modulus -in rh_server.key | openssl md5
+
+    from runhouse.servers.http.http_utils import TLSCertConfig
+
+    ssl_certfile = f"~/ssl/certs/{ondemand_cpu_cluster.name}/rh_server.crt"
+    ssl_keyfile = f"~/ssl/private/{ondemand_cpu_cluster.name}/rh_server.key"
+
+    # NOTE: need to include the IP of the cluster when generating the cert
+    TLSCertConfig(key_path=ssl_keyfile, cert_path=ssl_certfile).generate_certs(
+        address=ondemand_cpu_cluster.address
+    )
+
+    ondemand_cpu_cluster.ssl_certfile = ssl_certfile
+    ondemand_cpu_cluster.ssl_keyfile = ssl_keyfile
+    ondemand_cpu_cluster.server_connection_type = ServerConnectionType.TLS.value
+
+    ondemand_cpu_cluster.restart_server()
+    ondemand_cpu_cluster.connect_server_client()
+
+    try:
+        ondemand_cpu_cluster.client.check_server(ondemand_cpu_cluster.config_for_rns)
+    except Exception as e:
+        assert False, f"Failed to connect to server with custom certs: {e}"
+
+    Path(ssl_certfile).unlink()
+    Path(ssl_keyfile).unlink()
 
 
 @pytest.mark.clustertest
-@unittest.skip("Not implemented yet.")
-def test_launch_server_on_custom_port(ondemand_cpu_cluster):
-    pass
+def test_launch_server_with_ssh(ondemand_cpu_cluster):
+    ondemand_cpu_cluster.server_connection_type = ServerConnectionType.SSH.value
+    ondemand_cpu_cluster.restart_server()
 
-
-@pytest.mark.clustertest
-@unittest.skip("Not implemented yet.")
-def test_launch_server_with_no_port_forwarding(ondemand_cpu_cluster):
-    pass
+    try:
+        ondemand_cpu_cluster.connect_server_client()
+        ondemand_cpu_cluster.client.check_server(ondemand_cpu_cluster.config_for_rns)
+    except Exception as e:
+        assert False, f"Failed to connect to server with SSH: {e}"
 
 
 @pytest.mark.clustertest
 @unittest.skip("Not implemented yet.")
 def test_launch_server_with_password(ondemand_cpu_cluster):
+    # TODO pending using pexpect
     pass
 
 
