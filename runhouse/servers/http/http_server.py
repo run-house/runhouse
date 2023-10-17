@@ -12,7 +12,7 @@ import requests
 from fastapi import Body, FastAPI
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, UrlStr, ValidationError
+from pydantic import AnyUrl, BaseModel, ValidationError
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
@@ -35,7 +35,7 @@ app = FastAPI()
 
 
 class OtlpParameters(BaseModel):
-    backend_url: UrlStr
+    backend_url: AnyUrl
     username: str
     password: str
 
