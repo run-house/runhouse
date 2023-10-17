@@ -562,6 +562,8 @@ class HTTPServer:
                 + "otlp_password: {configs.get('otlp_password')}) \n"
             )
 
+        logger.info(f"Sending telemetry to backend {otlp_credentials.backend_url}")
+
         # Set the tracer provider and the exporter
         trace.set_tracer_provider(TracerProvider())
         otlp_exporter = OTLPSpanExporter(
@@ -576,6 +578,10 @@ class HTTPServer:
         # Add the exporter to the tracer provider
         trace.get_tracer_provider().add_span_processor(
             BatchSpanProcessor(otlp_exporter)
+        )
+
+        logger.info(
+            f"Successfully added telemetry exporter {otlp_credentials.backend_url}"
         )
 
         # Instrument the app object
