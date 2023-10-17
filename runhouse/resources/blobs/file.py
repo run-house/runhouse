@@ -37,7 +37,6 @@ class File(Blob):
             data_config=data_config,
             dryrun=dryrun,
         )
-        self._cached_data = None
         super().__init__(name=name, dryrun=dryrun, system=system, env=env, **kwargs)
 
     @property
@@ -145,14 +144,10 @@ class File(Blob):
         Example:
             >>> data = file.fetch()
         """
-        self.local._cached_data = self._folder.get(self._filename, mode=mode)
+        data = self._folder.get(self._filename, mode=mode)
         if deserialize:
-            try:
-                deserialized_data = pickle.loads(self._cached_data)
-            except (pickle.UnpicklingError, TypeError):
-                deserialized_data = self._cached_data
-            self.local._cached_data = deserialized_data
-        return self._cached_data
+            return pickle.loads(data)
+        return data
 
     def _save_sub_resources(self):
         if isinstance(self.system, Cluster):
