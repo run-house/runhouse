@@ -267,6 +267,7 @@ optionally terminated) for you.
                   name="cpu-cluster",
                   instance_type="CPU:8",
                   provider="cheapest",      # options: "AWS", "GCP", "Azure", "Lambda", or "cheapest"
+                  autostop_mins=60,         # optional, defaults to default_autostop_mins; -1 suspends autostop
               )
 
 If using a cloud cluster, we can launch the cluster with ``.up()`` or
