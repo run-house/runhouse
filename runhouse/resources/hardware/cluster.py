@@ -162,9 +162,8 @@ class Cluster(Resource):
                 dest=dest_path,
                 up=True,
                 contents=True,
-                filter_options="dir-merge,- .gitignore,- docs/",
+                filter_options="- docs/",
             )
-
             rh_install_cmd = "python3 -m pip install ./runhouse"
         # elif local_rh_package_path.parent.name == 'site-packages':
         else:
