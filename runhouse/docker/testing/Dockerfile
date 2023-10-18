@@ -7,11 +7,15 @@ COPY . .
 
 RUN pip install -e .
 
-# Runhouse server port
-EXPOSE 50052
-# Ray Redis cache port
-EXPOSE 6379
 # Ray dashboard port
 EXPOSE 52365
+# Runhouse server port
+EXPOSE 32300
+# Ray Redis cache port
+EXPOSE 6379
+# HTTPS port
+EXPOSE 443
+# HTTP port
+EXPOSE 80
 
 CMD ["python", "-m", "runhouse.servers.http.http_server", "--enable_local_span_collection=True", "--host", "0.0.0.0", "--port", "50052"]

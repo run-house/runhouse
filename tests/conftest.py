@@ -666,9 +666,8 @@ def local_docker_slim():
     c = rh.cluster(
         name="local-docker-slim",
         host="localhost:50052",
-        ssh_creds={"ssh_user": "root"},
+        ssh_creds={"ssh_user": "rh-docker-user"},
     )
-    c.check_server()
 
     # Yield the cluster
     yield c
