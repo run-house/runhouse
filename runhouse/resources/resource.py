@@ -289,7 +289,7 @@ class Resource:
         """Save the given attributes to the config"""
         for attr in attrs:
             val = self.__getattribute__(attr)
-            if val:
+            if val is not None:
                 config[attr] = val
 
     def is_local(self):
