@@ -89,7 +89,9 @@ def test_file_to_blob(file, cluster):
 @pytest.mark.awstest
 @pytest.mark.gcptest
 @pytest.mark.clustertest
-@pytest.mark.parametrize("blob", ["local_blob", "cluster_blob"], indirect=True)
+@pytest.mark.parametrize(
+    "blob", ["local_blob", "cluster_blob", "local_file"], indirect=True
+)
 @pytest.mark.parametrize(
     "folder",
     ["local_folder", "cluster_folder", "s3_folder", "gcs_folder"],

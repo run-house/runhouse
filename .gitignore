@@ -133,3 +133,9 @@ dmypy.json
 # IDE project files
 .idea/
 .vscode/
+
+# Config files
+rh/
+
+# Docker files
+docker_user_passwd
