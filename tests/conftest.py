@@ -658,7 +658,7 @@ def local_docker_slim():
             "-p",
             "443:443",
             "-p",
-            "80:80",            
+            "80:80",
             "-p",
             "22:22",
             "runhouse:start",
