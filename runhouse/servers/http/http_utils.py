@@ -11,7 +11,7 @@ from ray import cloudpickle as pickle
 logger = logging.getLogger(__name__)
 
 DEFAULT_SERVER_HOST = "127.0.0.1"
-DEFAULT_SERVER_PORT = 50052
+DEFAULT_SERVER_PORT = 32300
 
 
 class Message(BaseModel):
