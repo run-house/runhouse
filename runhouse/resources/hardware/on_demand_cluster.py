@@ -10,7 +10,7 @@ from sky.backends import backend_utils, CloudVmRayBackend
 
 from runhouse.globals import configs, rns_client
 
-from .cluster import Cluster, ServerConnectionType
+from .cluster import Cluster
 from .utils import _current_cluster
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ class OnDemandCluster(Cluster):
             else configs.get("default_autostop")
         )
 
-        self._open_ports = open_ports
+        self.open_ports = open_ports
         self.use_spot = use_spot if use_spot is not None else configs.get("use_spot")
         self.image_id = image_id
         self.region = region
@@ -113,24 +113,10 @@ class OnDemandCluster(Cluster):
                 "image_id": self.image_id,
                 "region": self.region,
                 "live_state": self._get_sky_state(),
+                "address": self.address,
             }
         )
         return config
-
-    @property
-    def open_ports(self):
-        open_ports = self._open_ports if self._open_ports else []
-        if (
-            self.server_port not in open_ports
-            and self.server_connection_type != ServerConnectionType.SSH.value
-        ):
-            # Open the server port by default unless we are using SSH
-            open_ports.append(self.server_port)
-        return open_ports
-
-    @open_ports.setter
-    def open_ports(self, open_ports):
-        self._open_ports = open_ports
 
     def _get_sky_state(self):
         config = sky.global_user_state.get_cluster_from_name(self.name)

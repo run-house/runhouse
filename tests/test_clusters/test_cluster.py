@@ -181,17 +181,15 @@ def test_cluster_with_den_auth(ondemand_cpu_cluster):
     # Create an invalid token, confirm the server does not accept the request
     orig_token = configs.get("token")
 
-    cluster_config = ondemand_cpu_cluster.config_for_rns
-
     # Request should return 200 with valid token
     ondemand_cpu_cluster.connect_server_client()
-    ondemand_cpu_cluster.client.check_server(cluster_config)
+    ondemand_cpu_cluster.client.check_server()
 
     configs.set("token", "abcd123")
 
     # Request should raise an exception with an invalid token
     try:
-        ondemand_cpu_cluster.client.check_server(cluster_config)
+        ondemand_cpu_cluster.client.check_server()
     except ValueError as e:
         assert "Invalid or expired token" in str(e)
 
@@ -224,7 +222,7 @@ def test_start_server_with_custom_certs(ondemand_cpu_cluster):
     ondemand_cpu_cluster.connect_server_client()
 
     try:
-        ondemand_cpu_cluster.client.check_server(ondemand_cpu_cluster.config_for_rns)
+        ondemand_cpu_cluster.client.check_server()
     except Exception as e:
         assert False, f"Failed to connect to server with custom certs: {e}"
 
@@ -239,7 +237,7 @@ def test_launch_server_with_ssh(ondemand_cpu_cluster):
 
     try:
         ondemand_cpu_cluster.connect_server_client()
-        ondemand_cpu_cluster.client.check_server(ondemand_cpu_cluster.config_for_rns)
+        ondemand_cpu_cluster.client.check_server()
     except Exception as e:
         assert False, f"Failed to connect to server with SSH: {e}"
 

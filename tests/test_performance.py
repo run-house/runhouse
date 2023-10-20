@@ -39,5 +39,33 @@ def test_roundtrip_performance(summer_func):
     print(f"HTTP call took {round(avg_time, 2)} ms: {times_list}")
 
 
+@pytest.mark.clustertest
+@pytest.mark.rnstest
+@unittest.skip("Not implemented yet.")
+def test_https_performance(summer_func):
+    pass
+
+
+@pytest.mark.clustertest
+@pytest.mark.rnstest
+@unittest.skip("Not implemented yet.")
+def test_https_with_den_auth_performance(summer_func):
+    pass
+
+
+@pytest.mark.clustertest
+@pytest.mark.rnstest
+@unittest.skip("Not implemented yet.")
+def test_http_performance(summer_func):
+    pass
+
+
+@pytest.mark.clustertest
+@pytest.mark.rnstest
+@unittest.skip("Not implemented yet.")
+def test_ssh_performance(summer_func):
+    pass
+
+
 if __name__ == "__main__":
     unittest.main()

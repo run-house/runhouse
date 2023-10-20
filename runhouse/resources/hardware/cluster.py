@@ -12,6 +12,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import yaml
 
 # Filter out DeprecationWarnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -39,8 +40,9 @@ class ServerConnectionType(Enum):
     ``tls``: Do not use port forwarding and start the server with HTTPS (using custom or fresh TLS certs), by default
         on port 443.
     ``none``: Do not use port forwarding, and start the server with HTTP, by default on port 80.
-    ``aws_ssm``: Use AWS SSM to connect to the server.
-    ``paramiko``: Use paramiko to connect to the server (e.g. if you provide a password with SSH credentials)
+    ``aws_ssm``: Use AWS SSM to connect to the server, by default on port 32300.
+    ``paramiko``: Use paramiko to connect to the server (e.g. if you provide a password with SSH credentials), by
+        default on port 32300.
     """
 
     SSH = "ssh"
@@ -53,9 +55,10 @@ class ServerConnectionType(Enum):
 class Cluster(Resource):
     RESOURCE_TYPE = "cluster"
     REQUEST_TIMEOUT = 5  # seconds
-    DEFAULT_PORT = 32300
 
-    DEFAULT_HOST = "0.0.0.0"
+    DEFAULT_SERVER_PORT = 32300
+    DEFAULT_HTTP_PORT = 80
+    DEFAULT_HTTPS_PORT = 443
     LOCALHOST = "127.0.0.1"
     LOCAL_HOSTS = ["localhost", LOCALHOST]
 
@@ -117,8 +120,8 @@ class Cluster(Resource):
         )
 
         self.server_connection_type = server_connection_type
-        self.server_port = server_port or self.DEFAULT_PORT
-        self._server_host = server_host
+        self.server_port = server_port or self.DEFAULT_SERVER_PORT
+        self.server_host = server_host
 
     def save_config_to_cluster(self):
         import json
@@ -171,29 +174,6 @@ class Cluster(Resource):
             config["ssh_creds"] = self.ssh_creds()
 
         return config
-
-    @property
-    def server_host(self):
-        if self.server_connection_type in [
-            ServerConnectionType.SSH.value,
-            ServerConnectionType.AWS_SSM.value,
-        ]:
-            # For SSH based methods launch the server on localhost
-            if self._server_host:
-                if self._server_host not in self.LOCAL_HOSTS:
-                    raise ValueError(
-                        "Server host must be set to `localhost` or `127.0.0.1` for SSH server connections"
-                    )
-                return self._server_host
-
-            return self.LOCALHOST
-
-        # Launch the server with 0.0.0.0 to expose traffic to the outside world
-        return self.DEFAULT_HOST
-
-    @server_host.setter
-    def server_host(self, server_host):
-        self._server_host = server_host
 
     @property
     def server_address(self):
@@ -462,7 +442,11 @@ class Cluster(Resource):
 
         # Connecting to localhost because it's tunneled into the server at the specified port.
         creds = self.ssh_creds()
-        if creds.get("password") and creds.get("ssh_user"):
+        if self.server_connection_type in [
+            ServerConnectionType.SSH.value,
+            ServerConnectionType.AWS_SSM.value,
+            ServerConnectionType.PARAMIKO.value,
+        ]:
             self.client = HTTPClient(
                 host=self.LOCALHOST,
                 port=connected_port,
@@ -502,7 +486,7 @@ class Cluster(Resource):
                     # a bunch of setup commands that mess up json dump
                     del cluster_config["live_state"]
                 logger.info(f"Checking server {self.name}")
-                self.client.check_server(cluster_config=cluster_config)
+                self.client.check_server()
                 logger.info(f"Server {self.name} is up.")
             except (
                 requests.exceptions.ConnectionError,
@@ -522,7 +506,7 @@ class Cluster(Resource):
                     for i in range(5):
                         logger.info(f"Checking server {self.name} again [{i + 1}/5].")
                         try:
-                            self.client.check_server(cluster_config=cluster_config)
+                            self.client.check_server()
                             logger.info(f"Server {self.name} is up.")
                             return
                         except (
@@ -595,6 +579,13 @@ class Cluster(Resource):
 
         return connection_type.value == tls_conn
 
+    @property
+    def _use_nginx(self) -> bool:
+        """Use Nginx if the server port is set to the default HTTP (80) or HTTPS (443) port.
+        Note: Nginx will serve as a reverse proxy, forwarding traffic from the server port to the Runhouse API
+        server running on port 32300."""
+        return self.server_port in [self.DEFAULT_HTTP_PORT, self.DEFAULT_HTTPS_PORT]
+
     @staticmethod
     def _add_flags_to_commands(flags, start_screen_cmd, server_start_cmd):
         flags_str = "".join(flags)
@@ -620,7 +611,7 @@ class Cluster(Resource):
         ssl_keyfile,
         ssl_certfile,
         force_reinstall,
-        skip_nginx,
+        use_nginx,
         address,
     ):
         cmds = []
@@ -646,10 +637,10 @@ class Cluster(Resource):
             logger.info("Reinstalling Nginx and server configs.")
             flags.append(force_reinstall_flag)
 
-        skip_nginx_flag = " --skip-nginx" if skip_nginx else ""
-        if skip_nginx_flag:
-            logger.info("Skipping Nginx configuration on the cluster.")
-            flags.append(skip_nginx_flag)
+        use_nginx_flag = " --use-nginx" if use_nginx else ""
+        if use_nginx_flag:
+            logger.info("Configuring Nginx on the cluster.")
+            flags.append(use_nginx_flag)
 
         ssl_keyfile_flag = f" --ssl-keyfile {ssl_keyfile}" if ssl_keyfile else ""
         if ssl_keyfile_flag:
@@ -679,7 +670,7 @@ class Cluster(Resource):
             logger.info(f"Using port: {port}.")
             flags.append(port_flag)
 
-        address_flag = f" --address {address}" if address else ""
+        address_flag = f" --certs-address {address}" if address else ""
         if address_flag:
             logger.info(f"Server public IP address: {address}.")
             flags.append(address_flag)
@@ -709,6 +700,7 @@ class Cluster(Resource):
         resync_rh: bool = True,
         restart_ray: bool = True,
         env_activate_cmd: str = None,
+        restart_proxy: bool = False,
     ):
         """Restart the RPC server.
 
@@ -716,6 +708,7 @@ class Cluster(Resource):
             resync_rh (bool): Whether to resync runhouse. (Default: ``True``)
             restart_ray (bool): Whether to restart Ray. (Default: ``True``)
             env_activate_cmd (str, optional): Command to activate the environment on the server. (Default: ``None``)
+            restart_proxy (bool): Whether to restart nginx on the cluster, if configured. (Default: ``False``)
         Example:
             >>> rh.cluster("rh-cpu").restart_server()
         """
@@ -723,6 +716,9 @@ class Cluster(Resource):
 
         if resync_rh:
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
+
+        # Update the cluster config on the cluster
+        self._save_cluster_config()
 
         # Note: Will have a default value if not explicitly provided
         cert_path = self.cert_config.cert_path
@@ -755,26 +751,13 @@ class Cluster(Resource):
             )
 
         https_flag = self._use_https
+        nginx_flag = self._use_nginx
         cmd = (
             self.CLI_RESTART_CMD
             + (" --no-restart-ray" if not restart_ray else "")
             + (" --use-https" if https_flag else "")
-            + (" --use-den-auth" if self.den_auth else "")
-            + f" --host {self.server_host}"
-            + (f" --port {self.server_port}" if self.server_port else "")
-            + (f" --ssl-keyfile {cluster_key_path}" if self.ssl_keyfile else "")
-            + (f" --ssl-certfile {cluster_cert_path}" if self.ssl_certfile else "")
-            + f" --address {self.server_address}"
-            + (
-                " --skip-nginx"
-                if self.server_connection_type
-                in [
-                    ServerConnectionType.SSH.value,
-                    ServerConnectionType.AWS_SSM.value,
-                    ServerConnectionType.PARAMIKO.value,
-                ]
-                else ""
-            )
+            + (" --use-nginx" if nginx_flag else "")
+            + (" --restart-proxy" if restart_proxy and nginx_flag else "")
         )
 
         cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd
@@ -798,13 +781,6 @@ class Cluster(Resource):
             # Update in case the server was previously launched with HTTP
             self.client.use_https = https_flag
             self.client.cert_path = cert_path
-
-            # Download certificate from the cluster (Note: user must have access to the cluster)
-            self.client.get_certificate()
-
-            logger.info(
-                f"Latest TLS certificate for {self.name} saved to local path: {cert_path}"
-            )
 
         return status_codes
 
@@ -886,7 +862,6 @@ class Cluster(Resource):
         return state
 
     # ----------------- SSH Methods ----------------- #
-
     def ssh_creds(self):
         """Retrieve SSH credentials."""
         return self._ssh_creds
@@ -1010,6 +985,19 @@ class Cluster(Resource):
         if ssh_call.is_alive():
             raise TimeoutError("SSH call timed out")
         return True
+
+    def _save_cluster_config(self):
+        """Save config YAML on the cluster."""
+        cluster_config = self.config_for_rns
+        cluster_config.pop("live_state", None)
+
+        return_codes = self.run(
+            [
+                f"""bash -c 'echo "{yaml.dump(cluster_config)}" > ~/.rh/cluster_config.yaml'"""
+            ]
+        )
+        if return_codes[0][0] != 0:
+            raise Exception("Failed to copy cluster config onto cluster.")
 
     def run(
         self,
@@ -1249,3 +1237,10 @@ class Cluster(Resource):
         """
         env_name = env if isinstance(env, str) else env.env_name
         self.run([f"conda env remove -n {env_name}"])
+
+    def download_cert(self):
+        """Download certificate from the cluster (Note: user must have access to the cluster)"""
+        self.client.get_certificate()
+        logger.info(
+            f"Latest TLS certificate for {self.name} saved to local path: {self.cert_config.cert_path}"
+        )

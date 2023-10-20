@@ -12,13 +12,16 @@ import ray
 import requests
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
-from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 from runhouse.globals import configs, env_servlets, rns_client
-from runhouse.resources.hardware.utils import _current_cluster, _get_cluster_from
+from runhouse.resources.hardware.utils import (
+    _current_cluster,
+    _get_cluster_from,
+    _load_cluster_config,
+)
 from runhouse.rns.utils.api import (
     load_resp_content,
     resolve_absolute_path,
@@ -84,7 +87,6 @@ def validate_user(func):
 
         if use_den_auth or func_call:
             # Note: currently providing cluster level access, not at the resource level
-            # but will be used in the future for validating access to other resources if provided in the request
             cluster_uri = _load_current_cluster(kwargs)
             if cluster_uri is None:
                 logger.error(
@@ -104,19 +106,22 @@ def validate_user(func):
 
 
 def verify_resource_access(
-    token: str, resource_uri: str, cached_resources: dict, func_call: bool
+    token: str, cluster_uri: str, cached_resources: dict, func_call: bool
 ) -> None:
     """Verify the user has access to a particular resource. Use global HTTP Server cache to check before pinging
     Den for the most current list of resources the user has access to."""
     # e.g. {"/jlewitt1/bert-preproc": "read"}
-    resource_access_type = cached_resources.get(resource_uri)
-    if resource_access_type:
-        if func_call and resource_access_type != ResourceAccess.WRITE.value:
-            raise HTTPException(
-                status_code=403,
-                detail=f"Write access is required for resource: {resource_uri}",
-            )
+    resource_access_type = cached_resources.get(cluster_uri)
+    if resource_access_type == ResourceAccess.WRITE.value:
+        # If user has write access to the cluster will have access to all resources on the cluster
         return
+
+    # For running functions must have write access to the cluster
+    if func_call and resource_access_type != ResourceAccess.WRITE.value:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Write access is required for resource: {cluster_uri}",
+        )
 
     resp = requests.get(
         f"{rns_client.api_server_url}/resource",
@@ -139,10 +144,10 @@ def verify_resource_access(
 
     logger.info(f"Updated cache with {len(all_resources)} resources for user")
 
-    if resource_uri not in all_resources:
+    if cluster_uri not in all_resources:
         raise HTTPException(
             status_code=404,
-            detail=f"Could not validate access to resource: {resource_uri}",
+            detail=f"Could not validate access to resource: {cluster_uri}",
         )
 
 
@@ -161,9 +166,10 @@ def _load_current_cluster(kwargs) -> Union[str, None]:
 class HTTPServer:
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     LOGGING_WAIT_TIME = 1
-    DEFAULT_APP_PORT = 32300  # Port where Fast API app is running
-    # Allow external devices to access the app by default
     DEFAULT_SERVER_HOST = "0.0.0.0"
+    DEFAULT_SERVER_PORT = 32300
+    DEFAULT_HTTP_PORT = 80
+    DEFAULT_HTTPS_PORT = 443
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
     memory_exporter = None
 
@@ -263,20 +269,12 @@ class HTTPServer:
             )
 
     @staticmethod
-    @app.post("/check")
+    @app.get("/check")
     @validate_user
-    def check_server(request: Request, message: Message):
+    def check_server(request: Request):
         HTTPServer.register_activity()
-        cluster_config = message.data
         try:
-            if cluster_config:
-                logger.info(
-                    f"Message received from client to check server: {cluster_config}"
-                )
-                rh_dir = Path("~/.rh").expanduser()
-                rh_dir.mkdir(exist_ok=True)
-                (rh_dir / "cluster_config.yaml").write_text(cluster_config)
-                # json.dump(cluster_config, open(rh_dir / "cluster_config.yaml", "w"), indent=4)
+            logger.info("Checking Ray status and cluster config.")
 
             # Check if Ray is deadlocked
             # Get `ray status` from command line
@@ -533,7 +531,6 @@ class HTTPServer:
                     # Last result in a stream will have type RESULT to indicate the end
                     if ret_val is None:
                         # Still waiting for results in queue
-                        obj_ref = None
                         # time.sleep(HTTPServer.LOGGING_WAIT_TIME)
                         raise ray.exceptions.GetTimeoutError
                     if not ret_val.output_type == OutputType.RESULT_STREAM:
@@ -746,18 +743,25 @@ class HTTPServer:
 if __name__ == "__main__":
     import uvicorn
 
+    rh_server_host = HTTPServer.DEFAULT_SERVER_HOST
+    rh_server_port = HTTPServer.DEFAULT_SERVER_PORT
+    default_http_port = HTTPServer.DEFAULT_HTTP_PORT
+    default_https_port = HTTPServer.DEFAULT_HTTPS_PORT
+    http_port, https_port, ssl_keyfile, ssl_certfile = None, None, None, None
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--host",
         type=str,
         default=None,
-        help=f"Host to run server on. By default will run on {HTTPServer.DEFAULT_SERVER_HOST}",
+        help=f"Host to run server on. By default will run on {rh_server_host}",
     )
     parser.add_argument(
         "--port",
         type=int,
         default=None,
-        help=f"Port to run server on. By default will run on {HTTPServer.DEFAULT_APP_PORT}",
+        help=f"Port to run server on. If not provided will run on {default_https_port} if HTTPS is enabled, "
+        f"{default_http_port} if HTTP is enabled, and {rh_server_port} if connecting to the server via SSH",
     )
     parser.add_argument(
         "--conda-env", type=str, default=None, help="Conda env to run server in"
@@ -791,34 +795,36 @@ if __name__ == "__main__":
         help="Path to SSL cert file to use for HTTPS",
     )
     parser.add_argument(
-        "--force-reinstall",
-        action="store_true",  # if providing --force-reinstall will be set to True
-        help="Reconfigure Nginx and reinstall certs",
+        "--restart-proxy",
+        action="store_true",  # if providing --restart-proxy will be set to True
+        help="Reconfigure Nginx",
     )
     parser.add_argument(
-        "--skip-nginx",
-        action="store_true",  # if providing --skip-nginx will be set to True
-        help="Do not configure Nginx as a reverse proxy",
+        "--use-nginx",
+        action="store_true",  # if providing --use-nginx will be set to True
+        help="Configure Nginx as a reverse proxy",
     )
     parser.add_argument(
-        "--address",
+        "--certs-address",
         type=str,
         default=None,
-        help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS",
+        help="Address to use for generating self-signed certs and enabling HTTPS. (e.g. public IP address)",
     )
 
+    cluster_config = _load_cluster_config()
     parse_args = parser.parse_args()
+
+    conda_name = parse_args.conda_env
     host = parse_args.host
     port = parse_args.port
-    conda_name = parse_args.conda_env
-    should_enable_local_span_collection = parse_args.enable_local_span_collection
     use_https = parse_args.use_https
-    den_auth = parse_args.use_den_auth
-    parsed_ssl_keyfile = parse_args.ssl_keyfile
-    parsed_ssl_certfile = parse_args.ssl_certfile
-    force_reinstall = parse_args.force_reinstall
-    skip_nginx = parse_args.skip_nginx
-    address = parse_args.address
+    restart_proxy = parse_args.restart_proxy
+    use_nginx = parse_args.use_nginx
+    should_enable_local_span_collection = parse_args.enable_local_span_collection
+    den_auth = parse_args.use_den_auth or cluster_config.get("den_auth")
+    parsed_ssl_keyfile = parse_args.ssl_keyfile or cluster_config.get("ssl_keyfile")
+    parsed_ssl_certfile = parse_args.ssl_certfile or cluster_config.get("ssl_certfile")
+    address = parse_args.certs_address or cluster_config.get("address")
 
     HTTPServer(
         conda_env=conda_name,
@@ -836,72 +842,76 @@ if __name__ == "__main__":
             f"No SSL cert file found on cluster in path: {parsed_ssl_certfile}"
         )
 
-    cert_config = TLSCertConfig()
-    ssl_keyfile = resolve_absolute_path(parsed_ssl_keyfile or cert_config.key_path)
-    ssl_certfile = resolve_absolute_path(parsed_ssl_certfile or cert_config.cert_path)
+    if use_https:
+        https_port = port or default_https_port
+        logger.info(f"Launching API server with HTTPS on port: {https_port}.")
 
-    if not Path(ssl_keyfile).exists() and not Path(ssl_certfile).exists():
-        cert_config.generate_certs(address=address)
-        logger.info(
-            f"Generated new self-signed cert and keyfile on the cluster in paths: {cert_config.cert_path} "
-            f"and {cert_config.key_path}"
+        cert_config = TLSCertConfig()
+        ssl_keyfile = resolve_absolute_path(parsed_ssl_keyfile or cert_config.key_path)
+        ssl_certfile = resolve_absolute_path(
+            parsed_ssl_certfile or cert_config.cert_path
         )
 
-    host = host or HTTPServer.DEFAULT_SERVER_HOST
+        if not Path(ssl_keyfile).exists() and not Path(ssl_certfile).exists():
+            if https_port != default_https_port:
+                # if using a custom HTTPS port must provide private key file and certs explicitly
+                raise FileNotFoundError(
+                    f"Could not find SSL private key and cert files on the cluster, which are required when specifying"
+                    f"a custom port ({https_port}). Please specify the paths using the --ssl-certfile and "
+                    f"--ssl-keyfile flags."
+                )
+
+            cert_config.generate_certs(address=address)
+            logger.info(
+                f"Generated new self-signed cert and private key files on the cluster in "
+                f"paths: {cert_config.cert_path} and {cert_config.key_path}"
+            )
+    else:
+        http_port = port or default_http_port
+        logger.info(f"Launching API server with HTTP on port: {http_port}.")
 
     # Note: running the FastAPI app on a higher, non-privileged port (8000) and using Nginx as a reverse
     # proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the app's port.
-    if use_https:
-        https_port = port or HTTPServer.DEFAULT_APP_PORT
+    if use_nginx:
+        logger.info("Configuring Nginx")
+        if address is None:
+            raise ValueError(
+                "Must provide the server address to configure Nginx. No address found in the server "
+                "start command (--certs-address) or in the cluster config YAML saved on the cluster."
+            )
+
+        nc = NginxConfig(
+            address=address,
+            rh_server_port=rh_server_port,
+            http_port=http_port,
+            https_port=https_port,
+            ssl_key_path=ssl_keyfile,
+            ssl_cert_path=ssl_certfile,
+            force_reinstall=restart_proxy,
+        )
+        nc.configure()
+
+        if use_https and (parsed_ssl_keyfile or parsed_ssl_certfile):
+            # reload nginx in case certs were updated
+            nc.reload()
 
         logger.info(
-            f"Launching HTTPS server with den_auth={den_auth} on host: {host} and port 443."
-        )
-        if not skip_nginx:
-            nc = NginxConfig(
-                app_port=https_port,
-                force_reinstall=force_reinstall,
-                ssl_key_path=ssl_keyfile,
-                ssl_cert_path=ssl_certfile,
-                address=address,
-            )
-            nc.configure()
-
-            if parsed_ssl_keyfile or parsed_ssl_certfile:
-                # reload nginx in case the certs were updated
-                nc.reload()
-
-            logger.info(
-                f"Nginx will forward all traffic to the Runhouse API server running on port {https_port}"
-            )
-
-        # https://fastapi.tiangolo.com/advanced/middleware/#httpsredirectmiddleware
-        app.add_middleware(HTTPSRedirectMiddleware)
-
-        uvicorn.run(
-            app,
-            host=host,
-            port=https_port,
-            ssl_keyfile=ssl_keyfile,
-            ssl_certfile=ssl_certfile,
+            f"Nginx will forward all traffic to the Runhouse API server running on port: {rh_server_port}"
         )
 
-    else:
-        http_port = port or HTTPServer.DEFAULT_APP_PORT
+    host = host or rh_server_host
+    logger.info(
+        f"Launching API server with den_auth={den_auth} on host: {host} and port: {rh_server_port}."
+    )
 
-        logger.info(
-            f"Launching HTTP server with den_auth={den_auth} on host: {host} and port 80."
-        )
-        if not skip_nginx:
-            NginxConfig(
-                app_port=http_port,
-                force_reinstall=force_reinstall,
-                ssl_key_path=ssl_keyfile,
-                ssl_cert_path=ssl_certfile,
-                address=address,
-            ).configure()
-            logger.info(
-                f"Nginx will forward all traffic to the Runhouse API server running on port {http_port}"
-            )
+    # Only launch uvicorn with certs if HTTPS is enabled and not using Nginx
+    uvicorn_cert = ssl_certfile if not use_nginx and use_https else None
+    uvicorn_key = ssl_keyfile if not use_nginx and use_https else None
 
-        uvicorn.run(app, host=host, port=http_port)
+    uvicorn.run(
+        app,
+        host=host,
+        port=rh_server_port,
+        ssl_certfile=uvicorn_cert,
+        ssl_keyfile=uvicorn_key,
+    )

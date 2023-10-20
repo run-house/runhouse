@@ -33,6 +33,17 @@ class HTTPClient:
         self.cert_path = cert_path
         self.use_https = use_https
 
+    @property
+    def verify(self):
+        if not self.use_https:
+            return False
+
+        if Path(self.cert_path).exists():
+            # Verify the request if a local cert for the cluster exists
+            return True
+
+        return False
+
     def _formatted_url(self, endpoint: str):
         """Use HTTPS to authenticate the user with RNS if ports are specified and a token is provided"""
         prefix = "https" if self.use_https else "http"
@@ -50,7 +61,6 @@ class HTTPClient:
         err_str=None,
         timeout=None,
         headers: Union[Dict, None] = None,
-        verify=None,
     ):
         # Support use case where we explicitly do not want to provide headers (e.g. requesting a cert)
         headers = rns_client.request_headers if headers != {} else headers
@@ -77,7 +87,7 @@ class HTTPClient:
             timeout=timeout,
             auth=self.auth,
             headers=headers,
-            verify=self.cert_path if verify is None else verify,
+            verify=self.verify,
         )
         if response.status_code != 200:
             raise ValueError(
@@ -87,11 +97,10 @@ class HTTPClient:
         output_type = resp_json["output_type"]
         return handle_response(resp_json, output_type, err_str)
 
-    def check_server(self, cluster_config=None):
+    def check_server(self):
         self.request(
             "check",
-            req_type="post",
-            data=json.dumps(cluster_config, indent=4),
+            req_type="get",
             timeout=self.CHECK_TIMEOUT_SEC,
         )
 
@@ -99,7 +108,6 @@ class HTTPClient:
         cert: bytes = self.request(
             "cert",
             req_type="get",
-            verify=False,
             headers={},
         )
         # Create parent directory to store the cert
@@ -143,7 +151,7 @@ class HTTPClient:
             },
             stream=not run_async,
             headers=rns_client.request_headers,
-            verify=self.cert_path,  # Path to the self-signed certificate
+            verify=self.verify,
         )
         if res.status_code != 200:
             raise ValueError(

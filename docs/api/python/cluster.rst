@@ -188,10 +188,10 @@ when :ref:`initializing a cluster <Cluster Factory Method>`. By default the Runh
 be started on the cluster on port :code:`32300`.
 
 - ``ssh``: Connects to the cluster via an SSH tunnel.
-- ``tls``: Connects to the cluster via HTTPS on port :code:`443` and enforces verification via TLS certificates.
-  Only users with a valid cert will be able to make requests to the API server.
-- ``none``: Does not use any port forwarding or enforce any authentication. The API server will be started
-  with HTTP on port :code:`80`.
+- ``tls``: Connects to the cluster via HTTPS (by default on port :code:`443`) and enforces verification via TLS
+  certificates. Only users with a valid cert will be able to make requests to the API server.
+- ``none``: Does not use any port forwarding or enforce any authentication. Connects to the cluster with HTTP by
+  default on port :code:`80`.
 - ``aws_ssm``: Uses the
   `AWS Systems Manager <https://docs.aws.amazon.com/systems-manager/latest/userguide/what-is-systems-manager.html>`_ to
   create an SSH tunnel to the cluster. *Note: this is currently only relevant for SageMaker Clusters*
@@ -264,8 +264,9 @@ Nginx
 Runhouse gives you the option of using `Nginx <https://www.nginx.com/>`_ as a reverse proxy for the Runhouse API
 server, which is a Fast API launched with `Uvicorn <https://www.uvicorn.org/>`_. Using Nginx provides you with a safer
 and more conventional approach running the FastAPI app on a higher, non-privileged port (such as 32300, the default
-Runhouse port) and then use Nginx as a reverse proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the
-API server's port.
+Runhouse port) and then use Nginx as a reverse proxy to forward requests from the HTTP port (default: 80) or the
+HTTPS port (default: 443).
 
-Nginx is enabled by default when you launch a cluster with a specified :code:`server_connection_type` that is
-not :code:`none`.
+.. note::
+
+    Nginx is enabled by default when you launch a cluster with the :code:`server_port` set to either 80 or 443.

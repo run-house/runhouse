@@ -13,15 +13,24 @@ class NginxConfig:
     # sudo systemctl restart nginx
     # sudo systemctl status nginx
 
+    # sudo apt-get install net-tools
+    # sudo netstat -tuln | grep -E '80|443'
+
     def __init__(
         self,
-        app_port: int,
-        ssl_cert_path: str,
-        ssl_key_path: str,
+        address: str,
+        rh_server_port: int,
+        http_port: int = None,
+        https_port: int = None,
+        ssl_cert_path: str = None,
+        ssl_key_path: str = None,
         force_reinstall=False,
-        address: str = None,
     ):
-        self.app_port = app_port
+        self._use_https = https_port is not None
+        self.http_port = http_port
+        self.https_port = https_port
+        self.rh_server_port = rh_server_port
+
         self.ssl_cert_path = ssl_cert_path
         self.ssl_key_path = ssl_key_path
         self.force_reinstall = force_reinstall
@@ -48,7 +57,7 @@ class NginxConfig:
             raise RuntimeError("Failed to configure Nginx")
 
     def reload(self):
-        logger.info("Reloading nginx to apply changes.")
+        logger.info("Reloading Nginx to apply changes.")
         result = subprocess.run(
             "sudo systemctl reload nginx",
             shell=True,
@@ -76,63 +85,88 @@ class NginxConfig:
             if result.returncode != 0:
                 raise RuntimeError(f"Failed to install nginx: {result.stderr}")
 
-    def _create_template(self):
-        nginx_template = textwrap.dedent(
+    def _http_template(self):
+        template = textwrap.dedent(
             """
         server {{
-            listen 80;
-            listen [::]:80;
+            listen {app_port};
+
+            server_name {server_name};
 
             location / {{
                 proxy_pass {proxy_pass};
-                proxy_set_header Host $host;
-                proxy_set_header X-Real-IP $remote_addr;
-                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            }}
-        }}
-
-        server {{
-            listen 443 ssl default_server;
-            listen [::]:443 ssl default_server;
-
-            ssl_certificate {ssl_cert_path};
-            ssl_certificate_key {ssl_key_path};
-            ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-            ssl_ciphers HIGH:!aNULL:!MD5;
-
-            location / {{
-                proxy_pass {proxy_pass};
-                proxy_set_header Host $host;
-                proxy_set_header X-Real-IP $remote_addr;
-                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_buffer_size 128k;
+                proxy_buffers 4 256k;
+                proxy_busy_buffers_size 256k;
             }}
         }}
         """
         )
 
         replace_dict = {
-            "proxy_pass": f"http://{self.address}:{self.app_port}",
+            "app_port": self.http_port,
+            "proxy_pass": f"http://127.0.0.1:{self.rh_server_port}/",
+            "server_name": self.address,
+        }
+
+        # Replace placeholders with actual values
+        return template.format(**replace_dict)
+
+    def _https_template(self):
+        template = textwrap.dedent(
+            """
+        server {{
+            listen {app_port} ssl;
+
+            server_name {server_name};
+
+            ssl_certificate {ssl_cert_path};
+            ssl_certificate_key {ssl_key_path};
+
+            location / {{
+                proxy_pass {proxy_pass};
+                proxy_buffer_size 128k;
+                proxy_buffers 4 256k;
+                proxy_busy_buffers_size 256k;
+            }}
+        }}
+        """
+        )
+
+        replace_dict = {
+            "app_port": self.https_port,
+            "proxy_pass": f"http://127.0.0.1:{self.rh_server_port}/",
+            "server_name": self.address,
             "ssl_cert_path": self.ssl_cert_path,
             "ssl_key_path": self.ssl_key_path,
         }
 
         # Replace placeholders with actual values
-        return nginx_template.format(**replace_dict)
+        return template.format(**replace_dict)
 
     def _build_template(self):
-        logger.info("Building Nginx template for the Runhouse API server.")
+        if self._use_https:
+            subprocess.run(
+                f"sudo chmod 600 {self.ssl_cert_path} && "
+                f"sudo chmod 600 {self.ssl_key_path}",
+                shell=True,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
         # TODO [JL] need to be able to write to this directory, any other way to get around this?
         subprocess.run(
-            f"sudo chmod o+w /etc/nginx/sites-available && "
-            f"sudo chmod 600 {self.ssl_cert_path} && "
-            f"sudo chmod 600 {self.ssl_key_path}",
+            "sudo chmod o+w /etc/nginx/sites-available",
             shell=True,
             check=True,
             capture_output=True,
             text=True,
         )
         try:
-            template = self._create_template()
+            template = (
+                self._https_template() if self._use_https else self._http_template()
+            )
             with open(self.BASE_CONFIG_PATH, "w") as f:
                 f.write(template)
 

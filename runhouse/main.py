@@ -103,7 +103,7 @@ def _start_server(
     ssl_keyfile=None,
     ssl_certfile=None,
     force_reinstall=False,
-    skip_nginx=False,
+    use_nginx=False,
     address=None,
 ):
     from runhouse.resources.hardware.cluster import Cluster
@@ -120,7 +120,7 @@ def _start_server(
         ssl_keyfile=ssl_keyfile,
         ssl_certfile=ssl_certfile,
         force_reinstall=force_reinstall,
-        skip_nginx=skip_nginx,
+        use_nginx=use_nginx,
         address=address,
     )
 
@@ -156,9 +156,9 @@ def start(
     use_den_auth: bool = typer.Option(
         False, help="Whether to authenticate requests with a Runhouse token"
     ),
-    skip_nginx: bool = typer.Option(
+    use_nginx: bool = typer.Option(
         False,
-        help="Whether to configure Nginx on the cluster as a reverse proxy. By default will install "
+        help="Whether to configure Nginx on the cluster as a reverse proxy. By default will not install "
         "and configure Nginx.",
     ),
     address: Optional[str] = typer.Option(
@@ -176,7 +176,7 @@ def start(
         port=port,
         use_https=use_https,
         den_auth=use_den_auth,
-        skip_nginx=skip_nginx,
+        use_nginx=use_nginx,
         address=address,
     )
 
@@ -214,9 +214,9 @@ def restart(
     force_reinstall: bool = typer.Option(
         False, help="Whether to reinstall Nginx and other server configs on the cluster"
     ),
-    skip_nginx: bool = typer.Option(
+    use_nginx: bool = typer.Option(
         False,
-        help="Whether to configure Nginx on the cluster as a reverse proxy. By default will install "
+        help="Whether to configure Nginx on the cluster as a reverse proxy. By default will not install "
         "and configure Nginx.",
     ),
     address: Optional[str] = typer.Option(
@@ -242,7 +242,7 @@ def restart(
         ssl_keyfile=ssl_keyfile,
         ssl_certfile=ssl_certfile,
         force_reinstall=force_reinstall,
-        skip_nginx=skip_nginx,
+        use_nginx=use_nginx,
         address=address,
     )
 

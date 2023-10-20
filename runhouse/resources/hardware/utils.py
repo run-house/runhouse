@@ -23,8 +23,7 @@ def _current_cluster(key="name"):
     """Retrive key value from the current cluster config.
     If key is "config", returns entire config."""
     if Path("~/.rh/cluster_config.yaml").expanduser().exists():
-        with open(Path("~/.rh/cluster_config.yaml").expanduser()) as f:
-            cluster_config = yaml.safe_load(f)
+        cluster_config = _load_cluster_config()
         if key == "config":
             return cluster_config
         elif key == "cluster_name":
@@ -32,6 +31,15 @@ def _current_cluster(key="name"):
         return cluster_config[key]
     else:
         return None
+
+
+def _load_cluster_config():
+    try:
+        with open(Path("~/.rh/cluster_config.yaml").expanduser()) as f:
+            cluster_config = yaml.safe_load(f)
+        return cluster_config
+    except Exception as e:
+        raise e
 
 
 def _get_cluster_from(system, dryrun=False):

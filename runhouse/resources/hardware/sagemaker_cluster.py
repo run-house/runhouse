@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 
 class SageMakerCluster(Cluster):
-    DEFAULT_HOST = "localhost"
+    DEFAULT_SERVER_HOST = "localhost"
     DEFAULT_INSTANCE_TYPE = "ml.m5.large"
     DEFAULT_REGION = "us-east-1"
     DEFAULT_USER = "root"
@@ -111,7 +111,7 @@ class SageMakerCluster(Cluster):
         self._ssh_wrapper = None
 
         # Keep track of the ports used for forwarding to the cluster
-        self._local_port = self.DEFAULT_PORT
+        self._local_port = self.DEFAULT_SERVER_PORT
         self._ssh_port = self.DEFAULT_SSH_PORT
 
         # Note: Relevant only if an estimator is explicitly provided
@@ -343,15 +343,13 @@ class SageMakerCluster(Cluster):
             self.up_if_not()
 
         if not self.client:
-            cluster_config = self.config_for_rns
-
             try:
                 self.connect_server_client()
                 logger.info(
                     f"Checking server {self.name} with instance ID: {self.instance_id}"
                 )
 
-                self.client.check_server(cluster_config=cluster_config)
+                self.client.check_server()
                 logger.info(f"Server {self.instance_id} is up.")
             except:
                 if restart_server:
@@ -372,7 +370,7 @@ class SageMakerCluster(Cluster):
                     )
                     logger.info(f"Checking server {self.instance_id} again.")
 
-                    self.client.check_server(cluster_config=cluster_config)
+                    self.client.check_server()
                 else:
                     raise ValueError(
                         f"Could not connect to SageMaker instance {self.instance_id}"
@@ -1322,7 +1320,7 @@ class SageMakerCluster(Cluster):
         if not self.client:
             self.connect_server_client()
         # Update the config on the server with the new autostop time
-        self.client.check_server(cluster_config=cluster_config)
+        self.client.check_server()
 
     # -------------------------------------------------------
     # Port Management
