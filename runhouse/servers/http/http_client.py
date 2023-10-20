@@ -17,7 +17,7 @@ class HTTPClient:
     Client for cluster RPCs
     """
 
-    DEFAULT_PORT = 50052
+    DEFAULT_PORT = 32300
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     CHECK_TIMEOUT_SEC = 10
 
