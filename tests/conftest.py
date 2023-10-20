@@ -634,7 +634,7 @@ def local_docker_slim():
             "-f",
             dockerfile_path,
             "--build-arg",
-            "DOCKER_USER_PASSWORD_FILE=docker_user_passwd",
+            "DOCKER_USER_PASSWORD_FILE=~/.rh/secrets/docker_user_passwd",
             "-t",
             "runhouse:start",
             ".",
@@ -650,11 +650,15 @@ def local_docker_slim():
             "--rm",
             "--shm-size=3gb",
             "-p",
-            "50052:50052",
+            "32300:32300",
             "-p",
             "6379:6379",
             "-p",
             "52365:52365",
+            "-p",
+            "443:443",
+            "-p",
+            "80:80",
             "-p",
             "22:22",
             "runhouse:start",
@@ -665,7 +669,7 @@ def local_docker_slim():
     rh.configs.disable_data_collection()  # Workaround until we remove the usage of GCSClient from our code
     c = rh.cluster(
         name="local-docker-slim",
-        host="localhost:50052",
+        host="localhost",
         ssh_creds={"ssh_user": "rh-docker-user"},
     )
 
