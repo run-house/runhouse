@@ -4,7 +4,7 @@ Distributed: HF Accelerate
 .. raw:: html
 
     <p><a href="https://colab.research.google.com/github/run-house/runhouse/blob/stable/docs/notebooks/examples/distributed.ipynb">
-    <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
+    <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 
 This tutorial demonstrates how to use Runhouse with HuggingFace

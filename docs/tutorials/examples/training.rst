@@ -4,7 +4,7 @@ Training: Transformers
 .. raw:: html
 
     <p><a href="https://colab.research.google.com/github/run-house/runhouse/blob/stable/docs/notebooks/examples/training.ipynb">
-    <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
+    <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 This tutorial demonstrates how to use Runhouse to facilitate model
 training on **your own GPU**. With Runhouse, easily run your local code
