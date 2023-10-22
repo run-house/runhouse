@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 import textwrap
+import time
 
 import numpy as np
 import pandas as pd
@@ -579,3 +580,107 @@ def create_gcs_bucket(bucket_name: str):
 
     gcs_store = GcsStore(name=bucket_name, source="")
     return gcs_store
+
+
+# ----------------- Docker -----------------
+
+
+def run_shell_command_direct(subprocess, cmd: str):
+    # Run the command and wait for it to complete
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print("subprocess failed, stdout: " + result.stdout)
+        print("subprocess failed, stderr: " + result.stderr)
+
+    # Check for success
+    assert result.returncode == 0
+
+
+def run_shell_command(subprocess, cmd: list[str]):
+    # Run the command and wait for it to complete
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print("subprocess failed, stdout: " + result.stdout)
+        print("subprocess failed, stderr: " + result.stderr)
+
+    # Check for success
+    assert result.returncode == 0
+
+
+def popen_shell_command(subprocess, command: list[str]):
+    process = subprocess.Popen(
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+    # Wait for 10 seconds before resuming execution
+    time.sleep(10)
+    return process
+
+
+@pytest.fixture
+def local_docker_slim():
+    import subprocess
+
+    current_dir = os.getcwd()
+    dockerfile_path = os.path.join(current_dir, "runhouse/docker/slim/Dockerfile")
+
+    # Build the Docker image
+    run_shell_command(
+        subprocess,
+        [
+            "docker",
+            "build",
+            "--pull",
+            "--rm",
+            "-f",
+            dockerfile_path,
+            "--build-arg",
+            "DOCKER_USER_PASSWORD_FILE=~/.rh/secrets/docker_user_passwd",
+            "-t",
+            "runhouse:start",
+            ".",
+        ],
+    )
+
+    # Run the Docker image
+    popen_shell_command(
+        subprocess,
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--shm-size=3gb",
+            "-p",
+            "32300:32300",
+            "-p",
+            "6379:6379",
+            "-p",
+            "52365:52365",
+            "-p",
+            "443:443",
+            "-p",
+            "80:80",
+            "-p",
+            "22:22",
+            "runhouse:start",
+        ],
+    )
+
+    # Runhouse commands can now be run locally
+    rh.configs.disable_data_collection()  # Workaround until we remove the usage of GCSClient from our code
+    c = rh.cluster(
+        name="local-docker-slim",
+        host="localhost",
+        ssh_creds={"ssh_user": "rh-docker-user"},
+    )
+
+    # Yield the cluster
+    yield c
+
+    # Stop the Docker container
+    command = (
+        "docker ps --filter 'ancestor=runhouse:start' --latest --format '{{.ID}}' | "
+        "xargs -I {} docker rm -f {}"
+    )
+    run_shell_command_direct(subprocess, command)

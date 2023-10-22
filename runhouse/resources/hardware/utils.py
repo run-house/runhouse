@@ -230,7 +230,7 @@ class SkySSHRunner(SSHCommandRunner):
         # temp update rsync filters to exclude docs, when syncing over runhouse folder
         org_rsync_filter = cr.RSYNC_FILTER_OPTION
         if filter_options:
-            cr.RSYNC_FILTER_OPTION = f"--filter='{filter_options}'"
+            cr.RSYNC_FILTER_OPTION += f" --filter='{filter_options}'"
         super().rsync(
             source,
             target,

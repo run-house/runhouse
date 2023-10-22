@@ -131,6 +131,7 @@ class OnDemandCluster(Cluster):
             config["public_key"] = self.ssh_creds()["ssh_private_key"] + ".pub"
             config["handle"] = {
                 "cluster_name": config["handle"].cluster_name,
+                "cluster_name_on_cloud": config["handle"].cluster_name_on_cloud,
                 # This is saved as an absolute path - convert it to relative
                 "cluster_yaml": self.relative_yaml_path(
                     yaml_path=config["handle"]._cluster_yaml
@@ -198,13 +199,16 @@ class OnDemandCluster(Cluster):
             yaml_path = self.relative_yaml_path(handle_info.get("cluster_yaml"))
             handle = CloudVmRayBackend.ResourceHandle(
                 cluster_name=self.name,
+                cluster_name_on_cloud=handle_info.get(
+                    "cluster_name_on_cloud", self.name
+                ),
                 cluster_yaml=str(Path(yaml_path).expanduser()),
                 launched_nodes=handle_info["launched_nodes"],
+                launched_resources=resources,
                 stable_internal_external_ips=handle_info.get(
                     "stable_internal_external_ips"
                 )
                 or [(handle_info["head_ip"], handle_info["head_ip"])],
-                launched_resources=resources,
             )
             sky.global_user_state.add_or_update_cluster(
                 cluster_name=self.name,

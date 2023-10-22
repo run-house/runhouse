@@ -1,4 +1,3 @@
-import copy
 import logging
 import pickle
 from pathlib import Path
@@ -38,7 +37,6 @@ class File(Blob):
             data_config=data_config,
             dryrun=dryrun,
         )
-        self._cached_data = None
         super().__init__(name=name, dryrun=dryrun, system=system, env=env, **kwargs)
 
     @property
@@ -130,32 +128,32 @@ class File(Blob):
             new_blob.data = data_backup
             return new_blob
 
-        new_file = copy.copy(self)
-        new_file.local._folder = self._folder.to(
-            system=system, path=path, data_config=data_config
-        )
+        new_file = file(path=path, system=system, data_config=data_config)
+        try:
+            new_file.write(
+                self.fetch(mode="r", deserialize=False), serialize=False, mode="w"
+            )
+        except UnicodeDecodeError:
+            new_file.write(self.fetch())
+
         return new_file
 
-    def resolved_state(self, deserialize: bool = True):
+    def resolved_state(self, deserialize: bool = True, mode: str = "rb"):
         """Return the data for the user to deserialize. Primarily used to define the behavior of the ``fetch`` method.
 
         Example:
             >>> data = file.fetch()
         """
-        self.local._cached_data = self._folder.get(self._filename)
+        data = self._folder.get(self._filename, mode=mode)
         if deserialize:
-            try:
-                deserialized_data = pickle.loads(self._cached_data)
-            except pickle.UnpicklingError:
-                deserialized_data = self._cached_data
-            self.local._cached_data = deserialized_data
-        return self._cached_data
+            return pickle.loads(data)
+        return data
 
     def _save_sub_resources(self):
         if isinstance(self.system, Cluster):
             self.system.save()
 
-    def write(self, data, serialize: bool = True):
+    def write(self, data, serialize: bool = True, mode: str = "wb"):
         """Save the underlying file to its specified fsspec URL.
 
         Example:
@@ -164,12 +162,7 @@ class File(Blob):
         self._folder.mkdir()
         if serialize:
             data = pickle.dumps(data)
-        elif not isinstance(data, bytes):
-            # Avoid TypeError: a bytes-like object is required
-            raise TypeError(
-                f"Cannot save file with data of type {type(data)}, data must be serialized or set serialize=True"
-            )
-        with self.open(mode="wb") as f:
+        with self.open(mode=mode) as f:
             f.write(data)
         return self
 

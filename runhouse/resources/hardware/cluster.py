@@ -105,6 +105,7 @@ class Cluster(Resource):
         self._ssh_creds = ssh_creds
         self.ips = ips
         self._rpc_tunnel = None
+        self._rh_version = None
 
         self.ssl_certfile = relative_ssh_path(ssl_certfile) if ssl_certfile else None
         self.ssl_keyfile = relative_ssh_path(ssl_keyfile) if ssl_keyfile else None
@@ -234,9 +235,8 @@ class Cluster(Resource):
                 dest=dest_path,
                 up=True,
                 contents=True,
-                filter_options="dir-merge,- .gitignore,- docs/",
+                filter_options="- docs/",
             )
-
             rh_install_cmd = "python3 -m pip install ./runhouse"
         # elif local_rh_package_path.parent.name == 'site-packages':
         else:
@@ -515,6 +515,15 @@ class Cluster(Resource):
                                 print(error)
                             time.sleep(5)
                 raise ValueError(f"Could not connect to cluster <{self.name}>")
+
+        import runhouse
+
+        if not runhouse.__version__ == self._rh_version:
+            logger.warning(
+                f"Server was started with Runhouse version ({self._rh_version}), "
+                f"but local Runhouse version is ({runhouse.__version__})"
+            )
+
         return
 
     def ssh_tunnel(
@@ -780,6 +789,11 @@ class Cluster(Resource):
             self.client.use_https = https_flag
             self.client.cert_path = cert_path
 
+        rh_version = self.run_python(
+            ["import runhouse", "print(runhouse.__version__)"]
+        )[0][1].strip()
+        self._rh_version = rh_version
+
         return status_codes
 
     @contextlib.contextmanager
@@ -860,6 +874,7 @@ class Cluster(Resource):
         return state
 
     # ----------------- SSH Methods ----------------- #
+
     def ssh_creds(self):
         """Retrieve SSH credentials."""
         return self._ssh_creds
