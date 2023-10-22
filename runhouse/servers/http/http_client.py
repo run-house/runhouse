@@ -162,7 +162,7 @@ class HTTPClient:
         # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single result,
         # maybe a stream of results), so we need to separate these out.
         non_generator_result = None
-        res_iter = iter(res.iter_content(chunk_size=None))
+        res_iter = res.iter_lines(chunk_size=None)
         for responses_json in res_iter:
             resp = json.loads(responses_json)
             output_type = resp["output_type"]
@@ -196,7 +196,7 @@ class HTTPClient:
 
                 return results_generator()
             elif output_type == OutputType.CONFIG:
-                # If this was a `.remote` call, we don't need to recreate the system and connection, which can beh
+                # If this was a `.remote` call, we don't need to recreate the system and connection, which can be
                 # slow, we can just set it explicitly.
                 if (
                     system

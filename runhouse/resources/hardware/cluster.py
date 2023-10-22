@@ -12,8 +12,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import yaml
-
 # Filter out DeprecationWarnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -177,8 +175,8 @@ class Cluster(Resource):
 
     @property
     def server_address(self):
-        """Address to use in the HTTP request made to the cluster. If creating an SSH tunnel with the cluster,
-        ths will be set to localhost/127.0.0.1, otherwise it will be set to the cluster's public IP address."""
+        """Address to use in the requests made to the cluster. If creating an SSH tunnel with the cluster,
+        ths will be set to localhost, otherwise will use the cluster's public IP address."""
         if self.server_host in [self.LOCALHOST, "localhost"]:
             return self.LOCALHOST
         return self.address
@@ -612,7 +610,7 @@ class Cluster(Resource):
         ssl_certfile,
         force_reinstall,
         use_nginx,
-        address,
+        certs_address,
     ):
         cmds = []
         if restart:
@@ -670,9 +668,9 @@ class Cluster(Resource):
             logger.info(f"Using port: {port}.")
             flags.append(port_flag)
 
-        address_flag = f" --certs-address {address}" if address else ""
+        address_flag = f" --certs-address {certs_address}" if certs_address else ""
         if address_flag:
-            logger.info(f"Server public IP address: {address}.")
+            logger.info(f"Server public IP address: {certs_address}.")
             flags.append(address_flag)
 
         logger.info(
@@ -718,7 +716,7 @@ class Cluster(Resource):
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
 
         # Update the cluster config on the cluster
-        self._save_cluster_config()
+        self.save_config_to_cluster()
 
         # Note: Will have a default value if not explicitly provided
         cert_path = self.cert_config.cert_path
@@ -985,19 +983,6 @@ class Cluster(Resource):
         if ssh_call.is_alive():
             raise TimeoutError("SSH call timed out")
         return True
-
-    def _save_cluster_config(self):
-        """Save config YAML on the cluster."""
-        cluster_config = self.config_for_rns
-        cluster_config.pop("live_state", None)
-
-        return_codes = self.run(
-            [
-                f"""bash -c 'echo "{yaml.dump(cluster_config)}" > ~/.rh/cluster_config.yaml'"""
-            ]
-        )
-        if return_codes[0][0] != 0:
-            raise Exception("Failed to copy cluster config onto cluster.")
 
     def run(
         self,

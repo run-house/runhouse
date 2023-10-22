@@ -88,7 +88,8 @@ class TLSCertConfig:
             # Default cert path when initializing on a cluster
             return str(Path(f"{self.DEFAULT_CERT_DIR}/{self.CERT_NAME}").expanduser())
         else:
-            # Default cert path when initializing locally
+            # Default cert path when initializing locally - certs to be saved locally in a folder dedicated to the
+            # relevant cluster
             return str(
                 Path(
                     f"{self.DEFAULT_CERT_DIR}/{self.cluster_name}/{self.CERT_NAME}"
@@ -205,7 +206,7 @@ class ServerCache:
         return cls.AUTH_CACHE.get(cls.hash_token(token), {})
 
     @classmethod
-    def put_resources(cls, token, resources):
+    def put_resources(cls, token: str, resources: dict):
         """Update server cache with a user's resources and access type"""
         cls.AUTH_CACHE[cls.hash_token(token)] = resources
 

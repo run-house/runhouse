@@ -187,16 +187,17 @@ The below options can be specified with the ``server_connection_type`` parameter
 when :ref:`initializing a cluster <Cluster Factory Method>`. By default the Runhouse API server will
 be started on the cluster on port :code:`32300`.
 
-- ``ssh``: Connects to the cluster via an SSH tunnel.
+- ``ssh``: Connects to the cluster via an SSH tunnel, by default on port :code:`32300`.
 - ``tls``: Connects to the cluster via HTTPS (by default on port :code:`443`) and enforces verification via TLS
   certificates. Only users with a valid cert will be able to make requests to the API server.
 - ``none``: Does not use any port forwarding or enforce any authentication. Connects to the cluster with HTTP by
   default on port :code:`80`.
 - ``aws_ssm``: Uses the
   `AWS Systems Manager <https://docs.aws.amazon.com/systems-manager/latest/userguide/what-is-systems-manager.html>`_ to
-  create an SSH tunnel to the cluster. *Note: this is currently only relevant for SageMaker Clusters*
+  create an SSH tunnel to the cluster, by default on port :code:`32300`. *Note: this is currently only relevant
+  for SageMaker Clusters.*
 - ``paramiko``: Uses `Paramiko <https://www.paramiko.org/>`_ to create an SSH tunnel to the cluster. This
-  is relevant if you are using a cluster which require existing credentials (e.g. a password)
+  is relevant if you are using a cluster which require existing credentials (e.g. a password).
 
 
 .. note::

@@ -104,7 +104,7 @@ def _start_server(
     ssl_certfile=None,
     force_reinstall=False,
     use_nginx=False,
-    address=None,
+    certs_address=None,
 ):
     from runhouse.resources.hardware.cluster import Cluster
 
@@ -121,7 +121,7 @@ def _start_server(
         ssl_certfile=ssl_certfile,
         force_reinstall=force_reinstall,
         use_nginx=use_nginx,
-        address=address,
+        certs_address=certs_address,
     )
 
     try:
@@ -161,7 +161,7 @@ def start(
         help="Whether to configure Nginx on the cluster as a reverse proxy. By default will not install "
         "and configure Nginx.",
     ),
-    address: Optional[str] = typer.Option(
+    certs_address: Optional[str] = typer.Option(
         None,
         help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS",
     ),
@@ -177,7 +177,7 @@ def start(
         use_https=use_https,
         den_auth=use_den_auth,
         use_nginx=use_nginx,
-        address=address,
+        certs_address=certs_address,
     )
 
 
@@ -219,7 +219,7 @@ def restart(
         help="Whether to configure Nginx on the cluster as a reverse proxy. By default will not install "
         "and configure Nginx.",
     ),
-    address: Optional[str] = typer.Option(
+    certs_address: Optional[str] = typer.Option(
         None,
         help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS",
     ),
@@ -243,7 +243,7 @@ def restart(
         ssl_certfile=ssl_certfile,
         force_reinstall=force_reinstall,
         use_nginx=use_nginx,
-        address=address,
+        certs_address=certs_address,
     )
 
 

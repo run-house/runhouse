@@ -43,12 +43,11 @@ class NginxConfig:
         self.install()
 
         is_configured = self._is_configured()
+        self._apply_config()
+
         if not self.force_reinstall and is_configured:
             logger.info("Nginx is already configured")
             return
-
-        # Configure initial nginx settings
-        self._apply_config()
 
         # Reload nginx with the updated config
         self.reload()
@@ -145,6 +144,10 @@ class NginxConfig:
         return template.format(**replace_dict)
 
     def _build_template(self):
+        if Path(self.BASE_CONFIG_PATH).exists():
+            logger.info("Template already built, skipping.")
+            return
+
         if self._use_https:
             subprocess.run(
                 f"sudo chmod 600 {self.ssl_cert_path} && "
@@ -177,6 +180,7 @@ class NginxConfig:
         if not Path(self.BASE_CONFIG_PATH).exists():
             self._build_template()
 
+        logger.info("Checking Nginx configuration.")
         result = subprocess.run(
             ["sudo", "nginx", "-t", "-c", "/etc/nginx/nginx.conf"],
             check=True,
@@ -196,10 +200,28 @@ class NginxConfig:
         logger.info("Applying Nginx settings.")
         self._build_template()
 
+        # Allow incoming traffic to the default port (HTTPS or HTTP)
+        # e.g. 'Nginx HTTPS': predefined profile that allows traffic for the Nginx web server on port 443
+        ufw_rule = "Nginx HTTPS" if self._use_https else "Nginx HTTP"
+        logger.info(f"Allowing incoming traffic using rule: `{ufw_rule}`")
+        result = subprocess.run(
+            f"sudo ufw allow '{ufw_rule}'",
+            check=True,
+            capture_output=True,
+            text=True,
+            shell=True,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Error configuring firewall to open default ports: {result.stderr}"
+            )
+
         if Path("/etc/nginx/sites-enabled/fastapi").exists():
+            logger.info("Symlink already exists, skipping.")
             # Symlink already exists
             return
 
+        logger.info("Creating symlink and allowing traffic HTTP / HTTPS ports.")
         result = subprocess.run(
             "sudo ln -s /etc/nginx/sites-available/fastapi /etc/nginx/sites-enabled && "
             "sudo ufw allow 'Nginx Full'",
@@ -210,3 +232,6 @@ class NginxConfig:
         )
         if result.returncode != 0:
             raise RuntimeError(f"Error configuring nginx: {result.stderr}")
+
+        # Reload for the UFW firewall rules to take effect
+        self.reload()

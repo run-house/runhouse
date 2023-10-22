@@ -51,17 +51,15 @@ global den_auth
 
 
 def validate_user(func):
-    """If using an HTTPS server, validate the user's Runhouse token before continuing with the API request execution"""
+    """If using Den auth, validate the user's Runhouse token and access to the resource before continuing."""
 
     @wraps(func)
     async def wrapper(*args, **kwargs):
         request: Request = kwargs.get("request")
-        is_https: bool = request.url.scheme == "https"
         func_call: bool = func.__name__ in ["call_module_method", "call"]
         use_den_auth: bool = den_auth
 
-        if not is_https and not use_den_auth:
-            # Skip validation if not using HTTPS or not validating the user's token
+        if not use_den_auth:
             return func(*args, **kwargs)
 
         token = request.headers.get("Authorization", "").split("Bearer ")[-1]
@@ -270,8 +268,7 @@ class HTTPServer:
 
     @staticmethod
     @app.get("/check")
-    @validate_user
-    def check_server(request: Request):
+    def check_server():
         HTTPServer.register_activity()
         try:
             logger.info("Checking Ray status and cluster config.")
@@ -528,16 +525,18 @@ class HTTPServer:
                     )
                 try:
                     ret_val = ray.get(obj_ref, timeout=HTTPServer.LOGGING_WAIT_TIME)
+                    logger.info(f"Ret value from Ray: {type(ret_val)}")
+                    logger.info(ret_val)
                     # Last result in a stream will have type RESULT to indicate the end
                     if ret_val is None:
                         # Still waiting for results in queue
+                        obj_ref = None
                         # time.sleep(HTTPServer.LOGGING_WAIT_TIME)
                         raise ray.exceptions.GetTimeoutError
                     if not ret_val.output_type == OutputType.RESULT_STREAM:
                         waiting_for_results = False
                     ret_resp = json.dumps(jsonable_encoder(ret_val))
-                    logger.info(f"Yielding response for key {key}")
-                    yield ret_resp
+                    yield ret_resp + "\n"
                 except ray.exceptions.GetTimeoutError:
                     pass
 
@@ -565,7 +564,7 @@ class HTTPServer:
                         output_type=OutputType.STDOUT,
                     )
                     logger.debug(f"Yielding logs for key {key}")
-                    yield json.dumps(jsonable_encoder(lines_resp))
+                    yield json.dumps(jsonable_encoder(lines_resp)) + "\n"
 
         except Exception as e:
             logger.exception(e)
@@ -895,13 +894,11 @@ if __name__ == "__main__":
             # reload nginx in case certs were updated
             nc.reload()
 
-        logger.info(
-            f"Nginx will forward all traffic to the Runhouse API server running on port: {rh_server_port}"
-        )
+        logger.info("Nginx will forward all traffic to the API server")
 
     host = host or rh_server_host
     logger.info(
-        f"Launching API server with den_auth={den_auth} on host: {host} and port: {rh_server_port}."
+        f"Launching API server with den_auth={den_auth} on host: {host} and port: {rh_server_port}"
     )
 
     # Only launch uvicorn with certs if HTTPS is enabled and not using Nginx

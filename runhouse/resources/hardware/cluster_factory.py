@@ -2,7 +2,7 @@ import warnings
 from typing import Dict, List, Optional, Union
 
 from runhouse.resources.hardware.utils import RESERVED_SYSTEM_NAMES
-from ...rns.utils.api import relative_ssh_path
+from runhouse.rns.utils.api import relative_ssh_path
 
 from .cluster import Cluster, ServerConnectionType
 from .on_demand_cluster import OnDemandCluster
@@ -36,8 +36,8 @@ def cluster(
         host (str or List[str], optional): Hostname, IP address, or list of IP addresses for the BYO cluster.
         ssh_creds (dict, optional): Dictionary mapping SSH credentials.
             Example: ``ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'}``
-        server_port (bool, optional): Port to use for the server. If not provided will use 80 if the
-            ``server_connection_type`` is ``none``, 443 for ``tls`` and ``32300`` for SSH connection types.
+        server_port (bool, optional): Port to use for the server. If not provided will use 80 for a
+            ``server_connection_type`` of ``none``, 443 for ``tls`` and ``32300`` for all other SSH connection types.
         server_host (bool, optional): Host for the server. If connecting to the server with an SSH connection,
             use `localhost`` or ``127.0.0.1``. If not provided, will use the IP address of the server.
         server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
@@ -206,8 +206,8 @@ def ondemand_cluster(
         disk_size (int or str, optional): Amount of disk space to use for the cluster, e.g. "100" or "100+".
         open_ports (int or str or List[int], optional): Ports to open in the cluster's security group. Note
             that you are responsible for ensuring that the applications listening on these ports are secure.
-        server_port (bool, optional): Port to use for the server. If not provided will use 80 if the
-            ``server_connection_type`` is ``none``, 443 for ``tls`` and ``32300`` for SSH connection types.
+        server_port (bool, optional): Port to use for the server. If not provided will use 80 for a
+            ``server_connection_type`` of ``none``, 443 for ``tls`` and ``32300`` for all other SSH connection types.
         server_host (bool, optional): Host for the server. If connecting to the server with an SSH connection,
             use `localhost`` or ``127.0.0.1``. If not provided, will use the IP address of the server.
         server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
@@ -408,10 +408,11 @@ def sagemaker_cluster(
             If no estimator is provided, will default to ``0``.
         job_name (str, optional): Name to provide for a training job. If not provided will generate a default name
             based on the image name and current timestamp (e.g. ``pytorch-training-2023-08-28-20-57-55-113``).
-        server_port (bool, optional): Port to use for the server. If not provided will use 80 if the
-            ``server_connection_type`` is ``none``, 443 for ``tls`` and ``32300`` for SSH connection types.
+        server_port (bool, optional): Port to use for the server. If not provided will use 80 for a
+            ``server_connection_type`` of ``none``, 443 for ``tls`` and ``32300`` for all other SSH connection types.
+            *Note: For SageMaker will use ``32300`` since the connection will always be made via SSH.*
         server_host (bool, optional): Host to use for the server.
-            *Note: For SageMaker, since we connect to the Runhouse API server via SSH, the only valid
+            *Note: For SageMaker, since we connect to the Runhouse API server via an SSH tunnel, the only valid
             host is localhost.*
         server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
             API server. *Note: For SageMaker, only ``aws_ssm`` is currently valid as the server connection type.*
@@ -451,13 +452,11 @@ def sagemaker_cluster(
     if isinstance(server_connection_type, ServerConnectionType):
         server_connection_type = server_connection_type.value
 
-    if isinstance(server_connection_type, ServerConnectionType):
-        server_connection_type = server_connection_type.value
-
     if server_connection_type is not None and server_connection_type != AWS_SSM_CONN:
         raise ValueError(
             "SageMaker Cluster currently requires a server connection type of `aws_ssm`."
         )
+    server_connection_type = AWS_SSM_CONN
 
     if server_host and server_host not in Cluster.LOCAL_HOSTS:
         raise ValueError(

@@ -17,8 +17,6 @@ import time
 from pathlib import Path
 from typing import Dict, Tuple, Union
 
-from .cluster import ServerConnectionType
-
 try:
     import boto3
     import paramiko
@@ -76,6 +74,7 @@ class SageMakerCluster(Cluster):
         job_name: str = None,
         server_host: str = None,
         server_port: int = None,
+        server_connection_type: str = None,
         ssl_keyfile: str = None,
         ssl_certfile: str = None,
         den_auth: bool = False,
@@ -95,7 +94,7 @@ class SageMakerCluster(Cluster):
             ssh_creds={},
             server_host=server_host,
             server_port=server_port,
-            server_connection_type=ServerConnectionType.AWS_SSM.value,
+            server_connection_type=server_connection_type,
             ssl_certfile=ssl_certfile,
             ssl_keyfile=ssl_keyfile,
             den_auth=den_auth,
