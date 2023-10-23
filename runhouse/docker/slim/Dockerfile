@@ -22,7 +22,15 @@ RUN if [ ! -f "$DOCKER_USER_PASSWORD_FILE" ]; then echo "Error: Password file ${
 # Copy the password file into the image
 COPY $DOCKER_USER_PASSWORD_FILE /app/ssh/docker_user_password_file
 
-RUN pip install runhouse[opentelemetry]
+RUN pip install "runhouse[opentelemetry]"
+RUN pip install opentelemetry-sdk
+RUN pip install opentelemetry-api
+RUN pip install opentelemetry-exporter-otlp
+RUN pip install opentelemetry-exporter-otlp-proto-grpc
+RUN pip install opentelemetry-exporter-otlp-proto-http
+RUN pip install opentelemetry-instrumentation
+RUN pip install opentelemetry-instrumentation-fastapi
+RUN pip install opentelemetry-instrumentation-requests
 RUN pip install -e .
 
 # Create the privilege separation directory required by sshd
