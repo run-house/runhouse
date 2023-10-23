@@ -12,7 +12,7 @@ import requests
 from fastapi import Body, FastAPI
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import AnyUrl, BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
@@ -35,7 +35,7 @@ app = FastAPI()
 
 
 class OtlpParameters(BaseModel):
-    backend_url: AnyUrl
+    backend_url: str
     username: str
     password: str
 
@@ -537,7 +537,7 @@ class HTTPServer:
         #     return
 
         from opentelemetry import trace
-        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
             OTLPSpanExporter,
         )
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -548,31 +548,37 @@ class HTTPServer:
         otlp_credentials = None
         try:
             otlp_credentials = OtlpParameters(
-                configs.get("otlp_endpoint_url"),
-                configs.get("otlp_username"),
-                configs.get("otlp_password"),
+                backend_url="local_collector:4317",
+                username="",
+                password="",
             )
+            # otlp_credentials = OtlpParameters(
+            #     backend_url=configs.get("otlp_endpoint_url"),
+            #     username=configs.get("otlp_username"),
+            #     password=configs.get("otlp_password")
+            # )
         except ValidationError as e:
             logger.error(
                 f"(Failed to init an OpenTelemetry exporter: {e}. Please check your that .rh config "
                 + "file or your env parameters contain values for otlp_endpoint_url, otlp_username "
                 + "and otlp_password. Current values: \n"
-                + "otlp_endpoint_url: {configs.get('otlp_endpoint_url')} \n"
-                + "otlp_username: {configs.get('otlp_username')} \n"
-                + "otlp_password: {configs.get('otlp_password')}) \n"
+                + f"otlp_endpoint_url: {configs.get('otlp_endpoint_url')} \n"
+                + f"otlp_username: {configs.get('otlp_username')} \n"
+                + f"otlp_password: {configs.get('otlp_password')}) \n"
             )
 
         logger.info(f"Sending telemetry to backend {otlp_credentials.backend_url}")
 
         # Set the tracer provider and the exporter
         trace.set_tracer_provider(TracerProvider())
+        print("Setting OTLP exporter to " + otlp_credentials.backend_url)
         otlp_exporter = OTLPSpanExporter(
             endpoint=otlp_credentials.backend_url,
             insecure=True,
-            credentials={
-                "username": otlp_credentials.username,
-                "password": otlp_credentials.password,
-            },
+            # credentials={
+            #     "username": otlp_credentials.username,
+            #     "password": otlp_credentials.password,
+            # },
         )
 
         # Add the exporter to the tracer provider
