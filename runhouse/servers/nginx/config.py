@@ -145,7 +145,6 @@ class NginxConfig:
 
     def _build_template(self):
         if Path(self.BASE_CONFIG_PATH).exists():
-            logger.info("Template already built, skipping.")
             return
 
         if self._use_https:
@@ -217,14 +216,11 @@ class NginxConfig:
             )
 
         if Path("/etc/nginx/sites-enabled/fastapi").exists():
-            logger.info("Symlink already exists, skipping.")
             # Symlink already exists
             return
 
-        logger.info("Creating symlink and allowing traffic HTTP / HTTPS ports.")
         result = subprocess.run(
-            "sudo ln -s /etc/nginx/sites-available/fastapi /etc/nginx/sites-enabled && "
-            "sudo ufw allow 'Nginx Full'",
+            "sudo ln -s /etc/nginx/sites-available/fastapi /etc/nginx/sites-enabled",
             check=True,
             capture_output=True,
             text=True,

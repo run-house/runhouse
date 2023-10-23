@@ -478,7 +478,7 @@ class SageMakerCluster(Cluster):
             local_bind_addresses = ("", local_port)
 
             ssh_tunnel = SSHTunnelForwarder(
-                (self.DEFAULT_HOST, self._ssh_port),
+                (self.DEFAULT_SERVER_HOST, self._ssh_port),
                 ssh_username=self.DEFAULT_USER,
                 ssh_pkey=self._abs_ssh_key_path,
                 remote_bind_address=remote_bind_addresses,
@@ -579,7 +579,7 @@ class SageMakerCluster(Cluster):
     ):
         return_codes = []
         for command in commands:
-            if command.startswith("rsync"):
+            if "rsync" in command:
                 try:
                     result = subprocess.run(
                         command,
@@ -1202,6 +1202,9 @@ class SageMakerCluster(Cluster):
         if not self.instance_id:
             raise ValueError(f"No instance ID set for cluster {self.name}. Is it up?")
 
+        if not self.client:
+            self.connect_server_client()
+
         # Sync the local ~/.rh directory to the cluster
         self._rsync(
             source=os.path.expanduser("~/.rh"),
@@ -1355,7 +1358,7 @@ class SageMakerCluster(Cluster):
         valid_hosts = []
         with open(known_hosts, "r") as f:
             for line in f:
-                if not line.strip().startswith(f"[{self.DEFAULT_HOST}]"):
+                if not line.strip().startswith(f"[{self.DEFAULT_SERVER_HOST}]"):
                     valid_hosts.append(line)
 
         with open(known_hosts, "w") as f:
@@ -1373,7 +1376,7 @@ class SageMakerCluster(Cluster):
             f"""
             # Added by Runhouse for SageMaker SSH Support
             Host {name or self.name}
-              HostName {hostname or self.DEFAULT_HOST}
+              HostName {hostname or self.DEFAULT_SERVER_HOST}
               IdentityFile {identity_file or self._abs_ssh_key_path}
               Port {port}
               User {user or self.DEFAULT_USER}

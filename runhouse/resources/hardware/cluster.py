@@ -518,6 +518,9 @@ class Cluster(Resource):
 
         import runhouse
 
+        if self._rh_version is None:
+            self._rh_version = self._get_rh_version()
+
         if not runhouse.__version__ == self._rh_version:
             logger.warning(
                 f"Server was started with Runhouse version ({self._rh_version}), "
@@ -789,10 +792,7 @@ class Cluster(Resource):
             self.client.use_https = https_flag
             self.client.cert_path = cert_path
 
-        rh_version = self.run_python(
-            ["import runhouse", "print(runhouse.__version__)"]
-        )[0][1].strip()
-        self._rh_version = rh_version
+        self._rh_version = self._get_rh_version()
 
         return status_codes
 
@@ -998,6 +998,11 @@ class Cluster(Resource):
         if ssh_call.is_alive():
             raise TimeoutError("SSH call timed out")
         return True
+
+    def _get_rh_version(self):
+        return self.run_python(["import runhouse", "print(runhouse.__version__)"])[0][
+            1
+        ].strip()
 
     def run(
         self,

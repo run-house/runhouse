@@ -21,9 +21,6 @@ from runhouse.rns.utils.api import resolve_absolute_path
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SERVER_HOST = "127.0.0.1"
-DEFAULT_SERVER_PORT = 32300
-
 
 class Message(BaseModel):
     data: str = None

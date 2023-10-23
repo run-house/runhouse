@@ -320,6 +320,20 @@ def ondemand_cpu_cluster():
 
 
 @pytest.fixture(scope="session")
+def ondemand_https_cluster_with_auth():
+    c = rh.ondemand_cluster(
+        name="rh-cpu-https",
+        instance_type="CPU:2+",
+        den_auth=True,
+        server_connection_type="tls",
+    )
+    c.up_if_not()
+
+    c.install_packages(["pytest"])
+    return c
+
+
+@pytest.fixture(scope="session")
 def sm_cluster():
     c = (
         rh.sagemaker_cluster(
@@ -439,7 +453,14 @@ def password_cluster():
 
 
 cpu_clusters = pytest.mark.parametrize(
-    "cluster", ["ondemand_cpu_cluster", "password_cluster", "byo_cpu"], indirect=True
+    "cluster",
+    [
+        "ondemand_cpu_cluster",
+        "ondemand_https_cluster_with_auth",
+        "password_cluster",
+        "byo_cpu",
+    ],
+    indirect=True,
 )
 
 sagemaker_clusters = pytest.mark.parametrize(
@@ -493,6 +514,13 @@ def slow_running_func(a, b):
 def summer_func(ondemand_cpu_cluster):
     return rh.function(summer, name="summer_func").to(
         ondemand_cpu_cluster, env=["pytest"]
+    )
+
+
+@pytest.fixture(scope="session")
+def summer_func_with_auth(ondemand_https_cluster_with_auth):
+    return rh.function(summer, name="summer_func_with_auth").to(
+        ondemand_https_cluster_with_auth, env=["pytest"]
     )
 
 

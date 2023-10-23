@@ -267,8 +267,25 @@ class HTTPServer:
             )
 
     @staticmethod
+    @app.get("/ping")
+    def ping_server():
+        try:
+            return Response(
+                data=pickle_b64("Successfully pinged server"),
+                output_type=OutputType.RESULT,
+            )
+        except Exception as e:
+            logger.exception(e)
+            return Response(
+                error=pickle_b64(e),
+                traceback=pickle_b64(traceback.format_exc()),
+                output_type=OutputType.EXCEPTION,
+            )
+
+    @staticmethod
     @app.get("/check")
-    def check_server():
+    @validate_user
+    def check_server(request: Request):
         HTTPServer.register_activity()
         try:
             logger.info("Checking Ray status and cluster config.")
@@ -525,8 +542,6 @@ class HTTPServer:
                     )
                 try:
                     ret_val = ray.get(obj_ref, timeout=HTTPServer.LOGGING_WAIT_TIME)
-                    logger.info(f"Ret value from Ray: {type(ret_val)}")
-                    logger.info(ret_val)
                     # Last result in a stream will have type RESULT to indicate the end
                     if ret_val is None:
                         # Still waiting for results in queue
@@ -842,7 +857,8 @@ if __name__ == "__main__":
         )
 
     if use_https:
-        https_port = port or default_https_port
+        # If not using nginx and no port is specified use the default RH port
+        https_port = port or (default_https_port if use_nginx else rh_server_port)
         logger.info(f"Launching API server with HTTPS on port: {https_port}.")
 
         cert_config = TLSCertConfig()
@@ -866,8 +882,9 @@ if __name__ == "__main__":
                 f"paths: {cert_config.cert_path} and {cert_config.key_path}"
             )
     else:
-        http_port = port or default_http_port
-        logger.info(f"Launching API server with HTTP on port: {http_port}.")
+        # If not using nginx and no port is specified use the default RH port
+        http_port = port or (default_http_port if use_nginx else rh_server_port)
+        logger.info(f"Launching server with HTTP on port: {http_port}.")
 
     # Note: running the FastAPI app on a higher, non-privileged port (8000) and using Nginx as a reverse
     # proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the app's port.
@@ -898,7 +915,7 @@ if __name__ == "__main__":
 
     host = host or rh_server_host
     logger.info(
-        f"Launching API server with den_auth={den_auth} on host: {host} and port: {rh_server_port}"
+        f"Launching Runhouse API server with den_auth={den_auth} on host: {host} and port: {rh_server_port}"
     )
 
     # Only launch uvicorn with certs if HTTPS is enabled and not using Nginx

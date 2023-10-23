@@ -8,8 +8,8 @@ from .cluster import Cluster, ServerConnectionType
 from .on_demand_cluster import OnDemandCluster
 from .sagemaker_cluster import SageMakerCluster
 
-TLS_CONN = ServerConnectionType.TLS.value
 SSH_CONN = ServerConnectionType.SSH.value
+HTTPS_CONN = ServerConnectionType.TLS.value
 HTTP_CONN = ServerConnectionType.NONE.value
 PARAMIKO_CONN = ServerConnectionType.PARAMIKO.value
 AWS_SSM_CONN = ServerConnectionType.AWS_SSM.value
@@ -92,12 +92,12 @@ def cluster(
         if ssh_creds:
             server_connection_type = SSH_CONN
         elif ssl_certfile or ssl_keyfile:
-            server_connection_type = TLS_CONN
+            server_connection_type = HTTPS_CONN
         else:
             server_connection_type = HTTP_CONN
 
     if server_port is None:
-        if server_connection_type == TLS_CONN:
+        if server_connection_type == HTTPS_CONN:
             server_port = Cluster.DEFAULT_HTTPS_PORT
         elif server_connection_type == HTTP_CONN:
             server_port = Cluster.DEFAULT_HTTP_PORT
@@ -251,14 +251,14 @@ def ondemand_cluster(
 
     if not server_connection_type:
         if open_ports or ssl_keyfile or ssl_certfile:
-            server_connection_type = TLS_CONN
+            server_connection_type = HTTPS_CONN
         elif server_host in Cluster.LOCAL_HOSTS:
             server_connection_type = SSH_CONN
         else:
             server_connection_type = HTTP_CONN
 
     if server_port is None:
-        if server_connection_type == TLS_CONN:
+        if server_connection_type == HTTPS_CONN:
             server_port = Cluster.DEFAULT_HTTPS_PORT
         elif server_connection_type == HTTP_CONN:
             server_port = Cluster.DEFAULT_HTTP_PORT
@@ -266,7 +266,7 @@ def ondemand_cluster(
             server_port = Cluster.DEFAULT_SERVER_PORT
 
     if (
-        server_connection_type in [TLS_CONN, HTTP_CONN]
+        server_connection_type in [HTTPS_CONN, HTTP_CONN]
         and server_host in Cluster.LOCAL_HOSTS
     ):
         warnings.warn(
@@ -289,6 +289,20 @@ def ondemand_cluster(
                 f"Server port {server_port} not included in open ports. Note you are responsible for opening "
                 f"the port or ensure you have access to it via a VPC."
             )
+    else:
+        # If using HTTP or HTTPS must enable traffic on the relevant port
+        if server_connection_type in [HTTPS_CONN, HTTP_CONN]:
+            if server_port:
+                warnings.warn(
+                    f"No open ports specified. Make sure port {server_port} is open "
+                    f"to {server_connection_type} traffic."
+                )
+            else:
+                warnings.warn(
+                    f"No open ports specified. Make sure the relevant port is open. "
+                    f"HTTPS default: {Cluster.DEFAULT_HTTPS_PORT} and HTTP "
+                    f"default: {Cluster.DEFAULT_HTTP_PORT}."
+                )
 
     if name:
         alt_options = dict(

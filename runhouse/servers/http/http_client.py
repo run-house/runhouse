@@ -39,14 +39,10 @@ class HTTPClient:
         if not self.use_https:
             return False
 
-        if Path(self.cert_path).exists():
-            # Verify the request if a local cert for the cluster exists
-            return True
-
-        return False
+        # Verify the request if a local cert for the cluster exists
+        return Path(self.cert_path).exists()
 
     def _formatted_url(self, endpoint: str):
-        """Use HTTPS to authenticate the user with RNS if ports are specified and a token is provided"""
         prefix = "https" if self.use_https else "http"
         return f"{prefix}://{self.host}:{self.port}/{endpoint}"
 
