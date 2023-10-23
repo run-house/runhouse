@@ -22,7 +22,7 @@ def assert_delete_local(secret, file=False):
     if file:
         assert not os.path.exists(os.path.expanduser(secret.path))
     with pytest.raises(Exception) as e:
-        load_config(name)
+        load_config(secret.name)
         assert isinstance(e, Exception)
 
 
@@ -280,6 +280,11 @@ lambda_secret_values = {"api_key": "test_api_key"}
 github_secret_values = {"oauth_token": "test_oauth_token"}
 huggingface_secret_values = {"token": "test_token"}
 
+ssh_secret_values = {
+    "public_key": "test_public_key",
+    "private_key": "test_private_key",
+}
+
 provider_params = [
     ("aws", "credentials", aws_secret_values),
     ("gcp", "credentials.json", gcp_secret_values),
@@ -287,6 +292,7 @@ provider_params = [
     ("lambda", "lambda_key", lambda_secret_values),
     ("github", "hosts.yml", github_secret_values),
     ("huggingface", "token", huggingface_secret_values),
+    ("ssh", "id_rsa", ssh_secret_values),
 ]
 
 

@@ -7,8 +7,7 @@ from typing import Dict, List
 
 import requests
 
-from runhouse.globals import configs, rns_client
-from runhouse.resources.secrets.cluster_secrets.cluster_secret import ClusterSecret
+from runhouse.globals import rns_client
 from runhouse.resources.secrets.secret import Secret
 from runhouse.rns.utils.api import read_resp_data
 
@@ -16,7 +15,7 @@ from runhouse.rns.utils.api import read_resp_data
 logger = logging.getLogger(__name__)
 
 
-def _get_vault_secrets(names: List[str]) -> List[Secret]:
+def _get_vault_secrets(names: List[str] = None) -> List[Secret]:
     resp = requests.get(
         f"{rns_client.api_server_url}/user/secret",
         headers=rns_client.request_headers,
@@ -57,69 +56,29 @@ def _get_local_secrets_configs(names: List[str] = None) -> List[Secret]:
     return secrets
 
 
-def _write_secrets(
-    names: List[str] = None,
-):
-    secrets = _get_vault_secrets(names)
-
-    for name in secrets.keys():
-        secret = Secret.from_config(secrets[name])
-        secret.write()
-
-
 def _upload_local_secrets(
     names: List[str] = None,
     extract_values: bool = None,
 ):
     """Upload locally configured secrets into Vault."""
     local_secrets = _get_local_secrets_configs(names)
-
     for _, config in local_secrets.items():
         if config["name"].startswith("~") or config["name"].startswith("^"):
             config["name"] = config["name"][2:]
         secret = Secret.from_config(config)
         secret.save(values=extract_values)
 
+    from runhouse.resources.secrets.provider_secrets.providers import (
+        _str_to_provider_class,
+    )
+    from runhouse.resources.secrets.secret_factory import provider_secret
 
-# def delete_secrets(
-#     names: List[str] = None,
-#     file: bool = True,
-# ):
-#     local_secrets = configs.get_secrets_files(names).keys()
-#     for name in local_secrets:
-#         secret = Secret.from_name(name)
-#         if not isinstance(secret, ClusterSecret):
-#             secret.delete(file=file)
-#         else:
-#             logger.info(
-#                 "Automatic deletion for local SSH credentials file is not supported. "
-#                 "Please manually delete it if you would like to remove it"
-#             )
-
-
-def _logout_secrets(
-    names: List[str] = None,
-    file: bool = True,
-):
-    """Helper function to handle remove local secrets and local secret files during logout process."""
-    # remove local-only secrets
-    local_secrets = _get_local_secrets_configs(names)
-    for _, config in local_secrets.items():
-        secret = Secret.from_config(config)
-        secret.delete(file=file)
-
-    # remove secrets files corresponding to vault secrets
-    if file:
-        local_secret_files = configs.get_secrets_files(names)
-        for name, filename in local_secret_files.items():
-            secret = Secret.from_name(name)
-            if not isinstance(secret, ClusterSecret) and file:
-                secret.delete_file(filename)
-            else:
-                logger.info(
-                    "Automatic deletion for local SSH credentials file is not supported. "
-                    "Please manually delete it if you would like to remove it"
-                )
+    for provider in _str_to_provider_class.keys():
+        if provider in local_secrets.keys():
+            continue
+        secret = provider_secret(provider=provider)
+        if secret.values:
+            secret.save()
 
 
 def _is_matching_subset(existing_vals, new_vals):

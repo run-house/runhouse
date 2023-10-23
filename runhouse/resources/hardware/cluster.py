@@ -15,7 +15,7 @@ import sshtunnel
 
 from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
-from runhouse.globals import obj_store, open_cluster_tunnels, rns_client
+from runhouse.globals import configs, obj_store, open_cluster_tunnels, rns_client
 from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware.utils import _current_cluster, SkySSHRunner
 from runhouse.resources.resource import Resource
@@ -914,7 +914,7 @@ class Cluster(Resource):
 
         return return_codes
 
-    def sync_secrets(self, providers: Optional[List[str]] = None):
+    def sync_secrets(self, secrets: Optional[List[str]] = None):
         """Send secrets for the given providers.
 
         Args:
@@ -922,13 +922,15 @@ class Cluster(Resource):
                 If `None`, all providers configured in the environment will by sent.
 
         Example:
-            >>> cpu.sync_secrets(providers=["aws", "lambda"])
+            >>> cpu.sync_secrets(secrets=["aws", "lambda"])
         """
         self.check_server()
 
-        from runhouse import Secrets
+        from runhouse import Secret
 
-        Secrets.to(system=self, providers=providers)
+        secrets = secrets or configs.get("secrets").keys()
+        for secret in secrets:
+            Secret.from_name(secret).to(system=self)
 
     def ipython(self):
         # TODO tunnel into python interpreter in cluster

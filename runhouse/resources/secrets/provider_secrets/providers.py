@@ -7,6 +7,8 @@ from runhouse.resources.secrets.provider_secrets.huggingface_secret import (
 )
 from runhouse.resources.secrets.provider_secrets.lambda_secret import LambdaSecret
 from runhouse.resources.secrets.provider_secrets.provider_secret import ProviderSecret
+from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
+
 
 _str_to_provider_class = {
     "aws": AWSSecret,
@@ -15,6 +17,7 @@ _str_to_provider_class = {
     "github": GitHubSecret,
     "huggingface": HuggingFaceSecret,
     "azure": AzureSecret,
+    "ssh": SSHSecret,
 }
 
 

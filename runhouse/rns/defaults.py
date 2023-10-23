@@ -163,7 +163,6 @@ class Defaults:
             res = self.BASE_DEFAULTS[key]
         return res
 
-    # TODO rename providers to secrets
     def get_secrets_files(self, names: List[str] = None):
         secrets_files = self.defaults_cache.get("secrets", {})
         if names:

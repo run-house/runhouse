@@ -25,7 +25,7 @@ class ProviderSecret(Secret):
             To create a ProviderSecret, please use the factory method :func:`provider_secret`.
         """
         name = name or provider or self._PROVIDER
-        self.provider = self._PROVIDER
+        self.provider = provider or self._PROVIDER
         path = path or self._DEFAULT_CREDENTIALS_PATH
         env_vars = env_vars or self._ENV_VARS
         super().__init__(

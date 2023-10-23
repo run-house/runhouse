@@ -34,8 +34,6 @@ def secret(
         >>> rh.secret("local_secret", path="secrets.json")
         >>> rh.secret("env_secret", values={"access_key": "12345"}, env_vars={"access_key: "ACCESS_KEY"})
     """
-    if not (name or provider):
-        raise ValueError("Either name or provider must be provided.")
     if provider:
         return provider_secret(provider, name, values, path, env_vars, dryrun)
     if name and not any([provider, values, path, env_vars, dryrun]):
@@ -43,7 +41,12 @@ def secret(
     return Secret(name, values, path, env_vars, dryrun)
 
 
-def cluster_secret():
+def cluster_secret(
+    host: str = None,
+    name: str = None,
+    config: Optional[Dict] = None,
+    dryrun: bool = False,
+):
     pass
 
 
@@ -58,8 +61,8 @@ def provider_secret(
     """Builds an instance of :class:`ProviderSecret`.
 
     Args:
-        provider (str): Provider corresponding to the secret.
-            Currently supported options are: ["aws", "gcp", "lambda"]
+        provider (str): Provider corresponding to the secret. Currently supported options are:
+            ["aws", "azure", "huggingface", "lambda", "github", "gcp", "ssh"]
         name (str, optional): Name to assign the resource. If none is provided, resource name defaults to the
             provider name.
         values (Dict, optional): Dictionary mapping of secret keys and values.
@@ -75,11 +78,6 @@ def provider_secret(
         >>> aws_secret = rh.provider("aws")
         >>> lamdba_secret = rh.provider("lambda", values={"api_key": "xxxxx"})
     """
-    # if not (name or provider):
-    #     raise ValueError(
-    #         "Either name or provider must be provided."
-    #     )
-
     if not provider:
         if not name:
             raise ValueError("Either name or provider must be provided.")
@@ -87,12 +85,12 @@ def provider_secret(
             return Secret.from_name(name)
 
     secret_class = _get_provider_class(provider)
-    if not any([values, path]) and not (provider and name):
-        return (
-            secret_class.from_name(name) if name else secret_class.from_name(provider)
-        )
+    if not any([values, path, env_vars]):
+        if name:
+            return secret_class.from_name(name)
+        if provider and provider != "ssh":
+            return secret_class.from_name(provider)
 
-    # secret_class = _get_provider_class(provider)
     return secret_class(
         name=name,
         provider=provider,
