@@ -59,32 +59,34 @@ class OutputType:
 
 
 class TLSCertConfig:
+    """Handler for creating and managing the TLS certs needed to enable HTTPS on the Runhouse API server.
+    Note that this class can be initialized both locally and on the cluster, which affects the default file
+    paths for storing the generated certs."""
+
     CERT_NAME = "rh_server.crt"
     PRIVATE_KEY_NAME = "rh_server.key"
     TOKEN_VALIDITY_DAYS = 365
+
+    # Base directory for certs on both the cluster and locally
     DEFAULT_PRIVATE_KEY_DIR = "~/ssl/private"
     DEFAULT_CERT_DIR = "~/ssl/certs"
 
     def __init__(
-        self,
-        cert_path: str = None,
-        key_path: str = None,
-        cluster_name: str = None,
+        self, cert_path: str = None, key_path: str = None, dir_name: str = None
     ):
-
         self._cert_path = cert_path
         self._key_path = key_path
 
-        # Need to indicate whether we are on the cluster or not (we can't use rh.here yet
-        # bc this is part of the HTTP server init)
-        self.cluster_name = cluster_name
+        # Useful for initializing locally, where the user may have multiple certs stored for different clusters
+        # Each cluster will have its own directory for storing the cert / private key files
+        self.dir_name = dir_name
 
     @property
     def cert_path(self):
         if self._cert_path is not None:
             return resolve_absolute_path(self._cert_path)
 
-        if not self.cluster_name:
+        if not self.dir_name:
             # Default cert path when initializing on a cluster
             return str(Path(f"{self.DEFAULT_CERT_DIR}/{self.CERT_NAME}").expanduser())
         else:
@@ -92,7 +94,7 @@ class TLSCertConfig:
             # relevant cluster
             return str(
                 Path(
-                    f"{self.DEFAULT_CERT_DIR}/{self.cluster_name}/{self.CERT_NAME}"
+                    f"{self.DEFAULT_CERT_DIR}/{self.dir_name}/{self.CERT_NAME}"
                 ).expanduser()
             )
 
@@ -105,7 +107,7 @@ class TLSCertConfig:
         if self._key_path is not None:
             return resolve_absolute_path(self._key_path)
 
-        if not self.cluster_name:
+        if not self.dir_name:
             # Default cert path when initializing on a cluster
             return str(
                 Path(
@@ -116,7 +118,7 @@ class TLSCertConfig:
             # Default cert path when initializing locally
             return str(
                 Path(
-                    f"{self.DEFAULT_PRIVATE_KEY_DIR}/{self.cluster_name}/{self.PRIVATE_KEY_NAME}"
+                    f"{self.DEFAULT_PRIVATE_KEY_DIR}/{self.dir_name}/{self.PRIVATE_KEY_NAME}"
                 ).expanduser()
             )
 
@@ -174,7 +176,7 @@ class TLSCertConfig:
         self._write_cert_files(private_key, cert)
 
     def _write_cert_files(self, private_key, cert):
-        """Save the private key and cert files to the cluster's file system."""
+        """Save the private key and cert files on the system (either locally or on cluster)."""
         # Ensure the directories exist and have the correct permissions
         self.cert_dir.expanduser().mkdir(parents=True, mode=0o750, exist_ok=True)
         self.key_dir.expanduser().mkdir(parents=True, mode=0o750, exist_ok=True)

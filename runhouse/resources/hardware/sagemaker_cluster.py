@@ -579,7 +579,7 @@ class SageMakerCluster(Cluster):
     ):
         return_codes = []
         for command in commands:
-            if "rsync" in command:
+            if command.startswith("rsync"):
                 try:
                     result = subprocess.run(
                         command,

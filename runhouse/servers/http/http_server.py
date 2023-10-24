@@ -122,7 +122,10 @@ def verify_resource_access(
         return
 
     # For running functions must have write access to the cluster
-    if func_call and resource_access_type != ResourceAccess.WRITE.value:
+    if func_call and (
+        resource_access_type is not None
+        and resource_access_type != ResourceAccess.WRITE.value
+    ):
         raise HTTPException(
             status_code=403,
             detail=f"Write access is required for resource: {cluster_uri}",
@@ -780,13 +783,13 @@ if __name__ == "__main__":
         "--ssl-keyfile",
         type=str,
         default=None,
-        help="Path to SSL key file to use for HTTPS",
+        help="Path to SSL key file on the cluster to use for HTTPS",
     )
     parser.add_argument(
         "--ssl-certfile",
         type=str,
         default=None,
-        help="Path to SSL cert file to use for HTTPS",
+        help="Path to SSL cert file on the cluster to use for HTTPS",
     )
     parser.add_argument(
         "--restart-proxy",
@@ -816,16 +819,21 @@ if __name__ == "__main__":
     use_nginx = parse_args.use_nginx
     should_enable_local_span_collection = parse_args.enable_local_span_collection
     den_auth = parse_args.use_den_auth or cluster_config.get("den_auth")
-    parsed_ssl_keyfile = parse_args.ssl_keyfile or cluster_config.get("ssl_keyfile")
-    parsed_ssl_certfile = parse_args.ssl_certfile or cluster_config.get("ssl_certfile")
     address = parse_args.certs_address or cluster_config.get("address")
+
+    # If custom certs are provided explicitly use them
+    keyfile_arg = parse_args.ssl_keyfile
+    parsed_ssl_keyfile = resolve_absolute_path(keyfile_arg) if keyfile_arg else None
+
+    certfile_arg = parse_args.ssl_certfile
+    parsed_ssl_certfile = resolve_absolute_path(certfile_arg) if certfile_arg else None
 
     HTTPServer(
         conda_env=conda_name,
         enable_local_span_collection=should_enable_local_span_collection,
     )
 
-    # Save down certs onto the cluster which is needed for Nginx and relevant when starting server with HTTPS
+    # Custom certs should already be on the cluster if their file paths are provided
     if parsed_ssl_keyfile and not Path(parsed_ssl_keyfile).exists():
         raise FileNotFoundError(
             f"No SSL key file found on cluster in path: {parsed_ssl_keyfile}"
@@ -839,7 +847,7 @@ if __name__ == "__main__":
     if use_https:
         # If not using nginx and no port is specified use the default RH port
         https_port = port or (default_https_port if use_nginx else rh_server_port)
-        logger.info(f"Launching API server with HTTPS on port: {https_port}.")
+        logger.info(f"Launching HTTPS server on port: {https_port}.")
 
         cert_config = TLSCertConfig()
         ssl_keyfile = resolve_absolute_path(parsed_ssl_keyfile or cert_config.key_path)
@@ -864,7 +872,7 @@ if __name__ == "__main__":
     else:
         # If not using nginx and no port is specified use the default RH port
         http_port = port or (default_http_port if use_nginx else rh_server_port)
-        logger.info(f"Launching server with HTTP on port: {http_port}.")
+        logger.info(f"Launching HTTP server on port: {http_port}.")
 
     # Note: running the FastAPI app on a higher, non-privileged port (8000) and using Nginx as a reverse
     # proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the app's port.
@@ -888,7 +896,7 @@ if __name__ == "__main__":
         nc.configure()
 
         if use_https and (parsed_ssl_keyfile or parsed_ssl_certfile):
-            # reload nginx in case certs were updated
+            # reload nginx in case updated certs were provided
             nc.reload()
 
         logger.info("Nginx will forward all traffic to the API server")

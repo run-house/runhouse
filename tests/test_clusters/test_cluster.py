@@ -7,6 +7,7 @@ import pytest
 import runhouse as rh
 from runhouse.resources.hardware import OnDemandCluster
 from runhouse.resources.hardware.cluster import ServerConnectionType
+from runhouse.rns.utils.api import resolve_absolute_path
 
 from ..conftest import cpu_clusters, summer
 
@@ -158,31 +159,31 @@ def test_byo_proxy(byo_cpu, local_folder):
 
 
 @pytest.mark.clustertest
-def test_cluster_with_den_auth(ondemand_https_cluster_with_auth):
+def test_cluster_with_den_auth(ondemand_https_cluster_with_auth, summer_func_with_auth):
+    ondemand_https_cluster_with_auth.restart_server()
     from runhouse.globals import configs
 
     # Create an invalid token, confirm the server does not accept the request
     orig_token = configs.get("token")
 
-    # Request should return 200 with valid token
-    ondemand_https_cluster_with_auth.connect_server_client()
-    ondemand_https_cluster_with_auth.client.check_server()
+    # Request should return 200 using a valid token
+    summer_func_with_auth(1, 2)
 
     configs.set("token", "abcd123")
 
-    # Request should raise an exception with an invalid token
     try:
-        ondemand_https_cluster_with_auth.client.check_server()
+        # Request should raise an exception with an invalid token
+        summer_func_with_auth(1, 2)
     except ValueError as e:
         assert "Invalid or expired token" in str(e)
 
     configs.set("token", orig_token)
 
-    assert True
-
 
 @pytest.mark.clustertest
-def test_start_server_with_custom_certs(ondemand_https_cluster_with_auth):
+def test_start_server_with_custom_certs(
+    ondemand_https_cluster_with_auth, summer_func_with_auth
+):
     # NOTE: to check certificate matching:
     # openssl x509 -noout -modulus -in rh_server.crt | openssl md5
     # openssl rsa -noout -modulus -in rh_server.key | openssl md5
@@ -192,27 +193,25 @@ def test_start_server_with_custom_certs(ondemand_https_cluster_with_auth):
     ssl_certfile = f"~/ssl/certs/{ondemand_https_cluster_with_auth.name}/rh_server.crt"
     ssl_keyfile = f"~/ssl/private/{ondemand_https_cluster_with_auth.name}/rh_server.key"
 
-    # NOTE: need to include the IP of the cluster when generating the cert
-    TLSCertConfig(key_path=ssl_keyfile, cert_path=ssl_certfile).generate_certs(
-        address=ondemand_https_cluster_with_auth.address
-    )
+    # # NOTE: need to include the IP of the cluster when generating the cert
+    TLSCertConfig(
+        key_path=ssl_keyfile,
+        cert_path=ssl_certfile,
+        dir_name=ondemand_https_cluster_with_auth.name,
+    ).generate_certs(address=ondemand_https_cluster_with_auth.address)
 
+    # # Restart the server using the custom certs
     ondemand_https_cluster_with_auth.ssl_certfile = ssl_certfile
     ondemand_https_cluster_with_auth.ssl_keyfile = ssl_keyfile
-    ondemand_https_cluster_with_auth.server_connection_type = (
-        ServerConnectionType.TLS.value
-    )
-
     ondemand_https_cluster_with_auth.restart_server()
-    ondemand_https_cluster_with_auth.connect_server_client()
 
     try:
-        ondemand_https_cluster_with_auth.client.check_server()
+        summer_func_with_auth(1, 2)
     except Exception as e:
         assert False, f"Failed to connect to server with custom certs: {e}"
 
-    Path(ssl_certfile).unlink()
-    Path(ssl_keyfile).unlink()
+    Path(resolve_absolute_path(ssl_certfile)).unlink()
+    Path(resolve_absolute_path(ssl_keyfile)).unlink()
 
 
 if __name__ == "__main__":

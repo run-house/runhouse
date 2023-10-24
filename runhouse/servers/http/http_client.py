@@ -1,6 +1,7 @@
 import json
 import logging
 import time
+import warnings
 from pathlib import Path
 from typing import Dict, Union
 
@@ -33,14 +34,30 @@ class HTTPClient:
         self.auth = auth
         self.cert_path = cert_path
         self.use_https = use_https
+        self.verify = self._use_cert_verification()
 
-    @property
-    def verify(self):
+    def _use_cert_verification(self):
         if not self.use_https:
             return False
 
-        # Verify the request if a local cert for the cluster exists
-        return Path(self.cert_path).exists()
+        from cryptography import x509
+        from cryptography.hazmat.backends import default_backend
+
+        cert_path = Path(self.cert_path)
+        if not cert_path.exists():
+            return False
+
+        # Check whether the cert is self-signed, if so we cannot use verification
+        with open(cert_path, "rb") as cert_file:
+            cert = x509.load_pem_x509_certificate(cert_file.read(), default_backend())
+
+        if cert.issuer == cert.subject:
+            warnings.warn(
+                f"Cert in use ({cert_path}) is self-signed, cannot verify in requests to server."
+            )
+            return False
+
+        return True
 
     def _formatted_url(self, endpoint: str):
         prefix = "https" if self.use_https else "http"

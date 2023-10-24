@@ -113,9 +113,7 @@ class Cluster(Resource):
         self.client = None
         self.den_auth = den_auth
         self.cert_config = TLSCertConfig(
-            cert_path=self.ssl_certfile,
-            key_path=self.ssl_keyfile,
-            cluster_name=self.name,
+            cert_path=self.ssl_certfile, key_path=self.ssl_keyfile, dir_name=self.name
         )
 
         self.server_connection_type = server_connection_type
@@ -164,9 +162,9 @@ class Cluster(Resource):
                 "server_port",
                 "server_host",
                 "server_connection_type",
-                "ssl_keyfile",
-                "ssl_certfile",
                 "den_auth",
+                "ssl_certfile",
+                "ssl_keyfile",
             ],
         )
         if self.ips is not None:
@@ -445,10 +443,13 @@ class Cluster(Resource):
             ServerConnectionType.AWS_SSM.value,
             ServerConnectionType.PARAMIKO.value,
         ]:
+            ssh_user = creds.get("ssh_user")
+            password = creds.get("password")
+            auth = (ssh_user, password) if ssh_user and password else None
             self.client = HTTPClient(
                 host=self.LOCALHOST,
                 port=connected_port,
-                auth=(creds.get("ssh_user"), creds.get("password")),
+                auth=auth,
                 cert_path=cert_path,
                 use_https=use_https,
             )
@@ -730,18 +731,15 @@ class Cluster(Resource):
         # Update the cluster config on the cluster
         self.save_config_to_cluster()
 
-        # Note: Will have a default value if not explicitly provided
-        cert_path = self.cert_config.cert_path
-
         if self.ssl_certfile:
             # Copy the provided cert onto the cluster
             from runhouse import folder
 
-            cluster_cert_dir = self.cert_config.DEFAULT_CERT_DIR
-            folder(path=self.cert_config.cert_dir).to(self, path=cluster_cert_dir)
+            cert_dir = self.cert_config.DEFAULT_CERT_DIR
+            folder(path=self.cert_config.cert_dir).to(self, path=cert_dir)
 
             # Path to cert file stored on the cluster
-            cluster_cert_path = f"{cluster_cert_dir}/{self.cert_config.CERT_NAME}"
+            cluster_cert_path = f"{cert_dir}/{self.cert_config.CERT_NAME}"
             logger.info(
                 f"Copied TLS cert onto the cluster in path: {cluster_cert_path}"
             )
@@ -750,11 +748,11 @@ class Cluster(Resource):
             # Copy the provided key onto the cluster
             from runhouse import folder
 
-            cluster_key_dir = self.cert_config.DEFAULT_PRIVATE_KEY_DIR
-            folder(path=self.cert_config.key_dir).to(self, path=cluster_key_dir)
+            keyfile_dir = self.cert_config.DEFAULT_PRIVATE_KEY_DIR
+            folder(path=self.cert_config.key_dir).to(self, path=keyfile_dir)
 
             # Path to key file stored on the cluster
-            cluster_key_path = f"{cluster_key_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
+            cluster_key_path = f"{keyfile_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
 
             logger.info(
                 f"Copied TLS keyfile onto the cluster in path: {cluster_key_path}"
@@ -768,6 +766,8 @@ class Cluster(Resource):
             + (" --use-https" if https_flag else "")
             + (" --use-nginx" if nginx_flag else "")
             + (" --restart-proxy" if restart_proxy and nginx_flag else "")
+            + (f" --ssl-certfile {cluster_cert_path}" if self.ssl_certfile else "")
+            + (f" --ssl-keyfile {cluster_key_path}" if self.ssl_keyfile else "")
         )
 
         cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd
@@ -785,9 +785,9 @@ class Cluster(Resource):
                 logger.info("Reconnecting server client. Server restarted with HTTPS.")
                 self.connect_server_client()
 
-            # Update in case the server was previously launched with HTTP
+            # Refresh the client params to use HTTPS
             self.client.use_https = https_flag
-            self.client.cert_path = cert_path
+            self.client.cert_path = self.cert_config.cert_path
 
         self._rh_version = self._get_rh_version()
 

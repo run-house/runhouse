@@ -1,6 +1,5 @@
 import os
 import unittest
-from pathlib import Path
 
 import pytest
 
@@ -100,37 +99,21 @@ def test_stable_diffusion_on_sm_gpu(sm_gpu_cluster):
     assert not sm_gpu_cluster.is_up()
 
 
-@pytest.mark.sagemakertest
-def test_sm_cluster_with_https(sm_cluster):
-    # After launching the cluster with the existing fixture, restart the server on the cluster using HTTPS
-    sm_cluster.server_connection_type = "tls"
-    sm_cluster.restart_server()
-
-    local_cert_path = sm_cluster.ssl_certfile
-    assert Path(local_cert_path).exists()
-
-    # Confirm we can send https requests to the cluster
-    sm_cluster.install_packages(["gradio"])
-
-
 @pytest.mark.clustertest
-def test_restart_sm_cluster_with_den_auth(sm_cluster):
+def test_restart_sm_cluster_with_den_auth(sm_cluster_with_auth, summer_func_sm_auth):
     from runhouse.globals import configs
-
-    sm_cluster.den_auth = True
-    sm_cluster.restart_server()
 
     # Create an invalid token, confirm the server does not accept the request
     orig_token = configs.get("token")
 
     # Request should return 200 with valid token
-    sm_cluster.client.check_server()
+    summer_func_sm_auth(1, 2)
 
     configs.set("token", "abcd123")
 
     # Request should raise an exception with an invalid token
     try:
-        sm_cluster.client.check_server()
+        summer_func_sm_auth(1, 2)
     except ValueError as e:
         assert "Invalid or expired token" in str(e)
 

@@ -351,6 +351,25 @@ def sm_cluster():
 
 
 @pytest.fixture(scope="session")
+def sm_cluster_with_auth():
+    c = (
+        rh.sagemaker_cluster(
+            name="rh-sagemaker-den-auth",
+            role="arn:aws:iam::172657097474:role/service-role/AmazonSageMaker-ExecutionRole-20230717T192142",
+            den_auth=True,
+        )
+        .up_if_not()
+        .save()
+    )
+
+    c.restart_server()
+
+    c.install_packages(["pytest"])
+
+    return c
+
+
+@pytest.fixture(scope="session")
 def other_sm_cluster():
     c = (
         rh.sagemaker_cluster(name="rh-sagemaker-2", profile="sagemaker")
@@ -522,6 +541,13 @@ def summer_func(ondemand_cpu_cluster):
 def summer_func_with_auth(ondemand_https_cluster_with_auth):
     return rh.function(summer, name="summer_func").to(
         ondemand_https_cluster_with_auth, env=["pytest"]
+    )
+
+
+@pytest.fixture(scope="session")
+def summer_func_sm_auth(sm_cluster_with_auth):
+    return rh.function(summer, name="summer_func").to(
+        sm_cluster_with_auth, env=["pytest"]
     )
 
 
