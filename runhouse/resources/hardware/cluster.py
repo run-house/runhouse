@@ -417,6 +417,10 @@ class Cluster(Resource):
 
         import runhouse
 
+        if not self._rh_version:
+            self._rh_version = self.run_python(
+                ["import runhouse", "print(runhouse.__version__)"]
+            )[0][1].strip()
         if not runhouse.__version__ == self._rh_version:
             logger.warning(
                 f"Server was started with Runhouse version ({self._rh_version}), "
