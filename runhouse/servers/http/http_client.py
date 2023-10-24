@@ -95,10 +95,10 @@ class HTTPClient:
         return handle_response(resp_json, output_type, err_str)
 
     def check_server(self):
-        self.request(
-            "check",
-            req_type="get",
+        requests.get(
+            self._formatted_url("check"),
             timeout=self.CHECK_TIMEOUT_SEC,
+            verify=self.verify,
         )
 
     def get_certificate(self):

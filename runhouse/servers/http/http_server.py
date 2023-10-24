@@ -1,7 +1,7 @@
 import argparse
+import inspect
 import json
 import logging
-import subprocess
 import time
 import traceback
 from functools import wraps
@@ -58,8 +58,12 @@ def validate_user(func):
         request: Request = kwargs.get("request")
         func_call: bool = func.__name__ in ["call_module_method", "call"]
         use_den_auth: bool = den_auth
+        is_coro = inspect.iscoroutinefunction(func)
 
         if not use_den_auth:
+            if is_coro:
+                return await func(*args, **kwargs)
+
             return func(*args, **kwargs)
 
         token = request.headers.get("Authorization", "").split("Bearer ")[-1]
@@ -97,6 +101,9 @@ def validate_user(func):
                 )
 
             verify_resource_access(token, cluster_uri, cached_resources, func_call)
+
+        if is_coro:
+            return await func(*args, **kwargs)
 
         return func(*args, **kwargs)
 
@@ -267,39 +274,12 @@ class HTTPServer:
             )
 
     @staticmethod
-    @app.get("/ping")
-    def ping_server():
-        try:
-            return Response(
-                data=pickle_b64("Successfully pinged server"),
-                output_type=OutputType.RESULT,
-            )
-        except Exception as e:
-            logger.exception(e)
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
-
-    @staticmethod
     @app.get("/check")
-    @validate_user
-    def check_server(request: Request):
-        HTTPServer.register_activity()
+    def check_server():
         try:
-            logger.info("Checking Ray status and cluster config.")
-
-            # Check if Ray is deadlocked
-            # Get `ray status` from command line
-            status = subprocess.check_output(["ray", "status"]).decode("utf-8")
-
-            import runhouse
-
-            # Reset here in case it was set before the config was written down, making here=="file"
-            runhouse.here = _get_cluster_from(_current_cluster("config"))
-
-            return Response(data=pickle_b64(status), output_type=OutputType.RESULT)
+            HTTPServer.register_activity()
+            logger.info("Server is up.")
+            return
         except Exception as e:
             logger.exception(e)
             HTTPServer.register_activity()

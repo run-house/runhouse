@@ -326,6 +326,7 @@ def ondemand_https_cluster_with_auth():
         instance_type="CPU:2+",
         den_auth=True,
         server_connection_type="tls",
+        open_ports=[443],
     )
     c.up_if_not()
 
@@ -519,7 +520,7 @@ def summer_func(ondemand_cpu_cluster):
 
 @pytest.fixture(scope="session")
 def summer_func_with_auth(ondemand_https_cluster_with_auth):
-    return rh.function(summer, name="summer_func_with_auth").to(
+    return rh.function(summer, name="summer_func").to(
         ondemand_https_cluster_with_auth, env=["pytest"]
     )
 

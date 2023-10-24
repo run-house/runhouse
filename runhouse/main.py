@@ -1,6 +1,8 @@
 import shlex
 import subprocess
+import time
 import webbrowser
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -125,6 +127,12 @@ def _start_server(
     )
 
     try:
+        # Open and read the lines of the server logfile so we only print the most recent lines after starting
+        f = None
+        if screen and Path(Cluster.SERVER_LOGFILE).exists():
+            f = open(Cluster.SERVER_LOGFILE, "r")
+            f.readlines()  # Discard these, they're from the previous times the server was started
+
         # We do these one by one so it's more obvious where the error is if there is one
         for cmd in cmds:
             console.print(f"Executing `{cmd}`")
@@ -133,6 +141,26 @@ def _start_server(
             if result.returncode != 0 and "pkill" not in cmd:
                 console.print(f"Error while executing `{cmd}`")
                 raise typer.Exit(1)
+
+        server_started_str = "Uvicorn running on"
+        # Read and print the server logs until the
+        if screen:
+            while not Path(Cluster.SERVER_LOGFILE).exists():
+                time.sleep(1)
+            f = f or open(Cluster.SERVER_LOGFILE, "r")
+            start_time = time.time()
+            # Wait for input for 60 seconds max (for nginx to download and set up)
+            while time.time() - start_time < 60:
+                for line in f:
+                    if server_started_str in line:
+                        console.print(line)
+                        f.close()
+                        return
+                    else:
+                        console.print(line, end="")
+                time.sleep(1)
+            f.close()
+
     except FileNotFoundError:
         console.print(
             "python3 command was not found. Make sure you have python3 installed."

@@ -776,9 +776,6 @@ class Cluster(Resource):
         if not status_codes[0][0] == 0:
             raise ValueError(f"Failed to restart server {self.name}.")
 
-        # As of 2023-15-May still seems we need this.
-        time.sleep(5)
-
         if https_flag:
             rns_address = self.rns_address
             if not rns_address:
