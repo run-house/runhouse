@@ -1,6 +1,6 @@
 Env
 ====================================
-An Env is a Runhouse primitive that represents an compute environment.
+An Env is a Runhouse primitive that represents a compute environment.
 
 
 Env Factory Methods
