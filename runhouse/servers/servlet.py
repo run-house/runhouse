@@ -18,6 +18,8 @@ from runhouse.resources.module import Module
 from runhouse.resources.provenance import run, RunStatus
 from runhouse.resources.queues import Queue
 from runhouse.resources.resource import Resource
+
+from runhouse.rns.utils.api import ResourceAccess
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.http_utils import (
     b64_unpickle,
@@ -94,7 +96,9 @@ class EnvServlet:
                 output_type=OutputType.EXCEPTION,
             )
 
-    def call_module_method(self, module_name, method_name, message: Message):
+    def call_module_method(
+        self, module_name, method_name, message: Message, token: str
+    ):
         self.register_activity()
         result_resource = None
 
@@ -149,6 +153,14 @@ class EnvServlet:
                     f"{self.env_name} servlet: Calling method {method_name} on module {module_name}"
                 )
                 callable_method = True
+
+                resource_uri = module.name
+                access_level = obj_store.get_access_level(token, resource_uri)
+                if access_level not in [ResourceAccess.WRITE, ResourceAccess.READ]:
+                    raise Exception(
+                        f"No read or write access to resource: {resource_uri}"
+                    )
+
             else:
                 # Method is a property, return the value
                 logger.info(

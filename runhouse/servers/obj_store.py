@@ -24,6 +24,7 @@ class ObjStore:
         self._env_for_key = None
         self.imported_modules = {}
         self.installed_envs = {}
+        self._auth_cache = None
 
     def set_name(self, servlet_name: str):
         # This needs to be in a separate method so the HTTPServer actually
@@ -46,6 +47,32 @@ class ObjStore:
             )
             .remote()
         )
+        logger.info("Intializing auth cache as remote actor")
+        from runhouse.servers.http.auth import AuthCache
+
+        self._auth_cache = (
+            ray.remote(AuthCache)
+            .options(
+                name="auth_cache",
+                get_if_exists=True,
+                lifetime="detached",
+                namespace="runhouse",
+            )
+            .remote()
+        )
+
+    @staticmethod
+    def call_auth_cache_method(store, method, *args, **kwargs):
+        if store is None:
+            raise ValueError(
+                "Object store not initialized, may be running inside process without a servlet."
+            )
+        if not isinstance(store, ray.actor.ActorHandle):
+            raise TypeError(
+                f"Expected store {store} to be a ray actor, not {type(store)}"
+            )
+
+        return ray.get(getattr(store, method).remote(*args, **kwargs))
 
     @staticmethod
     def call_kv_method(store, method, *args, **kwargs):
@@ -57,6 +84,16 @@ class ObjStore:
             return ray.get(getattr(store, method).remote(*args, **kwargs))
         else:
             return getattr(store, method)(*args, **kwargs)
+
+    def get_access_level(self, token: str, resource_uri: str):
+        return self.call_auth_cache_method(
+            self._auth_cache, "lookup_access_level", token, resource_uri
+        )
+
+    def get_resources(self, token: str):
+        return self.call_auth_cache_method(
+            self._auth_cache, "get_user_resources", token
+        )
 
     def keys(self):
         # Return keys across the cluster, not only in this process
