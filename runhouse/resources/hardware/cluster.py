@@ -914,11 +914,13 @@ class Cluster(Resource):
 
         return return_codes
 
-    def sync_secrets(self, secrets: Optional[List[str]] = None):
+    def sync_secrets(
+        self, secrets: Optional[List[str or "Secret"]] = None, file: bool = True
+    ):
         """Send secrets for the given providers.
 
         Args:
-            providers(List[str] or None): List of providers to send secrets for.
+            providers(List[str] or None): List of providers to send and write down secrets for.
                 If `None`, all providers configured in the environment will by sent.
 
         Example:
@@ -927,10 +929,28 @@ class Cluster(Resource):
         self.check_server()
 
         from runhouse import Secret
+        from runhouse.resources.secrets.provider_secrets.providers import (
+            _get_provider_class,
+            _str_to_provider_class,
+        )
 
         secrets = secrets or configs.get("secrets").keys()
         for secret in secrets:
-            Secret.from_name(secret).to(system=self)
+            if secret in _str_to_provider_class:
+                secret_class = _get_provider_class(secret)
+                secret = secret_class(provider=secret)
+            elif isinstance(secret, str):
+                secret = Secret.from_name(secret)
+
+            if file:
+                from runhouse.resources.blobs.file import File
+
+                path = (
+                    secret.path.path if isinstance(secret.path, File) else secret.path
+                )
+                secret.to(system=self, path=path)
+            else:
+                secret.to(system=self)
 
     def ipython(self):
         # TODO tunnel into python interpreter in cluster

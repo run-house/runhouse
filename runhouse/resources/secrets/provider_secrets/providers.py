@@ -7,6 +7,7 @@ from runhouse.resources.secrets.provider_secrets.huggingface_secret import (
 )
 from runhouse.resources.secrets.provider_secrets.lambda_secret import LambdaSecret
 from runhouse.resources.secrets.provider_secrets.provider_secret import ProviderSecret
+from runhouse.resources.secrets.provider_secrets.sky_secret import SkySecret
 from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
 
 
@@ -18,6 +19,7 @@ _str_to_provider_class = {
     "huggingface": HuggingFaceSecret,
     "azure": AzureSecret,
     "ssh": SSHSecret,
+    "sky": SkySecret,
 }
 
 

@@ -42,8 +42,3 @@ class ProviderSecret(Secret):
     def from_config(config: dict, dryrun: bool = False):
         """Create a ProviderSecret object from a config dictionary."""
         return ProviderSecret(**config, dryrun=dryrun)
-
-    # TODO
-    # def _from_provider():
-    #   uses built in provider tools to get secret values
-    #   ex/ aws uses boto3 session, lambda has lambda cloud client

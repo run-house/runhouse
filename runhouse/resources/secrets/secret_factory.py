@@ -86,10 +86,7 @@ def provider_secret(
 
     secret_class = _get_provider_class(provider)
     if not any([values, path, env_vars]):
-        if name:
-            return secret_class.from_name(name)
-        if provider and provider != "ssh":
-            return secret_class.from_name(provider)
+        return secret_class(provider=provider)
 
     return secret_class(
         name=name,

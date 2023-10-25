@@ -4,12 +4,12 @@ import os
 import typer
 
 from runhouse.globals import configs, rns_client
-from runhouse.resources.secrets.functions import (
+from runhouse.resources.secrets.provider_secrets import SSHSecret
+from runhouse.resources.secrets.secret import Secret
+from runhouse.resources.secrets.utils import (
     _get_local_secrets_configs,
     _get_vault_secrets,
 )
-from runhouse.resources.secrets.provider_secrets import SSHSecret
-from runhouse.resources.secrets.secret import Secret
 
 logger = logging.getLogger(__name__)
 
@@ -233,7 +233,7 @@ def _login_upload_secrets(force: bool = False):
     default_ssh_folder = os.path.expanduser("~/.ssh")
     ssh_files = os.listdir(default_ssh_folder)
     for file in ssh_files:
-        if f"{file}.pub" in ssh_files:
+        if file != "sky-key" and f"{file}.pub" in ssh_files:
             upload_secret = force or typer.confirm(
                 f"Upload credentials values for ssh key {file}?"
             )

@@ -9,10 +9,14 @@ from typing import Dict, List, Optional, Tuple, Union
 import requests
 
 from runhouse.globals import configs, rns_client
-from runhouse.resources.blobs.file import File
+from runhouse.resources.blobs.file import File, file
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.resource import Resource
-from runhouse.resources.secrets.utils import _load_env_vars_from_path, load_config
+from runhouse.resources.secrets.utils import (
+    _check_file_for_mismatches,
+    _load_env_vars_from_path,
+    load_config,
+)
 from runhouse.rns.utils.api import load_resp_content, read_resp_data, ResourceAccess
 
 
@@ -46,6 +50,32 @@ class Secret(Resource):
         self._values = values
         self.path = path
         self.env_vars = env_vars
+
+    @classmethod
+    def builtin_providers(cls, as_str: bool = False) -> list:
+        """Return list of all Runhouse providers (as class objects) supported out of the box."""
+        from runhouse.resources.secrets.provider_secrets.providers import (
+            _str_to_provider_class,
+        )
+
+        if as_str:
+            return list(_str_to_provider_class.keys())
+        return list(_str_to_provider_class.values())
+
+    @classmethod
+    def save_secrets(cls, secrets: List[str or "Secret"]):
+        from runhouse.resources.secrets.provider_secrets.providers import (
+            _str_to_provider_class,
+        )
+        from runhouse.resources.secrets.secret_factory import provider_secret
+
+        for secret in secrets:
+            if isinstance(secret, str):
+                if secret in _str_to_provider_class.keys():
+                    secret = provider_secret(provider=secret)
+                else:
+                    secret = cls.from_name(secret)
+            secret.save()
 
     @staticmethod
     def from_config(config: dict, dryrun: bool = False):
@@ -119,14 +149,15 @@ class Secret(Resource):
     def _from_path(self, path: Optional[str] = None):
         path = path or self.path or f"{self.DEFAULT_DIR}/{self.name}.json"
         if isinstance(path, File):
-            try:
-                values = json.loads(path.fetch(mode="r"))
-            except json.decoder.JSONDecodeError as e:
-                logger.error(
-                    f"Error loading config from {path.path} on {path.system.name}: {e}"
-                )
-                return {}
-            return values
+            if path.exists_in_system():
+                try:
+                    values = json.loads(path.fetch(mode="r", deserialize=False))
+                except json.decoder.JSONDecodeError as e:
+                    logger.error(
+                        f"Error loading config from {path.path} on {path.system.name}: {e}"
+                    )
+                    return {}
+                return values
         elif path and os.path.exists(os.path.expanduser(path)):
             with open(os.path.expanduser(path), "r") as f:
                 try:
@@ -222,39 +253,25 @@ class Secret(Resource):
             )
 
         values = {key: self.values[key] for key in keys} if keys else self.values
-
-        full_path = os.path.expanduser(path)
-        if os.path.exists(full_path) and not overwrite:
-            existing_values = self._from_path(full_path)
-            new_values = {}
-            for key in values.keys():
-                if key not in existing_values:
-                    new_values[key] = values[key]
-                elif values[key] != existing_values[key]:
-                    raise ValueError(
-                        f"Mismatch between secret values in {self.name} Secret Resource and "
-                        f"destination path {full_path}. Please provide a different destination file, "
-                        f"manually check/change the secret value, or set ``overwrite=True`` if you are "
-                        "confident of the change to the file."
-                    )
-            if new_values:
-                # TODO: check that this format still works correctly
-                with open(full_path, "a") as f:
-                    json.dump(new_values, f)
-        else:
-            os.makedirs(os.path.dirname(full_path), exist_ok=True)
-            with open(full_path, "w") as f:
-                json.dump(values, f)
-
-        if not self.path:
-            self.path = path
-            self._add_to_rh_config()
-            return self
-
         new_secret = copy.deepcopy(self)
         new_secret._values = values
         new_secret.path = path
-        new_secret._add_to_rh_config()
+
+        if not isinstance(path, File):
+            path = os.path.expanduser(path)
+
+        if _check_file_for_mismatches(path, self._from_path(path), values, overwrite):
+            return self
+
+        if isinstance(path, File):
+            data = json.dumps(values)
+            path.write(data, serialize=False, mode="w")
+        else:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w") as f:
+                json.dump(values, f)
+            new_secret._add_to_rh_config()
+
         return new_secret
 
     def write_env_vars(
@@ -434,8 +451,9 @@ class Secret(Resource):
         return None
 
     def _delete_local_config(self):
-        config_path = f"~/.rh/secrets/{self.name}.json"
-        os.remove(os.path.expanduser(config_path))
+        config_path = os.path.expanduser(f"~/.rh/secrets/{self.name}.json")
+        if os.path.exists(config_path):
+            os.remove(config_path)
 
     def _delete_vault_config(self):
         resp = requests.delete(
@@ -490,18 +508,25 @@ class Secret(Resource):
         new_secret = copy.deepcopy(self)
 
         if path:
-            from runhouse.resources.blobs.file import file
-
-            if self._values:
-                system.call(key, "write", path=path)
-                remote_file = file(path=path, system=system)
-            else:
-                remote_file = file(path=self.path).to(system, path=path)
+            remote_file = self._file_to(key, system, path)
             new_secret.path = remote_file
         else:
             # TODO: should we write it down by default if the local secret has it written down?
             new_secret.path = None
         return new_secret
+
+    def _file_to(
+        self,
+        key: str,
+        system: Union[str, Cluster],
+        path: Union[str, Path] = None,
+    ):
+        if self._values:
+            system.call(key, "write", path=path)
+            remote_file = file(path=path, system=system)
+        else:
+            remote_file = file(path=self.path).to(system, path=path)
+        return remote_file
 
     def is_local(self):
         """Whether the secret config is stored locally (as opposed to Vault)."""

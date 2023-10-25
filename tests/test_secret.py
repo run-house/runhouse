@@ -1,10 +1,10 @@
 import json
 import os
-import unittest
 
 import pytest
 
 import runhouse as rh
+from runhouse.resources.blobs import file
 
 from runhouse.resources.secrets.utils import load_config
 
@@ -231,37 +231,11 @@ def test_custom_provider_secret():
     assert load_config(provider)
 
     del custom_secret
-    reloaded_secret = rh.provider_secret(provider)
+    reloaded_secret = rh.provider_secret(name=provider)
     assert reloaded_secret.values == base_values
 
     assert_delete_local(reloaded_secret, file=True)
     assert not reloaded_secret.in_vault()
-
-
-# AWS
-@unittest.skip("Deletes aws secret from vault")
-@pytest.mark.rnstest
-def test_aws_secret_vault():
-    # assumes have aws cred values stored locally
-    aws_secret = rh.provider_secret("aws")
-    aws_secret.save()
-
-    assert aws_secret.in_vault()
-
-    aws_secret.delete()
-    assert not aws_secret.in_vault()
-
-
-@pytest.mark.clustertest
-def test_aws_secret_to_cluster(ondemand_cpu_cluster):
-    local_aws = rh.provider_secret("aws")
-    remote_aws = local_aws.to(ondemand_cpu_cluster, path="~/.aws/credentials")
-    assert remote_aws.path.system == ondemand_cpu_cluster
-    assert remote_aws.values == local_aws.values
-    assert remote_aws.path.exists_in_system()
-
-    remote_aws.delete(file=True)
-    assert not remote_aws.path.exists_in_system()
 
 
 # Provider Secrets
@@ -293,6 +267,7 @@ provider_params = [
     ("github", "hosts.yml", github_secret_values),
     ("huggingface", "token", huggingface_secret_values),
     ("ssh", "id_rsa", ssh_secret_values),
+    ("sky", "sky-key", ssh_secret_values),
 ]
 
 
@@ -309,7 +284,9 @@ def test_local_provider_secrets(provider, path, values):
     assert local_secret.values == values
 
     assert_delete_local(local_secret, file=False)
-    assert_delete_local(local_secret, file=True)
+
+    if provider not in ["ssh", "sky"]:
+        assert_delete_local(local_secret, file=True)
 
 
 @pytest.mark.rnstest
@@ -343,9 +320,25 @@ def test_provider_secret_to_cluster(provider, path, values, ondemand_cpu_cluster
     assert remote_secret.path.exists_in_system()
 
     remote_secret.delete(file=True)
-    assert not remote_secret.path.exists_in_system()
+    if provider not in ["ssh", "sky"]:
+        assert not remote_secret.path.exists_in_system()
 
-    assert_delete_local(local_secret, file=True)
+    if provider not in ["ssh", "sky"]:
+        assert_delete_local(local_secret, file=True)
 
 
-# Add test that writes down provider secrets to env vars
+# Other Secrets functionality tests
+
+
+@pytest.mark.clustertest
+def test_sync_secrets(ondemand_cpu_cluster):
+    aws_secret = rh.provider_secret(
+        provider="aws",
+        name="_aws",
+        values=aws_secret_values,
+        path="~/.rh/tests/aws_credentials",
+    ).write()
+    ondemand_cpu_cluster.sync_secrets([aws_secret])
+    remote_file = file(path=aws_secret.path, system=ondemand_cpu_cluster)
+    assert remote_file.exists_in_system()
+    assert aws_secret._from_path(remote_file) == aws_secret_values

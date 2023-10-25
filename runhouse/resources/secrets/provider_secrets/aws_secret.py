@@ -1,13 +1,14 @@
 import configparser
 import copy
+import io
 import os
 from pathlib import Path
 
 from typing import Optional
 
 from runhouse.resources.blobs.file import File
-from runhouse.resources.secrets.functions import _check_file_for_mismatches
 from runhouse.resources.secrets.provider_secrets.provider_secret import ProviderSecret
+from runhouse.resources.secrets.utils import _check_file_for_mismatches
 
 
 class AWSSecret(ProviderSecret):
@@ -33,18 +34,10 @@ class AWSSecret(ProviderSecret):
             path (str or Path, optional): File to write down the aws secret to. If not provided,
                 will use the path associated with the secret object.
         """
-        # TODO [secrets] -- add next couple of lines into provider_secret.write()
-        new_secret = copy.deepcopy(self)
-        if path:
-            new_secret.path = path
         path = path or self.path
-        path = os.path.expanduser(path)
+        new_secret = copy.deepcopy(self)
+        new_secret.path = path
         values = self.values
-
-        if os.path.exists(path) and _check_file_for_mismatches(
-            path, self._from_path(path), values, overwrite
-        ):
-            return self
 
         parser = configparser.ConfigParser()
         section_name = "default"
@@ -60,9 +53,24 @@ class AWSSecret(ProviderSecret):
             value=values["secret_key"],
         )
 
-        Path(path).parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w+") as f:
-            parser.write(f)
+        if not isinstance(path, File):
+            path = os.path.expanduser(path)
+
+        if _check_file_for_mismatches(path, self._from_path(path), values, overwrite):
+            return self
+
+        if isinstance(path, File):
+            # TODO: may be a better way of getting config parser data?
+            with io.StringIO() as ss:
+                parser.write(ss)
+                ss.seek(0)
+                data = ss.read()
+            path.write(data, serialize=False, mode="w")
+        else:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "w+") as f:
+                parser.write(f)
+            new_secret._add_to_rh_config()
 
         return new_secret
 
@@ -70,7 +78,9 @@ class AWSSecret(ProviderSecret):
         path = path or self.path
         config = configparser.ConfigParser()
         if isinstance(path, File):
-            config.read_string(path.fetch(mode="r"))
+            if not path.exists_in_system():
+                return {}
+            config.read_string(path.fetch(deserialize=False, mode="r"))
         elif path and os.path.exists(os.path.expanduser(path)):
             config.read(os.path.expanduser(path))
         else:
