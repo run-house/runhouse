@@ -8,9 +8,10 @@ import sys
 import threading
 import time
 import warnings
-from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
+
+from runhouse.servers.http.certs import TLSCertConfig
 
 # Filter out DeprecationWarnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -22,32 +23,16 @@ from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
 from runhouse.globals import obj_store, open_cluster_tunnels, rns_client
 from runhouse.resources.envs.utils import _get_env_from
-from runhouse.resources.hardware.utils import _current_cluster, SkySSHRunner
+from runhouse.resources.hardware.utils import (
+    _current_cluster,
+    ServerConnectionType,
+    SkySSHRunner,
+)
 from runhouse.resources.resource import Resource
-from runhouse.rns.utils.api import relative_ssh_path
 
 from runhouse.servers.http import HTTPClient
-from runhouse.servers.http.http_utils import TLSCertConfig
 
 logger = logging.getLogger(__name__)
-
-
-class ServerConnectionType(Enum):
-    """Manage the type of connection Runhouse will make with the API server started on the cluster.
-    ``ssh``: Use port forwarding to connect to the server via SSH, by default on port 32300.
-    ``tls``: Do not use port forwarding and start the server with HTTPS (using custom or fresh TLS certs), by default
-        on port 443.
-    ``none``: Do not use port forwarding, and start the server with HTTP, by default on port 80.
-    ``aws_ssm``: Use AWS SSM to connect to the server, by default on port 32300.
-    ``paramiko``: Use paramiko to connect to the server (e.g. if you provide a password with SSH credentials), by
-        default on port 32300.
-    """
-
-    SSH = "ssh"
-    TLS = "tls"
-    NONE = "none"
-    AWS_SSM = "aws_ssm"
-    PARAMIKO = "paramiko"
 
 
 class Cluster(Resource):
@@ -107,13 +92,10 @@ class Cluster(Resource):
         self._rpc_tunnel = None
         self._rh_version = None
 
-        self.ssl_certfile = relative_ssh_path(ssl_certfile) if ssl_certfile else None
-        self.ssl_keyfile = relative_ssh_path(ssl_keyfile) if ssl_keyfile else None
-
         self.client = None
         self.den_auth = den_auth
         self.cert_config = TLSCertConfig(
-            cert_path=self.ssl_certfile, key_path=self.ssl_keyfile, dir_name=self.name
+            cert_path=ssl_certfile, key_path=ssl_keyfile, dir_name=self.name
         )
 
         self.server_connection_type = server_connection_type
@@ -162,12 +144,18 @@ class Cluster(Resource):
                 "server_host",
                 "server_connection_type",
                 "den_auth",
-                "ssl_certfile",
-                "ssl_keyfile",
             ],
         )
         if self.ips is not None:
             config["ssh_creds"] = self.ssh_creds()
+        else:
+            config["ips"] = [self.address]
+
+        if self._use_custom_cert:
+            config["ssl_certfile"] = self.cert_config.cert_path
+
+        if self._use_custom_key:
+            config["ssl_keyfile"] = self.cert_config.key_path
 
         return config
 
@@ -411,7 +399,7 @@ class Cluster(Resource):
                 self._rpc_tunnel = self.address
         elif (
             self.server_connection_type
-            not in [ServerConnectionType.NONE.value, ServerConnectionType.TLS.value]
+            not in [ServerConnectionType.NONE, ServerConnectionType.TLS]
             and ssh_tunnel is None
         ):
             # Case 3: server connection requires SSH tunnel, but we don't have one up yet
@@ -438,9 +426,9 @@ class Cluster(Resource):
         # Connecting to localhost because it's tunneled into the server at the specified port.
         creds = self.ssh_creds()
         if self.server_connection_type in [
-            ServerConnectionType.SSH.value,
-            ServerConnectionType.AWS_SSM.value,
-            ServerConnectionType.PARAMIKO.value,
+            ServerConnectionType.SSH,
+            ServerConnectionType.AWS_SSM,
+            ServerConnectionType.PARAMIKO,
         ]:
             ssh_user = creds.get("ssh_user")
             password = creds.get("password")
@@ -596,6 +584,14 @@ class Cluster(Resource):
         server running on port 32300."""
         return self.server_port in [self.DEFAULT_HTTP_PORT, self.DEFAULT_HTTPS_PORT]
 
+    @property
+    def _use_custom_cert(self):
+        return Path(self.cert_config.cert_path).exists()
+
+    @property
+    def _use_custom_key(self):
+        return Path(self.cert_config.key_path).exists()
+
     @staticmethod
     def _add_flags_to_commands(flags, start_screen_cmd, server_start_cmd):
         flags_str = "".join(flags)
@@ -730,7 +726,8 @@ class Cluster(Resource):
         # Update the cluster config on the cluster
         self.save_config_to_cluster()
 
-        if self.ssl_certfile:
+        use_custom_cert = self._use_custom_cert
+        if use_custom_cert:
             # Copy the provided cert onto the cluster
             from runhouse import folder
 
@@ -743,7 +740,8 @@ class Cluster(Resource):
                 f"Copied TLS cert onto the cluster in path: {cluster_cert_path}"
             )
 
-        if self.ssl_keyfile:
+        use_custom_key = self._use_custom_key
+        if use_custom_key:
             # Copy the provided key onto the cluster
             from runhouse import folder
 
@@ -765,8 +763,8 @@ class Cluster(Resource):
             + (" --use-https" if https_flag else "")
             + (" --use-nginx" if nginx_flag else "")
             + (" --restart-proxy" if restart_proxy and nginx_flag else "")
-            + (f" --ssl-certfile {cluster_cert_path}" if self.ssl_certfile else "")
-            + (f" --ssl-keyfile {cluster_key_path}" if self.ssl_keyfile else "")
+            + (f" --ssl-certfile {cluster_cert_path}" if use_custom_cert else "")
+            + (f" --ssl-keyfile {cluster_key_path}" if use_custom_key else "")
         )
 
         cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd

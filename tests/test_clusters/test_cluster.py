@@ -6,7 +6,7 @@ import pytest
 
 import runhouse as rh
 from runhouse.resources.hardware import OnDemandCluster
-from runhouse.resources.hardware.cluster import ServerConnectionType
+from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import resolve_absolute_path
 
 from ..conftest import cpu_clusters, summer
@@ -187,8 +187,7 @@ def test_start_server_with_custom_certs(
     # NOTE: to check certificate matching:
     # openssl x509 -noout -modulus -in rh_server.crt | openssl md5
     # openssl rsa -noout -modulus -in rh_server.key | openssl md5
-
-    from runhouse.servers.http.http_utils import TLSCertConfig
+    from runhouse.servers.http.certs import TLSCertConfig
 
     ssl_certfile = f"~/ssl/certs/{ondemand_https_cluster_with_auth.name}/rh_server.crt"
     ssl_keyfile = f"~/ssl/private/{ondemand_https_cluster_with_auth.name}/rh_server.key"

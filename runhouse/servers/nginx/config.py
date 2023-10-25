@@ -157,7 +157,6 @@ class NginxConfig:
                 text=True,
             )
 
-        # TODO [JL] need to be able to write to this directory, any other way to get around this?
         subprocess.run(
             "sudo chmod o+w /etc/nginx/sites-available",
             shell=True,

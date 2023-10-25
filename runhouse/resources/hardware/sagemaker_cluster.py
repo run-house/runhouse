@@ -146,9 +146,6 @@ class SageMakerCluster(Cluster):
         # Note: Setting instance ID as cluster IP for compatibility with Cluster parent class methods
         self.address = self.instance_id
 
-        # Currently only supported for OnDemand clusters
-        self.open_ports = None
-
     @property
     def config_for_rns(self):
         config = super().config_for_rns

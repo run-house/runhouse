@@ -188,32 +188,39 @@ when :ref:`initializing a cluster <Cluster Factory Method>`. By default the Runh
 be started on the cluster on port :code:`32300`.
 
 - ``ssh``: Connects to the cluster via an SSH tunnel, by default on port :code:`32300`.
-- ``tls``: Connects to the cluster via HTTPS (by default on port :code:`443`) and enforces verification via TLS
-  certificates. Only users with a valid cert will be able to make requests to the API server.
+- ``tls``: Connects to the cluster via HTTPS (by default on port :code:`443`) using either a provided certificate, or
+  creating a new self-signed certificate just for this cluster. You must open the needed ports in the firewall, such
+  as via the open_ports argument in the OnDemandCluster, or manually in the compute itself or cloud console.
 - ``none``: Does not use any port forwarding or enforce any authentication. Connects to the cluster with HTTP by
-  default on port :code:`80`.
+  default on port :code:`80`. This is useful when connecting to a cluster within a VPC, or creating a tunnel manually
+  on the side with custom settings.
 - ``aws_ssm``: Uses the
   `AWS Systems Manager <https://docs.aws.amazon.com/systems-manager/latest/userguide/what-is-systems-manager.html>`_ to
   create an SSH tunnel to the cluster, by default on port :code:`32300`. *Note: this is currently only relevant
   for SageMaker Clusters.*
 - ``paramiko``: Uses `Paramiko <https://www.paramiko.org/>`_ to create an SSH tunnel to the cluster. This
-  is relevant if you are using a cluster which require existing credentials (e.g. a password).
+  is relevant if you are using a cluster which requires a password to authenticate.
 
 
 .. note::
 
     The ``tls`` connection type is the most secure and is recommended for production use if you are not running inside
-    of a VPC.
+    of a VPC. However, be mindful that you must secure the cluster with authentication (see below) if you open it
+    to the public internet.
 
 Server Authentication
 ~~~~~~~~~~~~~~~~~~~~~
 
-Runhouse allows you to authenticate users via their Runhouse token (generated when
-:ref:`logging in <Login/Logout>`) and saved to local Runhouse configs in path: :code:`~/.rh/config.yaml`.
+If desired, Runhouse provides out-of-the-box authentication via users' Runhouse token (generated when
+:ref:`logging in <Login/Logout>`) and set locally at: :code:`~/.rh/config.yaml`). This is crucial if the cluster
+has ports open to the public internet, as would usually be the case when using the ``tls`` connection type. You may
+also set up your own authentication manually inside of your own code, but you should likely still enable Runhouse
+authentication to ensure that even your non-user-facing endpoints into the server are secured.
 
 When :ref:`initializing a cluster <Cluster Factory Method>`, you can set the :code:`den_auth` parameter to :code:`True`
-to enable token authentication. Runhouse will handle adding the token to each subsequent request as an auth header with
-format: :code:`{"Authorization": "Bearer <token>"}`
+to enable token authentication. Calls to cluster server can then be made with an auth header with
+format: :code:`{"Authorization": "Bearer <token>"}`. The Runhouse Python library adds this header to its calls
+automatically, so your users do not need to worry about it after logging into Runhouse.
 
 
 TLS Certificates
@@ -238,6 +245,7 @@ Let's illustrate this with a simple example:
                               provider="aws",
                               name="rh-cluster",
                               den_auth=True,
+                              open_ports=[443],
                               server_connection_type="tls").up_if_not()
 
     # Remote function stub which lives on the cluster
@@ -254,6 +262,10 @@ Let's illustrate this with a simple example:
     # Note: only users with a Runhouse token and access to this function can run it
     res = remote_func([1,2,3])
 
+    # You can also call the function directly via an HTTP request:
+    # Note: use -k to ignore cert verification when using self-signed certs
+    curl -k -X POST https://<IP ADDRESS>/call/np_array/call -d '{"args": [[1, 2]]}'
+    -H "Content-Type: application/json" -H "Authorization: Bearer <TOKEN>"
 
 .. note::
 
@@ -263,10 +275,10 @@ Let's illustrate this with a simple example:
 Nginx
 -----
 Runhouse gives you the option of using `Nginx <https://www.nginx.com/>`_ as a reverse proxy for the Runhouse API
-server, which is a Fast API launched with `Uvicorn <https://www.uvicorn.org/>`_. Using Nginx provides you with a safer
-and more conventional approach running the FastAPI app on a higher, non-privileged port (such as 32300, the default
-Runhouse port) and then use Nginx as a reverse proxy to forward requests from the HTTP port (default: 80) or the
-HTTPS port (default: 443).
+server, which is a FastAPI app launched with `Uvicorn <https://www.uvicorn.org/>`_. Using Nginx provides you with a
+safer and more conventional approach running the FastAPI app on a higher, non-privileged port (such as 32300, the
+default Runhouse port) and then use Nginx as a reverse proxy to forward requests from the HTTP port (default: 80) or
+the HTTPS port (default: 443).
 
 .. note::
 

@@ -1,18 +1,16 @@
 import warnings
 from typing import Dict, List, Optional, Union
 
-from runhouse.resources.hardware.utils import RESERVED_SYSTEM_NAMES
+from runhouse.resources.hardware.utils import (
+    RESERVED_SYSTEM_NAMES,
+    ServerConnectionType,
+)
 from runhouse.rns.utils.api import relative_ssh_path
 
-from .cluster import Cluster, ServerConnectionType
+from .cluster import Cluster
 from .on_demand_cluster import OnDemandCluster
 from .sagemaker_cluster import SageMakerCluster
 
-SSH_CONN = ServerConnectionType.SSH.value
-HTTPS_CONN = ServerConnectionType.TLS.value
-HTTP_CONN = ServerConnectionType.NONE.value
-PARAMIKO_CONN = ServerConnectionType.PARAMIKO.value
-AWS_SSM_CONN = ServerConnectionType.AWS_SSM.value
 
 # Cluster factory method
 def cluster(
@@ -76,28 +74,25 @@ def cluster(
             "``ips`` argument has been deprecated. Please use ``host`` to refer to the cluster IPs or host instead."
         )
 
-    if isinstance(server_connection_type, ServerConnectionType):
-        server_connection_type = server_connection_type.value
-
     if server_connection_type:
-        if ssh_creds and server_connection_type != SSH_CONN:
+        if ssh_creds and server_connection_type != ServerConnectionType.SSH:
             raise ValueError(
-                f"SSH creds provided but server connection type not set to {SSH_CONN}"
+                f"SSH creds provided but server connection type not set to {ServerConnectionType.SSH}"
             )
-        if server_connection_type == AWS_SSM_CONN:
+        if server_connection_type == ServerConnectionType.AWS_SSM:
             raise ValueError(
                 f"Cluster does not support server connection type of {server_connection_type}"
             )
     else:
         if ssl_certfile or ssl_keyfile:
-            server_connection_type = HTTPS_CONN
+            server_connection_type = ServerConnectionType.TLS
         else:
-            server_connection_type = SSH_CONN
+            server_connection_type = ServerConnectionType.SSH
 
     if server_port is None:
-        if server_connection_type == HTTPS_CONN:
+        if server_connection_type == ServerConnectionType.TLS:
             server_port = Cluster.DEFAULT_HTTPS_PORT
-        elif server_connection_type == HTTP_CONN:
+        elif server_connection_type == ServerConnectionType.NONE:
             server_port = Cluster.DEFAULT_HTTP_PORT
         else:
             server_port = Cluster.DEFAULT_SERVER_PORT
@@ -239,30 +234,30 @@ def ondemand_cluster(
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.ondemand_cluster(name="rh-4-a100s")
     """
-    if isinstance(server_connection_type, ServerConnectionType):
-        server_connection_type = server_connection_type.value
-
-    if server_connection_type in [AWS_SSM_CONN, PARAMIKO_CONN]:
+    if server_connection_type in [
+        ServerConnectionType.AWS_SSM,
+        ServerConnectionType.PARAMIKO,
+    ]:
         raise ValueError(
             f"OnDemandCluster does not support server connection type {server_connection_type}"
         )
 
     if not server_connection_type:
         if ssl_keyfile or ssl_certfile:
-            server_connection_type = HTTPS_CONN
+            server_connection_type = ServerConnectionType.TLS
         else:
-            server_connection_type = SSH_CONN
+            server_connection_type = ServerConnectionType.SSH
 
     if server_port is None:
-        if server_connection_type == HTTPS_CONN:
+        if server_connection_type == ServerConnectionType.TLS:
             server_port = Cluster.DEFAULT_HTTPS_PORT
-        elif server_connection_type == HTTP_CONN:
+        elif server_connection_type == ServerConnectionType.NONE:
             server_port = Cluster.DEFAULT_HTTP_PORT
         else:
             server_port = Cluster.DEFAULT_SERVER_PORT
 
     if (
-        server_connection_type in [HTTPS_CONN, HTTP_CONN]
+        server_connection_type in [ServerConnectionType.TLS, ServerConnectionType.NONE]
         and server_host in Cluster.LOCAL_HOSTS
     ):
         warnings.warn(
@@ -280,14 +275,26 @@ def ondemand_cluster(
 
     if open_ports:
         open_ports = [str(p) for p in open_ports]
-        if server_port not in open_ports:
+        if server_port in open_ports:
+            if (
+                server_connection_type
+                in [ServerConnectionType.TLS, ServerConnectionType.NONE]
+                and not den_auth
+            ):
+                warnings.warn(
+                    "Server is insecure and must be inside a VPC or have `den_auth` enabled to secure it."
+                )
+        else:
             warnings.warn(
                 f"Server port {server_port} not included in open ports. Note you are responsible for opening "
                 f"the port or ensure you have access to it via a VPC."
             )
     else:
         # If using HTTP or HTTPS must enable traffic on the relevant port
-        if server_connection_type in [HTTPS_CONN, HTTP_CONN]:
+        if server_connection_type in [
+            ServerConnectionType.TLS,
+            ServerConnectionType.NONE,
+        ]:
             if server_port:
                 warnings.warn(
                     f"No open ports specified. Make sure port {server_port} is open "
@@ -459,14 +466,14 @@ def sagemaker_cluster(
     """
     ssh_key_path = relative_ssh_path(ssh_key_path) if ssh_key_path else None
 
-    if isinstance(server_connection_type, ServerConnectionType):
-        server_connection_type = server_connection_type.value
-
-    if server_connection_type is not None and server_connection_type != AWS_SSM_CONN:
+    if (
+        server_connection_type is not None
+        and server_connection_type != ServerConnectionType.AWS_SSM
+    ):
         raise ValueError(
             "SageMaker Cluster currently requires a server connection type of `aws_ssm`."
         )
-    server_connection_type = AWS_SSM_CONN
+    server_connection_type = ServerConnectionType.AWS_SSM.value
 
     if server_host and server_host not in Cluster.LOCAL_HOSTS:
         raise ValueError(

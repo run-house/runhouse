@@ -362,8 +362,6 @@ def sm_cluster_with_auth():
         .save()
     )
 
-    c.restart_server()
-
     c.install_packages(["pytest"])
 
     return c

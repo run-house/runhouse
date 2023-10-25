@@ -109,12 +109,11 @@ class OnDemandCluster(Cluster):
                 "num_instances": self.num_instances,
                 "provider": self.provider,
                 "autostop_mins": self.autostop_mins,
+                "open_ports": self.open_ports,
                 "use_spot": self.use_spot,
                 "image_id": self.image_id,
-                "open_ports": self.open_ports,
                 "region": self.region,
                 "live_state": self._get_sky_state(),
-                "address": self.address,
             }
         )
         return config

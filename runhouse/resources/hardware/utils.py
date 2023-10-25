@@ -3,6 +3,7 @@ import os
 import shlex
 import subprocess
 import time
+from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -17,6 +18,24 @@ from sky.utils.command_runner import ssh_options_list, SSHCommandRunner, SshMode
 logger = logging.getLogger(__name__)
 
 RESERVED_SYSTEM_NAMES = ["file", "s3", "gs", "azure", "here", "ssh", "sftp"]
+
+
+class ServerConnectionType(str, Enum):
+    """Manage the type of connection Runhouse will make with the API server started on the cluster.
+    ``ssh``: Use port forwarding to connect to the server via SSH, by default on port 32300.
+    ``tls``: Do not use port forwarding and start the server with HTTPS (using custom or fresh TLS certs), by default
+        on port 443.
+    ``none``: Do not use port forwarding, and start the server with HTTP, by default on port 80.
+    ``aws_ssm``: Use AWS SSM to connect to the server, by default on port 32300.
+    ``paramiko``: Use paramiko to connect to the server (e.g. if you provide a password with SSH credentials), by
+        default on port 32300.
+    """
+
+    SSH = "ssh"
+    TLS = "tls"
+    NONE = "none"
+    AWS_SSM = "aws_ssm"
+    PARAMIKO = "paramiko"
 
 
 def _current_cluster(key="name"):
@@ -34,12 +53,9 @@ def _current_cluster(key="name"):
 
 
 def _load_cluster_config():
-    try:
-        with open(Path("~/.rh/cluster_config.yaml").expanduser()) as f:
-            cluster_config = yaml.safe_load(f)
-        return cluster_config
-    except Exception as e:
-        raise e
+    with open(Path("~/.rh/cluster_config.yaml").expanduser()) as f:
+        cluster_config = yaml.safe_load(f)
+    return cluster_config
 
 
 def _get_cluster_from(system, dryrun=False):

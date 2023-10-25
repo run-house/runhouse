@@ -6,7 +6,7 @@ import time
 import traceback
 from functools import wraps
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
 import ray
 import requests
@@ -28,14 +28,14 @@ from runhouse.rns.utils.api import (
     ResourceAccess,
 )
 from runhouse.rns.utils.names import _generate_default_name
+from runhouse.servers.http.auth import ServerCache
+from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
     b64_unpickle,
     Message,
     OutputType,
     pickle_b64,
     Response,
-    ServerCache,
-    TLSCertConfig,
 )
 from runhouse.servers.nginx.config import NginxConfig
 from runhouse.servers.servlet import EnvServlet
@@ -60,14 +60,18 @@ def validate_user(func):
         use_den_auth: bool = den_auth
         is_coro = inspect.iscoroutinefunction(func)
 
+        # TODO to update once Auth cache actor is implemented
+        resource_uri = None
+
         if not use_den_auth:
             if is_coro:
                 return await func(*args, **kwargs)
 
             return func(*args, **kwargs)
 
-        token = request.headers.get("Authorization", "").split("Bearer ")[-1]
-        if not token:
+        auth_headers = request.headers.get("Authorization", "")
+        token = auth_headers.split("Bearer ")[-1] if auth_headers else None
+        if token is None:
             raise HTTPException(
                 status_code=404,
                 detail="No token found in request auth headers. Expected in "
@@ -87,20 +91,23 @@ def validate_user(func):
                     detail=f"Failed to validate Runhouse user: {load_resp_content(resp)}",
                 )
 
-        if use_den_auth or func_call:
+        if func_call:
             # Note: currently providing cluster level access, not at the resource level
-            cluster_uri = _load_current_cluster(kwargs)
+            current_cluster = _get_cluster_from(_current_cluster("config"))
+            cluster_uri = current_cluster.rns_address if current_cluster else None
             if cluster_uri is None:
                 logger.error(
                     "Failed to load cluster RNS address. Make sure cluster config YAML has been saved "
                     "on the cluster in path: ~/.rh/cluster_config.yaml"
                 )
                 raise HTTPException(
-                    status_code=403,
-                    detail="Failed validate access to cluster",
+                    status_code=404,
+                    detail="Failed to load current cluster. Make sure cluster config YAML exists on the cluster.",
                 )
 
-            verify_resource_access(token, cluster_uri, cached_resources, func_call)
+            verify_resource_access(
+                token, cluster_uri, resource_uri, cached_resources, func_call
+            )
 
         if is_coro:
             return await func(*args, **kwargs)
@@ -111,24 +118,29 @@ def validate_user(func):
 
 
 def verify_resource_access(
-    token: str, cluster_uri: str, cached_resources: dict, func_call: bool
+    token: str,
+    cluster_uri: str,
+    resource_uri: str,
+    cached_resources: dict,
+    func_call: bool,
 ) -> None:
     """Verify the user has access to a particular resource. Use global HTTP Server cache to check before pinging
     Den for the most current list of resources the user has access to."""
     # e.g. {"/jlewitt1/bert-preproc": "read"}
-    resource_access_type = cached_resources.get(cluster_uri)
-    if resource_access_type == ResourceAccess.WRITE.value:
-        # If user has write access to the cluster will have access to all resources on the cluster
+    cluster_access_type = cached_resources.get(cluster_uri)
+    logger.info(f"cluster access type: {cluster_access_type}")
+    if cluster_access_type == ResourceAccess.WRITE.value:
+        # If user has write access to the cluster will have access to all functions on the cluster
         return
 
-    # For running functions must have write access to the cluster
+    # For running functions must have read or write access to the cluster
     if func_call and (
-        resource_access_type is not None
-        and resource_access_type != ResourceAccess.WRITE.value
+        cluster_access_type is not None
+        and cluster_access_type not in [ResourceAccess.READ, ResourceAccess.WRITE]
     ):
         raise HTTPException(
             status_code=403,
-            detail=f"Write access is required for resource: {cluster_uri}",
+            detail=f"Read or write access is required for cluster: {cluster_uri}",
         )
 
     resp = requests.get(
@@ -148,27 +160,24 @@ def verify_resource_access(
 
     # Update the cache with the latest list of resources
     # Note: This will only persist for as long as the server is up
+    logger.info(f"Server cache: {server_cache}")
     server_cache.put_resources(token, all_resources)
 
     logger.info(f"Updated cache with {len(all_resources)} resources for user")
 
-    if cluster_uri not in all_resources:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Could not validate access to resource: {cluster_uri}",
-        )
-
-
-def _load_current_cluster(kwargs) -> Union[str, None]:
-    current_cluster = _get_cluster_from(_current_cluster("config"))
-    if current_cluster:
-        return current_cluster.rns_address
-
-    # If no cluster config saved yet on the cluster try getting the cluster uri from the message object
-    # included in the request
-    message: Message = kwargs.get("message")
-    resource = json.loads(message.data)
-    return resource.get("name")
+    # TODO to be incorporated as part of object store refactor
+    # resource_access_type = all_resources.get(resource_uri)
+    # if resource_access_type is None:
+    #     raise HTTPException(
+    #         status_code=404,
+    #         detail=f"Could not validate access to resource: {resource_uri}",
+    #     )
+    #
+    # if resource_access_type not in [ResourceAccess.READ, ResourceAccess.WRITE]:
+    #     raise HTTPException(
+    #         status_code=403,
+    #         detail=f"Read or write access is required for resource: {resource_uri}",
+    #     )
 
 
 class HTTPServer:
@@ -819,7 +828,9 @@ if __name__ == "__main__":
     use_nginx = parse_args.use_nginx
     should_enable_local_span_collection = parse_args.enable_local_span_collection
     den_auth = parse_args.use_den_auth or cluster_config.get("den_auth")
-    address = parse_args.certs_address or cluster_config.get("address")
+
+    ips = cluster_config.get("ips", [])
+    address = parse_args.certs_address or ips[0] if ips else None
 
     # If custom certs are provided explicitly use them
     keyfile_arg = parse_args.ssl_keyfile
