@@ -158,7 +158,6 @@ class Cluster(Resource):
             config,
             [
                 "ips",
-                "open_ports",
                 "server_port",
                 "server_host",
                 "server_connection_type",

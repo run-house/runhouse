@@ -35,6 +35,7 @@ def run_performance_tests(summer_func):
     address = cluster.address
 
     call_url = f"{suffix}://{address}:{port}/call/summer_func/call/?serialization=None"
+    logger.info(f"Call url: {call_url}")
     times_list, avg_time = profile(
         lambda: requests.post(
             call_url,

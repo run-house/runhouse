@@ -89,12 +89,10 @@ def cluster(
                 f"Cluster does not support server connection type of {server_connection_type}"
             )
     else:
-        if ssh_creds:
-            server_connection_type = SSH_CONN
-        elif ssl_certfile or ssl_keyfile:
+        if ssl_certfile or ssl_keyfile:
             server_connection_type = HTTPS_CONN
         else:
-            server_connection_type = HTTP_CONN
+            server_connection_type = SSH_CONN
 
     if server_port is None:
         if server_connection_type == HTTPS_CONN:
@@ -250,12 +248,10 @@ def ondemand_cluster(
         )
 
     if not server_connection_type:
-        if open_ports or ssl_keyfile or ssl_certfile:
+        if ssl_keyfile or ssl_certfile:
             server_connection_type = HTTPS_CONN
-        elif server_host in Cluster.LOCAL_HOSTS:
-            server_connection_type = SSH_CONN
         else:
-            server_connection_type = HTTP_CONN
+            server_connection_type = SSH_CONN
 
     if server_port is None:
         if server_connection_type == HTTPS_CONN:

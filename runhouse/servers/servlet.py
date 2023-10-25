@@ -402,6 +402,9 @@ class EnvServlet:
                 output_type=OutputType.RESULT,
             )
         except Exception as e:
+            if _intra_cluster:
+                raise e
+
             return Response(
                 error=pickle_b64(e),
                 traceback=pickle_b64(traceback.format_exc()),
