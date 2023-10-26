@@ -38,6 +38,7 @@ class SSHSecret(ProviderSecret):
 
     def write(self, path: Optional[str] = None, overwrite: bool = False):
         new_secret = copy.deepcopy(self)
+        path = path or self.path
         if path:
             new_secret.path = path
 

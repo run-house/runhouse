@@ -15,10 +15,12 @@ logger = logging.getLogger(__name__)
 USER_ENDPOINT = "user/secret"
 
 
-def _get_vault_secrets(names: List[str] = None) -> List["Secret"]:
+def _get_vault_secrets(
+    names: List[str] = None, headers: str = rns_client.request_headers
+) -> List["Secret"]:
     resp = requests.get(
         f"{rns_client.api_server_url}/user/secret",
-        headers=rns_client.request_headers,
+        headers=headers,
     )
 
     if resp.status_code != 200:

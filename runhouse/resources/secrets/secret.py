@@ -4,7 +4,7 @@ import logging
 import os
 from pathlib import Path
 
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Union
 
 import requests
 
@@ -17,7 +17,7 @@ from runhouse.resources.secrets.utils import (
     _load_env_vars_from_path,
     load_config,
 )
-from runhouse.rns.utils.api import load_resp_content, read_resp_data, ResourceAccess
+from runhouse.rns.utils.api import load_resp_content, read_resp_data
 
 
 logger = logging.getLogger(__name__)
@@ -76,6 +76,23 @@ class Secret(Resource):
                 else:
                     secret = cls.from_name(secret)
             secret.save()
+
+    @classmethod
+    def delete_from_vault(
+        cls, secrets: List[str or "Secret"], headers: str = rns_client.request_headers
+    ):
+        from runhouse.resources.secrets.provider_secrets.providers import (
+            _str_to_provider_class,
+        )
+        from runhouse.resources.secrets.secret_factory import provider_secret
+
+        for secret in secrets:
+            if isinstance(secret, str):
+                if secret in _str_to_provider_class.keys():
+                    secret = provider_secret(provider=secret)
+                else:
+                    secret = cls.from_name(secret)
+            secret.delete(file=False, headers=headers)
 
     @staticmethod
     def from_config(config: dict, dryrun: bool = False):
@@ -181,7 +198,7 @@ class Secret(Resource):
         return values
 
     # TODO: refactor this code to reuse rns_client save_config code instead of rewriting
-    def save(self, values: bool = True):
+    def save(self, values: bool = True, headers: str = rns_client.request_headers):
         """Save the secret config, into Vault if the user is logged in,
         or to local if not or if the resource is a local resource.
 
@@ -205,7 +222,7 @@ class Secret(Resource):
             resp = requests.put(
                 f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{self.name}",
                 data=json.dumps(payload),
-                headers=rns_client.request_headers,
+                headers=headers,
             )
             if resp.status_code != 200:
                 raise Exception(
@@ -455,24 +472,24 @@ class Secret(Resource):
         if os.path.exists(config_path):
             os.remove(config_path)
 
-    def _delete_vault_config(self):
+    def _delete_vault_config(self, headers: str = rns_client.request_headers):
         resp = requests.delete(
             f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{self.name}",
-            headers=rns_client.request_headers,
+            headers=headers,
         )
         if resp.status_code != 200:
             logger.error(
                 f"Failed to delete secret {self.name} from Vault: {load_resp_content(resp)}"
             )
 
-    def delete(self, file: bool = False):
+    def delete(self, file: bool = False, headers: str = rns_client.request_headers):
         """Delete the secret config from Vault/local. Optionally also delete secret file.
 
         Args:
             file (bool): Whether to also delete the file containing secret values. (Default: False)
         """
         if self.rns_address.startswith("/"):
-            self._delete_vault_config()
+            self._delete_vault_config(headers)
         else:
             self._delete_local_config()
         if file:
@@ -535,11 +552,11 @@ class Secret(Resource):
             return True
         return False
 
-    def in_vault(self):
+    def in_vault(self, headers=rns_client.request_headers):
         """Whether the secret is stored in Vault"""
         resp = requests.get(
             f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{self.name}",
-            headers=rns_client.request_headers,
+            headers=headers,
         )
         if resp.status_code != 200:
             return False
@@ -553,12 +570,3 @@ class Secret(Resource):
         if os.path.exists(os.path.expanduser(path)):
             return True
         return False
-
-    def share(
-        self,
-        users: list,
-        access_type: Union[ResourceAccess, str] = ResourceAccess.READ,
-        notify_users: bool = True,
-        headers: Optional[Dict] = None,
-    ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
-        pass
