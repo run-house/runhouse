@@ -109,10 +109,6 @@ class Secret(Resource):
             from .provider_secrets.provider_secret import ProviderSecret
 
             return ProviderSecret(**config, dryrun=dryrun)
-        elif resource_subtype == "EnvSecret":
-            from .env_secret import EnvSecret
-
-            return EnvSecret(**config, dryrun=dryrun)
 
         return Secret(**config, dryrun=dryrun)
 

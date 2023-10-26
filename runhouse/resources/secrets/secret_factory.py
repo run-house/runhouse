@@ -1,7 +1,6 @@
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, Optional, Union
 
-from runhouse.resources.secrets.env_secret import EnvSecret
 from runhouse.resources.secrets.provider_secrets.providers import _get_provider_class
 
 from runhouse.resources.secrets.secret import Secret
@@ -32,22 +31,12 @@ def secret(
     Example:
         >>> rh.secret("in_memory_secret", values={"secret_key": "secret_val"})
         >>> rh.secret("local_secret", path="secrets.json")
-        >>> rh.secret("env_secret", values={"access_key": "12345"}, env_vars={"access_key: "ACCESS_KEY"})
     """
     if provider:
         return provider_secret(provider, name, values, path, env_vars, dryrun)
     if name and not any([provider, values, path, env_vars, dryrun]):
         return Secret.from_name(name, dryrun)
     return Secret(name, values, path, env_vars, dryrun)
-
-
-def cluster_secret(
-    host: str = None,
-    name: str = None,
-    config: Optional[Dict] = None,
-    dryrun: bool = False,
-):
-    pass
 
 
 def provider_secret(
@@ -96,39 +85,3 @@ def provider_secret(
         env_vars=env_vars,
         dryrun=dryrun,
     )
-
-
-def env_secret(
-    name: str = None,
-    values: Optional[Dict] = None,
-    path: Union[str, Path] = None,
-    env_vars: List[str] = None,
-    dryrun: bool = False,
-):
-    """Builds an instance of :class:`EnvSecret`.
-
-    Args:
-        name (str, optional): Name to assign the secret resource. If not provided, defautls
-            to `"env_vars"`.
-        values (Dict, optional): Dictionary of secret key-value pairs. The key
-        path (str, optional): Path where the secret values are held.
-        env_vars (List , optional): Keys corresponding the environment variable keys.
-        dryrun (bool, optional): Whether to create in dryrun mode. (Default: False)
-
-    Returns:
-        EnvSecret: The resulting env var secret.
-
-    Example:
-        >>> rh.env_secret(path="~/.rh/.env")
-        >>> rh.env_secret(values={"PYTHONPATH": "usr/bin/conda"})
-        >>> rh.env_secret(env_vars=["PYTHONPATH"])
-    """
-    if name and not any([values, path, env_vars]):
-        return EnvSecret.from_name(name, dryrun)
-    if (values and env_vars) and set(values.keys()) != set(env_vars):
-        raise Exception(
-            "`env_vars` should match the `values` keys if both parameters are provided."
-        )
-    if values:
-        env_vars = list(values.keys())
-    return EnvSecret(name, values, path, env_vars, dryrun)
