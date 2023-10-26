@@ -23,6 +23,7 @@ from runhouse.rns.utils.api import ResourceAccess
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.http_utils import (
     b64_unpickle,
+    load_current_cluster,
     Message,
     OutputType,
     pickle_b64,
@@ -50,6 +51,24 @@ class EnvServlet:
     @staticmethod
     def register_activity():
         set_last_active_time_to_now()
+
+    @staticmethod
+    def validate_resource_access(module, token):
+        if token is None:
+            # If no token is provided we do not enforce den auth
+            return
+
+        cluster_uri = load_current_cluster()
+        cluster_access = obj_store.get_access_level(token, cluster_uri)
+        if cluster_access == ResourceAccess.WRITE:
+            # if user has write access to cluster will have access to all resources
+            return
+
+        resource_uri = module.name
+        resource_access_level = obj_store.get_access_level(token, resource_uri)
+
+        if resource_access_level not in [ResourceAccess.WRITE, ResourceAccess.READ]:
+            raise Exception(f"No read or write access to resource: {resource_uri}")
 
     def put_resource(self, message: Message):
         self.register_activity()
@@ -153,14 +172,7 @@ class EnvServlet:
                     f"{self.env_name} servlet: Calling method {method_name} on module {module_name}"
                 )
                 callable_method = True
-
-                resource_uri = module.name
-                access_level = obj_store.get_access_level(token, resource_uri)
-                if access_level not in [ResourceAccess.WRITE, ResourceAccess.READ]:
-                    raise Exception(
-                        f"No read or write access to resource: {resource_uri}"
-                    )
-
+                self.validate_resource_access(module, token)
             else:
                 # Method is a property, return the value
                 logger.info(
@@ -582,9 +594,19 @@ class EnvServlet:
                 output_type=OutputType.EXCEPTION,
             )
 
-    def call(self, module, method=None, args=None, kwargs=None, serialization="json"):
+    def call(
+        self,
+        module,
+        method=None,
+        args=None,
+        kwargs=None,
+        serialization="json",
+        token=None,
+    ):
         self.register_activity()
         module = obj_store.get(module)
+        self.validate_resource_access(module, token)
+
         if method:
             fn = getattr(module, method)
             result = fn(*(args or []), **(kwargs or {}))

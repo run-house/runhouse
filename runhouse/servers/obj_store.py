@@ -31,6 +31,7 @@ class ObjStore:
         # initalizes the obj_store, and it doesn't get created and destroyed when
         # nginx runs http_server.py as a module.
         from runhouse.resources.kvstores import Kvstore
+        from runhouse.servers.http.auth import AuthCache
 
         self.servlet_name = servlet_name or "base"
         num_gpus = ray.cluster_resources().get("GPU", 0)
@@ -48,8 +49,6 @@ class ObjStore:
             .remote()
         )
         logger.info("Intializing auth cache as remote actor")
-        from runhouse.servers.http.auth import AuthCache
-
         self._auth_cache = (
             ray.remote(AuthCache)
             .options(
@@ -90,7 +89,10 @@ class ObjStore:
             self._auth_cache, "lookup_access_level", token, resource_uri
         )
 
-    def get_resources(self, token: str):
+    def add_user(self, token: str):
+        return self.call_auth_cache_method(self._auth_cache, "add_user", token)
+
+    def get_user_resources(self, token: str):
         return self.call_auth_cache_method(
             self._auth_cache, "get_user_resources", token
         )
