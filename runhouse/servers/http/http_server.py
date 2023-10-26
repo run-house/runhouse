@@ -20,7 +20,7 @@ from runhouse.globals import configs, env_servlets, rns_client
 from runhouse.resources.hardware.utils import _load_cluster_config
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
-from runhouse.servers.http.auth import verify_cluster_access
+from runhouse.servers.http.auth import hash_token, verify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
     b64_unpickle,
@@ -355,7 +355,7 @@ class HTTPServer:
                 # Unless we're returning a fast response, we discard this obj_ref
                 obj_ref = HTTPServer.call_in_env_servlet(
                     "call_module_method",
-                    [module, method, message, token],
+                    [module, method, message, hash_token(token)],
                     env=env,
                     create=True,
                     block=False,
@@ -578,7 +578,7 @@ class HTTPServer:
         token = get_token_from_request(request)
         resp = HTTPServer.call_in_env_servlet(
             "call",
-            [module, method, args, kwargs, serialization, token],
+            [module, method, args, kwargs, serialization, hash_token(token)],
             create=True,
             lookup_env_for_name=module,
         )

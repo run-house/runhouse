@@ -1,5 +1,4 @@
 import codecs
-import hashlib
 import logging
 import re
 import sys
@@ -58,11 +57,6 @@ def b64_unpickle(b64_pickled):
 def get_token_from_request(request):
     auth_headers = request.headers.get("Authorization", "")
     return auth_headers.split("Bearer ")[-1] if auth_headers else None
-
-
-def hash_token(token: str) -> str:
-    """Hash the user's token to avoid storing them in plain text on the cluster."""
-    return hashlib.sha256(token.encode()).hexdigest()
 
 
 def load_current_cluster():

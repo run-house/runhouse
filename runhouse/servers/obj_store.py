@@ -48,7 +48,6 @@ class ObjStore:
             )
             .remote()
         )
-        logger.info("Intializing auth cache as remote actor")
         self._auth_cache = (
             ray.remote(AuthCache)
             .options(
@@ -61,19 +60,6 @@ class ObjStore:
         )
 
     @staticmethod
-    def call_auth_cache_method(store, method, *args, **kwargs):
-        if store is None:
-            raise ValueError(
-                "Object store not initialized, may be running inside process without a servlet."
-            )
-        if not isinstance(store, ray.actor.ActorHandle):
-            raise TypeError(
-                f"Expected store {store} to be a ray actor, not {type(store)}"
-            )
-
-        return ray.get(getattr(store, method).remote(*args, **kwargs))
-
-    @staticmethod
     def call_kv_method(store, method, *args, **kwargs):
         if store is None:
             raise ValueError(
@@ -84,18 +70,36 @@ class ObjStore:
         else:
             return getattr(store, method)(*args, **kwargs)
 
-    def get_access_level(self, token: str, resource_uri: str):
-        return self.call_auth_cache_method(
-            self._auth_cache, "lookup_access_level", token, resource_uri
+    def resource_access_level(self, token_hash: str, resource_uri: str):
+        return ray.get(
+            self._auth_cache.lookup_access_level.remote(token_hash, resource_uri)
         )
 
-    def add_user(self, token: str):
-        return self.call_auth_cache_method(self._auth_cache, "add_user", token)
+    def user_resources(self, token_hash: str):
+        return ray.get(self._auth_cache.get_user_resources.remote(token_hash))
 
-    def get_user_resources(self, token: str):
-        return self.call_auth_cache_method(
-            self._auth_cache, "get_user_resources", token
-        )
+    def has_resource_access(self, module, token_hash) -> bool:
+        """Checks whether user has read or write access to a given module saved on the cluster."""
+        from runhouse.rns.utils.api import ResourceAccess
+        from runhouse.servers.http.http_utils import load_current_cluster
+
+        if token_hash is None:
+            # If no token is provided we do not enforce den auth
+            return True
+
+        cluster_uri = load_current_cluster()
+        cluster_access = self.resource_access_level(token_hash, cluster_uri)
+        if cluster_access == ResourceAccess.WRITE:
+            # if user has write access to cluster will have access to all resources
+            return True
+
+        resource_uri = module.name
+        resource_access_level = self.resource_access_level(token_hash, resource_uri)
+
+        if resource_access_level not in [ResourceAccess.WRITE, ResourceAccess.READ]:
+            return False
+
+        return True
 
     def keys(self):
         # Return keys across the cluster, not only in this process

@@ -19,11 +19,9 @@ from runhouse.resources.provenance import run, RunStatus
 from runhouse.resources.queues import Queue
 from runhouse.resources.resource import Resource
 
-from runhouse.rns.utils.api import ResourceAccess
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.http_utils import (
     b64_unpickle,
-    load_current_cluster,
     Message,
     OutputType,
     pickle_b64,
@@ -51,24 +49,6 @@ class EnvServlet:
     @staticmethod
     def register_activity():
         set_last_active_time_to_now()
-
-    @staticmethod
-    def validate_resource_access(module, token):
-        if token is None:
-            # If no token is provided we do not enforce den auth
-            return
-
-        cluster_uri = load_current_cluster()
-        cluster_access = obj_store.get_access_level(token, cluster_uri)
-        if cluster_access == ResourceAccess.WRITE:
-            # if user has write access to cluster will have access to all resources
-            return
-
-        resource_uri = module.name
-        resource_access_level = obj_store.get_access_level(token, resource_uri)
-
-        if resource_access_level not in [ResourceAccess.WRITE, ResourceAccess.READ]:
-            raise Exception(f"No read or write access to resource: {resource_uri}")
 
     def put_resource(self, message: Message):
         self.register_activity()
@@ -116,7 +96,7 @@ class EnvServlet:
             )
 
     def call_module_method(
-        self, module_name, method_name, message: Message, token: str
+        self, module_name, method_name, message: Message, token_hash: str
     ):
         self.register_activity()
         result_resource = None
@@ -172,7 +152,10 @@ class EnvServlet:
                     f"{self.env_name} servlet: Calling method {method_name} on module {module_name}"
                 )
                 callable_method = True
-                self.validate_resource_access(module, token)
+                if not obj_store.has_resource_access(module, token_hash):
+                    raise Exception(
+                        f"No read or write access to resource: {module.name}"
+                    )
             else:
                 # Method is a property, return the value
                 logger.info(
@@ -601,11 +584,12 @@ class EnvServlet:
         args=None,
         kwargs=None,
         serialization="json",
-        token=None,
+        token_hash=None,
     ):
         self.register_activity()
         module = obj_store.get(module)
-        self.validate_resource_access(module, token)
+        if not obj_store.has_resource_access(module, token_hash):
+            raise Exception(f"No read or write access to resource: {module.name}")
 
         if method:
             fn = getattr(module, method)
