@@ -17,21 +17,15 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 from runhouse.globals import configs, env_servlets, rns_client
-from runhouse.resources.hardware.utils import (
-    _current_cluster,
-    _get_cluster_from,
-    _load_cluster_config,
-)
-from runhouse.rns.utils.api import (
-    load_resp_content,
-    resolve_absolute_path,
-    ResourceAccess,
-)
+from runhouse.resources.hardware.utils import _load_cluster_config
+from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
-from runhouse.servers.http.auth import ServerCache
+from runhouse.servers.http.auth import hash_token, verify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
     b64_unpickle,
+    get_token_from_request,
+    load_current_cluster,
     Message,
     OutputType,
     pickle_b64,
@@ -44,14 +38,13 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-# **NOTE**: This is a temp in-mem cache, we will move this out into the object store for future permissions support
-server_cache = ServerCache()
 
 global den_auth
 
 
-def validate_user(func):
-    """If using Den auth, validate the user's Runhouse token and access to the resource before continuing."""
+def validate_cluster_access(func):
+    """If using Den auth, validate the user's Runhouse token and access to the cluster before continuing.
+    if calling a function, ensure user has read or write access to the cluster."""
 
     @wraps(func)
     async def wrapper(*args, **kwargs):
@@ -60,17 +53,13 @@ def validate_user(func):
         use_den_auth: bool = den_auth
         is_coro = inspect.iscoroutinefunction(func)
 
-        # TODO to update once Auth cache actor is implemented
-        resource_uri = None
-
         if not use_den_auth:
             if is_coro:
                 return await func(*args, **kwargs)
 
             return func(*args, **kwargs)
 
-        auth_headers = request.headers.get("Authorization", "")
-        token = auth_headers.split("Bearer ")[-1] if auth_headers else None
+        token = get_token_from_request(request)
         if token is None:
             raise HTTPException(
                 status_code=404,
@@ -78,23 +67,9 @@ def validate_user(func):
                 f"format: {json.dumps({'Authorization': 'Bearer <token>'})}",
             )
 
-        # Check if user's token has already been validated and saved to cache on the cluster
-        cached_resources: dict = server_cache.get_resources(token)
-        if not cached_resources:
-            resp = requests.get(
-                f"{rns_client.api_server_url}/user",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            if resp.status_code != 200:
-                raise HTTPException(
-                    status_code=403,
-                    detail=f"Failed to validate Runhouse user: {load_resp_content(resp)}",
-                )
-
         if func_call:
             # Note: currently providing cluster level access, not at the resource level
-            current_cluster = _get_cluster_from(_current_cluster("config"))
-            cluster_uri = current_cluster.rns_address if current_cluster else None
+            cluster_uri = load_current_cluster()
             if cluster_uri is None:
                 logger.error(
                     "Failed to load cluster RNS address. Make sure cluster config YAML has been saved "
@@ -105,9 +80,12 @@ def validate_user(func):
                     detail="Failed to load current cluster. Make sure cluster config YAML exists on the cluster.",
                 )
 
-            verify_resource_access(
-                token, cluster_uri, resource_uri, cached_resources, func_call
-            )
+            cluster_access: bool = verify_cluster_access(cluster_uri, token, func_call)
+            if not cluster_access:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Read or write access is required for cluster: {cluster_uri}",
+                )
 
         if is_coro:
             return await func(*args, **kwargs)
@@ -115,69 +93,6 @@ def validate_user(func):
         return func(*args, **kwargs)
 
     return wrapper
-
-
-def verify_resource_access(
-    token: str,
-    cluster_uri: str,
-    resource_uri: str,
-    cached_resources: dict,
-    func_call: bool,
-) -> None:
-    """Verify the user has access to a particular resource. Use global HTTP Server cache to check before pinging
-    Den for the most current list of resources the user has access to."""
-    # e.g. {"/jlewitt1/bert-preproc": "read"}
-    cluster_access_type = cached_resources.get(cluster_uri)
-    logger.info(f"cluster access type: {cluster_access_type}")
-    if cluster_access_type == ResourceAccess.WRITE.value:
-        # If user has write access to the cluster will have access to all functions on the cluster
-        return
-
-    # For running functions must have read or write access to the cluster
-    if func_call and (
-        cluster_access_type is not None
-        and cluster_access_type not in [ResourceAccess.READ, ResourceAccess.WRITE]
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail=f"Read or write access is required for cluster: {cluster_uri}",
-        )
-
-    resp = requests.get(
-        f"{rns_client.api_server_url}/resource",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    if resp.status_code != 200:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Failed to load resources: {load_resp_content(resp)}",
-        )
-
-    resp_data = json.loads(resp.content)
-    all_resources: dict = {
-        resource["name"]: resource["access_type"] for resource in resp_data["data"]
-    }
-
-    # Update the cache with the latest list of resources
-    # Note: This will only persist for as long as the server is up
-    logger.info(f"Server cache: {server_cache}")
-    server_cache.put_resources(token, all_resources)
-
-    logger.info(f"Updated cache with {len(all_resources)} resources for user")
-
-    # TODO to be incorporated as part of object store refactor
-    # resource_access_type = all_resources.get(resource_uri)
-    # if resource_access_type is None:
-    #     raise HTTPException(
-    #         status_code=404,
-    #         detail=f"Could not validate access to resource: {resource_uri}",
-    #     )
-    #
-    # if resource_access_type not in [ResourceAccess.READ, ResourceAccess.WRITE]:
-    #     raise HTTPException(
-    #         status_code=403,
-    #         detail=f"Read or write access is required for resource: {resource_uri}",
-    #     )
 
 
 class HTTPServer:
@@ -219,7 +134,7 @@ class HTTPServer:
 
             @staticmethod
             @app.get("/spans")
-            @validate_user
+            @validate_cluster_access
             def get_spans(request: Request):
                 print("Calling get_spans")
                 return {
@@ -381,7 +296,7 @@ class HTTPServer:
 
     @staticmethod
     @app.post("/resource")
-    @validate_user
+    @validate_cluster_access
     def put_resource(request: Request, message: Message):
         # if resource is env and not yet a servlet, construct env servlet
         if message.env and message.env not in env_servlets.keys():
@@ -411,10 +326,11 @@ class HTTPServer:
 
     @staticmethod
     @app.post("/{module}/{method}")
-    @validate_user
+    @validate_cluster_access
     def call_module_method(
         request: Request, module, method=None, message: dict = Body(...)
     ):
+        token = get_token_from_request(request)
         # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
@@ -439,7 +355,7 @@ class HTTPServer:
                 # Unless we're returning a fast response, we discard this obj_ref
                 obj_ref = HTTPServer.call_in_env_servlet(
                     "call_module_method",
-                    [module, method, message],
+                    [module, method, message, hash_token(token)],
                     env=env,
                     create=True,
                     block=False,
@@ -597,7 +513,7 @@ class HTTPServer:
 
     @staticmethod
     @app.post("/object")
-    @validate_user
+    @validate_cluster_access
     def put_object(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
             "put_object", [message.key, message.data], env=message.env, create=True
@@ -605,7 +521,7 @@ class HTTPServer:
 
     @staticmethod
     @app.put("/object")
-    @validate_user
+    @validate_cluster_access
     def rename_object(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
             "rename_object", [message], env=message.env
@@ -613,7 +529,7 @@ class HTTPServer:
 
     @staticmethod
     @app.delete("/object")
-    @validate_user
+    @validate_cluster_access
     def delete_obj(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
             "delete_obj", [message], env=message.env, lookup_env_for_name=message.key
@@ -621,7 +537,7 @@ class HTTPServer:
 
     @staticmethod
     @app.post("/cancel")
-    @validate_user
+    @validate_cluster_access
     def cancel_run(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
             "cancel_run", [message], env=message.env, lookup_env_for_name=message.key
@@ -629,7 +545,7 @@ class HTTPServer:
 
     @staticmethod
     @app.get("/keys")
-    @validate_user
+    @validate_cluster_access
     def get_keys(request: Request, env: Optional[str] = None):
         from runhouse.globals import obj_store
 
@@ -641,7 +557,7 @@ class HTTPServer:
 
     @staticmethod
     @app.post("/secrets")
-    @validate_user
+    @validate_cluster_access
     def add_secrets(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
             "add_secrets", [message], env=message.env, create=True
@@ -649,7 +565,7 @@ class HTTPServer:
 
     @staticmethod
     @app.post("/call/{module}/{method}")
-    @validate_user
+    @validate_cluster_access
     async def call(
         request: Request,
         module,
@@ -659,9 +575,10 @@ class HTTPServer:
     ):
         kwargs = args.get("kwargs", {})
         args = args.get("args", [])
+        token = get_token_from_request(request)
         resp = HTTPServer.call_in_env_servlet(
             "call",
-            [module, method, args, kwargs, serialization],
+            [module, method, args, kwargs, serialization, hash_token(token)],
             create=True,
             lookup_env_for_name=module,
         )

@@ -24,12 +24,14 @@ class ObjStore:
         self._env_for_key = None
         self.imported_modules = {}
         self.installed_envs = {}
+        self._auth_cache = None
 
     def set_name(self, servlet_name: str):
         # This needs to be in a separate method so the HTTPServer actually
         # initalizes the obj_store, and it doesn't get created and destroyed when
         # nginx runs http_server.py as a module.
         from runhouse.resources.kvstores import Kvstore
+        from runhouse.servers.http.auth import AuthCache
 
         self.servlet_name = servlet_name or "base"
         num_gpus = ray.cluster_resources().get("GPU", 0)
@@ -40,6 +42,16 @@ class ObjStore:
             ray.remote(Kvstore)
             .options(
                 name="env_for_key",
+                get_if_exists=True,
+                lifetime="detached",
+                namespace="runhouse",
+            )
+            .remote()
+        )
+        self._auth_cache = (
+            ray.remote(AuthCache)
+            .options(
+                name="auth_cache",
                 get_if_exists=True,
                 lifetime="detached",
                 namespace="runhouse",
@@ -57,6 +69,37 @@ class ObjStore:
             return ray.get(getattr(store, method).remote(*args, **kwargs))
         else:
             return getattr(store, method)(*args, **kwargs)
+
+    def resource_access_level(self, token_hash: str, resource_uri: str):
+        return ray.get(
+            self._auth_cache.lookup_access_level.remote(token_hash, resource_uri)
+        )
+
+    def user_resources(self, token_hash: str):
+        return ray.get(self._auth_cache.get_user_resources.remote(token_hash))
+
+    def has_resource_access(self, module, token_hash) -> bool:
+        """Checks whether user has read or write access to a given module saved on the cluster."""
+        from runhouse.rns.utils.api import ResourceAccess
+        from runhouse.servers.http.http_utils import load_current_cluster
+
+        if token_hash is None:
+            # If no token is provided we do not enforce den auth
+            return True
+
+        cluster_uri = load_current_cluster()
+        cluster_access = self.resource_access_level(token_hash, cluster_uri)
+        if cluster_access == ResourceAccess.WRITE:
+            # if user has write access to cluster will have access to all resources
+            return True
+
+        resource_uri = module.name
+        resource_access_level = self.resource_access_level(token_hash, resource_uri)
+
+        if resource_access_level not in [ResourceAccess.WRITE, ResourceAccess.READ]:
+            return False
+
+        return True
 
     def keys(self):
         # Return keys across the cluster, not only in this process
