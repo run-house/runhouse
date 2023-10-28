@@ -131,8 +131,12 @@ class Function(Module):
         new_function.name = new_function.name or self.fn_pointers[2]
         # TODO
         # env.name = env.name or (new_function.name + "_env")
+
+
         new_env = env.to(new_function.system, force_install=force_install)
         new_function.env = new_env
+
+        
 
         new_function.dryrun = True
         system.put_resource(new_function, dryrun=True)
@@ -240,6 +244,7 @@ class Function(Module):
             >>> remote_fn_run = remote_fn.run()
             >>> remote_fn.get(remote_fn_run.name)
         """
+
         return self.system.get(run_key)
 
     @property
@@ -459,6 +464,7 @@ def function(
             r"https://github\.com/(?P<username>[^/]+)/(?P<repo_name>[^/]+)/blob/"
             r"(?P<branch_name>[^/]+)/(?P<path>[^:]+):(?P<func_name>.+)"
         )
+        
         match = re.match(pattern, fn)
 
         if match:
