@@ -43,8 +43,7 @@ global den_auth
 
 
 def validate_cluster_access(func):
-    """If using Den auth, validate the user's Runhouse token and access to the cluster before continuing.
-    if calling a function, ensure user has read or write access to the cluster."""
+    """If using Den auth, validate the user's Runhouse token and access to the cluster before continuing."""
 
     @wraps(func)
     async def wrapper(*args, **kwargs):
@@ -67,25 +66,25 @@ def validate_cluster_access(func):
                 f"format: {json.dumps({'Authorization': 'Bearer <token>'})}",
             )
 
-        if func_call:
-            # Note: currently providing cluster level access, not at the resource level
-            cluster_uri = load_current_cluster()
-            if cluster_uri is None:
-                logger.error(
-                    "Failed to load cluster RNS address. Make sure cluster config YAML has been saved "
-                    "on the cluster in path: ~/.rh/cluster_config.yaml"
-                )
-                raise HTTPException(
-                    status_code=404,
-                    detail="Failed to load current cluster. Make sure cluster config YAML exists on the cluster.",
-                )
+        cluster_uri = load_current_cluster()
+        if cluster_uri is None:
+            logger.error(
+                "Failed to load cluster RNS address. Make sure cluster config YAML has been saved "
+                "on the cluster in path: ~/.rh/cluster_config.yaml"
+            )
+            raise HTTPException(
+                status_code=404,
+                detail="Failed to load current cluster. Make sure cluster config YAML exists on the cluster.",
+            )
 
-            cluster_access: bool = verify_cluster_access(cluster_uri, token, func_call)
-            if not cluster_access:
-                raise HTTPException(
-                    status_code=403,
-                    detail=f"Read or write access is required for cluster: {cluster_uri}",
-                )
+        cluster_access = verify_cluster_access(cluster_uri, token)
+        if not cluster_access and not func_call:
+            # Must have cluster access for all the non func calls
+            # Note: for func calls will be handling the auth in the object store
+            raise HTTPException(
+                status_code=404,
+                detail="Cluster access is required for API",
+            )
 
         if is_coro:
             return await func(*args, **kwargs)

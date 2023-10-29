@@ -254,20 +254,26 @@ Let's illustrate this with a simple example:
     # Save to Runhouse Den
     remote_func.save()
 
-    # Share the function with another user
-    remote_func.share("user1@gmail.com")
-
-
     # Run function on cluster
-    # Note: only users with a Runhouse token and access to this function can run it
     res = remote_func([1,2,3])
 
-    # You can also call the function directly via an HTTP request:
-    # Note: use -k to ignore cert verification when using self-signed certs
-    curl -k -X POST https://<IP ADDRESS>/call/np_array/call -d '{"args": [[1, 2]]}'
+    # Give read access to the function to another user - this will allow them to call this service remotely
+    remote_func.share("user1@gmail.com", access_type="read")
+
+
+We can also call the function directly via an HTTP request, making it easy for collaborators or other users
+to call the function with their Runhouse token (note: this assumes they have been granted access to the cluster):
+
+.. code-block:: cli
+
+    curl -k -X POST "https://<IP ADDRESS>/call/np_array/call?serialization=pickle" -d '{"args": [[1, 2]]}'
     -H "Content-Type: application/json" -H "Authorization: Bearer <TOKEN>"
 
-.. note::
+Here we use :code:`-k` to ignore cert verification (assuming we are using self-signed certs),
+and :code:`serialization=pickle` in order to return the pickled numpy array from the :code:`np_array` function.
+
+
+.. tip::
 
     For more examples on using clusters and functions see
     the :ref:`Compute Guide <Compute: Clusters, Functions, Packages, & Envs>`.

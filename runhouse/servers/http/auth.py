@@ -13,6 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 class AuthCache:
+
+    # Maps a user's token to all the resources they have access to
+    # {"token_hash_a": {"/user1/bert_preproc": "read", "/user1/bert_train": "write"}}
     CACHE = {}
 
     @classmethod
@@ -46,48 +49,36 @@ class AuthCache:
 
         # Update server cache with a user's resources and access type
         cls.CACHE[hash_token(token)] = all_resources
-        logger.info(f"Updated cache for user with {len(all_resources)} resources:")
 
 
 def verify_cluster_access(
     cluster_uri: str,
     token: str,
-    func_call: bool,
 ) -> bool:
-    """Verify the user has access to the cluster. If user has write access to the cluster, will have access
-    to all other resources on the cluster. For calling functions must have read or write access to the cluster.
-    Access is managed by the object store, with a Ray actor (AuthCache) which maps a user's hashed token to
-    the list of resources they have access to."""
+    """Checks whether the user has access to the cluster.
+    Note: If user has write access to the cluster, will have access to all other resources on the cluster by default."""
     from runhouse.globals import obj_store
 
     token_hash = hash_token(token)
 
-    # Check if user's token has already been validated and saved to cache on the cluster
+    # Check if user already has saved resources in cache
     cached_resources: dict = obj_store.user_resources(token_hash)
 
     # e.g. {"/jlewitt1/bert-preproc": "read"}
     cluster_access_type = cached_resources.get(cluster_uri)
-    if cluster_access_type == ResourceAccess.WRITE.value:
-        # If user has write access to the cluster will have access to all functions on the cluster
+
+    if cluster_access_type is None:
+        # Reload from cache and check again
+        auth_cache_actor = ray.get_actor("auth_cache", namespace="runhouse")
+        ray.get(auth_cache_actor.add_user.remote(token))
+
+        cached_resources: dict = obj_store.user_resources(token_hash)
+        cluster_access_type = cached_resources.get(cluster_uri)
+
+    if cluster_access_type in [ResourceAccess.WRITE, ResourceAccess.READ]:
         return True
 
-    # Refresh cache for the user
-    # Note: for adding user we need to pass in the token since it requires querying Den
-    auth_cache_actor = ray.get_actor("auth_cache", namespace="runhouse")
-    ray.get(auth_cache_actor.add_user.remote(token))
-
-    # Re-check if user has access to the cluster
-    cached_resources: dict = obj_store.user_resources(token_hash)
-    cluster_access_type = cached_resources.get(cluster_uri)
-
-    # For running functions must have read or write access to the cluster
-    if func_call and cluster_access_type not in [
-        ResourceAccess.READ,
-        ResourceAccess.WRITE,
-    ]:
-        return False
-
-    return True
+    return False
 
 
 def hash_token(token: str) -> str:

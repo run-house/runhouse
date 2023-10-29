@@ -78,7 +78,7 @@ class ObjStore:
     def user_resources(self, token_hash: str):
         return ray.get(self._auth_cache.get_user_resources.remote(token_hash))
 
-    def has_resource_access(self, module, token_hash) -> bool:
+    def has_resource_access(self, resource_uri: str, token_hash: str) -> bool:
         """Checks whether user has read or write access to a given module saved on the cluster."""
         from runhouse.rns.utils.api import ResourceAccess
         from runhouse.servers.http.http_utils import load_current_cluster
@@ -93,9 +93,7 @@ class ObjStore:
             # if user has write access to cluster will have access to all resources
             return True
 
-        resource_uri = module.name
         resource_access_level = self.resource_access_level(token_hash, resource_uri)
-
         if resource_access_level not in [ResourceAccess.WRITE, ResourceAccess.READ]:
             return False
 

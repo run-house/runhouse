@@ -2,6 +2,8 @@ import copy
 import unittest
 from pathlib import Path
 
+import dotenv
+
 import pytest
 
 import runhouse as rh
@@ -10,6 +12,8 @@ from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import resolve_absolute_path
 
 from ..conftest import cpu_clusters, summer
+
+dotenv.load_dotenv()
 
 
 def is_on_cluster(cluster):

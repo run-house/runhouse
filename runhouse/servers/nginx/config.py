@@ -56,7 +56,6 @@ class NginxConfig:
             raise RuntimeError("Failed to configure Nginx")
 
     def reload(self):
-        logger.info("Reloading Nginx to apply changes.")
         result = subprocess.run(
             "sudo systemctl reload nginx",
             shell=True,
@@ -73,7 +72,7 @@ class NginxConfig:
                 "sudo nginx -v", shell=True, check=True, capture_output=True, text=True
             )
         except subprocess.CalledProcessError:
-            logger.info("Installing nginx on server")
+            logger.info("Installing Nginx on server")
             result = subprocess.run(
                 "sudo apt update && sudo apt install nginx -y",
                 shell=True,

@@ -4,11 +4,16 @@ import tempfile
 import textwrap
 import time
 
+import dotenv
+
 import numpy as np
 import pandas as pd
 import pytest
 
 import runhouse as rh
+
+dotenv.load_dotenv()
+
 
 # https://docs.pytest.org/en/6.2.x/fixture.html#conftest-py-sharing-fixtures-across-multiple-files
 
@@ -335,6 +340,45 @@ def ondemand_https_cluster_with_auth():
 
 
 @pytest.fixture(scope="session")
+def shared_resources():
+    from runhouse.globals import configs
+
+    current_token = configs.get("token")
+    current_username = configs.get("username")
+
+    # Launch and save the cluster using the test account
+    test_account_token = os.getenv("TEST_TOKEN")
+    test_account_username = os.getenv("TEST_USERNAME")
+
+    configs.set("token", test_account_token)
+    configs.set("username", test_account_username)
+    configs.set("default_folder", f"/{test_account_username}")
+
+    c = rh.ondemand_cluster(
+        name="rh-cpu-shared",
+        instance_type="CPU:2+",
+        den_auth=True,
+        server_connection_type="tls",
+        open_ports=[443],
+    )
+    c.up_if_not()
+
+    c.install_packages(["pytest"])
+
+    # Create function on shared cluster with the same test account
+    remote_func = (
+        rh.function(summer, name="summer_func_shared").to(c, env=["pytest"]).save()
+    )
+
+    # Reset configs back to original account
+    configs.set("token", current_token)
+    configs.set("username", current_username)
+    configs.set("default_folder", f"/{current_username}")
+
+    yield c, remote_func
+
+
+@pytest.fixture(scope="session")
 def sm_cluster():
     c = (
         rh.sagemaker_cluster(
@@ -540,6 +584,11 @@ def summer_func_with_auth(ondemand_https_cluster_with_auth):
     return rh.function(summer, name="summer_func").to(
         ondemand_https_cluster_with_auth, env=["pytest"]
     )
+
+
+@pytest.fixture(scope="session")
+def summer_func_shared(shared_cluster):
+    return rh.function(summer, name="summer_func").to(shared_cluster, env=["pytest"])
 
 
 @pytest.fixture(scope="session")

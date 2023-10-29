@@ -152,9 +152,10 @@ class EnvServlet:
                     f"{self.env_name} servlet: Calling method {method_name} on module {module_name}"
                 )
                 callable_method = True
-                if not obj_store.has_resource_access(module, token_hash):
+                resource_uri = module.rns_address
+                if not obj_store.has_resource_access(resource_uri, token_hash):
                     raise Exception(
-                        f"No read or write access to resource: {module.name}"
+                        f"No read or write access to resource: {resource_uri}"
                     )
             else:
                 # Method is a property, return the value
@@ -579,7 +580,7 @@ class EnvServlet:
 
     def call(
         self,
-        module,
+        module_name: str,
         method=None,
         args=None,
         kwargs=None,
@@ -587,9 +588,10 @@ class EnvServlet:
         token_hash=None,
     ):
         self.register_activity()
-        module = obj_store.get(module)
-        if not obj_store.has_resource_access(module, token_hash):
-            raise Exception(f"No read or write access to resource: {module.name}")
+        module = obj_store.get(module_name, default=KeyError)
+        resource_uri = module.rns_address
+        if not obj_store.has_resource_access(resource_uri, token_hash):
+            raise Exception(f"No read or write access to resource: {resource_uri}")
 
         if method:
             fn = getattr(module, method)
