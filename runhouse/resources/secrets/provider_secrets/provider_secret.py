@@ -1,3 +1,4 @@
+import os
 from typing import Dict, Optional
 
 from runhouse.resources.secrets.secret import Secret
@@ -42,3 +43,10 @@ class ProviderSecret(Secret):
     def from_config(config: dict, dryrun: bool = False):
         """Create a ProviderSecret object from a config dictionary."""
         return ProviderSecret(**config, dryrun=dryrun)
+
+    def is_enabled(self):
+        """Whether the secret is enabled locally."""
+        path = self.path or f"{self.DEFAULT_DIR}/{self.name}.json"
+        if os.path.exists(os.path.expanduser(path)):
+            return True
+        return False

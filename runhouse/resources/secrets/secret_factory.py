@@ -74,9 +74,6 @@ def provider_secret(
             return Secret.from_name(name)
 
     secret_class = _get_provider_class(provider)
-    if not any([values, path, env_vars]):
-        return secret_class(provider=provider)
-
     return secret_class(
         name=name,
         provider=provider,

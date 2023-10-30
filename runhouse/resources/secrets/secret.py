@@ -10,14 +10,12 @@ import requests
 
 from runhouse.globals import configs, rns_client
 from runhouse.resources.blobs.file import File, file
+from runhouse.resources.envs.env import Env
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.resource import Resource
-from runhouse.resources.secrets.utils import (
-    _check_file_for_mismatches,
-    _load_env_vars_from_path,
-    load_config,
-)
+from runhouse.resources.secrets.utils import _check_file_for_mismatches, load_config
 from runhouse.rns.utils.api import load_resp_content, read_resp_data
+from runhouse.rns.utils.names import _generate_default_name
 
 
 logger = logging.getLogger(__name__)
@@ -36,7 +34,8 @@ class Secret(Resource):
         name: Optional[str],
         values: Dict = {},
         path: str = None,
-        env_vars: List = None,
+        env_vars: Dict = None,
+        format: str = "json",  # TODO: support other types
         dryrun: bool = False,
         **kwargs,
     ):
@@ -50,6 +49,7 @@ class Secret(Resource):
         self._values = values
         self.path = path
         self.env_vars = env_vars
+        self.format = format
 
     @classmethod
     def builtin_providers(cls, as_str: bool = False) -> list:
@@ -157,10 +157,8 @@ class Secret(Resource):
             path_config = {self.name: self.path}
             configs.set_nested(key="secrets", value=path_config)
 
-    # TODO: would be nice to add support for different format types here -- json, yaml [configparser]
-    # and same for write function
     def _from_path(self, path: Optional[str] = None):
-        path = path or self.path or f"{self.DEFAULT_DIR}/{self.name}.json"
+        path = path or self.path or f"{self.DEFAULT_DIR}/{self.name}.{self.format}"
         if isinstance(path, File):
             if path.exists_in_system():
                 try:
@@ -257,7 +255,7 @@ class Secret(Resource):
             >>> # writes down api_key key-value pair to "new/secrets/file"
             >>> secret.write(path="new/secrets/file", keys="api_key")
         """
-        path = path or self.path or f"{self.DEFAULT_DIR}/{self.name}.json"
+        path = path or self.path
         if not path:
             raise Exception(
                 f"Secret {self.name} was not constructed with a path. "
@@ -287,21 +285,16 @@ class Secret(Resource):
 
         return new_secret
 
-    def write_env_vars(
+    def set_env_vars(
         self,
-        python_env: bool = False,
-        path: Union[str, Path] = None,
         keys: List[str] = None,
         env_vars: Dict = None,
-        overwrite: bool = False,  # TODO: not properly supported yet
+        overwrite: bool = False,
     ):
         """
-        Write down the env vars to the path if provided, and into the Python os environment if
-        ``python_env`` is set to True.
+        Set the environment variables in the python env.
 
         Args:
-            python_env (bool, optional): Whether to set Python os environment variables. (Default: False)
-            path (str, optional): The path to write down the env variables to (such as .env file path).
             keys (List[str], optional): The keys corresponding to the secret values to write down.
             env_vars (Dict, optional): The mapping of secret key to the corresponding environment
                 variable name.
@@ -312,34 +305,18 @@ class Secret(Resource):
             Secret with the given keys and path, if provided.
 
         Example:
-            >>> secret.write_env_vars(path="secret.env")
-            >>> secret.write_env_vars(keys="api_key", env_vars={"api_key": "MY_API_KEY"})
+            >>> secret.set_env_vars(path="secret.env")
+            >>> secret.set_env_vars(keys="api_key", env_vars={"api_key": "MY_API_KEY"})
         """
         values = self.values
         keys = keys or values.keys()
         values = {key: values[key] for key in keys}
         env_vars = env_vars or self.env_vars or {key: key for key in keys}
 
-        # TODO path is a File
-        if path:
-            path = os.path.expanduser(path)
-            if os.path.dirname(path):
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-            existing_keys = (
-                _load_env_vars_from_path(path).keys() if Path(path).exists() else {}
-            )
-            with open(path, "a+") as f:
-                for key in keys:
-                    if key not in existing_keys:
-                        f.write(f"\n{env_vars[key]}={values[key]}")
-                    elif overwrite:
-                        pass
-
-        if python_env:
-            existing_keys = dict(os.environ).keys()
-            for key in env_vars.keys():
-                if env_vars[key] not in existing_keys or overwrite:
-                    os.environ[env_vars[key]] = values[key]
+        existing_keys = dict(os.environ).keys()
+        for key in env_vars.keys():
+            if env_vars[key] not in existing_keys or overwrite:
+                os.environ[env_vars[key]] = values[key]
 
     def delete_file(
         self,
@@ -361,10 +338,8 @@ class Secret(Resource):
         elif path and os.path.exists(os.path.expanduser(path)):
             os.remove(os.path.expanduser(path))
 
-    def delete_env_vars(
+    def unset_env_vars(
         self,
-        python_env: bool = False,
-        path: Union[str, Path] = None,
         keys: List[str] = None,
         env_vars: Dict = None,
     ):
@@ -373,9 +348,6 @@ class Secret(Resource):
         ``python_env`` is set to True.
 
         Args:
-            python_env (bool, optional): Whether to remove the corresponding Python os environment variables.
-                (Default: False)
-            path (str, optional): The path to delete the env variables from (such as .env file path).
             keys (List[str], optional): The keys corresponding to the secret values to remove. Must be a subset
                 of secret values keys. If none is provided, will delete the entire set of values keys corresponding
                 to the secret.
@@ -399,65 +371,23 @@ class Secret(Resource):
         if keys:
             new_secret = copy.copy(self)
 
-        if python_env:
-            existing_keys = dict(os.environ).keys()
-            for key in env_vars.keys():
-                if key not in existing_keys:
-                    logger.warning(
-                        "Key {key} already does not exist in os.environ. Skipping deleting."
-                    )
-                elif os.environ[key] != values[key]:
-                    logger.warning(
-                        f"Secret value corresponding to {key} env var does not match the value in os.environ. "
-                        "Skipping deleting."
-                    )
-                else:
-                    del os.environ[key]
-                    if new_secret.env_vars and key in new_secret.env_vars:
-                        if isinstance(new_secret.env_vars, List):
-                            new_secret.env_vars.remove(key)
-                        else:  # dict
-                            del new_secret.env_vars[key]
-                    if new_secret._values and key in new_secret._values:
-                        del new_secret._values[key]
-
-        if path:
-            # TODO: add support for File type path
-            path = os.path.expanduser(path)
-            existing_env_vars = (
-                _load_env_vars_from_path(path) if Path(path).exists() else {}
-            )
-
-            if set(existing_env_vars.keys()) == set(env_vars.values()):
-                if isinstance(self.path, File):
-                    self.path.rm()
-                elif os.path.exists(os.path.expanduser(self.path)):
-                    os.remove(os.path.expanduser(self.path))
-                return None
-
-            for key in env_vars.keys():
-                if env_vars[key] not in existing_env_vars.keys():
-                    logger.warning(
-                        "Key {key} already does not exist in the file. Skipping deleting."
-                    )
-                elif existing_env_vars[env_vars[key]] != values[key]:
-                    logger.warning(
-                        f"Secret value corresponding to {key} env var does not match the value in the file. "
-                        "Skipping deleting."
-                    )
-                else:
-                    del existing_env_vars[env_vars[key]]
-                    if new_secret.env_vars and key in new_secret.env_vars:
-                        if isinstance(new_secret.env_vars, List):
-                            new_secret.env_vars.remove(key)
-                        else:  # dict
-                            del new_secret.env_vars[key]
-                    if new_secret._values and key in new_secret._values:
-                        del new_secret._values[key]
-
-            with open(path, "w") as f:
-                for original_key, original_value in existing_env_vars.items():
-                    f.write(f"\n{original_key}={original_value}")
+        existing_keys = dict(os.environ).keys()
+        for key in env_vars.keys():
+            if key not in existing_keys:
+                logger.warning(
+                    "Key {key} already does not exist in os.environ. Skipping deleting."
+                )
+            elif os.environ[key] != values[key]:
+                logger.warning(
+                    f"Secret value corresponding to {key} env var does not match the value in os.environ. "
+                    "Skipping deleting."
+                )
+            else:
+                del os.environ[key]
+                if new_secret.env_vars and key in new_secret.env_vars:
+                    del new_secret.env_vars[key]
+                if new_secret._values and key in new_secret._values:
+                    del new_secret._values[key]
 
         if keys:
             return new_secret
@@ -492,24 +422,33 @@ class Secret(Resource):
             self.delete_file()
         configs.delete_provider(self.name)
 
-    # TODO: handle env -- vars or file
+    # Q: is the way we send .to(cluster) secure?
     def to(
         self,
         system: Union[str, Cluster],
         path: Union[str, Path] = None,
+        env: Union[str, Env] = None,
+        values: bool = True,
+        name: Optional[str] = None,
     ):
         """Return a copy of the secret on a system.
 
         Args:
             system (str or Cluster): Cluster to send the secret to
-            path (str or Path): path on cluster to write down the secret values to.
+            path (str or Path, optional): Path on cluster to write down the secret values to.
                 If not provided, secret values are not written down.
+            env (str or Env, optional): Env to send the secret to. This will save down the secrets
+                as env vars in the env.
+            values (bool, optional): Whether to save down the values in the resource config. (Default: True)
+            name (str, ooptional): Name to assign the resource on the cluster.
 
         Example:
             >>> secret.to(my_cluster, path=secret.path)
         """
         system = _get_cluster_from(system)
         if system.on_this_cluster():
+            if name and not self.name == name:
+                self.rename(name)
             if path:
                 self.write(path=path)
                 new_secret = copy.deepcopy(self)
@@ -517,15 +456,23 @@ class Secret(Resource):
                 return new_secret
             return self
 
-        key = system.put_resource(self)
         new_secret = copy.deepcopy(self)
+        new_secret.name = name or self.name or _generate_default_name(prefix="secret")
+
+        # TODO: should we write it down by default if the local secret has it written down?
+        new_secret.path = path
+        if values and not new_secret._values:
+            new_secret._values = new_secret.values
+
+        key = system.put_resource(new_secret)
 
         if path:
             remote_file = self._file_to(key, system, path)
             new_secret.path = remote_file
-        else:
-            # TODO: should we write it down by default if the local secret has it written down?
-            new_secret.path = None
+        if env:
+            env_vars = {v: self.values[self.env_vars[k]] for k, v in self.env_vars}
+            system.call(env, "_set_env_vars", env_vars)
+
         return new_secret
 
     def _file_to(
@@ -560,9 +507,8 @@ class Secret(Resource):
             return True
         return False
 
-    def is_enabled(self):
-        """Whether the secret is enabled locally."""
-        path = self.path or f"{self.DEFAULT_DIR}/{self.name}.json"
-        if os.path.exists(os.path.expanduser(path)):
-            return True
-        return False
+    def is_present(self):
+        pass
+
+    def share(self):
+        pass

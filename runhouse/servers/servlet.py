@@ -58,9 +58,17 @@ class EnvServlet:
             # obj_store.
             name = resource_config.pop("name")
             subtype = resource_config.pop("resource_subtype")
+            provider = (
+                resource_config.pop("provider")
+                if "provider" in resource_config
+                else None
+            )
+
             resource_config = obj_store.get_obj_refs_dict(resource_config)
             resource_config["name"] = name
             resource_config["resource_subtype"] = subtype
+            if provider:
+                resource_config["provider"] = provider
 
             logger.info(
                 f"Message received from client to construct resource: {resource_config}"
@@ -528,6 +536,7 @@ class EnvServlet:
         keys: list = list(obj_store.keys())
         return Response(data=pickle_b64(keys), output_type=OutputType.RESULT)
 
+    # TODO [CC]: this workflow needs to be updated
     def add_secrets(self, message: Message):
         from runhouse import Secrets
 
