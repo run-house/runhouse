@@ -369,11 +369,11 @@ class RNSClient:
             f"{self.api_server_url}/{uri}", data=json.dumps(payload), headers=headers
         )
         if resp.status_code == 200:
-            logger.info(f"Config updated in RNS for Runhouse URI <{uri}>")
+            logger.info(f"Config updated in Den for resource: {uri}")
         elif resp.status_code == 422:  # No changes made to existing Resource
             logger.info(f"Config for {uri} has not changed, nothing to update")
         elif resp.status_code == 404:  # Resource not found
-            logger.info(f"Saving new resource in RNS for Runhouse URI <{uri}>")
+            logger.info(f"Saving new resource in Den for resource: {uri}")
             # Resource does not yet exist, in which case we need to create from scratch
             resp = requests.post(
                 f"{self.api_server_url}/resource",
@@ -382,11 +382,11 @@ class RNSClient:
             )
             if resp.status_code != 200:
                 raise Exception(
-                    f"Failed to create new resource in RNS: {load_resp_content(resp)}"
+                    f"Failed to create new resource: {load_resp_content(resp)}"
                 )
         else:
             raise Exception(
-                f"Failed to save resource <{uri}> in RNS: {load_resp_content(resp)}"
+                f"Failed to save resource: {resource_name}: {load_resp_content(resp)}"
             )
 
     def delete_configs(

@@ -96,7 +96,12 @@ class EnvServlet:
             )
 
     def call_module_method(
-        self, module_name, method_name, message: Message, token_hash: str
+        self,
+        module_name,
+        method_name,
+        message: Message,
+        token_hash: str,
+        den_auth: bool,
     ):
         self.register_activity()
         result_resource = None
@@ -152,11 +157,13 @@ class EnvServlet:
                     f"{self.env_name} servlet: Calling method {method_name} on module {module_name}"
                 )
                 callable_method = True
-                resource_uri = module.rns_address
-                if not obj_store.has_resource_access(resource_uri, token_hash):
-                    raise Exception(
-                        f"No read or write access to resource: {resource_uri}"
+
+                if den_auth:
+                    resource_uri = (
+                        module.rns_address if hasattr(module, "rns_address") else None
                     )
+                    if not obj_store.has_resource_access(token_hash, resource_uri):
+                        raise Exception("No read or write access to requested resource")
             else:
                 # Method is a property, return the value
                 logger.info(
@@ -586,12 +593,16 @@ class EnvServlet:
         kwargs=None,
         serialization="json",
         token_hash=None,
+        den_auth=False,
     ):
         self.register_activity()
         module = obj_store.get(module_name, default=KeyError)
-        resource_uri = module.rns_address
-        if not obj_store.has_resource_access(resource_uri, token_hash):
-            raise Exception(f"No read or write access to resource: {resource_uri}")
+        if den_auth:
+            resource_uri = (
+                module.rns_address if hasattr(module, "rns_address") else None
+            )
+            if not obj_store.has_resource_access(token_hash, resource_uri):
+                raise Exception("No read or write access to requested resource")
 
         if method:
             fn = getattr(module, method)

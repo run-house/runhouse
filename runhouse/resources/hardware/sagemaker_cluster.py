@@ -907,7 +907,7 @@ class SageMakerCluster(Cluster):
         # subsequent clusters are created as the IP address is added to the file as: [localhost]:11022
         self._filter_known_hosts()
 
-        num_ports_total = num_ports_to_try
+        num_attempts = num_ports_to_try
         connected = False
 
         while not connected:
@@ -920,12 +920,12 @@ class SageMakerCluster(Cluster):
 
             if num_ports_to_try == 0:
                 raise ConnectionError(
-                    f"Failed to create connection with {self.name} after {num_ports_total} attempts "
+                    f"Failed to create connection with {self.name} after {num_attempts} attempts "
                     f"(cluster status=`{self.status().get('TrainingJobStatus')}`). Make sure that another SageMaker "
                     f"cluster is not already active, that AWS CLI V2 is installed, and that the path has been properly "
                     f"added to your bash profile"
                     f"(https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-troubleshooting.html). "
-                    f"If the problem continues to persist, try running the command to create the session "
+                    f"If the error persists, try running the command to create the session "
                     f"manually: `bash {' '.join(command)}`"
                 )
 
@@ -938,7 +938,7 @@ class SageMakerCluster(Cluster):
                 )
 
                 # Give enough time for the aws ssm + ssh port forwarding commands in the script to complete
-                # Better to wait a few more seconds than to restart the HTTP server and Ray on the cluster unnecessarily
+                # Better to wait a few more seconds than to restart the HTTP server on the cluster unnecessarily
                 time.sleep(8)
 
                 if not self._ports_are_in_use():
@@ -947,7 +947,7 @@ class SageMakerCluster(Cluster):
                     raise socket.error
 
                 connected = True
-                logger.info(f"Successfully refreshed SSM session with {self.name}")
+                logger.info("Successfully refreshed SSM session")
 
             except socket.error:
                 # If the refresh didn't work try connecting with a different port - could be that the port

@@ -48,7 +48,6 @@ def validate_cluster_access(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         request: Request = kwargs.get("request")
-        func_call: bool = func.__name__ in ["call_module_method", "call"]
         use_den_auth: bool = den_auth
         is_coro = inspect.iscoroutinefunction(func)
 
@@ -77,6 +76,7 @@ def validate_cluster_access(func):
                 detail="Failed to load current cluster. Make sure cluster config YAML exists on the cluster.",
             )
 
+        func_call: bool = func.__name__ in ["call_module_method", "call"]
         cluster_access = verify_cluster_access(cluster_uri, token)
         if not cluster_access and not func_call:
             # Must have cluster access for all the non func calls
@@ -330,6 +330,7 @@ class HTTPServer:
         request: Request, module, method=None, message: dict = Body(...)
     ):
         token = get_token_from_request(request)
+        token_hash = hash_token(token) if den_auth else None
         # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
@@ -354,7 +355,7 @@ class HTTPServer:
                 # Unless we're returning a fast response, we discard this obj_ref
                 obj_ref = HTTPServer.call_in_env_servlet(
                     "call_module_method",
-                    [module, method, message, hash_token(token)],
+                    [module, method, message, token_hash, den_auth],
                     env=env,
                     create=True,
                     block=False,
@@ -575,9 +576,10 @@ class HTTPServer:
         kwargs = args.get("kwargs", {})
         args = args.get("args", [])
         token = get_token_from_request(request)
+        token_hash = hash_token(token) if den_auth else None
         resp = HTTPServer.call_in_env_servlet(
             "call",
-            [module, method, args, kwargs, serialization, hash_token(token)],
+            [module, method, args, kwargs, serialization, token_hash, den_auth],
             create=True,
             lookup_env_for_name=module,
         )

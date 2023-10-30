@@ -78,20 +78,27 @@ class ObjStore:
     def user_resources(self, token_hash: str):
         return ray.get(self._auth_cache.get_user_resources.remote(token_hash))
 
-    def has_resource_access(self, resource_uri: str, token_hash: str) -> bool:
+    def has_resource_access(self, token_hash: str, resource_uri=None) -> bool:
         """Checks whether user has read or write access to a given module saved on the cluster."""
         from runhouse.rns.utils.api import ResourceAccess
         from runhouse.servers.http.http_utils import load_current_cluster
 
         if token_hash is None:
-            # If no token is provided we do not enforce den auth
-            return True
+            # If no token is provided assume no access
+            return False
 
         cluster_uri = load_current_cluster()
         cluster_access = self.resource_access_level(token_hash, cluster_uri)
         if cluster_access == ResourceAccess.WRITE:
             # if user has write access to cluster will have access to all resources
             return True
+
+        if resource_uri is None and cluster_access not in [
+            ResourceAccess.WRITE,
+            ResourceAccess.READ,
+        ]:
+            # If module does not have a name, must have access to the cluster
+            return False
 
         resource_access_level = self.resource_access_level(token_hash, resource_uri)
         if resource_access_level not in [ResourceAccess.WRITE, ResourceAccess.READ]:

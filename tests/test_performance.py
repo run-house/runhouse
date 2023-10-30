@@ -56,22 +56,8 @@ def test_roundtrip_performance(summer_func):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-def test_https_performance(summer_func_with_auth):
+def test_https_roundtrip_performance(summer_func_with_auth):
     run_performance_tests(summer_func_with_auth)
-
-
-@pytest.mark.clustertest
-@pytest.mark.rnstest
-@unittest.skip("Not implemented yet.")
-def test_http_performance(summer_func):
-    pass
-
-
-@pytest.mark.clustertest
-@pytest.mark.rnstest
-@unittest.skip("Not implemented yet.")
-def test_ssh_performance(summer_func):
-    pass
 
 
 if __name__ == "__main__":

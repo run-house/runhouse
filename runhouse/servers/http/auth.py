@@ -13,9 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class AuthCache:
-
     # Maps a user's token to all the resources they have access to
-    # {"token_hash_a": {"/user1/bert_preproc": "read", "/user1/bert_train": "write"}}
     CACHE = {}
 
     @classmethod
@@ -46,7 +44,6 @@ class AuthCache:
         all_resources: dict = {
             resource["name"]: resource["access_type"] for resource in resp_data["data"]
         }
-
         # Update server cache with a user's resources and access type
         cls.CACHE[hash_token(token)] = all_resources
 
@@ -69,8 +66,7 @@ def verify_cluster_access(
 
     if cluster_access_type is None:
         # Reload from cache and check again
-        auth_cache_actor = ray.get_actor("auth_cache", namespace="runhouse")
-        ray.get(auth_cache_actor.add_user.remote(token))
+        update_cache_for_user(token)
 
         cached_resources: dict = obj_store.user_resources(token_hash)
         cluster_access_type = cached_resources.get(cluster_uri)
@@ -84,3 +80,8 @@ def verify_cluster_access(
 def hash_token(token: str) -> str:
     """Hash the user's token to avoid storing them in plain text on the cluster."""
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def update_cache_for_user(token):
+    auth_cache_actor = ray.get_actor("auth_cache", namespace="runhouse")
+    ray.get(auth_cache_actor.add_user.remote(token))

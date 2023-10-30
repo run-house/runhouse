@@ -84,10 +84,11 @@ def cluster(
                 f"Cluster does not support server connection type of {server_connection_type}"
             )
     else:
-        if ssl_certfile or ssl_keyfile:
-            server_connection_type = ServerConnectionType.TLS
-        else:
-            server_connection_type = ServerConnectionType.SSH
+        server_connection_type = (
+            ServerConnectionType.TLS
+            if ssl_certfile or ssl_keyfile
+            else ServerConnectionType.SSH
+        )
 
     if server_port is None:
         if server_connection_type == ServerConnectionType.TLS:
