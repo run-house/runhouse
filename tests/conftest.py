@@ -1,8 +1,11 @@
 import os
+import pkgutil
+import shlex
 import shutil
 import tempfile
 import textwrap
 import time
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -595,9 +598,9 @@ def run_shell_command_direct(subprocess, cmd: str):
     assert result.returncode == 0
 
 
-def run_shell_command(subprocess, cmd: list[str]):
+def run_shell_command(subprocess, cmd: list[str], cwd: str = None):
     # Run the command and wait for it to complete
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd or Path.cwd())
 
     if result.returncode != 0:
         print("subprocess failed, stdout: " + result.stdout)
@@ -607,77 +610,96 @@ def run_shell_command(subprocess, cmd: list[str]):
     assert result.returncode == 0
 
 
-def popen_shell_command(subprocess, command: list[str]):
+def popen_shell_command(subprocess, command: list[str], cwd: str = None):
     process = subprocess.Popen(
-        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=cwd or Path.cwd()
     )
     # Wait for 10 seconds before resuming execution
     time.sleep(10)
     return process
 
 
-@pytest.fixture
-def local_docker_slim():
+@pytest.fixture(scope="session")
+def local_docker_cluster_passwd(detached=True):
     import subprocess
+    import docker
 
-    current_dir = os.getcwd()
-    dockerfile_path = os.path.join(current_dir, "runhouse/docker/slim/Dockerfile")
+    local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
+    dockerfile_path = local_rh_package_path / "docker/slim/Dockerfile"
+    rh_parent_path = local_rh_package_path.parent
+    rh_path = f"runhouse" if (rh_parent_path / "setup.py").exists() else None
+    rh_version = rh.__version__ if not rh_path else None
 
-    # Build the Docker image
-    run_shell_command(
-        subprocess,
-        [
-            "docker",
-            "build",
-            "--pull",
-            "--rm",
-            "-f",
-            dockerfile_path,
-            "--build-arg",
-            "DOCKER_USER_PASSWORD_FILE=~/.rh/secrets/docker_user_passwd",
-            "-t",
-            "runhouse:start",
-            ".",
-        ],
-    )
+    # Check if the container is already running, and if so, skip build and run
+    client = docker.from_env()
+    containers = client.containers.list(all=True,
+                                        filters={"ancestor": "runhouse:start",
+                                                 "status": "running",
+                                                 "name": "rh-slim-server"})
+    if len(containers) > 0 and detached:
+        print("Container already running, skipping build and run")
+    else:
+        # Build the Docker image, but need to cd into base runhouse directory first
+        build_cmd = [
+                "docker",
+                "build",
+                "--pull",
+                "--rm",
+                "-f",
+                str(dockerfile_path),
+                "--build-arg",
+                f"DOCKER_USER_PASSWORD_FILE=docker_user_passwd",
+                f"--build-arg",
+                f"RUNHOUSE_PATH={rh_path}" if rh_path else f"RUNHOUSE_VERSION={rh_version}",
+                "-t",
+                "runhouse:start",
+                ".",
+            ]
+        print(shlex.join(build_cmd))
+        run_shell_command(subprocess, build_cmd, cwd=str(rh_parent_path.parent))
 
-    # Run the Docker image
-    popen_shell_command(
-        subprocess,
-        [
-            "docker",
-            "run",
-            "--rm",
-            "--shm-size=3gb",
-            "-p",
-            "32300:32300",
-            "-p",
-            "6379:6379",
-            "-p",
-            "52365:52365",
-            "-p",
-            "443:443",
-            "-p",
-            "80:80",
-            "-p",
-            "22:22",
-            "runhouse:start",
-        ],
-    )
+        # Run the Docker image
+        run_cmd = [
+                "docker",
+                "run",
+                "--name",
+                "rh-slim-server",
+                "-d",
+                "--rm",
+                "--shm-size=3gb",
+                "-p",
+                "32300:32300",
+                "-p",
+                "6379:6379",
+                "-p",
+                "52365:52365",
+                "-p",
+                "443:443",
+                "-p",
+                "80:80",
+                "-p",
+                "22:22",
+                "runhouse:start",
+            ]
+        print(shlex.join(run_cmd))
+        popen_shell_command(subprocess, run_cmd, cwd=str(rh_parent_path.parent))
 
     # Runhouse commands can now be run locally
+    pwd = (rh_parent_path.parent / "docker_user_passwd").read_text().strip()
     c = rh.cluster(
         name="local-docker-slim",
         host="localhost",
-        ssh_creds={"ssh_user": "rh-docker-user"},
+        ssh_creds={"ssh_user": "rh-docker-user", "password": pwd},
     )
+    c.run([f'cat "token: {rh.configs.get("token")}" >> .rh/config.yaml'])
+    c.install_packages(["pytest"])
+    c.save()
 
     # Yield the cluster
     yield c
 
     # Stop the Docker container
-    command = (
-        "docker ps --filter 'ancestor=runhouse:start' --latest --format '{{.ID}}' | "
-        "xargs -I {} docker rm -f {}"
-    )
-    run_shell_command_direct(subprocess, command)
+    if not detached:
+        client.containers.get("rh-slim-server").stop()
+        client.containers.prune()
+        client.images.prune()
