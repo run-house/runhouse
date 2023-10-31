@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import requests
+from pydantic import BaseModel
 
 from runhouse.globals import obj_store, rns_client
 from runhouse.rns.top_level_rns_fns import (
@@ -15,6 +16,22 @@ from runhouse.rns.top_level_rns_fns import (
 )
 from runhouse.rns.utils.api import load_resp_content, read_resp_data, ResourceAccess
 
+
+class TelemetryBackend(BaseModel):
+    address: str
+    username: str
+    password: str
+
+
+class TelemetryCollector(BaseModel):
+    address: str
+
+
+class TelemetryEntry(BaseModel):
+    backend: Optional[TelemetryBackend]
+    collector: Optional[str]
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,7 +39,12 @@ class Resource:
     RESOURCE_TYPE = None
 
     def __init__(
-        self, name: Optional[str] = None, dryrun: bool = None, provenance=None, **kwargs
+        self,
+        name: Optional[str] = None,
+        dryrun: bool = None,
+        provenance=None,
+        telemetry: Optional[List[TelemetryEntry]] = None,
+        **kwargs,
     ):
         """
         Runhouse abstraction for objects that can be saved, shared, and reused.
@@ -63,6 +85,8 @@ class Resource:
             if isinstance(provenance, Dict)
             else provenance
         )
+        # self.telemetry_collectors =
+        # self.telemetry_backends =
 
     # TODO add a utility to allow a parameter to be specified as "default" and then use the default value
 
