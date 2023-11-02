@@ -49,9 +49,6 @@ def pytest_generate_tests(metafunc):
             metafunc.parametrize(fixture_name, fixture_list, indirect=True)
 
 
-############## FIXTURES ##############
-
-
 # https://docs.pytest.org/en/6.2.x/fixture.html#conftest-py-sharing-fixtures-across-multiple-files
 
 ############## HELPERS ##############
