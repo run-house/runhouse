@@ -522,9 +522,7 @@ class HTTPServer:
         import ray._private.usage.usage_lib as ray_usage_lib
         from ray._raylet import GcsClient
 
-        gcs_client = GcsClient(
-            address="127.0.0.1:6379", nums_reconnect_retry=20
-        )
+        gcs_client = GcsClient(address="127.0.0.1:6379", nums_reconnect_retry=20)
 
         # fields : ['ray_version', 'python_version']
         cluster_metadata = ray_usage_lib.get_cluster_metadata(gcs_client)

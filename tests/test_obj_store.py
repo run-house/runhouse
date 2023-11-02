@@ -233,7 +233,9 @@ def test_multiprocessing_streaming(ondemand_cpu_cluster):
 def test_tqdm_streaming(ondemand_cpu_cluster):
     # Note, this doesn't work properly in PyCharm due to incomplete
     # support for carriage returns in the PyCharm console.
-    print_fn = rh.function(fn=do_tqdm_printing_and_logging, system=ondemand_cpu_cluster)
+    print_fn = rh.function(fn=do_tqdm_printing_and_logging).to(
+        ondemand_cpu_cluster, env=["tqdm"]
+    )
     res = print_fn(steps=40, stream_logs=True)
     assert res == list(range(50))
 
