@@ -752,7 +752,9 @@ def local_docker_cluster_passwd(detached=True):
     import docker
 
     local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
-    dockerfile_path = local_rh_package_path / "docker/slim/Dockerfile"
+    dockerfile_path = (
+        local_rh_package_path / "docker/slim/password-file-auth/Dockerfile"
+    )
     rh_parent_path = local_rh_package_path.parent
     rh_path = "runhouse" if (rh_parent_path / "setup.py").exists() else None
     rh_version = rh.__version__ if not rh_path else None
@@ -764,7 +766,7 @@ def local_docker_cluster_passwd(detached=True):
         filters={
             "ancestor": "runhouse:start",
             "status": "running",
-            "name": "rh-slim-server",
+            "name": "rh-slim-server-password-auth",
         },
     )
     if len(containers) > 0 and detached:
@@ -794,7 +796,7 @@ def local_docker_cluster_passwd(detached=True):
             "docker",
             "run",
             "--name",
-            "rh-slim-server",
+            "rh-slim-server-password-auth",
             "-d",
             "--rm",
             "--shm-size=3gb",
@@ -818,12 +820,18 @@ def local_docker_cluster_passwd(detached=True):
     # Runhouse commands can now be run locally
     pwd = (rh_parent_path.parent / "docker_user_passwd").read_text().strip()
     c = rh.cluster(
-        name="local-docker-slim",
+        name="local-docker-slim-password-file-auth",
         host="localhost",
         ssh_creds={"ssh_user": "rh-docker-user", "password": pwd},
     )
-    c.run([f'cat "token: {rh.configs.get("token")}" >> .rh/config.yaml'])
-    c.install_packages(["pytest"])
+    rh.env(
+        reqs=["pytest"],
+        working_dir=None,
+        setup_cmds=[
+            f'mkdir ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
+        ],
+        name="base_env",
+    ).to(c)
     c.save()
 
     # Yield the cluster
@@ -831,6 +839,110 @@ def local_docker_cluster_passwd(detached=True):
 
     # Stop the Docker container
     if not detached:
-        client.containers.get("rh-slim-server").stop()
+        client.containers.get("rh-slim-server-password-auth").stop()
+        client.containers.prune()
+        client.images.prune()
+
+
+@pytest.fixture(scope="session")
+def local_docker_cluster_public_key(detached=True):
+    import subprocess
+
+    import docker
+
+    local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
+    dockerfile_path = local_rh_package_path / "docker/slim/public-key-auth/Dockerfile"
+    rh_parent_path = local_rh_package_path.parent
+    rh_path = "runhouse" if (rh_parent_path / "setup.py").exists() else None
+    rh_version = rh.__version__ if not rh_path else None
+    keypath = str(
+        Path(
+            rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
+        ).expanduser()
+    )
+
+    # Check if the container is already running, and if so, skip build and run
+    client = docker.from_env()
+    containers = client.containers.list(
+        all=True,
+        filters={
+            "ancestor": "runhouse:start",
+            "status": "running",
+            "name": "rh-slim-server-public-key-auth",
+        },
+    )
+    if len(containers) > 0 and detached:
+        print("Container already running, skipping build and run")
+    else:
+        # Build the Docker image, but need to cd into base runhouse directory first
+        build_cmd = [
+            "docker",
+            "build",
+            "--pull",
+            "--rm",
+            "-f",
+            str(dockerfile_path),
+            "--build-arg",
+            f"RUNHOUSE_PATH={rh_path}" if rh_path else f"RUNHOUSE_VERSION={rh_version}",
+            "--secret",
+            f"id=ssh_key,src={keypath}.pub",
+            "-t",
+            "runhouse:start",
+            ".",
+        ]
+        print(shlex.join(build_cmd))
+        run_shell_command(subprocess, build_cmd, cwd=str(rh_parent_path.parent))
+
+        # Run the Docker image
+        run_cmd = [
+            "docker",
+            "run",
+            "--name",
+            "rh-slim-server-public-key-auth",
+            "-d",
+            "--rm",
+            "--shm-size=3gb",
+            "-p",
+            "32300:32300",
+            "-p",
+            "6379:6379",
+            "-p",
+            "52365:52365",
+            "-p",
+            "443:443",
+            "-p",
+            "80:80",
+            "-p",
+            "22:22",
+            "runhouse:start",
+        ]
+        print(shlex.join(run_cmd))
+        popen_shell_command(subprocess, run_cmd, cwd=str(rh_parent_path.parent))
+
+    # Runhouse commands can now be run locally
+    c = rh.cluster(
+        name="local-docker-slim-public-key-auth",
+        host="localhost",
+        ssh_creds={
+            "ssh_user": "rh-docker-user",
+            "ssh_private_key": keypath,
+        },
+    )
+    rh.env(
+        reqs=["pytest"],
+        working_dir=None,
+        setup_cmds=[
+            f'mkdir ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
+        ],
+        name="base_env",
+    ).to(c)
+    c.save()
+
+    # Yield the cluster
+    yield c
+
+    # Stop the Docker container
+    if not detached:
+        client.containers.get("rh-slim-server-public-key-auth").stop()
         client.containers.prune()
         client.images.prune()
