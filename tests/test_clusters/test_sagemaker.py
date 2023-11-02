@@ -99,5 +99,26 @@ def test_stable_diffusion_on_sm_gpu(sm_gpu_cluster):
     assert not sm_gpu_cluster.is_up()
 
 
+@pytest.mark.clustertest
+def test_restart_sm_cluster_with_den_auth(sm_cluster_with_auth, summer_func_sm_auth):
+    from runhouse.globals import configs
+
+    # Create an invalid token, confirm the server does not accept the request
+    orig_token = configs.get("token")
+
+    # Request should return 200 with valid token
+    summer_func_sm_auth(1, 2)
+
+    configs.set("token", "abcd123")
+
+    # Request should raise an exception with an invalid token
+    try:
+        summer_func_sm_auth(1, 2)
+    except ValueError as e:
+        assert "Invalid or expired token" in str(e)
+
+    configs.set("token", orig_token)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -433,7 +433,7 @@ def test_nested_same_cluster(cluster):
 @cpu_clusters
 def test_http_url(cluster):
     rh.function(summer).to(cluster).save("@/remote_function")
-    tun, port = cluster.ssh_tunnel(80, 50052)
+    tun, port = cluster.ssh_tunnel(80, 32300)
     ssh_creds = cluster.ssh_creds()
     auth = (
         (ssh_creds.get("ssh_user"), ssh_creds.get("password"))

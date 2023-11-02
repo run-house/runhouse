@@ -72,6 +72,21 @@ def resolve_absolute_path(path: str):
     return os.path.abspath(os.path.expanduser(path))
 
 
+def relative_ssh_path(file_path: str):
+    """Convert to a relative path if it is not already one."""
+    if file_path.startswith("~"):
+        return file_path
+
+    # Convert to a relative path
+    relative_path = os.path.relpath(file_path, os.path.expanduser("~"))
+    relative_path = relative_path.replace("\\", "/")
+
+    if not relative_path.startswith("~"):
+        relative_path = f"~/{relative_path}"
+
+    return relative_path
+
+
 class ResourceAccess(str, Enum):
     WRITE = "write"
     READ = "read"

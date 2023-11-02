@@ -83,6 +83,6 @@ Runhouse provides tools for visibility and management of resources as long-livin
   permissions, default behaviors (e.g. default storage locations, compute providers, instance autotermination, etc.),
   project delineation, or staging (e.g. dev vs. prod).
 
-* `Management UI <https://www.run.house/dashboard>`__: provides an individual or admin view of all resources, secrets,
+* `Runhouse Den <https://www.run.house/dashboard>`__: provides an individual or admin view of all resources, secrets,
   groups, and sharing. Resource metadata is automatically versioned in RNS, allowing teams to maintain single-sources
   of truth for assets with zero downtime to update or roll back, and trace exact lineage for any existing resource.

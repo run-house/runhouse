@@ -1,3 +1,4 @@
+import contextlib
 import os
 import pkgutil
 import shlex
@@ -7,13 +8,74 @@ import textwrap
 import time
 from pathlib import Path
 
+import dotenv
+
 import numpy as np
 import pandas as pd
 import pytest
 
 import runhouse as rh
+from runhouse.globals import configs
+
+dotenv.load_dotenv()
+
 
 # https://docs.pytest.org/en/6.2.x/fixture.html#conftest-py-sharing-fixtures-across-multiple-files
+
+
+@contextlib.contextmanager
+def test_account():
+    """Used for the purposes of testing resource sharing among different accounts.
+    When inside the context manager, use the test account credentials before reverting back to the original
+    account when exiting."""
+    current_token = configs.get("token")
+    current_username = configs.get("username")
+
+    try:
+        # Assume the role of the test account when inside the context manager
+        test_account_token = os.getenv("TEST_TOKEN")
+        test_account_username = os.getenv("TEST_USERNAME")
+        test_account_folder = f"/{test_account_username}"
+
+        configs.set("token", test_account_token)
+        configs.set("username", test_account_username)
+        configs.set("default_folder", test_account_folder)
+
+        yield {
+            "test_token": test_account_token,
+            "test_username": test_account_username,
+            "test_folder": test_account_folder,
+        }
+
+    finally:
+        # Reset configs back to original account
+        configs.set("token", current_token)
+        configs.set("username", current_username)
+        configs.set("default_folder", f"/{current_username}")
+
+
+def load_and_share_resources(username_to_share):
+    # Create the shared cluster using the test account
+    c = rh.ondemand_cluster(
+        name=f"/{os.getenv('TEST_USERNAME')}/rh-cpu-shared",
+        instance_type="CPU:2+",
+        den_auth=True,
+        server_connection_type="tls",
+        open_ports=[443],
+    )
+    c.up_if_not()
+
+    c.install_packages(["pytest"])
+
+    # Create function on shared cluster with the same test account
+    func_rns_address = f"/{os.getenv('TEST_USERNAME')}/shared_func"
+    f = rh.function(summer).to(c, env=["pytest"]).save(name=func_rns_address)
+
+    # Share the cluster & function with the current account
+    c.share(username_to_share, access_type="read")
+    f.share(username_to_share, access_type="read")
+
+    return c, f
 
 
 @pytest.fixture(scope="session")
@@ -313,10 +375,27 @@ def cluster(request):
 def ondemand_cpu_cluster():
     c = rh.ondemand_cluster("^rh-cpu")
     c.up_if_not()
-    # c.restart_server()
-    c.install_packages(["pytest"])
+
     # Save to RNS - to be loaded in other tests (ex: Runs)
     c.save()
+
+    # Call save before installing in the event we want to use TLS / den auth
+    c.install_packages(["pytest"])
+    return c
+
+
+@pytest.fixture(scope="session")
+def ondemand_https_cluster_with_auth():
+    c = rh.ondemand_cluster(
+        name="rh-cpu-https",
+        instance_type="CPU:2+",
+        den_auth=True,
+        server_connection_type="tls",
+        open_ports=[443],
+    )
+    c.up_if_not()
+
+    c.install_packages(["pytest"])
     return c
 
 
@@ -326,6 +405,23 @@ def sm_cluster():
         rh.sagemaker_cluster(
             name="rh-sagemaker",
             role="arn:aws:iam::172657097474:role/service-role/AmazonSageMaker-ExecutionRole-20230717T192142",
+        )
+        .up_if_not()
+        .save()
+    )
+
+    c.install_packages(["pytest"])
+
+    return c
+
+
+@pytest.fixture(scope="session")
+def sm_cluster_with_auth():
+    c = (
+        rh.sagemaker_cluster(
+            name="rh-sagemaker-den-auth",
+            role="arn:aws:iam::172657097474:role/service-role/AmazonSageMaker-ExecutionRole-20230717T192142",
+            den_auth=True,
         )
         .up_if_not()
         .save()
@@ -440,7 +536,14 @@ def password_cluster():
 
 
 cpu_clusters = pytest.mark.parametrize(
-    "cluster", ["ondemand_cpu_cluster", "password_cluster", "byo_cpu"], indirect=True
+    "cluster",
+    [
+        "ondemand_cpu_cluster",
+        "ondemand_https_cluster_with_auth",
+        "password_cluster",
+        "byo_cpu",
+    ],
+    indirect=True,
 )
 
 sagemaker_clusters = pytest.mark.parametrize(
@@ -494,6 +597,25 @@ def slow_running_func(a, b):
 def summer_func(ondemand_cpu_cluster):
     return rh.function(summer, name="summer_func").to(
         ondemand_cpu_cluster, env=["pytest"]
+    )
+
+
+@pytest.fixture(scope="session")
+def summer_func_with_auth(ondemand_https_cluster_with_auth):
+    return rh.function(summer, name="summer_func").to(
+        ondemand_https_cluster_with_auth, env=["pytest"]
+    )
+
+
+@pytest.fixture(scope="session")
+def summer_func_shared(shared_cluster):
+    return rh.function(summer, name="summer_func").to(shared_cluster, env=["pytest"])
+
+
+@pytest.fixture(scope="session")
+def summer_func_sm_auth(sm_cluster_with_auth):
+    return rh.function(summer, name="summer_func").to(
+        sm_cluster_with_auth, env=["pytest"]
     )
 
 
