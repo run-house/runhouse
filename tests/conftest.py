@@ -702,10 +702,14 @@ def local_docker_cluster_passwd(detached=True):
         host="localhost",
         ssh_creds={"ssh_user": "rh-docker-user", "password": pwd},
     )
-    rh.env(reqs=["pytest"],
-           working_dir=None,
-           setup_cmds=[f'mkdir ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'],
-           name="base_env").to(c)
+    rh.env(
+        reqs=["pytest"],
+        working_dir=None,
+        setup_cmds=[
+            f'mkdir ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
+        ],
+        name="base_env",
+    ).to(c)
     c.save()
 
     # Yield the cluster
@@ -729,7 +733,11 @@ def local_docker_cluster_public_key(detached=True):
     rh_parent_path = local_rh_package_path.parent
     rh_path = "runhouse" if (rh_parent_path / "setup.py").exists() else None
     rh_version = rh.__version__ if not rh_path else None
-    keypath = str(Path(rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")).expanduser())
+    keypath = str(
+        Path(
+            rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
+        ).expanduser()
+    )
 
     # Check if the container is already running, and if so, skip build and run
     client = docker.from_env()
@@ -798,10 +806,14 @@ def local_docker_cluster_public_key(detached=True):
             "ssh_private_key": keypath,
         },
     )
-    rh.env(reqs=["pytest"],
-           working_dir=None,
-           setup_cmds=[f'mkdir ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'],
-           name="base_env").to(c)
+    rh.env(
+        reqs=["pytest"],
+        working_dir=None,
+        setup_cmds=[
+            f'mkdir ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
+        ],
+        name="base_env",
+    ).to(c)
     c.save()
 
     # Yield the cluster
