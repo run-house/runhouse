@@ -727,6 +727,7 @@ def local_docker_cluster_public_key(detached=True):
     rh_parent_path = local_rh_package_path.parent
     rh_path = "runhouse" if (rh_parent_path / "setup.py").exists() else None
     rh_version = rh.__version__ if not rh_path else None
+    ssh_public_key_file = os.path.expanduser("~/.ssh/runhouse/docker/id_rsa.pub")
 
     # Check if the container is already running, and if so, skip build and run
     client = docker.from_env()
@@ -752,7 +753,7 @@ def local_docker_cluster_public_key(detached=True):
             "--build-arg",
             f"RUNHOUSE_PATH={rh_path}" if rh_path else f"RUNHOUSE_VERSION={rh_version}",
             "--secret",
-            os.path.expanduser("id=ssh_key,src=~/.ssh/runhouse/docker/id_rsa.pub"),
+            f"id=ssh_key,src={ssh_public_key_file}",
             "-t",
             "runhouse:start",
             ".",
