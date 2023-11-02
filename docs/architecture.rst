@@ -28,7 +28,7 @@ debugging and accessibility interfaces built-in.
 * **Function**: Functions are associated with clusters and environments, and are executed using an HTTP endpoint.
 
 * **Module**: Modules represent classes that can be sent to and used on remote clusters and environments. Modules
-  can live on remote hardware and its class methods called remotely, with
+  can live on remote hardware and its class methods called remotely.
 
 Data
 -------

@@ -603,9 +603,9 @@ class HTTPServer:
     @staticmethod
     def _cluster_status_report():
         import ray._private.usage.usage_lib as ray_usage_lib
-        from ray._private import gcs_utils
+        from ray._raylet import GcsClient
 
-        gcs_client = gcs_utils.GcsClient(
+        gcs_client = GcsClient(
             address="127.0.0.1:6379", nums_reconnect_retry=20
         )
 

@@ -788,7 +788,6 @@ def local_docker_slim():
     )
 
     # Runhouse commands can now be run locally
-    rh.configs.disable_data_collection()  # Workaround until we remove the usage of GCSClient from our code
     c = rh.cluster(
         name="local-docker-slim",
         host="localhost",
