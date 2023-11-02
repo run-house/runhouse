@@ -1,4 +1,5 @@
 import contextlib
+import enum
 import os
 import pkgutil
 import shlex
@@ -13,7 +14,6 @@ import dotenv
 import numpy as np
 import pandas as pd
 import pytest
-import enum
 
 import runhouse as rh
 from runhouse.globals import configs
@@ -29,31 +29,25 @@ class TestLevels(enum.Enum):
     MAXIMAL = "maximal"
 
 
+DEFAULT_LEVEL = TestLevels.UNIT.value
+
+
 def pytest_addoption(parser):
     parser.addoption(
         "--level",
         action="store",
-        default=TestLevels.UNIT.value,
+        default=DEFAULT_LEVEL,
         help="Fixture set to spin up: unit, local, minimal, thorough, or maximal",
     )
 
 
 def pytest_generate_tests(metafunc):
-    # suite_cls = metafunc.cls or metafunc.config.cache.get("suite")
-    # if not suite_cls:
-    #     suite = metafunc.config.getoption("suite")
-    #     if suite:
-    #         suite_cls_name = "Test" + suite.capitalize()
-    #         suite_cls = globals()[suite_cls_name]
-    #         metafunc.config.cache.set("suite", suite_cls)
     level = metafunc.config.getoption("level")
     level_fixtures = getattr(metafunc.module, level.upper(), {})
     for fixture_name, fixture_list in level_fixtures.items():
-        metafunc.parametrize(fixture_name, fixture_list, indirect=True)
+        if fixture_name in metafunc.fixturenames:
+            metafunc.parametrize(fixture_name, fixture_list, indirect=True)
 
-@pytest.fixture(scope="session")
-def cluster(request):
-    return request.getfixturevalue(request.param.__name__)
 
 ############## FIXTURES ##############
 
@@ -402,11 +396,11 @@ def sm_source_dir(sm_entry_point, pytorch_training_script):
 # ----------------- Clusters -----------------
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def cluster(request):
     """Parametrize over multiple fixtures - useful for running the same test on multiple hardware types."""
-    # Example: @pytest.mark.parametrize("cluster", ["v100_gpu_cluster", "k80_gpu_cluster"], indirect=True)"""
-    return request.getfixturevalue(request.param)
+    # Example: @pytest.mark.parametrize("cluster", [v100_gpu_cluster, k80_gpu_cluster], indirect=True)"""
+    return request.getfixturevalue(request.param.__name__)
 
 
 @pytest.fixture(scope="session")
@@ -961,6 +955,9 @@ def local_docker_cluster_public_key(detached=True):
     c = rh.cluster(
         name="local-docker-slim-public-key-auth",
         host="localhost",
+        server_host="0.0.0.0",
+        server_connection_type="ssh",
+        server_port=22,
         ssh_creds={
             "ssh_user": "rh-docker-user",
             "ssh_private_key": keypath,

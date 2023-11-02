@@ -18,7 +18,7 @@ def cluster(
     host: Union[str, List[str]] = None,
     ssh_creds: Optional[dict] = None,
     server_port: int = None,
-    server_host: int = None,
+    server_host: str = None,
     server_connection_type: Union[ServerConnectionType, str] = None,
     ssl_keyfile: str = None,
     ssl_certfile: str = None,
