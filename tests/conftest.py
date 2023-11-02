@@ -14,6 +14,7 @@ import dotenv
 import numpy as np
 import pandas as pd
 import pytest
+import enum
 
 import runhouse as rh
 from runhouse.globals import configs
@@ -47,6 +48,43 @@ def pytest_generate_tests(metafunc):
     for fixture_name, fixture_list in level_fixtures.items():
         if fixture_name in metafunc.fixturenames:
             metafunc.parametrize(fixture_name, fixture_list, indirect=True)
+
+
+class TestLevels(enum.Enum):
+    UNIT = "unit"
+    LOCAL = "local"
+    MINIMAL = "minimal"
+    THOROUGH = "thorough"
+    MAXIMAL = "maximal"
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--level",
+        action="store",
+        default=TestLevels.UNIT.value,
+        help="Fixture set to spin up: unit, local, minimal, thorough, or maximal",
+    )
+
+
+def pytest_generate_tests(metafunc):
+    # suite_cls = metafunc.cls or metafunc.config.cache.get("suite")
+    # if not suite_cls:
+    #     suite = metafunc.config.getoption("suite")
+    #     if suite:
+    #         suite_cls_name = "Test" + suite.capitalize()
+    #         suite_cls = globals()[suite_cls_name]
+    #         metafunc.config.cache.set("suite", suite_cls)
+    level = metafunc.config.getoption("level")
+    level_fixtures = getattr(metafunc.module, level.upper(), {})
+    for fixture_name, fixture_list in level_fixtures.items():
+        metafunc.parametrize(fixture_name, fixture_list, indirect=True)
+
+@pytest.fixture(scope="session")
+def cluster(request):
+    return request.getfixturevalue(request.param.__name__)
+
+############## FIXTURES ##############
 
 
 # https://docs.pytest.org/en/6.2.x/fixture.html#conftest-py-sharing-fixtures-across-multiple-files
