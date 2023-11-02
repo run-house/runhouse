@@ -612,7 +612,11 @@ def run_shell_command(subprocess, cmd: list[str], cwd: str = None):
 
 def popen_shell_command(subprocess, command: list[str], cwd: str = None):
     process = subprocess.Popen(
-        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=cwd or Path.cwd()
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=cwd or Path.cwd(),
     )
     # Wait for 10 seconds before resuming execution
     time.sleep(10)
@@ -622,65 +626,70 @@ def popen_shell_command(subprocess, command: list[str], cwd: str = None):
 @pytest.fixture(scope="session")
 def local_docker_cluster_passwd(detached=True):
     import subprocess
+
     import docker
 
     local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
     dockerfile_path = local_rh_package_path / "docker/slim/Dockerfile"
     rh_parent_path = local_rh_package_path.parent
-    rh_path = f"runhouse" if (rh_parent_path / "setup.py").exists() else None
+    rh_path = "runhouse" if (rh_parent_path / "setup.py").exists() else None
     rh_version = rh.__version__ if not rh_path else None
 
     # Check if the container is already running, and if so, skip build and run
     client = docker.from_env()
-    containers = client.containers.list(all=True,
-                                        filters={"ancestor": "runhouse:start",
-                                                 "status": "running",
-                                                 "name": "rh-slim-server"})
+    containers = client.containers.list(
+        all=True,
+        filters={
+            "ancestor": "runhouse:start",
+            "status": "running",
+            "name": "rh-slim-server",
+        },
+    )
     if len(containers) > 0 and detached:
         print("Container already running, skipping build and run")
     else:
         # Build the Docker image, but need to cd into base runhouse directory first
         build_cmd = [
-                "docker",
-                "build",
-                "--pull",
-                "--rm",
-                "-f",
-                str(dockerfile_path),
-                "--build-arg",
-                f"DOCKER_USER_PASSWORD_FILE=docker_user_passwd",
-                f"--build-arg",
-                f"RUNHOUSE_PATH={rh_path}" if rh_path else f"RUNHOUSE_VERSION={rh_version}",
-                "-t",
-                "runhouse:start",
-                ".",
-            ]
+            "docker",
+            "build",
+            "--pull",
+            "--rm",
+            "-f",
+            str(dockerfile_path),
+            "--build-arg",
+            "DOCKER_USER_PASSWORD_FILE=docker_user_passwd",
+            "--build-arg",
+            f"RUNHOUSE_PATH={rh_path}" if rh_path else f"RUNHOUSE_VERSION={rh_version}",
+            "-t",
+            "runhouse:start",
+            ".",
+        ]
         print(shlex.join(build_cmd))
         run_shell_command(subprocess, build_cmd, cwd=str(rh_parent_path.parent))
 
         # Run the Docker image
         run_cmd = [
-                "docker",
-                "run",
-                "--name",
-                "rh-slim-server",
-                "-d",
-                "--rm",
-                "--shm-size=3gb",
-                "-p",
-                "32300:32300",
-                "-p",
-                "6379:6379",
-                "-p",
-                "52365:52365",
-                "-p",
-                "443:443",
-                "-p",
-                "80:80",
-                "-p",
-                "22:22",
-                "runhouse:start",
-            ]
+            "docker",
+            "run",
+            "--name",
+            "rh-slim-server",
+            "-d",
+            "--rm",
+            "--shm-size=3gb",
+            "-p",
+            "32300:32300",
+            "-p",
+            "6379:6379",
+            "-p",
+            "52365:52365",
+            "-p",
+            "443:443",
+            "-p",
+            "80:80",
+            "-p",
+            "22:22",
+            "runhouse:start",
+        ]
         print(shlex.join(run_cmd))
         popen_shell_command(subprocess, run_cmd, cwd=str(rh_parent_path.parent))
 
