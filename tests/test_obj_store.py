@@ -17,6 +17,12 @@ TEMP_FOLDER = "~/runhouse-tests"
 
 logger = logging.getLogger(__name__)
 
+UNIT = {"resource": [, named_resource, local_named_resource]}
+LOCAL = {"resource": [unnamed_resource, local_named_resource]}
+MINIMAL = {"resource": [named_resource]}
+FULL = {"resource": [local_named_resource]}
+ALL = {"resource": [unnamed_resource, named_resource, local_named_resource]}
+
 
 def do_printing_and_logging(steps=3):
     for i in range(steps):
