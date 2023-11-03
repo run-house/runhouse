@@ -21,26 +21,6 @@ from runhouse.globals import configs
 SSH_USER = "rh-docker-user"
 
 
-DEFAULT_LEVEL = TestLevels.UNIT
-
-
-def pytest_addoption(parser):
-    parser.addoption(
-        "--level",
-        action="store",
-        default=DEFAULT_LEVEL,
-        help="Fixture set to spin up: unit, local, minimal, thorough, or maximal",
-    )
-
-
-def pytest_generate_tests(metafunc):
-    level = metafunc.config.getoption("level")
-    level_fixtures = getattr(metafunc.module, level.upper(), default_fixtures[level])
-    for fixture_name, fixture_list in level_fixtures.items():
-        if fixture_name in metafunc.fixturenames:
-            metafunc.parametrize(fixture_name, fixture_list, indirect=True)
-
-
 class TestLevels(str, enum.Enum):
     UNIT = "unit"
     LOCAL = "local"
@@ -49,7 +29,7 @@ class TestLevels(str, enum.Enum):
     MAXIMAL = "maximal"
 
 
-DEFAULT_LEVEL = TestLevels.UNIT
+DEFAULT_LEVEL = TestLevels.MINIMAL
 
 
 def pytest_addoption(parser):
