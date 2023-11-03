@@ -166,6 +166,7 @@ class SkySSHRunner(SSHCommandRunner):
         ssh_mode: SshMode = SshMode.NON_INTERACTIVE,
         separate_stderr: bool = False,
         return_cmd: bool = False,  # RH MODIFIED
+        quiet_ssh: bool = False,  # RH MODIFIED
         **kwargs,
     ) -> Union[int, Tuple[int, str, str]]:
         """Uses 'ssh' to run 'cmd' on a node with ip.
@@ -186,6 +187,7 @@ class SkySSHRunner(SSHCommandRunner):
                 See SSHMode for more details.
             separate_stderr: Whether to separate stderr from stdout.
             return_cmd: If True, return the command string instead of running it.
+            quiet_ssh: If True, do not print the OpenSSH outputs (i.e. add "-q" option to ssh).
 
 
         Returns:
@@ -203,6 +205,10 @@ class SkySSHRunner(SSHCommandRunner):
             return proc.returncode, "", ""
         if isinstance(cmd, list):
             cmd = " ".join(cmd)
+
+        # RH MODIFIED: Add quiet_ssh option
+        if quiet_ssh:
+            base_ssh_command.append("-q")
 
         log_dir = os.path.expanduser(os.path.dirname(log_path))
         os.makedirs(log_dir, exist_ok=True)

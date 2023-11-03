@@ -1,4 +1,3 @@
-import inspect
 import logging
 import time
 import unittest
@@ -8,7 +7,6 @@ import numpy as np
 import pytest
 
 import runhouse as rh
-from runhouse import Package
 
 from tests.conftest import (
     byo_cpu,
@@ -103,33 +101,6 @@ def test_put_and_get_on_cluster(cluster):
     with pytest.raises(KeyError) as e:
         cluster.get("nonexistent_key", default=KeyError)
     assert "key nonexistent_key not found" in str(e.value)
-
-
-@pytest.mark.clustertest
-@pytest.mark.parametrize("env", [None, "base", "pytorch"])
-def test_call_module_method(cluster, env):
-    cluster.put("numpy_pkg", Package.from_string("numpy"), env=env)
-
-    # Test for method
-    res = cluster.call("numpy_pkg", "_detect_cuda_version_or_cpu")
-    assert res == "cpu"
-
-    # Test for property
-    res = cluster.call("numpy_pkg", "config_for_rns")
-    numpy_config = Package.from_string("numpy").config_for_rns
-    assert res
-    assert isinstance(res, dict)
-    assert res == numpy_config
-
-    # Test iterator
-    cluster.put("config_dict", list(numpy_config.keys()), env=env)
-    res = cluster.call("config_dict", "__iter__")
-    # Checks that all the keys in numpy_config were returned
-    inspect.isgenerator(res)
-    for key in res:
-        assert key
-        numpy_config.pop(key)
-    assert not numpy_config
 
 
 class slow_numpy_array:

@@ -3,6 +3,7 @@ import copy
 import logging
 import os
 import pkgutil
+import re
 import subprocess
 import sys
 import threading
@@ -1062,6 +1063,8 @@ class Cluster(Resource):
             for command in commands:
                 command = f"{cmd_prefix} {command}" if cmd_prefix else command
                 logger.info(f"Running command on {self.name}: {command}")
+                # We need to quiet the SSH output here or it will print
+                # "Shared connection to ____ closed." at the end, which messes with the output.
                 ssh_command = runner.run(
                     command,
                     require_outputs=require_outputs,
@@ -1069,6 +1072,7 @@ class Cluster(Resource):
                     port_forward=port_forward,
                     return_cmd=True,
                     ssh_mode=SshMode.INTERACTIVE,
+                    quiet_ssh=True,
                 )
                 ssh = pexpect.spawn(ssh_command, encoding="utf-8")
                 if stream_logs:
@@ -1078,7 +1082,12 @@ class Cluster(Resource):
                     ssh.sendline(pwd)
                     ssh.expect(pexpect.EOF)
                 ssh.close()
-                return_codes.append([ssh.exitstatus, ssh.before, ssh.after])
+                # Filter color characters from ssh.before, as otherwise sometimes random color characters
+                # will be printed to the console.
+                ssh.before = re.sub(r"\x1b\[[0-9;]*m", "", ssh.before)
+                return_codes.append(
+                    [ssh.exitstatus, ssh.before.strip(), ssh.signalstatus]
+                )
 
         return return_codes
 
