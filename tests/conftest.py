@@ -127,7 +127,7 @@ def build_and_run_image(
             raise ValueError("No keypath or password file path provided")
 
         print(shlex.join(build_cmd))
-        # run_shell_command(subprocess, build_cmd, cwd=str(rh_parent_path.parent))
+        run_shell_command(subprocess, build_cmd, cwd=str(rh_parent_path.parent))
 
         # Run the Docker image
         run_cmd = [
@@ -158,7 +158,7 @@ def build_and_run_image(
         if res.returncode != 0:
             raise RuntimeError(f"Failed to run docker image {image_name}: {stderr}")
 
-        return client, rh_parent_path
+    return client, rh_parent_path
 
 
 @contextlib.contextmanager
