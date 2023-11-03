@@ -214,6 +214,7 @@ def load_and_share_resources(username_to_share, test_level):
             dir_name="public-key-auth",
             keypath=keypath,
         )
+        # TODO turn into fixture, and clean up image and container at the end
 
         c = rh.cluster(
             name="local-docker-slim-public-key-auth",
