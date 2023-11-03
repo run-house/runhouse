@@ -873,59 +873,6 @@ class Cluster(Resource):
         """Retrieve SSH credentials."""
         return self._ssh_creds
 
-    def _fsspec_sync(self, source: str, dest: str, up: bool):
-        from runhouse.resources.folders import folder
-
-        logger.info(f"Syncing files from {source} to {dest} using fsspec")
-
-        f = folder(system=self, path="", dryrun=True)
-        fs = f.fsspec_fs
-
-        if up:  # local to cluster
-            if (Path(source) / ".gitignore").exists():
-                tracked_files = (
-                    subprocess.check_output(
-                        "git ls-files --cached --exclude-standard",
-                        cwd=source,
-                        shell=True,
-                    )
-                    .decode("utf-8")
-                    .split()
-                )
-                # exclude docs/ when syncing over runhouse
-                if Path(source).name == "runhouse":
-                    tracked_files = [
-                        file for file in tracked_files if "docs/" not in file
-                    ]
-                untracked_files = (
-                    subprocess.check_output(
-                        "git ls-files --other --exclude-standard",
-                        cwd=source,
-                        shell=True,
-                    )
-                    .decode("utf-8")
-                    .split()
-                )
-                files = [
-                    Path(source) / file for file in tracked_files + untracked_files
-                ]
-                fs.put(files, dest, recursive=True, create_dir=True)
-            else:
-                fs.put(source, dest, recursive=True, create_dir=True)
-        else:  # cluster to local
-            if fs.exists(str(Path(source) / ".gitignore")):
-                files = self.run(
-                    [f"cd {source} && git ls-files --cached --exclude-standard"]
-                )[0][1]
-
-                files = files.split()
-                fs.get(files, dest, recursive=True, create_dir=True)
-            else:
-                # the following errors if {source} is a directory so currently working around by extracting files
-                # fs.get(source, dest, recursive=True, create_dir=True)
-                files = fs.find(source)
-                fs.get(files, dest, recursive=True, create_dir=True)
-
     def _rsync(
         self,
         source: str,
@@ -933,6 +880,7 @@ class Cluster(Resource):
         up: bool,
         contents: bool = False,
         filter_options: str = None,
+        stream_logs: bool = False,
     ):
         """
         Sync the contents of the source directory into the destination.
@@ -948,24 +896,57 @@ class Cluster(Resource):
 
         ssh_credentials = copy.copy(self.ssh_creds())
         ssh_credentials.pop("ssh_host", self.address)
+        pwd = ssh_credentials.pop("password", None)
 
-        if not ssh_credentials.get("password"):
-            # Use SkyPilot command runner
-            if not ssh_credentials.get("ssh_private_key"):
-                ssh_credentials["ssh_private_key"] = None
-            runner = SkySSHRunner(self.address, **ssh_credentials)
+        runner = SkySSHRunner(self.address, **ssh_credentials)
+        if not pwd:
             if up:
                 runner.run(["mkdir", "-p", dest], stream_logs=False)
             else:
                 Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
             runner.rsync(
-                source, dest, up=up, filter_options=filter_options, stream_logs=False
+                source,
+                dest,
+                up=up,
+                filter_options=filter_options,
+                stream_logs=stream_logs,
             )
         else:
-            if dest.startswith("~/"):
-                dest = dest[2:]
+            import pexpect
 
-            self._fsspec_sync(source, dest, up)
+            if up:
+                ssh_command = runner.run(
+                    ["mkdir", "-p", dest], stream_logs=False, return_cmd=True
+                )
+                ssh = pexpect.spawn(ssh_command, encoding="utf-8")
+                ssh.logfile_read = sys.stdout
+                # If CommandRunner uses the control path, the password may not be requested
+                next_line = ssh.expect(["assword:", pexpect.EOF])
+                if next_line == 0:
+                    ssh.sendline(pwd)
+                    ssh.expect(pexpect.EOF)
+                ssh.close()
+            else:
+                Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
+            rsync_cmd = runner.rsync(
+                source,
+                dest,
+                up=up,
+                filter_options=filter_options,
+                stream_logs=stream_logs,
+                return_cmd=True,
+            )
+            ssh = pexpect.spawn(rsync_cmd, encoding="utf-8")
+            if stream_logs:
+                # FYI This will print a ton of of stuff to stdout
+                ssh.logfile_read = sys.stdout
+
+            # If CommandRunner uses the control path, the password may not be requested
+            next_line = ssh.expect(["assword:", pexpect.EOF])
+            if next_line == 0:
+                ssh.sendline(pwd)
+                ssh.expect(pexpect.EOF)
+            ssh.close()
 
     def ssh(self):
         """SSH into the cluster
@@ -1055,9 +1036,11 @@ class Cluster(Resource):
 
         ssh_credentials = copy.copy(self.ssh_creds())
         host = ssh_credentials.pop("ssh_host", self.address)
+        pwd = ssh_credentials.pop("password", None)
 
-        if not ssh_credentials.get("password"):
-            runner = SkySSHRunner(host, **ssh_credentials)
+        runner = SkySSHRunner(host, **ssh_credentials)
+
+        if not pwd:
             for command in commands:
                 command = f"{cmd_prefix} {command}" if cmd_prefix else command
                 logger.info(f"Running command on {self.name}: {command}")
@@ -1069,65 +1052,27 @@ class Cluster(Resource):
                 )
                 return_codes.append(ret_code)
         else:
-            import paramiko
+            import pexpect
 
-            log_path = os.devnull
-            log_dir = os.path.expanduser(os.path.dirname(log_path))
-            os.makedirs(log_dir, exist_ok=True)
-
-            with paramiko.SSHClient() as ssh:
-                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                ssh.connect(
-                    self.address,
-                    username=ssh_credentials.get("ssh_user"),
-                    # key_filename=ssh_credentials.get("ssh_private_key", None),
-                    password=ssh_credentials.get("password"),
+            for command in commands:
+                command = f"{cmd_prefix} {command}" if cmd_prefix else command
+                logger.info(f"Running command on {self.name}: {command}")
+                ssh_command = runner.run(
+                    command,
+                    require_outputs=require_outputs,
+                    stream_logs=stream_logs,
+                    port_forward=port_forward,
+                    return_cmd=True,
                 )
-
-                # bash warnings to remove from stderr
-                skip_err = [
-                    "bash: cannot set terminal process group",
-                    "bash: no job control in this shell",
-                ]
-
-                for command in commands:
-                    logger.info(f"Running command on {self.name}: {command}")
-
-                    if stream_logs:
-                        command += f"| tee {log_path} "
-                        command += "; exit ${PIPESTATUS[0]}"
-                    else:
-                        command += f"> {log_path}"
-
-                    # adapted from skypilot's ssh command runner
-                    command = (
-                        "bash --login -c -i $'true && source ~/.bashrc"
-                        "&& export OMP_NUM_THREADS=1 PYTHONWARNINGS=ignore"
-                        f" && ({cmd_prefix} {command})'"
-                    )
-
-                    transport = ssh.get_transport()
-                    channel = transport.open_session()
-                    channel.exec_command(command)
-
-                    stdout = channel.recv(-1).decode()
-                    exit_code = channel.recv_exit_status()
-                    stderr = channel.recv_stderr(-1).decode()
-
-                    stderr = stderr.split("\n")
-                    stderr = [
-                        err
-                        for err in stderr
-                        if not any(skip in err for skip in skip_err)
-                    ]
-                    stderr = "\n".join(stderr)
-
-                    channel.close()
-
-                    if require_outputs:
-                        return_codes.append((exit_code, stdout, stderr))
-                    else:
-                        return_codes.append(exit_code)
+                ssh = pexpect.spawn(ssh_command, encoding="utf-8")
+                if stream_logs:
+                    ssh.logfile_read = sys.stdout
+                next_line = ssh.expect(["assword:", pexpect.EOF])
+                if next_line == 0:
+                    ssh.sendline(pwd)
+                    ssh.expect(pexpect.EOF)
+                ssh.close()
+                return_codes.append([ssh.exitstatus, ssh.before, ssh.after])
 
         return return_codes
 
