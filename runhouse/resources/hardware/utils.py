@@ -212,9 +212,7 @@ class SkySSHRunner(SSHCommandRunner):
             "--login",
             "-c",
             # Need this `-i` option to make sure `source ~/.bashrc` work.
-            # RH MODIFIED, disable for pexpect
-            # "-i"
-            # "" if ssh_mode == SshMode.NON_INTERACTIVE else "-i",
+            "-i",
         ]
 
         command += [

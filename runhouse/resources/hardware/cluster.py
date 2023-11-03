@@ -27,6 +27,7 @@ from runhouse.resources.hardware.utils import (
     _current_cluster,
     ServerConnectionType,
     SkySSHRunner,
+    SshMode,
 )
 from runhouse.resources.resource import Resource
 
@@ -916,7 +917,10 @@ class Cluster(Resource):
 
             if up:
                 ssh_command = runner.run(
-                    ["mkdir", "-p", dest], stream_logs=False, return_cmd=True
+                    ["mkdir", "-p", dest],
+                    stream_logs=False,
+                    return_cmd=True,
+                    ssh_mode=SshMode.INTERACTIVE,
                 )
                 ssh = pexpect.spawn(ssh_command, encoding="utf-8")
                 ssh.logfile_read = sys.stdout
@@ -928,6 +932,7 @@ class Cluster(Resource):
                 ssh.close()
             else:
                 Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
+
             rsync_cmd = runner.rsync(
                 source,
                 dest,
@@ -1063,6 +1068,7 @@ class Cluster(Resource):
                     stream_logs=stream_logs,
                     port_forward=port_forward,
                     return_cmd=True,
+                    ssh_mode=SshMode.INTERACTIVE,
                 )
                 ssh = pexpect.spawn(ssh_command, encoding="utf-8")
                 if stream_logs:
