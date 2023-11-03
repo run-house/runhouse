@@ -48,13 +48,16 @@ def test_create_and_run_sagemaker_training_job(sm_source_dir, sm_entry_point):
 
     dotenv.load_dotenv()
 
+    role_arn = os.getenv("AWS_ROLE_ARN")
+    assert role_arn
+
     cluster_name = "rh-sagemaker-training"
 
     # https://sagemaker.readthedocs.io/en/stable/api/training/estimators.html#sagemaker.estimator.EstimatorBase
     estimator = PyTorch(
         entry_point=sm_entry_point,
         # Estimator requires a role ARN (can't be a profile)
-        role=os.getenv("AWS_ROLE_ARN"),
+        role=role_arn,
         # Script can sit anywhere in the file system
         source_dir=sm_source_dir,
         framework_version="2.1.0",
