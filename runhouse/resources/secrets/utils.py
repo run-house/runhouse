@@ -48,6 +48,31 @@ def _load_from_local(name):
     return config
 
 
+def _is_matching_subset(existing_vals, new_vals):
+    for key in new_vals:
+        if key in existing_vals and existing_vals[key] != new_vals[key]:
+            return False
+    return True
+
+
+def _check_file_for_mismatches(path, existing_vals, new_vals, overwrite):
+    # Returns True if performs the check satisfactorily and not overriding the file.
+    # Returns False if no existing vals exist or overwriting the file.
+    if not existing_vals:
+        return False
+    if _is_matching_subset(existing_vals, new_vals):
+        logger.info(f"Secrets already exist in {path}.")
+        return True
+    elif not overwrite:
+        logger.warning(
+            f"Path {path} already exists with a different set of values, "
+            "and overwrite is set to False, so leaving the file as is. Please set overwrite "
+            "to True or manually overwrite the secret file if you intend to do so."
+        )
+        return True
+    return False
+
+
 def load_config(name, endpoint: str = USER_ENDPOINT):
     rns_address = rns_client.resolve_rns_path(name)
 

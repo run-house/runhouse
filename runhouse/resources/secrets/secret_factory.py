@@ -1,4 +1,7 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
+
+from runhouse.resources.blobs.file import File
+from runhouse.resources.secrets.provider_secrets.providers import _get_provider_class
 
 from runhouse.resources.secrets.secret import Secret
 
@@ -28,3 +31,59 @@ def secret(
         raise ValueError("values must be provided for an in-memory secret.")
 
     return Secret(name, values, dryrun)
+
+
+def provider_secret(
+    provider: Optional[str] = None,
+    name: Optional[str] = None,
+    values: Optional[Dict] = None,
+    path: Union[str, File] = None,
+    env_vars: Optional[Dict] = None,
+    dryrun: bool = False,
+):
+    """
+    Builds an instance of :class:`ProviderSecret`. At most one of of values, path, and env_vars
+    can be provided, to maintain one source of truth. If None are provided, will infer the values
+    from the default path or env vars for the given provider.
+
+    Args:
+        provider (str): Provider corresponding to the secret. Currently supported options are:
+            ["aws", "azure", "huggingface", "lambda", "github", "gcp", "ssh"]
+        name (str, optional): Name to assign the resource. If none is provided, resource name defaults to the
+            provider name.
+        values (Dict, optional): Dictionary mapping of secret keys and values.
+        path (str or Path, optional): Path where the secret values are held.
+        env_vars (Dict, optional): Dictionary mapping secret keys to the corresponding
+            environment variable key.
+        dryrun (bool): Whether to creat in dryrun mode. (Default: False)
+
+    Returns:
+        ProviderSecret: The resulting provider secret object.
+
+    Example:
+        >>> aws_secret = rh.provider("aws")
+        >>> lamdba_secret = rh.provider("lambda", values={"api_key": "xxxxx"})
+        >>>
+    """
+    if not provider:
+        if not name:
+            raise ValueError("Either name or provider must be provided.")
+        if not any([values, path, env_vars]):
+            return Secret.from_name(name)
+
+    elif not any([values, path, env_vars]):
+        secret_class = _get_provider_class(provider)
+        return secret_class()
+
+    elif sum([bool(x) for x in [values, path, env_vars]]) == 1:
+        secret_class = _get_provider_class(provider)
+        return secret_class(
+            name=name,
+            provider=provider,
+            values=values,
+            path=path,
+            env_vars=env_vars,
+            dryrun=dryrun,
+        )
+
+    raise ValueError("Only one of values, path, and env_vars should be set.")
