@@ -1,4 +1,5 @@
 import contextlib
+import enum
 import os
 import pkgutil
 import shlex
@@ -17,10 +18,147 @@ import pytest
 import runhouse as rh
 from runhouse.globals import configs
 
-dotenv.load_dotenv()
+SSH_USER = "rh-docker-user"
+
+
+class TestLevels(str, enum.Enum):
+    UNIT = "unit"
+    LOCAL = "local"
+    MINIMAL = "minimal"
+    THOROUGH = "thorough"
+    MAXIMAL = "maximal"
+
+
+DEFAULT_LEVEL = TestLevels.UNIT
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--level",
+        action="store",
+        default=DEFAULT_LEVEL,
+        help="Fixture set to spin up: unit, local, minimal, thorough, or maximal",
+    )
+
+
+def pytest_generate_tests(metafunc):
+    level = metafunc.config.getoption("level")
+    level_fixtures = getattr(metafunc.module, level.upper(), default_fixtures[level])
+    for fixture_name, fixture_list in level_fixtures.items():
+        if fixture_name in metafunc.fixturenames:
+            metafunc.parametrize(fixture_name, fixture_list, indirect=True)
 
 
 # https://docs.pytest.org/en/6.2.x/fixture.html#conftest-py-sharing-fixtures-across-multiple-files
+
+############## HELPERS ##############
+
+
+def build_and_run_image(
+    image_name: str,
+    container_name: str,
+    detached: bool,
+    dir_name: str,
+    keypath=None,
+    pwd_file=None,
+):
+    import subprocess
+
+    import docker
+
+    local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
+    dockerfile_path = local_rh_package_path / f"docker/slim/{dir_name}/Dockerfile"
+    rh_parent_path = local_rh_package_path.parent
+    rh_path = "runhouse" if (rh_parent_path / "setup.py").exists() else None
+    rh_version = rh.__version__ if not rh_path else None
+
+    # Check if the container is already running, and if so, skip build and run
+    client = docker.from_env()
+    containers = client.containers.list(
+        all=True,
+        filters={
+            "ancestor": f"runhouse:{image_name}",
+            "status": "running",
+            "name": container_name,
+        },
+    )
+    if len(containers) > 0 and detached:
+        print(f"Container {container_name} already running, skipping build and run")
+    else:
+        # Build the Docker image, but need to cd into base runhouse directory first
+        if keypath:
+            build_cmd = [
+                "docker",
+                "build",
+                "--pull",
+                "--rm",
+                "-f",
+                str(dockerfile_path),
+                "--build-arg",
+                f"RUNHOUSE_PATH={rh_path}"
+                if rh_path
+                else f"RUNHOUSE_VERSION={rh_version}",
+                "--secret",
+                f"id=ssh_key,src={keypath}.pub",
+                "-t",
+                f"runhouse:{image_name}",
+                ".",
+            ]
+        elif pwd_file:
+            # Build a password container
+            build_cmd = [
+                "docker",
+                "build",
+                "--pull",
+                "--rm",
+                "-f",
+                str(dockerfile_path),
+                "--build-arg",
+                f"DOCKER_USER_PASSWORD_FILE={pwd_file}",
+                "--build-arg",
+                f"RUNHOUSE_PATH={rh_path}"
+                if rh_path
+                else f"RUNHOUSE_VERSION={rh_version}",
+                "-t",
+                f"runhouse:{image_name}",
+                ".",
+            ]
+        else:
+            raise ValueError("No keypath or password file path provided")
+
+        print(shlex.join(build_cmd))
+        run_shell_command(subprocess, build_cmd, cwd=str(rh_parent_path.parent))
+
+        # Run the Docker image
+        run_cmd = [
+            "docker",
+            "run",
+            "--name",
+            container_name,
+            "-d",
+            "--rm",
+            "--shm-size=3gb",
+            "-p",
+            "32300:32300",
+            "-p",
+            "6379:6379",
+            "-p",
+            "52365:52365",
+            "-p",
+            "443:443",
+            "-p",
+            "80:80",
+            "-p",
+            "22:22",
+            f"runhouse:{image_name}",
+        ]
+        print(shlex.join(run_cmd))
+        res = popen_shell_command(subprocess, run_cmd, cwd=str(rh_parent_path.parent))
+        stdout, stderr = res.communicate()
+        if res.returncode != 0:
+            raise RuntimeError(f"Failed to run docker image {image_name}: {stderr}")
+
+    return client, rh_parent_path
 
 
 @contextlib.contextmanager
@@ -28,13 +166,19 @@ def test_account():
     """Used for the purposes of testing resource sharing among different accounts.
     When inside the context manager, use the test account credentials before reverting back to the original
     account when exiting."""
+    dotenv.load_dotenv()
+
+    test_token = os.getenv("TEST_TOKEN")
+    test_username = os.getenv("TEST_USERNAME")
+    assert test_token and test_username
+
     current_token = configs.get("token")
     current_username = configs.get("username")
 
     try:
         # Assume the role of the test account when inside the context manager
-        test_account_token = os.getenv("TEST_TOKEN")
-        test_account_username = os.getenv("TEST_USERNAME")
+        test_account_token = test_token
+        test_account_username = test_username
         test_account_folder = f"/{test_account_username}"
 
         configs.set("token", test_account_token)
@@ -54,28 +198,75 @@ def test_account():
         configs.set("default_folder", f"/{current_username}")
 
 
-def load_and_share_resources(username_to_share):
+def load_and_share_resources(username_to_share, test_level):
     # Create the shared cluster using the test account
-    c = rh.ondemand_cluster(
-        name=f"/{os.getenv('TEST_USERNAME')}/rh-cpu-shared",
-        instance_type="CPU:2+",
-        den_auth=True,
-        server_connection_type="tls",
-        open_ports=[443],
-    )
-    c.up_if_not()
+    if test_level in [TestLevels.UNIT, TestLevels.LOCAL]:
+        keypath = str(
+            Path(
+                rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
+            ).expanduser()
+        )
+
+        build_and_run_image(
+            image_name="keypair",
+            container_name="rh-slim-server-public-key-auth",
+            detached=True,
+            dir_name="public-key-auth",
+            keypath=keypath,
+        )
+        # TODO turn into fixture, and clean up image and container at the end
+
+        c = rh.cluster(
+            name="local-docker-slim-public-key-auth",
+            host="localhost",
+            den_auth=True,
+            server_host="0.0.0.0",
+            ssh_creds={
+                "ssh_user": SSH_USER,
+                "ssh_private_key": keypath,
+            },
+        )
+
+        # Save the test account config to ~/.rh directory in the container
+        rh_config = rh.configs.load_defaults_from_file()
+
+        rh.env(
+            reqs=["pytest"],
+            working_dir=None,
+            setup_cmds=[
+                f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
+                f"echo '{rh_config}' > ~/.rh/config.yaml"
+            ],
+            name="base_env",
+        ).to(c)
+
+    else:
+        dotenv.load_dotenv()
+        test_username = os.getenv("TEST_USERNAME")
+        assert test_username
+
+        c = rh.ondemand_cluster(
+            name=f"/{test_username}/rh-cpu-shared",
+            instance_type="CPU:2+",
+            den_auth=True,
+            server_connection_type="tls",
+            open_ports=[443],
+        )
+        c.up_if_not()
 
     c.install_packages(["pytest"])
 
     # Create function on shared cluster with the same test account
-    func_rns_address = f"/{os.getenv('TEST_USERNAME')}/shared_func"
-    f = rh.function(summer).to(c, env=["pytest"]).save(name=func_rns_address)
+    f = rh.function(summer).to(c, env=["pytest"]).save()
 
     # Share the cluster & function with the current account
     c.share(username_to_share, access_type="read")
     f.share(username_to_share, access_type="read")
 
     return c, f
+
+
+############## FIXTURES ##############
 
 
 @pytest.fixture(scope="session")
@@ -364,11 +555,11 @@ def sm_source_dir(sm_entry_point, pytorch_training_script):
 # ----------------- Clusters -----------------
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def cluster(request):
     """Parametrize over multiple fixtures - useful for running the same test on multiple hardware types."""
-    # Example: @pytest.mark.parametrize("cluster", ["v100_gpu_cluster", "k80_gpu_cluster"], indirect=True)"""
-    return request.getfixturevalue(request.param)
+    # Example: @pytest.mark.parametrize("cluster", [v100_gpu_cluster, k80_gpu_cluster], indirect=True)"""
+    return request.getfixturevalue(request.param.__name__)
 
 
 @pytest.fixture(scope="session")
@@ -404,7 +595,7 @@ def sm_cluster():
     c = (
         rh.sagemaker_cluster(
             name="rh-sagemaker",
-            role="arn:aws:iam::172657097474:role/service-role/AmazonSageMaker-ExecutionRole-20230717T192142",
+            profile="sagemaker",
         )
         .up_if_not()
         .save()
@@ -420,7 +611,7 @@ def sm_cluster_with_auth():
     c = (
         rh.sagemaker_cluster(
             name="rh-sagemaker-den-auth",
-            role="arn:aws:iam::172657097474:role/service-role/AmazonSageMaker-ExecutionRole-20230717T192142",
+            profile="sagemaker",
             den_auth=True,
         )
         .up_if_not()
@@ -747,88 +938,32 @@ def popen_shell_command(subprocess, command: list[str], cwd: str = None):
 
 @pytest.fixture(scope="session")
 def local_docker_cluster_passwd(detached=True):
-    import subprocess
+    image_name = "pwd"
+    container_name = "rh-slim-server-password-auth"
+    dir_name = "password-file-auth"
+    pwd_file = "docker_user_passwd"
 
-    import docker
-
-    local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
-    dockerfile_path = (
-        local_rh_package_path / "docker/slim/password-file-auth/Dockerfile"
+    client, rh_parent_path = build_and_run_image(
+        image_name=image_name,
+        container_name=container_name,
+        dir_name=dir_name,
+        detached=detached,
+        pwd_file=pwd_file,
     )
-    rh_parent_path = local_rh_package_path.parent
-    rh_path = "runhouse" if (rh_parent_path / "setup.py").exists() else None
-    rh_version = rh.__version__ if not rh_path else None
-
-    # Check if the container is already running, and if so, skip build and run
-    client = docker.from_env()
-    containers = client.containers.list(
-        all=True,
-        filters={
-            "ancestor": "runhouse:start",
-            "status": "running",
-            "name": "rh-slim-server-password-auth",
-        },
-    )
-    if len(containers) > 0 and detached:
-        print("Container already running, skipping build and run")
-    else:
-        # Build the Docker image, but need to cd into base runhouse directory first
-        build_cmd = [
-            "docker",
-            "build",
-            "--pull",
-            "--rm",
-            "-f",
-            str(dockerfile_path),
-            "--build-arg",
-            "DOCKER_USER_PASSWORD_FILE=docker_user_passwd",
-            "--build-arg",
-            f"RUNHOUSE_PATH={rh_path}" if rh_path else f"RUNHOUSE_VERSION={rh_version}",
-            "-t",
-            "runhouse:start",
-            ".",
-        ]
-        print(shlex.join(build_cmd))
-        run_shell_command(subprocess, build_cmd, cwd=str(rh_parent_path.parent))
-
-        # Run the Docker image
-        run_cmd = [
-            "docker",
-            "run",
-            "--name",
-            "rh-slim-server-password-auth",
-            "-d",
-            "--rm",
-            "--shm-size=3gb",
-            "-p",
-            "32300:32300",
-            "-p",
-            "6379:6379",
-            "-p",
-            "52365:52365",
-            "-p",
-            "443:443",
-            "-p",
-            "80:80",
-            "-p",
-            "22:22",
-            "runhouse:start",
-        ]
-        print(shlex.join(run_cmd))
-        popen_shell_command(subprocess, run_cmd, cwd=str(rh_parent_path.parent))
 
     # Runhouse commands can now be run locally
-    pwd = (rh_parent_path.parent / "docker_user_passwd").read_text().strip()
+    pwd = (rh_parent_path.parent / pwd_file).read_text().strip()
     c = rh.cluster(
         name="local-docker-slim-password-file-auth",
         host="localhost",
-        ssh_creds={"ssh_user": "rh-docker-user", "password": pwd},
+        server_host="0.0.0.0",
+        ssh_creds={"ssh_user": SSH_USER, "password": pwd},
     )
     rh.env(
         reqs=["pytest"],
         working_dir=None,
         setup_cmds=[
-            f'mkdir ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
+            f'mkdir -p ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
         ],
         name="base_env",
     ).to(c)
@@ -846,85 +981,30 @@ def local_docker_cluster_passwd(detached=True):
 
 @pytest.fixture(scope="session")
 def local_docker_cluster_public_key(detached=True):
-    import subprocess
-
-    import docker
-
-    local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
-    dockerfile_path = local_rh_package_path / "docker/slim/public-key-auth/Dockerfile"
-    rh_parent_path = local_rh_package_path.parent
-    rh_path = "runhouse" if (rh_parent_path / "setup.py").exists() else None
-    rh_version = rh.__version__ if not rh_path else None
+    image_name = "keypair"
+    container_name = "rh-slim-server-public-key-auth"
+    dir_name = "public-key-auth"
     keypath = str(
         Path(
             rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
         ).expanduser()
     )
 
-    # Check if the container is already running, and if so, skip build and run
-    client = docker.from_env()
-    containers = client.containers.list(
-        all=True,
-        filters={
-            "ancestor": "runhouse:start",
-            "status": "running",
-            "name": "rh-slim-server-public-key-auth",
-        },
+    client, rh_parent_path = build_and_run_image(
+        image_name=image_name,
+        container_name=container_name,
+        dir_name=dir_name,
+        detached=detached,
+        keypath=keypath,
     )
-    if len(containers) > 0 and detached:
-        print("Container already running, skipping build and run")
-    else:
-        # Build the Docker image, but need to cd into base runhouse directory first
-        build_cmd = [
-            "docker",
-            "build",
-            "--pull",
-            "--rm",
-            "-f",
-            str(dockerfile_path),
-            "--build-arg",
-            f"RUNHOUSE_PATH={rh_path}" if rh_path else f"RUNHOUSE_VERSION={rh_version}",
-            "--secret",
-            f"id=ssh_key,src={keypath}.pub",
-            "-t",
-            "runhouse:start",
-            ".",
-        ]
-        print(shlex.join(build_cmd))
-        run_shell_command(subprocess, build_cmd, cwd=str(rh_parent_path.parent))
-
-        # Run the Docker image
-        run_cmd = [
-            "docker",
-            "run",
-            "--name",
-            "rh-slim-server-public-key-auth",
-            "-d",
-            "--rm",
-            "--shm-size=3gb",
-            "-p",
-            "32300:32300",
-            "-p",
-            "6379:6379",
-            "-p",
-            "52365:52365",
-            "-p",
-            "443:443",
-            "-p",
-            "80:80",
-            "-p",
-            "22:22",
-            "runhouse:start",
-        ]
-        print(shlex.join(run_cmd))
-        popen_shell_command(subprocess, run_cmd, cwd=str(rh_parent_path.parent))
 
     # Runhouse commands can now be run locally
     c = rh.cluster(
         name="local-docker-slim-public-key-auth",
         host="localhost",
+        server_host="0.0.0.0",
         ssh_creds={
-            "ssh_user": "rh-docker-user",
+            "ssh_user": SSH_USER,
             "ssh_private_key": keypath,
         },
     )
@@ -932,7 +1012,7 @@ def local_docker_cluster_public_key(detached=True):
         reqs=["pytest"],
         working_dir=None,
         setup_cmds=[
-            f'mkdir ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
+            f'mkdir -p ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
         ],
         name="base_env",
     ).to(c)
@@ -943,6 +1023,36 @@ def local_docker_cluster_public_key(detached=True):
 
     # Stop the Docker container
     if not detached:
-        client.containers.get("rh-slim-server-public-key-auth").stop()
+        client.containers.get(container_name).stop()
         client.containers.prune()
         client.images.prune()
+
+
+########## DEFAULT LEVELS ##########
+
+default_fixtures = {}
+default_fixtures[TestLevels.UNIT] = {"cluster": [local_docker_cluster_public_key]}
+default_fixtures[TestLevels.LOCAL] = {
+    "cluster": [local_docker_cluster_passwd, local_docker_cluster_public_key]
+}
+default_fixtures[TestLevels.MINIMAL] = {"cluster": [ondemand_cpu_cluster]}
+default_fixtures[TestLevels.THOROUGH] = {
+    "cluster": [
+        local_docker_cluster_passwd,
+        local_docker_cluster_public_key,
+        ondemand_cpu_cluster,
+        ondemand_https_cluster_with_auth,
+        password_cluster,
+        byo_cpu,
+    ]
+}
+default_fixtures[TestLevels.MAXIMAL] = {
+    "cluster": [
+        local_docker_cluster_passwd,
+        local_docker_cluster_public_key,
+        ondemand_cpu_cluster,
+        ondemand_https_cluster_with_auth,
+        password_cluster,
+        byo_cpu,
+    ]
+}

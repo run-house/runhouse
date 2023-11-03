@@ -10,12 +10,45 @@ import pytest
 import runhouse as rh
 from runhouse import Package
 
+from tests.conftest import (
+    byo_cpu,
+    local_docker_cluster_passwd,
+    local_docker_cluster_public_key,
+    ondemand_cpu_cluster,
+    ondemand_https_cluster_with_auth,
+    password_cluster,
+)
+
 from tests.test_function import multiproc_torch_sum
 
 TEMP_FILE = "my_file.txt"
 TEMP_FOLDER = "~/runhouse-tests"
 
 logger = logging.getLogger(__name__)
+
+UNIT = {"cluster": [local_docker_cluster_public_key]}
+LOCAL = {"cluster": [local_docker_cluster_passwd, local_docker_cluster_public_key]}
+MINIMAL = {"cluster": [ondemand_cpu_cluster]}
+THOROUGH = {
+    "cluster": [
+        local_docker_cluster_passwd,
+        local_docker_cluster_public_key,
+        ondemand_cpu_cluster,
+        ondemand_https_cluster_with_auth,
+        password_cluster,
+        byo_cpu,
+    ]
+}
+MAXIMAL = {
+    "cluster": [
+        local_docker_cluster_passwd,
+        local_docker_cluster_public_key,
+        ondemand_cpu_cluster,
+        ondemand_https_cluster_with_auth,
+        password_cluster,
+        byo_cpu,
+    ]
+}
 
 
 def do_printing_and_logging(steps=3):
@@ -39,58 +72,58 @@ def do_tqdm_printing_and_logging(steps=6):
 
 
 @pytest.mark.clustertest
-def test_stream_logs(ondemand_cpu_cluster):
-    print_fn = rh.function(fn=do_printing_and_logging, system=ondemand_cpu_cluster)
+def test_stream_logs(cluster):
+    print_fn = rh.function(fn=do_printing_and_logging, system=cluster)
     res = print_fn(stream_logs=True)
     # TODO [DG] assert that the logs are streamed
     assert res == list(range(50))
 
 
 @pytest.mark.clustertest
-def test_get_from_cluster(ondemand_cpu_cluster):
-    print_fn = rh.function(fn=do_printing_and_logging, system=ondemand_cpu_cluster)
+def test_get_from_cluster(cluster):
+    print_fn = rh.function(fn=do_printing_and_logging, system=cluster)
     print(print_fn())
     res = print_fn.remote()
     assert isinstance(res, rh.Blob)
-    assert res.name in ondemand_cpu_cluster.keys()
+    assert res.name in cluster.keys()
 
     assert res.fetch() == list(range(50))
-    res = ondemand_cpu_cluster.get(res.name).resolved_state()
+    res = cluster.get(res.name).resolved_state()
     assert res == list(range(50))
 
 
 @pytest.mark.clustertest
-def test_put_and_get_on_cluster(ondemand_cpu_cluster):
+def test_put_and_get_on_cluster(cluster):
     test_list = list(range(5, 50, 2)) + ["a string"]
-    ondemand_cpu_cluster.put("my_list", test_list)
-    ret = ondemand_cpu_cluster.get("my_list")
+    cluster.put("my_list", test_list)
+    ret = cluster.get("my_list")
     assert all(a == b for (a, b) in zip(ret, test_list))
 
     # Test that NOT_FOUND error is raised when key doesn't exist
     with pytest.raises(KeyError) as e:
-        ondemand_cpu_cluster.get("nonexistent_key", default=KeyError)
+        cluster.get("nonexistent_key", default=KeyError)
     assert "key nonexistent_key not found" in str(e.value)
 
 
 @pytest.mark.clustertest
 @pytest.mark.parametrize("env", [None, "base", "pytorch"])
-def test_call_module_method(ondemand_cpu_cluster, env):
-    ondemand_cpu_cluster.put("numpy_pkg", Package.from_string("numpy"), env=env)
+def test_call_module_method(cluster, env):
+    cluster.put("numpy_pkg", Package.from_string("numpy"), env=env)
 
     # Test for method
-    res = ondemand_cpu_cluster.call("numpy_pkg", "_detect_cuda_version_or_cpu")
+    res = cluster.call("numpy_pkg", "_detect_cuda_version_or_cpu")
     assert res == "cpu"
 
     # Test for property
-    res = ondemand_cpu_cluster.call("numpy_pkg", "config_for_rns")
+    res = cluster.call("numpy_pkg", "config_for_rns")
     numpy_config = Package.from_string("numpy").config_for_rns
     assert res
     assert isinstance(res, dict)
     assert res == numpy_config
 
     # Test iterator
-    ondemand_cpu_cluster.put("config_dict", list(numpy_config.keys()), env=env)
-    res = ondemand_cpu_cluster.call("config_dict", "__iter__")
+    cluster.put("config_dict", list(numpy_config.keys()), env=env)
+    res = cluster.call("config_dict", "__iter__")
     # Checks that all the keys in numpy_config were returned
     inspect.isgenerator(res)
     for key in res:
@@ -114,13 +147,11 @@ class slow_numpy_array:
 
 @pytest.mark.clustertest
 @pytest.mark.parametrize("env", [None])
-def test_stateful_generator(ondemand_cpu_cluster, env):
+def test_stateful_generator(cluster, env):
     # We need this here just to make sure the "tests" module is synced over
-    rh.function(fn=do_printing_and_logging, system=ondemand_cpu_cluster)
-    ondemand_cpu_cluster.put("slow_numpy_array", slow_numpy_array(), env=env)
-    for val in ondemand_cpu_cluster.call(
-        "slow_numpy_array", "slow_get_array", stream_logs=True
-    ):
+    rh.function(fn=do_printing_and_logging, system=cluster)
+    cluster.put("slow_numpy_array", slow_numpy_array(), env=env)
+    for val in cluster.call("slow_numpy_array", "slow_get_array", stream_logs=True):
         assert val
         print(val)
 
@@ -135,38 +166,36 @@ def pinning_helper(key=None):
 
 
 @pytest.mark.clustertest
-def test_pinning_and_arg_replacement(ondemand_cpu_cluster):
-    ondemand_cpu_cluster.clear()
-    pin_fn = rh.function(pinning_helper).to(ondemand_cpu_cluster)
+def test_pinning_and_arg_replacement(cluster):
+    cluster.clear()
+    pin_fn = rh.function(pinning_helper).to(cluster)
 
     # First run should pin "run_pin" and "run_pin_inside"
     pin_fn.remote(key="run_pin", run_name="pinning_test")
-    print(ondemand_cpu_cluster.keys())
-    assert ondemand_cpu_cluster.get("pinning_test").fetch() == ["fn result"] * 3
-    assert ondemand_cpu_cluster.get("run_pin_inside").data == ["put within fn"] * 5
+    print(cluster.keys())
+    assert cluster.get("pinning_test").fetch() == ["fn result"] * 3
+    assert cluster.get("run_pin_inside").data == ["put within fn"] * 5
 
     # When we just ran with the arg "run_pin", we put a new pin called "pinning_test_inside"
     # from within the fn. Running again should return it.
     assert pin_fn("run_pin") == "Found in obj store!"
 
     put_pin_value = ["put_pin_value"] * 4
-    ondemand_cpu_cluster.put("put_pin_inside", put_pin_value)
+    cluster.put("put_pin_inside", put_pin_value)
     assert pin_fn("put_pin") == "Found in obj store!"
 
 
 @pytest.mark.clustertest
-def test_put_resource(ondemand_cpu_cluster, test_env):
-    test_env.name = "test_env"
-    ondemand_cpu_cluster.put_resource(test_env)
-    assert (
-        ondemand_cpu_cluster.get("test_env").config_for_rns == test_env.config_for_rns
-    )
+def test_put_resource(cluster, test_env):
+    test_env.name = "~/test_env"
+    cluster.put_resource(test_env)
+    assert cluster.get("test_env").config_for_rns == test_env.config_for_rns
 
     assert (
-        ondemand_cpu_cluster.call("test_env", "config_for_rns", stream_logs=True)
+        cluster.call("test_env", "config_for_rns", stream_logs=True)
         == test_env.config_for_rns
     )
-    assert ondemand_cpu_cluster.call("test_env", "name", stream_logs=True) == "test_env"
+    assert cluster.call("test_env", "name", stream_logs=True) == "test_env"
 
 
 def serialization_helper_1():
@@ -207,22 +236,22 @@ def np_serialization_helper_2():
 
 
 @pytest.mark.clustertest
-def test_pinning_in_memory(ondemand_cpu_cluster):
+def test_pinning_in_memory(cluster):
     # Based on the following quirk having to do with Numpy objects becoming immutable if they're serialized:
     # https://docs.ray.io/en/latest/ray-core/objects/serialization.html#fixing-assignment-destination-is-read-only
-    ondemand_cpu_cluster.clear()
-    fn_1 = rh.function(np_serialization_helper_1).to(ondemand_cpu_cluster)
+    cluster.clear()
+    fn_1 = rh.function(np_serialization_helper_1).to(cluster)
     fn_1()
-    fn_2 = rh.function(np_serialization_helper_2).to(ondemand_cpu_cluster)
+    fn_2 = rh.function(np_serialization_helper_2).to(cluster)
     res = fn_2()
     assert res[0] == 1
     assert res[1] == 0
 
 
 @pytest.mark.clustertest
-def test_multiprocessing_streaming(ondemand_cpu_cluster):
+def test_multiprocessing_streaming(cluster):
     re_fn = rh.function(
-        multiproc_torch_sum, system=ondemand_cpu_cluster, env=["./", "torch==1.12.1"]
+        multiproc_torch_sum, system=cluster, env=["./", "torch==1.12.1"]
     )
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn(summands)
@@ -230,30 +259,28 @@ def test_multiprocessing_streaming(ondemand_cpu_cluster):
 
 
 @pytest.mark.clustertest
-def test_tqdm_streaming(ondemand_cpu_cluster):
+def test_tqdm_streaming(cluster):
     # Note, this doesn't work properly in PyCharm due to incomplete
     # support for carriage returns in the PyCharm console.
-    print_fn = rh.function(fn=do_tqdm_printing_and_logging).to(
-        ondemand_cpu_cluster, env=["tqdm"]
-    )
+    print_fn = rh.function(fn=do_tqdm_printing_and_logging).to(cluster, env=["tqdm"])
     res = print_fn(steps=40, stream_logs=True)
     assert res == list(range(50))
 
 
 @pytest.mark.clustertest
-def test_cancel_run(ondemand_cpu_cluster):
-    print_fn = rh.function(fn=do_printing_and_logging, system=ondemand_cpu_cluster)
+def test_cancel_run(cluster):
+    print_fn = rh.function(fn=do_printing_and_logging, system=cluster)
     run_key = print_fn.run(10)
     run_key2 = print_fn.run()
 
     # TODO if you look at screen on the cluster, the job is continuing
-    ondemand_cpu_cluster.cancel(run_key, force=True)
+    cluster.cancel(run_key, force=True)
     with pytest.raises(Exception) as e:
-        ondemand_cpu_cluster.get(run_key, stream_logs=True)
+        cluster.get(run_key, stream_logs=True)
     assert "task was cancelled" in str(e.value)
 
     # Check that another job in the same env isn't affected
-    res = ondemand_cpu_cluster.get(run_key2).fetch()
+    res = cluster.get(run_key2).fetch()
     assert res == list(range(50))
 
 

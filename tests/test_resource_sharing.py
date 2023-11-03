@@ -2,7 +2,6 @@ import json
 import subprocess
 import unittest
 
-import dotenv
 import pytest
 import requests
 
@@ -10,8 +9,6 @@ import runhouse as rh
 from runhouse.globals import configs, rns_client
 
 from tests.conftest import load_and_share_resources, test_account
-
-dotenv.load_dotenv()
 
 
 def call_func_with_curl(ip_address, func_name, token, *args):
@@ -55,11 +52,15 @@ def call_cluster_methods(cluster, test_env, valid_token):
 
 
 @pytest.mark.clustertest
-def test_cluster_sharing():
+def test_cluster_sharing(pytestconfig):
     current_token = configs.get("token")
     current_username = configs.get("username")
+    level = pytestconfig.getoption("level")
+
     with test_account() as t:
-        shared_cluster, shared_function = load_and_share_resources(current_username)
+        shared_cluster, shared_function = load_and_share_resources(
+            current_username, level
+        )
 
     # Run commands on cluster with current token
     return_codes = shared_cluster.run_python(
@@ -79,12 +80,16 @@ def test_cluster_sharing():
 
 
 @pytest.mark.clustertest
-def test_use_shared_cluster_apis(test_env):
+def test_use_shared_cluster_apis(pytestconfig, test_env):
     # Should be able to use the shared cluster APIs if given access
     current_username = configs.get("username")
     current_token = configs.get("token")
+    level = pytestconfig.getoption("level")
+
     with test_account():
-        shared_cluster, shared_function = load_and_share_resources(current_username)
+        shared_cluster, shared_function = load_and_share_resources(
+            current_username, level
+        )
 
     # Confirm we can perform cluster actions with the current token
     call_cluster_methods(shared_cluster, test_env, valid_token=True)
@@ -104,11 +109,15 @@ def test_use_shared_cluster_apis(test_env):
 
 
 @pytest.mark.clustertest
-def test_use_shared_function_apis():
+def test_use_shared_function_apis(pytestconfig):
     current_username = configs.get("username")
     current_token = configs.get("token")
+    level = pytestconfig.getoption("level")
+
     with test_account():
-        shared_cluster, shared_function = load_and_share_resources(current_username)
+        shared_cluster, shared_function = load_and_share_resources(
+            current_username, level
+        )
 
     # Call the function with current valid token
     assert shared_function(1, 2) == 4
@@ -129,13 +138,17 @@ def test_use_shared_function_apis():
 
 
 @pytest.mark.clustertest
-def test_running_func_with_cluster_read_access():
+def test_running_func_with_cluster_read_access(pytestconfig):
     """Check that a user with read only access to the cluster cannot call a function on that cluster if they do not
     explicitly have access to the function."""
     current_username = configs.get("username")
     current_token = configs.get("token")
+    level = pytestconfig.getoption("level")
+
     with test_account():
-        shared_cluster, shared_function = load_and_share_resources(current_username)
+        shared_cluster, shared_function = load_and_share_resources(
+            current_username, level
+        )
 
         # Delete user access to the function
         resource_uri = rns_client.resource_uri(shared_function.rns_address)
@@ -162,13 +175,17 @@ def test_running_func_with_cluster_read_access():
 
 
 @pytest.mark.clustertest
-def test_running_func_with_cluster_write_access():
+def test_running_func_with_cluster_write_access(pytestconfig):
     """Check that a user with write access to a cluster can call a function on that cluster, even without having
     explicit access to the function."""
     current_username = configs.get("username")
     current_token = configs.get("token")
+    level = pytestconfig.getoption("level")
+
     with test_account():
-        shared_cluster, shared_function = load_and_share_resources(current_username)
+        shared_cluster, shared_function = load_and_share_resources(
+            current_username, level
+        )
 
         # Give user write access to cluster
         cluster_uri = rns_client.resource_uri(shared_cluster.rns_address)
@@ -209,14 +226,17 @@ def test_running_func_with_cluster_write_access():
 
 
 @pytest.mark.clustertest
-def test_running_func_with_no_cluster_access():
+def test_running_func_with_no_cluster_access(pytestconfig):
     """Check that a user with no access to the cluster can still call a function on that cluster if they were
     given explicit access to the function."""
     current_username = configs.get("username")
     current_token = configs.get("token")
-    with test_account():
-        shared_cluster, shared_function = load_and_share_resources(current_username)
+    level = pytestconfig.getoption("level")
 
+    with test_account():
+        shared_cluster, shared_function = load_and_share_resources(
+            current_username, level
+        )
         # Delete user access to cluster using the test account
         cluster_uri = rns_client.resource_uri(shared_cluster.rns_address)
         resp = requests.delete(
