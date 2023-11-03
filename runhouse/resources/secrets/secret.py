@@ -49,16 +49,24 @@ class Secret(Resource):
     @staticmethod
     def from_config(config: dict, dryrun: bool = False):
         """Create a Secret object from a config dictionary."""
+        if "provider" in config:
+            from runhouse.resources.secrets.provider_secrets.providers import (
+                _get_provider_class,
+            )
+
+            provider_class = _get_provider_class(config["provider"])
+            return provider_class(**config, dryrun=dryrun)
         return Secret(**config, dryrun=dryrun)
 
     @property
     def config_for_rns(self):
         config = super().config_for_rns
-        config.update(
-            {
-                "values": self.values,
-            }
-        )
+        if self._values:
+            config.update(
+                {
+                    "values": self._values,
+                }
+            )
         return config
 
     @classmethod
@@ -99,7 +107,12 @@ class Secret(Resource):
         return self
 
     def delete(self, headers: str = rns_client.request_headers):
-        """Delete the secret config from Vault/local. Optionally also delete secret file."""
+        """Delete the secret config from Vault/local."""
+        if not self.in_vault() or self.is_local():
+            logger.warn(
+                "Can not delete a secret that has not been saved down to Vault or local."
+            )
+
         if self.rns_address.startswith("/"):
             self._delete_vault_config(headers)
         else:

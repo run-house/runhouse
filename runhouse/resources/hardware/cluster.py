@@ -1129,7 +1129,7 @@ class Cluster(Resource):
 
         return return_codes
 
-    def sync_secrets(self, providers: Optional[List[str]] = None):
+    def sync_secrets(self, providers: Optional[List[str or "Secret"]] = None):
         """Send secrets for the given providers.
 
         Args:
@@ -1137,7 +1137,7 @@ class Cluster(Resource):
                 If `None`, all providers configured in the environment will by sent.
 
         Example:
-            >>> cpu.sync_secrets(providers=["aws", "lambda"])
+            >>> cpu.sync_secrets(secrets=["aws", "lambda"])
         """
         self.check_server()
 
