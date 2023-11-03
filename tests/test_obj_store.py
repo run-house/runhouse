@@ -187,7 +187,7 @@ def test_pinning_and_arg_replacement(cluster):
 
 @pytest.mark.clustertest
 def test_put_resource(cluster, test_env):
-    test_env.name = "test_env"
+    test_env.name = "~/test_env"
     cluster.put_resource(test_env)
     assert cluster.get("test_env").config_for_rns == test_env.config_for_rns
 

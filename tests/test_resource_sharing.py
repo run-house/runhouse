@@ -2,7 +2,6 @@ import json
 import subprocess
 import unittest
 
-import dotenv
 import pytest
 import requests
 
@@ -10,8 +9,6 @@ import runhouse as rh
 from runhouse.globals import configs, rns_client
 
 from tests.conftest import load_and_share_resources, test_account
-
-dotenv.load_dotenv()
 
 
 def call_func_with_curl(ip_address, func_name, token, *args):

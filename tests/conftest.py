@@ -18,8 +18,6 @@ import pytest
 import runhouse as rh
 from runhouse.globals import configs
 
-dotenv.load_dotenv()
-
 
 class TestLevels(str, enum.Enum):
     UNIT = "unit"
@@ -60,6 +58,8 @@ def test_account():
     """Used for the purposes of testing resource sharing among different accounts.
     When inside the context manager, use the test account credentials before reverting back to the original
     account when exiting."""
+    dotenv.load_dotenv()
+
     current_token = configs.get("token")
     current_username = configs.get("username")
 
@@ -88,6 +88,8 @@ def test_account():
 
 def load_and_share_resources(username_to_share):
     # Create the shared cluster using the test account
+    dotenv.load_dotenv()
+
     c = rh.ondemand_cluster(
         name=f"/{os.getenv('TEST_USERNAME')}/rh-cpu-shared",
         instance_type="CPU:2+",
@@ -452,7 +454,7 @@ def sm_cluster_with_auth():
     c = (
         rh.sagemaker_cluster(
             name="rh-sagemaker-den-auth",
-            role="arn:aws:iam::172657097474:role/service-role/AmazonSageMaker-ExecutionRole-20230717T192142",
+            profile="sagemaker",
             den_auth=True,
         )
         .up_if_not()
