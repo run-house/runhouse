@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 UNIT = {"cluster": [local_docker_cluster_public_key]}
 LOCAL = {"cluster": [local_docker_cluster_passwd, local_docker_cluster_public_key]}
 MINIMAL = {"cluster": [ondemand_cpu_cluster]}
-FULL = {
+THOROUGH = {
     "cluster": [
         local_docker_cluster_passwd,
         local_docker_cluster_public_key,
@@ -39,7 +39,7 @@ FULL = {
         byo_cpu,
     ]
 }
-ALL = {
+MAXIMAL = {
     "cluster": [
         local_docker_cluster_passwd,
         local_docker_cluster_public_key,

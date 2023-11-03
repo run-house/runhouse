@@ -10,8 +10,6 @@ import requests
 import runhouse as rh
 from runhouse.rns.utils.api import load_resp_content
 
-from .conftest import cpu_clusters
-
 REMOTE_FUNC_NAME = "@/remote_function"
 
 logger = logging.getLogger(__name__)
@@ -40,8 +38,7 @@ def np_array(list):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-# @cpu_clusters
-def test_create_function_from_name_local(ondemand_cpu_cluster):
+def test_create_function_from_name_local(cluster):
     local_name = "~/local_function"
     local_sum = rh.function(summer).to(cluster).save(local_name)
     del local_sum
@@ -56,7 +53,6 @@ def test_create_function_from_name_local(ondemand_cpu_cluster):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-@cpu_clusters
 def test_create_function_from_rns(cluster):
     remote_sum = rh.function(summer).to(cluster).save(REMOTE_FUNC_NAME)
     del remote_sum
@@ -76,7 +72,6 @@ async def async_summer(a, b):
 
 @pytest.mark.clustertest
 @pytest.mark.asyncio
-@cpu_clusters
 async def test_async_function(cluster):
     remote_sum = rh.function(async_summer).to(cluster)
     res = await remote_sum(1, 5)
@@ -85,7 +80,6 @@ async def test_async_function(cluster):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-@cpu_clusters
 def test_get_function_history(cluster):
     # reload the function from RNS
     remote_sum = rh.function(summer).to(cluster).save(REMOTE_FUNC_NAME)
@@ -102,7 +96,6 @@ def multiproc_torch_sum(inputs):
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-@cpu_clusters
 def test_remote_function_with_multiprocessing(cluster):
     re_fn = rh.function(multiproc_torch_sum, name="test_function").to(
         cluster, env=["torch==1.12.1"]
@@ -120,7 +113,6 @@ def getpid(a=0):
 
 @unittest.skip("Does not work properly following Module refactor.")
 @pytest.mark.clustertest
-@cpu_clusters
 def test_maps(cluster):
     pid_fn = rh.function(getpid, system=cluster)
     num_pids = [1] * 10
@@ -159,7 +151,6 @@ def slow_generator(size):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_generator(cluster):
     remote_slow_generator = rh.function(slow_generator).to(cluster)
     results = []
@@ -184,7 +175,6 @@ async def async_slow_generator(size):
 
 @pytest.mark.clustertest
 @pytest.mark.asyncio
-@cpu_clusters
 async def test_async_generator(cluster):
     remote_slow_generator = rh.function(async_slow_generator).to(cluster)
     results = []
@@ -196,7 +186,6 @@ async def test_async_generator(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_remotes(cluster):
     pid_fn = rh.function(getpid, system=cluster)
 
@@ -213,7 +202,6 @@ def test_remotes(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_function_git_fn(cluster):
     remote_parse = rh.function(
         fn="https://github.com/huggingface/diffusers/blob/"
@@ -243,7 +231,6 @@ def test_function_git_fn(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_list_keys(cluster):
     pid_fn = rh.function(getpid).to(system=cluster)
 
@@ -266,7 +253,6 @@ def slow_getpid(a=0):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_cancel_jobs(cluster):
     pid_fn = rh.function(slow_getpid).to(cluster)
 
@@ -293,7 +279,6 @@ def test_cancel_jobs(cluster):
 
 @unittest.skip("Does not work properly following Module refactor.")
 @pytest.mark.clustertest
-@cpu_clusters
 def test_function_queueing(cluster):
     pid_fn = rh.function(getpid).to(cluster)
 
@@ -302,7 +287,6 @@ def test_function_queueing(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_function_to_env(cluster):
     cluster.run(["pip uninstall numpy -y"])
 
@@ -417,7 +401,6 @@ def test_nested_diff_clusters(ondemand_cpu_cluster, byo_cpu):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_nested_same_cluster(cluster):
     # When the system of a function is set to the cluster that the function is being called on, we run the function
     # locally and not via an RPC call
@@ -430,7 +413,6 @@ def test_nested_same_cluster(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_http_url(cluster):
     rh.function(summer).to(cluster).save("@/remote_function")
     tun, port = cluster.ssh_tunnel(80, 32300)
@@ -471,7 +453,6 @@ def test_http_url_with_curl():
 
 # test that deprecated arguments are still backwards compatible for now
 @pytest.mark.clustertest
-@cpu_clusters
 def test_reqs_backwards_compatible(cluster):
     summer_cpu = rh.function(fn=summer).to(system=cluster)
     res = summer_cpu(1, 5)
@@ -483,7 +464,6 @@ def test_reqs_backwards_compatible(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_setup_cmds_backwards_compatible(cluster):
     torch_summer_cpu = rh.function(fn=summer).to(system=cluster, env=["torch"])
     torch_res = torch_summer_cpu(1, 5)

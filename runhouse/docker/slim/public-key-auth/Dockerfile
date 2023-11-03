@@ -13,7 +13,7 @@ RUN mkdir -p /app/ssh
 
 # Install the required packages
 RUN apt-get update --allow-insecure-repositories && \
-    apt-get install -y --no-install-recommends gcc python3-dev openssh-server rsync supervisor && \
+    apt-get install -y --no-install-recommends gcc python3-dev openssh-server rsync supervisor screen && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
@@ -51,11 +51,7 @@ RUN echo "[supervisord]" > /etc/supervisor/conf.d/supervisord.conf && \
     echo "[program:sshd]" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "command=/usr/sbin/sshd -D" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stdout_logfile=/var/log/sshd.log" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "stderr_logfile=/var/log/sshd.err" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "[program:runhouse]" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "command=runhouse restart --no-screen --host "0.0.0.0"" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "stdout_logfile=/var/log/runhouse.log" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "stderr_logfile=/var/log/runhouse.err" >> /etc/supervisor/conf.d/supervisord.conf
+    echo "stderr_logfile=/var/log/sshd.err" >> /etc/supervisor/conf.d/supervisord.conf
 
 # Ray dashboard port
 EXPOSE 52365

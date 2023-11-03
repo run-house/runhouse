@@ -31,25 +31,23 @@ def resolve_test_helper(obj):
 @pytest.mark.clustertest
 # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
 @pytest.mark.parametrize("env", [None])
-def test_call_module_method(ondemand_cpu_cluster, env):
-    ondemand_cpu_cluster.put("numpy_pkg", Package.from_string("numpy"), env=env)
+def test_call_module_method(cluster, env):
+    cluster.put("numpy_pkg", Package.from_string("numpy"), env=env)
 
     # Test for method
-    res = ondemand_cpu_cluster.call(
-        "numpy_pkg", "_detect_cuda_version_or_cpu", stream_logs=True
-    )
+    res = cluster.call("numpy_pkg", "_detect_cuda_version_or_cpu", stream_logs=True)
     assert res == "cpu"
 
     # Test for property
-    res = ondemand_cpu_cluster.call("numpy_pkg", "config_for_rns", stream_logs=True)
+    res = cluster.call("numpy_pkg", "config_for_rns", stream_logs=True)
     numpy_config = Package.from_string("numpy").config_for_rns
     assert res
     assert isinstance(res, dict)
     assert res == numpy_config
 
     # Test iterator
-    ondemand_cpu_cluster.put("config_dict", list(numpy_config.keys()), env=env)
-    res = ondemand_cpu_cluster.call("config_dict", "__iter__", stream_logs=True)
+    cluster.put("config_dict", list(numpy_config.keys()), env=env)
+    res = cluster.call("config_dict", "__iter__", stream_logs=True)
     # Checks that all the keys in numpy_config were returned
     inspect.isgenerator(res)
     for key in res:
@@ -90,9 +88,9 @@ class SlowNumpyArray:
 @pytest.mark.clustertest
 # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
 @pytest.mark.parametrize("env", [None])
-def test_module_from_factory(ondemand_cpu_cluster, env):
+def test_module_from_factory(cluster, env):
     size = 3
-    RemoteClass = rh.module(SlowNumpyArray).to(ondemand_cpu_cluster)
+    RemoteClass = rh.module(SlowNumpyArray).to(cluster)
     remote_array = RemoteClass(size=size, name="remote_array1")
 
     # Test that naming works properly, and "class" module was unaffacted
@@ -100,7 +98,7 @@ def test_module_from_factory(ondemand_cpu_cluster, env):
     assert RemoteClass.name == "SlowNumpyArray"
 
     # Test that module was initialized correctly on the cluster
-    assert remote_array.system == ondemand_cpu_cluster
+    assert remote_array.system == cluster
     assert remote_array.remote.size == size
     assert all(remote_array.remote.arr == np.zeros(size))
     assert remote_array.remote._hidden_1 == "hidden"
@@ -121,7 +119,7 @@ def test_module_from_factory(ondemand_cpu_cluster, env):
         assert f"Hello from the cluster stdout! {i}" in out
         assert f"Hello from the cluster logs! {i}" in out
 
-    cluster_cpus = 2
+    cluster_cpus = int(cluster.run_python(["import os; print(os.cpu_count())"])[0][1])
     # Test classmethod on remote class
     assert RemoteClass.cpu_count() == os.cpu_count()
     assert RemoteClass.cpu_count(local=False) == cluster_cpus
@@ -146,14 +144,14 @@ def test_module_from_factory(ondemand_cpu_cluster, env):
 
     # Test creating a second instance of the same class
     remote_array2 = RemoteClass(size=30, name="remote_array2")
-    assert remote_array2.system == ondemand_cpu_cluster
+    assert remote_array2.system == cluster
     assert remote_array2.remote.size == 30
 
     # Test creating a third instance with the factory method
     remote_array3 = RemoteClass.factory_constructor.remote(
         size=40, run_name="remote_array3"
     )
-    assert remote_array3.system.config_for_rns == ondemand_cpu_cluster.config_for_rns
+    assert remote_array3.system.config_for_rns == cluster.config_for_rns
     assert remote_array3.remote.size == 40
     assert remote_array3.cpu_count(local=False) == cluster_cpus
 
@@ -162,7 +160,7 @@ def test_module_from_factory(ondemand_cpu_cluster, env):
     assert RemoteClass.cpu_count(local=False) == cluster_cpus
 
     # Test resolve()
-    helper = rh.function(resolve_test_helper).to(ondemand_cpu_cluster, env=rh.Env())
+    helper = rh.function(resolve_test_helper).to(cluster, env=rh.Env())
     resolved_obj = helper(remote_array.resolve())
     assert resolved_obj.__class__.__name__ == "SlowNumpyArray"
     assert not hasattr(resolved_obj, "config_for_rns")
@@ -203,10 +201,10 @@ class SlowPandas(rh.Module):
 @pytest.mark.clustertest
 # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
 @pytest.mark.parametrize("env", [None])
-def test_module_from_subclass(ondemand_cpu_cluster, env):
+def test_module_from_subclass(cluster, env):
     size = 3
-    remote_df = SlowPandas(size=size).to(ondemand_cpu_cluster, env)
-    assert remote_df.system == ondemand_cpu_cluster
+    remote_df = SlowPandas(size=size).to(cluster, env)
+    assert remote_df.system == cluster
 
     # Test that module was initialized correctly on the cluster
     assert remote_df.remote.size == size
@@ -230,10 +228,11 @@ def test_module_from_subclass(ondemand_cpu_cluster, env):
         assert f"Hello from the cluster stdout! {i}" in out
         assert f"Hello from the cluster logs! {i}" in out
 
+    cpu_count = int(cluster.run_python(["import os; print(os.cpu_count())"])[0][1])
     print(remote_df.cpu_count())
     assert remote_df.cpu_count() == os.cpu_count()
     print(remote_df.cpu_count(local=False))
-    assert remote_df.cpu_count(local=False) == 2
+    assert remote_df.cpu_count(local=False) == cpu_count
 
     # Test setting and getting properties
     df = remote_df.remote.df
@@ -248,16 +247,14 @@ def test_module_from_subclass(ondemand_cpu_cluster, env):
     del remote_df
 
     # Test get_or_to
-    remote_df = SlowPandas(size=3).get_or_to(
-        ondemand_cpu_cluster, env=env, name="SlowPandas"
-    )
-    assert remote_df.system.config_for_rns == ondemand_cpu_cluster.config_for_rns
-    assert remote_df.cpu_count(local=False, stream_logs=False) == 2
+    remote_df = SlowPandas(size=3).get_or_to(cluster, env=env, name="SlowPandas")
+    assert remote_df.system.config_for_rns == cluster.config_for_rns
+    assert remote_df.cpu_count(local=False, stream_logs=False) == cpu_count
     # Check that size is unchanged from when we set it to 20 above
     assert remote_df.remote.size == 20
 
     # Test that resolve() has no effect
-    helper = rh.function(resolve_test_helper).to(ondemand_cpu_cluster, env=rh.Env())
+    helper = rh.function(resolve_test_helper).to(cluster, env=rh.Env())
     resolved_obj = helper(remote_df.resolve())
     assert resolved_obj.__class__.__name__ == "SlowPandas"
     assert resolved_obj.remote.size == 20
@@ -268,9 +265,9 @@ def test_module_from_subclass(ondemand_cpu_cluster, env):
 @pytest.mark.asyncio
 # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
 @pytest.mark.parametrize("env", [None])
-async def test_module_from_subclass_async(ondemand_cpu_cluster, env):
-    remote_df = SlowPandas(size=3).to(ondemand_cpu_cluster, env)
-    assert remote_df.system == ondemand_cpu_cluster
+async def test_module_from_subclass_async(cluster, env):
+    remote_df = SlowPandas(size=3).to(cluster, env)
+    assert remote_df.system == cluster
     results = []
     # Capture stdout to check that it's working
     out = ""
@@ -288,10 +285,11 @@ async def test_module_from_subclass_async(ondemand_cpu_cluster, env):
         assert f"Hello from the cluster stdout! {i}" in out
         assert f"Hello from the cluster logs! {i}" in out
 
+    cpu_count = int(cluster.run_python(["import os; print(os.cpu_count())"])[0][1])
     print(await remote_df.cpu_count_async())
     assert await remote_df.cpu_count_async() == os.cpu_count()
     print(await remote_df.cpu_count_async(local=False))
-    assert await remote_df.cpu_count_async(local=False) == 2
+    assert await remote_df.cpu_count_async(local=False) == cpu_count
 
     # Properties
     df = await remote_df.fetch_async("df")
@@ -306,13 +304,11 @@ async def test_module_from_subclass_async(ondemand_cpu_cluster, env):
 
 @unittest.skip("Not working yet")
 @pytest.mark.clustertest
-def test_hf_autotokenizer(ondemand_cpu_cluster):
+def test_hf_autotokenizer(cluster):
     from transformers import AutoTokenizer
 
     AutoTokenizer.from_pretrained("bert-base-uncased")
-    RemoteAutoTokenizer = rh.module(AutoTokenizer).to(
-        ondemand_cpu_cluster, env=["transformers"]
-    )
+    RemoteAutoTokenizer = rh.module(AutoTokenizer).to(cluster, env=["transformers"])
     tok = RemoteAutoTokenizer.from_pretrained.remote(
         "bert-base-uncased", run_name="bert-tok"
     )

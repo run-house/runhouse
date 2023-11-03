@@ -21,7 +21,7 @@ from runhouse.globals import configs
 dotenv.load_dotenv()
 
 
-class TestLevels(enum.Enum):
+class TestLevels(str, enum.Enum):
     UNIT = "unit"
     LOCAL = "local"
     MINIMAL = "minimal"
@@ -29,7 +29,7 @@ class TestLevels(enum.Enum):
     MAXIMAL = "maximal"
 
 
-DEFAULT_LEVEL = TestLevels.UNIT.value
+DEFAULT_LEVEL = TestLevels.UNIT
 
 
 def pytest_addoption(parser):
@@ -43,7 +43,7 @@ def pytest_addoption(parser):
 
 def pytest_generate_tests(metafunc):
     level = metafunc.config.getoption("level")
-    level_fixtures = getattr(metafunc.module, level.upper(), {})
+    level_fixtures = getattr(metafunc.module, level.upper(), default_fixtures[level])
     for fixture_name, fixture_list in level_fixtures.items():
         if fixture_name in metafunc.fixturenames:
             metafunc.parametrize(fixture_name, fixture_list, indirect=True)
@@ -796,7 +796,7 @@ def local_docker_cluster_passwd(detached=True):
     containers = client.containers.list(
         all=True,
         filters={
-            "ancestor": "runhouse:start",
+            "ancestor": "runhouse:pwd",
             "status": "running",
             "name": "rh-slim-server-password-auth",
         },
@@ -817,7 +817,7 @@ def local_docker_cluster_passwd(detached=True):
             "--build-arg",
             f"RUNHOUSE_PATH={rh_path}" if rh_path else f"RUNHOUSE_VERSION={rh_version}",
             "-t",
-            "runhouse:start",
+            "runhouse:pwd",
             ".",
         ]
         print(shlex.join(build_cmd))
@@ -844,7 +844,7 @@ def local_docker_cluster_passwd(detached=True):
             "80:80",
             "-p",
             "22:22",
-            "runhouse:start",
+            "runhouse:pwd",
         ]
         print(shlex.join(run_cmd))
         popen_shell_command(subprocess, run_cmd, cwd=str(rh_parent_path.parent))
@@ -854,13 +854,14 @@ def local_docker_cluster_passwd(detached=True):
     c = rh.cluster(
         name="local-docker-slim-password-file-auth",
         host="localhost",
+        server_host="0.0.0.0",
         ssh_creds={"ssh_user": "rh-docker-user", "password": pwd},
     )
     rh.env(
         reqs=["pytest"],
         working_dir=None,
         setup_cmds=[
-            f'mkdir ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
+            f'mkdir -p ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
         ],
         name="base_env",
     ).to(c)
@@ -898,7 +899,7 @@ def local_docker_cluster_public_key(detached=True):
     containers = client.containers.list(
         all=True,
         filters={
-            "ancestor": "runhouse:start",
+            "ancestor": "runhouse:keypair",
             "status": "running",
             "name": "rh-slim-server-public-key-auth",
         },
@@ -919,7 +920,7 @@ def local_docker_cluster_public_key(detached=True):
             "--secret",
             f"id=ssh_key,src={keypath}.pub",
             "-t",
-            "runhouse:start",
+            "runhouse:keypair",
             ".",
         ]
         print(shlex.join(build_cmd))
@@ -946,7 +947,7 @@ def local_docker_cluster_public_key(detached=True):
             "80:80",
             "-p",
             "22:22",
-            "runhouse:start",
+            "runhouse:keypair",
         ]
         print(shlex.join(run_cmd))
         popen_shell_command(subprocess, run_cmd, cwd=str(rh_parent_path.parent))
@@ -956,8 +957,6 @@ def local_docker_cluster_public_key(detached=True):
         name="local-docker-slim-public-key-auth",
         host="localhost",
         server_host="0.0.0.0",
-        server_connection_type="ssh",
-        server_port=22,
         ssh_creds={
             "ssh_user": "rh-docker-user",
             "ssh_private_key": keypath,
@@ -967,7 +966,7 @@ def local_docker_cluster_public_key(detached=True):
         reqs=["pytest"],
         working_dir=None,
         setup_cmds=[
-            f'mkdir ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
+            f'mkdir -p ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
         ],
         name="base_env",
     ).to(c)
@@ -981,3 +980,33 @@ def local_docker_cluster_public_key(detached=True):
         client.containers.get("rh-slim-server-public-key-auth").stop()
         client.containers.prune()
         client.images.prune()
+
+
+########## DEFAULT LEVELS ##########
+
+default_fixtures = {}
+default_fixtures[TestLevels.UNIT] = {"cluster": [local_docker_cluster_public_key]}
+default_fixtures[TestLevels.LOCAL] = {
+    "cluster": [local_docker_cluster_passwd, local_docker_cluster_public_key]
+}
+default_fixtures[TestLevels.MINIMAL] = {"cluster": [ondemand_cpu_cluster]}
+default_fixtures[TestLevels.THOROUGH] = {
+    "cluster": [
+        local_docker_cluster_passwd,
+        local_docker_cluster_public_key,
+        ondemand_cpu_cluster,
+        ondemand_https_cluster_with_auth,
+        password_cluster,
+        byo_cpu,
+    ]
+}
+default_fixtures[TestLevels.MAXIMAL] = {
+    "cluster": [
+        local_docker_cluster_passwd,
+        local_docker_cluster_public_key,
+        ondemand_cpu_cluster,
+        ondemand_https_cluster_with_auth,
+        password_cluster,
+        byo_cpu,
+    ]
+}
