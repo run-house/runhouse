@@ -726,22 +726,6 @@ def password_cluster():
     return cluster
 
 
-cpu_clusters = pytest.mark.parametrize(
-    "cluster",
-    [
-        "ondemand_cpu_cluster",
-        "ondemand_https_cluster_with_auth",
-        "password_cluster",
-        "byo_cpu",
-    ],
-    indirect=True,
-)
-
-sagemaker_clusters = pytest.mark.parametrize(
-    "cluster", ["sm_cluster", "other_sm_cluster"], indirect=True
-)
-
-
 # ----------------- Envs -----------------
 
 

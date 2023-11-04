@@ -6,8 +6,6 @@ import pytest
 
 import runhouse as rh
 
-from .conftest import cpu_clusters
-
 extra_index_url = "--extra-index-url https://pypi.python.org/simple/"
 cuda_116_url = "--index-url https://download.pytorch.org/whl/cu116"
 
@@ -80,7 +78,6 @@ def test_load_shared_git_package():
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_local_package_function(cluster):
     function = rh.function(fn=summer).to(cluster, env=["./"])
 
@@ -91,7 +88,6 @@ def test_local_package_function(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_local_package_to_cluster(cluster):
     package = rh.Package.from_string("./").to(cluster)
 
@@ -100,7 +96,6 @@ def test_local_package_to_cluster(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_mount_local_package_to_cluster(cluster):
     mount_path = "package_mount"
     package = rh.Package.from_string("./").to(cluster, path=mount_path, mount=True)
@@ -112,7 +107,6 @@ def test_mount_local_package_to_cluster(cluster):
 
 @pytest.mark.clustertest
 @pytest.mark.awstest
-@cpu_clusters
 def test_package_file_system_to_cluster(cluster, s3_package):
     assert s3_package.install_target.system == "s3"
     assert s3_package.install_target.exists_in_system()
@@ -277,11 +271,6 @@ def test_torch_install_command_generator():
 
 
 @pytest.mark.gputest
-@pytest.mark.parametrize(
-    "cluster",
-    ["ondemand_cpu_cluster", "v100_gpu_cluster", "k80_gpu_cluster", "a10g_gpu_cluster"],
-    indirect=True,
-)
 def test_getting_cuda_version_on_clusters(request, cluster):
     """Gets the cuda version on the cluster and asserts it is the expected version"""
     return_codes: list = cluster.run_python(
@@ -304,11 +293,6 @@ def test_getting_cuda_version_on_clusters(request, cluster):
 
 
 @pytest.mark.gputest
-@pytest.mark.parametrize(
-    "cluster",
-    ["ondemand_cpu_cluster", "v100_gpu_cluster", "k80_gpu_cluster", "a10g_gpu_cluster"],
-    indirect=True,
-)
 def test_install_cmd_for_torch_on_cluster(request, cluster):
     """Checks that the install command for torch runs properly on the cluster.
     Confirms that we can properly install the package (and send a torch tensor to cuda to validate it"""

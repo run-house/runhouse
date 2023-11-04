@@ -11,8 +11,6 @@ import yaml
 from runhouse.resources.folders.folder import Folder
 from runhouse.resources.packages import Package
 
-from .conftest import cpu_clusters
-
 pip_reqs = ["torch", "numpy"]
 
 # -------- BASE ENV TESTS ----------- #
@@ -47,7 +45,6 @@ def test_create_env():
 
 @pytest.mark.clustertest
 @pytest.mark.parametrize("env_name", ["base", "test_env"])
-@cpu_clusters
 def test_to_cluster(cluster, env_name):
     test_env = rh.env(name=env_name, reqs=["transformers"])
 
@@ -60,7 +57,6 @@ def test_to_cluster(cluster, env_name):
 
 @pytest.mark.awstest
 @pytest.mark.clustertest
-@cpu_clusters
 def test_to_fs_to_cluster(cluster, s3_package):
     cluster.install_packages(["s3fs"])
 
@@ -85,7 +81,6 @@ def test_to_fs_to_cluster(cluster, s3_package):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_function_to_env(cluster):
     test_env = rh.env(name="test-env", reqs=["parameterized"]).save()
 
@@ -114,7 +109,6 @@ def _get_env_var_value(env_var):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_function_env_vars(cluster):
     test_env_var = "TEST_ENV_VAR"
     test_value = "value"
@@ -127,7 +121,6 @@ def test_function_env_vars(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_function_env_vars_file(cluster):
     env_file = ".env"
     contents = ["# comment", "", "ENV_VAR1=value", "# comment with =", "ENV_VAR2 =val2"]
@@ -146,7 +139,6 @@ def test_function_env_vars_file(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_env_vars_to_cluster(cluster):
     env_vars = {"TEST_ENV_VAR": "value"}
     env = rh.env(name="base", reqs=["parameterized"], env_vars=env_vars)
@@ -154,7 +146,6 @@ def test_env_vars_to_cluster(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_env_vars_conda_env(cluster):
     test_env_var = "TEST_ENV_VAR_CONDA"
     test_value = "conda"
@@ -168,7 +159,6 @@ def test_env_vars_conda_env(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_env_git_reqs(cluster):
     git_package = rh.GitPackage(
         git_url="https://github.com/huggingface/diffusers.git",
@@ -183,7 +173,6 @@ def test_env_git_reqs(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_working_dir(cluster, tmp_path):
     working_dir = tmp_path / "test_working_dir"
     working_dir.mkdir(exist_ok=True)
@@ -243,7 +232,6 @@ def test_conda_env_from_name_rns():
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_conda_env_path_to_system(cluster, tmp_path):
     env_name = "from_path"
     python_version = "3.9.16"
@@ -261,7 +249,6 @@ def test_conda_env_path_to_system(cluster, tmp_path):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_conda_env_local_to_system(cluster):
     env_name = "local-env"
     python_version = "3.9.16"
@@ -272,7 +259,6 @@ def test_conda_env_local_to_system(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_conda_env_dict_to_system(cluster):
     conda_env = _get_conda_env(python_version="3.9.16")
     test_env = rh.env(name="test_env", conda_env=conda_env)
@@ -285,7 +271,6 @@ def test_conda_env_dict_to_system(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_function_to_conda_env(cluster):
     conda_env = _get_conda_env(python_version="3.9.16")
     test_env = rh.env(name="test_env", conda_env=conda_env)
@@ -298,7 +283,6 @@ def test_function_to_conda_env(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_conda_additional_reqs(cluster):
     new_conda_env = _get_conda_env(name="test-add-reqs")
     new_conda_env = rh.env(name="conda_env", reqs=["scipy"], conda_env=new_conda_env)
@@ -309,7 +293,6 @@ def test_conda_additional_reqs(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_conda_git_reqs(cluster):
     conda_env = _get_conda_env(name="test-add-reqs")
     git_package = rh.GitPackage(
@@ -325,7 +308,6 @@ def test_conda_git_reqs(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_conda_env_to_fs_to_cluster(cluster, s3_package):
     conda_env = _get_conda_env(name="s3-env")
     conda_env_s3 = rh.env(reqs=["s3fs", "scipy", s3_package], conda_env=conda_env).to(
@@ -365,7 +347,6 @@ def np_summer(a, b):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_conda_call_fn(cluster):
     conda_dict = _get_conda_env(name="c")
     conda_env = rh.env(conda_env=conda_dict, reqs=["pytest", "numpy"])
@@ -376,7 +357,6 @@ def test_conda_call_fn(cluster):
 
 @unittest.skip("Map does not work properly following Module refactor.")
 @pytest.mark.clustertest
-@cpu_clusters
 def test_conda_map_fn(cluster):
     conda_dict = _get_conda_env(name="test-map-fn")
     conda_env = rh.env(conda_env=conda_dict, reqs=["pytest", "numpy"])
