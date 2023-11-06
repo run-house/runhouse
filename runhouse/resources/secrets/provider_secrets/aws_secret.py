@@ -26,8 +26,10 @@ class AWSSecret(ProviderSecret):
     def _write_to_file(
         self, path: Union[str, File], values: Dict, overwrite: bool = False
     ):
-        path = os.path.expanduser(path) if not isinstance(path, File) else path
-        if _check_file_for_mismatches(path, self._from_path(path), values, overwrite):
+        full_path = os.path.expanduser(path) if not isinstance(path, File) else path
+        if _check_file_for_mismatches(
+            full_path, self._from_path(full_path), values, overwrite
+        ):
             return self
 
         parser = configparser.ConfigParser()
@@ -56,10 +58,10 @@ class AWSSecret(ProviderSecret):
                 data = ss.read()
             path.write(data, serialize=False, mode="w")
         else:
-            Path(path).parent.mkdir(parents=True, exist_ok=True)
-            with open(path, "w+") as f:
+            Path(full_path).parent.mkdir(parents=True, exist_ok=True)
+            with open(full_path, "w+") as f:
                 parser.write(f)
-            new_secret._add_to_rh_config(path)
+            new_secret._add_to_rh_config(full_path)
 
         return new_secret
 

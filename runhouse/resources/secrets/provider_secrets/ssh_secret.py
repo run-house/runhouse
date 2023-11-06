@@ -5,10 +5,11 @@ from pathlib import Path
 
 from typing import Any, Dict, Optional, Union
 
+from runhouse.globals import rns_client
+
 from runhouse.resources.blobs.file import File
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.secrets.provider_secrets.provider_secret import ProviderSecret
-from runhouse.rns import rns_client
 
 logger = logging.getLogger(__name__)
 

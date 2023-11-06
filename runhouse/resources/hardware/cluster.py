@@ -1140,10 +1140,22 @@ class Cluster(Resource):
             >>> cpu.sync_secrets(secrets=["aws", "lambda"])
         """
         self.check_server()
+        from runhouse.resources.secrets import Secret
 
-        from runhouse import Secrets
+        secrets = []
+        if providers:
+            for secret in providers:
+                secrets.append(
+                    Secret.from_name(secret) if isinstance(secret, str) else secret
+                )
+        else:
+            secrets = Secret.local_secrets()
+            enabled_provider_secrets = Secret.extract_provider_secrets()
+            secrets.update(enabled_provider_secrets)
+            secrets = secrets.values()
 
-        Secrets.to(system=self, providers=providers)
+        for secret in secrets:
+            secret.to(self)
 
     def ipython(self):
         # TODO tunnel into python interpreter in cluster
