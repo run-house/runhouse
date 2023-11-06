@@ -557,9 +557,20 @@ def sm_source_dir(sm_entry_point, pytorch_training_script):
 
 @pytest.fixture(scope="session")
 def cluster(request):
-    """Parametrize over multiple fixtures - useful for running the same test on multiple hardware types."""
-    # Example: @pytest.mark.parametrize("cluster", [v100_gpu_cluster, k80_gpu_cluster], indirect=True)"""
     return request.getfixturevalue(request.param.__name__)
+
+
+@pytest.fixture(
+    params=[
+        "ondemand_cpu_cluster",
+        "v100_gpu_cluster",
+        "k80_gpu_cluster",
+        "a10g_gpu_cluster",
+    ],
+    ids=["cpu", "v100", "k80", "a10g"],
+)
+def ondemand_cluster(request):
+    return request.getfixturevalue(request.param)
 
 
 @pytest.fixture(scope="session")
