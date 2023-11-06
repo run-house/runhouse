@@ -209,9 +209,19 @@ def test_account():
         configs.set("default_folder", f"/{current_username}")
 
 
-def load_and_share_resources(username_to_share, test_level, force_rebuild=False):
-    # Create the shared cluster using the test account
-    if test_level in [TestLevels.UNIT, TestLevels.LOCAL]:
+############## FIXTURES ##############
+
+
+# ----------------- Shared Resources -----------------
+
+
+@pytest.fixture(scope="session")
+def shared_resources(pytestconfig):
+    # TODO clean up image and container at the end
+
+    username_to_share = configs.get("username")
+    with test_account():
+        # Create the shared cluster using the test account
         keypath = str(
             Path(
                 rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
@@ -224,9 +234,8 @@ def load_and_share_resources(username_to_share, test_level, force_rebuild=False)
             detached=True,
             dir_name="public-key-auth",
             keypath=keypath,
-            force_rebuild=force_rebuild,
+            force_rebuild=pytestconfig.getoption("--force-rebuild"),
         )
-        # TODO turn into fixture, and clean up image and container at the end
 
         c = rh.cluster(
             name="local-docker-slim-public-key-auth",
@@ -237,7 +246,7 @@ def load_and_share_resources(username_to_share, test_level, force_rebuild=False)
                 "ssh_user": SSH_USER,
                 "ssh_private_key": keypath,
             },
-        )
+        ).save()
 
         # Save the test account config to ~/.rh directory in the container
         rh_config = rh.configs.load_defaults_from_file()
@@ -252,33 +261,19 @@ def load_and_share_resources(username_to_share, test_level, force_rebuild=False)
             name="base_env",
         ).to(c)
 
-    else:
-        dotenv.load_dotenv()
-        test_username = os.getenv("TEST_USERNAME")
-        assert test_username
+        c.install_packages(["pytest"])
 
-        c = rh.ondemand_cluster(
-            name=f"/{test_username}/rh-cpu-shared",
-            instance_type="CPU:2+",
-            den_auth=True,
-            server_connection_type="tls",
-            open_ports=[443],
-        )
-        c.up_if_not()
+        # Create function on shared cluster with the same test account
+        f = rh.function(summer).to(c, env=["pytest"]).save()
 
-    c.install_packages(["pytest"])
+        # Share the cluster & function with the current account
+        c.share(username_to_share, access_type="read")
+        f.share(username_to_share, access_type="read")
 
-    # Create function on shared cluster with the same test account
-    f = rh.function(summer).to(c, env=["pytest"]).save()
-
-    # Share the cluster & function with the current account
-    c.share(username_to_share, access_type="read")
-    f.share(username_to_share, access_type="read")
-
-    return c, f
+    yield c, f
 
 
-############## FIXTURES ##############
+# ----------------- Blobs -----------------
 
 
 @pytest.fixture(scope="session")
