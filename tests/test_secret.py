@@ -4,8 +4,6 @@ import pytest
 
 import runhouse as rh
 
-from .conftest import cpu_clusters
-
 
 @pytest.mark.rnstest
 def test_get_all_secrets_from_vault():
@@ -146,7 +144,6 @@ def test_add_github_secrets():
 
 @pytest.mark.clustertest
 @pytest.mark.rnstest
-@cpu_clusters
 def test_sending_secrets_to_cluster(cluster):
     # only send a few to the cluster
     providers: list = rh.Secrets.enabled_providers()[:3]
