@@ -83,12 +83,15 @@ class ProviderSecret(Secret):
         """Delete the secret config from Vault/local. Optionally also delete contents of secret file or env vars."""
         if self.path and contents:
             if isinstance(self.path, File):
-                self.path.rm()
+                if self.path.exists_in_system():
+                    self.path.rm()
             else:
-                os.remove(os.path.expanduser(self.path))
+                if os.path.exists(os.path.expanduser(self.path)):
+                    os.remove(os.path.expanduser(self.path))
         elif self.env_vars and contents:
             for (_, env_var) in self.env_vars.keys():
-                del os.environ[env_var]
+                if env_var in os.environ:
+                    del os.environ[env_var]
         super().delete(headers=headers)
 
     def write(
@@ -136,8 +139,10 @@ class ProviderSecret(Secret):
             >>> secret.to(my_cluster, path=secret.path)
         """
         system = _get_cluster_from(system)
+        path = path or self.path
+
         if system.on_this_cluster():
-            if not path or env:
+            if not env and not path == self.path:
                 if name and not self.name == name:
                     self.rename(name)
                 return self
@@ -159,7 +164,7 @@ class ProviderSecret(Secret):
         else:
             new_secret.path = file(path=self.path, system=system)
 
-        if env:
+        if env or self.env_vars:
             env_vars = {self.env_vars[key]: self.values[key] for key in self.values}
             system.call(env, "_write_env_vars", env_vars)
         return new_secret

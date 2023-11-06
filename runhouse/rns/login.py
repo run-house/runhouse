@@ -39,8 +39,6 @@ def login(
     Returns:
         Token if ``ret_token`` is set to True, otherwise nothing.
     """
-    from runhouse import Secrets
-
     all_options_set = token and not any(
         arg is None
         for arg in (download_config, upload_config, download_secrets, upload_secrets)
@@ -127,14 +125,52 @@ def login(
         configs.set("default_folder", defaults["default_folder"])
 
     if download_secrets:
-        Secrets.download_into_env()
+        _login_download_secrets()
 
     if upload_secrets:
-        Secrets.extract_and_upload(interactive=interactive)
+        _login_upload_secrets(interactive=interactive)
 
     logger.info("Successfully logged into Runhouse.")
     if ret_token:
         return token
+
+
+def _login_download_secrets():
+    from runhouse import Secret
+
+    secrets = Secret.vault_secrets()
+    for name, secret in secrets.items():
+        try:
+            download_path = secret.path or secret._DEFAULT_CREDENTIALS_PATH
+            if download_path:
+                logger.info(f"Loading down secrets for {name} into {download_path}")
+                secret.write()
+        except AttributeError:
+            continue
+
+
+def _login_upload_secrets(interactive: bool):
+    from runhouse import Secret
+
+    local_secrets = Secret.local_secrets()
+    provider_secrets = Secret.extract_provider_secrets()
+    local_secrets.update(provider_secrets)
+    names = list(local_secrets.keys())
+
+    vault_secrets = Secret.vault_secrets()
+
+    for name in names:
+        if name in vault_secrets:
+            local_secrets.pop(name, None)
+            continue
+        if interactive:
+            upload_secrets = typer.confirm(f"Upload secrets for {name}?")
+            if not upload_secrets:
+                local_secrets.pop(name, None)
+
+    logger.info(f"Uploading secrets for {list(local_secrets)} to Vault.")
+    for _, secret in local_secrets.items():
+        secret.save(values=True)
 
 
 def logout(
@@ -154,14 +190,18 @@ def logout(
     Returns:
         None
     """
-    from runhouse import Secrets
+    from runhouse.resources.secrets import Secret
+    from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
 
     interactive_session: bool = (
         interactive if interactive is not None else is_interactive()
     )
 
-    for (provider_name, _) in configs.get("secrets", {}).items():
-        if provider_name == "ssh":
+    local_secret_names = list(configs.get("secrets", {}).keys())
+    for name in local_secret_names:
+        secret = Secret.from_name(name)
+
+        if isinstance(secret, SSHSecret):
             logger.info(
                 "Automatic deletion for local SSH credentials file is not supported. "
                 "Please manually delete it if you would like to remove it"
@@ -170,13 +210,18 @@ def logout(
 
         if interactive_session:
             delete_loaded_secrets = typer.confirm(
-                f"Delete credentials file for {provider_name}?"
+                f"Delete credentials file for {name}?"
             )
 
         if delete_loaded_secrets:
-            Secrets.delete_from_local_env(providers=[provider_name])
+            secret.delete(contents=True)
         else:
-            configs.delete(provider_name)
+            secret.delete()
+            configs.delete(name)
+
+    local_secrets = Secret.local_secrets()
+    for _, secret in local_secrets.items():
+        secret.delete()
 
     # Delete token and username/default folder from rh config file
     configs.delete(key="token")

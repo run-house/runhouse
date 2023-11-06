@@ -2,8 +2,9 @@ import copy
 import json
 import logging
 import os
+from pathlib import Path
 
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import requests
 
@@ -76,14 +77,108 @@ class Secret(Resource):
         config["name"] = name
         return cls.from_config(config=config, dryrun=dryrun)
 
+    @classmethod
+    def builtin_providers(cls, as_str: bool = False) -> list:
+        """Return list of all Runhouse providers (as class objects) supported out of the box."""
+        from runhouse.resources.secrets.provider_secrets.providers import (
+            _str_to_provider_class,
+        )
+
+        if as_str:
+            return list(_str_to_provider_class.keys())
+        return list(_str_to_provider_class.values())
+
+    @classmethod
+    def vault_secrets(cls, names: List[str] = None) -> Dict[str, "Secret"]:
+        from runhouse.resources.secrets import Secret
+
+        resp = requests.get(
+            f"{rns_client.api_server_url}/user/secret",
+            headers=rns_client.request_headers,
+        )
+
+        if resp.status_code != 200:
+            raise Exception("Failed to download secrets from Vault")
+
+        secrets = {}
+        response = read_resp_data(resp)
+        if names is not None:
+            response = {name: response[name] for name in names if name in response}
+        for name, config in response.items():
+            if config.get("data", None):
+                config.update(config["data"])
+                del config["data"]
+                response[name] = config
+            secrets[name] = Secret.from_config(config)
+
+        return secrets
+
+    @classmethod
+    def local_secrets(cls, names: List[str] = None) -> Dict[str, "Secret"]:
+        if not os.path.exists(os.path.expanduser("~/.rh/secrets")):
+            return {}
+
+        all_names = [
+            Path(file).stem
+            for file in os.listdir(os.path.expanduser("~/.rh/secrets"))
+            if file.endswith("json")
+        ]
+        names = [name for name in names if name in all_names] if names else all_names
+
+        secrets = {}
+        for name in names:
+            path = os.path.expanduser(f"~/.rh/secrets/{name}.json")
+            with open(path, "r") as f:
+                config = json.load(f)
+            if config["name"].startswith("~") or config["name"].startswith("^"):
+                config["name"] = config["name"][2:]
+            secrets[name] = Secret.from_config(config)
+        return secrets
+
+    @classmethod
+    def extract_provider_secrets(cls, names: List[str] = None) -> Dict[str, "Secret"]:
+        from runhouse.resources.secrets.provider_secrets.providers import (
+            _str_to_provider_class,
+        )
+        from runhouse.resources.secrets.secret_factory import provider_secret
+
+        secrets = {}
+
+        # locally configured non-ssh provider secrets
+        for provider in _str_to_provider_class.keys():
+            if provider == "ssh":
+                continue
+            try:
+                secret = provider_secret(provider=provider)
+                secrets[provider] = secret
+            except ValueError:
+                continue
+
+        # locally configured ssh secrets
+        default_ssh_folder = "~/.ssh"
+        ssh_files = os.listdir(os.path.expanduser(default_ssh_folder))
+        for file in ssh_files:
+            if file != "sky-key" and f"{file}.pub" in ssh_files:
+                name = f"ssh-{file}"
+                secret = provider_secret(
+                    provider="ssh",
+                    name=name,
+                    path=os.path.join(default_ssh_folder, file),
+                )
+                secrets[name] = secret
+
+        return secrets
+
     # TODO: refactor this code to reuse rns_client save_config code instead of rewriting
-    def save(self, headers: str = rns_client.request_headers):
+    def save(self, values: bool = True, headers: str = rns_client.request_headers):
         """
         Save the secret config, into Vault if the user is logged in,
         or to local if not or if the resource is a local resource.
         """
         config = self.config_for_rns
         config["name"] = self.rns_address
+        if values:
+            config["values"] = self.values
 
         if self.rns_address.startswith("/"):
             logger.info(f"Saving config for {self.name} to Vault")
@@ -134,7 +229,6 @@ class Secret(Resource):
                 f"Failed to delete secret {self.name} from Vault: {load_resp_content(resp)}"
             )
 
-    # Q: is the way we send .to(cluster) secure?
     def to(
         self,
         system: Union[str, Cluster],

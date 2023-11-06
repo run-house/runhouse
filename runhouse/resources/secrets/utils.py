@@ -13,7 +13,16 @@ logger = logging.getLogger(__name__)
 USER_ENDPOINT = "user/secret"
 
 
-def _load_from_vault(name, endpoint):
+def load_config(name, endpoint: str = USER_ENDPOINT):
+    rns_address = rns_client.resolve_rns_path(name)
+
+    if rns_address.startswith("/"):
+        return _load_vault_config(name, endpoint)
+
+    return _load_local_config(name)
+
+
+def _load_vault_config(name, endpoint):
     resp = requests.get(
         f"{rns_client.api_server_url}/{endpoint}/{name}",
         headers=rns_client.request_headers,
@@ -31,7 +40,7 @@ def _load_from_vault(name, endpoint):
     return config
 
 
-def _load_from_local(name):
+def _load_local_config(name):
     if name.startswith("~") or name.startswith("^"):
         name = name[2:]
     config_path = os.path.expanduser(f"~/.rh/secrets/{name}.json")
@@ -71,12 +80,3 @@ def _check_file_for_mismatches(path, existing_vals, new_vals, overwrite):
         )
         return True
     return False
-
-
-def load_config(name, endpoint: str = USER_ENDPOINT):
-    rns_address = rns_client.resolve_rns_path(name)
-
-    if rns_address.startswith("/"):
-        return _load_from_vault(name, endpoint)
-
-    return _load_from_local(name)
