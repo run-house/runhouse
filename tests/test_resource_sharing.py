@@ -56,10 +56,11 @@ def test_cluster_sharing(pytestconfig):
     current_token = configs.get("token")
     current_username = configs.get("username")
     level = pytestconfig.getoption("level")
+    force_rebuild = pytestconfig.getoption("--force-rebuild")
 
     with test_account() as t:
         shared_cluster, shared_function = load_and_share_resources(
-            current_username, level
+            current_username, level, force_rebuild
         )
 
     # Run commands on cluster with current token
@@ -85,10 +86,11 @@ def test_use_shared_cluster_apis(pytestconfig, test_env):
     current_username = configs.get("username")
     current_token = configs.get("token")
     level = pytestconfig.getoption("level")
+    force_rebuild = pytestconfig.getoption("--force-rebuild")
 
     with test_account():
         shared_cluster, shared_function = load_and_share_resources(
-            current_username, level
+            current_username, level, force_rebuild
         )
 
     # Confirm we can perform cluster actions with the current token
@@ -113,10 +115,11 @@ def test_use_shared_function_apis(pytestconfig):
     current_username = configs.get("username")
     current_token = configs.get("token")
     level = pytestconfig.getoption("level")
+    force_rebuild = pytestconfig.getoption("--force-rebuild")
 
     with test_account():
         shared_cluster, shared_function = load_and_share_resources(
-            current_username, level
+            current_username, level, force_rebuild
         )
 
     # Call the function with current valid token
@@ -144,10 +147,11 @@ def test_running_func_with_cluster_read_access(pytestconfig):
     current_username = configs.get("username")
     current_token = configs.get("token")
     level = pytestconfig.getoption("level")
+    force_rebuild = pytestconfig.getoption("--force-rebuild")
 
     with test_account():
         shared_cluster, shared_function = load_and_share_resources(
-            current_username, level
+            current_username, level, force_rebuild
         )
 
         # Delete user access to the function
@@ -181,10 +185,11 @@ def test_running_func_with_cluster_write_access(pytestconfig):
     current_username = configs.get("username")
     current_token = configs.get("token")
     level = pytestconfig.getoption("level")
+    force_rebuild = pytestconfig.getoption("--force-rebuild")
 
     with test_account():
         shared_cluster, shared_function = load_and_share_resources(
-            current_username, level
+            current_username, level, force_rebuild
         )
 
         # Give user write access to cluster
@@ -232,10 +237,11 @@ def test_running_func_with_no_cluster_access(pytestconfig):
     current_username = configs.get("username")
     current_token = configs.get("token")
     level = pytestconfig.getoption("level")
+    force_rebuild = pytestconfig.getoption("--force-rebuild")
 
     with test_account():
         shared_cluster, shared_function = load_and_share_resources(
-            current_username, level
+            current_username, level, force_rebuild
         )
         # Delete user access to cluster using the test account
         cluster_uri = rns_client.resource_uri(shared_cluster.rns_address)
