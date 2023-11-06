@@ -29,7 +29,7 @@ class TestLevels(str, enum.Enum):
     MAXIMAL = "maximal"
 
 
-DEFAULT_LEVEL = TestLevels.MINIMAL
+DEFAULT_LEVEL = TestLevels.UNIT
 
 
 def pytest_addoption(parser):
