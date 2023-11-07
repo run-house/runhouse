@@ -5,7 +5,7 @@ import pytest
 
 import runhouse as rh
 
-from .test_cluster import np_array, sd_generate_image
+from tests.test_resources.test_clusters.cluster_tests import np_array, sd_generate_image
 
 
 @unittest.skip("Support for multiple live clusters not yet implemented")
