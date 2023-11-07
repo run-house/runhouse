@@ -122,14 +122,6 @@ class AWSLambdaFunction(Function):
         if "system" in config.keys():
             config.pop("system", None)
 
-        config.pop("access_type", None)
-        config.pop("_id", None)
-        config.pop("resource_type", None)
-        config.pop("access_type", None)
-        config.pop("resource_id", None)
-        config.pop("timestamp", None)
-        config.pop("users_with_access", None)
-
         return AWSLambdaFunction(**config, dryrun=dryrun)
 
     @classmethod
@@ -195,7 +187,7 @@ class AWSLambdaFunction(Function):
         path = ["/" + path_e for path_e in path]
         path[0] = ""
         folder_path = path[:-1]
-        new_path = "".join(folder_path) + "/rh_handler.py"
+        new_path = "".join(folder_path) + f"/rh_handler_{self.name}.py"
         f = open(new_path, "w")
         f.write(f"import {handler_file_name}\n")
         if self.reqs:
@@ -443,7 +435,7 @@ class AWSLambdaFunction(Function):
             RoleName=f"{self.name}_Role",
             AssumeRolePolicyDocument=json.dumps(assume_role_policy_document),
         )
-        time.sleep(5)
+        time.sleep(3)
 
         logger.info(f'{role_res["Role"]["RoleName"]} was created successfully.')
 
@@ -453,7 +445,7 @@ class AWSLambdaFunction(Function):
             PolicyDocument=json.dumps(role_policy),
         )
 
-        time.sleep(5)  # letting the role be updated in AWS
+        time.sleep(4)  # letting the role be updated in AWS
 
         layers = []
         if self.layer:
@@ -465,7 +457,7 @@ class AWSLambdaFunction(Function):
                 Action="lambda:GetLayerVersion",
                 Principal="*",
             )
-            time.sleep(4)  # letting the role be updated in AWS
+            time.sleep(3)  # letting the role be updated in AWS
 
             layers.append(self.layer)
 
@@ -487,7 +479,7 @@ class AWSLambdaFunction(Function):
                 FunctionName=self.name,
                 Runtime=self.runtime,
                 Role=role_res["Role"]["Arn"],
-                Handler="rh_handler.lambda_handler",
+                Handler=f"rh_handler_{self.name}.lambda_handler",
                 Code={"ZipFile": zipped_code},
                 Timeout=self.timeout,
                 MemorySize=self.memory_size,
@@ -499,13 +491,13 @@ class AWSLambdaFunction(Function):
                 FunctionName=self.name,
                 Runtime=self.runtime,
                 Role=role_res["Role"]["Arn"],
-                Handler="rh_handler.lambda_handler",
+                Handler=f"rh_handler_{self.name}.lambda_handler",
                 Code={"ZipFile": zipped_code},
                 Timeout=self.timeout,
                 MemorySize=self.memory_size,
                 Environment={"Variables": env_vars},
             )
-        time.sleep(5)
+        time.sleep(3)
         logger.info(f'{lambda_config["FunctionName"]} was created successfully.')
         return lambda_config
 
