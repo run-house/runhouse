@@ -2,14 +2,14 @@ import runhouse as rh
 
 from tests.test_resources.test_resource import TestResource
 from .conftest import (
+    local_docker_cluster_passwd,
     local_docker_cluster_public_key,
+    local_logged_out_docker_cluster,
+    local_test_account_cluster_public_key,
     named_cluster,
+    password_cluster,
     static_cpu_cluster,
     unnamed_cluster,
-    password_cluster,
-    local_docker_cluster_passwd,
-    local_logged_out_docker_cluster,
-    local_test_account_cluster_public_key
 )
 
 """ TODO:
@@ -22,13 +22,16 @@ from .conftest import (
 class TestCluster(TestResource):
 
     UNIT = {"resource": [local_docker_cluster_public_key]}
-    LOCAL = {"resource": [unnamed_cluster,
-                          named_cluster,
-                          local_docker_cluster_public_key,
-                          local_docker_cluster_passwd,
-                          local_logged_out_docker_cluster,
-                          local_test_account_cluster_public_key
-                          ]}
+    LOCAL = {
+        "resource": [
+            unnamed_cluster,
+            named_cluster,
+            local_docker_cluster_public_key,
+            local_docker_cluster_passwd,
+            local_logged_out_docker_cluster,
+            local_test_account_cluster_public_key,
+        ]
+    }
     REMOTE = {"resource": [static_cpu_cluster]}
     FULL = {"resource": [unnamed_cluster, named_cluster, password_cluster]}
     ALL = {"resource": [unnamed_cluster, named_cluster, password_cluster]}

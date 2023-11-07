@@ -1,8 +1,8 @@
 # Runhouse Testing
 
 Runhouse's testing is demanding and complex. We need to test across an ultra-wide range of infra, but can't simply
-test each infra locale separately because most of our features and changes are cross-cutting. Without a surgical 
-approach, this becomes a cartesian explosion quickly. We use testing "levels" to define which fixtures to use 
+test each infra locale separately because most of our features and changes are cross-cutting. Without a surgical
+approach, this becomes a cartesian explosion quickly. We use testing "levels" to define which fixtures to use
 for a given test suite, and which tests to run for a set of fixtures:
   * "unit" - Mock and dryrun fixtures (often a single local mock) and unit testing only
   * "local" - A comprehensive set of local fixtures, often in containers (run in CI/CD)
@@ -10,13 +10,13 @@ for a given test suite, and which tests to run for a set of fixtures:
   * "thorough" - Thorough set of fixtures, run ahead of release (or PR merge for major changes)
   * "maximal" - Testing with all possible fixtures, rarely used
 
-This allows us to run a single test file with different levels to test different infra, and override the level 
-fixtures for a given test suite if we want to test it more precisely or thoroughly. For example, the default minimal 
-cluster fixture for "test_cluster" might just be a static cpu cluster, but for "test_sagemaker" would be a cpu 
+This allows us to run a single test file with different levels to test different infra, and override the level
+fixtures for a given test suite if we want to test it more precisely or thoroughly. For example, the default minimal
+cluster fixture for "test_cluster" might just be a static cpu cluster, but for "test_sagemaker" would be a cpu
 SageMaker cluster. We also make use of test classes and inheritance to allow us to
 easily add new infra to the test suite and inherit a large portion of the test cases, while still being able to
 do TDD and add edge cases one-off as needed. We also use imports within test modules or classes to reuse
-test cases in multiple suites where appropriate (just importing the test case function is enough for PyTest to 
+test cases in multiple suites where appropriate (just importing the test case function is enough for PyTest to
 do this, so ignore warnings that the imports are unused).
 
 To run a single test file with a given level, use a command like this:
@@ -33,8 +33,8 @@ To run tests across multiple suites but only including a specific fixture, you c
 ```bash
 pytest -s -v --level "local" -k "local_docker_cluster_public_key" tests
 ```
-Make sure the fixture(s) of interest are included in the level you're running at, or they won't natch with any tests. 
-You can also exclude fixtures with "-m" and a tilde, e.g. "-m ~local_docker_cluster_public_key". 
+Make sure the fixture(s) of interest are included in the level you're running at, or they won't natch with any tests.
+You can also exclude fixtures with "-m" and a tilde, e.g. "-m ~local_docker_cluster_public_key".
 
 ## Sample Workflow
 

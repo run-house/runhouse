@@ -2,13 +2,6 @@ import logging
 import unittest
 
 from tests.conftest import local_docker_cluster_passwd, password_cluster
-
-from tests.test_resources.test_modules.test_module import (
-    test_call_module_method,  # noqa: F401
-    test_module_from_factory,  # noqa: F401
-    test_module_from_subclass,  # noqa: F401
-    test_module_from_subclass_async,  # noqa: F401
-)
 from tests.test_obj_store import (
     test_cancel_run,  # noqa: F401
     test_get_from_cluster,  # noqa: F401
@@ -20,6 +13,13 @@ from tests.test_obj_store import (
     test_stateful_generator,  # noqa: F401
     test_stream_logs,  # noqa: F401
     test_tqdm_streaming,  # noqa: F401
+)
+
+from tests.test_resources.test_modules.test_module import (
+    test_call_module_method,  # noqa: F401
+    test_module_from_factory,  # noqa: F401
+    test_module_from_subclass,  # noqa: F401
+    test_module_from_subclass_async,  # noqa: F401
 )
 
 logger = logging.getLogger(__name__)

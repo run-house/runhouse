@@ -129,6 +129,13 @@ from tests.test_resources.test_clusters.test_sagemaker_cluster.conftest import (
     sm_gpu_cluster,  # noqa: F401
 )
 
+# ----------------- Envs -----------------
+
+from tests.test_resources.test_envs.conftest import (
+    env,  # noqa: F401
+    test_env,  # noqa: F401
+)
+
 # ----------------- Blobs -----------------
 
 from tests.test_resources.test_modules.test_blobs.conftest import (
@@ -140,13 +147,6 @@ from tests.test_resources.test_modules.test_blobs.conftest import (
     local_blob,  # noqa: F401
     local_file,  # noqa: F401
     s3_blob,  # noqa: F401
-)
-
-# ----------------- Envs -----------------
-
-from tests.test_resources.test_envs.conftest import (
-    env,  # noqa: F401
-    test_env,  # noqa: F401
 )
 
 # ----------------- Folders -----------------
