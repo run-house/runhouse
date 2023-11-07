@@ -12,6 +12,9 @@ from runhouse import Folder
 NUM_PARTITIONS = 10
 
 
+# TODO top to bottom update. Named "table_tests" so it's skipped until we add a proper test class and suite
+
+
 def delete_local_folder(path):
     shutil.rmtree(path)
 

@@ -9,7 +9,7 @@ from runhouse.resources.hardware import OnDemandCluster
 from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import resolve_absolute_path
 
-from ..conftest import summer
+from tests.test_resources.test_modules.test_functions.conftest import summer
 
 
 def is_on_cluster(cluster):

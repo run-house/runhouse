@@ -204,6 +204,8 @@ class HTTPServer:
     def check_server():
         try:
             HTTPServer.register_activity()
+            if not ray.is_initialized():
+                raise Exception("Ray is not initialized, restart the server.")
             logger.info("Server is up.")
             return
         except Exception as e:

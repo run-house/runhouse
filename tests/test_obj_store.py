@@ -17,7 +17,9 @@ from tests.conftest import (
     password_cluster,
 )
 
-from tests.test_function import multiproc_torch_sum
+from tests.test_resources.test_modules.test_functions.test_function import (
+    multiproc_torch_sum,
+)
 
 TEMP_FILE = "my_file.txt"
 TEMP_FOLDER = "~/runhouse-tests"
