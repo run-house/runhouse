@@ -33,6 +33,12 @@ class NginxConfig:
 
         self.ssl_cert_path = ssl_cert_path
         self.ssl_key_path = ssl_key_path
+
+        if self._use_https and (not self.ssl_cert_path or not self.ssl_key_path):
+            raise ValueError(
+                "Must provide SSL certificate and key paths when using HTTPS"
+            )
+
         self.force_reinstall = force_reinstall
 
         # To expose the server to the internet, set address to the public IP, otherwise leave it as localhost

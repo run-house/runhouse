@@ -2,6 +2,8 @@ import json
 import unittest
 from unittest.mock import ANY, MagicMock, Mock, mock_open, patch
 
+from runhouse.globals import rns_client
+
 from runhouse.servers.http import HTTPClient
 from runhouse.servers.http.http_utils import pickle_b64
 
@@ -89,19 +91,130 @@ class TestHTTPClient(unittest.TestCase):
 
     @patch("requests.post")
     def test_call_module_method(self, mock_post):
+        # Simulate a sequence of responses from the server with pickled and base64-encoded data
+        response_sequence = [
+            json.dumps({"output_type": "log", "data": "Log message"}),
+            json.dumps(
+                {"output_type": "result_stream", "data": pickle_b64("stream_result_1")}
+            ),
+            json.dumps(
+                {"output_type": "result_stream", "data": pickle_b64("stream_result_2")}
+            ),
+            json.dumps({"output_type": "result", "data": pickle_b64("final_result")}),
+        ]
+
+        # Mock the response to iter_lines to return our simulated server response
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.iter_lines.return_value = iter(
-            [json.dumps({"output_type": "result", "data": "some_result"})]
-        )
+        mock_response.iter_lines.return_value = iter(response_sequence)
         mock_post.return_value = mock_response
+
+        # Call the method under test
         method_name = "install"
         module_name = "base_env"
+        result_generator = self.client.call_module_method(module_name, method_name)
 
-        result = self.client.call_module_method(module_name, method_name)
+        # Iterate through the generator and collect results
+        results = []
+        for result in result_generator:
+            results.append(result)
 
-        self.assertEqual(next(result), "some_result")
-        mock_post.assert_called_once()
+        # Assert that the results are what we expect
+        expected_results = ["stream_result_1", "stream_result_2", "final_result"]
+        self.assertEqual(results, expected_results)
+
+        # Assert that the post request was called correctly
+        expected_url = self.client._formatted_url(f"{module_name}/{method_name}")
+        expected_json_data = {
+            "data": pickle_b64([None, None]),
+            "env": None,
+            "stream_logs": True,
+            "save": False,
+            "key": None,
+            "remote": False,
+            "run_async": False,
+        }
+        expected_headers = rns_client.request_headers
+        expected_verify = self.client.verify
+
+        mock_post.assert_called_once_with(
+            expected_url,
+            json=expected_json_data,
+            stream=True,
+            headers=expected_headers,
+            verify=expected_verify,
+        )
+
+    @patch("requests.post")
+    def test_call_module_method_with_args_kwargs(self, mock_post):
+        # Setup the mock response
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        # Set up iter_lines to return an iterator
+        mock_response.iter_lines.return_value = iter(
+            [
+                json.dumps({"output_type": "log", "data": "Log message"}),
+            ]
+        )
+        mock_post.return_value = mock_response
+
+        # Call the method under test with args and kwargs
+        args = [1, 2]
+        kwargs = {"a": 3, "b": 4}
+        module_name = "module"
+        method_name = "install"
+
+        self.client.call_module_method(
+            module_name, method_name, args=args, kwargs=kwargs
+        )
+
+        # Assert that the post request was called with the correct data
+        expected_json_data = {
+            "data": pickle_b64([args, kwargs]),
+            "env": None,
+            "stream_logs": True,
+            "save": False,
+            "key": None,
+            "remote": False,
+            "run_async": False,
+        }
+        expected_url = f"http://localhost:32300/{module_name}/{method_name}"
+        expected_headers = rns_client.request_headers
+        expected_verify = False
+
+        mock_post.assert_called_with(
+            expected_url,
+            json=expected_json_data,
+            stream=True,
+            headers=expected_headers,
+            verify=expected_verify,
+        )
+
+    @patch("requests.post")
+    def test_call_module_method_error_handling(self, mock_post):
+        # Setup the mock response to simulate an error
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_response.content = b"Internal Server Error"
+        mock_post.return_value = mock_response
+
+        # Call the method and expect an exception
+        with self.assertRaises(ValueError):
+            self.client.call_module_method("module", "method")
+
+    @patch("requests.post")
+    def test_call_module_method_stream_logs(self, mock_post):
+        # Setup the mock response with a log in the stream
+        response_sequence = [
+            json.dumps({"output_type": "log", "data": "Log message"}),
+        ]
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.iter_lines.return_value = iter(response_sequence)
+        mock_post.return_value = mock_response
+
+        # Call the method under test
+        self.client.call_module_method("base_env", "install")
 
     @patch("runhouse.servers.http.HTTPClient.request")
     def test_put_object(self, mock_request):
@@ -140,74 +253,6 @@ class TestHTTPClient(unittest.TestCase):
 
         actual_data = mock_request.call_args[1]["data"]
         self.assertEqual(actual_data, expected_data)
-
-
-# TODO [JL] test response stream parsing and error handling
-@unittest.skip("Not implemented yet.")
-class TestHTTPClientCallModuleMethod(unittest.TestCase):
-    def setUp(self):
-        # Setup code to instantiate the HTTPClient before each test
-        self.client = HTTPClient(
-            "localhost",
-            HTTPClient.DEFAULT_PORT,
-            use_https=True,
-            cert_path="/valid/path",
-        )
-
-    @patch("requests.post")
-    def test_call_module_method_success(self, mock_post):
-        # Simulate a successful response from the server
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.iter_lines.return_value = iter(
-            [json.dumps({"output_type": "result", "data": "some_result"})]
-        )
-        mock_post.return_value = mock_response
-
-        result = self.client.call_module_method("module", "method")
-
-        self.assertEqual(next(result), "some_result")
-        mock_post.assert_called_once_with(
-            ANY, json=ANY, stream=ANY, headers=ANY, verify=ANY
-        )
-
-    @patch("requests.post")
-    def test_call_module_method_error(self, mock_post):
-        mock_response = Mock()
-        mock_response.status_code = 500
-        mock_response.content = b"Internal Server Error"
-        mock_post.return_value = mock_response
-
-        # Call the method and expect an exception
-        method_name = "install"
-        module_name = "base_env"
-        with self.assertRaises(ValueError) as context:
-            self.client.call_module_method(module_name, method_name)
-
-        # Assertions
-        self.assertIn(f"Error calling {method_name} on server", str(context.exception))
-
-    @patch("requests.post")
-    def test_call_module_method_stream(self, mock_post):
-        # Simulate a stream response from the server
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.iter_lines.return_value = iter(
-            [
-                json.dumps(
-                    {"output_type": "result_stream", "data": "streaming_result_1"}
-                ),
-                json.dumps(
-                    {"output_type": "result_stream", "data": "streaming_result_2"}
-                ),
-            ]
-        )
-        mock_post.return_value = mock_response
-
-        result_generator = self.client.call_module_method("module", "method")
-
-        results = list(result_generator)
-        self.assertEqual(results, ["streaming_result_1", "streaming_result_2"])
 
 
 if __name__ == "__main__":
