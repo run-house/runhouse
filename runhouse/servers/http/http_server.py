@@ -38,8 +38,8 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-
-global den_auth
+# Default to False, set initially when the server starts
+den_auth = False
 
 
 def validate_cluster_access(func):
@@ -334,7 +334,7 @@ class HTTPServer:
         # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
-            # This translates the json dict into an object that we can can access with dot notation, e.g. message.key
+            # This translates the json dict into an object that we can access with dot notation, e.g. message.key
             message = argparse.Namespace(**message) if message else None
             method = None if method == "None" else method
             # If this is a "get" request to just return the module, do not stream logs or save by default
@@ -743,6 +743,8 @@ if __name__ == "__main__":
     restart_proxy = parse_args.restart_proxy
     use_nginx = parse_args.use_nginx
     should_enable_local_span_collection = parse_args.enable_local_span_collection
+
+    # Update globally inside the module based on the args passed in or the cluster config
     den_auth = parse_args.use_den_auth or cluster_config.get("den_auth")
 
     ips = cluster_config.get("ips", [])
