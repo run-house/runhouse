@@ -3,7 +3,7 @@ import unittest
 
 from tests.conftest import local_docker_cluster_passwd, password_cluster
 
-from tests.test_module import (
+from tests.test_resources.test_modules.test_module import (
     test_call_module_method,  # noqa: F401
     test_module_from_factory,  # noqa: F401
     test_module_from_subclass,  # noqa: F401
