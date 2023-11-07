@@ -1,4 +1,6 @@
 import ipaddress
+import os
+import shutil
 import unittest
 
 from pathlib import Path
@@ -24,6 +26,8 @@ from tests.test_servers.conftest import summer
 
 @pytest.mark.usefixtures("docker_container")
 class TestHTTPServer:
+    """Start HTTP server in a docker container running locally"""
+
     def test_get_cert(self, http_client):
         response = http_client.get("/cert")
         assert response.status_code == 200
@@ -78,8 +82,8 @@ class TestHTTPServer:
         assert response.status_code == 200
 
     def test_call_module_method(self, http_client, base_cluster):
-        # Create new func on the cluster, then call it
-        remote_func = rh.function(summer).to(base_cluster)
+        # Send func to the cluster, then call it
+        remote_func = rh.function(summer, system=base_cluster)
 
         method_name = "call"
         module_name = remote_func.name
@@ -102,10 +106,134 @@ class TestHTTPServer:
 
     @pytest.mark.asyncio
     async def test_async_call(self, async_http_client, base_cluster):
-        remote_func = rh.function(summer).to(base_cluster)
+        remote_func = rh.function(summer, system=base_cluster)
         method = "call"
 
         response = await async_http_client.post(
+            f"/call/{remote_func.name}/{method}?serialization=None",
+            json={"args": [1, 2]},
+        )
+        assert response.status_code == 200
+
+
+class TestHTTPServerLocally:
+    """Start HTTP server locally, without docker"""
+
+    def test_get_cert(self, local_client):
+        # Define the path for the temporary certificate
+        certs_dir = Path.home() / "ssl" / "certs"
+        certs_dir.mkdir(
+            parents=True, exist_ok=True
+        )  # Create the directory if it doesn't exist
+        cert_path = certs_dir / "rh_server.crt"
+
+        # Create a temporary certificate file
+        cert_content = "dummy cert content"
+        with open(cert_path, "w") as cert_file:
+            cert_file.write(cert_content)
+
+        try:
+            # Perform the test
+            response = local_client.get("/cert")
+            assert response.status_code == 200
+
+            # Check if the error message is as expected (if the logic expects an error)
+            error_b64 = response.json().get("error")
+            if error_b64:
+                error_message = b64_unpickle(error_b64)
+                assert isinstance(error_message, FileNotFoundError)
+                assert "No certificate found on cluster in path" in str(error_message)
+            else:
+                # If the logic is to test successful retrieval, decode the data
+                data_b64 = response.json().get("data")
+                cert_data = b64_unpickle(data_b64)
+                assert cert_data == cert_content.encode()
+
+        finally:
+            cert_path.unlink(missing_ok=True)
+
+    def test_check_server(self, local_client):
+        response = local_client.get("/check")
+        assert response.status_code == 200
+
+    def test_put_resource(self, local_client, local_blob):
+        resource_path = Path("~/rh/blob/local-blob").expanduser()
+        resource_dir = resource_path.parent
+        state = None
+        try:
+            resource = local_blob.to(system="file", path=resource_path)
+            data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
+            response = local_client.post("/resource", json={"data": data})
+            assert response.status_code == 200
+        finally:
+            if os.path.exists(resource_path):
+                shutil.rmtree(resource_dir)
+
+    def test_put_object(self, local_client):
+        test_list = list(range(5, 50, 2)) + ["a string"]
+        response = local_client.post(
+            "/object", json={"data": pickle_b64(test_list), "key": "key1"}
+        )
+        assert response.status_code == 200
+
+    def test_rename_object(self, local_client):
+        old_key = "key1"
+        new_key = "key2"
+        data = pickle_b64((old_key, new_key))
+        response = local_client.put("/object", json={"data": data})
+        assert response.status_code == 200
+
+    def test_get_keys(self, local_client):
+        response = local_client.get("/keys")
+        assert response.status_code == 200
+        assert "key2" in b64_unpickle(response.json().get("data"))
+
+    def test_delete_obj(self, local_client):
+        # https://www.python-httpx.org/compatibility/#request-body-on-http-methods
+        keys = ["key2"]
+        data = pickle_b64(keys)
+        response = local_client.request("delete", url="/object", json={"data": data})
+        assert response.status_code == 200
+
+    def test_add_secrets(self, local_client):
+        secrets = {"aws": "abc123"}
+        data = pickle_b64(secrets)
+        response = local_client.post("/secrets", json={"data": data})
+        assert response.status_code == 200
+
+    # TODO [JL] - Need a local cluster object?
+    @pytest.mark.skip(reason="Not implemented yet")
+    def test_call_module_method(self, local_client, local_cluster):
+        # Create new func on the cluster, then call it
+        remote_func = rh.function(summer, system=local_cluster)
+
+        method_name = "call"
+        module_name = remote_func.name
+        args = (1, 2)
+        kwargs = {"force": False}
+
+        response = local_client.post(
+            f"{module_name}/{method_name}",
+            json={
+                "data": pickle_b64([args, kwargs]),
+                "env": None,
+                "stream_logs": True,
+                "save": False,
+                "key": None,
+                "remote": False,
+                "run_async": False,
+            },
+        )
+        assert response.status_code == 200
+
+    # TODO [JL] - Need a local cluster object?
+    @pytest.mark.skip(reason="Not implemented yet")
+    @pytest.mark.asyncio
+    async def test_async_call(self, local_client, local_cluster):
+        remote_func = rh.function(summer, system=local_cluster)
+        method = "call"
+
+        response = await local_client.post(
             f"/call/{remote_func.name}/{method}?serialization=None",
             json={"args": [1, 2]},
         )

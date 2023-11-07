@@ -45,6 +45,22 @@ def pytest_addoption(parser):
         default=False,
         help="Force rebuild of the relevant Runhouse image",
     )
+    # Specify --detached False in order to not run in detached mode
+    parser.addoption(
+        "--detached",
+        action="store",
+        type=bool,
+        nargs="?",
+        const=True,
+        default=True,
+        help="Whether to run container in detached mode",
+    )
+    parser.addoption(
+        "--den-auth",
+        action="store_true",
+        default=False,
+        help="Whether to start the Runhouse API server with den auth enabled",
+    )
 
 
 def pytest_generate_tests(metafunc):
@@ -72,7 +88,6 @@ def build_and_run_image(
     pwd_file=None,
     force_rebuild=False,
 ):
-
     import subprocess
 
     import docker
@@ -295,9 +310,7 @@ def local_file(blob_data, tmp_path):
 
 @pytest.fixture
 def local_blob(blob_data):
-    return rh.blob(
-        data=blob_data,
-    )
+    return rh.blob(data=blob_data)
 
 
 @pytest.fixture
@@ -942,11 +955,13 @@ def popen_shell_command(subprocess, command: list[str], cwd: str = None):
 
 
 @pytest.fixture(scope="session")
-def local_docker_cluster_passwd(request, detached=True):
+def local_docker_cluster_passwd(request):
     image_name = "pwd"
     container_name = "rh-slim-server-password-auth"
     dir_name = "password-file-auth"
     pwd_file = "docker_user_passwd"
+
+    detached = request.config.getoption("--detached")
 
     client, rh_parent_path = build_and_run_image(
         image_name=image_name,
@@ -959,20 +974,25 @@ def local_docker_cluster_passwd(request, detached=True):
 
     # Runhouse commands can now be run locally
     pwd = (rh_parent_path.parent / pwd_file).read_text().strip()
+
     c = rh.cluster(
         name="local-docker-slim-password-file-auth",
         host="localhost",
+        den_auth=request.config.getoption("--den-auth"),
         server_host="0.0.0.0",
         ssh_creds={"ssh_user": SSH_USER, "password": pwd},
     )
+    c.save()
+
     rh.env(
-        reqs=["pytest"],
+        reqs=["pytest", "httpx", "pytest_asyncio"],
         working_dir=None,
         setup_cmds=[
             f'mkdir -p ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
         ],
         name="base_env",
     ).to(c)
+
     c.save()
 
     # Yield the cluster
@@ -986,7 +1006,27 @@ def local_docker_cluster_passwd(request, detached=True):
 
 
 @pytest.fixture(scope="session")
-def local_docker_cluster_public_key(request, detached=True):
+def base_cluster(pytestconfig):
+    keypath = str(
+        Path(
+            rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
+        ).expanduser()
+    )
+    c = rh.cluster(
+        name="local-docker-slim-public-key-auth",
+        host="localhost",
+        den_auth=pytestconfig.getoption("--den-auth"),
+        server_host="0.0.0.0",
+        ssh_creds={
+            "ssh_user": "rh-docker-user",
+            "ssh_private_key": keypath,
+        },
+    ).save()
+    return c
+
+
+@pytest.fixture(scope="session")
+def local_docker_cluster_public_key(request, base_cluster):
     image_name = "keypair"
     container_name = "rh-slim-server-public-key-auth"
     dir_name = "public-key-auth"
@@ -995,6 +1035,8 @@ def local_docker_cluster_public_key(request, detached=True):
             rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
         ).expanduser()
     )
+
+    detached = request.config.getoption("--detached")
 
     client, rh_parent_path = build_and_run_image(
         image_name=image_name,
@@ -1006,27 +1048,19 @@ def local_docker_cluster_public_key(request, detached=True):
     )
 
     # Runhouse commands can now be run locally
-    c = rh.cluster(
-        name="local-docker-slim-public-key-auth",
-        host="localhost",
-        server_host="0.0.0.0",
-        ssh_creds={
-            "ssh_user": SSH_USER,
-            "ssh_private_key": keypath,
-        },
-    )
     rh.env(
-        reqs=["pytest"],
+        reqs=["pytest", "httpx", "pytest_asyncio"],
         working_dir=None,
         setup_cmds=[
             f'mkdir -p ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
         ],
         name="base_env",
-    ).to(c)
-    c.save()
+    ).to(base_cluster)
+
+    base_cluster.save()
 
     # Yield the cluster
-    yield c
+    yield base_cluster
 
     # Stop the Docker container
     if not detached:

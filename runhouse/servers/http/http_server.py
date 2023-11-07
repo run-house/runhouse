@@ -38,9 +38,6 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-# Default to False, set initially when the server starts
-den_auth = False
-
 
 def validate_cluster_access(func):
     """If using Den auth, validate the user's Runhouse token and access to the cluster before continuing."""
@@ -48,7 +45,7 @@ def validate_cluster_access(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         request: Request = kwargs.get("request")
-        use_den_auth: bool = den_auth
+        use_den_auth: bool = HTTPServer.DEN_AUTH
         is_coro = inspect.iscoroutinefunction(func)
 
         if not use_den_auth:
@@ -102,6 +99,7 @@ class HTTPServer:
     DEFAULT_HTTP_PORT = 80
     DEFAULT_HTTPS_PORT = 443
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
+    DEN_AUTH = False
     memory_exporter = None
 
     def __init__(
@@ -761,6 +759,9 @@ if __name__ == "__main__":
         conda_env=conda_name,
         enable_local_span_collection=should_enable_local_span_collection,
     )
+
+    # Update den auth with the parsed value - keep as a class attribute to be referenced by the validator decorator
+    HTTPServer.DEN_AUTH = den_auth
 
     # Custom certs should already be on the cluster if their file paths are provided
     if parsed_ssl_keyfile and not Path(parsed_ssl_keyfile).exists():
