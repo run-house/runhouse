@@ -55,6 +55,9 @@ def pytest_generate_tests(metafunc):
             metafunc.parametrize(fixture_name, fixture_list, indirect=True)
 
 
+############## FIXTURES ##############
+
+
 # https://docs.pytest.org/en/6.2.x/fixture.html#conftest-py-sharing-fixtures-across-multiple-files
 
 ############## HELPERS ##############
@@ -564,9 +567,20 @@ def sm_source_dir(sm_entry_point, pytorch_training_script):
 
 @pytest.fixture(scope="session")
 def cluster(request):
-    """Parametrize over multiple fixtures - useful for running the same test on multiple hardware types."""
-    # Example: @pytest.mark.parametrize("cluster", [v100_gpu_cluster, k80_gpu_cluster], indirect=True)"""
     return request.getfixturevalue(request.param.__name__)
+
+
+@pytest.fixture(
+    params=[
+        "ondemand_cpu_cluster",
+        "v100_gpu_cluster",
+        "k80_gpu_cluster",
+        "a10g_gpu_cluster",
+    ],
+    ids=["cpu", "v100", "k80", "a10g"],
+)
+def ondemand_cluster(request):
+    return request.getfixturevalue(request.param)
 
 
 @pytest.fixture(scope="session")
@@ -731,22 +745,6 @@ def password_cluster():
     ).save()
 
     return cluster
-
-
-cpu_clusters = pytest.mark.parametrize(
-    "cluster",
-    [
-        "ondemand_cpu_cluster",
-        "ondemand_https_cluster_with_auth",
-        "password_cluster",
-        "byo_cpu",
-    ],
-    indirect=True,
-)
-
-sagemaker_clusters = pytest.mark.parametrize(
-    "cluster", ["sm_cluster", "other_sm_cluster"], indirect=True
-)
 
 
 # ----------------- Envs -----------------

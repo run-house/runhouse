@@ -9,7 +9,7 @@ from runhouse.resources.hardware import OnDemandCluster
 from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import resolve_absolute_path
 
-from ..conftest import cpu_clusters, summer
+from ..conftest import summer
 
 
 def is_on_cluster(cluster):
@@ -56,7 +56,6 @@ def test_read_shared_cluster(ondemand_cpu_cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_install(cluster):
     cluster.install_packages(
         [
@@ -69,7 +68,6 @@ def test_install(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_basic_run(cluster):
     # Create temp file where fn's will be stored
     test_cmd = "echo hi"
@@ -78,7 +76,6 @@ def test_basic_run(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_restart_server(cluster):
     cluster.up_if_not()
     codes = cluster.restart_server(resync_rh=False)
@@ -86,7 +83,6 @@ def test_restart_server(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_on_same_cluster(cluster):
     hw_copy = copy.copy(cluster)
 
