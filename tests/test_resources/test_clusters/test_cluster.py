@@ -79,5 +79,3 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         else:
             # TODO: Test default behavior
             pass
-
-

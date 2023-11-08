@@ -3,13 +3,13 @@ import unittest
 import pytest
 import runhouse as rh
 
+from tests.conftest import init_args
+
 from tests.test_resources.conftest import (
     local_named_resource,
     named_resource,
     unnamed_resource,
 )
-
-from tests.conftest import init_args
 
 
 class TestResource:
@@ -94,7 +94,7 @@ class TestResource:
         assert "creator" in history[0]
         assert "data" in history[0]
         # Not all config_for_rns values are saved inside data field
-        for k,v in history[0]["data"].items():
+        for k, v in history[0]["data"].items():
             assert resource.config_for_rns[k] == v
         resource.delete_configs()
 

@@ -22,7 +22,11 @@ class Resource:
     RESOURCE_TYPE = "resource"
 
     def __init__(
-        self, name: Optional[str] = None, dryrun: bool = False, provenance=None, **kwargs
+        self,
+        name: Optional[str] = None,
+        dryrun: bool = False,
+        provenance=None,
+        **kwargs,
     ):
         """
         Runhouse abstraction for objects that can be saved, shared, and reused.
@@ -248,15 +252,13 @@ class Resource:
         dryrun = config.pop("dryrun", False) or dryrun
 
         if resource_type == "resource":
-            return  Resource(**config, dryrun=dryrun)
+            return Resource(**config, dryrun=dryrun)
 
         resource_class = getattr(
             sys.modules["runhouse"], resource_type.capitalize(), None
         )
         if not resource_class:
-            raise TypeError(
-                f"Could not find module associated with {resource_type}"
-            )
+            raise TypeError(f"Could not find module associated with {resource_type}")
         config = resource_class._check_for_child_configs(config)
 
         loaded = resource_class.from_config(config=config, dryrun=dryrun)
@@ -277,7 +279,9 @@ class Resource:
             raise ValueError("Resource must have a name in order to have a history")
 
         if self.rns_address[:2] == "~/":
-            raise ValueError("Resource must be saved to Den (not local) in order to have a history")
+            raise ValueError(
+                "Resource must be saved to Den (not local) in order to have a history"
+            )
 
         resource_uri = rns_client.resource_uri(self.rns_address)
         base_uri = f"{rns_client.api_server_url}/resource/history/{resource_uri}"

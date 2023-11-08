@@ -309,13 +309,15 @@ def local_logged_out_docker_cluster(request, detached=True):
     )
 
     # Runhouse commands can now be run locally
-    args = dict(name="local-docker-slim-public-key-auth",
+    args = dict(
+        name="local-docker-slim-public-key-auth",
         host="localhost",
         server_host="0.0.0.0",
         ssh_creds={
             "ssh_user": SSH_USER,
             "ssh_private_key": keypath,
-        })
+        },
+    )
     c = rh.cluster(**args)
     init_args[id(c)] = args
 
@@ -357,13 +359,15 @@ def local_docker_cluster_public_key(request, detached=True):
     )
 
     # Runhouse commands can now be run locally
-    args = dict(name="local-docker-slim-public-key-auth",
+    args = dict(
+        name="local-docker-slim-public-key-auth",
         host="localhost",
         server_host="0.0.0.0",
         ssh_creds={
             "ssh_user": SSH_USER,
             "ssh_private_key": keypath,
-        })
+        },
+    )
     c = rh.cluster(**args)
     init_args[id(c)] = args
     rh.env(
@@ -405,14 +409,16 @@ def local_test_account_cluster_public_key(request, test_account, detached=True):
             force_rebuild=pytestconfig.getoption("--force-rebuild"),
         )
 
-        args = dict(name="local-docker-slim-public-key-auth",
+        args = dict(
+            name="local-docker-slim-public-key-auth",
             host="localhost",
             den_auth=True,
             server_host="0.0.0.0",
             ssh_creds={
                 "ssh_user": SSH_USER,
                 "ssh_private_key": keypath,
-            })
+            },
+        )
         c = rh.cluster(**args).save()
         init_args[id(c)] = args
 
@@ -469,11 +475,12 @@ def local_docker_cluster_passwd(request, detached=True):
 
     # Runhouse commands can now be run locally
     pwd = (rh_parent_path.parent / pwd_file).read_text().strip()
-    args = dict(name="local-docker-slim-password-file-auth",
+    args = dict(
+        name="local-docker-slim-password-file-auth",
         host="localhost",
         server_host="0.0.0.0",
         ssh_creds={"ssh_user": SSH_USER, "password": pwd},
-                )
+    )
     c = rh.cluster(**args)
     init_args[id(c)] = args
     rh.env(
