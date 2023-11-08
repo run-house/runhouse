@@ -63,8 +63,10 @@ class Blob(Module):
             #  call_module_method rpc (and same for similar file cases)
             return super().to(system, env)
 
+        from runhouse import Folder
+
         path = str(
-            path or self.default_path(self.rns_address, system)
+            path or Folder.default_path(self.rns_address, system)
         )  # Make sure it's a string and not a Path
 
         from runhouse.resources.blobs.file import file
