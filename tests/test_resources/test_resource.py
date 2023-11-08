@@ -17,8 +17,8 @@ class TestResource:
     UNIT = {"resource": [unnamed_resource, named_resource, local_named_resource]}
     LOCAL = {"resource": [unnamed_resource, named_resource, local_named_resource]}
     MINIMAL = {"resource": [named_resource]}
+    THOROUGH = {"resource": [unnamed_resource, named_resource, local_named_resource]}
     FULL = {"resource": [unnamed_resource, named_resource, local_named_resource]}
-    ALL = {"resource": [unnamed_resource, named_resource, local_named_resource]}
 
     def test_resource_factory_and_properties(self, resource):
         assert isinstance(resource, rh.Resource)
