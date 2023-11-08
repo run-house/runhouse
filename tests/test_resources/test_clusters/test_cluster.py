@@ -1,6 +1,8 @@
 import runhouse as rh
 
-from tests.test_resources.test_resource import TestResource
+import tests.test_resources.test_resource
+from tests.conftest import init_args
+
 from .conftest import (
     local_docker_cluster_passwd,
     local_docker_cluster_public_key,
@@ -9,7 +11,6 @@ from .conftest import (
     named_cluster,
     password_cluster,
     static_cpu_cluster,
-    unnamed_cluster,
 )
 
 """ TODO:
@@ -19,12 +20,13 @@ from .conftest import (
 """
 
 
-class TestCluster(TestResource):
+class TestCluster(tests.test_resources.test_resource.TestResource):
 
-    UNIT = {"resource": [local_docker_cluster_public_key]}
+    MAP_FIXTURES = {"resource": "cluster"}
+
+    UNIT = {"cluster": [local_docker_cluster_public_key]}
     LOCAL = {
-        "resource": [
-            unnamed_cluster,
+        "cluster": [
             named_cluster,
             local_docker_cluster_public_key,
             local_docker_cluster_passwd,
@@ -32,13 +34,50 @@ class TestCluster(TestResource):
             local_test_account_cluster_public_key,
         ]
     }
-    REMOTE = {"resource": [static_cpu_cluster]}
-    FULL = {"resource": [unnamed_cluster, named_cluster, password_cluster]}
-    ALL = {"resource": [unnamed_cluster, named_cluster, password_cluster]}
+    REMOTE = {"cluster": [static_cpu_cluster]}
+    FULL = {"cluster": [named_cluster, password_cluster]}
+    ALL = {"cluster": [named_cluster, password_cluster]}
 
-    def test_factory_methods(self, cluster):
-        assert isinstance(cluster, Cluster)
-        assert isinstance(cluster, Resource)
+    def test_cluster_factory_and_properties(self, cluster):
         assert isinstance(cluster, rh.Cluster)
-        assert isinstance(cluster, rh.Resource)
-        assert isinstance(cluster, rh.resources.cluster.Cluster)
+        args = init_args[id(cluster)]
+        if "ips" in args:
+            # Check that it's a Cluster and not a subclass
+            assert cluster.__class__.name == "Cluster"
+            assert cluster.ips == args["ips"]
+            assert cluster.address == args["ips"][0]
+
+        if "ssh_creds" in args:
+            assert cluster.ssh_creds() == args["ssh_creds"]
+
+        if "server_host" in args:
+            assert cluster.server_host == args["server_host"]
+        else:
+            # TODO: Test default behavior
+            pass
+
+        if "server_port" in args:
+            assert cluster.server_port == args["server_port"]
+        else:
+            # TODO: Test default behavior
+            pass
+
+        if "server_connection_type" in args:
+            assert cluster.server_connection_type == args["server_connection_type"]
+        else:
+            # TODO: Test default behavior
+            assert cluster.server_connection_type == "ssh"
+
+        if "ssl_keyfile" in args:
+            assert cluster.cert_config.key_path == args["ssl_keyfile"]
+
+        if "ssl_certfile" in args:
+            assert cluster.cert_config.cert_path == args["ssl_certfile"]
+
+        if "den_auth" in args:
+            assert cluster.den_auth == args["den_auth"]
+        else:
+            # TODO: Test default behavior
+            pass
+
+

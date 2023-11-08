@@ -334,7 +334,7 @@ class RNSClient:
         config["name"] = rns_address
 
         if rns_address is None:
-            return
+            raise ValueError("A resource must have a name to be saved.")
 
         if rns_address[0] in ["~", "^"]:
             self._save_config_to_local(config, rns_address)
