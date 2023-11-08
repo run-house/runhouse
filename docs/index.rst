@@ -10,7 +10,7 @@
    </p>
 
    <p style="text-align:left">
-   <a class="reference external image-reference" style="vertical-align:9.5px" href="https://discord.gg/RnhB6589Hs"><img alt="Join Discord" src="https://img.shields.io/discord/1065833240625172600?label=Discord&style=for-the-badge"></a>
+   <a class="reference external image-reference" style="vertical-align:9.5px" href="https://discord.gg/RnhB6589Hs"><img alt="Join Discord" width="177px" height="28px" src="https://img.shields.io/discord/1065833240625172600?label=Discord&style=for-the-badge"></a>
    <script async defer src="https://buttons.github.io/buttons.js"></script>
    <a class="github-button" href="https://github.com/run-house/runhouse" data-show-count="true" data-size="large" aria-label="Star run-house/runhouse on GitHub">Star</a>
    <a class="github-button" href="https://github.com/run-house/runhouse/subscription" data-icon="octicon-eye" data-size="large" aria-label="Watch run-house/runhouse on GitHub">Watch</a>
@@ -82,10 +82,10 @@ Table of Contents
 
    debugging_logging
    troubleshooting
-   data_collection
+   security_and_authentication
    Source Code <https://github.com/run-house/runhouse>
    REST API Guide <https://api.run.house/docs>
-   Dashboard <https://www.run.house/dashboard>
+   Runhouse Den Dashboard <https://www.run.house/dashboard>
    Funhouse <https://github.com/run-house/funhouse>
 
 

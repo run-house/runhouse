@@ -1,20 +1,22 @@
 import copy
 import unittest
-from typing import List
+from pathlib import Path
 
 import pytest
 
 import runhouse as rh
 from runhouse.resources.hardware import OnDemandCluster
+from runhouse.resources.hardware.utils import ServerConnectionType
+from runhouse.rns.utils.api import resolve_absolute_path
 
-from ..conftest import cpu_clusters, summer
+from tests.test_resources.test_modules.test_functions.conftest import summer
 
 
 def is_on_cluster(cluster):
     return cluster.on_this_cluster()
 
 
-def np_array(num_list: List[int]):
+def np_array(num_list: list):
     import numpy as np
 
     return np.array(num_list)
@@ -54,7 +56,6 @@ def test_read_shared_cluster(ondemand_cpu_cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_install(cluster):
     cluster.install_packages(
         [
@@ -67,7 +68,6 @@ def test_install(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_basic_run(cluster):
     # Create temp file where fn's will be stored
     test_cmd = "echo hi"
@@ -76,7 +76,6 @@ def test_basic_run(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_restart_server(cluster):
     cluster.up_if_not()
     codes = cluster.restart_server(resync_rh=False)
@@ -84,7 +83,6 @@ def test_restart_server(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_on_same_cluster(cluster):
     hw_copy = copy.copy(cluster)
 
@@ -114,6 +112,21 @@ def test_byo_cluster(byo_cpu, local_folder):
 
 
 @pytest.mark.clustertest
+def test_byo_cluster_with_https(byo_cpu):
+    tls_connection = ServerConnectionType.TLS.value
+    byo_cpu.server_connection_type = tls_connection
+    byo_cpu.restart_server()
+
+    assert byo_cpu.server_connection_type == tls_connection
+
+    local_cert_path = byo_cpu.cert_config.cert_path
+    assert Path(local_cert_path).exists()
+
+    # Confirm we can send https requests to the cluster
+    byo_cpu.install_packages(["numpy"])
+
+
+@pytest.mark.clustertest
 def test_byo_proxy(byo_cpu, local_folder):
     rh.globals.open_cluster_tunnels.pop(byo_cpu.address)
     byo_cpu.client = None
@@ -139,6 +152,61 @@ def test_byo_proxy(byo_cpu, local_folder):
     # TODO: uncomment out when in-mem lands
     # local_folder = local_folder.to(byo_cpu)
     # assert "sample_file_0.txt" in local_folder.ls(full_paths=False)
+
+
+@pytest.mark.clustertest
+def test_cluster_with_den_auth(ondemand_https_cluster_with_auth, summer_func_with_auth):
+    ondemand_https_cluster_with_auth.restart_server()
+    from runhouse.globals import configs
+
+    # Create an invalid token, confirm the server does not accept the request
+    orig_token = configs.get("token")
+
+    # Request should return 200 using a valid token
+    summer_func_with_auth(1, 2)
+
+    configs.set("token", "abcd123")
+
+    try:
+        # Request should raise an exception with an invalid token
+        summer_func_with_auth(1, 2)
+    except ValueError as e:
+        assert "Invalid or expired token" in str(e)
+
+    configs.set("token", orig_token)
+
+
+@pytest.mark.clustertest
+def test_start_server_with_custom_certs(
+    ondemand_https_cluster_with_auth, summer_func_with_auth
+):
+    # NOTE: to check certificate matching:
+    # openssl x509 -noout -modulus -in rh_server.crt | openssl md5
+    # openssl rsa -noout -modulus -in rh_server.key | openssl md5
+    from runhouse.servers.http.certs import TLSCertConfig
+
+    ssl_certfile = f"~/ssl/certs/{ondemand_https_cluster_with_auth.name}/rh_server.crt"
+    ssl_keyfile = f"~/ssl/private/{ondemand_https_cluster_with_auth.name}/rh_server.key"
+
+    # # NOTE: need to include the IP of the cluster when generating the cert
+    TLSCertConfig(
+        key_path=ssl_keyfile,
+        cert_path=ssl_certfile,
+        dir_name=ondemand_https_cluster_with_auth.name,
+    ).generate_certs(address=ondemand_https_cluster_with_auth.address)
+
+    # # Restart the server using the custom certs
+    ondemand_https_cluster_with_auth.ssl_certfile = ssl_certfile
+    ondemand_https_cluster_with_auth.ssl_keyfile = ssl_keyfile
+    ondemand_https_cluster_with_auth.restart_server()
+
+    try:
+        summer_func_with_auth(1, 2)
+    except Exception as e:
+        assert False, f"Failed to connect to server with custom certs: {e}"
+
+    Path(resolve_absolute_path(ssl_certfile)).unlink()
+    Path(resolve_absolute_path(ssl_keyfile)).unlink()
 
 
 if __name__ == "__main__":

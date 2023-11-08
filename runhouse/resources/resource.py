@@ -54,7 +54,7 @@ class Resource:
         - Compute Abstractions
             - Cluster :py:class:`.hardware.cluster.Cluster`
             - Function :py:class:`.function.Function`
-            - Module :py:class`.module.Module`
+            - Module :py:class:`.module.Module`
             - Package :py:class:`.packages.package.Package`
             - Env: :py:class:`.envs.env.Env`
 
@@ -328,12 +328,12 @@ class Resource:
     # TODO [DG] Implement proper sharing of subresources (with an overload of some kind)
     def share(
         self,
-        users: list,
+        users: Union[str, List[str]],
         access_type: Union[ResourceAccess, str] = ResourceAccess.READ,
         notify_users: bool = True,
         headers: Optional[Dict] = None,
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
-        """Grant access to the resource for the list of users. If a user has a Runhouse account they
+        """Grant access to the resource for the list of users (or a single user). If a user has a Runhouse account they
         will receive an email notifying them of their new access. If the user does not have a Runhouse account they will
         also receive instructions on creating one, after which they will be able to have access to the Resource.
 
@@ -341,7 +341,7 @@ class Resource:
             You can only grant resource access to other users if you have Write / Read privileges for the Resource.
 
         Args:
-            users (list): list of user emails and / or runhouse account usernames.
+            users (list or str): list of user emails and / or runhouse account usernames (or a single user).
             access_type (:obj:`ResourceAccess`, optional): access type to provide for the resource.
             notify_users (bool): Send email notification to users who have been given access. Defaults to `False`.
             headers (Optional[Dict]): Request headers to provide for the request to RNS. Contains the user's auth token.
@@ -388,6 +388,9 @@ class Resource:
 
         if not rns_client.exists(self.rns_address):
             self.save(name=rns_client.local_to_remote_address(self.rns_address))
+
+        if isinstance(users, str):
+            users = [users]
 
         added_users, new_users = rns_client.grant_resource_access(
             rns_address=self.rns_address,

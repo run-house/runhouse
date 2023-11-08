@@ -1,11 +1,10 @@
-Security and Metadata Collection
-================================
+Security and Authentication
+===========================
 By default, Runhouse collects metadata from provisioned clusters and data relating to performance and error monitoring.
 This data will only be used by Runhouse to improve the product.
-No Personal Identifiable Information (PII) is collected and we will not sell or buy data about you.
 
-Cluster Metadata
-------------------------------------
+Cluster Metadata Collection
+---------------------------
 We collect non-sensitive data on the cluster that helps us understand how Runhouse is being used. This data includes:
 
 - Python version
@@ -14,6 +13,7 @@ We collect non-sensitive data on the cluster that helps us understand how Runhou
 - Region
 - Instance type
 
+
 Performance & Error Monitoring
 ------------------------------------
 We collect data from normal package usage that helps us understand the performance and errors that are raised.
@@ -21,7 +21,8 @@ This data is collected and sent to `Sentry <https://sentry.io/>`_, a third-party
 
 Removing Collected Data
 ------------------------------------
-If you would like us to remove your collected data, please contact us.
+If you would like us to remove your collected data, please contact
+the `Runhouse team <https://www.run.house/about>`_ (first name at run.house)
 
 Disabling Data Collection
 -----------------------------------

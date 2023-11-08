@@ -1,6 +1,8 @@
 import shlex
 import subprocess
+import time
 import webbrowser
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -91,7 +93,21 @@ def load_cluster(cluster_name: str):
         c._update_from_sky_status(dryrun=True)
 
 
-def _start_server(restart, restart_ray, screen, create_logfile=True, host=None):
+def _start_server(
+    restart,
+    restart_ray,
+    screen,
+    create_logfile=True,
+    host=None,
+    port=None,
+    use_https=False,
+    den_auth=False,
+    ssl_keyfile=None,
+    ssl_certfile=None,
+    force_reinstall=False,
+    use_nginx=False,
+    certs_address=None,
+):
     from runhouse.resources.hardware.cluster import Cluster
 
     cmds = Cluster._start_server_cmds(
@@ -100,9 +116,23 @@ def _start_server(restart, restart_ray, screen, create_logfile=True, host=None):
         screen=screen,
         create_logfile=create_logfile,
         host=host,
+        port=port,
+        use_https=use_https,
+        den_auth=den_auth,
+        ssl_keyfile=ssl_keyfile,
+        ssl_certfile=ssl_certfile,
+        force_reinstall=force_reinstall,
+        use_nginx=use_nginx,
+        certs_address=certs_address,
     )
 
     try:
+        # Open and read the lines of the server logfile so we only print the most recent lines after starting
+        f = None
+        if screen and Path(Cluster.SERVER_LOGFILE).exists():
+            f = open(Cluster.SERVER_LOGFILE, "r")
+            f.readlines()  # Discard these, they're from the previous times the server was started
+
         # We do these one by one so it's more obvious where the error is if there is one
         for cmd in cmds:
             console.print(f"Executing `{cmd}`")
@@ -111,6 +141,26 @@ def _start_server(restart, restart_ray, screen, create_logfile=True, host=None):
             if result.returncode != 0 and "pkill" not in cmd:
                 console.print(f"Error while executing `{cmd}`")
                 raise typer.Exit(1)
+
+        server_started_str = "Uvicorn running on"
+        # Read and print the server logs until the
+        if screen:
+            while not Path(Cluster.SERVER_LOGFILE).exists():
+                time.sleep(1)
+            f = f or open(Cluster.SERVER_LOGFILE, "r")
+            start_time = time.time()
+            # Wait for input for 60 seconds max (for nginx to download and set up)
+            while time.time() - start_time < 60:
+                for line in f:
+                    if server_started_str in line:
+                        console.print(line)
+                        f.close()
+                        return
+                    else:
+                        console.print(line, end="")
+                time.sleep(1)
+            f.close()
+
     except FileNotFoundError:
         console.print(
             "python3 command was not found. Make sure you have python3 installed."
@@ -123,17 +173,39 @@ def start(
     restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
     screen: bool = typer.Option(False, help="Start the server in a screen"),
     host: Optional[str] = typer.Option(
+        None, help="Custom server host address. Default is `0.0.0.0`."
+    ),
+    port: Optional[str] = typer.Option(
+        None, help="Port for server. If not specified will start on 32300"
+    ),
+    use_https: bool = typer.Option(
+        False, help="Start an HTTPS server with TLS verification"
+    ),
+    use_den_auth: bool = typer.Option(
+        False, help="Whether to authenticate requests with a Runhouse token"
+    ),
+    use_nginx: bool = typer.Option(
+        False,
+        help="Whether to configure Nginx on the cluster as a reverse proxy. By default will not install "
+        "and configure Nginx.",
+    ),
+    certs_address: Optional[str] = typer.Option(
         None,
-        help="Custom server host address e.g. 0.0.0.0. Default is `None` and the server would start on 127.0.0.1",
+        help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS",
     ),
 ):
-    """Start the HTTP server on the cluster."""
+    """Start the HTTP or HTTPS server on the cluster."""
     _start_server(
         restart=False,
         restart_ray=restart_ray,
         screen=screen,
         create_logfile=True,
         host=host,
+        port=port,
+        use_https=use_https,
+        den_auth=use_den_auth,
+        use_nginx=use_nginx,
+        certs_address=certs_address,
     )
 
 
@@ -150,8 +222,34 @@ def restart(
         help="Resync the Runhouse package. Only relevant when restarting remotely.",
     ),
     host: Optional[str] = typer.Option(
+        None, help="Custom server host address. Default is `0.0.0.0`."
+    ),
+    port: Optional[str] = typer.Option(
+        None, help="Port for server. If not specified will start on 32300"
+    ),
+    use_https: bool = typer.Option(
+        False, help="Start an HTTPS server with TLS verification"
+    ),
+    use_den_auth: bool = typer.Option(
+        False, help="Whether to authenticate requests with a Runhouse token"
+    ),
+    ssl_keyfile: Optional[str] = typer.Option(
+        None, help="Path to custom SSL key file to use for enabling HTTPS"
+    ),
+    ssl_certfile: Optional[str] = typer.Option(
+        None, help="Path to custom SSL cert file to use for enabling HTTPS"
+    ),
+    force_reinstall: bool = typer.Option(
+        False, help="Whether to reinstall Nginx and other server configs on the cluster"
+    ),
+    use_nginx: bool = typer.Option(
+        False,
+        help="Whether to configure Nginx on the cluster as a reverse proxy. By default will not install "
+        "and configure Nginx.",
+    ),
+    certs_address: Optional[str] = typer.Option(
         None,
-        help="Custom server host address e.g. 0.0.0.0. Default is `None` and the server would start on 127.0.0.1",
+        help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS",
     ),
 ):
     """Restart the HTTP server on the cluster."""
@@ -166,6 +264,14 @@ def restart(
         screen=screen,
         create_logfile=True,
         host=host,
+        port=port,
+        use_https=use_https,
+        den_auth=use_den_auth,
+        ssl_keyfile=ssl_keyfile,
+        ssl_certfile=ssl_certfile,
+        force_reinstall=force_reinstall,
+        use_nginx=use_nginx,
+        certs_address=certs_address,
     )
 
 

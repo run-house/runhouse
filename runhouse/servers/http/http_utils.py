@@ -7,11 +7,7 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel
 from ray import cloudpickle as pickle
 
-
 logger = logging.getLogger(__name__)
-
-DEFAULT_SERVER_HOST = "127.0.0.1"
-DEFAULT_SERVER_PORT = 32300
 
 
 class Message(BaseModel):
@@ -56,6 +52,18 @@ def pickle_b64(picklable):
 
 def b64_unpickle(b64_pickled):
     return pickle.loads(codecs.decode(b64_pickled.encode(), "base64"))
+
+
+def get_token_from_request(request):
+    auth_headers = request.headers.get("Authorization", "")
+    return auth_headers.split("Bearer ")[-1] if auth_headers else None
+
+
+def load_current_cluster():
+    from runhouse.resources.hardware import _current_cluster, _get_cluster_from
+
+    current_cluster = _get_cluster_from(_current_cluster("config"))
+    return current_cluster.rns_address if current_cluster else None
 
 
 def handle_response(response_data, output_type, err_str):

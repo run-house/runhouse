@@ -1,3 +1,4 @@
+cryptography
 fastapi
 fsspec<=2023.5.0
 opentelemetry-api

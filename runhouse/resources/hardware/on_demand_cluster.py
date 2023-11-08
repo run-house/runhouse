@@ -33,6 +33,12 @@ class OnDemandCluster(Cluster):
         memory=None,
         disk_size=None,
         open_ports=None,
+        server_host: str = None,
+        server_port: int = None,
+        server_connection_type: str = None,
+        ssl_keyfile: str = None,
+        ssl_certfile: str = None,
+        den_auth: bool = False,
         region=None,
         sky_state=None,
         live_state=None,
@@ -44,8 +50,16 @@ class OnDemandCluster(Cluster):
         .. note::
             To build a cluster, please use the factory method :func:`cluster`.
         """
-
-        super().__init__(name=name, dryrun=dryrun)
+        super().__init__(
+            name=name,
+            server_host=server_host,
+            server_port=server_port,
+            server_connection_type=server_connection_type,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile,
+            den_auth=den_auth,
+            dryrun=dryrun,
+        )
 
         self.instance_type = instance_type
         self.num_instances = num_instances
@@ -55,15 +69,17 @@ class OnDemandCluster(Cluster):
             if autostop_mins is not None
             else configs.get("default_autostop")
         )
+
+        self.open_ports = open_ports
         self.use_spot = use_spot if use_spot is not None else configs.get("use_spot")
         self.image_id = image_id
         self.region = region
         self.memory = memory
         self.disk_size = disk_size
-        self.open_ports = open_ports
 
         self.address = None
         self.client = None
+
         # TODO remove after 0.0.13
         self.live_state = sky_state or live_state
 
@@ -93,6 +109,7 @@ class OnDemandCluster(Cluster):
                 "num_instances": self.num_instances,
                 "provider": self.provider,
                 "autostop_mins": self.autostop_mins,
+                "open_ports": self.open_ports,
                 "use_spot": self.use_spot,
                 "image_id": self.image_id,
                 "region": self.region,

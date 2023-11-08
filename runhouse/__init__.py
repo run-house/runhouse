@@ -30,7 +30,6 @@ from runhouse.rns.top_level_rns_fns import (
     ipython,
     load,
     locate,
-    resources,
     set_folder,
     unset_folder,
 )

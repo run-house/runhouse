@@ -18,6 +18,7 @@ from runhouse.resources.module import Module
 from runhouse.resources.provenance import run, RunStatus
 from runhouse.resources.queues import Queue
 from runhouse.resources.resource import Resource
+
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.http_utils import (
     b64_unpickle,
@@ -94,7 +95,14 @@ class EnvServlet:
                 output_type=OutputType.EXCEPTION,
             )
 
-    def call_module_method(self, module_name, method_name, message: Message):
+    def call_module_method(
+        self,
+        module_name,
+        method_name,
+        message: Message,
+        token_hash: str,
+        den_auth: bool,
+    ):
         self.register_activity()
         result_resource = None
 
@@ -149,6 +157,13 @@ class EnvServlet:
                     f"{self.env_name} servlet: Calling method {method_name} on module {module_name}"
                 )
                 callable_method = True
+
+                if den_auth:
+                    resource_uri = (
+                        module.rns_address if hasattr(module, "rns_address") else None
+                    )
+                    if not obj_store.has_resource_access(token_hash, resource_uri):
+                        raise Exception("No read or write access to requested resource")
             else:
                 # Method is a property, return the value
                 logger.info(
@@ -402,6 +417,9 @@ class EnvServlet:
                 output_type=OutputType.RESULT,
             )
         except Exception as e:
+            if _intra_cluster:
+                raise e
+
             return Response(
                 error=pickle_b64(e),
                 traceback=pickle_b64(traceback.format_exc()),
@@ -567,9 +585,25 @@ class EnvServlet:
                 output_type=OutputType.EXCEPTION,
             )
 
-    def call(self, module, method=None, args=None, kwargs=None, serialization="json"):
+    def call(
+        self,
+        module_name: str,
+        method=None,
+        args=None,
+        kwargs=None,
+        serialization="json",
+        token_hash=None,
+        den_auth=False,
+    ):
         self.register_activity()
-        module = obj_store.get(module)
+        module = obj_store.get(module_name, default=KeyError)
+        if den_auth:
+            resource_uri = (
+                module.rns_address if hasattr(module, "rns_address") else None
+            )
+            if not obj_store.has_resource_access(token_hash, resource_uri):
+                raise Exception("No read or write access to requested resource")
+
         if method:
             fn = getattr(module, method)
             result = fn(*(args or []), **(kwargs or {}))
