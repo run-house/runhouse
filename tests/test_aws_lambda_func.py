@@ -58,6 +58,17 @@ def test_create_and_run_no_layers():
     assert res2 == "19"
 
 
+def test_load_not_existing_lambda():
+    name = "test_lambda_create_and_run1"
+    my_lambda = rh.aws_lambda_function(name=name)
+    assert my_lambda == "LambdaNotFoundInAWS"
+
+
+def test_crate_no_arguments():
+    res = rh.aws_lambda_function()
+    assert res == "NoEnoughArgsProvided"
+
+
 def test_create_and_run_generate_name():
     handler_path = [f"{TEST_RESOURCES}/basic_test_handler.py"]
     my_lambda = rh.aws_lambda_function(

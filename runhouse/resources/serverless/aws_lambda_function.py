@@ -127,8 +127,16 @@ class AWSLambdaFunction(Function):
 
     @classmethod
     def from_name(cls, name, dryrun=False, alt_options=None):
-        func = super().from_name(name=name)
-        return func.to()
+        if cls._lambda_exist(cls):
+            func = super().from_name(name=name)
+            return func.to()
+        else:
+            logger.error(
+                f"Could not find a Lambda called {name}. Please provide a name of an existing Lambda, "
+                + "or paths_to_code, handler_function_name, runtime and args_names (and a name if you"
+                " wish), in order to create a new lambda."
+            )
+            return "LambdaNotFoundInAWS"
 
     @classmethod
     def _check_for_child_configs(cls, config):
@@ -719,7 +727,14 @@ def aws_lambda_function(
         >>> # Load function from above
         >>> reloaded_function = rh.aws_lambda_function(name="my_func")
     """
-    if name and not any([paths_to_code, handler_function_name, env, args_names]):
+    if not any([name, paths_to_code, handler_function_name, runtime, args_names]):
+        logger.error(
+            "Runhouse can't create a Lambda function. "
+            + "Please provide lambda's name and/or paths_to_code, handler_function_name, runtime and args_names"
+        )
+        return "NoEnoughArgsProvided"
+
+    if name and not any([paths_to_code, handler_function_name, runtime, args_names]):
         # Try reloading existing function
         return AWSLambdaFunction.from_name(name=name)
 
