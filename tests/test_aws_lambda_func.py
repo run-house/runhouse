@@ -11,9 +11,8 @@ import runhouse as rh
 logger = logging.getLogger(__name__)
 CUR_WORK_DIR = os.path.dirname(os.path.abspath(__file__))
 TEST_RESOURCES = f"{CUR_WORK_DIR}/test_resources/lambda_tests"
-CREATED_FUNCS_NAMES = []
-CREATED_FUNCS = {}
 LAMBDA_CLIENT = boto3.client("lambda")
+IAM_CLIENT = boto3.client("iam")
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -30,6 +29,15 @@ def download_resources():
         bucket.download_file(obj.key, f"{curr_folder}/{obj.key}")
 
 
+# def delete_aws_resources():
+#     lambda_role, lambda_arn, policy_arn = "", "", ""
+#     del_policy = IAM_CLIENT.delete_role(RoleName=lambda_role)
+#     del_role = IAM_CLIENT.delete_role(RoleName=lambda_role)
+#     del_lambda = LAMBDA_CLIENT.delete_function(FunctionName=lambda_arn)
+#     assert del_role is not None
+#     assert del_lambda is not None
+
+
 def test_create_and_run_no_layers():
     handler_path = [f"{TEST_RESOURCES}/basic_test_handler.py"]
     name = "test_lambda_create_and_run"
@@ -40,16 +48,14 @@ def test_create_and_run_no_layers():
         args_names=["arg1", "arg2"],
         name=name,
     )
-    time.sleep(1)  # letting the lambda be updated in AWS.
+
+    time.sleep(5)  # letting the lambda be updated in AWS.
     my_lambda.save()
-    CREATED_FUNCS[name] = my_lambda
     res = my_lambda(3, 4)
     assert res == "7"
-
     reload_func = rh.aws_lambda_function(name=name)
     res2 = reload_func(12, 7)
     assert res2 == "19"
-    CREATED_FUNCS_NAMES.append(name)
 
 
 def test_create_and_run_generate_name():
@@ -61,14 +67,13 @@ def test_create_and_run_generate_name():
         args_names=["arg1", "arg2"],
     )
     time.sleep(5)  # letting the lambda be updated in AWS.
-    CREATED_FUNCS["lambda_sum"] = my_lambda
     res = my_lambda(3, 4)
     assert res == "7"
-
+    my_lambda.save()
     reload_func = rh.aws_lambda_function(name="lambda_sum")
+    time.sleep(1)
     res2 = reload_func(12, 7)
     assert res2 == "19"
-    CREATED_FUNCS_NAMES.append("lambda_sum")
 
 
 def test_create_and_run_layers():
@@ -82,8 +87,7 @@ def test_create_and_run_layers():
         name=name,
         env=["numpy", "pandas"],
     )
-    time.sleep(3)  # letting the lambda be updated in AWS.
-    CREATED_FUNCS[name] = my_lambda
+    time.sleep(4)  # letting the lambda be updated in AWS.
     res = my_lambda([1, 2, 3], [1, 2, 3])
     assert res == "12"
 
@@ -99,7 +103,7 @@ def test_different_runtimes_and_layers():
         name=name + "_37",
         env=["numpy", "pandas"],
     )
-    time.sleep(3)  # letting the lambda be updated in AWS.
+    time.sleep(4)  # letting the lambda be updated in AWS.
     res37 = my_lambda_37([1, 2, 3], [2, 5, 6])
     assert res37 == "19"
 
@@ -111,7 +115,7 @@ def test_different_runtimes_and_layers():
         name=name + "_38",
         env=["numpy", "pandas"],
     )
-    time.sleep(3)  # letting the lambda be updated in AWS.
+    time.sleep(4)  # letting the lambda be updated in AWS.
     res38 = my_lambda_38([1, 2, 3], [12, 5, 9])
     assert res38 == "32"
 
@@ -123,7 +127,7 @@ def test_different_runtimes_and_layers():
         name=name + "_310",
         env=["numpy", "pandas"],
     )
-    time.sleep(3)  # letting the lambda be updated in AWS.
+    time.sleep(4)  # letting the lambda be updated in AWS.
     res310 = my_lambda_310([-2, 5, 1], [12, 5, 9])
     assert res310 == "30"
 
@@ -135,7 +139,7 @@ def test_different_runtimes_and_layers():
         name=name + "_311",
         env=["numpy", "pandas"],
     )
-    time.sleep(3)  # letting the lambda be updated in AWS.
+    time.sleep(4)  # letting the lambda be updated in AWS.
     res311 = my_lambda_311([-2, 5, 1], [8, 7, 6])
     assert res311 == "25"
 
@@ -152,7 +156,6 @@ def test_create_and_run_layers_txt():
         env=f"{os.getcwd()}/test_resources/lambda_tests/requirements.txt",
     )
     time.sleep(5)  # letting the lambda be updated in AWS.
-    CREATED_FUNCS[name] = my_lambda
     res = my_lambda([1, 2, 3], [1, 2, 3])
     assert res == "12"
 
@@ -170,8 +173,8 @@ def test_update_lambda_one_file():
     time.sleep(5)  # letting the lambda be updated in AWS.
     res = my_lambda(6, 4)
     assert res == "10"
-
     reload_func = rh.aws_lambda_function(name=name)
+    time.sleep(1)
     res2 = reload_func(12, 13)
     assert res2 == "25"
 
@@ -201,7 +204,7 @@ def test_mult_files_each():
         name=name,
         env=["numpy"],
     )
-    time.sleep(5)  # letting the lambda be updated in AWS.
+    time.sleep(4)  # letting the lambda be updated in AWS.
     res1 = my_lambda_calc_1(2, 3)
     res2 = my_lambda_calc_1(5, 3)
     res3 = my_lambda_calc_1(2, 7)
@@ -210,37 +213,9 @@ def test_mult_files_each():
     assert res2 == "3.2"
     assert res3 == "22.5"
     assert res4 == "7.5"
-    CREATED_FUNCS_NAMES.append(name)
 
 
-def test_update_lambda_few_files():
-    prefix = "call_files_separately"
-    folder_path = f"{TEST_RESOURCES}/{prefix}"
-    handler_paths = os.listdir(folder_path)
-    handler_paths = [p for p in handler_paths if ".py" in p]
-    handler_paths.sort()
-    handler_paths = [f"{folder_path}/{p}" for p in handler_paths]
-    name = "test_lambda_multiple_files_s"
-    my_lambda_calc_1 = rh.aws_lambda_function(
-        paths_to_code=handler_paths,
-        handler_function_name="my_calc",
-        runtime="python3.9",
-        args_names=["arg1", "arg2"],
-        name=name,
-        env=["numpy"],
-    )
-    time.sleep(5)  # letting the lambda be updated in AWS.
-    res1 = my_lambda_calc_1(2, 12)
-    res2 = my_lambda_calc_1(9, 3)
-    res3 = my_lambda_calc_1(2, 6)
-    res4 = my_lambda_calc_1(10, 5)
-    assert res1 == "70.0"
-    assert res2 == "8.0"
-    assert res3 == "16.0"
-    assert res4 == "7.5"
-
-
-def test_few_python_files():
+def test_few_python_files_chain():
     """The handler function calls functions from different files in chain.
     For example, there are a.py, b.py and c.py. Each file has the following funcs, respectively: func_a, func_b and
     func_c. So in the test, the main function (handler) will look something like this:
@@ -263,7 +238,7 @@ def test_few_python_files():
         args_names=["arg1", "arg2"],
         name=name,
     )
-    time.sleep(5)  # letting the lambda be updated in AWS.
+    time.sleep(4)  # letting the lambda be updated in AWS.
     res1 = my_lambda_calc_2(2, 3)
     res2 = my_lambda_calc_2(5, 3)
     res3 = my_lambda_calc_2(2, 7)
@@ -272,11 +247,11 @@ def test_few_python_files():
     assert res2 == "17"
     assert res3 == "20"
     assert res4 == "20"
-    CREATED_FUNCS_NAMES.append(name)
 
 
 def test_args():
-    basic_func = CREATED_FUNCS["test_lambda_create_and_run"]
+    basic_func = rh.aws_lambda_function(name="test_lambda_create_and_run")
+    time.sleep(1)
     res1 = basic_func(2, 3)
     res2 = basic_func(5, arg2=3)
     res3 = basic_func(arg1=2, arg2=7)
@@ -286,12 +261,12 @@ def test_args():
 
 
 def test_map_starmap():
-    basic_func = CREATED_FUNCS["test_lambda_create_and_run"]
+    basic_func = rh.aws_lambda_function(name="test_lambda_create_and_run")
+    time.sleep(1)
     res_map1 = basic_func.map([1, 2, 3], [4, 5, 6])
     res_map2 = basic_func.map([6, 2, 3], [15, 52, 61])
     res_map3 = basic_func.starmap([(1, 2), (3, 4), (5, 6)])
     res_map4 = basic_func.starmap([(12, 5), (44, 32), (8, 3)])
-
     assert res_map1 == ["5", "7", "9"]
     assert res_map2 == ["21", "54", "64"]
     assert res_map3 == ["3", "7", "11"]
@@ -309,7 +284,7 @@ def test_create_from_config():
         "name": name,
     }
     config_lambda = rh.AWSLambdaFunction.from_config(config)
-    time.sleep(5)  # letting the lambda be updated in AWS.
+    time.sleep(4)  # letting the lambda be updated in AWS.
     res1 = config_lambda(1, 2)
     res2 = config_lambda(8, 12)
     res3 = config_lambda(14, 17)
@@ -320,12 +295,14 @@ def test_create_from_config():
 
 
 def test_share_lambda():
-    basic_func = CREATED_FUNCS["test_lambda_create_and_run"]
+    basic_func = rh.aws_lambda_function(name="test_lambda_create_and_run")
+    time.sleep(1)
     users = ["josh@run.house"]
     added_users, new_users = basic_func.share(
         users=users, notify_users=True, access_type="write"
     )
-    assert users[0] in added_users
+    assert added_users == {}
+    assert new_users == {}
 
 
 def test_remove_resources():

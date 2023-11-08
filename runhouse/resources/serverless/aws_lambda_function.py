@@ -10,7 +10,6 @@ from typing import Any, List, Optional
 
 import boto3
 
-from runhouse import globals
 from runhouse.resources.function import Function
 
 
@@ -38,7 +37,7 @@ class AWSLambdaFunction(Function):
     ]
     CRED_PATH_MAC = f"{os.path.expanduser('~')}/.aws/credentials"
     CRED_PATH_WIN = f"{os.path.expanduser('~')}\.aws\credentials"
-    GEN_ERROR = "could not create or update the AWS lambda."
+    GEN_ERROR = "could not create or update the AWS Lambda."
     FAIL_CODE = 1
     LAMBDA_CLIENT = boto3.client("lambda")
     EMPTY_ZIP = -1
@@ -58,11 +57,11 @@ class AWSLambdaFunction(Function):
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
-        Runhouse AWS lambda object. It is comprised of the entry point, configuration,
+        Runhouse AWS Lambda object. It is comprised of the entry point, configuration,
         and dependencies necessary to run the service.
 
         .. note::
-                To create an AWS lambda resource, please use the factory method :aws_lambda:`aws_lambda`.
+                To create an AWS lambda resource, please use the factory method :func:`aws_lambda_function`.
         """
         if name is None:
             name = handler_function_name.replace(".", "_")
@@ -100,7 +99,7 @@ class AWSLambdaFunction(Function):
                 self.layer_version,
                 self.np_layer,
                 self.np_layer_version,
-            ) = self._create_layer()  # layer ARN in AWS.
+            ) = self._create_layer()  # returns layers ARNs and versions in AWS.
         else:
             (
                 self.reqs,
@@ -109,20 +108,22 @@ class AWSLambdaFunction(Function):
                 self.np_layer,
                 self.np_layer_version,
             ) = (None, None, None, None, None)
-        self.aws_lambda_config = None  # lambda config from aws will be saved here
+        self.aws_lambda_config = (
+            None  # Lambda config and role arn from aws will be saved here
+        )
 
     # ----------------- Constructor helper methods -----------------
 
     @classmethod
     def from_config(cls, config: dict, dryrun: bool = False):
-        """Create an AWS lambda object from a config dictionary."""
+        """Create an AWS Lambda object from a config dictionary."""
 
         if "resource_subtype" in config.keys():
             config.pop("resource_subtype", None)
         if "system" in config.keys():
             config.pop("system", None)
 
-        return AWSLambdaFunction(**config, dryrun=dryrun)
+        return AWSLambdaFunction(**config, dryrun=dryrun).to()
 
     @classmethod
     def from_name(cls, name, dryrun=False, alt_options=None):
@@ -131,11 +132,11 @@ class AWSLambdaFunction(Function):
 
     @classmethod
     def _check_for_child_configs(cls, config):
-        """Overload function method."""
+        """Overload this method of the function class."""
         return config
 
     def _reqs_to_list(self, env):
-        """ " Converting requirements from requirements.txt to a list"""
+        """Converting requirements from requirements.txt to a list"""
 
         def _get_lib_name(req: str):
             index = len(req)
@@ -153,7 +154,7 @@ class AWSLambdaFunction(Function):
         return reqs
 
     def _lambda_exist(self):
-        """checks if a lambda with the given name is already exists in AWS"""
+        """Checks if a Lambda with the name given during init is already exists in AWS"""
         func_names = [
             func["FunctionName"]
             for func in self.LAMBDA_CLIENT.list_functions()["Functions"]
@@ -161,7 +162,7 @@ class AWSLambdaFunction(Function):
         return self.name in func_names
 
     def _wait_until_update_is_finished(self, name):
-        """verifies that a running update of the function is finished (so the next one could be executed)"""
+        """Verifies that a running update of the function (in AWS) is finished (so the next one could be executed)"""
         response = self.LAMBDA_CLIENT.get_function(FunctionName=name)
         state = response["Configuration"]["State"] == "Active"
         last_update_status = (
@@ -181,7 +182,7 @@ class AWSLambdaFunction(Function):
         return True
 
     def _rh_wrapper(self):
-        """creates a runhouse wrapper to the handler function"""
+        """Creates a runhouse wrapper to the handler function"""
         path = os.path.abspath(self.local_path_to_code[0]).split("/")
         handler_file_name = path[-1].split(".")[0]
         path = ["/" + path_e for path_e in path]
@@ -202,7 +203,7 @@ class AWSLambdaFunction(Function):
         return new_path
 
     def _supported_python_libs(self):
-        """ " Returns a list of the supported python libs by AWS lambda"""
+        """ " Returns a list of the supported python libs by the AWS Lambda resource"""
         # TODO [SB]: think what is the better implementation: via website, or AWS lambda. for now, hard-coded.
         # url = "https://www.feitsui.com/en/article/2"
         # page = urlopen(url)
@@ -235,6 +236,7 @@ class AWSLambdaFunction(Function):
         return supported_libs
 
     def _download_packages_s3(self, dest_path):
+        """Getting required layer resources from a s3 bucket."""
         bucket_name = "runhouse-lambda-resources"
         remote_path = f"layer_helpers/{self.runtime}"
         try:
@@ -249,7 +251,7 @@ class AWSLambdaFunction(Function):
             )
 
     def _create_layer_zip(self):
-        """Creates a zip of all required python libs, that will be sent to the lambda as a layer"""
+        """Creates a zip of all required python libs, that will be sent to the Lambda as a layer"""
         supported_libs = self._supported_python_libs()
         reqs = [req for req in self.reqs if req not in supported_libs]
         cwd = os.getcwd()
@@ -275,15 +277,21 @@ class AWSLambdaFunction(Function):
                 shutil.copytree(folder_req + "/" + r, all_req_dir + "/" + r)
 
         shutil.make_archive(dir_name, "zip", dir_name)
-
+        shutil.rmtree(dir_name)
         return dir_name + ".zip"
 
     def _create_layer(self):
-        """Creates a layer, which contains required python libs"""
+        """Creates a layer, which contains required python libs.
+        If needed, pandas and numpy layer is also created and returned
+        Returns layers' ARNs and versions"""
+
         layer_name, layer_arn, layer_version = self.name + "_layer", None, None
-        description = f"This layer contains the following python libraries: {', '.join(self.reqs)}"
         zip_file_name = self._create_layer_zip()
+
+        # Creating layer of python libs which are not np, pd and are not supported by AWS Lambda by default.
         if zip_file_name != self.EMPTY_ZIP:
+            reqs_no_np = [req for req in self.reqs if req != "numpy" or req != "pandas"]
+            description = f"This layer contains the following python libraries: {', '.join(reqs_no_np)}"
             with open(zip_file_name, "rb") as f:
                 layer_zf = f.read()
             layer = self.LAMBDA_CLIENT.publish_layer_version(
@@ -297,6 +305,7 @@ class AWSLambdaFunction(Function):
             )
             os.remove(zip_file_name)
 
+        # Creating and getting the np and pd layer, suitable to the runtime provided during init.
         list_layers = self.LAMBDA_CLIENT.list_layers(
             CompatibleRuntime=f"{self.runtime}", CompatibleArchitecture="x86_64"
         )
@@ -306,10 +315,11 @@ class AWSLambdaFunction(Function):
         pd_np_layer_name = f"numpy_pandas_{self.runtime}"
         pd_np_layer_name = pd_np_layer_name.replace(".", "_")
 
+        # create the layer if not existing in AWS.
         if pd_np_layer_name not in layer_names:
             np_layer = self.LAMBDA_CLIENT.publish_layer_version(
                 LayerName=pd_np_layer_name,
-                Description=description,
+                Description=f"This layer contains numpy and pandas suitable for {self.runtime}",
                 Content={
                     "S3Bucket": "runhouse-lambda-resources",
                     "S3Key": f"layer_helpers/{self.runtime}/python.zip",
@@ -318,6 +328,8 @@ class AWSLambdaFunction(Function):
             )
             pd_np_layer_arn = np_layer["LayerVersionArn"]
             pd_np_layer_version = np_layer["Version"]
+
+        # get the layer version and ARN if existing in AWS.
         else:
             pd_np_layer_arn = [
                 layer["LatestMatchingVersion"]["LayerVersionArn"]
@@ -334,9 +346,10 @@ class AWSLambdaFunction(Function):
         return layer_arn, layer_version, pd_np_layer_arn, pd_np_layer_version
 
     def _update_lambda_config(self, env_vars):
-        """Updates existing lambda in AWS - config + code that provided in the init."""
+        """Updates existing Lambda in AWS (config) that was provided in the init."""
+        time.sleep(4)
         lambda_config = {}
-        logger.info(f"Updating a lambda called {self.name}")
+        logger.info(f"Updating a Lambda called {self.name}")
         layers = []
         if self.layer:
             layers.append(self.layer)
@@ -360,35 +373,36 @@ class AWSLambdaFunction(Function):
                 Environment={"Variables": env_vars},
             )
 
-        # TODO: will be implemented as a part of enabling to update the lambda code
-        # # wait for the config update process to finish, and then update the code (lambda logic).
-        # if self._wait_until_update_is_finished(self.name):
-        #     path = os.path.abspath(self.local_path_to_code[0]).split("/")
-        #     path = ["/" + path_e for path_e in path]
-        #     path[0] = ""
-        #     zip_file_name = f"{''.join(path[:-1])}/{self.name}_code_files.zip"
-        #     zf = zipfile.ZipFile(zip_file_name, mode="w")
-        #     try:
-        #         for file_name in self.local_path_to_code:
-        #             zf.write(file_name, os.path.basename(file_name))
-        #
-        #     except FileNotFoundError:
-        #         logger.error(f"Could not find {FileNotFoundError.filename}")
-        #     finally:
-        #         zf.close()
-        #     with open(zip_file_name, "rb") as f:
-        #         zipped_code = f.read()
-        #
-        #     lambda_config = self.LAMBDA_CLIENT.update_function_code(
-        #         FunctionName=self.name, ZipFile=zipped_code
-        #     )
+        # TODO: enable for other to update the Lambda code.
+        # wait for the config update process to finish, and then update the code (Lambda logic).
+        if self._wait_until_update_is_finished(self.name):
+            path = os.path.abspath(self.local_path_to_code[0]).split("/")
+            path = ["/" + path_e for path_e in path]
+            path[0] = ""
+            zip_file_name = f"{''.join(path[:-1])}/{self.name}_code_files.zip"
+            zf = zipfile.ZipFile(zip_file_name, mode="w")
+            try:
+                for file_name in self.local_path_to_code:
+                    zf.write(file_name, os.path.basename(file_name))
+
+            except FileNotFoundError:
+                logger.error(f"Could not find {FileNotFoundError.filename}")
+            finally:
+                zf.close()
+            with open(zip_file_name, "rb") as f:
+                zipped_code = f.read()
+
+            lambda_config = self.LAMBDA_CLIENT.update_function_code(
+                FunctionName=self.name, ZipFile=zipped_code
+            )
 
         logger.info(f'{lambda_config["FunctionName"]} was updated successfully.')
+
         return lambda_config
 
     def _create_new_lambda(self, env_vars):
-        """Creates new AWS lambda."""
-        logger.info(f"Creating a new lambda called {self.name}")
+        """Creates new AWS Lambda."""
+        logger.info(f"Creating a new Lambda called {self.name}")
         path = os.path.abspath(self.local_path_to_code[0]).split("/")
         path = ["/" + path_e for path_e in path]
         path[0] = ""
@@ -404,7 +418,7 @@ class AWSLambdaFunction(Function):
         with open(zip_file_name, "rb") as f:
             zipped_code = f.read()
 
-        # creating a role for the lambda, using default policy.
+        # creating a role for the Lambda, using default policy.
         # TODO: enable the user to update the default policy
 
         iam_client = boto3.client("iam")
@@ -435,7 +449,7 @@ class AWSLambdaFunction(Function):
             RoleName=f"{self.name}_Role",
             AssumeRolePolicyDocument=json.dumps(assume_role_policy_document),
         )
-        time.sleep(3)
+        time.sleep(4)
 
         logger.info(f'{role_res["Role"]["RoleName"]} was created successfully.')
 
@@ -457,7 +471,7 @@ class AWSLambdaFunction(Function):
                 Action="lambda:GetLayerVersion",
                 Principal="*",
             )
-            time.sleep(3)  # letting the role be updated in AWS
+            time.sleep(4)  # letting the role be updated in AWS
 
             layers.append(self.layer)
 
@@ -471,7 +485,7 @@ class AWSLambdaFunction(Function):
                 Action="lambda:GetLayerVersion",
                 Principal="*",
             )
-            time.sleep(3)  # letting the role be updated in AWS
+            time.sleep(4)  # letting the role be updated in AWS
 
         if len(layers) > 0:
 
@@ -497,7 +511,7 @@ class AWSLambdaFunction(Function):
                 MemorySize=self.memory_size,
                 Environment={"Variables": env_vars},
             )
-        time.sleep(3)
+        time.sleep(4)
         logger.info(f'{lambda_config["FunctionName"]} was created successfully.')
         return lambda_config
 
@@ -511,15 +525,15 @@ class AWSLambdaFunction(Function):
         cloud: str = "aws_lambda",
     ):
         """
-        Set up a Function on AWS as a lambda function.
+        Set up a function on AWS as a Lambda function.
 
-        See the args of the factory method :aws_lambda:`aws_lambda` for more information.
+        See the args of the factory method :func:`aws_lambda` for more information.
 
         Example:
-            >>> rh.aws_lambda_function(path_to_codes=["model_a/lambdas"],
-            >>> handler_function_name='model_a_handler.main_func',
+            >>> my_aws_lambda = rh.aws_lambda_function(path_to_codes=["full/path/to/model_a_handler.py"],
+            >>> handler_function_name='main_func',
             >>> runtime='python_3_9',
-            >>> name="model_a_main_func").to()
+            >>> name="my_lambda_func").to()
         """
         # Checking if the user have a credentials file
         if not (
@@ -537,16 +551,14 @@ class AWSLambdaFunction(Function):
         # if function exist - will update it. Else, a new one will be created.
         if self._lambda_exist():
             # updating the configuration with the initial configuration.
-            # TODO: enable the user to change the config.
+            # TODO: enable the user to change the config of the Lambda.
             lambda_config = self._update_lambda_config(env_vars)
 
         else:
-            # creating a new lambda function, since it's not existing in the AWS account which is configured locally.
+            # creating a new Lambda function, since it's not existing in the AWS account which is configured locally.
             lambda_config = self._create_new_lambda(env_vars)
 
-        # TODO [SB]: think if we want to remove the temp rh_wrapper.py file we created locally.
         self.aws_lambda_config = lambda_config
-        globals.lambda_store[self.name] = self
         return self
 
     #
@@ -554,7 +566,7 @@ class AWSLambdaFunction(Function):
     #
 
     def __call__(self, *args, **kwargs) -> Any:
-        """Call the function on its system
+        """Call (invoke) the function in AWS.
 
         Args:
              *args: Optional args for the Function
@@ -594,17 +606,17 @@ class AWSLambdaFunction(Function):
         """Map a function over a list of arguments.
 
         Example:
-            >>> # model_a/lambdas/model_a_handler.py file
-            >>> def train(arg1, arg2, arg3):
+            >>> # The my_lambda_handler.py file
+            >>> def my_summer(arg1, arg2, arg3):
             >>>     return arg1 + arg2 + arg3
             >>>
-            >>> # your 'main' python file
-            >>> aws_lambda = rh.aws_lambda_function(path_to_code="model_a/lambdas",
-            >>> handler_function_name='model_a_handler.train',
+            >>> # your 'main' python file, where you are using runhouse
+            >>> aws_lambda = rh.aws_lambda_function(path_to_code=["full/path/to/my_lambda_handler.py"],
+            >>> handler_function_name='my_summer',
             >>> runtime='python_3_9',
-            >>> name="model_a_train").to()
+            >>> name="my_summer").to()
             >>> aws_lambda.map([1, 2], [1, 4], [2, 3])
-            >>> # output: [4, 9]
+            >>> # output: ["4", "9"] (It returns str type because of AWS API)
 
         """
 
@@ -618,7 +630,7 @@ class AWSLambdaFunction(Function):
         Example:
             >>> arg_list = [(1,2), (3, 4)]
             >>> # runs the function twice, once with args (1, 2) and once with args (3, 4)
-            >>> aws_lambda.starmap(arg_list)
+            >>> my_aws_lambda.starmap(arg_list)
         """
 
         return [self.call(*args, **kwargs) for args in args_lists]
@@ -643,61 +655,66 @@ class AWSLambdaFunction(Function):
 
 
 def aws_lambda_function(
-    paths_to_code: Optional[str] = None,
-    handler_function_name: Optional[str] = None,
-    runtime: Optional[str] = None,
+    paths_to_code: list[str] = None,
+    handler_function_name: str = None,
+    runtime: str = None,
+    args_names: list[str] = None,
     name: Optional[str] = None,
     env: Optional[list[str] or str] = None,
     env_vars: Optional[dict] = None,
-    dryrun: bool = False,
     timeout: Optional[int] = 30,
     memory_size: Optional[int] = 128,
-    args_names: Optional[list[str]] = None,
+    dryrun: bool = False,
 ):
-    """Builds an instance of :class:`AWS_Lambda`.
+    """Builds an instance of :class:`AWSLambdaFunction`.
 
     Args:
-        paths_to_code: list[str]: List of the FULL paths to the python code file(s) that should be sent to AWS lambda.
+        paths_to_code: list[str]: List of the FULL paths to the python code file(s) that should be sent to AWS Lambda.
             First path in the list should be the path to the handler file which contaitns the main (handler) function.
-            This fuction will be executed by the lambda.
-        handler_function_name: str: The name of the function in the handler file that will be executed by the lambda.
-        runtime: str: The coding languge that the code is written in. Should be one of the following:
-            python3.7, python3.7
-        args_names: [list[str]]: List of the argumets that will be passed to the lambda function.
+        handler_function_name: str: The name of the function in the handler file that will be executed by the Lambda.
+        runtime: str: The coding language of the fuction. Should be one of the following:
+            python3.7, python3.8, python3.9, python3.10, python 3.11.
+        args_names: [list[str]]: List of the argumets' names, which will be passed to the Lambda Function.
         name (Optional[str]): Name of the Lambda Function to create or retrieve.
             This can be either from a local config or from the RNS.
-        env (Optional[List[str] or str]): List of requirements to import to the lambda, or path to the
-            requirements.txt file. All provided modules are required to be installed locally.
-            If list / file is empty, numpy and pandas will be installed by defult.
+        env (Optional[List[str] or str]): Specifies the requirements (python libraries), which will be used by the
+            Lambda.Can be a list or path to the requirements.txt file. All provided libraries are required to be
+            installed locally.
         env_vars: Optional[dict]: Dictionary of enviroumnt varible name (key) and its value. They will be
-            deployed as enviroumnt varibles as part of the lambda configuration.
-        dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
-            (Default: ``False``)
-        timeout: Optional[int]: The amount of time, in seconds, that will cause the lambda to timeout.
-            Defult- 30, min - 3, max - 900.
+            deployed as enviroumnt varibles, which are a port of the Lambda configuration.
+        timeout: Optional[int]: The maximum amount of time (in secods) during which the Lambda will run in AWS
+            without timing-out. (Default: ``30``, Min: ``3``, Max: ``900``)
         memory_size: Optional[int], The amount of memeory, im MB, that will be aloocatied to the lambda.
-             Defult- 128, min - 128, max - 10240.
+             (Default: ``128``, Min: ``128``, Max: ``10240``)
+        dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
+            (Default: ``False``). Is not used by Lambda, but is a port of Function constructor signatuere.
 
     Returns:
-        Function: The resulting Function object.
+        AWSLambdaFunction: The resulting AWS Lambda Function object.
+
+        .. note::
+            1. Some older python versions are not suporrted by the latest numpy and pandas versions.
+            When creating a numpy or pandas layer, their version will be according to the Lambda's python version
+            (aka Lambda's runtime).\n
+            2. When creating the function for the first time (and not reloading it), the following arguments are
+            mandatory: paths_to_code, handler_function_name, runtime, args_names.
 
     Example:
         >>> import runhouse as rh
 
         >>> # handler_file.py
-        >>> def sum(a, b):
+        >>> def summer(a, b):
         >>>    return a + b
 
-        >>> # current working python file
-
+        >>> # your 'main' python file, where you are using runhouse
         >>> summer = rh.aws_lambda_function(
         >>>                 paths_to_code=['/full/path/to/handler_file.py'],
-        >>>                 handler_function_name = 'sum',
+        >>>                 handler_function_name = 'summer',
         >>>                 runtime = 'python3.9',
         >>>                 name="my_func").to().save()
 
         >>> # using the function
-        >>> res = summer(5, 8)  # returns 13
+        >>> res = summer(5, 8)  # returns "13". (It returns str type because of AWS API)
 
         >>> # Load function from above
         >>> reloaded_function = rh.aws_lambda_function(name="my_func")
