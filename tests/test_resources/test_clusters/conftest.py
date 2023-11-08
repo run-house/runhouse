@@ -233,7 +233,7 @@ def build_and_run_image(
             container_name,
             "-d",
             "--rm",
-            "--shm-size=3gb",
+            "--shm-size=4gb",
             "-p",
             "32300:32300",
             "-p",

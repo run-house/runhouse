@@ -25,7 +25,7 @@ docker build --no-cache --pull --rm -f "runhouse/docker/slim/public-key-auth/Doc
 
 5. Run the Docker container
 
-docker run --rm --shm-size=3gb -it -p 32300:32300 -p 6379:6379 -p 52365:52365 -p 22:22 -p 443:443 -p 80:80 runhouse:start
+docker run --rm --shm-size=4gb -it -p 32300:32300 -p 6379:6379 -p 52365:52365 -p 22:22 -p 443:443 -p 80:80 runhouse:start
 
 6. Verify via SSH
 
