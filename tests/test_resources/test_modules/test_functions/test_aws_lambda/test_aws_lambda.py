@@ -31,15 +31,6 @@ def download_resources():
         bucket.download_file(obj.key, f"{curr_folder}/{obj.key}")
 
 
-# def delete_aws_resources():
-#     lambda_role, lambda_arn, policy_arn = "", "", ""
-#     del_policy = IAM_CLIENT.delete_role(RoleName=lambda_role)
-#     del_role = IAM_CLIENT.delete_role(RoleName=lambda_role)
-#     del_lambda = LAMBDA_CLIENT.delete_function(FunctionName=lambda_arn)
-#     assert del_role is not None
-#     assert del_lambda is not None
-
-
 def test_create_and_run_no_layers():
     handler_path = [f"{TEST_RESOURCES}/basic_test_handler.py"]
     name = "test_lambda_create_and_run"
