@@ -23,4 +23,3 @@ rns_client = RNSClient(configs=configs)
 # be properly initialized by a servlet via set_name.
 obj_store = ObjStore()
 env_servlets = {}
-lambda_store = {}
