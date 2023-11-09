@@ -163,7 +163,10 @@ class EnvServlet:
                         module.rns_address if hasattr(module, "rns_address") else None
                     )
                     if not obj_store.has_resource_access(token_hash, resource_uri):
-                        raise Exception("No read or write access to requested resource")
+                        raise PermissionError(
+                            f"No read or write access to requested resource {resource_uri}"
+                        )
+
             else:
                 # Method is a property, return the value
                 logger.info(
@@ -602,7 +605,9 @@ class EnvServlet:
                 module.rns_address if hasattr(module, "rns_address") else None
             )
             if not obj_store.has_resource_access(token_hash, resource_uri):
-                raise Exception("No read or write access to requested resource")
+                raise PermissionError(
+                    f"No read or write access to requested resource {resource_uri}"
+                )
 
         if method:
             fn = getattr(module, method)

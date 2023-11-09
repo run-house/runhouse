@@ -2,8 +2,6 @@ import unittest
 
 from runhouse.servers.http.auth import hash_token
 
-from tests.conftest import test_account
-
 
 class TestServerObjStore:
     """Start object store in a local base env servlet"""
@@ -126,17 +124,14 @@ class TestServerObjStore:
         res = obj_store.get_obj_ref(key)
         assert res == "new_obj_ref"
 
-    def test_pop_env(self, obj_store):
-        env = "new_env"
-        obj_store.pop_env(env)
-        res = obj_store.get_env(env)
-        assert res is None
+    def test_contains(self, obj_store):
+        key = "obj_ref_random"
+        res = obj_store.contains(key)
+        assert res is False
 
-    def test_clear_env(self, obj_store):
-        obj_store.clear_env()
-
-    def test_clear(self, obj_store):
-        obj_store.clear()
+        obj_store.put_obj_ref(key, "new_obj_ref")
+        res = obj_store.contains(key)
+        assert res is True
 
     @unittest.skip("Not implemented yet.")
     def test_cancel(self, obj_store):
@@ -147,36 +142,61 @@ class TestServerObjStore:
         obj_ref = obj_store.get_obj_ref(key, default=None)
         assert obj_ref is None
 
+    def test_pop_env(self, obj_store):
+        env = "new_env"
+        obj_store.pop_env(env)
+        res = obj_store.get_env(env)
+        assert res is None
+
+    def test_clear_env(self, obj_store):
+        obj_store.clear_env()
+        res = obj_store.get_env("new_env")
+        assert res is None
+
+    def test_clear(self, obj_store):
+        obj_store.clear()
+        res = obj_store.get_env("new_env")
+        assert res is None
+
     @unittest.skip("Not implemented yet.")
     def test_cancel_all(self, obj_store):
-        pass
-
-    @unittest.skip("Not implemented yet.")
-    def test_contains(self, obj_store):
-        pass
-
-    @unittest.skip("Not implemented yet.")
-    def test_get_dict(self, obj_store):
-        pass
+        obj_store.cancel_all()
+        assert obj_store.keys() == []
 
 
 class TestServerCacheObjStore:
     """Start object store in a local auth cache servlet"""
 
-    def test_resource_access_level(self, obj_store_cache):
-        with test_account() as t:
+    def test_resource_access_level(self, obj_store_auth_cache, test_account):
+        with test_account as t:
             token = t["test_token"]
             resource_uri = f"/{t['test_username']}/summer"
-            access_level = obj_store_cache.resource_access_level(
+            access_level = obj_store_auth_cache.resource_access_level(
                 hash_token(token), resource_uri
             )
-            assert access_level
+            assert access_level == "write"
 
-    def test_user_resources(self, obj_store_cache):
-        with test_account() as t:
+    def test_user_resources(self, obj_store_auth_cache, test_account):
+        with test_account as t:
             token = t["test_token"]
-            resources = obj_store_cache.user_resources(hash_token(token))
-            assert resources
+            resources = obj_store_auth_cache.user_resources(hash_token(token))
+            assert isinstance(resources, dict)
+
+    def test_no_resources_for_invalid_token(self, obj_store_auth_cache):
+        token = "abc"
+        resources = obj_store_auth_cache.user_resources(hash_token(token))
+        assert not resources
+
+    def test_no_resource_access_for_invalid_token(
+        self, obj_store_auth_cache, test_account
+    ):
+        token = "abc"
+        with test_account as t:
+            resource_uri = f"/{t['test_username']}/summer"
+            access_level = obj_store_auth_cache.resource_access_level(
+                hash_token(token), resource_uri
+            )
+            assert access_level is None
 
 
 if __name__ == "__main__":

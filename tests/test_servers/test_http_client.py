@@ -91,7 +91,6 @@ class TestHTTPClient(unittest.TestCase):
 
     @patch("requests.post")
     def test_call_module_method(self, mock_post):
-        # Simulate a sequence of responses from the server with pickled and base64-encoded data
         response_sequence = [
             json.dumps({"output_type": "log", "data": "Log message"}),
             json.dumps(
@@ -147,7 +146,6 @@ class TestHTTPClient(unittest.TestCase):
 
     @patch("requests.post")
     def test_call_module_method_with_args_kwargs(self, mock_post):
-        # Setup the mock response
         mock_response = MagicMock()
         mock_response.status_code = 200
         # Set up iter_lines to return an iterator
@@ -158,7 +156,6 @@ class TestHTTPClient(unittest.TestCase):
         )
         mock_post.return_value = mock_response
 
-        # Call the method under test with args and kwargs
         args = [1, 2]
         kwargs = {"a": 3, "b": 4}
         module_name = "module"
@@ -192,13 +189,11 @@ class TestHTTPClient(unittest.TestCase):
 
     @patch("requests.post")
     def test_call_module_method_error_handling(self, mock_post):
-        # Setup the mock response to simulate an error
         mock_response = Mock()
         mock_response.status_code = 500
         mock_response.content = b"Internal Server Error"
         mock_post.return_value = mock_response
 
-        # Call the method and expect an exception
         with self.assertRaises(ValueError):
             self.client.call_module_method("module", "method")
 

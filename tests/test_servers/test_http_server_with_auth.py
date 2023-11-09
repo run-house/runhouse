@@ -8,14 +8,21 @@ from pathlib import Path
 import pytest
 
 import runhouse as rh
-from ray.exceptions import RayTaskError
 
 from runhouse.globals import rns_client
 from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 
-from tests.conftest import test_account
-
 from tests.test_servers.conftest import summer
+
+
+@pytest.fixture(scope="class", autouse=True)
+def check_den_auth(pytestconfig):
+    if not pytestconfig.getoption("--den-auth"):
+        pytest.fail(
+            "--den-auth option must be provided to run auth tests. Re-start the container with "
+            "this option enabled.",
+            pytrace=False,
+        )
 
 
 @pytest.mark.usefixtures("docker_container")
@@ -38,9 +45,9 @@ class TestHTTPServerWithAuth:
         response = http_client.get("/check")
         assert response.status_code == 200
 
-    def test_put_resource(self, http_client, local_blob, base_cluster):
+    def test_put_resource(self, http_client, blob_data, base_cluster):
         state = None
-        resource = local_blob.to(base_cluster)
+        resource = rh.blob(data=blob_data, system=base_cluster)
         data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
         response = http_client.post(
             "/resource", json={"data": data}, headers=rns_client.request_headers
@@ -48,13 +55,17 @@ class TestHTTPServerWithAuth:
         assert response.status_code == 200
 
     def test_put_object(self, http_client):
+        key = "key1"
         test_list = list(range(5, 50, 2)) + ["a string"]
         response = http_client.post(
             "/object",
-            json={"data": pickle_b64(test_list), "key": "key1"},
+            json={"data": pickle_b64(test_list), "key": key},
             headers=rns_client.request_headers,
         )
         assert response.status_code == 200
+
+        response = http_client.get("/keys", headers=rns_client.request_headers)
+        assert key in b64_unpickle(response.json().get("data"))
 
     def test_rename_object(self, http_client):
         old_key = "key1"
@@ -72,8 +83,8 @@ class TestHTTPServerWithAuth:
 
     def test_delete_obj(self, http_client):
         # https://www.python-httpx.org/compatibility/#request-body-on-http-methods
-        keys = ["key2"]
-        data = pickle_b64(keys)
+        key = "key2"
+        data = pickle_b64([key])
         response = http_client.request(
             "delete",
             url="/object",
@@ -82,13 +93,30 @@ class TestHTTPServerWithAuth:
         )
         assert response.status_code == 200
 
+        response = http_client.get("/keys", headers=rns_client.request_headers)
+        assert key not in b64_unpickle(response.json().get("data"))
+
     def test_add_secrets(self, http_client):
-        secrets = {"aws": "abc123"}
+        secrets = {"aws": {"access_key": "abc123", "secret_key": "abc123"}}
+        data = pickle_b64(secrets)
+        response = http_client.post(
+            "/secrets", json={"data": data}, headers=rns_client.request_headers
+        )
+
+        assert response.status_code == 200
+        assert b64_unpickle(response.json().get("data")) == {}
+
+    def test_add_secrets_for_unsupported_provider(self, http_client):
+        secrets = {"test_provider": {"access_key": "abc123"}}
         data = pickle_b64(secrets)
         response = http_client.post(
             "/secrets", json={"data": data}, headers=rns_client.request_headers
         )
         assert response.status_code == 200
+
+        resp_data = b64_unpickle(response.json().get("data"))
+        assert isinstance(resp_data, dict)
+        assert "test_provider is not a Runhouse builtin provider" in resp_data.values()
 
     def test_call_module_method(self, http_client, base_cluster):
         # Create new func on the cluster, then call it
@@ -97,7 +125,7 @@ class TestHTTPServerWithAuth:
         method_name = "call"
         module_name = remote_func.name
         args = (1, 2)
-        kwargs = {"force": False}
+        kwargs = {}
 
         response = http_client.post(
             f"{module_name}/{method_name}",
@@ -114,6 +142,10 @@ class TestHTTPServerWithAuth:
         )
         assert response.status_code == 200
 
+        resp_obj = json.loads(response.text.split("\n")[0])
+        assert resp_obj["output_type"] == "result"
+        assert b64_unpickle(resp_obj["data"]) == 3
+
     @pytest.mark.asyncio
     async def test_async_call(self, async_http_client, base_cluster):
         remote_func = rh.function(summer, system=base_cluster)
@@ -125,6 +157,52 @@ class TestHTTPServerWithAuth:
             headers=rns_client.request_headers,
         )
         assert response.status_code == 200
+        assert response.text == "3"
+
+    @pytest.mark.asyncio
+    async def test_async_call_with_invalid_serialization(
+        self, async_http_client, base_cluster
+    ):
+        remote_func = rh.function(summer, system=base_cluster)
+        method = "call"
+
+        response = await async_http_client.post(
+            f"/call/{remote_func.name}/{method}?serialization=random",
+            json={"args": [1, 2]},
+            headers=rns_client.request_headers,
+        )
+        assert response.status_code == 500
+
+    @pytest.mark.asyncio
+    async def test_async_call_with_pickle_serialization(
+        self, async_http_client, base_cluster
+    ):
+        remote_func = rh.function(summer, system=base_cluster)
+        method = "call"
+
+        response = await async_http_client.post(
+            f"/call/{remote_func.name}/{method}?serialization=pickle",
+            json={"args": [1, 2]},
+            headers=rns_client.request_headers,
+        )
+
+        assert response.status_code == 200
+        assert b64_unpickle(response.text) == 3
+
+    @pytest.mark.asyncio
+    async def test_async_call_with_json_serialization(
+        self, async_http_client, base_cluster
+    ):
+        remote_func = rh.function(summer, system=base_cluster)
+        method = "call"
+
+        response = await async_http_client.post(
+            f"/call/{remote_func.name}/{method}?serialization=json",
+            json={"args": [1, 2]},
+            headers=rns_client.request_headers,
+        )
+        assert response.status_code == 200
+        assert json.loads(response.text) == "3"
 
     # -------- INVALID TOKEN / CLUSTER ACCESS TESTS ----------- #
     def test_request_with_no_cluster_config_yaml(self, http_client, base_cluster):
@@ -141,13 +219,14 @@ class TestHTTPServerWithAuth:
         )
         response = http_client.get("/keys", headers=self.invalid_headers)
 
-        assert response.status_code == 500
+        assert response.status_code == 403
+        assert "Cluster access is required for API" in response.text
 
-    def test_no_access_to_cluster(self, http_client, base_cluster):
-        with test_account():
+    def test_no_access_to_cluster(self, http_client, base_cluster, test_account):
+        with test_account:
             response = http_client.get("/keys", headers=rns_client.request_headers)
 
-            assert response.status_code == 404
+            assert response.status_code == 403
             assert "Cluster access is required for API" in response.text
 
     def test_request_with_no_token(self, http_client):
@@ -167,15 +246,16 @@ class TestHTTPServerWithAuth:
         assert response.status_code == 200
 
     def test_put_resource_with_invalid_token(
-        self, http_client, local_blob, base_cluster
+        self, http_client, blob_data, base_cluster
     ):
         state = None
-        resource = local_blob.to(base_cluster)
+        resource = rh.blob(blob_data, system=base_cluster)
         data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
         response = http_client.post(
             "/resource", json={"data": data}, headers=self.invalid_headers
         )
-        assert response.status_code == 500
+        assert response.status_code == 403
+        assert "Cluster access is required for API" in response.text
 
     def test_call_module_method_with_invalid_token(self, http_client, base_cluster):
         # Create new func on the cluster, then call it
@@ -184,7 +264,7 @@ class TestHTTPServerWithAuth:
         method_name = "call"
         module_name = remote_func.name
         args = (1, 2)
-        kwargs = {"force": False}
+        kwargs = {}
 
         response = http_client.post(
             f"{module_name}/{method_name}",
@@ -199,7 +279,7 @@ class TestHTTPServerWithAuth:
             },
             headers=self.invalid_headers,
         )
-        assert response.status_code == 500
+        assert "No read or write access to requested resource" in response.text
 
     def test_put_object_with_invalid_token(self, http_client):
         test_list = list(range(5, 50, 2)) + ["a string"]
@@ -208,7 +288,8 @@ class TestHTTPServerWithAuth:
             json={"data": pickle_b64(test_list), "key": "key1"},
             headers=self.invalid_headers,
         )
-        assert response.status_code == 500
+        assert response.status_code == 403
+        assert "Cluster access is required for API" in response.text
 
     def test_rename_object_with_invalid_token(self, http_client):
         old_key = "key1"
@@ -217,23 +298,28 @@ class TestHTTPServerWithAuth:
         response = http_client.put(
             "/object", json={"data": data}, headers=self.invalid_headers
         )
-        assert response.status_code == 500
+        assert response.status_code == 403
+        assert "Cluster access is required for API" in response.text
 
     def test_get_keys_with_invalid_token(self, http_client):
         response = http_client.get("/keys", headers=self.invalid_headers)
-        assert response.status_code == 500
+
+        assert response.status_code == 403
+        assert "Cluster access is required for API" in response.text
 
     def test_add_secrets_with_invalid_token(self, http_client):
-        secrets = {"aws": "abc123"}
+        secrets = {"aws": {"access_key": "abc123", "secret_key": "abc123"}}
         data = pickle_b64(secrets)
         response = http_client.post(
             "/secrets", json={"data": data}, headers=self.invalid_headers
         )
-        assert response.status_code == 500
+
+        assert response.status_code == 403
+        assert "Cluster access is required for API" in response.text
 
 
 @pytest.fixture(autouse=True)
-def setup_cluster_config():
+def setup_cluster_config(test_account):
     # Create a temporary directory that simulates the user's home directory
     home_dir = Path("~/.rh").expanduser()
     home_dir.mkdir(exist_ok=True)
@@ -261,10 +347,8 @@ def setup_cluster_config():
     c = rh.OnDemandCluster.from_name(rns_address)
     if not c:
         current_username = rh.configs.get("username")
-        with test_account():
-            c = rh.ondemand_cluster(
-                name="local_cluster", server_host="localhost", den_auth=True
-            ).save()
+        with test_account:
+            c = rh.ondemand_cluster(name="local_cluster", den_auth=True).save()
             c.share(current_username, access_type="write", notify_users=False)
 
     with open(cluster_config_path, "w") as file:
@@ -276,18 +360,9 @@ def setup_cluster_config():
         cluster_config_path.unlink()
 
 
+@pytest.mark.usefixtures("check_den_auth")
 class TestHTTPServerWithAuthLocally:
     invalid_headers = {"Authorization": "Bearer InvalidToken"}
-
-    @staticmethod
-    def assert_ray_task_error(exc_info):
-        error_msg = str(exc_info.value)
-
-        msg_1 = "Failed to load resources for user"
-        msg_2 = "Invalid or expired token"
-
-        assert msg_1 in error_msg
-        assert msg_2 in error_msg
 
     def test_get_cert(self, local_client_with_den_auth):
         # Define the path for the temporary certificate
@@ -368,8 +443,8 @@ class TestHTTPServerWithAuthLocally:
 
     def test_delete_obj(self, local_client_with_den_auth):
         # https://www.python-httpx.org/compatibility/#request-body-on-http-methods
-        keys = ["key2"]
-        data = pickle_b64(keys)
+        key = "key"
+        data = pickle_b64([key])
         response = local_client_with_den_auth.request(
             "delete",
             url="/object",
@@ -378,13 +453,32 @@ class TestHTTPServerWithAuthLocally:
         )
         assert response.status_code == 200
 
+        response = local_client_with_den_auth.get(
+            "/keys", headers=rns_client.request_headers
+        )
+        assert key not in b64_unpickle(response.json().get("data"))
+
     def test_add_secrets(self, local_client_with_den_auth):
-        secrets = {"aws": "abc123"}
+        secrets = {"aws": {"access_key": "abc123", "secret_key": "abc123"}}
+        data = pickle_b64(secrets)
+        response = local_client_with_den_auth.post(
+            "/secrets", json={"data": data}, headers=rns_client.request_headers
+        )
+
+        assert response.status_code == 200
+        assert b64_unpickle(response.json().get("data")) == {}
+
+    def test_add_secrets_for_unsupported_provider(self, local_client_with_den_auth):
+        secrets = {"test_provider": {"access_key": "abc123"}}
         data = pickle_b64(secrets)
         response = local_client_with_den_auth.post(
             "/secrets", json={"data": data}, headers=rns_client.request_headers
         )
         assert response.status_code == 200
+
+        resp_data = b64_unpickle(response.json().get("data"))
+        assert isinstance(resp_data, dict)
+        assert "test_provider is not a Runhouse builtin provider" in resp_data.values()
 
     @unittest.skip("Not implemented yet.")
     def test_call_module_method(self, local_client_with_den_auth):
@@ -394,7 +488,7 @@ class TestHTTPServerWithAuthLocally:
         method_name = "call"
         module_name = remote_func.name
         args = (1, 2)
-        kwargs = {"force": False}
+        kwargs = {}
 
         response = local_client_with_den_auth.post(
             f"{module_name}/{method_name}",
@@ -440,18 +534,17 @@ class TestHTTPServerWithAuthLocally:
 
         subprocess.run(["mv", destination_path, source_path])
 
-        with pytest.raises(RayTaskError) as exc_info:
-            local_client_with_den_auth.get("/keys", headers=self.invalid_headers)
+        resp = local_client_with_den_auth.get("/keys", headers=self.invalid_headers)
+        assert resp.status_code == 403
+        assert "Cluster access is required for API" in resp.text
 
-        self.assert_ray_task_error(exc_info)
-
-    def test_no_access_to_cluster(self, local_client_with_den_auth):
-        with test_account():
+    def test_no_access_to_cluster(self, local_client_with_den_auth, test_account):
+        with test_account:
             response = local_client_with_den_auth.get(
                 "/keys", headers=rns_client.request_headers
             )
 
-            assert response.status_code == 404
+            assert response.status_code == 403
             assert "Cluster access is required for API" in response.text
 
     def test_request_with_no_token(self, local_client_with_den_auth):
@@ -481,78 +574,77 @@ class TestHTTPServerWithAuthLocally:
         try:
             resource = local_blob.to(system="file", path=resource_path)
             data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
-            with pytest.raises(RayTaskError) as exc_info:
-                local_client_with_den_auth.post(
-                    "/resource", json={"data": data}, headers=self.invalid_headers
-                )
-
-            self.assert_ray_task_error(exc_info)
+            resp = local_client_with_den_auth.post(
+                "/resource", json={"data": data}, headers=self.invalid_headers
+            )
+            print(resp)
 
         finally:
             if os.path.exists(resource_path):
                 shutil.rmtree(resource_dir)
 
     @unittest.skip("Not implemented yet.")
-    def test_call_module_method_with_invalid_token(self, local_client_with_den_auth):
+    def test_call_module_method_with_invalid_token(
+        self, local_client_with_den_auth, local_cluster
+    ):
         # Create new func on the cluster, then call it
-        remote_func = rh.function(summer).to("here")
+        remote_func = rh.function(summer)
 
         method_name = "call"
         module_name = remote_func.name
         args = (1, 2)
-        kwargs = {"force": False}
+        kwargs = {}
 
-        with pytest.raises(RayTaskError) as exc_info:
-            local_client_with_den_auth.post(
-                f"{module_name}/{method_name}",
-                json={
-                    "data": pickle_b64([args, kwargs]),
-                    "env": None,
-                    "stream_logs": True,
-                    "save": False,
-                    "key": None,
-                    "remote": False,
-                    "run_async": False,
-                },
-                headers=self.invalid_headers,
-            )
-        self.assert_ray_task_error(exc_info)
+        resp = local_client_with_den_auth.post(
+            f"{module_name}/{method_name}",
+            json={
+                "data": pickle_b64([args, kwargs]),
+                "env": None,
+                "stream_logs": True,
+                "save": False,
+                "key": None,
+                "remote": False,
+                "run_async": False,
+            },
+            headers=self.invalid_headers,
+        )
+        assert resp.status_code == 403
+        assert "Cluster access is required for API" in resp.text
 
     def test_put_object_with_invalid_token(self, local_client_with_den_auth):
         test_list = list(range(5, 50, 2)) + ["a string"]
-        with pytest.raises(RayTaskError) as exc_info:
-            local_client_with_den_auth.post(
-                "/object",
-                json={"data": pickle_b64(test_list), "key": "key1"},
-                headers=self.invalid_headers,
-            )
-        self.assert_ray_task_error(exc_info)
+        resp = local_client_with_den_auth.post(
+            "/object",
+            json={"data": pickle_b64(test_list), "key": "key1"},
+            headers=self.invalid_headers,
+        )
+        assert resp.status_code == 403
+        assert "Cluster access is required for API" in resp.text
 
     def test_rename_object_with_invalid_token(self, local_client_with_den_auth):
         old_key = "key1"
         new_key = "key2"
         data = pickle_b64((old_key, new_key))
-        with pytest.raises(RayTaskError) as exc_info:
-            local_client_with_den_auth.put(
-                "/object", json={"data": data}, headers=self.invalid_headers
-            )
-        self.assert_ray_task_error(exc_info)
+        resp = local_client_with_den_auth.put(
+            "/object", json={"data": data}, headers=self.invalid_headers
+        )
+        assert resp.status_code == 403
+        assert "Cluster access is required for API" in resp.text
 
     def test_get_keys_with_invalid_token(self, local_client_with_den_auth):
-        with pytest.raises(RayTaskError) as exc_info:
-            local_client_with_den_auth.get("/keys", headers=self.invalid_headers)
-
-        self.assert_ray_task_error(exc_info)
+        resp = local_client_with_den_auth.get("/keys", headers=self.invalid_headers)
+        assert resp.status_code == 403
+        assert "Cluster access is required for API" in resp.text
 
     def test_add_secrets_with_invalid_token(self, local_client_with_den_auth):
-        secrets = {"aws": "abc123"}
+        secrets = {"aws": {"access_key": "abc123", "secret_key": "abc123"}}
         data = pickle_b64(secrets)
-        with pytest.raises(RayTaskError) as exc_info:
-            local_client_with_den_auth.post(
-                "/secrets", json={"data": data}, headers=self.invalid_headers
-            )
+        resp = local_client_with_den_auth.post(
+            "/secrets", json={"data": data}, headers=self.invalid_headers
+        )
 
-        self.assert_ray_task_error(exc_info)
+        assert resp.status_code == 403
+        assert "Cluster access is required for API" in resp.text
 
 
 if __name__ == "__main__":

@@ -295,7 +295,27 @@ def popen_shell_command(subprocess, command: list[str], cwd: str = None):
 
 
 @pytest.fixture(scope="session")
-def local_logged_out_docker_cluster(request, detached=True):
+def base_cluster(pytestconfig):
+    keypath = str(
+        Path(
+            rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
+        ).expanduser()
+    )
+    c = rh.cluster(
+        name="local-docker-slim-public-key-auth",
+        host="localhost",
+        den_auth=pytestconfig.getoption("--den-auth"),
+        server_host="0.0.0.0",
+        ssh_creds={
+            "ssh_user": "rh-docker-user",
+            "ssh_private_key": keypath,
+        },
+    ).save()
+    return c
+
+
+@pytest.fixture(scope="session")
+def local_logged_out_docker_cluster(request, base_cluster):
     image_name = "keypair"
     container_name = "rh-slim-server-public-key-auth"
     dir_name = "public-key-auth"
@@ -304,6 +324,8 @@ def local_logged_out_docker_cluster(request, detached=True):
             rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
         ).expanduser()
     )
+
+    detached = request.config.getoption("--detached")
 
     client, rh_parent_path = build_and_run_image(
         image_name=image_name,
@@ -315,24 +337,16 @@ def local_logged_out_docker_cluster(request, detached=True):
     )
 
     # Runhouse commands can now be run locally
-    c = rh.cluster(
-        name="local-docker-slim-public-key-auth",
-        host="localhost",
-        server_host="0.0.0.0",
-        ssh_creds={
-            "ssh_user": SSH_USER,
-            "ssh_private_key": keypath,
-        },
-    )
     rh.env(
-        reqs=["pytest"],
+        reqs=["pytest", "httpx", "pytest_asyncio"],
         working_dir=None,
         name="base_env",
-    ).to(c)
-    c.save()
+    ).to(base_cluster)
+
+    base_cluster.save()
 
     # Yield the cluster
-    yield c
+    yield base_cluster
 
     # Stop the Docker container
     if not detached:
@@ -342,7 +356,7 @@ def local_logged_out_docker_cluster(request, detached=True):
 
 
 @pytest.fixture(scope="session")
-def local_docker_cluster_public_key(request, detached=True):
+def local_docker_cluster_public_key(request, base_cluster):
     image_name = "keypair"
     container_name = "rh-slim-server-public-key-auth"
     dir_name = "public-key-auth"
@@ -351,6 +365,8 @@ def local_docker_cluster_public_key(request, detached=True):
             rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
         ).expanduser()
     )
+
+    detached = request.config.getoption("--detached")
 
     client, rh_parent_path = build_and_run_image(
         image_name=image_name,
@@ -362,27 +378,18 @@ def local_docker_cluster_public_key(request, detached=True):
     )
 
     # Runhouse commands can now be run locally
-    c = rh.cluster(
-        name="local-docker-slim-public-key-auth",
-        host="localhost",
-        server_host="0.0.0.0",
-        ssh_creds={
-            "ssh_user": SSH_USER,
-            "ssh_private_key": keypath,
-        },
-    )
     rh.env(
-        reqs=["pytest"],
+        reqs=["pytest", "httpx", "pytest_asyncio"],
         working_dir=None,
         setup_cmds=[
             f'mkdir -p ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
         ],
         name="base_env",
-    ).to(c)
-    c.save()
+    ).to(base_cluster)
+    base_cluster.save()
 
     # Yield the cluster
-    yield c
+    yield base_cluster
 
     # Stop the Docker container
     if not detached:
@@ -392,7 +399,8 @@ def local_docker_cluster_public_key(request, detached=True):
 
 
 @pytest.fixture(scope="session")
-def local_test_account_cluster_public_key(request, test_account, detached=True):
+def local_test_account_cluster_public_key(request, base_cluster, test_account):
+    container_name = "rh-slim-server-public-key-auth"
     with test_account:
         # Create the shared cluster using the test account
         keypath = str(
@@ -401,25 +409,15 @@ def local_test_account_cluster_public_key(request, test_account, detached=True):
             ).expanduser()
         )
 
+        detached = request.config.getoption("--detached")
         client, rh_parent_path = build_and_run_image(
             image_name="keypair",
-            container_name="rh-slim-server-public-key-auth",
+            container_name=container_name,
             detached=True,
             dir_name="public-key-auth",
             keypath=keypath,
-            force_rebuild=pytestconfig.getoption("--force-rebuild"),
+            force_rebuild=request.config.getoption("--force-rebuild"),
         )
-
-        c = rh.cluster(
-            name="local-docker-slim-public-key-auth",
-            host="localhost",
-            den_auth=True,
-            server_host="0.0.0.0",
-            ssh_creds={
-                "ssh_user": SSH_USER,
-                "ssh_private_key": keypath,
-            },
-        ).save()
 
         # Save the test account config to ~/.rh directory in the container
         rh_config = rh.configs.load_defaults_from_file()
@@ -432,10 +430,10 @@ def local_test_account_cluster_public_key(request, test_account, detached=True):
                 f"echo '{rh_config}' > ~/.rh/config.yaml"
             ],
             name="base_env",
-        ).to(c)
+        ).to(base_cluster)
 
         # Yield the cluster
-        yield c
+        yield base_cluster
 
         # Stop the Docker container
         if not detached:
@@ -445,7 +443,7 @@ def local_test_account_cluster_public_key(request, test_account, detached=True):
 
 
 @pytest.fixture(scope="session")
-def shared_cluster(test_account, local_test_account_cluster_public_key):
+def shared_cluster(local_test_account_cluster_public_key, test_account):
     username_to_share = rh.configs.get("username")
     with test_account:
         # Share the cluster with the test account
@@ -478,10 +476,11 @@ def local_docker_cluster_passwd(request, detached=True):
         name="local-docker-slim-password-file-auth",
         host="localhost",
         server_host="0.0.0.0",
+        den_auth=request.config.getoption("--den-auth"),
         ssh_creds={"ssh_user": SSH_USER, "password": pwd},
     )
     rh.env(
-        reqs=["pytest"],
+        reqs=["pytest", "httpx", "pytest_asyncio"],
         working_dir=None,
         setup_cmds=[
             f'mkdir -p ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
@@ -495,6 +494,6 @@ def local_docker_cluster_passwd(request, detached=True):
 
     # Stop the Docker container
     if not detached:
-        client.containers.get("rh-slim-server-password-auth").stop()
+        client.containers.get(container_name).stop()
         client.containers.prune()
         client.images.prune()

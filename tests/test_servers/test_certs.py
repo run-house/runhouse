@@ -1,4 +1,6 @@
 import datetime
+
+import ipaddress
 import os
 import ssl
 import threading
@@ -7,6 +9,7 @@ import warnings
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import requests
@@ -15,8 +18,13 @@ from cryptography.hazmat.backends import default_backend
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from cryptography.x509 import load_pem_x509_certificate
 from cryptography.x509.oid import NameOID
 from requests.exceptions import SSLError
+
+from runhouse.rns.utils.api import resolve_absolute_path
+from runhouse.servers.http.certs import TLSCertConfig
 
 
 # TODO [JL] use docker container fixture to test this?
@@ -39,6 +47,76 @@ def create_test_https_server(
     thread.daemon = True
     thread.start()
     return httpd, sa[1], thread
+
+
+class TestTLSCertConfig(unittest.TestCase):
+    def setUp(self):
+        self.cert_config = TLSCertConfig()
+
+    def test_generate_certs(self):
+        # Generate certificates for a given address
+        address = "127.0.0.1"
+        self.cert_config.generate_certs(address=address)
+
+        self.assertTrue(
+            Path(self.cert_config.cert_path).exists(),
+            "Certificate file was not created.",
+        )
+
+        self.assertTrue(
+            Path(self.cert_config.key_path).exists(),
+            "Private key file was not created.",
+        )
+
+        # Load the certificate and check properties
+        with open(self.cert_config.cert_path, "rb") as cert_file:
+            cert_data = cert_file.read()
+            certificate = load_pem_x509_certificate(cert_data, default_backend())
+            self.assertEqual(
+                certificate.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[
+                    0
+                ].value,
+                "run.house",
+            )
+            self.assertIn(
+                ipaddress.IPv4Address(address),
+                certificate.extensions.get_extension_for_class(
+                    x509.SubjectAlternativeName
+                ).value.get_values_for_type(x509.IPAddress),
+            )
+
+        # Load the private key and check type
+        with open(self.cert_config.key_path, "rb") as key_file:
+            key_data = key_file.read()
+            private_key = load_pem_private_key(
+                key_data, password=None, backend=default_backend()
+            )
+            self.assertTrue(
+                isinstance(private_key, rsa.RSAPrivateKey),
+                "Private key is not an RSA key.",
+            )
+
+    @patch("os.path.abspath")
+    @patch("os.path.expanduser")
+    def test_resolve_absolute_path(self, mock_expanduser, mock_abspath):
+        # Mock the expanduser and abspath to return a mock path
+        mock_expanduser.return_value = "/mocked/home/user/ssl/certs/rh_server.crt"
+        mock_abspath.return_value = "/mocked/absolute/path/to/ssl/certs/rh_server.crt"
+
+        # Call the resolve_absolute_path function
+        resolved_path = resolve_absolute_path(self.cert_config.cert_path)
+
+        # Check that the mocked functions were called with the expected arguments
+        mock_expanduser.assert_called_once_with(self.cert_config.cert_path)
+        mock_abspath.assert_called_once_with(mock_expanduser.return_value)
+
+        # Check that the resolved path matches the mock abspath return value
+        self.assertEqual(resolved_path, mock_abspath.return_value)
+
+    def tearDown(self):
+        # Clean up the generated files
+        Path(self.cert_config.cert_path).unlink(missing_ok=True)
+        Path(self.cert_config.key_path).unlink(missing_ok=True)
 
 
 class TestHTTPSCertValidity(unittest.TestCase):

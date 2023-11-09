@@ -4,12 +4,11 @@ import warnings
 from pathlib import Path
 
 import httpx
+
 import pytest
 import pytest_asyncio
 
 import runhouse as rh
-
-from fastapi.testclient import TestClient
 
 from runhouse.servers.http.http_server import app, HTTPServer
 from runhouse.servers.obj_store import ObjStore
@@ -18,8 +17,8 @@ from tests.conftest import build_and_run_image
 
 # Note: Server will run on local docker container
 BASE_URL = "http://localhost:32300"
-BASE_ENV = "base"
-CACHE_ENV = "auth_cache"
+BASE_ENV_ACTOR_NAME = "base"
+CACHE_ENV_ACTOR_NAME = "auth_cache"
 
 KEYPATH = str(
     Path(
@@ -51,6 +50,7 @@ def http_client():
 
 @pytest_asyncio.fixture(scope="function")
 async def async_http_client():
+
     async with httpx.AsyncClient(base_url=BASE_URL) as client:
         yield client
 
@@ -66,16 +66,19 @@ def local_cluster():
 
 @pytest.fixture(scope="session")
 def local_client():
+    from fastapi.testclient import TestClient
+
     HTTPServer()
     client = TestClient(app)
     yield client
 
 
 @pytest.fixture(scope="function")
-def local_client_with_den_auth(monkeypatch):
-    # Set den_auth to True before initializing the server
-    monkeypatch.setattr(HTTPServer, "DEN_AUTH", True)
+def local_client_with_den_auth():
+    from fastapi.testclient import TestClient
+
     HTTPServer()
+    HTTPServer.enable_den_auth()
     client = TestClient(app)
     yield client
 
@@ -122,10 +125,13 @@ def docker_container(pytestconfig, cluster):
 
     yield
 
-    # Stop the container once all the tests have been run
-    res = subprocess.run(["docker", "stop", container_name])
-    if res.returncode != 0:
-        raise RuntimeError(f"Failed to stop container {container_name}: {res.stderr}")
+    detached = pytestconfig.getoption("--detached")
+    if not detached:
+        res = subprocess.run(["docker", "stop", container_name])
+        if res.returncode != 0:
+            raise RuntimeError(
+                f"Failed to stop container {container_name}: {res.stderr}"
+            )
 
 
 @pytest.fixture(scope="session")
@@ -133,10 +139,10 @@ def base_servlet():
     import ray
 
     try:
-        yield ray.get_actor(BASE_ENV, namespace="runhouse")
+        yield ray.get_actor(BASE_ENV_ACTOR_NAME, namespace="runhouse")
     except Exception as e:
         raise RuntimeError(
-            f"No actor with name {BASE_ENV}, make sure Ray is started: {e}"
+            f"No actor with name {BASE_ENV_ACTOR_NAME}, make sure Ray is started: {e}"
         )
 
 
@@ -145,22 +151,22 @@ def cache_servlet():
     import ray
 
     try:
-        yield ray.get_actor(CACHE_ENV, namespace="runhouse")
+        yield ray.get_actor(CACHE_ENV_ACTOR_NAME, namespace="runhouse")
     except Exception as e:
         raise RuntimeError(
-            f"No actor with name {CACHE_ENV}, make sure Ray is started: {e}"
+            f"No actor with name {CACHE_ENV_ACTOR_NAME}, make sure Ray is started: {e}"
         )
 
 
 @pytest.fixture(scope="session")
 def obj_store(base_servlet):
     obj_store = ObjStore()
-    obj_store.set_name(BASE_ENV)
+    obj_store.set_name(BASE_ENV_ACTOR_NAME)
     yield obj_store
 
 
 @pytest.fixture(scope="session")
-def obj_store_cache(base_servlet):
+def obj_store_auth_cache(base_servlet):
     obj_store = ObjStore()
-    obj_store.set_name(CACHE_ENV)
+    obj_store.set_name(CACHE_ENV_ACTOR_NAME)
     yield obj_store

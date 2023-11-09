@@ -45,7 +45,7 @@ def validate_cluster_access(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         request: Request = kwargs.get("request")
-        use_den_auth: bool = HTTPServer.DEN_AUTH
+        use_den_auth: bool = HTTPServer.get_den_auth()
         is_coro = inspect.iscoroutinefunction(func)
 
         if not use_den_auth:
@@ -79,7 +79,7 @@ def validate_cluster_access(func):
             # Must have cluster access for all the non func calls
             # Note: for func calls will be handling the auth in the object store
             raise HTTPException(
-                status_code=404,
+                status_code=403,
                 detail="Cluster access is required for API",
             )
 
@@ -99,8 +99,8 @@ class HTTPServer:
     DEFAULT_HTTP_PORT = 80
     DEFAULT_HTTPS_PORT = 443
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
-    DEN_AUTH = False
     memory_exporter = None
+    _den_auth = False
 
     def __init__(
         self, conda_env=None, enable_local_span_collection=None, *args, **kwargs
@@ -165,6 +165,14 @@ class HTTPServer:
         obj_store.set_name("server")
 
         HTTPServer.register_activity()
+
+    @classmethod
+    def get_den_auth(cls):
+        return cls._den_auth
+
+    @classmethod
+    def enable_den_auth(cls):
+        cls._den_auth = True
 
     @staticmethod
     def register_activity():
@@ -762,8 +770,9 @@ if __name__ == "__main__":
         enable_local_span_collection=should_enable_local_span_collection,
     )
 
-    # Update den auth with the parsed value - keep as a class attribute to be referenced by the validator decorator
-    HTTPServer.DEN_AUTH = den_auth
+    if den_auth:
+        # Update den auth if enabled - keep as a class attribute to be referenced by the validator decorator
+        HTTPServer.enable_den_auth()
 
     # Custom certs should already be on the cluster if their file paths are provided
     if parsed_ssl_keyfile and not Path(parsed_ssl_keyfile).exists():

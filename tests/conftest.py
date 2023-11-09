@@ -33,7 +33,7 @@ def pytest_addoption(parser):
         default=False,
         help="Force rebuild of the relevant Runhouse image",
     )
-    # Specify --detached False in order to not run in detached mode
+    # Specify "--detached False" in order to not run in detached mode
     parser.addoption(
         "--detached",
         action="store",
@@ -116,6 +116,7 @@ def test_account():
 # ----------------- Clusters -----------------
 
 from tests.test_resources.test_clusters.conftest import (
+    base_cluster,  # noqa: F401
     build_and_run_image,  # noqa: F401
     byo_cpu,  # noqa: F401
     cluster,  # noqa: F401
@@ -156,6 +157,7 @@ from tests.test_resources.test_envs.conftest import (
 
 from tests.test_resources.test_modules.test_blobs.conftest import (
     blob,  # noqa: F401
+    blob_data,  # noqa: F401
     cluster_blob,  # noqa: F401
     cluster_file,  # noqa: F401
     file,  # noqa: F401
