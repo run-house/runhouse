@@ -38,7 +38,8 @@ class AWSLambdaFunction(Function):
     CRED_PATH_WIN = f"{os.path.expanduser('~')}\.aws\credentials"
     GEN_ERROR = "could not create or update the AWS Lambda."
     FAIL_CODE = 1
-    LAMBDA_CLIENT = boto3.client("lambda")
+    DEFAULT_REGION = "us-east-1"
+    LAMBDA_CLIENT = boto3.client("lambda", region_name=DEFAULT_REGION)
     EMPTY_ZIP = -1
 
     def __init__(
