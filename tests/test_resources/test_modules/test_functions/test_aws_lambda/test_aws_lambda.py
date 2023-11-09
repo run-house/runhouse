@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 CUR_WORK_DIR = os.path.dirname(os.path.abspath(__file__))
 TEST_RESOURCES = f"{CUR_WORK_DIR}/test_helpers/lambda_tests"
 DEFAULT_REGION = "us-east-1"
-LAMBDA_CLIENT = boto3.client("lambda", region=DEFAULT_REGION)
+LAMBDA_CLIENT = boto3.client("lambda", region_name=DEFAULT_REGION)
 IAM_CLIENT = boto3.client("iam")
 LAMBDAS_NAMES = set()
 
