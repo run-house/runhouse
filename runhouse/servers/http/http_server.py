@@ -1,43 +1,107 @@
 import argparse
+import inspect
 import json
 import logging
-import subprocess
 import time
 import traceback
+from functools import wraps
 from pathlib import Path
 from typing import Optional
 
 import ray
 import requests
-from fastapi import Body, FastAPI
+from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 from runhouse.globals import configs, env_servlets, rns_client
+from runhouse.resources.hardware.utils import _load_cluster_config
+from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
-from runhouse.servers.servlet import EnvServlet
-from ..http.http_utils import (
+from runhouse.servers.http.auth import hash_token, verify_cluster_access
+from runhouse.servers.http.certs import TLSCertConfig
+from runhouse.servers.http.http_utils import (
     b64_unpickle,
-    DEFAULT_SERVER_HOST,
-    DEFAULT_SERVER_PORT,
+    get_token_from_request,
+    load_current_cluster,
     Message,
     OutputType,
     pickle_b64,
     Response,
 )
+from runhouse.servers.nginx.config import NginxConfig
+from runhouse.servers.servlet import EnvServlet
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
 
+global den_auth
+
+
+def validate_cluster_access(func):
+    """If using Den auth, validate the user's Runhouse token and access to the cluster before continuing."""
+
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        request: Request = kwargs.get("request")
+        use_den_auth: bool = den_auth
+        is_coro = inspect.iscoroutinefunction(func)
+
+        if not use_den_auth:
+            if is_coro:
+                return await func(*args, **kwargs)
+
+            return func(*args, **kwargs)
+
+        token = get_token_from_request(request)
+        if token is None:
+            raise HTTPException(
+                status_code=404,
+                detail="No token found in request auth headers. Expected in "
+                f"format: {json.dumps({'Authorization': 'Bearer <token>'})}",
+            )
+
+        cluster_uri = load_current_cluster()
+        if cluster_uri is None:
+            logger.error(
+                "Failed to load cluster RNS address. Make sure cluster config YAML has been saved "
+                "on the cluster in path: ~/.rh/cluster_config.yaml"
+            )
+            raise HTTPException(
+                status_code=404,
+                detail="Failed to load current cluster. Make sure cluster config YAML exists on the cluster.",
+            )
+
+        func_call: bool = func.__name__ in ["call_module_method", "call"]
+        cluster_access = verify_cluster_access(cluster_uri, token)
+        if not cluster_access and not func_call:
+            # Must have cluster access for all the non func calls
+            # Note: for func calls will be handling the auth in the object store
+            raise HTTPException(
+                status_code=404,
+                detail="Cluster access is required for API",
+            )
+
+        if is_coro:
+            return await func(*args, **kwargs)
+
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
 class HTTPServer:
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     LOGGING_WAIT_TIME = 1
+    DEFAULT_SERVER_HOST = "0.0.0.0"
+    DEFAULT_SERVER_PORT = 32300
+    DEFAULT_HTTP_PORT = 80
+    DEFAULT_HTTPS_PORT = 443
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
-
     memory_exporter = None
 
     def __init__(
@@ -69,7 +133,8 @@ class HTTPServer:
 
             @staticmethod
             @app.get("/spans")
-            def get_spans():
+            @validate_cluster_access
+            def get_spans(request: Request):
                 print("Calling get_spans")
                 return {
                     "spans": [
@@ -108,34 +173,41 @@ class HTTPServer:
         set_last_active_time_to_now()
 
     @staticmethod
-    @app.post("/check")
-    def check_server(message: Message):
-        HTTPServer.register_activity()
-        cluster_config = message.data
+    @app.get("/cert")
+    def get_cert():
+        """Download the certificate file for this server necessary for enabling HTTPS.
+        User must have access to the cluster in order to download the certificate."""
         try:
-            if cluster_config:
-                logger.info(
-                    f"Message received from client to check server: {cluster_config}"
+            certs_config = TLSCertConfig()
+            cert_path = certs_config.cert_path
+
+            if not Path(cert_path).exists():
+                raise FileNotFoundError(
+                    f"No certificate found on cluster in path: {cert_path}"
                 )
-                rh_dir = Path("~/.rh").expanduser()
-                rh_dir.mkdir(exist_ok=True)
-                (rh_dir / "cluster_config.yaml").write_text(cluster_config)
-                # json.dump(cluster_config, open(rh_dir / "cluster_config.yaml", "w"), indent=4)
 
-            # Check if Ray is deadlocked
-            # Get `ray status` from command line
-            status = subprocess.check_output(["ray", "status"]).decode("utf-8")
+            with open(cert_path, "rb") as cert_file:
+                cert = cert_file.read()
 
-            import runhouse
-            from runhouse.resources.hardware.utils import (
-                _current_cluster,
-                _get_cluster_from,
+            return Response(data=pickle_b64(cert), output_type=OutputType.RESULT)
+
+        except Exception as e:
+            logger.exception(e)
+            return Response(
+                error=pickle_b64(e),
+                traceback=pickle_b64(traceback.format_exc()),
+                output_type=OutputType.EXCEPTION,
             )
 
-            # Reset here in case it was set before the config was written down, making here=="file"
-            runhouse.here = _get_cluster_from(_current_cluster("config"))
-
-            return Response(data=pickle_b64(status), output_type=OutputType.RESULT)
+    @staticmethod
+    @app.get("/check")
+    def check_server():
+        try:
+            HTTPServer.register_activity()
+            if not ray.is_initialized():
+                raise Exception("Ray is not initialized, restart the server.")
+            logger.info("Server is up.")
+            return
         except Exception as e:
             logger.exception(e)
             HTTPServer.register_activity()
@@ -225,7 +297,8 @@ class HTTPServer:
 
     @staticmethod
     @app.post("/resource")
-    def put_resource(message: Message):
+    @validate_cluster_access
+    def put_resource(request: Request, message: Message):
         # if resource is env and not yet a servlet, construct env servlet
         if message.env and message.env not in env_servlets.keys():
             resource = b64_unpickle(message.data)[0]
@@ -254,7 +327,12 @@ class HTTPServer:
 
     @staticmethod
     @app.post("/{module}/{method}")
-    def call_module_method(module, method=None, message: dict = Body(...)):
+    @validate_cluster_access
+    def call_module_method(
+        request: Request, module, method=None, message: dict = Body(...)
+    ):
+        token = get_token_from_request(request)
+        token_hash = hash_token(token) if den_auth else None
         # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
@@ -266,9 +344,7 @@ class HTTPServer:
                 Message(stream_logs=False, key=module) if not method else Message()
             )
             env = message.env or HTTPServer.lookup_env_for_name(module)
-            persist = (
-                message.run_async or message.remote or message.save
-            ) or not method
+            persist = message.run_async or message.remote or message.save or not method
             if method:
                 # TODO fix the way we generate runkeys, it's ugly
                 message.key = message.key or _generate_default_name(
@@ -281,7 +357,7 @@ class HTTPServer:
                 # Unless we're returning a fast response, we discard this obj_ref
                 obj_ref = HTTPServer.call_in_env_servlet(
                     "call_module_method",
-                    [module, method, message],
+                    [module, method, message, token_hash, den_auth],
                     env=env,
                     create=True,
                     block=False,
@@ -385,8 +461,7 @@ class HTTPServer:
                     if not ret_val.output_type == OutputType.RESULT_STREAM:
                         waiting_for_results = False
                     ret_resp = json.dumps(jsonable_encoder(ret_val))
-                    logger.info(f"Yielding response for key {key}")
-                    yield ret_resp
+                    yield ret_resp + "\n"
                 except ray.exceptions.GetTimeoutError:
                     pass
 
@@ -414,7 +489,7 @@ class HTTPServer:
                         output_type=OutputType.STDOUT,
                     )
                     logger.debug(f"Yielding logs for key {key}")
-                    yield json.dumps(jsonable_encoder(lines_resp))
+                    yield json.dumps(jsonable_encoder(lines_resp)) + "\n"
 
         except Exception as e:
             logger.exception(e)
@@ -440,35 +515,40 @@ class HTTPServer:
 
     @staticmethod
     @app.post("/object")
-    def put_object(message: Message):
+    @validate_cluster_access
+    def put_object(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
             "put_object", [message.key, message.data], env=message.env, create=True
         )
 
     @staticmethod
     @app.put("/object")
-    def rename_object(message: Message):
+    @validate_cluster_access
+    def rename_object(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
             "rename_object", [message], env=message.env
         )
 
     @staticmethod
     @app.delete("/object")
-    def delete_obj(message: Message):
+    @validate_cluster_access
+    def delete_obj(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
             "delete_obj", [message], env=message.env, lookup_env_for_name=message.key
         )
 
     @staticmethod
     @app.post("/cancel")
-    def cancel_run(message: Message):
+    @validate_cluster_access
+    def cancel_run(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
             "cancel_run", [message], env=message.env, lookup_env_for_name=message.key
         )
 
     @staticmethod
     @app.get("/keys")
-    def get_keys(env: Optional[str] = None):
+    @validate_cluster_access
+    def get_keys(request: Request, env: Optional[str] = None):
         from runhouse.globals import obj_store
 
         if not env:
@@ -479,14 +559,17 @@ class HTTPServer:
 
     @staticmethod
     @app.post("/secrets")
-    def add_secrets(message: Message):
+    @validate_cluster_access
+    def add_secrets(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
             "add_secrets", [message], env=message.env, create=True
         )
 
     @staticmethod
     @app.post("/call/{module}/{method}")
+    @validate_cluster_access
     async def call(
+        request: Request,
         module,
         method=None,
         args: dict = Body(),
@@ -494,9 +577,11 @@ class HTTPServer:
     ):
         kwargs = args.get("kwargs", {})
         args = args.get("args", [])
+        token = get_token_from_request(request)
+        token_hash = hash_token(token) if den_auth else None
         resp = HTTPServer.call_in_env_servlet(
             "call",
-            [module, method, args, kwargs, serialization],
+            [module, method, args, kwargs, serialization, token_hash, den_auth],
             create=True,
             lookup_env_for_name=module,
         )
@@ -520,11 +605,9 @@ class HTTPServer:
     @staticmethod
     def _cluster_status_report():
         import ray._private.usage.usage_lib as ray_usage_lib
-        from ray._private import gcs_utils
+        from ray._raylet import GcsClient
 
-        gcs_client = gcs_utils.GcsClient(
-            address="127.0.0.1:6379", nums_reconnect_retry=20
-        )
+        gcs_client = GcsClient(address="127.0.0.1:6379", nums_reconnect_retry=20)
 
         # fields : ['ray_version', 'python_version']
         cluster_metadata = ray_usage_lib.get_cluster_metadata(gcs_client)
@@ -568,7 +651,7 @@ class HTTPServer:
 
         payload = json.dumps(payload)
         resp = requests.post(
-            f"{configs.get('api_server_url')}/admin/logs", data=json.dumps(payload)
+            f"{rns_client.api_server_url}/admin/logs", data=json.dumps(payload)
         )
 
         if resp.status_code == 405:
@@ -582,32 +665,184 @@ class HTTPServer:
 
 
 if __name__ == "__main__":
+    import uvicorn
+
+    rh_server_host = HTTPServer.DEFAULT_SERVER_HOST
+    rh_server_port = HTTPServer.DEFAULT_SERVER_PORT
+    default_http_port = HTTPServer.DEFAULT_HTTP_PORT
+    default_https_port = HTTPServer.DEFAULT_HTTPS_PORT
+    http_port, https_port, ssl_keyfile, ssl_certfile = None, None, None, None
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--host", type=str, default=DEFAULT_SERVER_HOST, help="Host to run server on"
+        "--host",
+        type=str,
+        default=None,
+        help=f"Host to run server on. By default will run on {rh_server_host}",
     )
     parser.add_argument(
-        "--port", type=int, default=DEFAULT_SERVER_PORT, help="Port to run server on"
+        "--port",
+        type=int,
+        default=None,
+        help=f"Port to run server on. If not provided will run on {default_https_port} if HTTPS is enabled, "
+        f"{default_http_port} if HTTP is enabled, and {rh_server_port} if connecting to the server via SSH",
     )
     parser.add_argument(
-        "--conda_env", type=str, default=None, help="Conda env to run server in"
+        "--conda-env", type=str, default=None, help="Conda env to run server in"
     )
     parser.add_argument(
-        "--enable_local_span_collection",
+        "--enable-local-span-collection",
         type=bool,
         default=None,
         help="Enable local span collection",
     )
+    parser.add_argument(
+        "--use-https",
+        action="store_true",  # if providing --use-https will be set to True
+        help="Start an HTTPS server with new TLS certs",
+    )
+    parser.add_argument(
+        "--use-den-auth",
+        action="store_true",  # if providing --use-den-auth will be set to True
+        help="Whether to authenticate requests with a Runhouse token",
+    )
+    parser.add_argument(
+        "--ssl-keyfile",
+        type=str,
+        default=None,
+        help="Path to SSL key file on the cluster to use for HTTPS",
+    )
+    parser.add_argument(
+        "--ssl-certfile",
+        type=str,
+        default=None,
+        help="Path to SSL cert file on the cluster to use for HTTPS",
+    )
+    parser.add_argument(
+        "--restart-proxy",
+        action="store_true",  # if providing --restart-proxy will be set to True
+        help="Reconfigure Nginx",
+    )
+    parser.add_argument(
+        "--use-nginx",
+        action="store_true",  # if providing --use-nginx will be set to True
+        help="Configure Nginx as a reverse proxy",
+    )
+    parser.add_argument(
+        "--certs-address",
+        type=str,
+        default=None,
+        help="Address to use for generating self-signed certs and enabling HTTPS. (e.g. public IP address)",
+    )
+
+    cluster_config = _load_cluster_config()
     parse_args = parser.parse_args()
+
+    conda_name = parse_args.conda_env
     host = parse_args.host
     port = parse_args.port
-    conda_name = parse_args.conda_env
+    use_https = parse_args.use_https
+    restart_proxy = parse_args.restart_proxy
+    use_nginx = parse_args.use_nginx
     should_enable_local_span_collection = parse_args.enable_local_span_collection
+    den_auth = parse_args.use_den_auth or cluster_config.get("den_auth")
 
-    import uvicorn
+    ips = cluster_config.get("ips", [])
+    address = parse_args.certs_address or ips[0] if ips else None
+
+    # If custom certs are provided explicitly use them
+    keyfile_arg = parse_args.ssl_keyfile
+    parsed_ssl_keyfile = resolve_absolute_path(keyfile_arg) if keyfile_arg else None
+
+    certfile_arg = parse_args.ssl_certfile
+    parsed_ssl_certfile = resolve_absolute_path(certfile_arg) if certfile_arg else None
 
     HTTPServer(
         conda_env=conda_name,
         enable_local_span_collection=should_enable_local_span_collection,
     )
-    uvicorn.run(app, host=host, port=port)
+
+    # Custom certs should already be on the cluster if their file paths are provided
+    if parsed_ssl_keyfile and not Path(parsed_ssl_keyfile).exists():
+        raise FileNotFoundError(
+            f"No SSL key file found on cluster in path: {parsed_ssl_keyfile}"
+        )
+
+    if parsed_ssl_certfile and not Path(parsed_ssl_certfile).exists():
+        raise FileNotFoundError(
+            f"No SSL cert file found on cluster in path: {parsed_ssl_certfile}"
+        )
+
+    if use_https:
+        # If not using nginx and no port is specified use the default RH port
+        https_port = port or (default_https_port if use_nginx else rh_server_port)
+        logger.info(f"Launching HTTPS server on port: {https_port}.")
+
+        cert_config = TLSCertConfig()
+        ssl_keyfile = resolve_absolute_path(parsed_ssl_keyfile or cert_config.key_path)
+        ssl_certfile = resolve_absolute_path(
+            parsed_ssl_certfile or cert_config.cert_path
+        )
+
+        if not Path(ssl_keyfile).exists() and not Path(ssl_certfile).exists():
+            if https_port != default_https_port:
+                # if using a custom HTTPS port must provide private key file and certs explicitly
+                raise FileNotFoundError(
+                    f"Could not find SSL private key and cert files on the cluster, which are required when specifying"
+                    f"a custom port ({https_port}). Please specify the paths using the --ssl-certfile and "
+                    f"--ssl-keyfile flags."
+                )
+
+            cert_config.generate_certs(address=address)
+            logger.info(
+                f"Generated new self-signed cert and private key files on the cluster in "
+                f"paths: {cert_config.cert_path} and {cert_config.key_path}"
+            )
+    else:
+        # If not using nginx and no port is specified use the default RH port
+        http_port = port or (default_http_port if use_nginx else rh_server_port)
+        logger.info(f"Launching HTTP server on port: {http_port}.")
+
+    # Note: running the FastAPI app on a higher, non-privileged port (8000) and using Nginx as a reverse
+    # proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the app's port.
+    if use_nginx:
+        logger.info("Configuring Nginx")
+        if address is None:
+            raise ValueError(
+                "Must provide the server address to configure Nginx. No address found in the server "
+                "start command (--certs-address) or in the cluster config YAML saved on the cluster."
+            )
+
+        nc = NginxConfig(
+            address=address,
+            rh_server_port=rh_server_port,
+            http_port=http_port,
+            https_port=https_port,
+            ssl_key_path=ssl_keyfile,
+            ssl_cert_path=ssl_certfile,
+            force_reinstall=restart_proxy,
+        )
+        nc.configure()
+
+        if use_https and (parsed_ssl_keyfile or parsed_ssl_certfile):
+            # reload nginx in case updated certs were provided
+            nc.reload()
+
+        logger.info("Nginx will forward all traffic to the API server")
+
+    host = host or rh_server_host
+    logger.info(
+        f"Launching Runhouse API server with den_auth={den_auth} on host: {host} and port: {rh_server_port}"
+    )
+
+    # Only launch uvicorn with certs if HTTPS is enabled and not using Nginx
+    uvicorn_cert = ssl_certfile if not use_nginx and use_https else None
+    uvicorn_key = ssl_keyfile if not use_nginx and use_https else None
+
+    uvicorn.run(
+        app,
+        host=host,
+        port=rh_server_port,
+        ssl_certfile=uvicorn_cert,
+        ssl_keyfile=uvicorn_key,
+    )

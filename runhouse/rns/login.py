@@ -117,11 +117,14 @@ def login(
         configs.upload_defaults(defaults=configs.defaults_cache)
     else:
         # If we are not downloading or uploading config, we still want to make sure the token is valid
+        # and also download the username and default folder
         try:
-            configs.download_defaults()
+            defaults = configs.download_defaults()
         except:
             logger.error("Failed to validate token")
             return None
+        configs.set("username", defaults["username"])
+        configs.set("default_folder", defaults["default_folder"])
 
     if download_secrets:
         Secrets.download_into_env()
@@ -175,8 +178,10 @@ def logout(
         else:
             configs.delete(provider_name)
 
-    # Delete token from rh config file
+    # Delete token and username/default folder from rh config file
     configs.delete(key="token")
+    configs.delete(key="username")
+    configs.delete(key="default_folder")
 
     rh_config_path = configs.CONFIG_PATH
     if not delete_rh_config_file and interactive_session:

@@ -10,9 +10,10 @@ import runhouse as rh
 
 logger = logging.getLogger(__name__)
 CUR_WORK_DIR = os.path.dirname(os.path.abspath(__file__))
-TEST_RESOURCES = f"{CUR_WORK_DIR}/test_resources/lambda_tests"
+TEST_RESOURCES = f"{CUR_WORK_DIR}/test_helpers/lambda_tests"
 LAMBDA_CLIENT = boto3.client("lambda")
 IAM_CLIENT = boto3.client("iam")
+LAMBDAS_NAMES = set()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -20,7 +21,7 @@ def download_resources():
     curr_folder = os.getcwd()
     s3_resource = boto3.resource("s3")
     bucket = s3_resource.Bucket("runhouse-lambda-resources")
-    remoteDirectoryName = "test_resources/lambda_tests"
+    remoteDirectoryName = "test_helpers/lambda_tests"
     objs = bucket.objects.filter(Prefix=remoteDirectoryName)
     for obj in objs:
         dir_name = "/".join(obj.key.split("/")[:-1])
@@ -56,6 +57,7 @@ def test_create_and_run_no_layers():
     reload_func = rh.aws_lambda_function(name=name)
     res2 = reload_func(12, 7)
     assert res2 == "19"
+    LAMBDAS_NAMES.add(my_lambda.lambda_name)
 
 
 def test_load_not_existing_lambda():
@@ -85,6 +87,7 @@ def test_create_and_run_generate_name():
     time.sleep(1)
     res2 = reload_func(12, 7)
     assert res2 == "19"
+    LAMBDAS_NAMES.add(my_lambda.lambda_name)
 
 
 def test_create_and_run_layers():
@@ -101,6 +104,7 @@ def test_create_and_run_layers():
     time.sleep(4)  # letting the lambda be updated in AWS.
     res = my_lambda([1, 2, 3], [1, 2, 3])
     assert res == "12"
+    LAMBDAS_NAMES.add(my_lambda.lambda_name)
 
 
 def test_different_runtimes_and_layers():
@@ -117,6 +121,7 @@ def test_different_runtimes_and_layers():
     time.sleep(4)  # letting the lambda be updated in AWS.
     res37 = my_lambda_37([1, 2, 3], [2, 5, 6])
     assert res37 == "19"
+    LAMBDAS_NAMES.add(my_lambda_37.lambda_name)
 
     my_lambda_38 = rh.aws_lambda_function(
         paths_to_code=handler_path,
@@ -129,6 +134,7 @@ def test_different_runtimes_and_layers():
     time.sleep(4)  # letting the lambda be updated in AWS.
     res38 = my_lambda_38([1, 2, 3], [12, 5, 9])
     assert res38 == "32"
+    LAMBDAS_NAMES.add(my_lambda_38.lambda_name)
 
     my_lambda_310 = rh.aws_lambda_function(
         paths_to_code=handler_path,
@@ -141,6 +147,7 @@ def test_different_runtimes_and_layers():
     time.sleep(4)  # letting the lambda be updated in AWS.
     res310 = my_lambda_310([-2, 5, 1], [12, 5, 9])
     assert res310 == "30"
+    LAMBDAS_NAMES.add(my_lambda_310.lambda_name)
 
     my_lambda_311 = rh.aws_lambda_function(
         paths_to_code=handler_path,
@@ -153,6 +160,7 @@ def test_different_runtimes_and_layers():
     time.sleep(4)  # letting the lambda be updated in AWS.
     res311 = my_lambda_311([-2, 5, 1], [8, 7, 6])
     assert res311 == "25"
+    LAMBDAS_NAMES.add(my_lambda_311.lambda_name)
 
 
 def test_create_and_run_layers_txt():
@@ -164,11 +172,12 @@ def test_create_and_run_layers_txt():
         runtime="python3.9",
         args_names=["arr1", "arr2"],
         name=name,
-        env=f"{os.getcwd()}/test_resources/lambda_tests/requirements.txt",
+        env=f"{os.getcwd()}/test_helpers/lambda_tests/requirements.txt",
     )
     time.sleep(5)  # letting the lambda be updated in AWS.
     res = my_lambda([1, 2, 3], [1, 2, 3])
     assert res == "12"
+    LAMBDAS_NAMES.add(my_lambda.lambda_name)
 
 
 def test_update_lambda_one_file():
@@ -188,6 +197,7 @@ def test_update_lambda_one_file():
     time.sleep(1)
     res2 = reload_func(12, 13)
     assert res2 == "25"
+    LAMBDAS_NAMES.add(my_lambda.lambda_name)
 
 
 def test_mult_files_each():
@@ -224,6 +234,7 @@ def test_mult_files_each():
     assert res2 == "3.2"
     assert res3 == "22.5"
     assert res4 == "7.5"
+    LAMBDAS_NAMES.add(my_lambda_calc_1.lambda_name)
 
 
 def test_few_python_files_chain():
@@ -258,6 +269,7 @@ def test_few_python_files_chain():
     assert res2 == "17"
     assert res3 == "20"
     assert res4 == "20"
+    LAMBDAS_NAMES.add(my_lambda_calc_2.lambda_name)
 
 
 def test_args():
@@ -303,6 +315,7 @@ def test_create_from_config():
     assert res1 == "3"
     assert res2 == "20"
     assert res3 == "31"
+    LAMBDAS_NAMES.add(config_lambda.lambda_name)
 
 
 def test_share_lambda():
@@ -318,8 +331,19 @@ def test_share_lambda():
 
 def test_remove_resources():
     curr_folder = os.getcwd()
-    remoteDirectoryName = "test_resources"
+    remoteDirectoryName = "test_helpers"
     shutil.rmtree(f"{curr_folder}/{remoteDirectoryName}")
+    for lambda_name in LAMBDAS_NAMES:
+        policy_name = f"{lambda_name}_Policy"
+        role_name = f"{lambda_name}_Role"
+        del_policy = IAM_CLIENT.delete_role_policy(
+            RoleName=role_name, PolicyName=policy_name
+        )
+        del_role = IAM_CLIENT.delete_role(RoleName=role_name)
+        del_lambda = LAMBDA_CLIENT.delete_function(FunctionName=lambda_name)
+        assert del_policy is not None
+        assert del_role is not None
+        assert del_lambda is not None
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ import pytest
 
 import runhouse as rh
 
-from .test_cluster import np_array, sd_generate_image
+from tests.test_resources.test_clusters.cluster_tests import np_array, sd_generate_image
 
 
 @unittest.skip("Support for multiple live clusters not yet implemented")
@@ -48,13 +48,16 @@ def test_create_and_run_sagemaker_training_job(sm_source_dir, sm_entry_point):
 
     dotenv.load_dotenv()
 
+    role_arn = os.getenv("AWS_ROLE_ARN")
+    assert role_arn
+
     cluster_name = "rh-sagemaker-training"
 
     # https://sagemaker.readthedocs.io/en/stable/api/training/estimators.html#sagemaker.estimator.EstimatorBase
     estimator = PyTorch(
         entry_point=sm_entry_point,
         # Estimator requires a role ARN (can't be a profile)
-        role=os.getenv("AWS_ROLE_ARN"),
+        role=role_arn,
         # Script can sit anywhere in the file system
         source_dir=sm_source_dir,
         framework_version="2.1.0",
@@ -97,6 +100,27 @@ def test_stable_diffusion_on_sm_gpu(sm_gpu_cluster):
 
     sm_gpu_cluster.teardown_and_delete()
     assert not sm_gpu_cluster.is_up()
+
+
+@pytest.mark.clustertest
+def test_restart_sm_cluster_with_den_auth(sm_cluster_with_auth, summer_func_sm_auth):
+    from runhouse.globals import configs
+
+    # Create an invalid token, confirm the server does not accept the request
+    orig_token = configs.get("token")
+
+    # Request should return 200 with valid token
+    summer_func_sm_auth(1, 2)
+
+    configs.set("token", "abcd123")
+
+    # Request should raise an exception with an invalid token
+    try:
+        summer_func_sm_auth(1, 2)
+    except ValueError as e:
+        assert "Invalid or expired token" in str(e)
+
+    configs.set("token", orig_token)
 
 
 if __name__ == "__main__":

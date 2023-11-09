@@ -1,8 +1,13 @@
 import json
 import logging
 import time
+import warnings
+from pathlib import Path
+from typing import Dict, Union
 
 import requests
+
+from runhouse.globals import rns_client
 
 from runhouse.resources.envs.utils import _get_env_from
 
@@ -17,14 +22,46 @@ class HTTPClient:
     Client for cluster RPCs
     """
 
-    DEFAULT_PORT = 50052
+    DEFAULT_PORT = 32300
     MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     CHECK_TIMEOUT_SEC = 10
 
-    def __init__(self, host, port=DEFAULT_PORT, auth=None):
+    def __init__(
+        self, host: str, port: int, auth=None, cert_path=None, use_https=False
+    ):
         self.host = host
         self.port = port
         self.auth = auth
+        self.cert_path = cert_path
+        self.use_https = use_https
+        self.verify = self._use_cert_verification()
+
+    def _use_cert_verification(self):
+        if not self.use_https:
+            return False
+
+        from cryptography import x509
+        from cryptography.hazmat.backends import default_backend
+
+        cert_path = Path(self.cert_path)
+        if not cert_path.exists():
+            return False
+
+        # Check whether the cert is self-signed, if so we cannot use verification
+        with open(cert_path, "rb") as cert_file:
+            cert = x509.load_pem_x509_certificate(cert_file.read(), default_backend())
+
+        if cert.issuer == cert.subject:
+            warnings.warn(
+                f"Cert in use ({cert_path}) is self-signed, cannot verify in requests to server."
+            )
+            return False
+
+        return True
+
+    def _formatted_url(self, endpoint: str):
+        prefix = "https" if self.use_https else "http"
+        return f"{prefix}://{self.host}:{self.port}/{endpoint}"
 
     def request(
         self,
@@ -37,7 +74,10 @@ class HTTPClient:
         key=None,
         err_str=None,
         timeout=None,
+        headers: Union[Dict, None] = None,
     ):
+        # Support use case where we explicitly do not want to provide headers (e.g. requesting a cert)
+        headers = rns_client.request_headers if headers != {} else headers
         req_fn = (
             requests.get
             if req_type == "get"
@@ -50,7 +90,7 @@ class HTTPClient:
         endpoint = endpoint.strip("/")
         endpoint = (endpoint + "/") if "?" not in endpoint else endpoint
         response = req_fn(
-            f"http://{self.host}:{self.port}/{endpoint}",
+            self._formatted_url(endpoint),
             json={
                 "data": data,
                 "env": env,
@@ -60,6 +100,8 @@ class HTTPClient:
             },
             timeout=timeout,
             auth=self.auth,
+            headers=headers,
+            verify=self.verify,
         )
         if response.status_code != 200:
             raise ValueError(
@@ -69,13 +111,23 @@ class HTTPClient:
         output_type = resp_json["output_type"]
         return handle_response(resp_json, output_type, err_str)
 
-    def check_server(self, cluster_config=None):
-        self.request(
-            "check",
-            req_type="post",
-            data=json.dumps(cluster_config, indent=4),
+    def check_server(self):
+        requests.get(
+            self._formatted_url("check"),
             timeout=self.CHECK_TIMEOUT_SEC,
+            verify=self.verify,
         )
+
+    def get_certificate(self):
+        cert: bytes = self.request(
+            "cert",
+            req_type="get",
+            headers={},
+        )
+        # Create parent directory to store the cert
+        Path(self.cert_path).parent.mkdir(parents=True, exist_ok=True)
+        with open(self.cert_path, "wb") as file:
+            file.write(cert)
 
     def call_module_method(
         self,
@@ -101,7 +153,7 @@ class HTTPClient:
             + (f".{method_name}" if method_name else "")
         )
         res = requests.post(
-            f"http://{self.host}:{self.port}/{module_name}/{method_name}/",
+            self._formatted_url(f"{module_name}/{method_name}"),
             json={
                 "data": pickle_b64([args, kwargs]),
                 "env": env,
@@ -112,6 +164,8 @@ class HTTPClient:
                 "run_async": run_async,
             },
             stream=not run_async,
+            headers=rns_client.request_headers,
+            verify=self.verify,
         )
         if res.status_code != 200:
             raise ValueError(
@@ -122,7 +176,7 @@ class HTTPClient:
         # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single result,
         # maybe a stream of results), so we need to separate these out.
         non_generator_result = None
-        res_iter = iter(res.iter_content(chunk_size=None))
+        res_iter = res.iter_lines(chunk_size=None)
         for responses_json in res_iter:
             resp = json.loads(responses_json)
             output_type = resp["output_type"]

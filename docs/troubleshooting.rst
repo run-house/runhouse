@@ -24,7 +24,7 @@ you may perform the following manual setup steps.
 
    .. code::
 
-        ssh user@host -L 50052:localhost:50052
+        ssh user@host -L 32300:localhost:32300
 
 3. Install Runhouse on the remote box using the same command as in step 1:
 
@@ -123,3 +123,38 @@ Q: I'm running into an rsync error.
    Rsync is finicky and we are working to support more reliable file syncing. In the meantime, please refer to the
    Manual Package syncing instructions above. It is also worth noting that rsync will throw an error if ``.bashrc``
    outputs anything to the terminal. See `Issue <https://github.com/run-house/runhouse/issues/91>`_.
+
+Q: I'm running into a few (usually 5) consecutive errors of the following form:
+
+   .. code::
+
+        INFO     runhouse.resources.hardware.cluster:cluster.py:404 Checking server rh-cpu again [1/5].
+        ERROR    paramiko.transport:transport.py:1893 Secsh channel 1 open FAILED: Connection refused: Connect failed
+        ERROR    sshtunnel.SSHTunnelForwarder:sshtunnel.py:394 Could not establish connection from local ('127.0.0.1', 50052) to remote ('127.0.0.1', 50052) side of the tunnel: open new channel ssh error: ChannelException(2, 'Connect failed')
+
+
+   1. Run the tests in ``test_module.py`` and see if the issue reproduces:
+
+   .. code::
+
+        pytest tests/test_module.py -s
+
+   2. If you see the same error(s), SSH into ``rh-cpu``:
+
+   .. code::
+
+        ssh rh-cpu
+
+   3. Check if you can resume the latest screen:
+
+   .. code::
+
+        screen -r
+
+   4. If the result is ``There is no screen to be resumed.``, it means the Runhouse server is not up. Start it using:
+
+   .. code::
+
+        runhouse start
+
+   5. Observe the output for any errors e.g. ``ImportError: ...`` and fix them

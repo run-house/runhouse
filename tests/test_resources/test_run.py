@@ -19,6 +19,25 @@ RUN_FILES = (
 )
 
 
+@pytest.fixture(scope="session")
+def submitted_run(summer_func):  # noqa: F811
+    """Initializes a Run, which will run synchronously on the cluster. Returns the function's result."""
+    run_name = "synchronous_run"
+    res = summer_func(1, 2, run_name=run_name)
+    assert res == 3
+    return run_name
+
+
+@pytest.fixture(scope="session")
+def submitted_async_run(summer_func):  # noqa: F811
+    """Execute function async on the cluster. If a run already exists, do not re-run. Returns a Run object."""
+    run_name = "async_run"
+    async_run = summer_func.run(run_name=run_name, a=1, b=2)
+
+    assert isinstance(async_run, rh.Run)
+    return run_name
+
+
 # ------------------------- FUNCTION RUN ----------------------------------
 
 

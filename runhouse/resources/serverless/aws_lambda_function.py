@@ -12,7 +12,6 @@ import boto3
 
 from runhouse.resources.function import Function
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -127,7 +126,7 @@ class AWSLambdaFunction(Function):
 
     @classmethod
     def from_name(cls, name, dryrun=False, alt_options=None):
-        if cls._lambda_exist(cls):
+        if cls._lambda_exist(cls, name):
             func = super().from_name(name=name)
             return func.to()
         else:
@@ -137,6 +136,8 @@ class AWSLambdaFunction(Function):
                 " wish), in order to create a new lambda."
             )
             return "LambdaNotFoundInAWS"
+
+    # ----------------- Private helping methods -----------------
 
     @classmethod
     def _check_for_child_configs(cls, config):
@@ -161,13 +162,13 @@ class AWSLambdaFunction(Function):
             reqs = [_get_lib_name(req) for req in reqs]
         return reqs
 
-    def _lambda_exist(self):
+    def _lambda_exist(self, name):
         """Checks if a Lambda with the name given during init is already exists in AWS"""
         func_names = [
             func["FunctionName"]
             for func in self.LAMBDA_CLIENT.list_functions()["Functions"]
         ]
-        return self.name in func_names
+        return name in func_names
 
     def _wait_until_update_is_finished(self, name):
         """Verifies that a running update of the function (in AWS) is finished (so the next one could be executed)"""
@@ -356,7 +357,6 @@ class AWSLambdaFunction(Function):
     def _update_lambda_config(self, env_vars):
         """Updates existing Lambda in AWS (config) that was provided in the init."""
         time.sleep(4)
-        lambda_config = {}
         logger.info(f"Updating a Lambda called {self.name}")
         layers = []
         if self.layer:
@@ -457,7 +457,7 @@ class AWSLambdaFunction(Function):
             RoleName=f"{self.name}_Role",
             AssumeRolePolicyDocument=json.dumps(assume_role_policy_document),
         )
-        time.sleep(4)
+        time.sleep(5)
 
         logger.info(f'{role_res["Role"]["RoleName"]} was created successfully.')
 
@@ -471,7 +471,6 @@ class AWSLambdaFunction(Function):
 
         layers = []
         if self.layer:
-
             self.LAMBDA_CLIENT.add_layer_version_permission(
                 LayerName=self.name + "_layer",
                 VersionNumber=self.layer_version,
@@ -479,7 +478,7 @@ class AWSLambdaFunction(Function):
                 Action="lambda:GetLayerVersion",
                 Principal="*",
             )
-            time.sleep(4)  # letting the role be updated in AWS
+            time.sleep(5)  # letting the role be updated in AWS
 
             layers.append(self.layer)
 
@@ -493,7 +492,7 @@ class AWSLambdaFunction(Function):
                 Action="lambda:GetLayerVersion",
                 Principal="*",
             )
-            time.sleep(4)  # letting the role be updated in AWS
+            time.sleep(5)  # letting the role be updated in AWS
 
         if len(layers) > 0:
 
@@ -557,7 +556,7 @@ class AWSLambdaFunction(Function):
         env_vars = self.env_vars if self.env_vars else {}
 
         # if function exist - will update it. Else, a new one will be created.
-        if self._lambda_exist():
+        if self._lambda_exist(self.name):
             # updating the configuration with the initial configuration.
             # TODO: enable the user to change the config of the Lambda.
             lambda_config = self._update_lambda_config(env_vars)
@@ -643,6 +642,7 @@ class AWSLambdaFunction(Function):
 
         return [self.call(*args, **kwargs) for args in args_lists]
 
+    # ----------------- Properties setup -----------------
     @property
     def config_for_rns(self):
         config = super().config_for_rns
@@ -660,6 +660,10 @@ class AWSLambdaFunction(Function):
             }
         )
         return config
+
+    @property
+    def lambda_name(self):
+        return self.name
 
 
 def aws_lambda_function(

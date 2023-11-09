@@ -32,7 +32,7 @@ except ImportError:
 from sshtunnel import BaseSSHTunnelForwarderError, SSHTunnelForwarder
 
 from runhouse.globals import configs, open_cluster_tunnels, rns_client
-from runhouse.rns.utils.api import is_jsonable, resolve_absolute_path
+from runhouse.rns.utils.api import is_jsonable, relative_ssh_path, resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 
 from .cluster import Cluster
@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 
 class SageMakerCluster(Cluster):
-    DEFAULT_HOST = "localhost"
+    DEFAULT_SERVER_HOST = "localhost"
     DEFAULT_INSTANCE_TYPE = "ml.m5.large"
     DEFAULT_REGION = "us-east-1"
     DEFAULT_USER = "root"
@@ -55,7 +55,6 @@ class SageMakerCluster(Cluster):
     SSH_KEY_FILE_NAME = "sagemaker-ssh-gw"
 
     DEFAULT_SSH_PORT = 11022
-    DEFAULT_HTTP_PORT = 50052
     DEFAULT_CONNECTION_WAIT_TIME = 60  # seconds
 
     def __init__(
@@ -73,6 +72,12 @@ class SageMakerCluster(Cluster):
         connection_wait_time: int = None,
         estimator: Union["EstimatorBase", Dict] = None,
         job_name: str = None,
+        server_host: str = None,
+        server_port: int = None,
+        server_connection_type: str = None,
+        ssl_keyfile: str = None,
+        ssl_certfile: str = None,
+        den_auth: bool = False,
         dryrun=False,
         **kwargs,
     ):
@@ -84,7 +89,17 @@ class SageMakerCluster(Cluster):
         .. note::
             To build a cluster, please use the factory method :func:`sagemaker_cluster`.
         """
-        super().__init__(name=name, ssh_creds={}, dryrun=dryrun)
+        super().__init__(
+            name=name,
+            ssh_creds={},
+            server_host=server_host,
+            server_port=server_port,
+            server_connection_type=server_connection_type,
+            ssl_certfile=ssl_certfile,
+            ssl_keyfile=ssl_keyfile,
+            den_auth=den_auth,
+            dryrun=dryrun,
+        )
         self._connection_wait_time = connection_wait_time
         self._instance_type = instance_type
         self._instance_count = instance_count
@@ -95,7 +110,7 @@ class SageMakerCluster(Cluster):
         self._ssh_wrapper = None
 
         # Keep track of the ports used for forwarding to the cluster
-        self._local_port = self.DEFAULT_HTTP_PORT
+        self._local_port = self.DEFAULT_SERVER_PORT
         self._ssh_port = self.DEFAULT_SSH_PORT
 
         # Note: Relevant only if an estimator is explicitly provided
@@ -194,7 +209,7 @@ class SageMakerCluster(Cluster):
     def ssh_key_path(self):
         """Relative path to the private SSH key used to connect to the cluster."""
         if self._ssh_key_path:
-            return self._relative_ssh_path(self._ssh_key_path)
+            return relative_ssh_path(self._ssh_key_path)
 
         # Default relative path
         return f"~/.ssh/{self.SSH_KEY_FILE_NAME}"
@@ -271,6 +286,12 @@ class SageMakerCluster(Cluster):
         return self._sagemaker_session.default_bucket()
 
     @property
+    def _use_https(self) -> bool:
+        """Use HTTPS if cert or private key file paths are provided."""
+        # Note: Since always connecting via SSM no need for HTTPS
+        return False
+
+    @property
     def _extra_ssh_args(self):
         """Extra SSH arguments to be used when connecting to the cluster."""
         # Note - port 12345 can be used for Python Debug Server: "-R localhost:12345:localhost:12345"
@@ -306,21 +327,6 @@ class SageMakerCluster(Cluster):
         """Username and hostname to be used as the comment for the public key."""
         return f"{getpass.getuser()}@{socket.gethostname()}"
 
-    @classmethod
-    def _relative_ssh_path(cls, ssh_path: str):
-        """Convert to a relative path if it is not already one."""
-        if ssh_path.startswith("~"):
-            return ssh_path
-
-        # Convert to a relative path
-        relative_path = os.path.relpath(ssh_path, os.path.expanduser("~"))
-        relative_path = relative_path.replace("\\", "/")
-
-        if not relative_path.startswith("~"):
-            relative_path = f"~/{relative_path}"
-
-        return relative_path
-
     # -------------------------------------------------------
     # Cluster State & Lifecycle Methods
     # -------------------------------------------------------
@@ -333,20 +339,18 @@ class SageMakerCluster(Cluster):
             self.up_if_not()
 
         if not self.client:
-            cluster_config = self.config_for_rns
-
             try:
                 self.connect_server_client()
                 logger.info(
                     f"Checking server {self.name} with instance ID: {self.instance_id}"
                 )
 
-                self.client.check_server(cluster_config=cluster_config)
+                self.client.check_server()
                 logger.info(f"Server {self.instance_id} is up.")
             except:
                 if restart_server:
                     logger.info(
-                        f"Server {self.instance_id} is up, but the HTTP server may not be up."
+                        f"Server {self.instance_id} is up, but the API server may not be up."
                     )
                     self.run(
                         [
@@ -362,7 +366,7 @@ class SageMakerCluster(Cluster):
                     )
                     logger.info(f"Checking server {self.instance_id} again.")
 
-                    self.client.check_server(cluster_config=cluster_config)
+                    self.client.check_server()
                 else:
                     raise ValueError(
                         f"Could not connect to SageMaker instance {self.instance_id}"
@@ -471,7 +475,7 @@ class SageMakerCluster(Cluster):
             local_bind_addresses = ("", local_port)
 
             ssh_tunnel = SSHTunnelForwarder(
-                (self.DEFAULT_HOST, self._ssh_port),
+                (self.DEFAULT_SERVER_HOST, self._ssh_port),
                 ssh_username=self.DEFAULT_USER,
                 ssh_pkey=self._abs_ssh_key_path,
                 remote_bind_address=remote_bind_addresses,
@@ -802,7 +806,7 @@ class SageMakerCluster(Cluster):
                 if not self._ports_are_in_use():
                     # Command should bind SSH port and HTTP port on localhost, if this is not the case try re-running
                     # the bash script with a different set of ports
-                    # E.g. ❯ lsof -i:11022,50052
+                    # E.g. ❯ lsof -i:11022,32300
                     # COMMAND   PID   USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
                     # ssh     97115 myuser    3u  IPv4 0xcf81f230786cc9fd      0t0  TCP localhost:50052 (LISTEN)
                     # ssh     97115 myuser    6u  IPv4 0xcf81f230786eff6d      0t0  TCP localhost:11022 (LISTEN)
@@ -903,7 +907,7 @@ class SageMakerCluster(Cluster):
         # subsequent clusters are created as the IP address is added to the file as: [localhost]:11022
         self._filter_known_hosts()
 
-        num_ports_total = num_ports_to_try
+        num_attempts = num_ports_to_try
         connected = False
 
         while not connected:
@@ -916,12 +920,12 @@ class SageMakerCluster(Cluster):
 
             if num_ports_to_try == 0:
                 raise ConnectionError(
-                    f"Failed to create connection with {self.name} after {num_ports_total} attempts "
+                    f"Failed to create connection with {self.name} after {num_attempts} attempts "
                     f"(cluster status=`{self.status().get('TrainingJobStatus')}`). Make sure that another SageMaker "
                     f"cluster is not already active, that AWS CLI V2 is installed, and that the path has been properly "
                     f"added to your bash profile"
                     f"(https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-troubleshooting.html). "
-                    f"If the problem continues to persist, try running the command to create the session "
+                    f"If the error persists, try running the command to create the session "
                     f"manually: `bash {' '.join(command)}`"
                 )
 
@@ -934,7 +938,7 @@ class SageMakerCluster(Cluster):
                 )
 
                 # Give enough time for the aws ssm + ssh port forwarding commands in the script to complete
-                # Better to wait a few more seconds than to restart the HTTP server and Ray on the cluster unnecessarily
+                # Better to wait a few more seconds than to restart the HTTP server on the cluster unnecessarily
                 time.sleep(8)
 
                 if not self._ports_are_in_use():
@@ -943,7 +947,7 @@ class SageMakerCluster(Cluster):
                     raise socket.error
 
                 connected = True
-                logger.info(f"Successfully refreshed SSM session with {self.name}")
+                logger.info("Successfully refreshed SSM session")
 
             except socket.error:
                 # If the refresh didn't work try connecting with a different port - could be that the port
@@ -1195,6 +1199,9 @@ class SageMakerCluster(Cluster):
         if not self.instance_id:
             raise ValueError(f"No instance ID set for cluster {self.name}. Is it up?")
 
+        if not self.client:
+            self.connect_server_client()
+
         # Sync the local ~/.rh directory to the cluster
         self._rsync(
             source=os.path.expanduser("~/.rh"),
@@ -1312,7 +1319,7 @@ class SageMakerCluster(Cluster):
         if not self.client:
             self.connect_server_client()
         # Update the config on the server with the new autostop time
-        self.client.check_server(cluster_config=cluster_config)
+        self.client.check_server()
 
     # -------------------------------------------------------
     # Port Management
@@ -1348,7 +1355,7 @@ class SageMakerCluster(Cluster):
         valid_hosts = []
         with open(known_hosts, "r") as f:
             for line in f:
-                if not line.strip().startswith(f"[{self.DEFAULT_HOST}]"):
+                if not line.strip().startswith(f"[{self.DEFAULT_SERVER_HOST}]"):
                     valid_hosts.append(line)
 
         with open(known_hosts, "w") as f:
@@ -1366,7 +1373,7 @@ class SageMakerCluster(Cluster):
             f"""
             # Added by Runhouse for SageMaker SSH Support
             Host {name or self.name}
-              HostName {hostname or self.DEFAULT_HOST}
+              HostName {hostname or self.DEFAULT_SERVER_HOST}
               IdentityFile {identity_file or self._abs_ssh_key_path}
               Port {port}
               User {user or self.DEFAULT_USER}

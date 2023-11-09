@@ -174,3 +174,121 @@ SageMaker Factory Method
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autofunction:: runhouse.sagemaker_cluster
+
+
+Cluster Authentication & Verification
+====================================
+Runhouse provides a couple of options to manage the connection to the Runhouse API server running on a cluster.
+
+Server Connection
+~~~~~~~~~~~~~~~~~
+
+The below options can be specified with the ``server_connection_type`` parameter
+when :ref:`initializing a cluster <Cluster Factory Method>`. By default the Runhouse API server will
+be started on the cluster on port :code:`32300`.
+
+- ``ssh``: Connects to the cluster via an SSH tunnel, by default on port :code:`32300`.
+- ``tls``: Connects to the cluster via HTTPS (by default on port :code:`443`) using either a provided certificate, or
+  creating a new self-signed certificate just for this cluster. You must open the needed ports in the firewall, such
+  as via the open_ports argument in the OnDemandCluster, or manually in the compute itself or cloud console.
+- ``none``: Does not use any port forwarding or enforce any authentication. Connects to the cluster with HTTP by
+  default on port :code:`80`. This is useful when connecting to a cluster within a VPC, or creating a tunnel manually
+  on the side with custom settings.
+- ``aws_ssm``: Uses the
+  `AWS Systems Manager <https://docs.aws.amazon.com/systems-manager/latest/userguide/what-is-systems-manager.html>`_ to
+  create an SSH tunnel to the cluster, by default on port :code:`32300`. *Note: this is currently only relevant
+  for SageMaker Clusters.*
+- ``paramiko``: Uses `Paramiko <https://www.paramiko.org/>`_ to create an SSH tunnel to the cluster. This
+  is relevant if you are using a cluster which requires a password to authenticate.
+
+
+.. note::
+
+    The ``tls`` connection type is the most secure and is recommended for production use if you are not running inside
+    of a VPC. However, be mindful that you must secure the cluster with authentication (see below) if you open it
+    to the public internet.
+
+Server Authentication
+~~~~~~~~~~~~~~~~~~~~~
+
+If desired, Runhouse provides out-of-the-box authentication via users' Runhouse token (generated when
+:ref:`logging in <Login/Logout>`) and set locally at: :code:`~/.rh/config.yaml`). This is crucial if the cluster
+has ports open to the public internet, as would usually be the case when using the ``tls`` connection type. You may
+also set up your own authentication manually inside of your own code, but you should likely still enable Runhouse
+authentication to ensure that even your non-user-facing endpoints into the server are secured.
+
+When :ref:`initializing a cluster <Cluster Factory Method>`, you can set the :code:`den_auth` parameter to :code:`True`
+to enable token authentication. Calls to cluster server can then be made with an auth header with
+format: :code:`{"Authorization": "Bearer <token>"}`. The Runhouse Python library adds this header to its calls
+automatically, so your users do not need to worry about it after logging into Runhouse.
+
+
+TLS Certificates
+----------------
+Enabling TLS and `Runhouse Den Dashboard <https://www.run.house/dashboard>`_ Auth for the API server makes it incredibly
+fast and easy to stand up a microservice with standard token authentication, allowing you to easily share Runhouse
+resources with collaborators, teams, customers, etc.
+
+Let's illustrate this with a simple example:
+
+.. code-block:: python
+
+    import runhouse as rh
+
+    def np_array(num_list: list):
+        import numpy as np
+
+        return np.array(num_list)
+
+    # Launch a cluster with TLS and Den Auth enabled
+    cpu = rh.ondemand_cluster(instance_type="m5.xlarge",
+                              provider="aws",
+                              name="rh-cluster",
+                              den_auth=True,
+                              open_ports=[443],
+                              server_connection_type="tls").up_if_not()
+
+    # Remote function stub which lives on the cluster
+    remote_func = rh.function(np_array).to(cpu, env=["numpy"])
+
+    # Save to Runhouse Den
+    remote_func.save()
+
+    # Give read access to the function to another user - this will allow them to call this service remotely
+    # and view the function metadata in Runhouse Den
+    remote_func.share("user1@gmail.com", access_type="read")
+
+    # Users can then call the function from any environment
+    res = remote_func([1,2,3])
+
+
+We can also call the function via an HTTP request, making it easy for other users to call the function with
+a Runhouse token (Note: this assumes the user has been granted access to the function or
+write access to the cluster):
+
+.. code-block:: cli
+
+    curl -k -X POST "https://<IP ADDRESS>/call/np_array/call?serialization=pickle" -d '{"args": [[1, 2]]}'
+    -H "Content-Type: application/json" -H "Authorization: Bearer <TOKEN>"
+
+Here we use :code:`-k` to ignore cert verification (assuming we are using self-signed certs generated by Runhouse
+on the server), and :code:`serialization=pickle` in order to return the pickled numpy array from
+the :code:`np_array` function.
+
+
+.. tip::
+
+    For more examples on using clusters and functions see
+    the :ref:`Compute Guide <Compute: Clusters, Functions, Packages, & Envs>`.
+
+Nginx
+-----
+Runhouse gives you the option of using `Nginx <https://www.nginx.com/>`_ as a reverse proxy for the Runhouse API
+server, which is a FastAPI app launched with `Uvicorn <https://www.uvicorn.org/>`_. Using Nginx provides you with a
+safer and more conventional approach running the FastAPI app on a higher, non-privileged port (such as 32300, the
+default Runhouse port) and then use Nginx as a reverse proxy to forward requests from the HTTP port (default: 80) or
+the HTTPS port (default: 443).
+
+.. note::
+
+    Nginx is enabled by default when you launch a cluster with the :code:`server_port` set to either 80 or 443.

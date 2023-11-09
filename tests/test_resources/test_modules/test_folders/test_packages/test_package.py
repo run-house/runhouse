@@ -6,8 +6,6 @@ import pytest
 
 import runhouse as rh
 
-from .conftest import cpu_clusters
-
 extra_index_url = "--extra-index-url https://pypi.python.org/simple/"
 cuda_116_url = "--index-url https://download.pytorch.org/whl/cu116"
 
@@ -80,7 +78,6 @@ def test_load_shared_git_package():
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_local_package_function(cluster):
     function = rh.function(fn=summer).to(cluster, env=["./"])
 
@@ -91,7 +88,6 @@ def test_local_package_function(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_local_package_to_cluster(cluster):
     package = rh.Package.from_string("./").to(cluster)
 
@@ -100,7 +96,6 @@ def test_local_package_to_cluster(cluster):
 
 
 @pytest.mark.clustertest
-@cpu_clusters
 def test_mount_local_package_to_cluster(cluster):
     mount_path = "package_mount"
     package = rh.Package.from_string("./").to(cluster, path=mount_path, mount=True)
@@ -112,7 +107,6 @@ def test_mount_local_package_to_cluster(cluster):
 
 @pytest.mark.clustertest
 @pytest.mark.awstest
-@cpu_clusters
 def test_package_file_system_to_cluster(cluster, s3_package):
     assert s3_package.install_target.system == "s3"
     assert s3_package.install_target.exists_in_system()
@@ -277,20 +271,15 @@ def test_torch_install_command_generator():
 
 
 @pytest.mark.gputest
-@pytest.mark.parametrize(
-    "cluster",
-    ["ondemand_cpu_cluster", "v100_gpu_cluster", "k80_gpu_cluster", "a10g_gpu_cluster"],
-    indirect=True,
-)
-def test_getting_cuda_version_on_clusters(request, cluster):
+def test_getting_cuda_version_on_clusters(request, ondemand_cluster):
     """Gets the cuda version on the cluster and asserts it is the expected version"""
-    return_codes: list = cluster.run_python(
+    return_codes: list = ondemand_cluster.run_python(
         ["import runhouse as rh", "print(rh.Package._detect_cuda_version_or_cpu())"]
     )
     cuda_version_or_cpu = return_codes[0][1].strip().split("\n")[-1]
-    print(f"{cluster.name}: {cuda_version_or_cpu}")
+    print(f"{ondemand_cluster.name}: {cuda_version_or_cpu}")
 
-    instance_type = cluster.instance_type.lower()
+    instance_type = ondemand_cluster.instance_type.lower()
 
     # Save the cuda version (or indicate cpu) for each cluster
     request.config.cache.set(instance_type, cuda_version_or_cpu)
@@ -304,19 +293,16 @@ def test_getting_cuda_version_on_clusters(request, cluster):
 
 
 @pytest.mark.gputest
-@pytest.mark.parametrize(
-    "cluster",
-    ["ondemand_cpu_cluster", "v100_gpu_cluster", "k80_gpu_cluster", "a10g_gpu_cluster"],
-    indirect=True,
-)
-def test_install_cmd_for_torch_on_cluster(request, cluster):
+def test_install_cmd_for_torch_on_cluster(request, ondemand_cluster):
     """Checks that the install command for torch runs properly on the cluster.
     Confirms that we can properly install the package (and send a torch tensor to cuda to validate it"""
     # Use the cuda version on the cluster that we got from the previous test
-    cuda_version_or_cpu = request.config.cache.get(cluster.instance_type.lower(), None)
+    cuda_version_or_cpu = request.config.cache.get(
+        ondemand_cluster.instance_type.lower(), None
+    )
 
     assert "AttributeError" not in cuda_version_or_cpu, (
-        f"No cuda version saved for {cluster.name} - run `test_getting_cuda_version_on_clusters`"
+        f"No cuda version saved for {ondemand_cluster.name} - run `test_getting_cuda_version_on_clusters`"
         "to save the cuda version"
     )
 
@@ -336,17 +322,19 @@ def test_install_cmd_for_torch_on_cluster(request, cluster):
     for install_cmd in install_commands_for_cluster:
         # Run the complete install command on the cluster
         try:
-            cluster.install_packages([install_cmd])
+            ondemand_cluster.install_packages([install_cmd])
         except subprocess.CalledProcessError:
             assert False, f"Failed to install {install_cmd}"
 
     if cuda_version_or_cpu != "cpu":
         # Send a tensor to CUDA using the installed torch package (ignore if we are on CPU)
         tensor_to_cuda = rh.function(fn=send_tensor_to_cuda).to(
-            cluster, reqs=["pytest"]
+            ondemand_cluster, reqs=["pytest"]
         )
         sent_to_cuda = tensor_to_cuda()
-        assert sent_to_cuda, f"Failed to send torch tensor to CUDA on {cluster.name}"
+        assert (
+            sent_to_cuda
+        ), f"Failed to send torch tensor to CUDA on {ondemand_cluster.name}"
 
 
 if __name__ == "__main__":

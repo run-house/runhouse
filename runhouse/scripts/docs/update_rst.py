@@ -24,7 +24,8 @@ def update_file(
             ".. raw:: html\n",
             "\n",
             f'    <p><a href="https://colab.research.google.com/github/run-house/runhouse/blob/stable/{ipynb_file}">\n'
-            '    <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>\n',
+            '    <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" \
+alt="Open In Colab"/></a></p>\n',
             "\n",
         ]
         data = data[:3] + colab_lines + data[3:]

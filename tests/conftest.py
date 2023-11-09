@@ -1,579 +1,223 @@
+import contextlib
+import enum
 import os
-import shutil
-import tempfile
-import textwrap
 
-import numpy as np
-import pandas as pd
+import dotenv
+
 import pytest
 
 import runhouse as rh
 
+
+class TestLevels(str, enum.Enum):
+    UNIT = "unit"
+    LOCAL = "local"
+    MINIMAL = "minimal"
+    THOROUGH = "thorough"
+    MAXIMAL = "maximal"
+
+
+DEFAULT_LEVEL = TestLevels.UNIT
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--level",
+        action="store",
+        default=DEFAULT_LEVEL,
+        help="Fixture set to spin up: unit, local, minimal, thorough, or maximal",
+    )
+    parser.addoption(
+        "--force-rebuild",
+        action="store_true",
+        default=False,
+        help="Force rebuild of the relevant Runhouse image",
+    )
+
+
+def pytest_generate_tests(metafunc):
+    level = metafunc.config.getoption("level")
+    level_fixtures = getattr(
+        metafunc.cls or metafunc.module, level.upper(), default_fixtures[level]
+    )
+    for fixture_name, fixture_list in level_fixtures.items():
+        if fixture_name in metafunc.fixturenames:
+            metafunc.parametrize(fixture_name, fixture_list, indirect=True)
+
+
+def pytest_configure():
+    pytest.init_args = {}
+
+
+init_args = {}
+
+
 # https://docs.pytest.org/en/6.2.x/fixture.html#conftest-py-sharing-fixtures-across-multiple-files
+
+############## HELPERS ##############
 
 
 @pytest.fixture(scope="session")
-def blob_data():
-    return [np.arange(50), "test", {"a": 1, "b": 2}]
+@contextlib.contextmanager
+def test_account():
+    """Used for the purposes of testing resource sharing among different accounts.
+    When inside the context manager, use the test account credentials before reverting back to the original
+    account when exiting."""
+    dotenv.load_dotenv()
 
+    test_token = os.getenv("TEST_TOKEN")
+    test_username = os.getenv("TEST_USERNAME")
+    assert test_token and test_username
 
-@pytest.fixture
-def local_file(blob_data, tmp_path):
-    return rh.blob(
-        data=blob_data,
-        system="file",
-        path=tmp_path / "test_blob.pickle",
-    )
+    current_token = rh.configs.get("token")
+    current_username = rh.configs.get("username")
 
+    try:
+        # Assume the role of the test account when inside the context manager
+        test_account_token = test_token
+        test_account_username = test_username
+        test_account_folder = f"/{test_account_username}"
 
-@pytest.fixture
-def local_blob(blob_data):
-    return rh.blob(
-        data=blob_data,
-    )
+        # Hack to avoid actually writing down these values, in case the user stops mid-test and we don't reach the
+        # finally block
+        rh.configs.defaults_cache["token"] = test_account_token
+        rh.configs.defaults_cache["username"] = test_account_username
+        rh.configs.defaults_cache["default_folder"] = test_account_folder
 
-
-@pytest.fixture
-def s3_blob(blob_data, blob_s3_bucket):
-    return rh.blob(
-        data=blob_data,
-        system="s3",
-        path=f"/{blob_s3_bucket}/test_blob.pickle",
-    )
-
-
-@pytest.fixture
-def gcs_blob(blob_data, blob_gcs_bucket):
-    return rh.blob(
-        data=blob_data,
-        system="gs",
-        path=f"/{blob_gcs_bucket}/test_blob.pickle",
-    )
-
-
-@pytest.fixture
-def cluster_blob(blob_data, ondemand_cpu_cluster):
-    return rh.blob(
-        data=blob_data,
-        system=ondemand_cpu_cluster,
-    )
-
-
-@pytest.fixture
-def cluster_file(blob_data, ondemand_cpu_cluster):
-    return rh.blob(
-        data=blob_data,
-        system=ondemand_cpu_cluster,
-        path="test_blob.pickle",
-    )
-
-
-@pytest.fixture
-def blob(request):
-    """Parametrize over multiple blobs - useful for running the same test on multiple storage types."""
-    return request.getfixturevalue(request.param)
-
-
-@pytest.fixture
-def file(request):
-    """Parametrize over multiple files - useful for running the same test on multiple storage types."""
-    return request.getfixturevalue(request.param)
-
-
-# ----------------- Folders -----------------
-
-
-@pytest.fixture
-def local_folder(tmp_path):
-    local_folder = rh.folder(path=tmp_path / "tests_tmp")
-    local_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
-    return local_folder
-
-
-@pytest.fixture
-def cluster_folder(ondemand_cpu_cluster, local_folder):
-    return local_folder.to(system=ondemand_cpu_cluster)
-
-
-@pytest.fixture
-def s3_folder(local_folder):
-    s3_folder = local_folder.to(system="s3")
-    yield s3_folder
-
-    # Delete files from S3
-    s3_folder.rm()
-
-
-@pytest.fixture
-def gcs_folder(local_folder):
-    gcs_folder = local_folder.to(system="gs")
-    yield gcs_folder
-
-    # Delete files from GCS
-    gcs_folder.rm()
-
-
-@pytest.fixture
-def folder(request):
-    """Parametrize over multiple folders - useful for running the same test on multiple storage types."""
-    return request.getfixturevalue(request.param)
-
-
-# ----------------- Tables -----------------
-@pytest.fixture
-def huggingface_table():
-    from datasets import load_dataset
-
-    dataset = load_dataset("yelp_review_full", split="train[:1%]")
-    return dataset
-
-
-@pytest.fixture
-def arrow_table():
-    import pyarrow as pa
-
-    df = pd.DataFrame(
-        {
-            "int": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-            "str": ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"],
+        yield {
+            "test_token": test_account_token,
+            "test_username": test_account_username,
+            "test_folder": test_account_folder,
         }
-    )
-    arrow_table = pa.Table.from_pandas(df)
-    return arrow_table
 
-
-@pytest.fixture
-def cudf_table():
-    import cudf
-
-    gdf = cudf.DataFrame(
-        {"id": [1, 2, 3, 4, 5, 6], "grade": ["a", "b", "b", "a", "a", "e"]}
-    )
-    return gdf
-
-
-@pytest.fixture
-def pandas_table():
-    df = pd.DataFrame(
-        {"id": [1, 2, 3, 4, 5, 6], "grade": ["a", "b", "b", "a", "a", "e"]}
-    )
-    return df
-
-
-@pytest.fixture
-def dask_table():
-    import dask.dataframe as dd
-
-    index = pd.date_range("2021-09-01", periods=2400, freq="1H")
-    df = pd.DataFrame({"a": range(2400), "b": list("abcaddbe" * 300)}, index=index)
-    ddf = dd.from_pandas(df, npartitions=10)
-    return ddf
-
-
-@pytest.fixture
-def ray_table():
-    import ray
-
-    ds = ray.data.range(10000)
-    return ds
-
-
-# ------------------ SageMaker -----------------
-
-
-@pytest.fixture
-def sm_entry_point():
-    return "pytorch_train.py"
-
-
-@pytest.fixture
-def pytorch_training_script():
-    training_script = textwrap.dedent(
-        """\
-    import torch
-    import torch.nn as nn
-    import torch.optim as optim
-    import torch.utils.data as data
-    import torchvision.datasets as datasets
-    import torchvision.transforms as transforms
-
-
-    class MyModel(nn.Module):
-        def __init__(self):
-            super(MyModel, self).__init__()
-            # Define your model architecture here
-            self.fc1 = nn.Linear(784, 128)
-            self.relu = nn.ReLU()
-            self.fc2 = nn.Linear(128, 10)
-            self.softmax = nn.Softmax(dim=1)
-
-        def forward(self, x):
-            x = self.fc1(x)
-            x = self.relu(x)
-            x = self.fc2(x)
-            x = self.softmax(x)
-            return x
-
-
-    # Define your dataset class
-    class MyDataset(data.Dataset):
-        def __init__(self, data, targets):
-            self.data = data
-            self.targets = targets
-
-        def __getitem__(self, index):
-            x = self.data[index]
-            y = self.targets[index]
-            return x, y
-
-        def __len__(self):
-            return len(self.data)
-
-    if __name__ == "__main__":
-        # Set random seed for reproducibility
-        torch.manual_seed(42)
-
-        # Define hyperparameters
-        learning_rate = 0.001
-        batch_size = 64
-        num_epochs = 10
-
-        # Load the MNIST dataset and apply transformations
-        train_dataset = datasets.MNIST(
-            root="./data", train=True, transform=transforms.ToTensor(), download=True
-        )
-
-        # Extract the training data and targets
-        train_data = (
-                train_dataset.data.view(-1, 28 * 28).float() / 255.0
-        )  # Flatten and normalize the input
-        train_targets = train_dataset.targets
-
-        dataset = MyDataset(train_data, train_targets)
-        dataloader = data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
-
-        # Initialize your model
-        model = MyModel()
-
-        # Define loss function and optimizer
-        criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-
-        # Training loop
-        for epoch in range(num_epochs):
-            running_loss = 0.0
-            for batch_idx, (inputs, targets) in enumerate(dataloader):
-                # Zero the gradients
-                optimizer.zero_grad()
-
-                # Forward pass
-                outputs = model(inputs)
-                loss = criterion(outputs, targets)
-
-                # Backward pass and optimization
-                loss.backward()
-                optimizer.step()
-            """
-    )
-    return training_script
-
-
-@pytest.fixture
-def sm_source_dir(sm_entry_point, pytorch_training_script):
-    """Create the source directory and entry point needed for creating a SageMaker estimator"""
-
-    # create tmp directory and file
-    temp_dir = tempfile.mkdtemp()
-    file_path = os.path.join(temp_dir, sm_entry_point)
-    with open(file_path, "w") as file:
-        file.write(pytorch_training_script)
-
-    yield temp_dir
-
-    # delete tmp directory and file
-    os.remove(file_path)
-    shutil.rmtree(temp_dir)
+    finally:
+        # Reset configs back to original account
+        rh.configs.defaults_cache["token"] = current_token
+        rh.configs.defaults_cache["username"] = current_username
+        rh.configs.defaults_cache["default_folder"] = f"/{current_username}"
 
 
 # ----------------- Clusters -----------------
 
-
-@pytest.fixture
-def cluster(request):
-    """Parametrize over multiple fixtures - useful for running the same test on multiple hardware types."""
-    # Example: @pytest.mark.parametrize("cluster", ["v100_gpu_cluster", "k80_gpu_cluster"], indirect=True)"""
-    return request.getfixturevalue(request.param)
-
-
-@pytest.fixture(scope="session")
-def ondemand_cpu_cluster():
-    c = rh.ondemand_cluster("^rh-cpu")
-    c.up_if_not()
-    # c.restart_server()
-    c.install_packages(["pytest"])
-    # Save to RNS - to be loaded in other tests (ex: Runs)
-    c.save()
-    return c
-
-
-@pytest.fixture(scope="session")
-def sm_cluster():
-    c = (
-        rh.sagemaker_cluster(
-            name="rh-sagemaker",
-            role="arn:aws:iam::172657097474:role/service-role/AmazonSageMaker-ExecutionRole-20230717T192142",
-        )
-        .up_if_not()
-        .save()
-    )
-
-    c.install_packages(["pytest"])
-
-    return c
-
-
-@pytest.fixture(scope="session")
-def other_sm_cluster():
-    c = (
-        rh.sagemaker_cluster(name="rh-sagemaker-2", profile="sagemaker")
-        .up_if_not()
-        .save()
-    )
-    c.install_packages(["pytest"])
-    return c
-
-
-@pytest.fixture(scope="session")
-def sm_gpu_cluster():
-    c = (
-        rh.sagemaker_cluster(
-            name="rh-sagemaker-gpu", instance_type="ml.g5.2xlarge", profile="sagemaker"
-        )
-        .up_if_not()
-        .save()
-    )
-    c.install_packages(["pytest"])
-
-    return c
-
-
-@pytest.fixture(scope="session")
-def byo_cpu():
-    # Spin up a new basic m5.xlarge EC2 instance
-    c = (
-        rh.ondemand_cluster(
-            instance_type="m5.xlarge",
-            provider="aws",
-            region="us-east-1",
-            # image_id="ami-0a313d6098716f372",  # Upgraded to python 3.11.4 which is not compatible with ray 2.4.0
-            name="test-byo-cluster",
-        )
-        .up_if_not()
-        .save()
-    )
-
-    c = rh.cluster(
-        name="different-cluster", ips=[c.address], ssh_creds=c.ssh_creds()
-    ).save()
-
-    c.install_packages(["pytest"])
-    c.sync_secrets(["ssh"])
-
-    return c
-
-
-@pytest.fixture(scope="session")
-def v100_gpu_cluster():
-    return rh.ondemand_cluster(
-        name="rh-v100", instance_type="V100:1", provider="aws"
-    ).up_if_not()
-
-
-@pytest.fixture(scope="session")
-def k80_gpu_cluster():
-    return rh.ondemand_cluster(
-        name="rh-k80", instance_type="K80:1", provider="aws"
-    ).up_if_not()
-
-
-@pytest.fixture(scope="session")
-def a10g_gpu_cluster():
-    return rh.ondemand_cluster(
-        name="rh-a10x", instance_type="g5.2xlarge", provider="aws"
-    ).up_if_not()
-
-
-@pytest.fixture(scope="session")
-def password_cluster():
-    sky_cluster = rh.cluster("temp-rh-password", instance_type="CPU:4").save()
-    if not sky_cluster.is_up():
-        sky_cluster.up()
-
-        # set up password on remote
-        sky_cluster.run(
-            [
-                [
-                    'sudo sed -i "/^[^#]*PasswordAuthentication[[:space:]]no/c\PasswordAuthentication yes" '
-                    "/etc/ssh/sshd_config"
-                ]
-            ]
-        )
-        sky_cluster.run(["sudo /etc/init.d/ssh force-reload"])
-        sky_cluster.run(["sudo /etc/init.d/ssh restart"])
-        sky_cluster.run(
-            ["(echo 'cluster-pass' && echo 'cluster-pass') | sudo passwd ubuntu"]
-        )
-        sky_cluster.run(["pip uninstall skypilot runhouse -y", "pip install pytest"])
-        sky_cluster.run(["rm -rf runhouse/"])
-
-    # instantiate byo cluster with password
-    ssh_creds = {"ssh_user": "ubuntu", "password": "cluster-pass"}
-    cluster = rh.cluster(
-        name="rh-password", ips=[sky_cluster.address], ssh_creds=ssh_creds
-    ).save()
-
-    return cluster
-
-
-cpu_clusters = pytest.mark.parametrize(
-    "cluster", ["ondemand_cpu_cluster", "password_cluster", "byo_cpu"], indirect=True
+from tests.test_resources.test_clusters.conftest import (
+    build_and_run_image,  # noqa: F401
+    byo_cpu,  # noqa: F401
+    cluster,  # noqa: F401
+    local_docker_cluster_passwd,  # noqa: F401
+    local_docker_cluster_public_key,  # noqa: F401
+    local_logged_out_docker_cluster,  # noqa: F401
+    local_test_account_cluster_public_key,  # noqa: F401
+    named_cluster,  # noqa: F401
+    password_cluster,  # noqa: F401
+    shared_cluster,  # noqa: F401
+    static_cpu_cluster,  # noqa: F401
+    unnamed_cluster,  # noqa: F401
 )
-
-sagemaker_clusters = pytest.mark.parametrize(
-    "cluster", ["sm_cluster", "other_sm_cluster"], indirect=True
+from tests.test_resources.test_clusters.test_on_demand_cluster.conftest import (
+    a10g_gpu_cluster,  # noqa: F401
+    k80_gpu_cluster,  # noqa: F401
+    on_demand_cluster,  # noqa: F401
+    ondemand_cluster,  # noqa: F401
+    ondemand_cpu_cluster,  # noqa: F401
+    ondemand_https_cluster_with_auth,  # noqa: F401
+    v100_gpu_cluster,  # noqa: F401
 )
-
+from tests.test_resources.test_clusters.test_sagemaker_cluster.conftest import (
+    other_sm_cluster,  # noqa: F401
+    sm_cluster,  # noqa: F401
+    sm_cluster_with_auth,  # noqa: F401
+    sm_gpu_cluster,  # noqa: F401
+)
 
 # ----------------- Envs -----------------
 
+from tests.test_resources.test_envs.conftest import (
+    env,  # noqa: F401
+    test_env,  # noqa: F401
+)
 
-@pytest.fixture
-def test_env():
-    return rh.env(["pytest"])
+# ----------------- Blobs -----------------
 
+from tests.test_resources.test_modules.test_blobs.conftest import (
+    blob,  # noqa: F401
+    cluster_blob,  # noqa: F401
+    cluster_file,  # noqa: F401
+    file,  # noqa: F401
+    gcs_blob,  # noqa: F401
+    local_blob,  # noqa: F401
+    local_file,  # noqa: F401
+    s3_blob,  # noqa: F401
+)
+
+# ----------------- Folders -----------------
+
+from tests.test_resources.test_modules.test_folders.conftest import (
+    cluster_folder,  # noqa: F401
+    folder,  # noqa: F401
+    gcs_folder,  # noqa: F401
+    local_folder,  # noqa: F401
+    s3_folder,  # noqa: F401
+)
 
 # ----------------- Packages -----------------
 
+from tests.test_resources.test_modules.test_folders.test_packages.conftest import (
+    local_package,  # noqa: F401
+    package,  # noqa: F401
+    s3_package,  # noqa: F401
+)
 
-@pytest.fixture
-def local_package(local_folder):
-    return rh.package(path=local_folder.path, install_method="local")
-
-
-@pytest.fixture
-def s3_package(s3_folder):
-    return rh.package(
-        path=s3_folder.path, system=s3_folder.system, install_method="local"
-    )
-
+# ----------------- Modules -----------------
 
 # ----------------- Functions -----------------
-def summer(a: int, b: int):
-    print("Running summer function")
-    return a + b
+from tests.test_resources.test_modules.test_functions.conftest import (
+    func_with_artifacts,  # noqa: F401
+    shared_function,  # noqa: F401
+    slow_func,  # noqa: F401
+    slow_running_func,  # noqa: F401
+    summer_func,  # noqa: F401
+    summer_func_shared,  # noqa: F401
+    summer_func_with_auth,  # noqa: F401
+)
+
+# ----------------- Tables -----------------
+
+from tests.test_resources.test_modules.test_tables.conftest import (
+    arrow_table,  # noqa: F401
+    cudf_table,  # noqa: F401
+    dask_table,  # noqa: F401
+    huggingface_table,  # noqa: F401
+    pandas_table,  # noqa: F401
+    ray_table,  # noqa: F401
+    table,  # noqa: F401
+)
 
 
-def save_and_load_artifacts():
-    cpu = rh.ondemand_cluster("^rh-cpu").save()
-    loaded_cluster = rh.load(name=cpu.name)
-    return loaded_cluster.name
+########## DEFAULT LEVELS ##########
 
-
-def slow_running_func(a, b):
-    import time
-
-    time.sleep(20)
-    return a + b
-
-
-@pytest.fixture(scope="session")
-def summer_func(ondemand_cpu_cluster):
-    return rh.function(summer, name="summer_func").to(
-        ondemand_cpu_cluster, env=["pytest"]
-    )
-
-
-@pytest.fixture(scope="session")
-def func_with_artifacts(ondemand_cpu_cluster):
-    return rh.function(save_and_load_artifacts, name="artifacts_func").to(
-        ondemand_cpu_cluster, env=["pytest"]
-    )
-
-
-@pytest.fixture(scope="session")
-def slow_func(ondemand_cpu_cluster):
-    return rh.function(slow_running_func, name="slow_func").to(
-        ondemand_cpu_cluster, env=["pytest"]
-    )
-
-
-# ----------------- S3 -----------------
-@pytest.fixture(scope="session")
-def runs_s3_bucket():
-    runs_bucket = create_s3_bucket("runhouse-runs")
-    return runs_bucket.name
-
-
-@pytest.fixture(scope="session")
-def blob_s3_bucket():
-    blob_bucket = create_s3_bucket("runhouse-blob")
-    return blob_bucket.name
-
-
-@pytest.fixture(scope="session")
-def table_s3_bucket():
-    table_bucket = create_s3_bucket("runhouse-table")
-    return table_bucket.name
-
-
-# ----------------- GCP -----------------
-
-
-@pytest.fixture(scope="session")
-def blob_gcs_bucket():
-    blob_bucket = create_gcs_bucket("runhouse-blob")
-    return blob_bucket.name
-
-
-@pytest.fixture(scope="session")
-def table_gcs_bucket():
-    table_bucket = create_gcs_bucket("runhouse-table")
-    return table_bucket.name
-
-
-# ----------------- Runs -----------------
-
-
-@pytest.fixture(scope="session")
-def submitted_run(summer_func):
-    """Initializes a Run, which will run synchronously on the cluster. Returns the function's result."""
-    run_name = "synchronous_run"
-    res = summer_func(1, 2, run_name=run_name)
-    assert res == 3
-    return run_name
-
-
-@pytest.fixture(scope="session")
-def submitted_async_run(summer_func):
-    """Execute function async on the cluster. If a run already exists, do not re-run. Returns a Run object."""
-    run_name = "async_run"
-    async_run = summer_func.run(run_name=run_name, a=1, b=2)
-
-    assert isinstance(async_run, rh.Run)
-    return run_name
-
-
-def create_s3_bucket(bucket_name: str):
-    """Create bucket in S3 if it does not already exist."""
-    from sky.data.storage import S3Store
-
-    s3_store = S3Store(name=bucket_name, source="")
-    return s3_store
-
-
-def create_gcs_bucket(bucket_name: str):
-    """Create bucket in GS if it does not already exist."""
-    from sky.data.storage import GcsStore
-
-    gcs_store = GcsStore(name=bucket_name, source="")
-    return gcs_store
+default_fixtures = {}
+default_fixtures[TestLevels.UNIT] = {"cluster": [local_docker_cluster_public_key]}
+default_fixtures[TestLevels.LOCAL] = {
+    "cluster": [local_docker_cluster_passwd, local_docker_cluster_public_key]
+}
+default_fixtures[TestLevels.MINIMAL] = {"cluster": [ondemand_cpu_cluster]}
+default_fixtures[TestLevels.THOROUGH] = {
+    "cluster": [
+        local_docker_cluster_passwd,
+        local_docker_cluster_public_key,
+        ondemand_cpu_cluster,
+        ondemand_https_cluster_with_auth,
+        password_cluster,
+        byo_cpu,
+    ]
+}
+default_fixtures[TestLevels.MAXIMAL] = {
+    "cluster": [
+        local_docker_cluster_passwd,
+        local_docker_cluster_public_key,
+        ondemand_cpu_cluster,
+        ondemand_https_cluster_with_auth,
+        password_cluster,
+        byo_cpu,
+    ]
+}
