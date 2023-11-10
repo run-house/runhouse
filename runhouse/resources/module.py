@@ -305,7 +305,7 @@ class Module(Resource):
         # doesn't wipe the client of this function's cluster when deepcopy copies it.
         hw_backup = self.system
         self.system = None
-        new_module = copy.deepcopy(self)
+        new_module = copy.copy(self)
         self.system = hw_backup
 
         new_module.system = system
@@ -340,7 +340,8 @@ class Module(Resource):
                 ]
                 state = {}
                 # We only send over state for instances, not classes
-                if not isinstance(self, type):
+                from starlette.applications import Starlette
+                if not (isinstance(self, type) or isinstance(self, Starlette)):
                     state = {
                         attr: val
                         for attr, val in self.__dict__.items()
@@ -808,6 +809,17 @@ class Module(Resource):
     @staticmethod
     def _extract_pointers(raw_cls_or_fn: Union[Type, Callable], reqs: List[str]):
         """Get the path to the module, module name, and function name to be able to import it on the server"""
+        if isinstance(raw_cls_or_fn, str) and ":" in raw_cls_or_fn:
+            pointers = raw_cls_or_fn.split(":")
+            if len(pointers) == 3:
+                return tuple(pointers)
+            elif len(pointers) == 2:
+                return (os.getcwd(), pointers[0], pointers[1])
+            else:
+                raise ValueError(
+                    f"Expected 2 or 3 pointers separated by colons, but received {len(pointers)}"
+                )
+
         if not (isinstance(raw_cls_or_fn, type) or isinstance(raw_cls_or_fn, Callable)):
             raise TypeError(
                 f"Expected Type or Callable but received {type(raw_cls_or_fn)}"
@@ -942,9 +954,11 @@ def _module_subclass_factory(cls, pointers, signature=None):
         # Create a copy of the item on the cluster under the new name
         new_module.name = name or self.name
         new_module.dryrun = dryrun
-        if not new_module.dryrun:
+        if not new_module.dryrun and new_module.system:
             new_module.system.put_resource(new_module)
             new_module.system.call(new_module.name, "_remote_init", *args, **kwargs)
+        else:
+            new_module._remote_init(*args, **kwargs)
 
         return new_module
 
