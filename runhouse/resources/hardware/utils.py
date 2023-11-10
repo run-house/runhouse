@@ -43,7 +43,6 @@ class ServerConnectionType(str, Enum):
     TLS = "tls"
     NONE = "none"
     AWS_SSM = "aws_ssm"
-    PARAMIKO = "paramiko"
 
 
 def _current_cluster(key="name"):
