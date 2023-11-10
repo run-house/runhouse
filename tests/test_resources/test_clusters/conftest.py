@@ -181,7 +181,7 @@ def build_and_run_image(
         # Check if image has already been built before re-building
         images = client.images.list(filters={"reference": f"runhouse:{image_name}"})
         if not images or force_rebuild:
-            # Build the Docker image, but need to cd into base runhouse directory first
+            # Build the SSH public key based Docker image
             if keypath:
                 build_cmd = [
                     "docker",
@@ -201,7 +201,7 @@ def build_and_run_image(
                     ".",
                 ]
             elif pwd_file:
-                # Build a password container
+                # Build a password file based Docker image
                 build_cmd = [
                     "docker",
                     "build",
@@ -233,7 +233,7 @@ def build_and_run_image(
             container_name,
             "-d",
             "--rm",
-            "--shm-size=3gb",
+            "--shm-size=4gb",
             "-p",
             "32300:32300",
             "-p",
