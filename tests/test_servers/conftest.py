@@ -50,7 +50,6 @@ def http_client():
 
 @pytest_asyncio.fixture(scope="function")
 async def async_http_client():
-
     async with httpx.AsyncClient(base_url=BASE_URL) as client:
         yield client
 
@@ -70,6 +69,7 @@ def local_client():
 
     HTTPServer()
     client = TestClient(app)
+
     yield client
 
 
@@ -80,6 +80,7 @@ def local_client_with_den_auth():
     HTTPServer()
     HTTPServer.enable_den_auth()
     client = TestClient(app)
+
     yield client
 
 
@@ -162,6 +163,7 @@ def cache_servlet():
 def obj_store(base_servlet):
     obj_store = ObjStore()
     obj_store.set_name(BASE_ENV_ACTOR_NAME)
+
     yield obj_store
 
 
@@ -169,4 +171,5 @@ def obj_store(base_servlet):
 def obj_store_auth_cache(base_servlet):
     obj_store = ObjStore()
     obj_store.set_name(CACHE_ENV_ACTOR_NAME)
+
     yield obj_store

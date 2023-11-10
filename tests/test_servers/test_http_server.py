@@ -56,6 +56,9 @@ class TestHTTPServer:
         response = http_client.put("/object", json={"data": data})
         assert response.status_code == 200
 
+        response = http_client.get("/keys")
+        assert new_key in b64_unpickle(response.json().get("data"))
+
     def test_get_keys(self, http_client):
         response = http_client.get("/keys")
         assert response.status_code == 200
@@ -77,7 +80,7 @@ class TestHTTPServer:
         response = http_client.post("/secrets", json={"data": data})
 
         assert response.status_code == 200
-        assert b64_unpickle(response.json().get("data")) == {}
+        assert not b64_unpickle(response.json().get("data"))
 
     def test_add_secrets_for_unsupported_provider(self, local_client):
         secrets = {"test_provider": {"access_key": "abc123"}}
@@ -112,7 +115,7 @@ class TestHTTPServer:
         )
         assert response.status_code == 200
 
-        resp_obj = json.loads(response.text.split("\n")[0])
+        resp_obj: dict = json.loads(response.text.split("\n")[0])
         assert resp_obj["output_type"] == "result"
         assert b64_unpickle(resp_obj["data"]) == 3
 
@@ -242,6 +245,9 @@ class TestHTTPServerLocally:
         response = local_client.put("/object", json={"data": data})
         assert response.status_code == 200
 
+        response = local_client.get("/keys")
+        assert new_key in b64_unpickle(response.json().get("data"))
+
     def test_get_keys(self, local_client):
         response = local_client.get("/keys")
         assert response.status_code == 200
@@ -265,7 +271,7 @@ class TestHTTPServerLocally:
         response = local_client.post("/secrets", json={"data": data})
 
         assert response.status_code == 200
-        assert b64_unpickle(response.json().get("data")) == {}
+        assert not b64_unpickle(response.json().get("data"))
 
     def test_add_secrets_for_unsupported_provider(self, local_client):
         secrets = {"test_provider": {"access_key": "abc123"}}

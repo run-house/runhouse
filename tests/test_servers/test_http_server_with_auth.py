@@ -19,8 +19,8 @@ from tests.test_servers.conftest import summer
 def check_den_auth(pytestconfig):
     if not pytestconfig.getoption("--den-auth"):
         pytest.fail(
-            "--den-auth option must be provided to run auth tests. Re-start the container with "
-            "this option enabled.",
+            "--den-auth option must be provided to run auth tests (make sure server was also started"
+            "with den auth enabled)",
             pytrace=False,
         )
 
@@ -76,6 +76,9 @@ class TestHTTPServerWithAuth:
         )
         assert response.status_code == 200
 
+        response = http_client.get("/keys", headers=rns_client.request_headers)
+        assert new_key in b64_unpickle(response.json().get("data"))
+
     def test_get_keys(self, http_client):
         response = http_client.get("/keys", headers=rns_client.request_headers)
         assert response.status_code == 200
@@ -104,7 +107,7 @@ class TestHTTPServerWithAuth:
         )
 
         assert response.status_code == 200
-        assert b64_unpickle(response.json().get("data")) == {}
+        assert not b64_unpickle(response.json().get("data"))
 
     def test_add_secrets_for_unsupported_provider(self, http_client):
         secrets = {"test_provider": {"access_key": "abc123"}}
@@ -434,6 +437,11 @@ class TestHTTPServerWithAuthLocally:
         )
         assert response.status_code == 200
 
+        response = local_client_with_den_auth.get(
+            "/keys", headers=rns_client.request_headers
+        )
+        assert new_key in b64_unpickle(response.json().get("data"))
+
     def test_get_keys(self, local_client_with_den_auth):
         response = local_client_with_den_auth.get(
             "/keys", headers=rns_client.request_headers
@@ -466,7 +474,7 @@ class TestHTTPServerWithAuthLocally:
         )
 
         assert response.status_code == 200
-        assert b64_unpickle(response.json().get("data")) == {}
+        assert not b64_unpickle(response.json().get("data"))
 
     def test_add_secrets_for_unsupported_provider(self, local_client_with_den_auth):
         secrets = {"test_provider": {"access_key": "abc123"}}

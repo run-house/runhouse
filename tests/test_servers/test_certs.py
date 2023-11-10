@@ -5,7 +5,6 @@ import os
 import ssl
 import threading
 import unittest
-import warnings
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -103,14 +102,11 @@ class TestTLSCertConfig(unittest.TestCase):
         mock_expanduser.return_value = "/mocked/home/user/ssl/certs/rh_server.crt"
         mock_abspath.return_value = "/mocked/absolute/path/to/ssl/certs/rh_server.crt"
 
-        # Call the resolve_absolute_path function
         resolved_path = resolve_absolute_path(self.cert_config.cert_path)
 
-        # Check that the mocked functions were called with the expected arguments
         mock_expanduser.assert_called_once_with(self.cert_config.cert_path)
         mock_abspath.assert_called_once_with(mock_expanduser.return_value)
 
-        # Check that the resolved path matches the mock abspath return value
         self.assertEqual(resolved_path, mock_abspath.return_value)
 
     def tearDown(self):
@@ -183,7 +179,7 @@ class TestHTTPSCertValidity(unittest.TestCase):
         with open(cert_file, "wb") as f:
             f.write(cert.public_bytes(serialization.Encoding.PEM))
 
-    def _use_cert_verification(self, cert_path):
+    def verify_cert(self, cert_path):
         if not cert_path:
             return False
 
@@ -196,9 +192,6 @@ class TestHTTPSCertValidity(unittest.TestCase):
             cert = x509.load_pem_x509_certificate(cert_file.read(), default_backend())
 
         if cert.issuer == cert.subject:
-            warnings.warn(
-                f"Cert in use ({cert_path}) is self-signed, cannot verify in requests to server."
-            )
             return False
 
         return True
@@ -206,7 +199,6 @@ class TestHTTPSCertValidity(unittest.TestCase):
     def test_https_request_with_cert_verification(self):
         response = requests.get(f"https://localhost:{self.port}", verify=self.cert_file)
 
-        # If no exception is raised, the cert is valid
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.text, "Hello, SSL!")
 
@@ -224,19 +216,37 @@ class TestHTTPSCertValidity(unittest.TestCase):
         os.remove(dummy_cert_path)
 
     def test_https_request_with_self_signed_cert(self):
-        # Determine if we should verify the requests to the server
-        should_verify = self._use_cert_verification(self.cert_file)
+        should_verify = self.verify_cert(self.cert_file)
 
         # If the certificate is self-signed, verification should be False
         self.assertFalse(should_verify)
 
-        # Make a request to the server without verification if the cert is self-signed
         response = requests.get(
             f"https://localhost:{self.port}",
-            verify=False if not should_verify else self.cert_file,
+            verify=should_verify,
         )
 
-        # If no exception is raised, the request is successful
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.text, "Hello, SSL!")
+
+    @patch("requests.get")
+    def test_https_request_with_verified_cert(self, mock_get):
+        # Mock the response of the requests.get call
+        mock_response = requests.Response()
+        mock_response.status_code = 200
+        mock_response._content = b"Hello, SSL!"
+        mock_get.return_value = mock_response
+
+        # Simulate the scenario where the certificate should be verified
+        should_verify = True
+
+        # Call the method under test
+        response = requests.get(f"https://localhost:{self.port}", verify=should_verify)
+
+        mock_get.assert_called_once_with(
+            f"https://localhost:{self.port}", verify=should_verify
+        )
+
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.text, "Hello, SSL!")
 

@@ -34,34 +34,100 @@ class TestServlet:
                 shutil.rmtree(resource_dir)
 
     def test_put_obj(self, base_servlet, blob_data):
-        message = Message(data=pickle_b64(blob_data), key="key1")
-        resp = HTTPServer.call_servlet_method(
-            base_servlet, "put_object", [message.key, message.data]
-        )
-        assert resp.output_type == "success"
+        resource_path = Path("~/rh/blob/local-blob").expanduser()
+        resource_dir = resource_path.parent
+        try:
+            resource = rh.blob(blob_data, path=resource_path)
+            message = Message(data=pickle_b64(resource), key="key1")
+            resp = HTTPServer.call_servlet_method(
+                base_servlet, "put_object", [message.key, message.data]
+            )
+            assert resp.output_type == "success"
+        finally:
+            if os.path.exists(resource_path):
+                shutil.rmtree(resource_dir)
 
     def test_get_obj(self, base_servlet):
         remote = False
+        stream = True
         resp = HTTPServer.call_servlet_method(
             base_servlet,
             "get",
-            ["key1", remote, True],
+            ["key1", remote, stream],
         )
         assert resp.output_type == "result"
-        resp_data = b64_unpickle(resp.data)
-        assert isinstance(resp_data, list)
+        blob = b64_unpickle(resp.data)
+        assert isinstance(blob, rh.Blob)
+
+    def test_get_obj_config(self, base_servlet):
+        remote = True
+        stream = True
+        resp = HTTPServer.call_servlet_method(
+            base_servlet,
+            "get",
+            ["key1", remote, stream],
+        )
+        assert resp.output_type == "config"
+        blob_config = resp.data
+        assert isinstance(blob_config, dict)
+
+    def test_get_obj_as_ref(self, base_servlet):
+        import ray
+
+        remote = False
+        stream = True
+        resp = HTTPServer.call_servlet_method(
+            base_servlet, "get", ["key1", remote, stream], block=False
+        )
+        assert isinstance(resp, ray.ObjectRef)
+
+        resp_object = ray.get(resp)
+        assert isinstance(b64_unpickle(resp_object.data), rh.Blob)
+
+    def test_get_obj_ref_as_config(self, base_servlet):
+        import ray
+
+        remote = True
+        stream = True
+        resp = HTTPServer.call_servlet_method(
+            base_servlet, "get", ["key1", remote, stream], block=False
+        )
+        assert isinstance(resp, ray.ObjectRef)
+
+        resp_object = ray.get(resp)
+        assert resp_object.output_type == "config"
+        assert isinstance(resp_object.data, dict)
+
+    def test_get_obj_does_not_exist(self, base_servlet):
+        remote = False
+        stream = True
+        resp = HTTPServer.call_servlet_method(
+            base_servlet,
+            "get",
+            ["abcdefg", remote, stream],
+        )
+        assert resp.output_type == "exception"
+        assert isinstance(b64_unpickle(resp.error), KeyError)
 
     def test_get_keys(self, base_servlet):
         resp = HTTPServer.call_servlet_method(base_servlet, "get_keys", [])
         assert resp.output_type == "result"
-        assert "key1" in b64_unpickle(resp.data)
+        keys: list = b64_unpickle(resp.data)
+        assert "key1" in keys
 
     def test_rename_object(self, base_servlet):
         message = Message(data=pickle_b64(("key1", "key2")))
         resp = HTTPServer.call_servlet_method(base_servlet, "rename_object", [message])
         assert resp.output_type == "success"
 
+        resp = HTTPServer.call_servlet_method(base_servlet, "get_keys", [])
+        assert resp.output_type == "result"
+
+        keys: list = b64_unpickle(resp.data)
+        assert "key2" in keys
+
     def test_delete_obj(self, base_servlet):
+        remote = False
         keys = ["key2"]
         message = Message(data=pickle_b64((keys)))
         resp = HTTPServer.call_servlet_method(base_servlet, "delete_obj", [message])
@@ -71,7 +137,7 @@ class TestServlet:
         resp = HTTPServer.call_servlet_method(
             base_servlet,
             "get",
-            ["key2", False, True],
+            ["key2", remote, True],
         )
         assert resp.output_type == "exception"
         assert isinstance(b64_unpickle(resp.error), KeyError)
@@ -82,7 +148,7 @@ class TestServlet:
         resp = HTTPServer.call_servlet_method(base_servlet, "add_secrets", [message])
 
         assert resp.output_type == "result"
-        assert b64_unpickle(resp.data) == {}
+        assert not b64_unpickle(resp.data)
 
     def test_add_secrets_for_unsupported_provider(self, base_servlet):
         secrets = {"test_provider": {"access_key": "abc123"}}

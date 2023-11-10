@@ -554,9 +554,9 @@ class EnvServlet:
 
         self.register_activity()
         secrets_to_add: dict = b64_unpickle(message.data)
-        failed_providers = (
-            {}
-        )  # Track which providers fail and send them back to the user
+
+        # Track which providers fail and send them back to the user
+        failed_providers = {}
         try:
             for provider_name, provider_secrets in secrets_to_add.items():
                 p = Secrets.builtin_provider_class_from_name(provider_name)
