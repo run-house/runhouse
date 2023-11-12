@@ -31,7 +31,7 @@ def run_performance_tests(summer_func):
     print(f"Call without logs took {round(avg_time, 2)} ms: {times_list}")
 
     port = cluster.client.port
-    suffix = "https" if cluster._use_https else "http"
+    suffix = "https" if cluster.use_https else "http"
     address = cluster.address
 
     call_url = f"{suffix}://{address}:{port}/call/summer_func/call/?serialization=None"

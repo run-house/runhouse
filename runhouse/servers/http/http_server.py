@@ -828,10 +828,9 @@ if __name__ == "__main__":
         nc = NginxConfig(
             address=address,
             rh_server_port=rh_server_port,
-            http_port=http_port,
-            https_port=https_port,
             ssl_key_path=ssl_keyfile,
             ssl_cert_path=ssl_certfile,
+            use_https=use_https,
             force_reinstall=restart_proxy,
         )
         nc.configure()

@@ -10,6 +10,11 @@ import runhouse as rh
 from ...conftest import init_args
 
 SSH_USER = "rh-docker-user"
+KEYPATH = str(
+    Path(
+        rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
+    ).expanduser()
+)
 
 
 @pytest.fixture(scope="session")
@@ -150,11 +155,10 @@ def build_and_run_image(
     container_name: str,
     detached: bool,
     dir_name: str,
-    keypath=None,
     pwd_file=None,
+    use_keypath=False,
     force_rebuild=False,
 ):
-
     import subprocess
 
     import docker
@@ -182,7 +186,7 @@ def build_and_run_image(
         images = client.images.list(filters={"reference": f"runhouse:{image_name}"})
         if not images or force_rebuild:
             # Build the SSH public key based Docker image
-            if keypath:
+            if use_keypath:
                 build_cmd = [
                     "docker",
                     "build",
@@ -195,7 +199,7 @@ def build_and_run_image(
                     if rh_path
                     else f"RUNHOUSE_VERSION={rh_version}",
                     "--secret",
-                    f"id=ssh_key,src={keypath}.pub",
+                    f"id=ssh_key,src={KEYPATH}.pub",
                     "-t",
                     f"runhouse:{image_name}",
                     ".",
@@ -296,11 +300,6 @@ def popen_shell_command(subprocess, command: list[str], cwd: str = None):
 
 @pytest.fixture(scope="session")
 def base_cluster(pytestconfig):
-    keypath = str(
-        Path(
-            rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
-        ).expanduser()
-    )
     c = rh.cluster(
         name="local-docker-slim-public-key-auth",
         host="localhost",
@@ -308,7 +307,7 @@ def base_cluster(pytestconfig):
         server_host="0.0.0.0",
         ssh_creds={
             "ssh_user": "rh-docker-user",
-            "ssh_private_key": keypath,
+            "ssh_private_key": KEYPATH,
         },
     ).save()
     return c
@@ -319,11 +318,6 @@ def local_logged_out_docker_cluster(request, base_cluster):
     image_name = "keypair"
     container_name = "rh-slim-server-public-key-auth"
     dir_name = "public-key-auth"
-    keypath = str(
-        Path(
-            rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
-        ).expanduser()
-    )
 
     detached = request.config.getoption("--detached")
 
@@ -332,7 +326,7 @@ def local_logged_out_docker_cluster(request, base_cluster):
         container_name=container_name,
         dir_name=dir_name,
         detached=detached,
-        keypath=keypath,
+        use_keypath=True,
         force_rebuild=request.config.getoption("--force-rebuild"),
     )
 
@@ -360,11 +354,6 @@ def local_docker_cluster_public_key(request, base_cluster):
     image_name = "keypair"
     container_name = "rh-slim-server-public-key-auth"
     dir_name = "public-key-auth"
-    keypath = str(
-        Path(
-            rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
-        ).expanduser()
-    )
 
     detached = request.config.getoption("--detached")
 
@@ -373,7 +362,7 @@ def local_docker_cluster_public_key(request, base_cluster):
         container_name=container_name,
         dir_name=dir_name,
         detached=detached,
-        keypath=keypath,
+        use_keypath=True,
         force_rebuild=request.config.getoption("--force-rebuild"),
     )
 
@@ -403,19 +392,13 @@ def local_test_account_cluster_public_key(request, base_cluster, test_account):
     container_name = "rh-slim-server-public-key-auth"
     with test_account:
         # Create the shared cluster using the test account
-        keypath = str(
-            Path(
-                rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
-            ).expanduser()
-        )
-
         detached = request.config.getoption("--detached")
         client, rh_parent_path = build_and_run_image(
             image_name="keypair",
             container_name=container_name,
             detached=True,
             dir_name="public-key-auth",
-            keypath=keypath,
+            use_keypath=True,
             force_rebuild=request.config.getoption("--force-rebuild"),
         )
 

@@ -2,6 +2,8 @@ import json
 import unittest
 from unittest.mock import ANY, MagicMock, Mock, mock_open, patch
 
+import pytest
+
 from runhouse.globals import rns_client
 
 from runhouse.servers.http import HTTPClient
@@ -9,6 +11,10 @@ from runhouse.servers.http.http_utils import pickle_b64
 
 
 class TestHTTPClient(unittest.TestCase):
+    @pytest.fixture(autouse=True)
+    def init_fixtures(self, request):
+        self.base_cluster = request.getfixturevalue("base_cluster")
+
     def setUp(self):
         self.client = HTTPClient("localhost", HTTPClient.DEFAULT_PORT)
 
@@ -37,7 +43,6 @@ class TestHTTPClient(unittest.TestCase):
 
         mock_request.assert_called_once_with("cert", req_type="get", headers={})
 
-        # Check that mkdir was called correctly
         mock_mkdir.assert_called_once()
 
         # Check that open was called correctly
@@ -118,7 +123,6 @@ class TestHTTPClient(unittest.TestCase):
         for result in result_generator:
             results.append(result)
 
-        # Assert that the results are what we expect
         expected_results = ["stream_result_1", "stream_result_2", "final_result"]
         self.assertEqual(results, expected_results)
 
@@ -211,6 +215,38 @@ class TestHTTPClient(unittest.TestCase):
         # Call the method under test
         self.client.call_module_method("base_env", "install")
 
+    @patch("requests.post")
+    def test_call_module_method_config(self, mock_post):
+        test_data = self.base_cluster.config_for_rns
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.iter_lines.return_value = iter(
+            [
+                json.dumps({"output_type": "config", "data": test_data}),
+            ]
+        )
+        mock_post.return_value = mock_response
+
+        cluster = self.client.call_module_method("base_env", "install")
+        self.assertEqual(cluster.config_for_rns, test_data)
+
+    @patch("requests.post")
+    def test_call_module_method_not_found_error(self, mock_post):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        missing_key = "missing_key"
+        mock_response.iter_lines.return_value = iter(
+            [
+                json.dumps({"output_type": "not_found", "data": missing_key}),
+            ]
+        )
+        mock_post.return_value = mock_response
+
+        with self.assertRaises(KeyError) as context:
+            next(self.client.call_module_method("module", "method"))
+
+        self.assertIn(f"key {missing_key} not found", str(context.exception))
+
     @patch("runhouse.servers.http.HTTPClient.request")
     def test_put_object(self, mock_request):
         key = "my_list"
@@ -230,6 +266,17 @@ class TestHTTPClient(unittest.TestCase):
 
         actual_data = mock_request.call_args[1]["data"]
         self.assertEqual(actual_data, expected_data)
+
+    @patch("runhouse.servers.http.HTTPClient.request")
+    def test_get_keys(self, mock_request):
+        self.client.keys()
+        mock_request.assert_called_with("keys", req_type="get")
+
+        mock_request.reset_mock()
+
+        test_env = "test_env"
+        self.client.keys(env=test_env)
+        mock_request.assert_called_with(f"keys/?env={test_env}", req_type="get")
 
     @patch("runhouse.servers.http.HTTPClient.request")
     def test_delete(self, mock_request):

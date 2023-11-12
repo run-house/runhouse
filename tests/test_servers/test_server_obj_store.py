@@ -3,7 +3,7 @@ import unittest
 from runhouse.servers.http.auth import hash_token
 
 
-class TestServerObjStore:
+class TestBaseEnvObjStore:
     """Start object store in a local base env servlet"""
 
     def test_put_and_get_string(self, obj_store):
@@ -133,15 +133,6 @@ class TestServerObjStore:
         res = obj_store.contains(key)
         assert res is True
 
-    @unittest.skip("Not implemented yet.")
-    def test_cancel(self, obj_store):
-        key = "obj_ref"
-        obj_store.put_obj_ref(key, "new_obj_ref")
-        obj_store.cancel(key)
-
-        obj_ref = obj_store.get_obj_ref(key, default=None)
-        assert obj_ref is None
-
     def test_pop_env(self, obj_store):
         env = "new_env"
         obj_store.pop_env(env)
@@ -159,12 +150,21 @@ class TestServerObjStore:
         assert res is None
 
     @unittest.skip("Not implemented yet.")
+    def test_cancel(self, obj_store):
+        key = "obj_ref"
+        obj_store.put_obj_ref(key, "new_obj_ref")
+        obj_store.cancel(key)
+
+        obj_ref = obj_store.get_obj_ref(key, default=None)
+        assert obj_ref is None
+
+    @unittest.skip("Not implemented yet.")
     def test_cancel_all(self, obj_store):
         obj_store.cancel_all()
         assert obj_store.keys() == []
 
 
-class TestServerCacheObjStore:
+class TestAuthCacheObjStore:
     """Start object store in a local auth cache servlet"""
 
     def test_resource_access_level(self, obj_store_auth_cache, test_account):

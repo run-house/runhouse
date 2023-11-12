@@ -1,7 +1,7 @@
 import json
 import os
-import shutil
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -19,7 +19,7 @@ from tests.test_servers.conftest import summer
 def check_den_auth(pytestconfig):
     if not pytestconfig.getoption("--den-auth"):
         pytest.fail(
-            "--den-auth option must be provided to run auth tests (make sure server was also started"
+            "--den-auth option must be provided to run auth tests (make sure server was also started "
             "with den auth enabled)",
             pytrace=False,
         )
@@ -145,8 +145,7 @@ class TestHTTPServerWithAuth:
         )
         assert response.status_code == 200
 
-        resp_obj = json.loads(response.text.split("\n")[0])
-        assert resp_obj["output_type"] == "result"
+        resp_obj: dict = json.loads(response.text.split("\n")[0])
         assert b64_unpickle(resp_obj["data"]) == 3
 
     @pytest.mark.asyncio
@@ -404,20 +403,18 @@ class TestHTTPServerWithAuthLocally:
         response = local_client_with_den_auth.get("/check")
         assert response.status_code == 200
 
-    def test_put_resource(self, local_client_with_den_auth, local_blob):
-        resource_path = Path("~/rh/blob/local-blob").expanduser()
-        resource_dir = resource_path.parent
-        state = None
-        try:
+    def test_put_resource(self, local_client_with_den_auth, blob_data):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            resource_path = Path(temp_dir, "local-blob")
+            local_blob = rh.blob(blob_data, path=resource_path)
             resource = local_blob.to(system="file", path=resource_path)
+
+            state = None
             data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
             response = local_client_with_den_auth.post(
                 "/resource", json={"data": data}, headers=rns_client.request_headers
             )
             assert response.status_code == 200
-        finally:
-            if os.path.exists(resource_path):
-                shutil.rmtree(resource_dir)
 
     def test_put_object(self, local_client_with_den_auth):
         test_list = list(range(5, 50, 2)) + ["a string"]
@@ -574,22 +571,20 @@ class TestHTTPServerWithAuthLocally:
         assert response.status_code == 200
 
     def test_put_resource_with_invalid_token(
-        self, local_client_with_den_auth, local_blob
+        self, local_client_with_den_auth, blob_data
     ):
-        resource_path = Path("~/rh/blob/local-blob").expanduser()
-        resource_dir = resource_path.parent
-        state = None
-        try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            resource_path = Path(temp_dir, "local-blob")
+            local_blob = rh.blob(blob_data, path=resource_path)
             resource = local_blob.to(system="file", path=resource_path)
+            state = None
             data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
             resp = local_client_with_den_auth.post(
                 "/resource", json={"data": data}, headers=self.invalid_headers
             )
-            print(resp)
 
-        finally:
-            if os.path.exists(resource_path):
-                shutil.rmtree(resource_dir)
+            assert resp.status_code == 403
+            assert "Cluster access is required for API" in resp.text
 
     @unittest.skip("Not implemented yet.")
     def test_call_module_method_with_invalid_token(

@@ -1,5 +1,4 @@
-import os
-import shutil
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -12,12 +11,13 @@ from tests.test_servers.conftest import summer
 
 
 class TestServlet:
-    def test_put_resource(self, base_servlet, local_blob):
-        resource_path = Path("~/rh/blob/local-blob").expanduser()
-        resource_dir = resource_path.parent
-        try:
-            state = {}
+    def test_put_resource(self, base_servlet, blob_data):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            resource_path = Path(temp_dir, "local-blob")
+            local_blob = rh.blob(blob_data, path=resource_path)
             resource = local_blob.to(system="file", path=resource_path)
+
+            state = {}
             message = Message(
                 data=pickle_b64((resource.config_for_rns, state, resource.dryrun)),
                 env="base_env",
@@ -29,23 +29,15 @@ class TestServlet:
             assert resp.output_type == "result"
             assert b64_unpickle(resp.data).startswith("file_")
 
-        finally:
-            if os.path.exists(resource_path):
-                shutil.rmtree(resource_dir)
-
     def test_put_obj(self, base_servlet, blob_data):
-        resource_path = Path("~/rh/blob/local-blob").expanduser()
-        resource_dir = resource_path.parent
-        try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            resource_path = Path(temp_dir, "local-blob")
             resource = rh.blob(blob_data, path=resource_path)
             message = Message(data=pickle_b64(resource), key="key1")
             resp = HTTPServer.call_servlet_method(
                 base_servlet, "put_object", [message.key, message.data]
             )
             assert resp.output_type == "success"
-        finally:
-            if os.path.exists(resource_path):
-                shutil.rmtree(resource_dir)
 
     def test_get_obj(self, base_servlet):
         remote = False

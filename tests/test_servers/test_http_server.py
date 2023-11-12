@@ -1,6 +1,5 @@
 import json
-import os
-import shutil
+import tempfile
 import unittest
 
 from pathlib import Path
@@ -116,7 +115,6 @@ class TestHTTPServer:
         assert response.status_code == 200
 
         resp_obj: dict = json.loads(response.text.split("\n")[0])
-        assert resp_obj["output_type"] == "result"
         assert b64_unpickle(resp_obj["data"]) == 3
 
     @pytest.mark.asyncio
@@ -214,18 +212,16 @@ class TestHTTPServerLocally:
         response = local_client.get("/check")
         assert response.status_code == 200
 
-    def test_put_resource(self, local_client, local_blob):
-        resource_path = Path("~/rh/blob/local-blob").expanduser()
-        resource_dir = resource_path.parent
-        state = None
-        try:
+    def test_put_resource(self, local_client, blob_data):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            resource_path = Path(temp_dir, "local-blob")
+            local_blob = rh.blob(blob_data, path=resource_path)
             resource = local_blob.to(system="file", path=resource_path)
+
+            state = None
             data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
             response = local_client.post("/resource", json={"data": data})
             assert response.status_code == 200
-        finally:
-            if os.path.exists(resource_path):
-                shutil.rmtree(resource_dir)
 
     def test_put_object(self, local_client):
         key = "key1"

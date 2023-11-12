@@ -1,8 +1,6 @@
 import subprocess
 import warnings
 
-from pathlib import Path
-
 import httpx
 
 import pytest
@@ -17,14 +15,9 @@ from tests.conftest import build_and_run_image
 
 # Note: Server will run on local docker container
 BASE_URL = "http://localhost:32300"
+
 BASE_ENV_ACTOR_NAME = "base"
 CACHE_ENV_ACTOR_NAME = "auth_cache"
-
-KEYPATH = str(
-    Path(
-        rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
-    ).expanduser()
-)
 
 
 # -------- HELPERS ----------- #
@@ -103,7 +96,7 @@ def docker_container(pytestconfig, cluster):
             container_name=container_name,
             detached=True,
             dir_name="public-key-auth",
-            keypath=KEYPATH,
+            use_keypath=True,
             force_rebuild=pytestconfig.getoption("--force-rebuild"),
         )
         rh_config = rh.configs.load_defaults_from_file()
@@ -142,9 +135,8 @@ def base_servlet():
     try:
         yield ray.get_actor(BASE_ENV_ACTOR_NAME, namespace="runhouse")
     except Exception as e:
-        raise RuntimeError(
-            f"No actor with name {BASE_ENV_ACTOR_NAME}, make sure Ray is started: {e}"
-        )
+        # Note: One easy way to ensure this base env actor is created is to run the HTTP server tests
+        raise RuntimeError(e)
 
 
 @pytest.fixture(scope="session")
@@ -154,9 +146,7 @@ def cache_servlet():
     try:
         yield ray.get_actor(CACHE_ENV_ACTOR_NAME, namespace="runhouse")
     except Exception as e:
-        raise RuntimeError(
-            f"No actor with name {CACHE_ENV_ACTOR_NAME}, make sure Ray is started: {e}"
-        )
+        raise RuntimeError(e)
 
 
 @pytest.fixture(scope="session")
