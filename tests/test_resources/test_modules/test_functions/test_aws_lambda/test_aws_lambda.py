@@ -49,7 +49,7 @@ def test_create_and_run_no_layers():
     reload_func = rh.aws_lambda_function(name=name)
     res2 = reload_func(12, 7)
     assert res2 == "19"
-    LAMBDAS_NAMES.add(my_lambda.lambda_name)
+    LAMBDAS_NAMES.add(my_lambda.name)
 
 
 def test_load_not_existing_lambda():
@@ -79,7 +79,7 @@ def test_create_and_run_generate_name():
     time.sleep(1)
     res2 = reload_func(12, 7)
     assert res2 == "19"
-    LAMBDAS_NAMES.add(my_lambda.lambda_name)
+    LAMBDAS_NAMES.add(my_lambda.name)
 
 
 def test_create_and_run_layers():
@@ -96,7 +96,7 @@ def test_create_and_run_layers():
     time.sleep(4)  # letting the lambda be updated in AWS.
     res = my_lambda([1, 2, 3], [1, 2, 3])
     assert res == "12"
-    LAMBDAS_NAMES.add(my_lambda.lambda_name)
+    LAMBDAS_NAMES.add(my_lambda.name)
 
 
 def test_different_runtimes_and_layers():
@@ -113,7 +113,7 @@ def test_different_runtimes_and_layers():
     time.sleep(4)  # letting the lambda be updated in AWS.
     res37 = my_lambda_37([1, 2, 3], [2, 5, 6])
     assert res37 == "19"
-    LAMBDAS_NAMES.add(my_lambda_37.lambda_name)
+    LAMBDAS_NAMES.add(my_lambda_37.name)
 
     my_lambda_38 = rh.aws_lambda_function(
         paths_to_code=handler_path,
@@ -126,7 +126,7 @@ def test_different_runtimes_and_layers():
     time.sleep(4)  # letting the lambda be updated in AWS.
     res38 = my_lambda_38([1, 2, 3], [12, 5, 9])
     assert res38 == "32"
-    LAMBDAS_NAMES.add(my_lambda_38.lambda_name)
+    LAMBDAS_NAMES.add(my_lambda_38.name)
 
     my_lambda_310 = rh.aws_lambda_function(
         paths_to_code=handler_path,
@@ -139,7 +139,7 @@ def test_different_runtimes_and_layers():
     time.sleep(4)  # letting the lambda be updated in AWS.
     res310 = my_lambda_310([-2, 5, 1], [12, 5, 9])
     assert res310 == "30"
-    LAMBDAS_NAMES.add(my_lambda_310.lambda_name)
+    LAMBDAS_NAMES.add(my_lambda_310.name)
 
     my_lambda_311 = rh.aws_lambda_function(
         paths_to_code=handler_path,
@@ -152,7 +152,7 @@ def test_different_runtimes_and_layers():
     time.sleep(4)  # letting the lambda be updated in AWS.
     res311 = my_lambda_311([-2, 5, 1], [8, 7, 6])
     assert res311 == "25"
-    LAMBDAS_NAMES.add(my_lambda_311.lambda_name)
+    LAMBDAS_NAMES.add(my_lambda_311.name)
 
 
 def test_create_and_run_layers_txt():
@@ -169,7 +169,7 @@ def test_create_and_run_layers_txt():
     time.sleep(5)  # letting the lambda be updated in AWS.
     res = my_lambda([1, 2, 3], [1, 2, 3])
     assert res == "12"
-    LAMBDAS_NAMES.add(my_lambda.lambda_name)
+    LAMBDAS_NAMES.add(my_lambda.name)
 
 
 def test_update_lambda_one_file():
@@ -189,7 +189,7 @@ def test_update_lambda_one_file():
     time.sleep(1)
     res2 = reload_func(12, 13)
     assert res2 == "25"
-    LAMBDAS_NAMES.add(my_lambda.lambda_name)
+    LAMBDAS_NAMES.add(my_lambda.name)
 
 
 def test_mult_files_each():
@@ -226,7 +226,7 @@ def test_mult_files_each():
     assert res2 == "3.2"
     assert res3 == "22.5"
     assert res4 == "7.5"
-    LAMBDAS_NAMES.add(my_lambda_calc_1.lambda_name)
+    LAMBDAS_NAMES.add(my_lambda_calc_1.name)
 
 
 def test_few_python_files_chain():
@@ -261,7 +261,7 @@ def test_few_python_files_chain():
     assert res2 == "17"
     assert res3 == "20"
     assert res4 == "20"
-    LAMBDAS_NAMES.add(my_lambda_calc_2.lambda_name)
+    LAMBDAS_NAMES.add(my_lambda_calc_2.name)
 
 
 def test_args():
@@ -307,7 +307,7 @@ def test_create_from_config():
     assert res1 == "3"
     assert res2 == "20"
     assert res3 == "31"
-    LAMBDAS_NAMES.add(config_lambda.lambda_name)
+    LAMBDAS_NAMES.add(config_lambda.name)
 
 
 def test_share_lambda():

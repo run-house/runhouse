@@ -662,10 +662,6 @@ class AWSLambdaFunction(Function):
         )
         return config
 
-    @property
-    def lambda_name(self):
-        return self.name
-
 
 def aws_lambda_function(
     paths_to_code: list[str] = None,
