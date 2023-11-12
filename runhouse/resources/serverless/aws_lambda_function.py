@@ -737,7 +737,7 @@ def aws_lambda_function(
             "Runhouse can't create a Lambda function. "
             + "Please provide lambda's name and/or paths_to_code, handler_function_name, runtime and args_names"
         )
-        return "NoEnoughArgsProvided"
+        raise Exception("NoEnoughArgsProvided")
 
     if name and not any([paths_to_code, handler_function_name, runtime, args_names]):
         # Try reloading existing function
