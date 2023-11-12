@@ -6,6 +6,7 @@ import shutil
 import sys
 import time
 import zipfile
+from pathlib import Path
 from typing import Any, List, Optional
 
 import boto3
@@ -13,6 +14,14 @@ import boto3
 from runhouse.resources.function import Function
 
 logger = logging.getLogger(__name__)
+LAMBDA_CLIENT = boto3.client("lambda")
+SUPPORTED_RUNTIMES = [
+    "python3.7",
+    "python3.8",
+    "python3.9",
+    "python3.10",
+    "python 3.11",
+]
 
 
 class AWSLambdaFunction(Function):
@@ -34,12 +43,10 @@ class AWSLambdaFunction(Function):
         "s3:ListBucket",
         "s3:PutObject",
     ]
-    CRED_PATH_MAC = f"{os.path.expanduser('~')}/.aws/credentials"
-    CRED_PATH_WIN = f"{os.path.expanduser('~')}\.aws\credentials"
+    CRED_PATH_MAC = f"{Path.home()}/.aws/credentials"
+    CRED_PATH_WIN = f"{Path.home()}\.aws\credentials"
     GEN_ERROR = "could not create or update the AWS Lambda."
     FAIL_CODE = 1
-    DEFAULT_REGION = "us-east-1"
-    LAMBDA_CLIENT = boto3.client("lambda", region_name=DEFAULT_REGION)
     EMPTY_ZIP = -1
 
     def __init__(
@@ -166,14 +173,13 @@ class AWSLambdaFunction(Function):
     def _lambda_exist(self, name):
         """Checks if a Lambda with the name given during init is already exists in AWS"""
         func_names = [
-            func["FunctionName"]
-            for func in self.LAMBDA_CLIENT.list_functions()["Functions"]
+            func["FunctionName"] for func in LAMBDA_CLIENT.list_functions()["Functions"]
         ]
         return name in func_names
 
     def _wait_until_update_is_finished(self, name):
         """Verifies that a running update of the function (in AWS) is finished (so the next one could be executed)"""
-        response = self.LAMBDA_CLIENT.get_function(FunctionName=name)
+        response = LAMBDA_CLIENT.get_function(FunctionName=name)
         state = response["Configuration"]["State"] == "Active"
         last_update_status = (
             response["Configuration"]["LastUpdateStatus"] != "InProgress"
@@ -184,7 +190,7 @@ class AWSLambdaFunction(Function):
                 break
             else:
                 time.sleep(1)
-                response = self.LAMBDA_CLIENT.get_function(FunctionName=name)
+                response = LAMBDA_CLIENT.get_function(FunctionName=name)
                 state = response["Configuration"]["State"] == "Active"
                 last_update_status = (
                     response["Configuration"]["LastUpdateStatus"] != "InProgress"
@@ -193,7 +199,7 @@ class AWSLambdaFunction(Function):
 
     def _rh_wrapper(self):
         """Creates a runhouse wrapper to the handler function"""
-        path = os.path.abspath(self.local_path_to_code[0]).split("/")
+        path = str(Path(self.local_path_to_code[0]).absolute()).split("/")
         handler_file_name = path[-1].split(".")[0]
         path = ["/" + path_e for path_e in path]
         path[0] = ""
@@ -250,11 +256,12 @@ class AWSLambdaFunction(Function):
         bucket_name = "runhouse-lambda-resources"
         remote_path = f"layer_helpers/{self.runtime}"
         try:
+
             os.system(
                 f"aws s3 cp s3://{bucket_name}/{remote_path} {dest_path} --recursive"
             )
         except Exception:
-            dir_name = os.path.join(os.getcwd(), "all_reqs")
+            dir_name = str(Path(__file__).parent / "all_reqs")
             shutil.rmtree(dir_name)
             raise Exception(
                 "Try installing aws on your local machine (i.e brew install awscli) and rerun."
@@ -264,12 +271,9 @@ class AWSLambdaFunction(Function):
         """Creates a zip of all required python libs, that will be sent to the Lambda as a layer"""
         supported_libs = self._supported_python_libs()
         reqs = [req for req in self.reqs if req not in supported_libs]
-        cwd = os.getcwd()
-        all_req_dir = os.path.join(cwd, "all_reqs")
-        os.mkdir(all_req_dir)
-        all_req_dir = os.path.join(all_req_dir, "python")
-        os.mkdir(all_req_dir)
-        dir_name = os.path.join(cwd, "all_reqs")
+        dir_name = str(Path(__file__).parent / "all_reqs")
+        all_req_dir = Path(__file__).parent / "all_reqs" / "python"
+        Path(all_req_dir).mkdir(parents=True, exist_ok=True)
         if "numpy" in reqs:
             reqs.remove("numpy")
         if "pandas" in reqs:
@@ -279,12 +283,13 @@ class AWSLambdaFunction(Function):
             shutil.rmtree(dir_name)
             return self.EMPTY_ZIP
         for req in reqs:
-            folder_req = os.path.dirname(__import__(req).__file__)
+            folder_req = str(Path(__import__(req).__file__).parent)
             folder_req = folder_req.replace(f"/{req}", "")
-            sub_reqs = os.listdir(folder_req)
-            sub_reqs = [sr for sr in sub_reqs if req in sr]
+            sub_reqs = [
+                str(item) for item in Path(folder_req).iterdir() if req in str(item)
+            ]
             for r in sub_reqs:
-                shutil.copytree(folder_req + "/" + r, all_req_dir + "/" + r)
+                shutil.copytree(folder_req + "/" + r, str(all_req_dir) + "/" + r)
 
         shutil.make_archive(dir_name, "zip", dir_name)
         shutil.rmtree(dir_name)
@@ -304,7 +309,7 @@ class AWSLambdaFunction(Function):
             description = f"This layer contains the following python libraries: {', '.join(reqs_no_np)}"
             with open(zip_file_name, "rb") as f:
                 layer_zf = f.read()
-            layer = self.LAMBDA_CLIENT.publish_layer_version(
+            layer = LAMBDA_CLIENT.publish_layer_version(
                 LayerName=layer_name,
                 Description=description,
                 Content={"ZipFile": layer_zf},
@@ -313,10 +318,10 @@ class AWSLambdaFunction(Function):
             layer_arn, layer_version = layer["LayerVersionArn"], int(
                 layer["LayerVersionArn"].split(":")[-1]
             )
-            os.remove(zip_file_name)
+            Path(zip_file_name).unlink()
 
         # Creating and getting the np and pd layer, suitable to the runtime provided during init.
-        list_layers = self.LAMBDA_CLIENT.list_layers(
+        list_layers = LAMBDA_CLIENT.list_layers(
             CompatibleRuntime=f"{self.runtime}", CompatibleArchitecture="x86_64"
         )
 
@@ -327,7 +332,7 @@ class AWSLambdaFunction(Function):
 
         # create the layer if not existing in AWS.
         if pd_np_layer_name not in layer_names:
-            np_layer = self.LAMBDA_CLIENT.publish_layer_version(
+            np_layer = LAMBDA_CLIENT.publish_layer_version(
                 LayerName=pd_np_layer_name,
                 Description=f"This layer contains numpy and pandas suitable for {self.runtime}",
                 Content={
@@ -365,7 +370,7 @@ class AWSLambdaFunction(Function):
         if self.np_layer:
             layers.append(self.np_layer)
         if len(layers) > 0:
-            lambda_config = self.LAMBDA_CLIENT.update_function_configuration(
+            lambda_config = LAMBDA_CLIENT.update_function_configuration(
                 FunctionName=self.name,
                 Runtime=self.runtime,
                 Timeout=self.timeout,
@@ -374,7 +379,7 @@ class AWSLambdaFunction(Function):
                 Environment={"Variables": env_vars},
             )
         else:
-            lambda_config = self.LAMBDA_CLIENT.update_function_configuration(
+            lambda_config = LAMBDA_CLIENT.update_function_configuration(
                 FunctionName=self.name,
                 Runtime=self.runtime,
                 Timeout=self.timeout,
@@ -385,14 +390,14 @@ class AWSLambdaFunction(Function):
         # TODO: enable for other to update the Lambda code.
         # wait for the config update process to finish, and then update the code (Lambda logic).
         if self._wait_until_update_is_finished(self.name):
-            path = os.path.abspath(self.local_path_to_code[0]).split("/")
+            path = str(Path(self.local_path_to_code[0]).absolute()).split("/")
             path = ["/" + path_e for path_e in path]
             path[0] = ""
             zip_file_name = f"{''.join(path[:-1])}/{self.name}_code_files.zip"
             zf = zipfile.ZipFile(zip_file_name, mode="w")
             try:
                 for file_name in self.local_path_to_code:
-                    zf.write(file_name, os.path.basename(file_name))
+                    zf.write(file_name, str(Path(file_name).name))
 
             except FileNotFoundError:
                 logger.error(f"Could not find {FileNotFoundError.filename}")
@@ -401,7 +406,7 @@ class AWSLambdaFunction(Function):
             with open(zip_file_name, "rb") as f:
                 zipped_code = f.read()
 
-            lambda_config = self.LAMBDA_CLIENT.update_function_code(
+            lambda_config = LAMBDA_CLIENT.update_function_code(
                 FunctionName=self.name, ZipFile=zipped_code
             )
 
@@ -412,14 +417,14 @@ class AWSLambdaFunction(Function):
     def _create_new_lambda(self, env_vars):
         """Creates new AWS Lambda."""
         logger.info(f"Creating a new Lambda called {self.name}")
-        path = os.path.abspath(self.local_path_to_code[0]).split("/")
+        path = str(Path(self.local_path_to_code[0]).absolute()).split("/")
         path = ["/" + path_e for path_e in path]
         path[0] = ""
         zip_file_name = f"{''.join(path[:-1])}/{self.name}_code_files.zip"
         zf = zipfile.ZipFile(zip_file_name, mode="w")
         try:
             for file_name in self.local_path_to_code:
-                zf.write(file_name, os.path.basename(file_name))
+                zf.write(file_name, str(Path(file_name).name))
         except FileNotFoundError:
             logger.error(f"Could not find {FileNotFoundError.filename}")
         finally:
@@ -472,7 +477,7 @@ class AWSLambdaFunction(Function):
 
         layers = []
         if self.layer:
-            self.LAMBDA_CLIENT.add_layer_version_permission(
+            LAMBDA_CLIENT.add_layer_version_permission(
                 LayerName=self.name + "_layer",
                 VersionNumber=self.layer_version,
                 StatementId=role_res["Role"]["RoleId"],
@@ -486,7 +491,7 @@ class AWSLambdaFunction(Function):
         if self.np_layer:
             layers.append(self.np_layer)
             layer_name = self.np_layer.split(":")[-2]
-            self.LAMBDA_CLIENT.add_layer_version_permission(
+            LAMBDA_CLIENT.add_layer_version_permission(
                 LayerName=layer_name,
                 VersionNumber=self.np_layer_version,
                 StatementId=role_res["Role"]["RoleId"],
@@ -497,7 +502,7 @@ class AWSLambdaFunction(Function):
 
         if len(layers) > 0:
 
-            lambda_config = self.LAMBDA_CLIENT.create_function(
+            lambda_config = LAMBDA_CLIENT.create_function(
                 FunctionName=self.name,
                 Runtime=self.runtime,
                 Role=role_res["Role"]["Arn"],
@@ -509,7 +514,7 @@ class AWSLambdaFunction(Function):
                 Environment={"Variables": env_vars},
             )
         else:
-            lambda_config = self.LAMBDA_CLIENT.create_function(
+            lambda_config = LAMBDA_CLIENT.create_function(
                 FunctionName=self.name,
                 Runtime=self.runtime,
                 Role=role_res["Role"]["Arn"],
@@ -545,10 +550,10 @@ class AWSLambdaFunction(Function):
         """
         # Checking if the user have a credentials file
         if not (
-            os.path.isfile(self.CRED_PATH_MAC) or os.path.isfile(self.CRED_PATH_WIN)
+            Path(self.CRED_PATH_MAC).is_file() or Path(self.CRED_PATH_WIN).is_file()
         ):
             logger.error(f"No credentials found, {self.GEN_ERROR}")
-            sys.exit(self.FAIL_CODE)
+            raise Exception("No credentials found")
 
         rh_handler_wrapper = self._rh_wrapper()
         self.local_path_to_code.append(rh_handler_wrapper)
@@ -593,7 +598,7 @@ class AWSLambdaFunction(Function):
         payload_invoke = {}
         if len(args) > 0:
             payload_invoke = {self.args_names[i]: args[i] for i in range(len(args))}
-        invoke_res = self.LAMBDA_CLIENT.invoke(
+        invoke_res = LAMBDA_CLIENT.invoke(
             FunctionName=self.name,
             Payload=json.dumps({**payload_invoke, **kwargs}),
             LogType="Tail",
@@ -601,6 +606,7 @@ class AWSLambdaFunction(Function):
         return_value = invoke_res["Payload"].read().decode("utf-8")
         try:
             logger.error(invoke_res["FunctionError"])
+            # using sys.exit here in order to simulate the lambda execution as much as possible.
             sys.exit(invoke_res["StatusCode"])
         except KeyError:
             print(
@@ -738,6 +744,25 @@ def aws_lambda_function(
     if name and not any([paths_to_code, handler_function_name, runtime, args_names]):
         # Try reloading existing function
         return AWSLambdaFunction.from_name(name=name)
+
+    # ------- arguments validation -------
+    if len(paths_to_code) == 0 or paths_to_code is None:
+        logger.error("Please provide a path to the lambda handler file.")
+        raise RuntimeError
+    if len(handler_function_name) == 0 or handler_function_name is None:
+        logger.error("Please provide the name of the function that should be executed.")
+        raise RuntimeError
+    if runtime not in SUPPORTED_RUNTIMES or runtime is None:
+        logger.error(
+            f"Please provide a supported runtime, should be one of the following: {SUPPORTED_RUNTIMES}"
+        )
+        raise RuntimeError
+    if len(args_names) == 0 or args_names is None:
+        logger.error(
+            "Please provide the names of the arguments provided to handler function, in the order they are"
+            + " passed to the function."
+        )
+        raise RuntimeError
 
     # TODO: [SB] in the next phase, maybe add the option to create func from git.
 
