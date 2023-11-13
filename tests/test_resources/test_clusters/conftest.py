@@ -18,17 +18,9 @@ def cluster(request):
 
 
 @pytest.fixture(scope="session")
-def unnamed_cluster():
-    args = {}
-    c = cluster(**args)
-    init_args[id(c)] = args
-    return c
-
-
-@pytest.fixture(scope="session")
 def named_cluster():
     args = {"name": "test-simple-cluster"}
-    c = cluster(**args)
+    c = rh.cluster(**args)
     init_args[id(c)] = args
     return c
 
@@ -72,11 +64,13 @@ def static_cpu_cluster():
     #     .save()
     # )
 
-    c = rh.cluster(
+    args = dict(
         name="different-cluster",
         ips=ip,
         ssh_creds={"username": "ubuntu", "ssh_private_key": "~/.ssh/sky-key"},
-    ).save()
+    )
+    c = rh.cluster(**args).save()
+    init_args[id(c)] = args
 
     c.install_packages(["pytest"])
     c.sync_secrets(["ssh"])
@@ -100,9 +94,9 @@ def byo_cpu():
         .save()
     )
 
-    c = rh.cluster(
-        name="different-cluster", ips=[c.address], ssh_creds=c.ssh_creds()
-    ).save()
+    args = dict(name="different-cluster", ips=[c.address], ssh_creds=c.ssh_creds())
+    c = rh.cluster(**args).save()
+    init_args[id(c)] = args
 
     c.install_packages(["pytest"])
     c.sync_secrets(["ssh"])
@@ -135,11 +129,11 @@ def password_cluster():
 
     # instantiate byo cluster with password
     ssh_creds = {"ssh_user": "ubuntu", "password": "cluster-pass"}
-    cluster = rh.cluster(
-        name="rh-password", ips=[sky_cluster.address], ssh_creds=ssh_creds
-    ).save()
+    args = dict(name="rh-password", ips=[sky_cluster.address], ssh_creds=ssh_creds)
+    c = rh.cluster(**args).save()
+    init_args[id(c)] = args
 
-    return cluster
+    return c
 
 
 ########### Docker Clusters ###########
@@ -181,7 +175,7 @@ def build_and_run_image(
         # Check if image has already been built before re-building
         images = client.images.list(filters={"reference": f"runhouse:{image_name}"})
         if not images or force_rebuild:
-            # Build the Docker image, but need to cd into base runhouse directory first
+            # Build the SSH public key based Docker image
             if keypath:
                 build_cmd = [
                     "docker",
@@ -201,7 +195,7 @@ def build_and_run_image(
                     ".",
                 ]
             elif pwd_file:
-                # Build a password container
+                # Build a password file based Docker image
                 build_cmd = [
                     "docker",
                     "build",
@@ -233,7 +227,7 @@ def build_and_run_image(
             container_name,
             "-d",
             "--rm",
-            "--shm-size=3gb",
+            "--shm-size=4gb",
             "-p",
             "32300:32300",
             "-p",
@@ -315,7 +309,7 @@ def local_logged_out_docker_cluster(request, detached=True):
     )
 
     # Runhouse commands can now be run locally
-    c = rh.cluster(
+    args = dict(
         name="local-docker-slim-public-key-auth",
         host="localhost",
         server_host="0.0.0.0",
@@ -324,6 +318,9 @@ def local_logged_out_docker_cluster(request, detached=True):
             "ssh_private_key": keypath,
         },
     )
+    c = rh.cluster(**args)
+    init_args[id(c)] = args
+
     rh.env(
         reqs=["pytest"],
         working_dir=None,
@@ -362,7 +359,7 @@ def local_docker_cluster_public_key(request, detached=True):
     )
 
     # Runhouse commands can now be run locally
-    c = rh.cluster(
+    args = dict(
         name="local-docker-slim-public-key-auth",
         host="localhost",
         server_host="0.0.0.0",
@@ -371,6 +368,8 @@ def local_docker_cluster_public_key(request, detached=True):
             "ssh_private_key": keypath,
         },
     )
+    c = rh.cluster(**args)
+    init_args[id(c)] = args
     rh.env(
         reqs=["pytest"],
         working_dir=None,
@@ -410,7 +409,7 @@ def local_test_account_cluster_public_key(request, test_account, detached=True):
             force_rebuild=pytestconfig.getoption("--force-rebuild"),
         )
 
-        c = rh.cluster(
+        args = dict(
             name="local-docker-slim-public-key-auth",
             host="localhost",
             den_auth=True,
@@ -419,7 +418,9 @@ def local_test_account_cluster_public_key(request, test_account, detached=True):
                 "ssh_user": SSH_USER,
                 "ssh_private_key": keypath,
             },
-        ).save()
+        )
+        c = rh.cluster(**args).save()
+        init_args[id(c)] = args
 
         # Save the test account config to ~/.rh directory in the container
         rh_config = rh.configs.load_defaults_from_file()
@@ -474,12 +475,14 @@ def local_docker_cluster_passwd(request, detached=True):
 
     # Runhouse commands can now be run locally
     pwd = (rh_parent_path.parent / pwd_file).read_text().strip()
-    c = rh.cluster(
+    args = dict(
         name="local-docker-slim-password-file-auth",
         host="localhost",
         server_host="0.0.0.0",
         ssh_creds={"ssh_user": SSH_USER, "password": pwd},
     )
+    c = rh.cluster(**args)
+    init_args[id(c)] = args
     rh.env(
         reqs=["pytest"],
         working_dir=None,
