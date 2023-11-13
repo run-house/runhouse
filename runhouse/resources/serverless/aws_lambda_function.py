@@ -24,6 +24,7 @@ if Path(CRED_PATH_MAC).is_file() or Path(CRED_PATH_WIN).is_file():
     LAMBDA_CLIENT = boto3.client("lambda")
 else:
     LAMBDA_CLIENT = boto3.client("lambda", region_name=DEFAULT_REGION)
+
 SUPPORTED_RUNTIMES = [
     "python3.7",
     "python3.8",
