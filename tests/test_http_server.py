@@ -19,5 +19,13 @@ def test_public_key_cluster_is_up(local_docker_cluster_public_key):
     assert cluster.is_up()  # Should be true for a Cluster object
 
 
+@pytest.mark.dockertest
+@pytest.mark.httpservertest
+def test_public_key_cluster_has_telemetry(local_docker_cluster_public_key):
+    cluster = local_docker_cluster_public_key
+    cluster.check_server()
+    assert cluster.is_up()  # Should be true for a Cluster object
+
+
 if __name__ == "__main__":
     unittest.main()
