@@ -16,7 +16,14 @@ from runhouse.globals import rns_client
 from runhouse.resources.function import Function
 
 logger = logging.getLogger(__name__)
-LAMBDA_CLIENT = boto3.client("lambda")
+CRED_PATH_MAC = f"{Path.home()}/.aws/credentials"
+CRED_PATH_WIN = f"{Path.home()}\.aws\credentials"
+DEFAULT_REGION = "us-east-1"
+
+if Path(CRED_PATH_MAC).is_file() or Path(CRED_PATH_WIN).is_file():
+    LAMBDA_CLIENT = boto3.client("lambda")
+else:
+    LAMBDA_CLIENT = boto3.client("lambda", region_name=DEFAULT_REGION)
 SUPPORTED_RUNTIMES = [
     "python3.7",
     "python3.8",
@@ -45,8 +52,6 @@ class AWSLambdaFunction(Function):
         "s3:ListBucket",
         "s3:PutObject",
     ]
-    CRED_PATH_MAC = f"{Path.home()}/.aws/credentials"
-    CRED_PATH_WIN = f"{Path.home()}\.aws\credentials"
     GEN_ERROR = "could not create or update the AWS Lambda."
     FAIL_CODE = 1
     DEFAULT_REGION = "us-east-1"
@@ -586,9 +591,7 @@ class AWSLambdaFunction(Function):
             >>> name="my_lambda_func").to()
         """
         # Checking if the user have a credentials file
-        if not (
-            Path(self.CRED_PATH_MAC).is_file() or Path(self.CRED_PATH_WIN).is_file()
-        ):
+        if not (Path(CRED_PATH_MAC).is_file() or Path(CRED_PATH_WIN).is_file()):
             logger.error(f"No credentials found, {self.GEN_ERROR}")
             raise Exception("No credentials found")
 
