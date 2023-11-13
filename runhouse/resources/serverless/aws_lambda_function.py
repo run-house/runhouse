@@ -641,7 +641,7 @@ class AWSLambdaFunction(Function):
         try:
             logger.error(invoke_res["FunctionError"])
             raise RuntimeError(
-                f"Failed to run {self.name}: {invoke_res['FunctionError']}"
+                f"Failed to run {self.name}: {invoke_res['FunctionError']}")
         except KeyError:
             print(
                 "Function Logs are:\n"
