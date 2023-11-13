@@ -19,10 +19,14 @@ logger = logging.getLogger(__name__)
 
 
 class Resource:
-    RESOURCE_TYPE = None
+    RESOURCE_TYPE = "resource"
 
     def __init__(
-        self, name: Optional[str] = None, dryrun: bool = None, provenance=None, **kwargs
+        self,
+        name: Optional[str] = None,
+        dryrun: bool = False,
+        provenance=None,
+        **kwargs,
     ):
         """
         Runhouse abstraction for objects that can be saved, shared, and reused.
@@ -244,16 +248,19 @@ class Resource:
 
     @staticmethod
     def from_config(config, dryrun=False):
+        resource_type = config.pop("resource_type")
+        dryrun = config.pop("dryrun", False) or dryrun
+
+        if resource_type == "resource":
+            return Resource(**config, dryrun=dryrun)
+
         resource_class = getattr(
-            sys.modules["runhouse"], config.pop("resource_type").capitalize(), None
+            sys.modules["runhouse"], resource_type.capitalize(), None
         )
         if not resource_class:
-            raise TypeError(
-                f"Could not find module associated with {config['resource_type']}"
-            )
+            raise TypeError(f"Could not find module associated with {resource_type}")
         config = resource_class._check_for_child_configs(config)
 
-        dryrun = config.pop("dryrun", False) or dryrun
         loaded = resource_class.from_config(config=config, dryrun=dryrun)
         if loaded.name:
             rns_client.add_upstream_resource(loaded.name)
@@ -268,6 +275,14 @@ class Resource:
     def history(self, num_entries: int = None) -> List[Dict]:
         """Return the history of the resource, including specific config fields (e.g. blob path) and which runs
         have overwritten it."""
+        if not self.rns_address:
+            raise ValueError("Resource must have a name in order to have a history")
+
+        if self.rns_address[:2] == "~/":
+            raise ValueError(
+                "Resource must be saved to Den (not local) in order to have a history"
+            )
+
         resource_uri = rns_client.resource_uri(self.rns_address)
         base_uri = f"{rns_client.api_server_url}/resource/history/{resource_uri}"
         uri = f"{base_uri}?num_entries={num_entries}" if num_entries else base_uri
