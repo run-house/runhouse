@@ -12,6 +12,8 @@ import runhouse as rh
 logger = logging.getLogger(__name__)
 CUR_WORK_DIR = os.path.dirname(os.path.abspath(__file__))
 TEST_RESOURCES = f"{CUR_WORK_DIR}/test_helpers/lambda_tests"
+
+# TODO: only one path is fine, remove redundant
 CRED_PATH_MAC = f"{Path.home()}/.aws/credentials"
 CRED_PATH_WIN = f"{Path.home()}\.aws\credentials"
 DEFAULT_REGION = "us-east-1"
@@ -25,6 +27,7 @@ LAMBDAS_NAMES = set()
 
 
 @pytest.fixture(scope="session", autouse=True)
+# TODO: move it locally from S3 and than this method is redundent
 def download_resources():
     curr_folder = os.getcwd()
     s3_resource = boto3.resource("s3")

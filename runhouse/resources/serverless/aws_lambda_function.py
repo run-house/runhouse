@@ -16,10 +16,13 @@ from runhouse.globals import rns_client
 from runhouse.resources.function import Function
 
 logger = logging.getLogger(__name__)
+
+# TODO: only one path is fine, remove redundant
 CRED_PATH_MAC = f"{Path.home()}/.aws/credentials"
 CRED_PATH_WIN = f"{Path.home()}\.aws\credentials"
 DEFAULT_REGION = "us-east-1"
 
+# TODO: init the lambda client inside the class, as a self attribute
 if Path(CRED_PATH_MAC).is_file() or Path(CRED_PATH_WIN).is_file():
     LAMBDA_CLIENT = boto3.client("lambda")
 else:
@@ -105,7 +108,7 @@ class AWSLambdaFunction(Function):
         super().__init__(
             name=name,
             dryrun=dryrun,
-            system="AWS_lambda",
+            system=self.RESOURCE_TYPE,
             env=None,
             fn_pointers=fn_pointers,
             **kwargs,
@@ -118,14 +121,18 @@ class AWSLambdaFunction(Function):
         self.env_vars = env_vars
 
         if timeout > 900:
+            # TODO: send a warning to the user
             timeout = 900
         if timeout < 3:
+            # TODO: send a warning to the user
             timeout = 3
         self.timeout = timeout
 
         if memory_size < 128:
+            # TODO: send a warning to the user
             memory_size = 128
         if memory_size > 10240:
+            # TODO: send a warning to the user
             memory_size = 10240
         self.memory_size = memory_size
 
@@ -167,6 +174,7 @@ class AWSLambdaFunction(Function):
 
     @classmethod
     def from_name(cls, name, dryrun=False, alt_options=None):
+        # TODO: check if lambda exists inside the method and not using a method
         if cls._lambda_exist(cls, name):
             func = super().from_name(name=name)
             return func.to()
@@ -176,6 +184,7 @@ class AWSLambdaFunction(Function):
                 + "or paths_to_code, handler_function_name, runtime and args_names (and a name if you"
                 " wish), in order to create a new lambda."
             )
+            # TODO: raise an exception
             return "LambdaNotFoundInAWS"
 
     # ----------------- Private helping methods -----------------
@@ -217,7 +226,10 @@ class AWSLambdaFunction(Function):
         ]
         return name in func_names
 
+    # TODO: make it context manager (so we could use it as with():... )
     def _wait_until_update_is_finished(self, name):
+        # TODO: make this also for role and layer (any new AWS resource)
+        # TODO: if after 1-2 min doesnt finish - stop, throw an error and ask user to check.
         """Verifies that a running update of the function (in AWS) is finished (so the next one could be executed)"""
         response = LAMBDA_CLIENT.get_function(FunctionName=name)
         state = response["Configuration"]["State"] == "Active"
@@ -291,22 +303,6 @@ class AWSLambdaFunction(Function):
 
         return supported_libs
 
-    def _download_packages_s3(self, dest_path):
-        """Getting required layer resources from a s3 bucket."""
-        bucket_name = "runhouse-lambda-resources"
-        remote_path = f"layer_helpers/{self.runtime}"
-        try:
-
-            os.system(
-                f"aws s3 cp s3://{bucket_name}/{remote_path} {dest_path} --recursive"
-            )
-        except Exception:
-            dir_name = str(Path(__file__).parent / "all_reqs")
-            shutil.rmtree(dir_name)
-            raise Exception(
-                "Try installing aws on your local machine (i.e brew install awscli) and rerun."
-            )
-
     def _create_layer_zip(self):
         """Creates a zip of all required python libs, that will be sent to the Lambda as a layer"""
         supported_libs = self._supported_python_libs()
@@ -324,6 +320,7 @@ class AWSLambdaFunction(Function):
             shutil.rmtree(dir_name)
             return self.EMPTY_ZIP
         for req in reqs:
+            # todo: install it using pip install --target (Josh sent me the link and command)
             folder_req = str(Path(__import__(req).__file__).parent)
             folder_req = folder_req.replace(f"/{req}", "")
             sub_reqs = [
@@ -372,6 +369,7 @@ class AWSLambdaFunction(Function):
         pd_np_layer_name = pd_np_layer_name.replace(".", "_")
 
         # create the layer if not existing in AWS.
+        # TODO: see how can we copy if without exposing the user to rh s3 bucket.
         if pd_np_layer_name not in layer_names:
             np_layer = LAMBDA_CLIENT.publish_layer_version(
                 LayerName=pd_np_layer_name,
@@ -591,6 +589,7 @@ class AWSLambdaFunction(Function):
             >>> runtime='python_3_9',
             >>> name="my_lambda_func").to()
         """
+
         # Checking if the user have a credentials file
         if not (Path(CRED_PATH_MAC).is_file() or Path(CRED_PATH_WIN).is_file()):
             logger.error(f"No credentials found, {self.GEN_ERROR}")
@@ -598,15 +597,15 @@ class AWSLambdaFunction(Function):
 
         rh_handler_wrapper = self._rh_wrapper()
         self.local_path_to_code.append(rh_handler_wrapper)
-        # self.local_path_to_code.pop(0)
 
         env_vars = self.env_vars if self.env_vars else {}
 
         # if function exist - will update it. Else, a new one will be created.
         if self._lambda_exist(self.name):
             # updating the configuration with the initial configuration.
-            # TODO: enable the user to change the config of the Lambda.
-            lambda_config = self._update_lambda_config(env_vars)
+            # TODO{SB}: enable the user to change the config of the Lambda.
+            # lambda_config = self._update_lambda_config(env_vars)
+            lambda_config = LAMBDA_CLIENT.get_function(FunctionName=self.name)
 
         else:
             # creating a new Lambda function, since it's not existing in the AWS account which is configured locally.
@@ -647,11 +646,13 @@ class AWSLambdaFunction(Function):
                 f"Failed to run {self.name}: {invoke_res['FunctionError']}"
             )
         except KeyError:
+            # TODO: chack if we can set a retentio to cloudwatch logs of a lambda
+            # TODO: check if we can create a lambda folder inside cloudwatch and then have all
+            #  logs of all lambdas inside this folder
             log_lines = "Function Logs are:\n" + base64.b64decode(
                 invoke_res["LogResult"]
             ).decode("utf-8")
-            for line in log_lines:
-                logger.info(line)
+            logger.info(log_lines)
 
             return return_value
 
@@ -701,6 +702,7 @@ class AWSLambdaFunction(Function):
                 "memory_size": self.memory_size,
                 "args_names": self.args_names,
                 "reqs": self.reqs,
+                # TODO: save the layer name + add test for saving a lambda with a layer
                 "layer": self.layer,
                 "env_vars": self.env_vars,
             }
@@ -796,6 +798,7 @@ def aws_lambda_function(
         return AWSLambdaFunction.from_name(name=name)
 
     # ------- arguments validation -------
+    # TODO: use error msg inside the exception
     if paths_to_code is None or len(paths_to_code) == 0:
         logger.error("Please provide a path to the lambda handler file.")
         raise RuntimeError
