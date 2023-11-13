@@ -239,8 +239,8 @@ class AWSLambdaFunction(Function):
 
         f = open(wrapper_path, "w")
         f.write(f"from {handler_name} import {self.handler_function_name}\n")
-        f = open(new_path, "w")
-        f.write(f"import {handler_file_name}\n")
+        f = open(wrapper_path, "w")
+        f.write(f"from {handler_name} import {self.handler_function_name}\n")
         if self.reqs:
             for req in self.reqs:
                 f.write(f"import {req}\n")
@@ -308,7 +308,7 @@ class AWSLambdaFunction(Function):
         dir_name = str(Path(__file__).parent / "all_reqs")
         all_req_dir = Path(__file__).parent / "all_reqs" / "python"
         Path(all_req_dir).mkdir(parents=True, exist_ok=True)
-        
+
         if "numpy" in reqs:
             reqs.remove("numpy")
         if "pandas" in reqs:
@@ -640,12 +640,12 @@ class AWSLambdaFunction(Function):
         try:
             logger.error(invoke_res["FunctionError"])
             raise RuntimeError(
-                f"Failed to run {self.name}: {invoke_res['FunctionError']}")
-        except KeyError:
-            print(
-                "Function Logs are:\n"
-                + base64.b64decode(invoke_res["LogResult"]).decode("utf-8")
+                f"Failed to run {self.name}: {invoke_res['FunctionError']}"
             )
+        except KeyError:
+            log_lines = "Function Logs are:\n" + base64.b64decode(
+                invoke_res["LogResult"]
+            ).decode("utf-8")
             for line in log_lines:
                 logger.info(line)
 
@@ -728,7 +728,7 @@ def aws_lambda_function(
         runtime: str: The coding language of the fuction. Should be one of the following:
             python3.7, python3.8, python3.9, python3.10, python 3.11. (Default: ``python3.9``)
         args_names: (Optional[list[str]]): List of the function's accepted parameters, which will be passed to the
-            Lambda Function. If ``fn`` is provided, this argument is ignored. 
+            Lambda Function. If ``fn`` is provided, this argument is ignored.
             If your function doesn't accept arguments, please provide an empty list.
         name (Optional[str]): Name of the Lambda Function to create or retrieve.
             This can be either from a local config or from the RNS.
