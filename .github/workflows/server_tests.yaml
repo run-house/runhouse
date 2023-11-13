@@ -1,0 +1,39 @@
+name: server-tests
+
+on: [push, pull_request]
+
+jobs:
+  server-test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+#        python-version: [3.7, 3.8, 3.9, 3.10]
+        python-version: [3.9]
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest httpx pytest_asyncio docker runhouse
+        pip install -r requirements.txt
+
+    - name: Set up Docker SSH Key
+      run: |
+        mkdir -p $HOME/.ssh/runhouse/docker
+        echo "${{ secrets.DOCKER_SSH_KEY }}" > $HOME/.ssh/runhouse/docker/id_rsa
+        chmod 600 $HOME/.ssh/runhouse/docker/id_rsa
+
+    - name: Login & setup Runhouse config
+      run: |
+        runhouse login ${{ secrets.TEST_TOKEN }} -y
+
+    - name: Run all server tests
+      run: |
+        pytest tests/test_servers

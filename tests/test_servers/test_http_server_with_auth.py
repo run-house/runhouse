@@ -15,17 +15,8 @@ from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 from tests.test_servers.conftest import summer
 
 
-@pytest.fixture(scope="class", autouse=True)
-def check_den_auth(pytestconfig):
-    if not pytestconfig.getoption("--den-auth"):
-        pytest.fail(
-            "--den-auth option must be provided to run auth tests (make sure server was also started "
-            "with den auth enabled)",
-            pytrace=False,
-        )
-
-
 @pytest.mark.usefixtures("docker_container")
+@pytest.mark.den_auth
 class TestHTTPServerWithAuth:
     """Test the HTTP server with authentication enabled on a local docker container"""
 
@@ -362,16 +353,16 @@ def setup_cluster_config(test_account):
         cluster_config_path.unlink()
 
 
-@pytest.mark.usefixtures("check_den_auth")
+@pytest.mark.den_auth
 class TestHTTPServerWithAuthLocally:
     invalid_headers = {"Authorization": "Bearer InvalidToken"}
 
     def test_get_cert(self, local_client_with_den_auth):
         # Define the path for the temporary certificate
         certs_dir = Path.home() / "ssl" / "certs"
-        certs_dir.mkdir(
-            parents=True, exist_ok=True
-        )  # Create the directory if it doesn't exist
+
+        # Create the directory if it doesn't exist
+        certs_dir.mkdir(parents=True, exist_ok=True)
         cert_path = certs_dir / "rh_server.crt"
 
         # Create a temporary certificate file

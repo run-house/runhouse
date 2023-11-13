@@ -77,7 +77,7 @@ def local_client_with_den_auth():
     yield client
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def docker_container(pytestconfig, cluster):
     """Local container which runs the HTTP server."""
     container_name = "rh-slim-server-public-key-auth"
