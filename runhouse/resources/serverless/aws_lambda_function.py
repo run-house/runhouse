@@ -1,15 +1,17 @@
 import base64
+import inspect
 import json
 import logging
 import os
 import shutil
-import sys
 import time
 import zipfile
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Callable, List, Optional
 
 import boto3
+
+from runhouse.globals import rns_client
 
 from runhouse.resources.function import Function
 
@@ -53,14 +55,18 @@ class AWSLambdaFunction(Function):
     ]
     GEN_ERROR = "could not create or update the AWS Lambda."
     FAIL_CODE = 1
+    DEFAULT_REGION = "us-east-1"
+    DEFAULT_PY_VERSION = "python3.9"
     EMPTY_ZIP = -1
 
     def __init__(
         self,
-        paths_to_code: list[str],
-        handler_function_name: str,
-        runtime: str,
-        args_names: Optional[list[str]],
+        paths_to_code: Optional[list[str]] = None,
+        handler_function_name: Optional[str] = None,
+        runtime: Optional[str] = None,
+        args_names: Optional[list[str]] = None,
+        fn: Optional[Callable] = None,
+        fn_pointers: Optional[tuple] = None,
         name: Optional[str] = None,
         env: Optional[list[str] or str] = None,
         env_vars: Optional[dict] = None,
@@ -76,18 +82,39 @@ class AWSLambdaFunction(Function):
         .. note::
                 To create an AWS lambda resource, please use the factory method :func:`aws_lambda_function`.
         """
+        if isinstance(fn, Callable):
+            handler_function_name = fn.__name__
+            fn_pointers = Function._extract_pointers(fn, reqs=env or [])
+            paths_to_code = self._paths_to_code_from_fn_pointers(fn_pointers)
+            args_names = [
+                param.name for param in inspect.signature(fn).parameters.values()
+            ]
+        elif fn_pointers:
+            handler_function_name = fn_pointers[2]
+            paths_to_code = self._paths_to_code_from_fn_pointers(fn_pointers)
+        else:
+            fn_pointers = None
+            if handler_function_name is None or paths_to_code is None:
+                raise ValueError(
+                    "`handler_function_name` and `paths_to_code` must be provided if `fn` is not provided"
+                )
+
         if name is None:
             name = handler_function_name.replace(".", "_")
 
         super().__init__(
-            name=name, dryrun=dryrun, system="AWS_lambda", env=None, **kwargs
+            name=name,
+            dryrun=dryrun,
+            system="AWS_lambda",
+            env=None,
+            fn_pointers=fn_pointers,
+            **kwargs,
         )
 
-        self.name = name
         self.local_path_to_code = paths_to_code
         self.handler_function_name = handler_function_name
-        self.runtime = runtime
         self.args_names = args_names
+        self.runtime = runtime or self.DEFAULT_PY_VERSION
         self.env_vars = env_vars
 
         if timeout > 900:
@@ -158,6 +185,13 @@ class AWSLambdaFunction(Function):
         """Overload this method of the function class."""
         return config
 
+    @staticmethod
+    def _paths_to_code_from_fn_pointers(fn_pointers):
+        root_dir = rns_client.locate_working_dir()
+        file_path = fn_pointers[1].replace(".", "/") + ".py"
+        paths_to_code = [os.path.join(root_dir, file_path)]
+        return paths_to_code
+
     def _reqs_to_list(self, env):
         """Converting requirements from requirements.txt to a list"""
 
@@ -205,24 +239,24 @@ class AWSLambdaFunction(Function):
 
     def _rh_wrapper(self):
         """Creates a runhouse wrapper to the handler function"""
-        path = str(Path(self.local_path_to_code[0]).absolute()).split("/")
-        handler_file_name = path[-1].split(".")[0]
-        path = ["/" + path_e for path_e in path]
-        path[0] = ""
-        folder_path = path[:-1]
-        new_path = "".join(folder_path) + f"/rh_handler_{self.name}.py"
-        f = open(new_path, "w")
-        f.write(f"import {handler_file_name}\n")
+        handler_path = self.local_path_to_code[0]
+        wrapper_path = str(Path(handler_path).parent / f"rh_handler_{self.name}.py")
+        handler_name = Path(handler_path).stem
+
+        f = open(wrapper_path, "w")
+        f.write(f"from {handler_name} import {self.handler_function_name}\n")
+        f = open(wrapper_path, "w")
+        f.write(f"from {handler_name} import {self.handler_function_name}\n")
         if self.reqs:
             for req in self.reqs:
                 f.write(f"import {req}\n")
             f.write("\n\n")
         f.write(
             "def lambda_handler(event, context):\n"
-            f"\treturn {handler_file_name}.{self.handler_function_name}(**event)"
+            f"\treturn {self.handler_function_name}(**event)"
         )
         f.close()
-        return new_path
+        return wrapper_path
 
     def _supported_python_libs(self):
         """ " Returns a list of the supported python libs by the AWS Lambda resource"""
@@ -280,6 +314,7 @@ class AWSLambdaFunction(Function):
         dir_name = str(Path(__file__).parent / "all_reqs")
         all_req_dir = Path(__file__).parent / "all_reqs" / "python"
         Path(all_req_dir).mkdir(parents=True, exist_ok=True)
+
         if "numpy" in reqs:
             reqs.remove("numpy")
         if "pandas" in reqs:
@@ -464,26 +499,24 @@ class AWSLambdaFunction(Function):
                 }
             ],
         }
-
         try:
             role_res = iam_client.create_role(
                 RoleName=f"{self.name}_Role",
                 AssumeRolePolicyDocument=json.dumps(assume_role_policy_document),
             )
             time.sleep(5)
+            logger.info(f'{role_res["Role"]["RoleName"]} was created successfully.')
 
         except iam_client.exceptions.EntityAlreadyExistsException:
             role_res = iam_client.get_role(RoleName=f"{self.name}_Role")
 
-        logger.info(f'{role_res["Role"]["RoleName"]} was created successfully.')
+            iam_client.put_role_policy(
+                RoleName=role_res["Role"]["RoleName"],
+                PolicyName=f"{self.name}_Policy",
+                PolicyDocument=json.dumps(role_policy),
+            )
 
-        iam_client.put_role_policy(
-            RoleName=role_res["Role"]["RoleName"],
-            PolicyName=f"{self.name}_Policy",
-            PolicyDocument=json.dumps(role_policy),
-        )
-
-        time.sleep(4)  # letting the role be updated in AWS
+            time.sleep(4)  # letting the role be updated in AWS
 
         layers = []
         if self.layer:
@@ -587,22 +620,18 @@ class AWSLambdaFunction(Function):
     #
 
     def __call__(self, *args, **kwargs) -> Any:
-        """Call (invoke) the function in AWS.
+        """Call (invoke) the Lambdas function
 
         Args:
              *args: Optional args for the Function
-             stream_logs (bool): Whether to stream the logs from the Function's execution.
-                Defaults to ``True``.
-             run_name (Optional[str]): Name of the Run to create. If provided, a Run will be created
-                for this function call, which will be executed synchronously on the cluster before returning its result
              **kwargs: Optional kwargs for the Function
 
         Returns:
             The Function's return value
         """
-        return self.call(*args, **kwargs)
+        return self._invoke(*args, **kwargs)
 
-    def call(self, *args, **kwargs) -> Any:
+    def _invoke(self, *args, **kwargs) -> Any:
         payload_invoke = {}
         if len(args) > 0:
             payload_invoke = {self.args_names[i]: args[i] for i in range(len(args))}
@@ -614,14 +643,16 @@ class AWSLambdaFunction(Function):
         return_value = invoke_res["Payload"].read().decode("utf-8")
         try:
             logger.error(invoke_res["FunctionError"])
-            # using sys.exit here in order to simulate the lambda execution as much as possible.
-            sys.exit(invoke_res["StatusCode"])
-        except KeyError:
-            print(
-                "Function Logs are:\n"
-                + base64.b64decode(invoke_res["LogResult"]).decode("utf-8")
+            raise RuntimeError(
+                f"Failed to run {self.name}: {invoke_res['FunctionError']}"
             )
-            # whole log stream is printed, as presented in AWS cloudwatch.
+        except KeyError:
+            log_lines = "Function Logs are:\n" + base64.b64decode(
+                invoke_res["LogResult"]
+            ).decode("utf-8")
+            for line in log_lines:
+                logger.info(line)
+
             return return_value
 
     def map(self, *args, **kwargs):
@@ -642,7 +673,7 @@ class AWSLambdaFunction(Function):
 
         """
 
-        return [self.call(*args, **kwargs) for args in zip(*args)]
+        return [self._invoke(*args, **kwargs) for args in zip(*args)]
 
     #
     def starmap(self, args_lists, **kwargs):
@@ -655,7 +686,7 @@ class AWSLambdaFunction(Function):
             >>> my_aws_lambda.starmap(arg_list)
         """
 
-        return [self.call(*args, **kwargs) for args in args_lists]
+        return [self._invoke(*args, **kwargs) for args in args_lists]
 
     # ----------------- Properties setup -----------------
     @property
@@ -678,6 +709,7 @@ class AWSLambdaFunction(Function):
 
 
 def aws_lambda_function(
+    fn: Callable = None,
     paths_to_code: list[str] = None,
     handler_function_name: str = None,
     runtime: str = None,
@@ -692,12 +724,15 @@ def aws_lambda_function(
     """Builds an instance of :class:`AWSLambdaFunction`.
 
     Args:
-        paths_to_code: list[str]: List of the FULL paths to the python code file(s) that should be sent to AWS Lambda.
-            First path in the list should be the path to the handler file which contaitns the main (handler) function.
+        fn (Optional[Callable]): The Lambda function to be executed.
+        paths_to_code: (Optional[list[str]]): List of the FULL paths to the python code file(s) that should be sent to
+            AWS Lambda. First path in the list should be the path to the handler file which contaitns the main
+            (handler) function. If ``fn`` is provided, this argument is ignored.
         handler_function_name: str: The name of the function in the handler file that will be executed by the Lambda.
         runtime: str: The coding language of the fuction. Should be one of the following:
-            python3.7, python3.8, python3.9, python3.10, python 3.11.
-        args_names: [list[str]]: List of the argumets' names, which will be passed to the Lambda Function.
+            python3.7, python3.8, python3.9, python3.10, python 3.11. (Default: ``python3.9``)
+        args_names: (Optional[list[str]]): List of the function's accepted parameters, which will be passed to the
+            Lambda Function. If ``fn`` is provided, this argument is ignored.
             If your function doesn't accept arguments, please provide an empty list.
         name (Optional[str]): Name of the Lambda Function to create or retrieve.
             This can be either from a local config or from the RNS.
@@ -731,26 +766,32 @@ def aws_lambda_function(
         >>>    return a + b
 
         >>> # your 'main' python file, where you are using runhouse
-        >>> summer = rh.aws_lambda_function(
-        >>>                 paths_to_code=['/full/path/to/handler_file.py'],
-        >>>                 handler_function_name = 'summer',
-        >>>                 runtime = 'python3.9',
-        >>>                 name="my_func").to().save()
+        >>> lambdas_func = rh.aws_lambda_function(
+        >>>                     paths_to_code=['/full/path/to/handler_file.py'],
+        >>>                     handler_function_name = 'summer',
+        >>>                     runtime = 'python3.9',
+        >>>                     name="my_func").to().save()
 
         >>> # using the function
         >>> res = summer(5, 8)  # returns "13". (It returns str type because of AWS API)
 
         >>> # Load function from above
         >>> reloaded_function = rh.aws_lambda_function(name="my_func")
+
+        >>> # Pass in the function itself when creating the Lambda
+        >>> lambdas_func = rh.aws_lambda_function(fn=summer, name="lambdas_func")
+
     """
-    if not any([name, paths_to_code, handler_function_name, runtime, args_names]):
+    if not any([name, paths_to_code, handler_function_name, runtime, fn, args_names]):
         logger.error(
             "Runhouse can't create a Lambda function. "
             + "Please provide lambda's name and/or paths_to_code, handler_function_name, runtime and args_names"
         )
         raise Exception("NoEnoughArgsProvided")
 
-    if name and not any([paths_to_code, handler_function_name, runtime, args_names]):
+    if name and not any(
+        [paths_to_code, handler_function_name, runtime, fn, args_names]
+    ):
         # Try reloading existing function
         return AWSLambdaFunction.from_name(name=name)
 
@@ -777,7 +818,13 @@ def aws_lambda_function(
 
     # TODO: [SB] in the next phase, maybe add the option to create func from git.
 
+    fn_pointers = (
+        Function._extract_pointers(fn, reqs=env or []) if callable(fn) else None
+    )
+
     new_function = AWSLambdaFunction(
+        fn=fn,
+        fn_pointers=fn_pointers,
         paths_to_code=paths_to_code,
         handler_function_name=handler_function_name,
         runtime=runtime,
