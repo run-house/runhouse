@@ -459,11 +459,15 @@ class AWSLambdaFunction(Function):
             ],
         }
 
-        role_res = iam_client.create_role(
-            RoleName=f"{self.name}_Role",
-            AssumeRolePolicyDocument=json.dumps(assume_role_policy_document),
-        )
-        time.sleep(5)
+        try:
+            role_res = iam_client.create_role(
+                RoleName=f"{self.name}_Role",
+                AssumeRolePolicyDocument=json.dumps(assume_role_policy_document),
+            )
+            time.sleep(5)
+
+        except iam_client.exceptions.EntityAlreadyExistsException:
+            role_res = iam_client.get_role(RoleName=f"{self.name}_Role")
 
         logger.info(f'{role_res["Role"]["RoleName"]} was created successfully.')
 
@@ -690,6 +694,7 @@ def aws_lambda_function(
         runtime: str: The coding language of the fuction. Should be one of the following:
             python3.7, python3.8, python3.9, python3.10, python 3.11.
         args_names: [list[str]]: List of the argumets' names, which will be passed to the Lambda Function.
+            If your function doesn't accept arguments, please provide an empty list.
         name (Optional[str]): Name of the Lambda Function to create or retrieve.
             This can be either from a local config or from the RNS.
         env (Optional[List[str] or str]): Specifies the requirements (python libraries), which will be used by the
@@ -746,21 +751,23 @@ def aws_lambda_function(
         return AWSLambdaFunction.from_name(name=name)
 
     # ------- arguments validation -------
-    if len(paths_to_code) == 0 or paths_to_code is None:
+    if paths_to_code is None or len(paths_to_code) == 0:
         logger.error("Please provide a path to the lambda handler file.")
         raise RuntimeError
-    if len(handler_function_name) == 0 or handler_function_name is None:
-        logger.error("Please provide the name of the function that should be executed.")
-        raise RuntimeError
-    if runtime not in SUPPORTED_RUNTIMES or runtime is None:
+    if handler_function_name is None or len(handler_function_name) == 0:
         logger.error(
-            f"Please provide a supported runtime, should be one of the following: {SUPPORTED_RUNTIMES}"
+            "Please provide the name of the function that should be executed by the lambda."
         )
         raise RuntimeError
-    if len(args_names) == 0 or args_names is None:
+    if runtime is None or runtime not in SUPPORTED_RUNTIMES:
+        logger.error(
+            f"Please provide a supported lambda runtime, should be one of the following: {SUPPORTED_RUNTIMES}"
+        )
+        raise RuntimeError
+    if args_names is None:
         logger.error(
             "Please provide the names of the arguments provided to handler function, in the order they are"
-            + " passed to the function."
+            + " passed to the lambda function."
         )
         raise RuntimeError
 

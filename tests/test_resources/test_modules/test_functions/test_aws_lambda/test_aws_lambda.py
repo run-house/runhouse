@@ -65,6 +65,190 @@ def test_crate_no_arguments():
         assert True is True
 
 
+def test_bad_handler_path_to_factory(caplog):
+    name = "test_lambda_create_and_run"
+    caplog.set_level(logging.ERROR)
+    try:
+        rh.aws_lambda_function(
+            handler_function_name="lambda_sum",
+            runtime="python3.9",
+            args_names=["arg1", "arg2"],
+            name=name,
+        )
+    except RuntimeError:
+        assert "Please provide a path to the lambda handler file." in caplog.text
+
+    try:
+        rh.aws_lambda_function(
+            paths_to_code=None,
+            handler_function_name="lambda_sum",
+            runtime="python3.9",
+            args_names=["arg1", "arg2"],
+            name=name,
+        )
+    except RuntimeError:
+        assert "Please provide a path to the lambda handler file." in caplog.text
+
+    try:
+        rh.aws_lambda_function(
+            paths_to_code=[],
+            handler_function_name="lambda_sum",
+            runtime="python3.9",
+            args_names=["arg1", "arg2"],
+            name=name,
+        )
+    except RuntimeError:
+        assert "Please provide a path to the lambda handler file." in caplog.text
+
+
+def test_bad_handler_func_name_to_factory(caplog):
+    name = "test_lambda_create_and_run"
+    handler_path = [f"{TEST_RESOURCES}/basic_test_handler.py"]
+    caplog.set_level(logging.ERROR)
+    try:
+        rh.aws_lambda_function(
+            paths_to_code=handler_path,
+            runtime="python3.9",
+            args_names=["arg1", "arg2"],
+            name=name,
+        )
+    except RuntimeError:
+        assert (
+            "Please provide the name of the function that should be executed by the lambda."
+            in caplog.text
+        )
+
+    try:
+        rh.aws_lambda_function(
+            paths_to_code=handler_path,
+            handler_function_name=None,
+            runtime="python3.9",
+            args_names=["arg1", "arg2"],
+            name=name,
+        )
+    except RuntimeError:
+        assert (
+            "Please provide the name of the function that should be executed by the lambda."
+            in caplog.text
+        )
+
+    try:
+        rh.aws_lambda_function(
+            paths_to_code=handler_path,
+            handler_function_name="",
+            runtime="python3.9",
+            args_names=["arg1", "arg2"],
+            name=name,
+        )
+    except RuntimeError:
+        assert (
+            "Please provide the name of the function that should be executed by the lambda."
+            in caplog.text
+        )
+
+
+def test_bad_runtime_to_factory(caplog):
+    name = "test_lambda_create_and_run"
+    handler_path = [f"{TEST_RESOURCES}/basic_test_handler.py"]
+    SUPPORTED_RUNTIMES = [
+        "python3.7",
+        "python3.8",
+        "python3.9",
+        "python3.10",
+        "python 3.11",
+    ]
+    caplog.set_level(logging.ERROR)
+    try:
+        rh.aws_lambda_function(
+            paths_to_code=handler_path,
+            handler_function_name="lambda_sum",
+            runtime="python3.91",
+            args_names=["arg1", "arg2"],
+            name=name,
+        )
+    except RuntimeError:
+        assert (
+            f"Please provide a supported lambda runtime, should be one of the following: {SUPPORTED_RUNTIMES}"
+            in caplog.text
+        )
+
+    try:
+        rh.aws_lambda_function(
+            paths_to_code=handler_path,
+            handler_function_name="lambda_sum",
+            runtime=None,
+            args_names=["arg1", "arg2"],
+            name=name,
+        )
+    except RuntimeError:
+        assert (
+            f"Please provide a supported lambda runtime, should be one of the following: {SUPPORTED_RUNTIMES}"
+            in caplog.text
+        )
+
+    try:
+        rh.aws_lambda_function(
+            paths_to_code=None,
+            handler_function_name="lambda_sum",
+            args_names=["arg1", "arg2"],
+            name=name,
+        )
+    except RuntimeError:
+        assert (
+            f"Please provide a supported lambda runtime, should be one of the following: {SUPPORTED_RUNTIMES}"
+            in caplog.text
+        )
+
+
+def test_bad_args_names_to_factory(caplog):
+    name = "test_lambda_create_and_run"
+    handler_path = [f"{TEST_RESOURCES}/basic_test_handler.py"]
+    caplog.set_level(logging.ERROR)
+    try:
+        rh.aws_lambda_function(
+            paths_to_code=handler_path,
+            handler_function_name="lambda_sum",
+            runtime="python3.9",
+            args_names=None,
+            name=name,
+        )
+    except RuntimeError:
+        assert (
+            "Please provide the names of the arguments provided to handler function, in the order they are"
+            + " passed to the lambda function."
+            in caplog.text
+        )
+
+    try:
+        rh.aws_lambda_function(
+            paths_to_code=handler_path,
+            handler_function_name="lambda_sum",
+            runtime="python3.9",
+            name=name,
+        )
+    except RuntimeError:
+        assert (
+            "Please provide the names of the arguments provided to handler function, in the order they are"
+            + " passed to the lambda function."
+            in caplog.text
+        )
+
+
+def test_func_no_args(capsys):
+    handler_path = [f"{TEST_RESOURCES}/basic_handler_no_args.py"]
+    name = "test_lambda_no_args"
+    my_lambda = rh.aws_lambda_function(
+        paths_to_code=handler_path,
+        handler_function_name="basic_handler",
+        runtime="python3.9",
+        args_names=[],
+        name=name,
+    )
+    time.sleep(5)
+    assert my_lambda() == "-1"
+    assert "This a func with not args" in capsys.readouterr().out
+
+
 def test_create_and_run_generate_name():
     handler_path = [f"{TEST_RESOURCES}/basic_test_handler.py"]
     my_lambda = rh.aws_lambda_function(
