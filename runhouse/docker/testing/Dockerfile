@@ -17,5 +17,7 @@ EXPOSE 6379
 EXPOSE 443
 # HTTP port
 EXPOSE 80
+# SSH port
+EXPOSE 22
 
 CMD ["python", "-m", "runhouse.servers.http.http_server", "--enable_local_span_collection=True", "--host", "0.0.0.0", "--port", "32300"]

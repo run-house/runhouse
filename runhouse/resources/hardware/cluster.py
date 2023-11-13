@@ -73,6 +73,7 @@ class Cluster(Resource):
         ssl_keyfile: str = None,
         ssl_certfile: str = None,
         den_auth: bool = False,
+        enable_local_span_collection: bool = False,
         dryrun=False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
@@ -96,6 +97,7 @@ class Cluster(Resource):
 
         self.client = None
         self.den_auth = den_auth
+        self.enable_local_span_collection = enable_local_span_collection
         self.cert_config = TLSCertConfig(
             cert_path=ssl_certfile, key_path=ssl_keyfile, dir_name=self.name
         )
@@ -146,6 +148,7 @@ class Cluster(Resource):
                 "server_host",
                 "server_connection_type",
                 "den_auth",
+                "enable_local_span_collection",
             ],
         )
         if self.ips is not None:
@@ -621,6 +624,7 @@ class Cluster(Resource):
         force_reinstall,
         use_nginx,
         certs_address,
+        enable_local_span_collection,
     ):
         cmds = []
         if restart:
@@ -682,6 +686,13 @@ class Cluster(Resource):
         if address_flag:
             logger.info(f"Server public IP address: {certs_address}.")
             flags.append(address_flag)
+
+        enable_local_span_collection_flag = (
+            " --enable_local_span_collection" if enable_local_span_collection else ""
+        )
+        if enable_local_span_collection_flag:
+            logger.info("Enabling local span telemetry collection on the cluster.")
+            flags.append(enable_local_span_collection_flag)
 
         logger.info(
             f"Starting API server using the following command: {server_start_cmd}."
