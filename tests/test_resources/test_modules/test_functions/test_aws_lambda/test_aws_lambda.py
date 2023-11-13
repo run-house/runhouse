@@ -3,6 +3,7 @@ import os
 import shutil
 import time
 import unittest
+from pathlib import Path
 
 import boto3
 import pytest
@@ -11,8 +12,14 @@ import runhouse as rh
 logger = logging.getLogger(__name__)
 CUR_WORK_DIR = os.path.dirname(os.path.abspath(__file__))
 TEST_RESOURCES = f"{CUR_WORK_DIR}/test_helpers/lambda_tests"
+CRED_PATH_MAC = f"{Path.home()}/.aws/credentials"
+CRED_PATH_WIN = f"{Path.home()}\.aws\credentials"
 DEFAULT_REGION = "us-east-1"
-LAMBDA_CLIENT = boto3.client("lambda", region_name=DEFAULT_REGION)
+
+if Path(CRED_PATH_MAC).is_file() or Path(CRED_PATH_WIN).is_file():
+    LAMBDA_CLIENT = boto3.client("lambda")
+else:
+    LAMBDA_CLIENT = boto3.client("lambda", region_name=DEFAULT_REGION)
 IAM_CLIENT = boto3.client("iam")
 LAMBDAS_NAMES = set()
 
