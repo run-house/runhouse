@@ -19,6 +19,10 @@ do TDD and add edge cases one-off as needed. We also use imports within test mod
 test cases in multiple suites where appropriate (just importing the test case function is enough for PyTest to
 do this, so ignore warnings that the imports are unused).
 
+Runhouse uses Sky (which uses ssh) to communicate with the clusters it runs on (e.g. AWS EC2). Sky generates
+a keypair for you locally the first time you use it to communicate with a cluster, and for local container tests
+we take this key from `~/.ssh/sky-key` and copy it to the Docker containers such that Sky can communicate with them.
+
 To run a single test file with a given level, use a command like this:
 ```bash
 pytest -s -v --level "unit" tests/test_resources/test_resource.py

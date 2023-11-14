@@ -11,6 +11,7 @@ from ...conftest import init_args
 
 SSH_USER = "rh-docker-user"
 BASE_LOCAL_SSH_PORT = 32320
+DEFAULT_KEYPAIR_KEYPATH = "~/.ssh/sky-key"
 
 
 @pytest.fixture(scope="session")
@@ -282,9 +283,7 @@ def local_logged_out_docker_cluster(request, detached=True):
     container_name = "rh-logged-out-slim"
     dir_name = "public-key-auth"
     keypath = str(
-        Path(
-            rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
-        ).expanduser()
+        Path(rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)).expanduser()
     )
     local_ssh_port = BASE_LOCAL_SSH_PORT + 1
 
@@ -336,9 +335,7 @@ def local_docker_cluster_public_key(request, detached=True):
     container_name = "rh-slim-keypair"
     dir_name = "public-key-auth"
     keypath = str(
-        Path(
-            rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
-        ).expanduser()
+        Path(rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)).expanduser()
     )
     local_ssh_port = BASE_LOCAL_SSH_PORT + 2
 
@@ -392,7 +389,7 @@ def local_test_account_cluster_public_key(request, test_account, detached=True):
         # Create the shared cluster using the test account
         keypath = str(
             Path(
-                rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
+                rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
             ).expanduser()
         )
         local_ssh_port = BASE_LOCAL_SSH_PORT + 3
