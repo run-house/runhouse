@@ -688,7 +688,7 @@ class Cluster(Resource):
             flags.append(address_flag)
 
         enable_local_span_collection_flag = (
-            " --enable_local_span_collection" if enable_local_span_collection else ""
+            " --enable-local-span-collection" if enable_local_span_collection else ""
         )
         if enable_local_span_collection_flag:
             logger.info("Enabling local span telemetry collection on the cluster.")

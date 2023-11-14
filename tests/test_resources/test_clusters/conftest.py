@@ -391,6 +391,59 @@ def local_docker_cluster_public_key(request, detached=True):
 
 
 @pytest.fixture(scope="session")
+def local_docker_cluster_telemetry_public_key(request, detached=True):
+    image_name = "keypair-telemetry"
+    container_name = "rh-slim-server-public-key-auth-telemetry"
+    dir_name = "public-key-auth"
+    keypath = str(
+        Path(
+            rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
+        ).expanduser()
+    )
+
+    client, rh_parent_path = build_and_run_image(
+        image_name=image_name,
+        container_name=container_name,
+        dir_name=dir_name,
+        detached=detached,
+        keypath=keypath,
+        force_rebuild=request.config.getoption("--force-rebuild"),
+    )
+
+    # Runhouse commands can now be run locally
+    args = dict(
+        name="local-docker-slim-public-key-auth-telemetry",
+        host="localhost",
+        server_host="0.0.0.0",
+        ssh_creds={
+            "ssh_user": SSH_USER,
+            "ssh_private_key": keypath,
+        },
+        enable_local_span_collection=True,
+    )
+    c = rh.cluster(**args)
+    init_args[id(c)] = args
+    rh.env(
+        reqs=["pytest"],
+        working_dir=None,
+        setup_cmds=[
+            f'mkdir -p ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
+        ],
+        name="base_env",
+    ).to(c)
+    c.save()
+
+    # Yield the cluster
+    yield c
+
+    # Stop the Docker container
+    if not detached:
+        client.containers.get(container_name).stop()
+        client.containers.prune()
+        client.images.prune()
+
+
+@pytest.fixture(scope="session")
 def local_test_account_cluster_public_key(request, test_account, detached=True):
     with test_account:
         # Create the shared cluster using the test account
