@@ -389,13 +389,14 @@ def local_docker_cluster_public_key(request, detached=True):
 @pytest.fixture(scope="session")
 def local_docker_cluster_telemetry_public_key(request, detached=True):
     image_name = "keypair-telemetry"
-    container_name = "rh-slim-server-public-key-auth-telemetry"
+    container_name = "rh-slim-keypair-telemetry"
     dir_name = "public-key-auth"
     keypath = str(
         Path(
             rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
         ).expanduser()
     )
+    local_ssh_port = BASE_LOCAL_SSH_PORT + 6
 
     client, rh_parent_path = build_and_run_image(
         image_name=image_name,
@@ -404,13 +405,15 @@ def local_docker_cluster_telemetry_public_key(request, detached=True):
         detached=detached,
         keypath=keypath,
         force_rebuild=request.config.getoption("--force-rebuild"),
+        port_fwds=[f"{local_ssh_port}:22"],
     )
 
     # Runhouse commands can now be run locally
     args = dict(
-        name="local-docker-slim-public-key-auth-telemetry",
+        name="local-docker-slim-keypair-telemetry",
         host="localhost",
         server_host="0.0.0.0",
+        ssh_port=local_ssh_port,
         ssh_creds={
             "ssh_user": SSH_USER,
             "ssh_private_key": keypath,
