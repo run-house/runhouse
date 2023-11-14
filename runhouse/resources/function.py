@@ -29,6 +29,7 @@ class Function(Module):
         env: Optional[Env] = None,
         dryrun: bool = False,
         access: Optional[str] = None,
+        func_args: Optional[str] = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
@@ -40,6 +41,7 @@ class Function(Module):
         """
         self.fn_pointers = fn_pointers
         self.access = access or self.DEFAULT_ACCESS
+        self.func_args = func_args
         super().__init__(name=name, dryrun=dryrun, system=system, env=env, **kwargs)
 
     # ----------------- Constructor helper methods -----------------
@@ -87,10 +89,16 @@ class Function(Module):
             >>> rh.function(fn=local_fn).to(gpu_cluster)
             >>> rh.function(fn=local_fn).to(system=gpu_cluster, env=my_conda_env)
         """
+        from runhouse.resources.serverless import aws_lambda_function
+
         if setup_cmds:
             warnings.warn(
                 "``setup_cmds`` argument has been deprecated. "
                 "Please pass in setup commands to the ``Env`` class corresponding to the function instead."
+            )
+        if system == "AWS_LAMBDA":
+            return aws_lambda_function(
+                fn_pointers=self.fn_pointers, args_names=self.func_args
             )
 
         # to retain backwards compatibility
@@ -442,6 +450,7 @@ def function(
         env = _get_env_from(env) or Env(working_dir="./", name=Env.DEFAULT_NAME)
 
     fn_pointers = None
+    func_args = None
     if callable(fn):
         fn_pointers = Function._extract_pointers(fn, reqs=env.reqs)
         if fn_pointers[1] == "notebook":
@@ -451,6 +460,7 @@ def function(
                 serialize_notebook_fn=serialize_notebook_fn,
                 name=fn_pointers[2] or name,
             )
+        func_args = [param.name for param in inspect.signature(fn).parameters.values()]
     elif isinstance(fn, str):
         # Url must match a regex of the form
         # 'https://github.com/username/repo_name/blob/branch_name/path/to/file.py:func_name'
@@ -489,6 +499,7 @@ def function(
         access=Function.DEFAULT_ACCESS,
         name=name,
         dryrun=dryrun,
+        func_args=func_args,
     ).to(system=system, env=env)
 
     if load_secrets and not dryrun:

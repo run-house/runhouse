@@ -7,7 +7,7 @@ import shutil
 import time
 import zipfile
 from pathlib import Path
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, List, Optional, Tuple
 
 import boto3
 
@@ -514,7 +514,7 @@ class AWSLambdaFunction(Function):
                 PolicyDocument=json.dumps(role_policy),
             )
 
-            time.sleep(4)  # letting the role be updated in AWS
+            time.sleep(5)  # letting the role be updated in AWS
 
         layers = []
         if self.layer:
@@ -631,8 +631,8 @@ class AWSLambdaFunction(Function):
         return self._invoke(*args, **kwargs)
 
     def _invoke(self, *args, **kwargs) -> Any:
-        payload_invoke = {}
-        if len(args) > 0:
+        payload_invoke = args
+        if len(args) > 0 and self.args_names is not None:
             payload_invoke = {self.args_names[i]: args[i] for i in range(len(args))}
         invoke_res = LAMBDA_CLIENT.invoke(
             FunctionName=self.name,
@@ -709,9 +709,14 @@ class AWSLambdaFunction(Function):
         )
         return config
 
+    @property
+    def handler_path(self):
+        return self.local_path_to_code[0]
+
 
 def aws_lambda_function(
     fn: Callable = None,
+    fn_pointers: Optional[Tuple] = None,
     paths_to_code: list[str] = None,
     handler_function_name: str = None,
     runtime: str = None,
@@ -784,7 +789,17 @@ def aws_lambda_function(
         >>> lambdas_func = rh.aws_lambda_function(fn=summer, name="lambdas_func")
 
     """
-    if not any([name, paths_to_code, handler_function_name, runtime, fn, args_names]):
+    if not any(
+        [
+            name,
+            paths_to_code,
+            handler_function_name,
+            runtime,
+            args_names,
+            fn,
+            fn_pointers,
+        ]
+    ):
         logger.error(
             "Runhouse can't create a Lambda function. "
             + "Please provide lambda's name and/or paths_to_code, handler_function_name, runtime and args_names"
@@ -797,33 +812,35 @@ def aws_lambda_function(
         # Try reloading existing function
         return AWSLambdaFunction.from_name(name=name)
 
-    # ------- arguments validation -------
-    # TODO: use error msg inside the exception
-    if paths_to_code is None or len(paths_to_code) == 0:
-        logger.error("Please provide a path to the lambda handler file.")
-        raise RuntimeError
-    if handler_function_name is None or len(handler_function_name) == 0:
-        logger.error(
-            "Please provide the name of the function that should be executed by the lambda."
-        )
-        raise RuntimeError
-    if runtime is None or runtime not in SUPPORTED_RUNTIMES:
-        logger.error(
-            f"Please provide a supported lambda runtime, should be one of the following: {SUPPORTED_RUNTIMES}"
-        )
-        raise RuntimeError
-    if args_names is None:
-        logger.error(
-            "Please provide the names of the arguments provided to handler function, in the order they are"
-            + " passed to the lambda function."
-        )
-        raise RuntimeError
-
     # TODO: [SB] in the next phase, maybe add the option to create func from git.
 
-    fn_pointers = (
-        Function._extract_pointers(fn, reqs=env or []) if callable(fn) else None
-    )
+    if fn_pointers is None:
+        fn_pointers = (
+            Function._extract_pointers(fn, reqs=env or []) if callable(fn) else None
+        )
+
+    if fn_pointers is None and fn is None:
+        # ------- arguments validation -------
+        # TODO: use error msg inside the exception
+        if paths_to_code is None or len(paths_to_code) == 0:
+            logger.error("Please provide a path to the lambda handler file.")
+            raise RuntimeError
+        if handler_function_name is None or len(handler_function_name) == 0:
+            logger.error(
+                "Please provide the name of the function that should be executed by the lambda."
+            )
+            raise RuntimeError
+        if runtime is None or runtime not in SUPPORTED_RUNTIMES:
+            logger.error(
+                f"Please provide a supported lambda runtime, should be one of the following: {SUPPORTED_RUNTIMES}"
+            )
+            raise RuntimeError
+        if args_names is None:
+            logger.error(
+                "Please provide the names of the arguments provided to handler function, in the order they are"
+                + " passed to the lambda function."
+            )
+            raise RuntimeError
 
     new_function = AWSLambdaFunction(
         fn=fn,
