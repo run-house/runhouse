@@ -920,7 +920,7 @@ class Cluster(Resource):
                     return_cmd=True,
                     ssh_mode=SshMode.INTERACTIVE,
                 )
-                ssh = pexpect.spawn(ssh_command, encoding="utf-8")
+                ssh = pexpect.spawn(ssh_command, encoding="utf-8", timeout=None)
                 ssh.logfile_read = sys.stdout
                 # If CommandRunner uses the control path, the password may not be requested
                 next_line = ssh.expect(["assword:", pexpect.EOF])
@@ -939,7 +939,7 @@ class Cluster(Resource):
                 stream_logs=stream_logs,
                 return_cmd=True,
             )
-            ssh = pexpect.spawn(rsync_cmd, encoding="utf-8")
+            ssh = pexpect.spawn(rsync_cmd, encoding="utf-8", timeout=None)
             if stream_logs:
                 # FYI This will print a ton of of stuff to stdout
                 ssh.logfile_read = sys.stdout
@@ -1071,7 +1071,7 @@ class Cluster(Resource):
                     ssh_mode=SshMode.INTERACTIVE,
                     quiet_ssh=True,
                 )
-                ssh = pexpect.spawn(ssh_command, encoding="utf-8")
+                ssh = pexpect.spawn(ssh_command, encoding="utf-8", timeout=None)
                 if stream_logs:
                     ssh.logfile_read = sys.stdout
                 next_line = ssh.expect(["assword:", pexpect.EOF])

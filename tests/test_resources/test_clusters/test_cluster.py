@@ -27,16 +27,15 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     UNIT = {"cluster": [local_docker_cluster_public_key]}
     LOCAL = {
         "cluster": [
-            named_cluster,
             local_docker_cluster_public_key,
             local_docker_cluster_passwd,
             local_logged_out_docker_cluster,
             local_test_account_cluster_public_key,
         ]
     }
-    REMOTE = {"cluster": [static_cpu_cluster]}
-    FULL = {"cluster": [named_cluster, password_cluster]}
-    ALL = {"cluster": [named_cluster, password_cluster]}
+    MINIMAL = {"cluster": [static_cpu_cluster]}
+    THOROUGH = {"cluster": [named_cluster, password_cluster]}
+    MAXIMAL = {"cluster": [named_cluster, password_cluster]}
 
     def test_cluster_factory_and_properties(self, cluster):
         assert isinstance(cluster, rh.Cluster)

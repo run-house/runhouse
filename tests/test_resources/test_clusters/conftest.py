@@ -502,6 +502,6 @@ def local_docker_cluster_passwd(request, detached=True):
 
     # Stop the Docker container
     if not detached:
-        client.containers.get("rh-slim-server-password-auth").stop()
+        client.containers.get(container_name).stop()
         client.containers.prune()
         client.images.prune()
