@@ -99,6 +99,7 @@ class SageMakerCluster(Cluster):
             ssl_keyfile=ssl_keyfile,
             den_auth=den_auth,
             dryrun=dryrun,
+            **kwargs,
         )
         self._connection_wait_time = connection_wait_time
         self._instance_type = instance_type
@@ -111,7 +112,7 @@ class SageMakerCluster(Cluster):
 
         # Keep track of the ports used for forwarding to the cluster
         self._local_port = self.DEFAULT_SERVER_PORT
-        self._ssh_port = self.DEFAULT_SSH_PORT
+        self._ssh_port = self.DEFAULT_SSH_PORT  # TODO reconcile with Cluster.ssh_port?
 
         # Note: Relevant only if an estimator is explicitly provided
         self._estimator_entry_point = kwargs.get("estimator_entry_point")
