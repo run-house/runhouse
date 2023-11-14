@@ -89,7 +89,7 @@ this is automatically set.
 
 
 You can also instantiate secrets by directly passing in their secret
-values (if itsn’t locally set up yet), and optionally save it down
+values (if it isn’t locally set up yet), and optionally save it down
 locally.
 
 .. code:: ipython3
@@ -144,14 +144,15 @@ will extract out the values.
 Login and Saving Secrets
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-If you have a runhouse account, which you can create
+If you have a Runhouse account, which you can create
 `here <run.house/login>`__ or by calling either the ``runhouse login``
 CLI command or ``rh.login()`` Python command, you can sync secrets (to
-Vault) associated your account, and download existing secrets or upload
-new secrets from your environment.
+Vault) associated with your account, and download existing secrets or
+upload new secrets from your environment.
 
-There are some useful functions for seeing what the builting providers
-are, what secrets you have configured locally,
+There are some useful functions for seeing what the built in providers
+are, or what secrets you have configured locally or saved down in your
+account.
 
 .. code:: ipython3
 
@@ -349,7 +350,7 @@ the resource factory method, passing in only the name.
 
 .. code:: ipython3
 
-    rh.ondemand_cluster(name="~/aws_cluster")
+    rh.cluster(name="~/aws_cluster")
 
 
 .. parsed-literal::
@@ -463,5 +464,6 @@ to notify them.
 
 
 .. parsed-literal::
+    :class: code-output
 
     ({}, {'teammate1@email.com': 'write'})

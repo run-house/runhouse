@@ -46,7 +46,8 @@ class ProviderSecret(Secret):
                 self.env_vars = self._DEFAULT_ENV_VARS
             else:
                 raise ValueError(
-                    "Secrets values not provided and could not be extracted from default file/env locations."
+                    "Secrets values not provided and could not be extracted from default file "
+                    f"({self._DEFAULT_CREDENTIALS_PATH}) or env vars ({self._DEFAULT_ENV_VARS.values()}) locations."
                 )
 
     @property

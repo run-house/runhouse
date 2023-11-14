@@ -90,7 +90,7 @@ class Secret(Resource):
 
     @classmethod
     def vault_secrets(cls, names: List[str] = None) -> Dict[str, "Secret"]:
-        from runhouse.resources.secrets import Secret
+        from runhouse.resources.secrets import provider_secret, Secret, secret
 
         resp = requests.get(
             f"{rns_client.api_server_url}/user/secret",
@@ -109,7 +109,18 @@ class Secret(Resource):
                 config.update(config["data"])
                 del config["data"]
                 response[name] = config
-            secrets[name] = Secret.from_config(config)
+            elif config.get("name", None):
+                secrets[name] = Secret.from_config(config)
+            else:
+                # handle converting previous type of secrets saving format to new resource format
+                if name in cls.builtin_providers():
+                    new_secret = provider_secret(provider=name, values=config)
+                else:
+                    new_secret = secret(name=name, values=config)
+
+                secrets[name] = new_secret
+                new_secret._delete_vault_config()
+                new_secret.save()
 
         return secrets
 
