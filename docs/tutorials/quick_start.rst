@@ -111,10 +111,10 @@ cloud clusters, you can either:
 
     # Runhouse Secrets
     # Lambda Labs:
-    rh.Secrets.save_provider_secrets(secrets={"lambda": {"api_key": "*******"}})
+    rh.provider_secret("lambda", values={"api_key": "*******"}).write()
 
     # AWS:
-    rh.Secrets.save_provider_secrets(secrets={"aws": {"access_key": "******", "secret_key": "*******"}})
+    rh.provider_secret("aws", values={"access_key": "******", "secret_key": "*******"}).write()
 
     # GCP:
     !gcloud init
