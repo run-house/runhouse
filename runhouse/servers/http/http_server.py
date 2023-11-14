@@ -735,7 +735,11 @@ if __name__ == "__main__":
         help="Address to use for generating self-signed certs and enabling HTTPS. (e.g. public IP address)",
     )
 
-    cluster_config = _load_cluster_config()
+    cluster_config = (
+        _load_cluster_config()
+        if Path("~/.rh/cluster_config.yaml").expanduser().exists()
+        else {}
+    )
     parse_args = parser.parse_args()
 
     conda_name = parse_args.conda_env
