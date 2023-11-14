@@ -19,6 +19,9 @@ def test_create_func():
     os.remove(
         str(Path(aws_func.handler_path).parent / f"rh_handler_{aws_func.name}.py")
     )
+    os.remove(
+        str(Path(aws_func.handler_path).parent / f"{aws_func.name}_code_files.zip")
+    )
 
 
 def test_from_runhouse_func():
@@ -31,5 +34,11 @@ def test_from_runhouse_func():
         str(
             Path(my_rh_lambda.handler_path).parent
             / f"rh_handler_{my_rh_lambda.name}.py"
+        )
+    )
+    os.remove(
+        str(
+            Path(my_rh_lambda.handler_path).parent
+            / f"{my_rh_lambda.name}_code_files.zip"
         )
     )

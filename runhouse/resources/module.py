@@ -892,7 +892,11 @@ class Module(Resource):
                 except ValueError:  # Not a subdirectory
                     pass
 
-        return remote_import_path, module_name, cls_or_fn_name
+        args_names = [
+            param.name for param in inspect.signature(raw_cls_or_fn).parameters.values()
+        ]
+
+        return remote_import_path, module_name, cls_or_fn_name, args_names
 
     # Found in python decorator logic, maybe use
     # func_name = getattr(f, '__qualname__', f.__name__)
