@@ -146,6 +146,7 @@ def _login_download_secrets():
                 logger.info(f"Loading down secrets for {name} into {download_path}")
                 secret.write()
         except AttributeError:
+            logger.warn(f"Was not able to load down secrets for {name}.")
             continue
 
 

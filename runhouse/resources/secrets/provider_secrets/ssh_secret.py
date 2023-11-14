@@ -30,6 +30,8 @@ class SSHSecret(ProviderSecret):
         **kwargs,
     ):
         self.key = os.path.basename(path) if path else (name or self._DEFAULT_KEY)
+        if not path:
+            path = str(Path(self._DEFAULT_CREDENTIALS_PATH) / self.key)
         super().__init__(
             name=name, provider=provider, values=values, path=path, dryrun=dryrun
         )

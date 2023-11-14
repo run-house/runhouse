@@ -89,12 +89,14 @@ class Secret(Resource):
         return list(_str_to_provider_class.values())
 
     @classmethod
-    def vault_secrets(cls, names: List[str] = None) -> Dict[str, "Secret"]:
+    def vault_secrets(
+        cls, names: List[str] = None, headers: str = rns_client.request_headers
+    ) -> Dict[str, "Secret"]:
         from runhouse.resources.secrets import provider_secret, Secret, secret
 
         resp = requests.get(
             f"{rns_client.api_server_url}/user/secret",
-            headers=rns_client.request_headers,
+            headers=headers,
         )
 
         if resp.status_code != 200:
@@ -105,11 +107,10 @@ class Secret(Resource):
         if names is not None:
             response = {name: response[name] for name in names if name in response}
         for name, config in response.items():
-            if config.get("data", None):
-                config.update(config["data"])
-                del config["data"]
-                response[name] = config
-            elif config.get("name", None):
+            if config.get("name", None):
+                if config.get("data", None):
+                    config.update(config["data"])
+                    del config["data"]
                 secrets[name] = Secret.from_config(config)
             else:
                 # handle converting previous type of secrets saving format to new resource format
@@ -281,7 +282,7 @@ class Secret(Resource):
         )
         if resp.status_code != 200:
             return False
-        if read_resp_data(resp)[self.name]:
+        if read_resp_data(resp):
             return True
         return False
 

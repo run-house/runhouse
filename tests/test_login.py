@@ -5,34 +5,31 @@ import pytest
 
 import runhouse as rh
 import sky
-from runhouse.globals import configs
 
 
 def add_secrets_to_vault(headers):
     """Add some test secrets to Vault"""
     # Add real credentials for AWS and SKY to test sky status
-    rh.Secrets.put(
+    rh.provider_secret(
         provider="aws",
-        secret={
+        values={
             "access_key": os.getenv("TEST_AWS_ACCESS_KEY"),
             "secret_key": os.getenv("TEST_AWS_SECRET_KEY"),
         },
-        headers=headers,
-    )
-    rh.Secrets.put(
+    ).save(headers=headers)
+
+    rh.provider_secret(
         provider="sky",
-        secret={
+        values={
             "ssh_private_key": os.getenv("TEST_SKY_PRIVATE_KEY"),
             "ssh_public_key": os.getenv("TEST_SKY_PUBLIC_KEY"),
         },
-        headers=headers,
-    )
-    rh.Secrets.put(provider="snowflake", secret={"token": "ABCD1234"}, headers=headers)
-    rh.Secrets.put(
-        provider="ssh",
-        secret={"key-one": "12345", "key-one.pub": "ABCDE"},
-        headers=headers,
-    )
+    ).save(headers=headers)
+
+    rh.provider_secret(
+        provider="snowflake",
+        values={"token": "ABCD1234"},
+    ).save(headers=headers)
 
 
 @pytest.mark.logintest
@@ -42,9 +39,7 @@ def test_login_flow_in_new_env():
 
     add_secrets_to_vault(headers)
 
-    secrets_in_vault = rh.Secrets.download_into_env(
-        headers=headers, save_locally=False, check_enabled=False
-    )
+    secrets_in_vault = rh.Secret.vault_secrets(headers=headers)
     assert secrets_in_vault, "No secrets found in Vault"
 
     providers_in_vault = list(secrets_in_vault)
@@ -58,18 +53,10 @@ def test_login_flow_in_new_env():
     cloud_names = [str(c).lower() for c in clouds]
     assert "aws" in cloud_names
 
-    enabled_providers = rh.Secrets.enabled_providers(as_str=True)
-
     for provider in providers_in_vault:
-        if provider in enabled_providers:
-            assert configs.get("secrets", {}).get(
-                provider
-            ), f"No credentials path for {provider} stored in .rh config!"
+        rh.secret(provider).delete(headers=headers)
 
-    rh.Secrets.delete_from_vault(providers=["aws", "snowflake", "ssh", "sky", "github"])
-    secrets_in_vault = rh.Secrets.download_into_env(
-        save_locally=False, check_enabled=False
-    )
+    secrets_in_vault = rh.Secret.vault_secrets()
     assert not secrets_in_vault
 
 
