@@ -811,7 +811,6 @@ def aws_lambda_function(
     if fn is None:
         # ------- arguments validation -------
         # TODO: use error msg inside the exception
-        # TODO: add timeout and memory validation
         if paths_to_code is None or len(paths_to_code) == 0:
             logger.error("Please provide a path to the lambda handler file.")
             raise RuntimeError
