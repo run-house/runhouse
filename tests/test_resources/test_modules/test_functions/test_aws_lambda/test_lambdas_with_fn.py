@@ -20,6 +20,9 @@ def test_create_func():
         os.remove(
             str(Path(aws_func.handler_path).parent / f"rh_handler_{aws_func.name}.py")
         )
+    except FileNotFoundError:
+        assert True is True
+    try:
         os.remove(
             str(Path(aws_func.handler_path).parent / f"{aws_func.name}_code_files.zip")
         )
@@ -40,6 +43,9 @@ def test_from_runhouse_func():
                 / f"rh_handler_{my_rh_lambda.name}.py"
             )
         )
+    except FileNotFoundError:
+        assert True is True
+    try:
         os.remove(
             str(
                 Path(my_rh_lambda.handler_path).parent
