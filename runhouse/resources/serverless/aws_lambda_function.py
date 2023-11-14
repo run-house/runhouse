@@ -812,24 +812,21 @@ def aws_lambda_function(
         # ------- arguments validation -------
         # TODO: use error msg inside the exception
         if paths_to_code is None or len(paths_to_code) == 0:
-            logger.error("Please provide a path to the lambda handler file.")
-            raise RuntimeError
+            raise RuntimeError("Please provide a path to the lambda handler file.")
         if handler_function_name is None or len(handler_function_name) == 0:
-            logger.error(
+            raise RuntimeError(
                 "Please provide the name of the function that should be executed by the lambda."
             )
-            raise RuntimeError
         if runtime is not None and runtime not in SUPPORTED_RUNTIMES:
-            logger.error(
-                f"Please provide a supported lambda runtime, should be one of the following: {SUPPORTED_RUNTIMES}"
+            raise RuntimeError(
+                "Please provide a supported lambda runtime, should be one of the"
+                + f" following: {SUPPORTED_RUNTIMES}"
             )
-            raise RuntimeError
         if args_names is None:
-            logger.error(
-                "Please provide the names of the arguments provided to handler function, in the order they are"
-                + " passed to the lambda function."
+            raise RuntimeError(
+                "Please provide the names of the arguments provided to handler function, "
+                + "in the order they are passed to the lambda function."
             )
-            raise RuntimeError
 
         if timeout > 900:
             timeout = 900
