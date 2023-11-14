@@ -631,7 +631,6 @@ class AWSLambdaFunction(Function):
         return self._invoke(*args, **kwargs)
 
     def _invoke(self, *args, **kwargs) -> Any:
-        payload_invoke = args
         if len(args) > 0 and self.args_names is not None:
             payload_invoke = {self.args_names[i]: args[i] for i in range(len(args))}
         invoke_res = LAMBDA_CLIENT.invoke(

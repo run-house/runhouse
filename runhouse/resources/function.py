@@ -98,8 +98,9 @@ class Function(Module):
         if system == "AWS_LAMBDA":
             from runhouse.resources.serverless import aws_lambda_function
 
-            args = self.fn_pointers[-1]
-            return aws_lambda_function(fn_pointers=self.fn_pointers, args_names=args)
+            return aws_lambda_function(
+                fn=self._get_obj_from_pointers(*self.fn_pointers), env=env
+            )
 
         # to retain backwards compatibility
         if reqs or setup_cmds:
@@ -147,6 +148,13 @@ class Function(Module):
         logging.info("Function setup complete.")
 
         return new_function
+
+    @property
+    def __name__(self):
+        if self.name:
+            return self.name
+        else:
+            return self.fn_pointers[2]
 
     # ----------------- Function call methods -----------------
 
