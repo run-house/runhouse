@@ -594,6 +594,10 @@ class Cluster(Resource):
         return Path(self.cert_config.cert_path).exists()
 
     @property
+    def _enable_local_span_collection(self) -> bool:
+        return self.enable_local_span_collection
+
+    @property
     def _use_custom_key(self):
         return Path(self.cert_config.key_path).exists()
 
@@ -770,6 +774,7 @@ class Cluster(Resource):
 
         https_flag = self._use_https
         nginx_flag = self._use_nginx
+        enable_local_span_collection_flag = self._enable_local_span_collection
         cmd = (
             self.CLI_RESTART_CMD
             + (" --no-restart-ray" if not restart_ray else "")
@@ -778,6 +783,11 @@ class Cluster(Resource):
             + (" --restart-proxy" if restart_proxy and nginx_flag else "")
             + (f" --ssl-certfile {cluster_cert_path}" if use_custom_cert else "")
             + (f" --ssl-keyfile {cluster_key_path}" if use_custom_key else "")
+            + (
+                " --enable-local-span-collection"
+                if enable_local_span_collection_flag
+                else ""
+            )
         )
 
         cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd

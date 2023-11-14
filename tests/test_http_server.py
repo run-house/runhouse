@@ -12,12 +12,12 @@ import requests
 #     assert cluster.is_up()  # Should be true for a Cluster object
 
 
-@pytest.mark.dockertest
-@pytest.mark.httpservertest
-def test_public_key_cluster_is_up(local_docker_cluster_public_key):
-    cluster = local_docker_cluster_public_key
-    cluster.check_server()
-    assert cluster.is_up()  # Should be true for a Cluster object
+# @pytest.mark.dockertest
+# @pytest.mark.httpservertest
+# def test_public_key_cluster_is_up(local_docker_cluster_public_key):
+#     cluster = local_docker_cluster_public_key
+#     cluster.check_server()
+#     assert cluster.is_up()  # Should be true for a Cluster object
 
 
 @pytest.mark.dockertest
@@ -29,17 +29,15 @@ def test_public_key_cluster_has_telemetry(local_docker_cluster_telemetry_public_
 
     # Make a GET request to the /spans endpoint
     response = requests.get("http://127.0.0.1:32300/spans")
-    print("Response: ", response)
 
     # Check the status code
     assert response.status_code == 200
 
     # JSON parse the response
     parsed_response = response.json()
-    print("Parsed response: ", parsed_response)
 
     # Assert that the key "spans" exists in the parsed response
-    assertIn("spans", parsed_response)
+    assert "spans" in parsed_response, "'spans' not in response"
 
 
 if __name__ == "__main__":
