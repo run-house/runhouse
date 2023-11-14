@@ -93,12 +93,6 @@ class Function(Module):
                 "``setup_cmds`` argument has been deprecated. "
                 "Please pass in setup commands to the ``Env`` class corresponding to the function instead."
             )
-        if system == "AWS_LAMBDA":
-            from runhouse.resources.serverless import aws_lambda_function
-
-            return aws_lambda_function(
-                fn=self._get_obj_from_pointers(*self.fn_pointers), env=env
-            )
 
         # to retain backwards compatibility
         if reqs or setup_cmds:
@@ -111,6 +105,13 @@ class Function(Module):
         else:
             env = env or self.env or Env(name=Env.DEFAULT_NAME)
             env = _get_env_from(env)
+
+        if system == "AWS_LAMBDA":
+            from runhouse.resources.serverless import aws_lambda_function
+
+            return aws_lambda_function(
+                fn=self._get_obj_from_pointers(*self.fn_pointers), env=env
+            )
 
         if (
             self.dryrun
