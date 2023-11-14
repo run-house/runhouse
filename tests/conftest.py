@@ -17,7 +17,7 @@ class TestLevels(str, enum.Enum):
     MAXIMAL = "maximal"
 
 
-DEFAULT_LEVEL = TestLevels.UNIT
+DEFAULT_LEVEL = TestLevels.LOCAL
 
 
 def pytest_addoption(parser):
@@ -218,7 +218,7 @@ from tests.test_resources.test_modules.test_tables.conftest import (
 default_fixtures = {}
 default_fixtures[TestLevels.UNIT] = {"cluster": [local_docker_cluster_public_key]}
 default_fixtures[TestLevels.LOCAL] = {
-    "cluster": [local_docker_cluster_passwd, local_docker_cluster_public_key]
+    "cluster": [local_docker_cluster_public_key, local_docker_cluster_passwd]
 }
 default_fixtures[TestLevels.MINIMAL] = {"cluster": [ondemand_cpu_cluster]}
 default_fixtures[TestLevels.THOROUGH] = {

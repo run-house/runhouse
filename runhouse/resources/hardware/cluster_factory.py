@@ -31,13 +31,15 @@ def cluster(
 
     Args:
         name (str): Name for the cluster, to re-use later on.
-        host (str or List[str], optional): Hostname, IP address, or list of IP addresses for the BYO cluster.
+        host (str or List[str], optional): Hostname (e.g. domain or name in .ssh/config), IP address, or list of IP
+            addresses for the cluster (the first of which is the head node).
         ssh_creds (dict, optional): Dictionary mapping SSH credentials.
             Example: ``ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'}``
         server_port (bool, optional): Port to use for the server. If not provided will use 80 for a
             ``server_connection_type`` of ``none``, 443 for ``tls`` and ``32300`` for all other SSH connection types.
-        server_host (bool, optional): Host for the server. If connecting to the server with an SSH connection,
-            use `localhost`` or ``127.0.0.1``. If not provided, will use the IP address of the server.
+        server_host (bool, optional): Host from which the server listens for traffic (i.e. the --host argument
+            `runhouse start` run on the cluster). Defaults to "0.0.0.0" unless connecting to the server with an SSH
+            connection, in which case ``localhost`` is used.
         server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
             API server. ``ssh`` will use start with server via an SSH tunnel. ``tls`` will start the server
             with HTTPS on port 443 using TLS certs without an SSH tunnel. ``none`` will start the server with HTTP
@@ -74,21 +76,18 @@ def cluster(
             "``ips`` argument has been deprecated. Please use ``host`` to refer to the cluster IPs or host instead."
         )
 
-    if server_connection_type:
-        if ssh_creds and server_connection_type != ServerConnectionType.SSH:
-            raise ValueError(
-                f"SSH creds provided but server connection type not set to {ServerConnectionType.SSH}"
-            )
-        if server_connection_type == ServerConnectionType.AWS_SSM:
-            raise ValueError(
-                f"Cluster does not support server connection type of {server_connection_type}"
-            )
-    else:
-        server_connection_type = (
-            ServerConnectionType.TLS
-            if ssl_certfile or ssl_keyfile
-            else ServerConnectionType.SSH
-        )
+    if "localhost" in host or ":" in host:
+        server_connection_type = server_connection_type or ServerConnectionType.NONE
+        if ":" in host:
+            # e.g. "localhost:23324" or <real_ip>:<custom port> (e.g. a port is already open to the server)
+            host, client_port = self.address.split(":")
+            kwargs["client_port"] = client_port
+
+    server_connection_type = server_connection_type or (
+        ServerConnectionType.TLS
+        if ssl_certfile or ssl_keyfile
+        else ServerConnectionType.SSH
+    )
 
     if server_port is None:
         if server_connection_type == ServerConnectionType.TLS:
@@ -122,7 +121,18 @@ def cluster(
         )
 
     if "instance_type" in kwargs.keys():
-        return ondemand_cluster(name=name, **kwargs)
+        return ondemand_cluster(
+            name=name,
+            ssh_creds=ssh_creds,
+            server_port=server_port,
+            server_host=server_host,
+            server_connection_type=server_connection_type,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile,
+            den_auth=den_auth,
+            dryrun=dryrun,
+            **kwargs,
+        )
 
     if any(
         k in kwargs.keys()
@@ -138,7 +148,23 @@ def cluster(
             "The `cluster` factory is intended to be used for static clusters. "
             "If you would like to create a sagemaker cluster, please use `rh.sagemaker_cluster()` instead."
         )
-        return sagemaker_cluster(name=name, **kwargs)
+        return sagemaker_cluster(
+            name=name,
+            ssh_creds=ssh_creds,
+            server_port=server_port,
+            server_host=server_host,
+            server_connection_type=server_connection_type,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile,
+            den_auth=den_auth,
+            dryrun=dryrun,
+            **kwargs,
+        )
+
+    if server_connection_type == ServerConnectionType.AWS_SSM:
+        raise ValueError(
+            f"Cluster does not support server connection type of {server_connection_type}"
+        )
 
     c = Cluster(
         ips=host,
@@ -151,6 +177,7 @@ def cluster(
         ssl_certfile=ssl_certfile,
         den_auth=den_auth,
         dryrun=dryrun,
+        **kwargs,
     )
 
     if den_auth:
@@ -202,8 +229,9 @@ def ondemand_cluster(
             that you are responsible for ensuring that the applications listening on these ports are secure.
         server_port (bool, optional): Port to use for the server. If not provided will use 80 for a
             ``server_connection_type`` of ``none``, 443 for ``tls`` and ``32300`` for all other SSH connection types.
-        server_host (bool, optional): Host for the server. If connecting to the server with an SSH connection,
-            use `localhost`` or ``127.0.0.1``. If not provided, will use the IP address of the server.
+        server_host (bool, optional): Host from which the server listens for traffic (i.e. the --host argument
+            `runhouse start` run on the cluster). Defaults to "0.0.0.0" unless connecting to the server with an SSH
+            connection, in which case ``localhost`` is used.
         server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
             API server. ``ssh`` will use start with server via an SSH tunnel. ``tls`` will start the server
             with HTTPS on port 443 using TLS certs without an SSH tunnel. ``none`` will start the server with HTTP
@@ -237,7 +265,6 @@ def ondemand_cluster(
     """
     if server_connection_type in [
         ServerConnectionType.AWS_SSM,
-        ServerConnectionType.PARAMIKO,
     ]:
         raise ValueError(
             f"OnDemandCluster does not support server connection type {server_connection_type}"
@@ -359,6 +386,7 @@ def ondemand_cluster(
         den_auth=den_auth,
         name=name,
         dryrun=dryrun,
+        **kwargs,
     )
 
     if den_auth:
@@ -429,7 +457,8 @@ def sagemaker_cluster(
         server_port (bool, optional): Port to use for the server. If not provided will use 80 for a
             ``server_connection_type`` of ``none``, 443 for ``tls`` and ``32300`` for all other SSH connection types.
             *Note: For SageMaker will use ``32300`` since the connection will always be made via SSH.*
-        server_host (bool, optional): Host to use for the server.
+        server_host (bool, optional): Host from which the server listens for traffic (i.e. the --host argument
+            `runhouse start` run on the cluster).
             *Note: For SageMaker, since we connect to the Runhouse API server via an SSH tunnel, the only valid
             host is localhost.*
         server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
@@ -534,6 +563,7 @@ def sagemaker_cluster(
         ssl_keyfile=ssl_keyfile,
         ssl_certfile=ssl_certfile,
         dryrun=dryrun,
+        **kwargs,
     )
 
     if den_auth:

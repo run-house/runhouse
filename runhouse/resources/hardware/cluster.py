@@ -44,6 +44,7 @@ class Cluster(Resource):
     DEFAULT_SERVER_PORT = 32300
     DEFAULT_HTTP_PORT = 80
     DEFAULT_HTTPS_PORT = 443
+    DEFAULT_SSH_PORT = 22
     LOCALHOST = "127.0.0.1"
     LOCAL_HOSTS = ["localhost", LOCALHOST]
 
@@ -52,9 +53,7 @@ class Cluster(Resource):
     SERVER_START_CMD = f"{sys.executable} -m runhouse.servers.http.http_server"
     SERVER_STOP_CMD = f'pkill -f "{SERVER_START_CMD}"'
     # 2>&1 redirects stderr to stdout
-    START_SCREEN_CMD = (
-        f"screen -dm bash -c \"{SERVER_START_CMD} |& tee -a '{SERVER_LOGFILE}' 2>&1\""
-    )
+    START_SCREEN_CMD = f"screen -dm bash -c \"{SERVER_START_CMD} 2>&1 | tee -a '{SERVER_LOGFILE}' 2>&1\""
     RAY_START_CMD = "ray start --head --port 6379"
     # RAY_BOOTSTRAP_FILE = "~/ray_bootstrap_config.yaml"
     # --autoscaling-config=~/ray_bootstrap_config.yaml
@@ -69,6 +68,8 @@ class Cluster(Resource):
         ssh_creds: Dict = None,
         server_host: str = None,
         server_port: int = None,
+        ssh_port: int = None,
+        client_port: int = None,
         server_connection_type: str = None,
         ssl_keyfile: str = None,
         ssl_certfile: str = None,
@@ -102,6 +103,8 @@ class Cluster(Resource):
 
         self.server_connection_type = server_connection_type
         self.server_port = server_port or self.DEFAULT_SERVER_PORT
+        self.client_port = client_port
+        self.ssh_port = ssh_port or self.DEFAULT_SSH_PORT
         self.server_host = server_host
 
     def save_config_to_cluster(self):
@@ -392,14 +395,7 @@ class Cluster(Resource):
                 if ssh_tunnel.tunnel_is_up[ssh_tunnel.local_bind_address]:
                     self._rpc_tunnel = ssh_tunnel
 
-        if "localhost" in self.address or ":" in self.address:
-            if ":" in self.address:
-                # Case 1: "localhost:23324" or <real_ip>:<custom port> (e.g. a port is already open to the server)
-                self._rpc_tunnel, connected_port = self.address.split(":")
-            else:
-                # Case 2: "localhost"
-                self._rpc_tunnel = self.address
-        elif (
+        if (
             self.server_connection_type
             not in [ServerConnectionType.NONE, ServerConnectionType.TLS]
             and ssh_tunnel is None
@@ -422,6 +418,7 @@ class Cluster(Resource):
                 f"Connecting to server via SSH, port forwarding via port {connected_port}."
             )
 
+        self.client_port = self.client_port or connected_port
         use_https = self._use_https
         cert_path = self.cert_config.cert_path if use_https else None
 
@@ -430,14 +427,13 @@ class Cluster(Resource):
         if self.server_connection_type in [
             ServerConnectionType.SSH,
             ServerConnectionType.AWS_SSM,
-            ServerConnectionType.PARAMIKO,
         ]:
             ssh_user = creds.get("ssh_user")
             password = creds.get("password")
             auth = (ssh_user, password) if ssh_user and password else None
             self.client = HTTPClient(
                 host=self.LOCALHOST,
-                port=connected_port,
+                port=self.client_port,
                 auth=auth,
                 cert_path=cert_path,
                 use_https=use_https,
@@ -445,7 +441,7 @@ class Cluster(Resource):
         else:
             self.client = HTTPClient(
                 host=self.server_address,
-                port=connected_port,
+                port=self.client_port,
                 cert_path=cert_path,
                 use_https=use_https,
             )
@@ -541,7 +537,7 @@ class Cluster(Resource):
                     # Start a tunnel using self.run in a thread, instead of ssh_tunnel
                     ssh_credentials = copy.copy(self.ssh_creds())
                     host = ssh_credentials.pop("ssh_host", self.address)
-                    runner = SkySSHRunner(host, **ssh_credentials)
+                    runner = SkySSHRunner(host, **ssh_credentials, port=self.ssh_port)
                     runner.tunnel(local_port, remote_port)
                     ssh_tunnel = runner  # Just to keep the object in memory
                 else:
@@ -550,6 +546,7 @@ class Cluster(Resource):
                         ssh_username=creds.get("ssh_user"),
                         ssh_pkey=creds.get("ssh_private_key"),
                         ssh_password=creds.get("password"),
+                        ssh_port=self.ssh_port,
                         local_bind_address=("", local_port),
                         remote_bind_address=(
                             self.LOCALHOST,
@@ -859,8 +856,6 @@ class Cluster(Resource):
         """
         if self._rpc_tunnel:
             self._rpc_tunnel.stop()
-        # if self.client:
-        #     self.client.shutdown()
 
     def __getstate__(self):
         """Delete non-serializable elements (e.g. thread locks) before pickling."""
@@ -900,7 +895,7 @@ class Cluster(Resource):
         ssh_credentials.pop("ssh_host", self.address)
         pwd = ssh_credentials.pop("password", None)
 
-        runner = SkySSHRunner(self.address, **ssh_credentials)
+        runner = SkySSHRunner(self.address, **ssh_credentials, port=self.ssh_port)
         if not pwd:
             if up:
                 runner.run(["mkdir", "-p", dest], stream_logs=False)
@@ -923,7 +918,7 @@ class Cluster(Resource):
                     return_cmd=True,
                     ssh_mode=SshMode.INTERACTIVE,
                 )
-                ssh = pexpect.spawn(ssh_command, encoding="utf-8")
+                ssh = pexpect.spawn(ssh_command, encoding="utf-8", timeout=None)
                 ssh.logfile_read = sys.stdout
                 # If CommandRunner uses the control path, the password may not be requested
                 next_line = ssh.expect(["assword:", pexpect.EOF])
@@ -942,7 +937,7 @@ class Cluster(Resource):
                 stream_logs=stream_logs,
                 return_cmd=True,
             )
-            ssh = pexpect.spawn(rsync_cmd, encoding="utf-8")
+            ssh = pexpect.spawn(rsync_cmd, encoding="utf-8", timeout=None)
             if stream_logs:
                 # FYI This will print a ton of of stuff to stdout
                 ssh.logfile_read = sys.stdout
@@ -1044,7 +1039,7 @@ class Cluster(Resource):
         host = ssh_credentials.pop("ssh_host", self.address)
         pwd = ssh_credentials.pop("password", None)
 
-        runner = SkySSHRunner(host, **ssh_credentials)
+        runner = SkySSHRunner(host, **ssh_credentials, port=self.ssh_port)
 
         if not pwd:
             for command in commands:
@@ -1074,7 +1069,7 @@ class Cluster(Resource):
                     ssh_mode=SshMode.INTERACTIVE,
                     quiet_ssh=True,
                 )
-                ssh = pexpect.spawn(ssh_command, encoding="utf-8")
+                ssh = pexpect.spawn(ssh_command, encoding="utf-8", timeout=None)
                 if stream_logs:
                     ssh.logfile_read = sys.stdout
                 next_line = ssh.expect(["assword:", pexpect.EOF])

@@ -59,6 +59,7 @@ class OnDemandCluster(Cluster):
             ssl_certfile=ssl_certfile,
             den_auth=den_auth,
             dryrun=dryrun,
+            **kwargs,
         )
 
         self.instance_type = instance_type
