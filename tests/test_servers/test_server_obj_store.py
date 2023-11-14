@@ -1,8 +1,13 @@
 import unittest
 
+import pytest
+
 from runhouse.servers.http.auth import hash_token
 
+from tests.test_servers.conftest import BASE_ENV_ACTOR_NAME, CACHE_ENV_ACTOR_NAME
 
+
+@pytest.mark.parametrize("obj_store", [BASE_ENV_ACTOR_NAME], indirect=True)
 class TestBaseEnvObjStore:
     """Start object store in a local base env servlet"""
 
@@ -164,6 +169,7 @@ class TestBaseEnvObjStore:
         assert obj_store.keys() == []
 
 
+@pytest.mark.parametrize("obj_store", [CACHE_ENV_ACTOR_NAME], indirect=True)
 class TestAuthCacheObjStore:
     """Start object store in a local auth cache servlet"""
 

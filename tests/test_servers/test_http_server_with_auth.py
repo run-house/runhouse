@@ -15,7 +15,12 @@ from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 from tests.test_servers.conftest import summer
 
 
-@pytest.mark.usefixtures("local_docker_cluster_public_key")
+@pytest.fixture(scope="class")
+def base_cluster(local_docker_cluster_public_key):
+    return local_docker_cluster_public_key
+
+
+@pytest.mark.usefixtures("base_cluster")
 @pytest.mark.den_auth
 class TestHTTPServerWithAuth:
     """Test the HTTP server with authentication enabled on a local docker container"""
@@ -137,7 +142,14 @@ class TestHTTPServerWithAuth:
         assert response.status_code == 200
 
         resp_obj: dict = json.loads(response.text.split("\n")[0])
-        assert b64_unpickle(resp_obj["data"]) == 3
+
+        if resp_obj["output_type"] == "stdout":
+            assert resp_obj["data"] == [
+                "base_env servlet: Calling method call on module summer\n"
+            ]
+
+        if resp_obj["output_type"] == "result":
+            assert b64_unpickle(resp_obj["data"]) == 3
 
     @pytest.mark.asyncio
     async def test_async_call(self, async_http_client, base_cluster):

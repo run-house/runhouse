@@ -43,12 +43,6 @@ def pytest_addoption(parser):
         default=True,
         help="Whether to run container in detached mode",
     )
-    parser.addoption(
-        "--den-auth",
-        action="store_true",
-        default=False,
-        help="Whether to start the Runhouse API server with den auth enabled",
-    )
 
 
 def pytest_generate_tests(metafunc):
@@ -82,7 +76,7 @@ init_args = {}
 ############## HELPERS ##############
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 @contextlib.contextmanager
 def test_account():
     """Used for the purposes of testing resource sharing among different accounts.
@@ -125,7 +119,6 @@ def test_account():
 # ----------------- Clusters -----------------
 
 from tests.test_resources.test_clusters.conftest import (
-    base_cluster,  # noqa: F401
     build_and_run_image,  # noqa: F401
     byo_cpu,  # noqa: F401
     cluster,  # noqa: F401

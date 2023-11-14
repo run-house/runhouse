@@ -20,7 +20,7 @@ def summer(a, b):
     return a + b
 
 
-def server_is_up():
+def http_server_is_up():
     try:
         resp = httpx.get(f"{BASE_URL}/check")
         resp.raise_for_status()  # Will raise an exception for any status code 400 and above
@@ -94,9 +94,11 @@ def cache_servlet():
 
 
 @pytest.fixture(scope="session")
-def obj_store(base_servlet):
-    obj_store = ObjStore()
-    obj_store.set_name(BASE_ENV_ACTOR_NAME)
-    obj_store.set_name(CACHE_ENV_ACTOR_NAME)
+def obj_store(request, base_servlet):
+    base_obj_store = ObjStore()
 
-    yield obj_store
+    # Use the parameter to set the name of the servlet actor to use
+    actor_name = request.param
+    base_obj_store.set_name(actor_name)
+
+    yield base_obj_store

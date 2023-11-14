@@ -3,11 +3,13 @@ import shlex
 import time
 from pathlib import Path
 
+import httpx
 import pytest
 
 import runhouse as rh
 
-from ...conftest import init_args
+from tests.conftest import init_args
+from tests.test_servers.conftest import BASE_URL, http_server_is_up
 
 SSH_USER = "rh-docker-user"
 KEYPATH = str(
@@ -292,22 +294,6 @@ def popen_shell_command(subprocess, command: list[str], cwd: str = None):
     return process
 
 
-@pytest.fixture(scope="class")
-def base_cluster(request):
-    den_auth = "den_auth" in request.keywords
-    c = rh.cluster(
-        name="local-docker-slim-public-key-auth",
-        host="localhost",
-        den_auth=den_auth,
-        server_host="0.0.0.0",
-        ssh_creds={
-            "ssh_user": "rh-docker-user",
-            "ssh_private_key": KEYPATH,
-        },
-    ).save()
-    return c
-
-
 @pytest.fixture(scope="session")
 def local_logged_out_docker_cluster(request, base_cluster):
     image_name = "keypair"
@@ -357,12 +343,13 @@ def local_logged_out_docker_cluster(request, base_cluster):
 
 
 @pytest.fixture(scope="class")
-def local_docker_cluster_public_key(request, base_cluster):
+def local_docker_cluster_public_key(request):
     image_name = "keypair"
     container_name = "rh-slim-server-public-key-auth"
     dir_name = "public-key-auth"
 
     detached = request.config.getoption("--detached")
+    den_auth = "den_auth" in request.keywords
 
     client, rh_parent_path = build_and_run_image(
         image_name=image_name,
@@ -378,12 +365,28 @@ def local_docker_cluster_public_key(request, base_cluster):
         name="local-docker-slim-public-key-auth",
         host="localhost",
         server_host="0.0.0.0",
+        den_auth=den_auth,
         ssh_creds={
             "ssh_user": SSH_USER,
             "ssh_private_key": KEYPATH,
         },
     )
     c = rh.cluster(**args)
+
+    if http_server_is_up():
+        if den_auth:
+            resp = httpx.get(f"{BASE_URL}/keys")
+            # Should receive a 404 (no token provided in request) if den auth is enabled
+            if resp.status_code != 404:
+                # Restart the server with den auth
+                c.restart_server()
+        else:
+            # Should receive a 200 if den auth is disabled
+            resp = httpx.get(f"{BASE_URL}/keys")
+            if resp.status_code != 200:
+                # Restart the server without den auth
+                c.restart_server()
+
     init_args[id(c)] = args
     rh.env(
         reqs=["pytest", "httpx", "pytest_asyncio"],
@@ -423,7 +426,6 @@ def local_test_account_cluster_public_key(request, base_cluster, test_account):
         args = dict(
             name="local-docker-slim-public-key-auth",
             host="localhost",
-            den_auth=True,
             server_host="0.0.0.0",
             ssh_creds={
                 "ssh_user": SSH_USER,
@@ -490,7 +492,6 @@ def local_docker_cluster_passwd(request, detached=True):
         name="local-docker-slim-password-file-auth",
         host="localhost",
         server_host="0.0.0.0",
-        den_auth=request.config.getoption("--den-auth"),
         ssh_creds={"ssh_user": SSH_USER, "password": pwd},
     )
     c = rh.cluster(**args)
