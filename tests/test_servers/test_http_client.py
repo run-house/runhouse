@@ -1,3 +1,4 @@
+import inspect
 import json
 import unittest
 from unittest.mock import ANY, MagicMock, Mock, mock_open, patch
@@ -205,7 +206,9 @@ class TestHTTPClient(unittest.TestCase):
     def test_call_module_method_stream_logs(self, mock_post):
         # Setup the mock response with a log in the stream
         response_sequence = [
-            json.dumps({"output_type": "log", "data": "Log message"}),
+            json.dumps(
+                {"output_type": "result_stream", "data": pickle_b64("Log message")}
+            ),
         ]
         mock_response = Mock()
         mock_response.status_code = 200
@@ -213,7 +216,9 @@ class TestHTTPClient(unittest.TestCase):
         mock_post.return_value = mock_response
 
         # Call the method under test
-        self.client.call_module_method("base_env", "install")
+        res = self.client.call_module_method("base_env", "install")
+        assert inspect.isgenerator(res)
+        assert next(res) == "Log message"
 
     @patch("requests.post")
     def test_call_module_method_config(self, mock_post):

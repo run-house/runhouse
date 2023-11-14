@@ -12,7 +12,7 @@ from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 from tests.test_servers.conftest import summer
 
 
-@pytest.mark.usefixtures("docker_container")
+@pytest.mark.usefixtures("local_docker_cluster_public_key")
 class TestHTTPServer:
     """Start HTTP server in a docker container running locally"""
 

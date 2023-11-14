@@ -1,6 +1,3 @@
-import subprocess
-import warnings
-
 import httpx
 
 import pytest
@@ -10,8 +7,6 @@ import runhouse as rh
 
 from runhouse.servers.http.http_server import app, HTTPServer
 from runhouse.servers.obj_store import ObjStore
-
-from tests.conftest import build_and_run_image
 
 # Note: Server will run on local docker container
 BASE_URL = "http://localhost:32300"
@@ -77,57 +72,6 @@ def local_client_with_den_auth():
     yield client
 
 
-@pytest.fixture(scope="class")
-def docker_container(pytestconfig, cluster):
-    """Local container which runs the HTTP server."""
-    container_name = "rh-slim-server-public-key-auth"
-
-    # Server will likely already be up bc of the fixture in the main conftest.py file (local_docker_cluster_public_key)
-    server_already_up = server_is_up()
-    if not server_already_up:
-        warnings.warn(
-            "Server is not up. Launching server on local docker container. Once finished, the server "
-            f"will be addressable with URL: {BASE_URL}"
-        )
-
-        # Start the Docker container
-        build_and_run_image(
-            image_name="keypair",
-            container_name=container_name,
-            detached=True,
-            dir_name="public-key-auth",
-            use_keypath=True,
-            force_rebuild=pytestconfig.getoption("--force-rebuild"),
-        )
-        rh_config = rh.configs.load_defaults_from_file()
-        rh.env(
-            reqs=["pytest", "httpx", "pytest_asyncio"],
-            working_dir=None,
-            setup_cmds=[
-                f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
-                f"echo '{rh_config}' > ~/.rh/config.yaml"
-            ],
-            name="base_env",
-        ).to(cluster)
-
-        if not server_is_up():
-            # If the server still doesn't respond with a 200, raise an error
-            raise RuntimeError(
-                "The server is not up or not responding correctly after build. Make sure the runhouse "
-                "package was copied into the container and the server was started correctly."
-            )
-
-    yield
-
-    detached = pytestconfig.getoption("--detached")
-    if not detached:
-        res = subprocess.run(["docker", "stop", container_name])
-        if res.returncode != 0:
-            raise RuntimeError(
-                f"Failed to stop container {container_name}: {res.stderr}"
-            )
-
-
 @pytest.fixture(scope="session")
 def base_servlet():
     import ray
@@ -153,13 +97,6 @@ def cache_servlet():
 def obj_store(base_servlet):
     obj_store = ObjStore()
     obj_store.set_name(BASE_ENV_ACTOR_NAME)
-
-    yield obj_store
-
-
-@pytest.fixture(scope="session")
-def obj_store_auth_cache(base_servlet):
-    obj_store = ObjStore()
     obj_store.set_name(CACHE_ENV_ACTOR_NAME)
 
     yield obj_store

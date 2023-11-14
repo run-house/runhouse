@@ -15,7 +15,7 @@ from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 from tests.test_servers.conftest import summer
 
 
-@pytest.mark.usefixtures("docker_container")
+@pytest.mark.usefixtures("local_docker_cluster_public_key")
 @pytest.mark.den_auth
 class TestHTTPServerWithAuth:
     """Test the HTTP server with authentication enabled on a local docker container"""
@@ -316,8 +316,10 @@ def setup_cluster_config(test_account):
     # Create a temporary directory that simulates the user's home directory
     home_dir = Path("~/.rh").expanduser()
     home_dir.mkdir(exist_ok=True)
+
     cluster_config_path = home_dir / "cluster_config.yaml"
     rns_address = "/kitchen_tester/local_cluster"
+
     cluster_config = {
         "name": rns_address,
         "resource_type": "cluster",
@@ -336,8 +338,11 @@ def setup_cluster_config(test_account):
         "image_id": None,
         "region": None,
     }
+    try:
+        c = rh.OnDemandCluster.from_name(rns_address)
+    except ValueError:
+        c = None
 
-    c = rh.OnDemandCluster.from_name(rns_address)
     if not c:
         current_username = rh.configs.get("username")
         with test_account:

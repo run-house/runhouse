@@ -298,12 +298,13 @@ def popen_shell_command(subprocess, command: list[str], cwd: str = None):
     return process
 
 
-@pytest.fixture(scope="session")
-def base_cluster(pytestconfig):
+@pytest.fixture(scope="class")
+def base_cluster(request):
+    den_auth = "den_auth" in request.keywords
     c = rh.cluster(
         name="local-docker-slim-public-key-auth",
         host="localhost",
-        den_auth=pytestconfig.getoption("--den-auth"),
+        den_auth=den_auth,
         server_host="0.0.0.0",
         ssh_creds={
             "ssh_user": "rh-docker-user",
@@ -349,7 +350,7 @@ def local_logged_out_docker_cluster(request, base_cluster):
         client.images.prune()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def local_docker_cluster_public_key(request, base_cluster):
     image_name = "keypair"
     container_name = "rh-slim-server-public-key-auth"
