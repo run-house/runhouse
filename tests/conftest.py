@@ -56,6 +56,15 @@ def pytest_generate_tests(metafunc):
     level_fixtures = getattr(
         metafunc.cls or metafunc.module, level.upper(), default_fixtures[level]
     )
+
+    # If a child test suite wants to override the fixture name, it can do so by setting it in the mapping
+    # e.g. in the TestCluster, when the parent tests in TestResource run with the "resource" fixture, we want
+    # to swap in the "cluster" fixtures instead so those resource tests run on the clusters. The resulting
+    # level_fixtures dict will include the cluster fixtures for both the "cluster" and "resource" keys.
+    mapping = getattr(metafunc.cls or metafunc.module, "MAP_FIXTURES", {})
+    for k in mapping.keys():
+        level_fixtures[k] = level_fixtures[mapping[k]]
+
     for fixture_name, fixture_list in level_fixtures.items():
         if fixture_name in metafunc.fixturenames:
             metafunc.parametrize(fixture_name, fixture_list, indirect=True)
@@ -128,7 +137,6 @@ from tests.test_resources.test_clusters.conftest import (
     password_cluster,  # noqa: F401
     shared_cluster,  # noqa: F401
     static_cpu_cluster,  # noqa: F401
-    unnamed_cluster,  # noqa: F401
 )
 from tests.test_resources.test_clusters.test_on_demand_cluster.conftest import (
     a10g_gpu_cluster,  # noqa: F401
