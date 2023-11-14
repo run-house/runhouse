@@ -29,7 +29,6 @@ class Function(Module):
         env: Optional[Env] = None,
         dryrun: bool = False,
         access: Optional[str] = None,
-        func_args: Optional[str] = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
@@ -41,7 +40,6 @@ class Function(Module):
         """
         self.fn_pointers = fn_pointers
         self.access = access or self.DEFAULT_ACCESS
-        self.func_args = func_args
         super().__init__(name=name, dryrun=dryrun, system=system, env=env, **kwargs)
 
     # ----------------- Constructor helper methods -----------------
