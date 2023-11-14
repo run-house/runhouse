@@ -3,22 +3,15 @@ import shlex
 import time
 from pathlib import Path
 
-import httpx
 import pytest
 
 import runhouse as rh
 
 from tests.conftest import init_args
-from tests.test_servers.conftest import BASE_URL, http_server_is_up
 
 SSH_USER = "rh-docker-user"
 BASE_LOCAL_SSH_PORT = 32320
 DEFAULT_KEYPAIR_KEYPATH = "~/.ssh/sky-key"
-KEYPATH = str(
-    Path(
-        rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
-    ).expanduser()
-)
 
 
 @pytest.fixture(scope="session")
@@ -154,11 +147,10 @@ def build_and_run_image(
     detached: bool,
     dir_name: str,
     pwd_file=None,
-    use_keypath=False,
+    keypath=None,
     force_rebuild=False,
     port_fwds=["22:22"],
 ):
-
     import subprocess
 
     import docker
@@ -186,7 +178,7 @@ def build_and_run_image(
         images = client.images.list(filters={"reference": f"runhouse:{image_name}"})
         if not images or force_rebuild:
             # Build the SSH public key based Docker image
-            if use_keypath:
+            if keypath:
                 build_cmd = [
                     "docker",
                     "build",
@@ -199,7 +191,7 @@ def build_and_run_image(
                     if rh_path
                     else f"RUNHOUSE_VERSION={rh_version}",
                     "--secret",
-                    f"id=ssh_key,src={KEYPATH}.pub",
+                    f"id=ssh_key,src={keypath}.pub",
                     "-t",
                     f"runhouse:{image_name}",
                     ".",
@@ -302,7 +294,7 @@ def local_logged_out_docker_cluster(request):
         container_name=container_name,
         dir_name=dir_name,
         detached=detached,
-        use_keypath=True,
+        keypath=keypath,
         force_rebuild=request.config.getoption("--force-rebuild"),
         port_fwds=[f"{local_ssh_port}:22"],
     )
@@ -345,6 +337,7 @@ def local_docker_cluster_public_key(request):
     image_name = "keypair"
     container_name = "rh-slim-keypair"
     dir_name = "public-key-auth"
+
     keypath = str(
         Path(rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)).expanduser()
     )
@@ -360,7 +353,7 @@ def local_docker_cluster_public_key(request):
         detached=detached,
         keypath=keypath,
         force_rebuild=request.config.getoption("--force-rebuild"),
-        port_fwds=[f"{local_ssh_port}:22"],
+        port_fwds=[f"{local_ssh_port}:22", "32300:32300"],
     )
 
     # Runhouse commands can now be run locally
@@ -377,21 +370,6 @@ def local_docker_cluster_public_key(request):
         },
     )
     c = rh.cluster(**args)
-
-    if http_server_is_up():
-        if den_auth:
-            resp = httpx.get(f"{BASE_URL}/keys")
-            # Should receive a 404 (no token provided in request) if den auth is enabled
-            if resp.status_code != 404:
-                # Restart the server with den auth
-                c.restart_server()
-        else:
-            # Should receive a 200 if den auth is disabled
-            resp = httpx.get(f"{BASE_URL}/keys")
-            if resp.status_code != 200:
-                # Restart the server without den auth
-                c.restart_server()
-
     init_args[id(c)] = args
     rh.env(
         reqs=["pytest", "httpx", "pytest_asyncio"],
@@ -416,30 +394,30 @@ def local_docker_cluster_public_key(request):
 @pytest.fixture(scope="session")
 def local_test_account_cluster_public_key(request, test_account):
     container_name = "rh-slim-test-acct"
+    detached = request.config.getoption("--detached")
+    den_auth = "den_auth" in request.keywords
+
+    keypath = str(
+        Path(rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)).expanduser()
+    )
+    local_ssh_port = BASE_LOCAL_SSH_PORT + 3
+
     with test_account:
         # Create the shared cluster using the test account
-        detached = request.config.getoption("--detached")
-        keypath = str(
-            Path(
-                rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
-            ).expanduser()
-        )
-        local_ssh_port = BASE_LOCAL_SSH_PORT + 3
-
         client, rh_parent_path = build_and_run_image(
             image_name="keypair",
             container_name=container_name,
             detached=True,
             dir_name="public-key-auth",
             keypath=keypath,
-            force_rebuild=pytestconfig.getoption("--force-rebuild"),
+            force_rebuild=request.config.getoption("--force-rebuild"),
             port_fwds=[f"{local_ssh_port}:22"],
         )
 
         args = dict(
             name="local-docker-slim-test-acct",
             host="localhost",
-            den_auth=True,
+            den_auth=den_auth,
             server_host="0.0.0.0",
             ssh_port=local_ssh_port,
             server_connection_type="ssh",

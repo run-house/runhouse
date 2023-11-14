@@ -8,7 +8,7 @@ import runhouse as rh
 from runhouse.servers.http.http_server import app, HTTPServer
 from runhouse.servers.obj_store import ObjStore
 
-# Note: Server will run on local docker container
+# Note: API Server will run on local docker container
 BASE_URL = "http://localhost:32300"
 
 BASE_ENV_ACTOR_NAME = "base"
