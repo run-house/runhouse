@@ -21,7 +21,7 @@ do this, so ignore warnings that the imports are unused).
 
 Runhouse uses Sky (which uses ssh) to communicate with the clusters it runs on (e.g. AWS EC2). Sky generates
 a keypair for you locally the first time you use it to communicate with a cluster, and for local container tests
-we take this key from `~/.ssh/sky-key` and copy it to the Docker containers such that Sky can communicate with them.
+we take this key from `~/.ssh/sky-key` and copy it to the Docker containers such that Sky can communicate with them. You can override the choice of keypair by adding the following line to your `~/.rh/config.yaml`: `default_keypair: <path to your private key>`.
 
 To run a single test file with a given level, use a command like this:
 ```bash
