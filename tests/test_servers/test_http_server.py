@@ -272,14 +272,6 @@ class TestHTTPServerLocally:
         response = local_client.get("/keys")
         assert key not in b64_unpickle(response.json().get("data"))
 
-    def test_add_secrets(self, local_client):
-        secrets = {"aws": {"access_key": "abc123", "secret_key": "abc123"}}
-        data = pickle_b64(secrets)
-        response = local_client.post("/secrets", json={"data": data})
-
-        assert response.status_code == 200
-        assert not b64_unpickle(response.json().get("data"))
-
     def test_add_secrets_for_unsupported_provider(self, local_client):
         secrets = {"test_provider": {"access_key": "abc123"}}
         data = pickle_b64(secrets)

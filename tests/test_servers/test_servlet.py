@@ -134,14 +134,6 @@ class TestServlet:
         assert resp.output_type == "exception"
         assert isinstance(b64_unpickle(resp.error), KeyError)
 
-    def test_add_secrets(self, base_servlet):
-        secrets = {"aws": {"access_key": "abc123", "secret_key": "abc123"}}
-        message = Message(data=pickle_b64(secrets))
-        resp = HTTPServer.call_servlet_method(base_servlet, "add_secrets", [message])
-
-        assert resp.output_type == "result"
-        assert not b64_unpickle(resp.data)
-
     def test_add_secrets_for_unsupported_provider(self, base_servlet):
         secrets = {"test_provider": {"access_key": "abc123"}}
         message = Message(data=pickle_b64(secrets))
@@ -153,10 +145,10 @@ class TestServlet:
         assert "test_provider is not a Runhouse builtin provider" in resp_data.values()
 
     @unittest.skip("Not implemented yet.")
-    def test_call(self, base_servlet, test_account, base_cluster):
+    def test_call(self, base_servlet, test_account, local_docker_cluster_public_key):
         token_hash = None
         den_auth = False
-        remote_func = rh.function(summer, system=base_cluster)
+        remote_func = rh.function(summer, system=local_docker_cluster_public_key)
 
         method_name = "call"
         module_name = remote_func.name

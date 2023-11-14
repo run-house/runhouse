@@ -5,18 +5,18 @@ from unittest.mock import ANY, MagicMock, Mock, mock_open, patch
 
 import pytest
 
+import runhouse as rh
 from runhouse.globals import rns_client
 
 from runhouse.servers.http import HTTPClient
 from runhouse.servers.http.http_utils import pickle_b64
 
 
-class TestHTTPClient(unittest.TestCase):
+class TestHTTPClient:
     @pytest.fixture(autouse=True)
-    def init_fixtures(self, request):
-        self.base_cluster = request.getfixturevalue("base_cluster")
-
-    def setUp(self):
+    def init_fixtures(self):
+        args = dict(name="local-cluster", host="localhost", server_host="0.0.0.0")
+        self.local_cluster = rh.cluster(**args)
         self.client = HTTPClient("localhost", HTTPClient.DEFAULT_PORT)
 
     @patch("requests.get")
@@ -69,7 +69,7 @@ class TestHTTPClient(unittest.TestCase):
             use_https=True,
             cert_path="/valid/path",
         )
-        self.assertTrue(client.verify)
+        assert client.verify
 
         # Mock a self-signed cert where the issuer is the same as the subject
         mock_cert.issuer = "self-signed"
@@ -83,7 +83,7 @@ class TestHTTPClient(unittest.TestCase):
             use_https=True,
             cert_path="/self-signed/path",
         )
-        self.assertFalse(client.verify)
+        assert not client.verify
 
         # Test with HTTPS enabled and an invalid cert path
         mock_exists.return_value = False
@@ -93,7 +93,7 @@ class TestHTTPClient(unittest.TestCase):
             use_https=True,
             cert_path="/invalid/path",
         )
-        self.assertFalse(client.verify)
+        assert not client.verify
 
     @patch("requests.post")
     def test_call_module_method(self, mock_post):
@@ -125,7 +125,7 @@ class TestHTTPClient(unittest.TestCase):
             results.append(result)
 
         expected_results = ["stream_result_1", "stream_result_2", "final_result"]
-        self.assertEqual(results, expected_results)
+        assert results == expected_results
 
         # Assert that the post request was called correctly
         expected_url = self.client._formatted_url(f"{module_name}/{method_name}")
@@ -199,7 +199,7 @@ class TestHTTPClient(unittest.TestCase):
         mock_response.content = b"Internal Server Error"
         mock_post.return_value = mock_response
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             self.client.call_module_method("module", "method")
 
     @patch("requests.post")
@@ -222,7 +222,7 @@ class TestHTTPClient(unittest.TestCase):
 
     @patch("requests.post")
     def test_call_module_method_config(self, mock_post):
-        test_data = self.base_cluster.config_for_rns
+        test_data = self.local_cluster.config_for_rns
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.iter_lines.return_value = iter(
@@ -233,7 +233,7 @@ class TestHTTPClient(unittest.TestCase):
         mock_post.return_value = mock_response
 
         cluster = self.client.call_module_method("base_env", "install")
-        self.assertEqual(cluster.config_for_rns, test_data)
+        assert cluster.config_for_rns == test_data
 
     @patch("requests.post")
     def test_call_module_method_not_found_error(self, mock_post):
@@ -247,10 +247,10 @@ class TestHTTPClient(unittest.TestCase):
         )
         mock_post.return_value = mock_response
 
-        with self.assertRaises(KeyError) as context:
+        with pytest.raises(KeyError) as context:
             next(self.client.call_module_method("module", "method"))
 
-        self.assertIn(f"key {missing_key} not found", str(context.exception))
+        assert f"key {missing_key} not found" in str(context)
 
     @patch("runhouse.servers.http.HTTPClient.request")
     def test_put_object(self, mock_request):
@@ -270,7 +270,7 @@ class TestHTTPClient(unittest.TestCase):
         )
 
         actual_data = mock_request.call_args[1]["data"]
-        self.assertEqual(actual_data, expected_data)
+        assert actual_data == expected_data
 
     @patch("runhouse.servers.http.HTTPClient.request")
     def test_get_keys(self, mock_request):
@@ -299,7 +299,7 @@ class TestHTTPClient(unittest.TestCase):
         )
 
         actual_data = mock_request.call_args[1]["data"]
-        self.assertEqual(actual_data, expected_data)
+        assert actual_data == expected_data
 
 
 if __name__ == "__main__":

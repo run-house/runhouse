@@ -3,11 +3,14 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, mock_open, patch
 
+import pytest
+
 from runhouse.servers.nginx.config import NginxConfig
 
 
-class TestNginxConfiguration(unittest.TestCase):
-    def setUp(self):
+class TestNginxConfiguration:
+    @pytest.fixture(autouse=True)
+    def init_fixtures(self):
         # mock existence of cert and key files
         with patch.object(Path, "exists", return_value=True):
             self.http_config = NginxConfig(
@@ -100,7 +103,7 @@ class TestNginxConfiguration(unittest.TestCase):
             returncode=1, stderr="Failed to reload"
         )
 
-        with self.assertRaises(RuntimeError):
+        with pytest.raises(RuntimeError):
             self.http_config.reload()
 
     @patch("pathlib.Path.exists")
@@ -163,7 +166,7 @@ class TestNginxConfiguration(unittest.TestCase):
         )
 
     def test_invalid_ssl_paths_for_https(self):
-        with self.assertRaises(FileNotFoundError):
+        with pytest.raises(FileNotFoundError):
             # Incorrect SSL key and cert paths provided
             NginxConfig(
                 address="127.0.0.1",
@@ -173,7 +176,7 @@ class TestNginxConfiguration(unittest.TestCase):
             )
 
     def test_empty_ssl_paths_for_https(self):
-        with self.assertRaises(FileNotFoundError):
+        with pytest.raises(FileNotFoundError):
             # SSL key and cert paths not provided
             NginxConfig(
                 address="127.0.0.1",
@@ -281,15 +284,13 @@ class TestNginxConfiguration(unittest.TestCase):
             )
         ]
 
-        self.assertEqual(
-            len(ssl_related_commands),
-            0,
-            "SSL related chmod commands should not be called for HTTP configuration",
-        )
+        assert (
+            len(ssl_related_commands) == 0
+        ), "SSL related chmod commands should not be called for HTTP configuration"
 
-        self.assertFalse(config.use_https)
-        self.assertIsNone(config.ssl_cert_path)
-        self.assertIsNone(config.ssl_key_path)
+        assert not config.use_https
+        assert config.ssl_cert_path is None
+        assert config.ssl_key_path is None
 
         expected_http_template = textwrap.dedent(
             f"""
@@ -308,7 +309,7 @@ class TestNginxConfiguration(unittest.TestCase):
             """
         )
 
-        self.assertEqual(http_template, expected_http_template)
+        assert http_template == expected_http_template
 
     @patch("builtins.open", new_callable=mock_open)
     @patch("pathlib.Path.exists")
@@ -348,15 +349,13 @@ class TestNginxConfiguration(unittest.TestCase):
                 or self.https_config.ssl_key_path in call_args[0][0]
             )
         ]
-        self.assertEqual(
-            len(ssl_related_commands),
-            1,
-            "SSL related chmod commands should be called for HTTPS configuration",
-        )
+        assert (
+            len(ssl_related_commands) == 1
+        ), "SSL related chmod commands should be called for HTTPS configuration"
 
-        self.assertTrue(config.use_https)
-        self.assertIsNotNone(config.ssl_cert_path)
-        self.assertIsNotNone(config.ssl_key_path)
+        assert config.use_https
+        assert config.ssl_cert_path is not None
+        assert config.ssl_key_path is not None
 
         expected_https_template = textwrap.dedent(
             f"""
@@ -378,7 +377,7 @@ class TestNginxConfiguration(unittest.TestCase):
             """
         )
 
-        self.assertEqual(https_template, expected_https_template)
+        assert https_template == expected_https_template
 
 
 if __name__ == "__main__":

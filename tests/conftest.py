@@ -86,7 +86,8 @@ def test_account():
 
     test_token = os.getenv("TEST_TOKEN")
     test_username = os.getenv("TEST_USERNAME")
-    assert test_token and test_username
+    if not test_token or not test_username:
+        pytest.skip("`TEST_TOKEN` or `TEST_USERNAME` not set, skipping test.")
 
     current_token = rh.configs.get("token")
     current_username = rh.configs.get("username")

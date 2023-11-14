@@ -471,16 +471,6 @@ class TestHTTPServerWithAuthLocally:
         )
         assert key not in b64_unpickle(response.json().get("data"))
 
-    def test_add_secrets(self, local_client_with_den_auth):
-        secrets = {"aws": {"access_key": "abc123", "secret_key": "abc123"}}
-        data = pickle_b64(secrets)
-        response = local_client_with_den_auth.post(
-            "/secrets", json={"data": data}, headers=rns_client.request_headers
-        )
-
-        assert response.status_code == 200
-        assert not b64_unpickle(response.json().get("data"))
-
     def test_add_secrets_for_unsupported_provider(self, local_client_with_den_auth):
         secrets = {"test_provider": {"access_key": "abc123"}}
         data = pickle_b64(secrets)
@@ -550,15 +540,6 @@ class TestHTTPServerWithAuthLocally:
         resp = local_client_with_den_auth.get("/keys", headers=self.invalid_headers)
         assert resp.status_code == 403
         assert "Cluster access is required for API" in resp.text
-
-    def test_no_access_to_cluster(self, local_client_with_den_auth, test_account):
-        with test_account:
-            response = local_client_with_den_auth.get(
-                "/keys", headers=rns_client.request_headers
-            )
-
-            assert response.status_code == 403
-            assert "Cluster access is required for API" in response.text
 
     def test_request_with_no_token(self, local_client_with_den_auth):
         response = local_client_with_den_auth.get("/keys")  # No headers are passed

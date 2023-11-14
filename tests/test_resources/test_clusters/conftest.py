@@ -295,7 +295,7 @@ def popen_shell_command(subprocess, command: list[str], cwd: str = None):
 
 
 @pytest.fixture(scope="session")
-def local_logged_out_docker_cluster(request, base_cluster):
+def local_logged_out_docker_cluster(request):
     image_name = "keypair"
     container_name = "rh-slim-server-public-key-auth"
     dir_name = "public-key-auth"
@@ -328,12 +328,12 @@ def local_logged_out_docker_cluster(request, base_cluster):
         reqs=["pytest", "httpx", "pytest_asyncio"],
         working_dir=None,
         name="base_env",
-    ).to(base_cluster)
+    ).to(c)
 
-    base_cluster.save()
+    c.save()
 
     # Yield the cluster
-    yield base_cluster
+    yield c
 
     # Stop the Docker container
     if not detached:
@@ -409,7 +409,7 @@ def local_docker_cluster_public_key(request):
 
 
 @pytest.fixture(scope="session")
-def local_test_account_cluster_public_key(request, base_cluster, test_account):
+def local_test_account_cluster_public_key(request, test_account):
     container_name = "rh-slim-server-public-key-auth"
     with test_account:
         # Create the shared cluster using the test account
