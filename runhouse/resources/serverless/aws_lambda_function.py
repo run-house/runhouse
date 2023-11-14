@@ -843,7 +843,6 @@ def aws_lambda_function(
 
     new_function = AWSLambdaFunction(
         fn=fn,
-        fn_pointers=fn_pointers,
         paths_to_code=paths_to_code,
         handler_function_name=handler_function_name,
         runtime=runtime,

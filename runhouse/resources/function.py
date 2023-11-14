@@ -147,13 +147,6 @@ class Function(Module):
 
         return new_function
 
-    @property
-    def __name__(self):
-        if self.name:
-            return self.name
-        else:
-            return self.fn_pointers[2]
-
     # ----------------- Function call methods -----------------
 
     def __call__(self, *args, **kwargs) -> Any:
