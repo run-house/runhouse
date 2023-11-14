@@ -3,14 +3,20 @@ import unittest
 
 import runhouse as rh
 import sky
+<<<<<<< HEAD
 from runhouse.rns.login import _login_download_secrets
+=======
+>>>>>>> 75dafc41 (update login test and adjacent changes)
 
 
 def add_secrets_to_vault(headers):
     """Add some test secrets to Vault"""
     # Add real credentials for AWS and SKY to test sky status
     rh.provider_secret(
+<<<<<<< HEAD
         name="/aws",  # add backslash / to name to force it to be vault secret
+=======
+>>>>>>> 75dafc41 (update login test and adjacent changes)
         provider="aws",
         values={
             "access_key": os.getenv("TEST_AWS_ACCESS_KEY"),
@@ -52,10 +58,17 @@ def test_login_flow_in_new_env():
     cloud_names = [str(c).lower() for c in clouds]
     assert "aws" in cloud_names
 
+<<<<<<< HEAD
     for secret in secrets_in_vault.values():
         secret.delete(headers=headers)
 
     secrets_in_vault = rh.Secret.vault_secrets(headers=headers)
+=======
+    for provider in providers_in_vault:
+        rh.secret(provider).delete(headers=headers)
+
+    secrets_in_vault = rh.Secret.vault_secrets()
+>>>>>>> 75dafc41 (update login test and adjacent changes)
     assert not secrets_in_vault
 
 

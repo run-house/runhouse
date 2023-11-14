@@ -309,9 +309,13 @@ class Secret(Resource):
         )
         if resp.status_code != 200:
             return False
+<<<<<<< HEAD
         response = read_resp_data(resp)
         # TODO: switch this to use self.name once vault updates
         if response and response[list(response.keys())[0]]:
+=======
+        if read_resp_data(resp):
+>>>>>>> 75dafc41 (update login test and adjacent changes)
             return True
         return False
 
