@@ -2,6 +2,7 @@ import unittest
 
 import pytest
 import requests
+import runhouse as rh
 
 
 @pytest.mark.dockertest
@@ -23,6 +24,8 @@ def test_public_key_cluster_is_up(local_docker_cluster_public_key):
 @pytest.mark.dockertest
 @pytest.mark.httpservertest
 def test_public_key_cluster_has_telemetry(local_docker_cluster_telemetry_public_key):
+    rh.globals.configs.defaults_cache["use_local_telemetry"] = True
+
     cluster = local_docker_cluster_telemetry_public_key
     cluster.check_server()
     assert cluster.is_up()  # Should be true for a Cluster object

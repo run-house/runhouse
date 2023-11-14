@@ -405,7 +405,7 @@ def local_docker_cluster_telemetry_public_key(request, detached=True):
         detached=detached,
         keypath=keypath,
         force_rebuild=request.config.getoption("--force-rebuild"),
-        port_fwds=[f"{local_ssh_port}:22"],
+        port_fwds=[f"{local_ssh_port}:22", "32300:32300"],
     )
 
     # Runhouse commands can now be run locally
@@ -414,6 +414,7 @@ def local_docker_cluster_telemetry_public_key(request, detached=True):
         host="localhost",
         server_host="0.0.0.0",
         ssh_port=local_ssh_port,
+        server_connection_type="ssh",
         ssh_creds={
             "ssh_user": SSH_USER,
             "ssh_private_key": keypath,
