@@ -7,11 +7,12 @@ import shutil
 import time
 import zipfile
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional
 
 import boto3
 
 from runhouse.globals import rns_client
+from runhouse.resources.envs import Env
 
 from runhouse.resources.function import Function
 
@@ -71,7 +72,7 @@ class AWSLambdaFunction(Function):
         fn: Optional[Callable] = None,
         fn_pointers: Optional[tuple] = None,
         name: Optional[str] = None,
-        env: Optional[list[str] or str] = None,
+        reqs: Optional[list[str]] = None,
         env_vars: Optional[dict] = None,
         dryrun: bool = False,
         timeout: Optional[int] = 30,  # seconds
@@ -87,7 +88,7 @@ class AWSLambdaFunction(Function):
         """
         if isinstance(fn, Callable):
             handler_function_name = fn.__name__
-            fn_pointers = Function._extract_pointers(fn, reqs=env or [])
+            fn_pointers = Function._extract_pointers(fn, reqs=reqs or [])
             paths_to_code = self._paths_to_code_from_fn_pointers(fn_pointers)
             args_names = [
                 param.name for param in inspect.signature(fn).parameters.values()
@@ -119,28 +120,10 @@ class AWSLambdaFunction(Function):
         self.args_names = args_names
         self.runtime = runtime or self.DEFAULT_PY_VERSION
         self.env_vars = env_vars
-
-        if timeout > 900:
-            # TODO: send a warning to the user
-            timeout = 900
-        if timeout < 3:
-            # TODO: send a warning to the user
-            timeout = 3
         self.timeout = timeout
-
-        if memory_size < 128:
-            # TODO: send a warning to the user
-            memory_size = 128
-        if memory_size > 10240:
-            # TODO: send a warning to the user
-            memory_size = 10240
         self.memory_size = memory_size
-
-        if env:
-            if type(env) is list:
-                self.reqs = env
-            else:
-                self.reqs = self._reqs_to_list(env)
+        if reqs:
+            self.reqs = reqs
             (
                 self.layer,
                 self.layer_version,
@@ -201,7 +184,8 @@ class AWSLambdaFunction(Function):
         paths_to_code = [os.path.join(root_dir, file_path)]
         return paths_to_code
 
-    def _reqs_to_list(self, env):
+    @staticmethod
+    def _reqs_to_list(env):
         """Converting requirements from requirements.txt to a list"""
 
         def _get_lib_name(req: str):
@@ -715,14 +699,12 @@ class AWSLambdaFunction(Function):
 
 def aws_lambda_function(
     fn: Callable = None,
-    fn_pointers: Optional[Tuple] = None,
     paths_to_code: list[str] = None,
     handler_function_name: str = None,
     runtime: str = None,
     args_names: list[str] = None,
     name: Optional[str] = None,
     env: Optional[list[str] or str] = None,
-    env_vars: Optional[dict] = None,
     timeout: Optional[int] = 30,
     memory_size: Optional[int] = 128,
     dryrun: bool = False,
@@ -742,11 +724,13 @@ def aws_lambda_function(
             If your function doesn't accept arguments, please provide an empty list.
         name (Optional[str]): Name of the Lambda Function to create or retrieve.
             This can be either from a local config or from the RNS.
-        env (Optional[List[str] or str]): Specifies the requirements (python libraries), which will be used by the
-            Lambda.Can be a list or path to the requirements.txt file. All provided libraries are required to be
-            installed locally.
-        env_vars: Optional[dict]: Dictionary of enviroumnt varible name (key) and its value. They will be
-            deployed as enviroumnt varibles, which are a port of the Lambda configuration.
+        env (Optional[Dict or Env]): Specifies the requirments and the enviourment vars that should be attached to the
+            Lambda. Excepts two possible types:
+            1. A dict which should contain the following keys:
+            reqs - the python libraries, which will be used by the Lambda. Should be a list of library names of a
+            path to a requiremnts.txt file.
+            env_vars: dictionary containing the env_vars that will be a part of the lambda configuration.
+            2. An insrantce of Runhouse Env class.
         timeout: Optional[int]: The maximum amount of time (in secods) during which the Lambda will run in AWS
             without timing-out. (Default: ``30``, Min: ``3``, Max: ``900``)
         memory_size: Optional[int], The amount of memeory, im MB, that will be aloocatied to the lambda.
@@ -788,22 +772,6 @@ def aws_lambda_function(
         >>> lambdas_func = rh.aws_lambda_function(fn=summer, name="lambdas_func")
 
     """
-    if not any(
-        [
-            name,
-            paths_to_code,
-            handler_function_name,
-            runtime,
-            args_names,
-            fn,
-            fn_pointers,
-        ]
-    ):
-        logger.error(
-            "Runhouse can't create a Lambda function. "
-            + "Please provide lambda's name and/or paths_to_code, handler_function_name, runtime and args_names"
-        )
-        raise Exception("NoEnoughArgsProvided")
 
     if name and not any(
         [paths_to_code, handler_function_name, runtime, fn, args_names]
@@ -813,14 +781,37 @@ def aws_lambda_function(
 
     # TODO: [SB] in the next phase, maybe add the option to create func from git.
 
-    if fn_pointers is None:
-        fn_pointers = (
-            Function._extract_pointers(fn, reqs=env or []) if callable(fn) else None
-        )
+    if env is not None:
+        if isinstance(env, Env):
+            reqs = env.reqs
+            env_vars = env.env_vars
+            if not isinstance(env_vars, dict) and (
+                len(env_vars) > 0 or env_vars is not None
+            ):
+                raise Exception("AWS Lambda accepts env_vars of dict type only")
+        elif isinstance(env, dict):
+            reqs = env["reqs"]
+            env_vars = env["env_vars"]
+        else:
+            raise Exception(
+                "Env's type could be runhouse Env or dictionary. Please provide env in the correct type"
+                + " and rerun."
+            )
+        if isinstance(reqs, str):
+            reqs = AWSLambdaFunction._reqs_to_list(reqs)
+        if isinstance(reqs, list):
+            reqs = [req for req in reqs if req != "./"]
+    else:
+        reqs, env_vars = None, None
 
-    if fn_pointers is None and fn is None:
+    fn_pointers = (
+        Function._extract_pointers(fn, reqs=reqs or []) if callable(fn) else None
+    )
+
+    if fn is None:
         # ------- arguments validation -------
         # TODO: use error msg inside the exception
+        # TODO: add timeout and memory validation
         if paths_to_code is None or len(paths_to_code) == 0:
             logger.error("Please provide a path to the lambda handler file.")
             raise RuntimeError
@@ -829,7 +820,7 @@ def aws_lambda_function(
                 "Please provide the name of the function that should be executed by the lambda."
             )
             raise RuntimeError
-        if runtime is None or runtime not in SUPPORTED_RUNTIMES:
+        if runtime is not None and runtime not in SUPPORTED_RUNTIMES:
             logger.error(
                 f"Please provide a supported lambda runtime, should be one of the following: {SUPPORTED_RUNTIMES}"
             )
@@ -841,14 +832,30 @@ def aws_lambda_function(
             )
             raise RuntimeError
 
+        if timeout > 900:
+            timeout = 900
+            logger.warning("Timeout can not be more then 900 sec, set it to 900 sec.")
+        if timeout < 3:
+            timeout = 3
+            logger.warning("Timeout can not be less then 3 sec, set it to 3 sec.")
+        if memory_size < 128:
+            memory_size = 128
+            logger.warning("Memory size can not be less then 128 MB, set it to 128 MB")
+        if memory_size > 10240:
+            memory_size = 10240
+            logger.warning(
+                "Memory size can not be more then 10244 MB, set it to 128 MB"
+            )
+
     new_function = AWSLambdaFunction(
         fn=fn,
+        fn_pointers=fn_pointers,
         paths_to_code=paths_to_code,
         handler_function_name=handler_function_name,
         runtime=runtime,
         args_names=args_names,
         name=name,
-        env=env,
+        reqs=reqs,
         env_vars=env_vars,
         dryrun=dryrun,
         timeout=timeout,
