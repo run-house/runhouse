@@ -23,7 +23,6 @@ def cluster(
     ssl_keyfile: str = None,
     ssl_certfile: str = None,
     den_auth: bool = False,
-    enable_local_span_collection=False,
     dryrun: bool = False,
     **kwargs,
 ) -> Union[Cluster, OnDemandCluster, SageMakerCluster]:
@@ -51,7 +50,6 @@ def cluster(
         den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
             requests with a Runhouse token provided in the auth headers of the request with the format:
             ``{"Authorization": "Bearer <token>"}``. (Default: ``False``).
-        enable_local_span_collection (bool, optional): Whether to enable local span collection. (Default: ``False``).
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
 
@@ -110,7 +108,6 @@ def cluster(
             ssl_keyfile,
             ssl_certfile,
             den_auth,
-            enable_local_span_collection,
             kwargs,
         ]
     ):
@@ -179,7 +176,6 @@ def cluster(
         ssl_keyfile=ssl_keyfile,
         ssl_certfile=ssl_certfile,
         den_auth=den_auth,
-        enable_local_span_collection=enable_local_span_collection,
         dryrun=dryrun,
         **kwargs,
     )
@@ -209,7 +205,6 @@ def ondemand_cluster(
     ssl_keyfile: str = None,
     ssl_certfile: str = None,
     den_auth: bool = False,
-    enable_local_span_collection: bool = False,
     dryrun: bool = False,
 ) -> OnDemandCluster:
     """
@@ -247,7 +242,6 @@ def ondemand_cluster(
         den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
             requests with a Runhouse token provided in the auth headers of the request with the format:
             ``{"Authorization": "Bearer <token>"}``. (Default: ``False``).
-        enable_local_span_collection (bool, optional): Whether to enable local span collection. (Default: ``False``).
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
 
@@ -357,7 +351,6 @@ def ondemand_cluster(
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
             den_auth=den_auth,
-            enable_local_span_collection=enable_local_span_collection,
         )
         # Filter out None/default values
         alt_options = {k: v for k, v in alt_options.items() if v is not None}
@@ -391,7 +384,6 @@ def ondemand_cluster(
         ssl_keyfile=ssl_keyfile,
         ssl_certfile=ssl_certfile,
         den_auth=den_auth,
-        enable_local_span_collection=enable_local_span_collection,
         name=name,
         dryrun=dryrun,
         **kwargs,
@@ -422,7 +414,6 @@ def sagemaker_cluster(
     ssl_keyfile: str = None,
     ssl_certfile: str = None,
     den_auth: bool = False,
-    enable_local_span_collection: bool = False,
     dryrun: bool = False,
 ) -> SageMakerCluster:
     """
@@ -477,7 +468,6 @@ def sagemaker_cluster(
         den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
             requests with a Runhouse token provided in the auth headers of the request with the format:
             ``{"Authorization": "Bearer <token>"}``. (Default: ``False``).
-        enable_local_span_collection (bool, optional): Whether to enable local span collection. (Default: ``False``).
         dryrun (bool): Whether to create the SageMakerCluster if it doesn't exist, or load a SageMakerCluster object
             as a dryrun.
             (Default: ``False``)
@@ -537,7 +527,6 @@ def sagemaker_cluster(
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
             den_auth=den_auth,
-            enable_local_span_collection=enable_local_span_collection,
         )
         # Filter out None/default values
         alt_options = {k: v for k, v in alt_options.items() if v is not None}
@@ -573,7 +562,6 @@ def sagemaker_cluster(
         den_auth=den_auth,
         ssl_keyfile=ssl_keyfile,
         ssl_certfile=ssl_certfile,
-        enable_local_span_collection=enable_local_span_collection,
         dryrun=dryrun,
         **kwargs,
     )

@@ -74,7 +74,6 @@ class Cluster(Resource):
         ssl_keyfile: str = None,
         ssl_certfile: str = None,
         den_auth: bool = False,
-        enable_local_span_collection: bool = False,
         dryrun=False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
@@ -98,7 +97,6 @@ class Cluster(Resource):
 
         self.client = None
         self.den_auth = den_auth
-        self.enable_local_span_collection = enable_local_span_collection
         self.cert_config = TLSCertConfig(
             cert_path=ssl_certfile, key_path=ssl_keyfile, dir_name=self.name
         )
@@ -151,7 +149,6 @@ class Cluster(Resource):
                 "server_host",
                 "server_connection_type",
                 "den_auth",
-                "enable_local_span_collection",
             ],
         )
         if self.ips is not None:
@@ -591,10 +588,6 @@ class Cluster(Resource):
         return Path(self.cert_config.cert_path).exists()
 
     @property
-    def _enable_local_span_collection(self) -> bool:
-        return self.enable_local_span_collection
-
-    @property
     def _use_custom_key(self):
         return Path(self.cert_config.key_path).exists()
 
@@ -625,7 +618,6 @@ class Cluster(Resource):
         force_reinstall,
         use_nginx,
         certs_address,
-        enable_local_span_collection,
     ):
         cmds = []
         if restart:
@@ -687,13 +679,6 @@ class Cluster(Resource):
         if address_flag:
             logger.info(f"Server public IP address: {certs_address}.")
             flags.append(address_flag)
-
-        enable_local_span_collection_flag = (
-            " --enable-local-span-collection" if enable_local_span_collection else ""
-        )
-        if enable_local_span_collection_flag:
-            logger.info("Enabling local span telemetry collection on the cluster.")
-            flags.append(enable_local_span_collection_flag)
 
         logger.info(
             f"Starting API server using the following command: {server_start_cmd}."
@@ -771,7 +756,6 @@ class Cluster(Resource):
 
         https_flag = self._use_https
         nginx_flag = self._use_nginx
-        enable_local_span_collection_flag = self._enable_local_span_collection
         cmd = (
             self.CLI_RESTART_CMD
             + (" --no-restart-ray" if not restart_ray else "")
@@ -780,11 +764,6 @@ class Cluster(Resource):
             + (" --restart-proxy" if restart_proxy and nginx_flag else "")
             + (f" --ssl-certfile {cluster_cert_path}" if use_custom_cert else "")
             + (f" --ssl-keyfile {cluster_key_path}" if use_custom_key else "")
-            + (
-                " --enable-local-span-collection"
-                if enable_local_span_collection_flag
-                else ""
-            )
         )
 
         cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd

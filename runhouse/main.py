@@ -107,7 +107,6 @@ def _start_server(
     force_reinstall=False,
     use_nginx=False,
     certs_address=None,
-    enable_local_span_collection=False,
 ):
     from runhouse.resources.hardware.cluster import Cluster
 
@@ -125,7 +124,6 @@ def _start_server(
         force_reinstall=force_reinstall,
         use_nginx=use_nginx,
         certs_address=certs_address,
-        enable_local_span_collection=enable_local_span_collection,
     )
 
     try:
@@ -195,9 +193,6 @@ def start(
         None,
         help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS",
     ),
-    enable_local_span_collection: bool = typer.Option(
-        False, help="Whether to enable local span collection"
-    ),
 ):
     """Start the HTTP or HTTPS server on the cluster."""
     _start_server(
@@ -211,7 +206,6 @@ def start(
         den_auth=use_den_auth,
         use_nginx=use_nginx,
         certs_address=certs_address,
-        enable_local_span_collection=enable_local_span_collection,
     )
 
 
@@ -257,9 +251,6 @@ def restart(
         None,
         help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS",
     ),
-    enable_local_span_collection: bool = typer.Option(
-        False, help="Whether to enable local span collection"
-    ),
 ):
     """Restart the HTTP server on the cluster."""
     if name:
@@ -281,7 +272,6 @@ def restart(
         force_reinstall=force_reinstall,
         use_nginx=use_nginx,
         certs_address=certs_address,
-        enable_local_span_collection=enable_local_span_collection,
     )
 
 

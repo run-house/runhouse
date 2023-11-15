@@ -746,7 +746,7 @@ if __name__ == "__main__":
     use_https = parse_args.use_https
     restart_proxy = parse_args.restart_proxy
     use_nginx = parse_args.use_nginx
-    should_enable_local_span_collection = parse_args.enable_local_span_collection
+    should_enable_local_span_collection = configs.get("use_local_telemetry")
     den_auth = parse_args.use_den_auth or cluster_config.get("den_auth")
 
     ips = cluster_config.get("ips", [])

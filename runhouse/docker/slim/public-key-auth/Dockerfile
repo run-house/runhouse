@@ -41,7 +41,7 @@ RUN --mount=type=secret,id=ssh_key,dst=/tmp/id_rsa.pub \
 
 # Update SSHD Configuration to allow public key authentication and disable password and root login
 RUN echo "PasswordAuthentication no" >> /etc/ssh/sshd_config && \
-    # echo "PermitRootLogin no" >> /etc/ssh/sshd_config && \
+    echo "PermitRootLogin no" >> /etc/ssh/sshd_config && \
     echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
 
 # Create supervisord configuration file
