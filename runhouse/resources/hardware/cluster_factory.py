@@ -80,7 +80,7 @@ def cluster(
         server_connection_type = server_connection_type or ServerConnectionType.NONE
         if ":" in host:
             # e.g. "localhost:23324" or <real_ip>:<custom port> (e.g. a port is already open to the server)
-            host, client_port = self.address.split(":")
+            host, client_port = host.split(":")
             kwargs["client_port"] = client_port
 
     server_connection_type = server_connection_type or (
