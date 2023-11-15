@@ -62,8 +62,14 @@ class NginxConfig:
             raise RuntimeError("Failed to configure Nginx")
 
     def reload(self):
+        # If running locally (e.g. in a docker container) systemctl may not be available
+        reload_cmd = (
+            "sudo service nginx start && sudo nginx -s reload"
+            if self.address == "localhost"
+            else "sudo systemctl reload nginx"
+        )
         result = subprocess.run(
-            "sudo systemctl reload nginx",
+            reload_cmd,
             shell=True,
             check=True,
             capture_output=True,

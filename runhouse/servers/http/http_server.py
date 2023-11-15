@@ -133,7 +133,7 @@ class HTTPServer:
             @app.get("/spans")
             @validate_cluster_access
             def get_spans(request: Request):
-                print("Calling get_spans")
+                logger.info("Calling get_spans")
                 return {
                     "spans": [
                         span.to_json()
