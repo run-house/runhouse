@@ -26,23 +26,26 @@ class SSHSecret(ProviderSecret):
         provider: Optional[str] = None,
         values: Dict = {},
         path: str = None,
+        key: str = None,
         dryrun: bool = True,
         **kwargs,
     ):
-        self.key = os.path.basename(path) if path else (name or self._DEFAULT_KEY)
-        if not path:
-            path = str(Path(self._DEFAULT_CREDENTIALS_PATH) / self.key)
+        self.key = (
+            key or os.path.basename(path) if path else (name or self._DEFAULT_KEY)
+        )
         super().__init__(
             name=name, provider=provider, values=values, path=path, dryrun=dryrun
         )
+        if self.path == self._DEFAULT_CREDENTIALS_PATH:
+            self.path = str(Path(self._DEFAULT_CREDENTIALS_PATH) / self.key)
 
     def from_config(config: dict, dryrun: bool = False):
         return SSHSecret(**config, dryrun=dryrun)
 
-    def save(self, headers: str = rns_client.request_headers):
+    def save(self, values: bool = True, headers: str = rns_client.request_headers):
         if not self.name:
             self.name = f"ssh-{self.key}"
-        super().save(headers=headers)
+        super().save(values=values, headers=headers)
 
     def _write_to_file(
         self, path: Union[str, File], values: Dict = None, overwrite: bool = False
@@ -78,6 +81,9 @@ class SSHSecret(ProviderSecret):
         return new_secret
 
     def _from_path(self, path: Union[str, File]):
+        if path == self._DEFAULT_CREDENTIALS_PATH:
+            path = f"{self._DEFAULT_CREDENTIALS_PATH}/{self.key}"
+
         if isinstance(path, File):
             from runhouse.resources.blobs.file import file
 

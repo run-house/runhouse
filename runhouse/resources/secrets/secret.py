@@ -216,7 +216,7 @@ class Secret(Resource):
     def delete(self, headers: str = rns_client.request_headers):
         """Delete the secret config from Vault/local."""
         if not self.in_vault() or self.is_local():
-            logger.warn(
+            logger.warning(
                 "Can not delete a secret that has not been saved down to Vault or local."
             )
 
@@ -282,7 +282,8 @@ class Secret(Resource):
         )
         if resp.status_code != 200:
             return False
-        if read_resp_data(resp):
+        response = read_resp_data(resp)
+        if response and response[self.name]:
             return True
         return False
 
