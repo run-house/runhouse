@@ -687,7 +687,7 @@ def aws_lambda_function(
     runtime: str = None,
     args_names: list[str] = None,
     name: Optional[str] = None,
-    env: Optional[list[str] or str] = None,
+    env: Optional[dict or Env] = None,
     timeout: Optional[int] = 30,
     memory_size: Optional[int] = 128,
     dryrun: bool = False,
