@@ -20,7 +20,7 @@ from runhouse.resources.packages import git_package, GitPackage, package, Packag
 from runhouse.resources.provenance import capture_stdout, Run, run, RunStatus, RunType
 from runhouse.resources.queues import Queue
 from runhouse.resources.resource import Resource
-from runhouse.resources.secrets import Secret, secret, provider_secret
+from runhouse.resources.secrets import provider_secret, Secret, secret
 from runhouse.resources.tables import Table, table
 
 from runhouse.rns.top_level_rns_fns import (
