@@ -27,37 +27,36 @@ class AzureSecret(ProviderSecret):
         values: Dict = None,
         overwrite: bool = False,
     ):
-        path = os.path.expanduser(path) if not isinstance(path, File) else path
-        if _check_file_for_mismatches(path, self._from_path(path), values, overwrite):
-            return self
-
-        subscription_id = values["subscription_id"]
-
-        parser = configparser.ConfigParser()
-        section_name = "AzureCloud"
-        parser.add_section(section_name)
-        parser.set(
-            section=section_name,
-            option="subscription",
-            value=subscription_id,
-        )
-
         new_secret = copy.deepcopy(self)
+        path = os.path.expanduser(path) if not isinstance(path, File) else path
+        if not _check_file_for_mismatches(
+            path, self._from_path(path), values, overwrite
+        ):
+            subscription_id = values["subscription_id"]
+
+            parser = configparser.ConfigParser()
+            section_name = "AzureCloud"
+            parser.add_section(section_name)
+            parser.set(
+                section=section_name,
+                option="subscription",
+                value=subscription_id,
+            )
+
+            if isinstance(path, File):
+                with io.StringIO() as ss:
+                    parser.write(ss)
+                    ss.seek(0)
+                    data = ss.read()
+                path.write(data, serialize=False, mode="w")
+            else:
+                Path(path).parent.mkdir(parents=True, exist_ok=True)
+                with open(path, "w") as f:
+                    parser.write(f)
+                new_secret._add_to_rh_config(path)
+
         new_secret._values = None
         new_secret.path = path
-
-        if isinstance(path, File):
-            with io.StringIO() as ss:
-                parser.write(ss)
-                ss.seek(0)
-                data = ss.read()
-            path.write(data, serialize=False, mode="w")
-        else:
-            Path(path).parent.mkdir(parents=True, exist_ok=True)
-            with open(path, "w") as f:
-                parser.write(f)
-            new_secret._add_to_rh_config(path)
-
         return new_secret
 
     def _from_path(self, path: Union[str, File]):

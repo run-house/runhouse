@@ -75,10 +75,10 @@ class ProviderSecret(Secret):
         """Create a ProviderSecret object from a config dictionary."""
         return ProviderSecret(**config, dryrun=dryrun)
 
-    def save(self, headers: str = rns_client.request_headers):
+    def save(self, values: bool = True, headers: str = rns_client.request_headers):
         if not self.name:
             self.name = self.provider
-        super().save(headers=headers)
+        super().save(values=values, headers=headers)
 
     def delete(self, headers: str = rns_client.request_headers, contents: bool = False):
         """Delete the secret config from Vault/local. Optionally also delete contents of secret file or env vars."""
@@ -186,27 +186,22 @@ class ProviderSecret(Secret):
             remote_file = file(path=path, system=system)
         return remote_file
 
-    # TODO
-    def is_enabled(self):
-        pass
-
     def _write_to_file(self, path: Union[str, File], values: Any, overwrite: bool):
-        if _check_file_for_mismatches(path, self._from_path(path), values, overwrite):
-            return self
-
-        if isinstance(path, File):
-            path.write(data=values, mode="w")
-        else:
-            full_path = os.path.expanduser(path)
-            os.makedirs(os.path.dirname(full_path), exist_ok=True)
-            with open(full_path, "w") as f:
-                f.write(str(values))
-
         new_secret = copy.deepcopy(self)
+        if not _check_file_for_mismatches(
+            path, self._from_path(path), values, overwrite
+        ):
+            if isinstance(path, File):
+                path.write(data=values, mode="w")
+            else:
+                full_path = os.path.expanduser(path)
+                os.makedirs(os.path.dirname(full_path), exist_ok=True)
+                with open(full_path, "w") as f:
+                    json.dump(values, f, indent=4)
+                self._add_to_rh_config(full_path)
+
         new_secret._values = None
         new_secret.path = path
-        self._add_to_rh_config(full_path)
-
         return new_secret
 
     def _write_to_env(self, env_vars: Dict, values: Any, overwrite: bool):
