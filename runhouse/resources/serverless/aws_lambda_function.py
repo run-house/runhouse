@@ -69,7 +69,6 @@ class AWSLambdaFunction(Function):
         handler_function_name: Optional[str] = None,
         runtime: Optional[str] = None,
         args_names: Optional[list[str]] = None,
-        fn: Optional[Callable] = None,
         fn_pointers: Optional[tuple] = None,
         name: Optional[str] = None,
         reqs: Optional[list[str]] = None,
@@ -86,22 +85,6 @@ class AWSLambdaFunction(Function):
         .. note::
                 To create an AWS lambda resource, please use the factory method :func:`aws_lambda_function`.
         """
-        if isinstance(fn, Callable):
-            handler_function_name = fn.__name__
-            fn_pointers = Function._extract_pointers(fn, reqs=reqs or [])
-            paths_to_code = self._paths_to_code_from_fn_pointers(fn_pointers)
-            args_names = [
-                param.name for param in inspect.signature(fn).parameters.values()
-            ]
-        elif fn_pointers:
-            handler_function_name = fn_pointers[2]
-            paths_to_code = self._paths_to_code_from_fn_pointers(fn_pointers)
-        else:
-            fn_pointers = None
-            if handler_function_name is None or paths_to_code is None:
-                raise ValueError(
-                    "`handler_function_name` and `paths_to_code` must be provided if `fn` is not provided"
-                )
 
         if name is None:
             name = handler_function_name.replace(".", "_")
@@ -804,11 +787,13 @@ def aws_lambda_function(
     else:
         reqs, env_vars = None, None
 
-    fn_pointers = (
-        Function._extract_pointers(fn, reqs=reqs or []) if callable(fn) else None
-    )
+    if isinstance(fn, Callable):
+        handler_function_name = fn.__name__
+        fn_pointers = Function._extract_pointers(fn, reqs=reqs or [])
+        paths_to_code = AWSLambdaFunction._paths_to_code_from_fn_pointers(fn_pointers)
+        args_names = [param.name for param in inspect.signature(fn).parameters.values()]
+    else:
 
-    if fn is None:
         # ------- arguments validation -------
         if paths_to_code is None or len(paths_to_code) == 0:
             raise RuntimeError("Please provide a path to the lambda handler file.")
@@ -816,34 +801,48 @@ def aws_lambda_function(
             raise RuntimeError(
                 "Please provide the name of the function that should be executed by the lambda."
             )
-        if runtime is not None and runtime not in SUPPORTED_RUNTIMES:
-            raise RuntimeError(
-                "Please provide a supported lambda runtime, should be one of the"
-                + f" following: {SUPPORTED_RUNTIMES}"
-            )
         if args_names is None:
-            raise RuntimeError(
-                "Please provide the names of the arguments provided to handler function, "
-                + "in the order they are passed to the lambda function."
+            # Parsing the handler file and extracting the arguments names of the handler function.
+            file_path = paths_to_code[0]
+            func_name = handler_function_name[0]
+            with (open(file_path) as f):
+                a = f.read()
+                index = a.index(func_name)
+                open_par = index + len(func_name)
+                close_par = open_par + 1
+                while a[close_par] != ")":
+                    close_par += 1
+                args_names = a[open_par + 1 : close_par].split(",")
+                args_names = [
+                    arg.strip().split(":")[0] for arg in args_names if len(arg) > 0
+                ]
+            logger.warning(
+                f"Arguments names were not provided. Extracted the following args names: {args_names}."
             )
 
-        if timeout > 900:
-            timeout = 900
-            logger.warning("Timeout can not be more then 900 sec, set it to 900 sec.")
-        if timeout < 3:
-            timeout = 3
-            logger.warning("Timeout can not be less then 3 sec, set it to 3 sec.")
-        if memory_size < 128:
-            memory_size = 128
-            logger.warning("Memory size can not be less then 128 MB, set it to 128 MB")
-        if memory_size > 10240:
-            memory_size = 10240
-            logger.warning(
-                "Memory size can not be more then 10244 MB, set it to 128 MB"
-            )
+        fn_pointers = None
+
+    # ------- More arguments validation -------
+    if runtime is not None and runtime not in SUPPORTED_RUNTIMES:
+        logger.warning(
+            f"{runtime} is not a supported by AWS Lambda. Setting runtime to python3.9."
+        )
+    if timeout > 900:
+        timeout = 900
+        logger.warning("Timeout can not be more then 900 sec, setting to 900 sec.")
+    if timeout < 3:
+        timeout = 3
+        logger.warning("Timeout can not be less then 3 sec, setting to 3 sec.")
+    if memory_size < 128:
+        memory_size = 128
+        logger.warning("Memory size can not be less then 128 MB, setting to 128 MB.")
+    if memory_size > 10240:
+        memory_size = 10240
+        logger.warning(
+            "Memory size can not be more then 10240 MB, setting to 10240 MB."
+        )
 
     new_function = AWSLambdaFunction(
-        fn=fn,
         fn_pointers=fn_pointers,
         paths_to_code=paths_to_code,
         handler_function_name=handler_function_name,
