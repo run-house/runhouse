@@ -343,30 +343,21 @@ def setup_cluster_config(test_account):
     cluster_config = {
         "name": rns_address,
         "resource_type": "cluster",
-        "resource_subtype": "OnDemandCluster",
-        "provenance": None,
+        "resource_subtype": "Cluster",
         "server_port": 32300,
+        "den_auth": True,
         "server_connection_type": "ssh",
-        "den_auth": False,
         "ips": ["localhost"],
-        "instance_type": None,
-        "num_instances": None,
-        "provider": "cheapest",
-        "autostop_mins": -1,
-        "open_ports": [],
-        "use_spot": False,
-        "image_id": None,
-        "region": None,
     }
     try:
-        c = rh.OnDemandCluster.from_name(rns_address)
+        c = rh.Cluster.from_name(rns_address)
     except ValueError:
         c = None
 
     if not c:
         current_username = rh.configs.get("username")
         with test_account:
-            c = rh.ondemand_cluster(name="local_cluster", den_auth=True).save()
+            c = rh.cluster(name="local_cluster", den_auth=True).save()
             c.share(current_username, access_type="write", notify_users=False)
 
     with open(cluster_config_path, "w") as file:
