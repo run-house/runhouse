@@ -1,9 +1,9 @@
 from typing import Dict, Optional, Union
 
 from runhouse.resources.blobs.file import File
-from runhouse.resources.secrets.provider_secrets.providers import _get_provider_class
-
 from runhouse.resources.secrets.secret import Secret
+
+from .provider_secrets.providers import _get_provider_class
 
 
 def secret(

@@ -74,7 +74,7 @@ def test_custom_provider_secret():
     provider = "custom_provider1"
     custom_secret = rh.provider_secret(provider=provider, values=test_secret_values)
 
-    path = "~/custom_provider/config.json"
+    path = "~/.rh/tests/custom_provider/config.json"
     custom_secret = custom_secret.write(path=path)
     assert custom_secret.values == test_secret_values
     assert os.path.exists(os.path.expanduser(path))

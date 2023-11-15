@@ -23,32 +23,31 @@ class GitHubSecret(ProviderSecret):
     def _write_to_file(
         self, path: Union[str, File], values: Dict = None, overwrite: bool = False
     ):
-        path = os.path.expanduser(path) if not isinstance(path, File) else path
-        if _check_file_for_mismatches(path, self._from_path(path), values, overwrite):
-            return self
-
         new_secret = copy.deepcopy(self)
+        path = os.path.expanduser(path) if not isinstance(path, File) else path
+        if not _check_file_for_mismatches(
+            path, self._from_path(path), values, overwrite
+        ):
+            config = {}
+            if isinstance(path, File):
+                if path.exists_in_system():
+                    config = path.fetch(deserialize=False, mode="r")
+                config["github.com"] = values
+                data = yaml.dump(config, default_flow_style=False)
+                path.write(data, serialize=False, mode="w")
+            else:
+                if Path(path).exists():
+                    with open(path, "r") as stream:
+                        config = yaml.safe_load(stream)
+                config["github.com"] = values
+
+                Path(path).parent.mkdir(parents=True, exist_ok=True)
+                with open(path, "w") as yaml_file:
+                    yaml.dump(config, yaml_file, default_flow_style=False)
+                new_secret._add_to_rh_config(path)
+
         new_secret._values = None
         new_secret.path = path
-
-        config = {}
-        if isinstance(path, File):
-            if path.exists_in_system():
-                config = path.fetch(deserialize=False, mode="r")
-            config["github.com"] = values
-            data = yaml.dump(config, default_flow_style=False)
-            path.write(data, serialize=False, mode="w")
-        else:
-            if Path(path).exists():
-                with open(path, "r") as stream:
-                    config = yaml.safe_load(stream)
-            config["github.com"] = values
-
-            Path(path).parent.mkdir(parents=True, exist_ok=True)
-            with open(path, "w") as yaml_file:
-                yaml.dump(config, yaml_file, default_flow_style=False)
-            new_secret._add_to_rh_config(path)
-
         return new_secret
 
     def _from_path(self, path: Union[str, File]):

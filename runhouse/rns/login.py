@@ -100,7 +100,7 @@ def login(
         upload_secrets = (
             upload_secrets
             if upload_secrets is not None
-            else typer.confirm("Upload your enabled cloud provider secrets to Vault?")
+            else typer.confirm("Upload your local enabled provider secrets to Vault?")
         )
 
     if token:
@@ -135,10 +135,10 @@ def login(
         return token
 
 
-def _login_download_secrets():
+def _login_download_secrets(headers: str = rns_client.request_headers):
     from runhouse import Secret
 
-    secrets = Secret.vault_secrets()
+    secrets = Secret.vault_secrets(headers=headers)
     for name, secret in secrets.items():
         try:
             download_path = secret.path or secret._DEFAULT_CREDENTIALS_PATH
@@ -146,7 +146,7 @@ def _login_download_secrets():
                 logger.info(f"Loading down secrets for {name} into {download_path}")
                 secret.write()
         except AttributeError:
-            logger.warn(f"Was not able to load down secrets for {name}.")
+            logger.warning(f"Was not able to load down secrets for {name}.")
             continue
 
 
