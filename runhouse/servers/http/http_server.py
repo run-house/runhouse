@@ -690,9 +690,9 @@ if __name__ == "__main__":
         "--conda-env", type=str, default=None, help="Conda env to run server in"
     )
     parser.add_argument(
-        "--enable-local-span-collection",
-        action="store_true",  # if providing --enable-local-span-collection will be set to True
-        help="Enable local span collection",
+        "--use-local-telemetry",
+        action="store_true",  # if providing --use-local-telemetry will be set to True
+        help="Enable local telemetry",
     )
     parser.add_argument(
         "--use-https",
@@ -746,7 +746,23 @@ if __name__ == "__main__":
     use_https = parse_args.use_https
     restart_proxy = parse_args.restart_proxy
     use_nginx = parse_args.use_nginx
-    should_enable_local_span_collection = configs.get("use_local_telemetry")
+    should_enable_local_span_collection = parse_args.use_local_telemetry
+
+    # should_enable_local_span_collection = True
+
+    # user_path = Path("~/.rh/config.yaml").expanduser()
+    # print("Full user path: ")
+    # print(user_path)
+
+    # config_yaml_exists = Path("~/.rh/config.yaml").expanduser().exists()
+    # print("config_yaml_exists: ")
+    # print(config_yaml_exists)
+
+    # should_enable_local_span_collection = configs.get("use_local_telemetry")
+
+    # print("use_local_telemetry: ")
+    # print(configs.get("use_local_telemetry"))
+
     den_auth = parse_args.use_den_auth or cluster_config.get("den_auth")
 
     ips = cluster_config.get("ips", [])
@@ -834,7 +850,9 @@ if __name__ == "__main__":
 
     host = host or rh_server_host
     logger.info(
-        f"Launching Runhouse API server with den_auth={den_auth} on host: {host} and port: {rh_server_port}"
+        f"Launching Runhouse API server with den_auth={den_auth} and "
+        + f"use_local_telemetry={should_enable_local_span_collection} "
+        + f"on host: {host} and port: {rh_server_port}"
     )
 
     # Only launch uvicorn with certs if HTTPS is enabled and not using Nginx

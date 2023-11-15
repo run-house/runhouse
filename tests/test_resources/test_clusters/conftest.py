@@ -419,7 +419,6 @@ def local_docker_cluster_telemetry_public_key(request, detached=True):
             "ssh_user": SSH_USER,
             "ssh_private_key": keypath,
         },
-        enable_local_span_collection=True,
     )
     c = rh.cluster(**args)
     init_args[id(c)] = args

@@ -12,6 +12,7 @@ import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from runhouse.globals import configs
 from runhouse.servers.http.certs import TLSCertConfig
 
 # Filter out DeprecationWarnings
@@ -756,6 +757,8 @@ class Cluster(Resource):
 
         https_flag = self._use_https
         nginx_flag = self._use_nginx
+        use_local_telemetry = configs.get("use_local_telemetry")
+        logger.info("Use local telemetry: " + str(use_local_telemetry))
         cmd = (
             self.CLI_RESTART_CMD
             + (" --no-restart-ray" if not restart_ray else "")
@@ -764,6 +767,7 @@ class Cluster(Resource):
             + (" --restart-proxy" if restart_proxy and nginx_flag else "")
             + (f" --ssl-certfile {cluster_cert_path}" if use_custom_cert else "")
             + (f" --ssl-keyfile {cluster_key_path}" if use_custom_key else "")
+            + (" --use-local-telemetry" if use_local_telemetry else "")
         )
 
         cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd

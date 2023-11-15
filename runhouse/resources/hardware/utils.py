@@ -65,6 +65,12 @@ def _load_cluster_config():
     return cluster_config
 
 
+def _load_user_config():
+    with open(Path("~/.rh/config.yaml").expanduser()) as f:
+        config = yaml.safe_load(f)
+    return config
+
+
 def _get_cluster_from(system, dryrun=False):
     from .cluster import Cluster
 
