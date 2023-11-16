@@ -352,6 +352,9 @@ def local_docker_cluster_public_key(request, detached=True):
         port_fwds=[f"{local_ssh_port}:22", "32300:32300"],
     )
 
+    detached = request.config.getoption("--detached")
+    den_auth = "den_auth" in request.keywords
+
     # Runhouse commands can now be run locally
     args = dict(
         name="local-docker-slim-keypair-telemetry",

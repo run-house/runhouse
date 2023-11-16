@@ -754,6 +754,7 @@ if __name__ == "__main__":
     use_nginx = parse_args.use_nginx
     use_local_telemetry = parse_args.use_local_telemetry
 
+    # Update globally inside the module based on the args passed in or the cluster config
     den_auth = parse_args.use_den_auth or cluster_config.get("den_auth")
 
     ips = cluster_config.get("ips", [])
