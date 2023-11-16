@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 import runhouse as rh
+import yaml
 
 from tests.conftest import init_args
 
@@ -281,9 +282,7 @@ def local_logged_out_docker_cluster(request):
     image_name = "keypair"
     container_name = "rh-logged-out-slim"
     dir_name = "public-key-auth"
-
     detached = request.config.getoption("--detached")
-
     keypath = str(
         Path(rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)).expanduser()
     )
@@ -336,7 +335,7 @@ def local_docker_cluster_public_key(request, detached=True):
     image_name = "keypair"
     container_name = "rh-slim-keypair"
     dir_name = "public-key-auth"
-
+    detached = request.config.getoption("--detached")
     keypath = str(
         Path(rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)).expanduser()
     )
@@ -395,12 +394,11 @@ def local_docker_cluster_telemetry_public_key(request, detached=True):
     image_name = "keypair-telemetry"
     container_name = "rh-slim-keypair-telemetry"
     dir_name = "public-key-auth"
+    detached = request.config.getoption("--detached")
     keypath = str(
-        Path(
-            rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
-        ).expanduser()
+        Path(rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)).expanduser()
     )
-    local_ssh_port = BASE_LOCAL_SSH_PORT + 6
+    local_ssh_port = BASE_LOCAL_SSH_PORT + 3
 
     client, rh_parent_path = build_and_run_image(
         image_name=image_name,
@@ -409,7 +407,7 @@ def local_docker_cluster_telemetry_public_key(request, detached=True):
         detached=detached,
         keypath=keypath,
         force_rebuild=request.config.getoption("--force-rebuild"),
-        port_fwds=[f"{local_ssh_port}:22", "32300:32300"],
+        port_fwds=[f"{local_ssh_port}:22"],
     )
 
     # Runhouse commands can now be run locally
@@ -447,24 +445,27 @@ def local_docker_cluster_telemetry_public_key(request, detached=True):
         client.images.prune()
 
 
-@pytest.fixture(scope="session")
-def local_test_account_cluster_public_key(request, test_account):
-    container_name = "rh-slim-test-acct"
-    detached = request.config.getoption("--detached")
-    den_auth = "den_auth" in request.keywords
+@pytest.fixture(scope="function")
+def local_test_account_cluster_public_key(request, test_account, detached=True):
+    # Load the test account, this sets the rns client cache to be authenticated as the test user.
+    with test_account as test_account_dict:
+        image_name = "keypair"
+        container_name = "rh-slim-test-acct"
+        dir_name = "public-key-auth"
+        detached = request.config.getoption("--detached")
+        den_auth = "den_auth" in request.keywords
+        keypath = str(
+            Path(
+                rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
+            ).expanduser()
+        )
+        local_ssh_port = BASE_LOCAL_SSH_PORT + 4
 
-    keypath = str(
-        Path(rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)).expanduser()
-    )
-    local_ssh_port = BASE_LOCAL_SSH_PORT + 3
-
-    with test_account:
-        # Create the shared cluster using the test account
         client, rh_parent_path = build_and_run_image(
-            image_name="keypair",
+            image_name=image_name,
             container_name=container_name,
-            detached=True,
-            dir_name="public-key-auth",
+            detached=detached,
+            dir_name=dir_name,
             keypath=keypath,
             force_rebuild=request.config.getoption("--force-rebuild"),
             port_fwds=[f"{local_ssh_port}:22"],
@@ -482,30 +483,28 @@ def local_test_account_cluster_public_key(request, test_account):
                 "ssh_private_key": keypath,
             },
         )
-        c = rh.cluster(**args).save()
+        c = rh.cluster(**args)
         init_args[id(c)] = args
-
-        # Save the test account config to ~/.rh directory in the container
-        rh_config = rh.configs.load_defaults_from_file()
 
         rh.env(
             reqs=["pytest"],
             working_dir=None,
             setup_cmds=[
                 f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
-                f"echo '{rh_config}' > ~/.rh/config.yaml"
+                f'echo "{yaml.safe_dump(test_account_dict)}" > ~/.rh/config.yaml'
             ],
             name="base_env",
         ).to(c)
+        c.save()
 
-        # Yield the cluster
-        yield c
+    # Yield the cluster
+    yield c
 
-        # Stop the Docker container
-        if not detached:
-            client.containers.get(container_name).stop()
-            client.containers.prune()
-            client.images.prune()
+    # Stop the Docker container
+    if not detached:
+        client.containers.get(container_name).stop()
+        client.containers.prune()
+        client.images.prune()
 
 
 @pytest.fixture(scope="session")
@@ -525,8 +524,9 @@ def local_docker_cluster_passwd(request, detached=True):
     image_name = "pwd"
     container_name = "rh-slim-password"
     dir_name = "password-file-auth"
+    detached = request.config.getoption("--detached")
     pwd_file = "docker_user_passwd"
-    local_ssh_port = BASE_LOCAL_SSH_PORT + 4
+    local_ssh_port = BASE_LOCAL_SSH_PORT + 5
 
     client, rh_parent_path = build_and_run_image(
         image_name=image_name,

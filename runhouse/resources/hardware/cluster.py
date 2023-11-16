@@ -538,6 +538,8 @@ class Cluster(Resource):
                     # Start a tunnel using self.run in a thread, instead of ssh_tunnel
                     ssh_credentials = copy.copy(self.ssh_creds())
                     host = ssh_credentials.pop("ssh_host", self.address)
+                    ssh_port == 32320
+                    local_port == 32300 == remote_port == 32300
                     runner = SkySSHRunner(host, **ssh_credentials, port=self.ssh_port)
                     runner.tunnel(local_port, remote_port)
                     ssh_tunnel = runner  # Just to keep the object in memory
