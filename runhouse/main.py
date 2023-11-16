@@ -195,6 +195,9 @@ def start(
         None,
         help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS",
     ),
+    use_local_telemetry: bool = typer.Option(
+        False, help="Whether to use local telemetry"
+    ),
 ):
     """Start the HTTP or HTTPS server on the cluster."""
     _start_server(
@@ -208,6 +211,7 @@ def start(
         den_auth=use_den_auth,
         use_nginx=use_nginx,
         certs_address=certs_address,
+        use_local_telemetry=use_local_telemetry,
     )
 
 

@@ -12,7 +12,6 @@ import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from runhouse.globals import configs
 from runhouse.servers.http.certs import TLSCertConfig
 
 # Filter out DeprecationWarnings
@@ -75,6 +74,7 @@ class Cluster(Resource):
         ssl_keyfile: str = None,
         ssl_certfile: str = None,
         den_auth: bool = False,
+        use_local_telemetry: bool = False,
         dryrun=False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
@@ -107,6 +107,7 @@ class Cluster(Resource):
         self.client_port = client_port
         self.ssh_port = ssh_port or self.DEFAULT_SSH_PORT
         self.server_host = server_host
+        self.use_local_telemetry = use_local_telemetry
 
     def save_config_to_cluster(self):
         import json
@@ -150,6 +151,7 @@ class Cluster(Resource):
                 "server_host",
                 "server_connection_type",
                 "den_auth",
+                "use_local_telemetry",
             ],
         )
         if self.ips is not None:
@@ -592,6 +594,10 @@ class Cluster(Resource):
     def _use_custom_key(self):
         return Path(self.cert_config.key_path).exists()
 
+    @property
+    def _use_local_telemetry(self) -> bool:
+        return self.use_local_telemetry
+
     @staticmethod
     def _add_flags_to_commands(flags, start_screen_cmd, server_start_cmd):
         flags_str = "".join(flags)
@@ -765,8 +771,8 @@ class Cluster(Resource):
 
         https_flag = self._use_https
         nginx_flag = self._use_nginx
-        use_local_telemetry = configs.get("use_local_telemetry")
-        logger.info("Use local telemetry: " + str(use_local_telemetry))
+        use_local_telemetry = self._use_local_telemetry
+
         cmd = (
             self.CLI_RESTART_CMD
             + (" --no-restart-ray" if not restart_ray else "")

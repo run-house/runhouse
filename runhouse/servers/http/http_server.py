@@ -746,22 +746,7 @@ if __name__ == "__main__":
     use_https = parse_args.use_https
     restart_proxy = parse_args.restart_proxy
     use_nginx = parse_args.use_nginx
-    should_enable_local_span_collection = parse_args.use_local_telemetry
-
-    # should_enable_local_span_collection = True
-
-    # user_path = Path("~/.rh/config.yaml").expanduser()
-    # print("Full user path: ")
-    # print(user_path)
-
-    # config_yaml_exists = Path("~/.rh/config.yaml").expanduser().exists()
-    # print("config_yaml_exists: ")
-    # print(config_yaml_exists)
-
-    # should_enable_local_span_collection = configs.get("use_local_telemetry")
-
-    # print("use_local_telemetry: ")
-    # print(configs.get("use_local_telemetry"))
+    use_local_telemetry = parse_args.use_local_telemetry
 
     den_auth = parse_args.use_den_auth or cluster_config.get("den_auth")
 
@@ -777,7 +762,7 @@ if __name__ == "__main__":
 
     HTTPServer(
         conda_env=conda_name,
-        enable_local_span_collection=should_enable_local_span_collection,
+        enable_local_span_collection=use_local_telemetry,
     )
 
     # Custom certs should already be on the cluster if their file paths are provided
@@ -851,7 +836,7 @@ if __name__ == "__main__":
     host = host or rh_server_host
     logger.info(
         f"Launching Runhouse API server with den_auth={den_auth} and "
-        + f"use_local_telemetry={should_enable_local_span_collection} "
+        + f"use_local_telemetry={use_local_telemetry} "
         + f"on host: {host} and port: {rh_server_port}"
     )
 
