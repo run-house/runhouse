@@ -39,16 +39,13 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 
 
-global den_auth
-
-
 def validate_cluster_access(func):
     """If using Den auth, validate the user's Runhouse token and access to the cluster before continuing."""
 
     @wraps(func)
     async def wrapper(*args, **kwargs):
         request: Request = kwargs.get("request")
-        use_den_auth: bool = den_auth
+        use_den_auth: bool = HTTPServer.get_den_auth()
         is_coro = inspect.iscoroutinefunction(func)
 
         if not use_den_auth:
@@ -82,7 +79,7 @@ def validate_cluster_access(func):
             # Must have cluster access for all the non func calls
             # Note: for func calls will be handling the auth in the object store
             raise HTTPException(
-                status_code=404,
+                status_code=403,
                 detail="Cluster access is required for API",
             )
 
@@ -103,6 +100,7 @@ class HTTPServer:
     DEFAULT_HTTPS_PORT = 443
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
     memory_exporter = None
+    _den_auth = False
 
     def __init__(
         self, conda_env=None, enable_local_span_collection=None, *args, **kwargs
@@ -166,6 +164,14 @@ class HTTPServer:
         obj_store.set_name("server")
 
         HTTPServer.register_activity()
+
+    @classmethod
+    def get_den_auth(cls):
+        return cls._den_auth
+
+    @classmethod
+    def enable_den_auth(cls):
+        cls._den_auth = True
 
     @staticmethod
     def register_activity():
@@ -335,7 +341,7 @@ class HTTPServer:
         # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
-            # This translates the json dict into an object that we can can access with dot notation, e.g. message.key
+            # This translates the json dict into an object that we can access with dot notation, e.g. message.key
             message = argparse.Namespace(**message) if message else None
             method = None if method == "None" else method
             # If this is a "get" request to just return the module, do not stream logs or save by default
@@ -765,6 +771,10 @@ if __name__ == "__main__":
         enable_local_span_collection=use_local_telemetry,
     )
 
+    if den_auth:
+        # Update den auth if enabled - keep as a class attribute to be referenced by the validator decorator
+        HTTPServer.enable_den_auth()
+
     # Custom certs should already be on the cluster if their file paths are provided
     if parsed_ssl_keyfile and not Path(parsed_ssl_keyfile).exists():
         raise FileNotFoundError(
@@ -819,10 +829,9 @@ if __name__ == "__main__":
         nc = NginxConfig(
             address=address,
             rh_server_port=rh_server_port,
-            http_port=http_port,
-            https_port=https_port,
             ssl_key_path=ssl_keyfile,
             ssl_cert_path=ssl_certfile,
+            use_https=use_https,
             force_reinstall=restart_proxy,
         )
         nc.configure()

@@ -163,7 +163,10 @@ class EnvServlet:
                         module.rns_address if hasattr(module, "rns_address") else None
                     )
                     if not obj_store.has_resource_access(token_hash, resource_uri):
-                        raise Exception("No read or write access to requested resource")
+                        raise PermissionError(
+                            f"No read or write access to requested resource {resource_uri}"
+                        )
+
             else:
                 # Method is a property, return the value
                 logger.info(
@@ -551,9 +554,9 @@ class EnvServlet:
 
         self.register_activity()
         secrets_to_add: dict = b64_unpickle(message.data)
-        failed_providers = (
-            {}
-        )  # Track which providers fail and send them back to the user
+
+        # Track which providers fail and send them back to the user
+        failed_providers = {}
         try:
             for provider_name, provider_secrets in secrets_to_add.items():
                 p = Secrets.builtin_provider_class_from_name(provider_name)
@@ -602,7 +605,9 @@ class EnvServlet:
                 module.rns_address if hasattr(module, "rns_address") else None
             )
             if not obj_store.has_resource_access(token_hash, resource_uri):
-                raise Exception("No read or write access to requested resource")
+                raise PermissionError(
+                    f"No read or write access to requested resource {resource_uri}"
+                )
 
         if method:
             fn = getattr(module, method)

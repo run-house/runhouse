@@ -4,7 +4,9 @@ import os
 import pkgutil
 import shutil
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
+
+import dotenv
 
 import requests
 
@@ -191,6 +193,37 @@ class RNSClient:
                 del payload[k]
         payload["data"] = data
         return payload
+
+    def load_account_from_env(self) -> Dict[str, str]:
+        dotenv.load_dotenv()
+
+        test_token = os.getenv("TEST_TOKEN")
+        test_username = os.getenv("TEST_USERNAME")
+        if not (test_token and test_username):
+            return None
+
+        # Hack to avoid actually writing down these values, in case the user stops mid-test and we don't reach the
+        # finally block
+        self._configs.defaults_cache["token"] = test_token
+        self._configs.defaults_cache["username"] = test_username
+        self._configs.defaults_cache["default_folder"] = f"/{test_username}"
+
+        # The client caches the folder that is used as the current folder variable, we clear this so it loads the new
+        # folder when we switch accounts
+        self._current_folder = None
+
+        return {
+            "token": self._configs.defaults_cache["token"],
+            "username": self._configs.defaults_cache["username"],
+            "default_folder": self._configs.defaults_cache["default_folder"],
+        }
+
+    def load_account_from_file(self) -> None:
+        # Setting this to None causes it to be loaded from file upon next access
+        self._configs.defaults_cache = None
+
+        # Same as above, for this to correctly load the account/folder from the new cache, it needs to be unset
+        self._current_folder = None
 
     # Run Stack
     # ---------------------
