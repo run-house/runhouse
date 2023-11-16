@@ -12,6 +12,14 @@ from tests.test_resources.conftest import (
 )
 
 
+def load_shared_resource_config(original_resource):
+    loaded_resource = original_resource.__class__.from_name(
+        original_resource.name, dryrun=True
+    )
+    return loaded_resource.config_for_rns
+    # TODO allow resource subclass tests to extend set of properties to test
+
+
 class TestResource:
 
     UNIT = {"resource": [unnamed_resource, named_resource, local_named_resource]}
@@ -79,6 +87,28 @@ class TestResource:
 
         resource.delete_configs()
         assert not rh.exists(resource.rns_address)
+
+    def test_sharing(self, resource, local_test_account_cluster_public_key):
+        if resource.name is None:
+            with pytest.raises(ValueError):
+                resource.save()
+            assert resource.name is None
+            return
+
+        # Test saving, then share with test user
+        resource.save()
+
+        resource.share(
+            users=["info@run.house"],
+            access_type="read",
+            notify_users=False,
+        )
+
+        load_shared_resource_config_cluster = rh.function(
+            load_shared_resource_config,
+            system=local_test_account_cluster_public_key,
+        )
+        assert load_shared_resource_config_cluster(resource) == resource.config_for_rns
 
     def test_history(self, resource):
         if resource.name is None or resource.rns_address[:2] == "~/":

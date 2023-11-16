@@ -111,6 +111,7 @@ class Cluster(Resource):
         import json
 
         config = self.config_for_rns
+        breakpoint()
         if "live_state" in config.keys():
             # a bunch of setup commands that mess up json dump
             del config["live_state"]

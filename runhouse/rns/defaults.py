@@ -51,6 +51,7 @@ class Defaults:
         if Path(config_path).exists():
             with open(config_path, "r") as stream:
                 config = yaml.safe_load(stream)
+                logging.info(f"Loaded config {config} of type {type(config)}")
             logging.info(f"Loaded Runhouse config from {config_path}")
 
         return config or {}
