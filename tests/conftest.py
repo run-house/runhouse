@@ -84,7 +84,8 @@ def test_account():
         account = rns_client.load_account_from_env()
         if account is None:
             pytest.skip("`TEST_TOKEN` or `TEST_USERNAME` not set, skipping test.")
-        
+        yield account
+
     finally:
         rns_client.load_account_from_file()
 
