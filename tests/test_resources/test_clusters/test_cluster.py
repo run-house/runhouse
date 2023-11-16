@@ -7,7 +7,7 @@ from .conftest import (
     local_docker_cluster_passwd,
     local_docker_cluster_public_key,
     local_logged_out_docker_cluster,
-    local_test_account_cluster_public_key,
+    # local_test_account_cluster_public_key,
     named_cluster,
     password_cluster,
     static_cpu_cluster,
@@ -30,7 +30,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             local_docker_cluster_public_key,
             local_docker_cluster_passwd,
             local_logged_out_docker_cluster,
-            local_test_account_cluster_public_key,
+            # local_test_account_cluster_public_key,
         ]
     }
     MINIMAL = {"cluster": [static_cpu_cluster]}

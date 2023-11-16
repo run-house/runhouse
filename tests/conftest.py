@@ -1,12 +1,9 @@
 import contextlib
 import enum
-import os
-
-import dotenv
 
 import pytest
 
-import runhouse as rh
+from runhouse.globals import rns_client
 
 
 class TestLevels(str, enum.Enum):
@@ -82,39 +79,14 @@ def test_account():
     """Used for the purposes of testing resource sharing among different accounts.
     When inside the context manager, use the test account credentials before reverting back to the original
     account when exiting."""
-    dotenv.load_dotenv()
-
-    test_token = os.getenv("TEST_TOKEN")
-    test_username = os.getenv("TEST_USERNAME")
-    if not test_token or not test_username:
-        pytest.skip("`TEST_TOKEN` or `TEST_USERNAME` not set, skipping test.")
-
-    current_token = rh.configs.get("token")
-    current_username = rh.configs.get("username")
 
     try:
-        # Assume the role of the test account when inside the context manager
-        test_account_token = test_token
-        test_account_username = test_username
-        test_account_folder = f"/{test_account_username}"
-
-        # Hack to avoid actually writing down these values, in case the user stops mid-test and we don't reach the
-        # finally block
-        rh.configs.defaults_cache["token"] = test_account_token
-        rh.configs.defaults_cache["username"] = test_account_username
-        rh.configs.defaults_cache["default_folder"] = test_account_folder
-
-        yield {
-            "test_token": test_account_token,
-            "test_username": test_account_username,
-            "test_folder": test_account_folder,
-        }
-
+        account = rns_client.load_account_from_env()
+        if account is None:
+            pytest.skip("`TEST_TOKEN` or `TEST_USERNAME` not set, skipping test.")
+        
     finally:
-        # Reset configs back to original account
-        rh.configs.defaults_cache["token"] = current_token
-        rh.configs.defaults_cache["username"] = current_username
-        rh.configs.defaults_cache["default_folder"] = f"/{current_username}"
+        rns_client.load_account_from_file()
 
 
 # ----------------- Clusters -----------------
