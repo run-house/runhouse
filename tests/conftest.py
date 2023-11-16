@@ -33,6 +33,16 @@ def pytest_addoption(parser):
         default=False,
         help="Force rebuild of the relevant Runhouse image",
     )
+    # Specify "--detached False" in order to not run in detached mode
+    parser.addoption(
+        "--detached",
+        action="store",
+        type=bool,
+        nargs="?",
+        const=True,
+        default=True,
+        help="Whether to run container in detached mode",
+    )
 
 
 def pytest_generate_tests(metafunc):
@@ -66,7 +76,7 @@ init_args = {}
 ############## HELPERS ##############
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 @contextlib.contextmanager
 def test_account():
     """Used for the purposes of testing resource sharing among different accounts.
@@ -76,7 +86,8 @@ def test_account():
 
     test_token = os.getenv("TEST_TOKEN")
     test_username = os.getenv("TEST_USERNAME")
-    assert test_token and test_username
+    if not test_token or not test_username:
+        pytest.skip("`TEST_TOKEN` or `TEST_USERNAME` not set, skipping test.")
 
     current_token = rh.configs.get("token")
     current_username = rh.configs.get("username")
@@ -148,6 +159,7 @@ from tests.test_resources.test_envs.conftest import (
 
 from tests.test_resources.test_modules.test_blobs.conftest import (
     blob,  # noqa: F401
+    blob_data,  # noqa: F401
     cluster_blob,  # noqa: F401
     cluster_file,  # noqa: F401
     file,  # noqa: F401

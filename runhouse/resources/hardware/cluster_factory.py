@@ -76,7 +76,7 @@ def cluster(
             "``ips`` argument has been deprecated. Please use ``host`` to refer to the cluster IPs or host instead."
         )
 
-    if "localhost" in host or ":" in host:
+    if host and ("localhost" in host or ":" in host):
         server_connection_type = server_connection_type or ServerConnectionType.NONE
         if ":" in host:
             # e.g. "localhost:23324" or <real_ip>:<custom port> (e.g. a port is already open to the server)
@@ -166,6 +166,9 @@ def cluster(
             f"Cluster does not support server connection type of {server_connection_type}"
         )
 
+    if isinstance(host, str):
+        host = [host]
+
     c = Cluster(
         ips=host,
         ssh_creds=ssh_creds,
@@ -206,6 +209,7 @@ def ondemand_cluster(
     ssl_certfile: str = None,
     den_auth: bool = False,
     dryrun: bool = False,
+    **kwargs,
 ) -> OnDemandCluster:
     """
     Builds an instance of :class:`OnDemandCluster`. Note that image_id, region, memory, disk_size, and open_ports
@@ -415,6 +419,7 @@ def sagemaker_cluster(
     ssl_certfile: str = None,
     den_auth: bool = False,
     dryrun: bool = False,
+    **kwargs,
 ) -> SageMakerCluster:
     """
     Builds an instance of :class:`SageMakerCluster`.

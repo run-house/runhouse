@@ -203,9 +203,6 @@ class ObjStore:
     def get_list(self, keys: List[str], default: Optional[Any] = None):
         return [self.get(key, default=default or key) for key in keys]
 
-    def get_dict(self, d: Dict[str, Any], default: Optional[Any] = None):
-        return {k: self.get(v, default=default or v) for k, v in d.items()}
-
     def get_obj_refs_list(self, keys: List):
         return [
             self.get(key, default=key) if isinstance(key, str) else key for key in keys

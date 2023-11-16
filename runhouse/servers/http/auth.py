@@ -36,9 +36,10 @@ class AuthCache:
             headers={"Authorization": f"Bearer {token}"},
         )
         if resp.status_code != 200:
-            raise Exception(
+            logger.error(
                 f"Failed to load resources for user: {load_resp_content(resp)}"
             )
+            return
 
         resp_data = json.loads(resp.content)
         all_resources: dict = {
