@@ -6,39 +6,21 @@ import unittest
 from pathlib import Path
 
 import boto3
-import pytest
 import runhouse as rh
 
 logger = logging.getLogger(__name__)
 CUR_WORK_DIR = os.path.dirname(os.path.abspath(__file__))
 TEST_RESOURCES = f"{CUR_WORK_DIR}/test_helpers/lambda_tests"
 
-# TODO: only one path is fine, remove redundant
-CRED_PATH_MAC = f"{Path.home()}/.aws/credentials"
-CRED_PATH_WIN = f"{Path.home()}\.aws\credentials"
+CRED_PATH = f"{Path.home()}/.aws/credentials"
 DEFAULT_REGION = "us-east-1"
 
-if Path(CRED_PATH_MAC).is_file() or Path(CRED_PATH_WIN).is_file():
+if Path(CRED_PATH).is_file():
     LAMBDA_CLIENT = boto3.client("lambda")
 else:
     LAMBDA_CLIENT = boto3.client("lambda", region_name=DEFAULT_REGION)
 IAM_CLIENT = boto3.client("iam")
 LAMBDAS_NAMES = set()
-
-
-@pytest.fixture(scope="session", autouse=True)
-# TODO: move it locally from S3 and than this method is redundent
-def download_resources():
-    curr_folder = os.getcwd()
-    s3_resource = boto3.resource("s3")
-    bucket = s3_resource.Bucket("runhouse-lambda-resources")
-    remoteDirectoryName = "test_helpers/lambda_tests"
-    objs = bucket.objects.filter(Prefix=remoteDirectoryName)
-    for obj in objs:
-        dir_name = "/".join(obj.key.split("/")[:-1])
-        if not os.path.exists(f"{curr_folder}/{dir_name}"):
-            os.makedirs(f"{curr_folder}/{dir_name}")
-        bucket.download_file(obj.key, f"{curr_folder}/{obj.key}")
 
 
 def test_create_and_run_no_layers():
@@ -245,18 +227,17 @@ def test_bad_args_names_to_factory(caplog):
 
 
 def test_func_no_args(capsys):
-    handler_path = [f"{TEST_RESOURCES}/basic_handler_no_args.py"]
+    handler_path = [f"{TEST_RESOURCES}/basic_test_handler.py"]
     name = "test_lambda_no_args"
     my_lambda = rh.aws_lambda_function(
         paths_to_code=handler_path,
-        handler_function_name="basic_handler",
+        handler_function_name="lambda_no_args",
         runtime="python3.9",
         args_names=[],
         name=name,
     )
     time.sleep(5)
-    assert my_lambda() == "-1"
-    assert "This a func with not args" in capsys.readouterr().out
+    assert my_lambda() == "9"
 
 
 def test_create_and_run_generate_name():
@@ -534,6 +515,7 @@ def test_remove_resources():
         assert del_lambda is not None
 
 
+# TODO: add test for saving a lambda with a layer (?)
+
 if __name__ == "__main__":
-    download_resources()
     unittest.main()
