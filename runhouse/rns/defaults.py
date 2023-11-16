@@ -27,7 +27,7 @@ class Defaults:
         "use_spot": False,
         "use_local_configs": True,
         "disable_data_collection": False,
-        "use_local_telemetry": False,
+        "use_local_telemetry": True,
         "use_rns": False,
         "api_server_url": "https://api.run.house",
         "dashboard_url": "https://run.house",

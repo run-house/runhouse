@@ -619,6 +619,7 @@ class Cluster(Resource):
         force_reinstall,
         use_nginx,
         certs_address,
+        use_local_telemetry,
     ):
         cmds = []
         if restart:
@@ -680,6 +681,13 @@ class Cluster(Resource):
         if address_flag:
             logger.info(f"Server public IP address: {certs_address}.")
             flags.append(address_flag)
+
+        use_local_telemetry_flag = (
+            " --use-local-telemetry" if use_local_telemetry else ""
+        )
+        if use_local_telemetry_flag:
+            logger.info("Configuring local telemetry on the cluster.")
+            flags.append(use_local_telemetry_flag)
 
         logger.info(
             f"Starting API server using the following command: {server_start_cmd}."
