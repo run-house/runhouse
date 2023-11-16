@@ -594,10 +594,6 @@ class Cluster(Resource):
     def _use_custom_key(self):
         return Path(self.cert_config.key_path).exists()
 
-    @property
-    def _use_local_telemetry(self) -> bool:
-        return self.use_local_telemetry
-
     @staticmethod
     def _add_flags_to_commands(flags, start_screen_cmd, server_start_cmd):
         flags_str = "".join(flags)
@@ -771,7 +767,7 @@ class Cluster(Resource):
 
         https_flag = self._use_https
         nginx_flag = self._use_nginx
-        use_local_telemetry = self._use_local_telemetry
+        use_local_telemetry = self.use_local_telemetry
 
         cmd = (
             self.CLI_RESTART_CMD
