@@ -391,6 +391,119 @@ def local_docker_cluster_public_key(request):
         client.images.prune()
 
 
+def build_local_docker_cluster_with_telemetry(
+    request,
+    den_auth,
+    server_connection_type,
+    container_name,
+    detached,
+    port_fwd_str=None,
+):
+    image_name = "keypair-telemetry"
+    dir_name = "public-key-auth"
+    keypath = str(
+        Path(
+            rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
+        ).expanduser()
+    )
+    local_ssh_port = BASE_LOCAL_SSH_PORT + 6
+
+    port_fwds = [f"{local_ssh_port}:22"]
+    if port_fwd_str:
+        port_fwds.append(port_fwd_str)
+
+    client, rh_parent_path = build_and_run_image(
+        image_name=image_name,
+        container_name=container_name,
+        dir_name=dir_name,
+        detached=detached,
+        keypath=keypath,
+        force_rebuild=request.config.getoption("--force-rebuild"),
+        port_fwds=port_fwds,
+    )
+
+    # Runhouse commands can now be run locally
+    args = dict(
+        name="local-docker-slim-keypair-telemetry",
+        host="localhost",
+        server_host="0.0.0.0",
+        server_connection_type=server_connection_type,
+        den_auth=den_auth,
+        ssh_port=local_ssh_port,
+        ssh_creds={
+            "ssh_user": SSH_USER,
+            "ssh_private_key": keypath,
+        },
+        enable_local_span_collection=True,
+    )
+    return client, args
+
+
+@pytest.fixture(scope="session")
+def local_docker_cluster_telemetry_public_key(request, detached=True):
+    container_name = "rh-slim-keypair-telemetry"
+    client, cluster_args = build_local_docker_cluster_with_telemetry(
+        request,
+        den_auth=False,
+        server_connection_type="ssh",
+        detached=detached,
+        container_name=container_name,
+    )
+    c = rh.cluster(**cluster_args)
+    init_args[id(c)] = cluster_args
+    rh.env(
+        reqs=["pytest"],
+        working_dir=None,
+        setup_cmds=[
+            f'mkdir -p ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
+        ],
+        name="base_env",
+    ).to(c)
+    c.save()
+
+    # Yield the cluster
+    yield c
+
+    # Stop the Docker container
+    if not detached:
+        client.containers.get(container_name).stop()
+        client.containers.prune()
+        client.images.prune()
+
+
+@pytest.fixture(scope="session")
+def local_docker_cluster_telemetry_public_key_with_tls(request, detached=True):
+    container_name = "rh-slim-keypair-telemetry"
+    client, cluster_args = build_local_docker_cluster_with_telemetry(
+        request,
+        den_auth=True,
+        server_connection_type="tls",
+        detached=detached,
+        container_name=container_name,
+        port_fwd_str="8443:443",
+    )
+    c = rh.cluster(**cluster_args)
+    init_args[id(c)] = cluster_args
+    rh.env(
+        reqs=["pytest"],
+        working_dir=None,
+        setup_cmds=[
+            f'mkdir -p ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
+        ],
+        name="base_env",
+    ).to(c)
+    c.save()
+
+    # Yield the cluster
+    yield c
+
+    # Stop the Docker container
+    if not detached:
+        client.containers.get(container_name).stop()
+        client.containers.prune()
+        client.images.prune()
+
+
 @pytest.fixture(scope="session")
 def local_test_account_cluster_public_key(request, test_account):
     container_name = "rh-slim-test-acct"

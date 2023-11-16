@@ -41,6 +41,7 @@ RUN --mount=type=secret,id=ssh_key,dst=/tmp/id_rsa.pub \
 
 # Update SSHD Configuration to allow public key authentication and disable password and root login
 RUN echo "PasswordAuthentication no" >> /etc/ssh/sshd_config && \
+    echo "PermitRootLogin yes" >> /etc/ssh/sshd_config && \
     echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
 
 # Create supervisord configuration file
@@ -50,9 +51,7 @@ RUN echo "[supervisord]" > /etc/supervisor/conf.d/supervisord.conf && \
     echo "[program:sshd]" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "command=/usr/sbin/sshd -D" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stdout_logfile=/var/log/sshd.log" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "stderr_logfile=/var/log/sshd.err" >> /etc/supervisor/conf.d/supervisord.conf  && \
-    echo "[program:nginx]" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "command=nginx -g 'daemon off;'" >> /etc/supervisor/conf.d/supervisord.conf
+    echo "stderr_logfile=/var/log/sshd.err" >> /etc/supervisor/conf.d/supervisord.conf
 
 
 # Ray dashboard port

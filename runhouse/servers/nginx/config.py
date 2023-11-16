@@ -65,7 +65,8 @@ class NginxConfig:
         # If running locally (e.g. in a docker container) systemctl may not be available
         reload_cmd = (
             "sudo service nginx start && sudo nginx -s reload"
-            if self.address == "localhost"
+            # TODO [JL] does this check suffice?
+            if self.address in ["localhost", "127.0.0.1", "0.0.0.0"]
             else "sudo systemctl reload nginx"
         )
         result = subprocess.run(
