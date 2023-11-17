@@ -367,7 +367,6 @@ def local_docker_cluster_public_key(request, detached=True):
             "ssh_user": SSH_USER,
             "ssh_private_key": keypath,
         },
-        use_local_telemetry=True,
     )
     c = rh.cluster(**args)
     init_args[id(c)] = args
