@@ -340,8 +340,7 @@ class Module(Resource):
                 ]
                 state = {}
                 # We only send over state for instances, not classes
-                from starlette.applications import Starlette
-                if not (isinstance(self, type) or isinstance(self, Starlette)):
+                if not isinstance(self, type):
                     state = {
                         attr: val
                         for attr, val in self.__dict__.items()
@@ -809,17 +808,6 @@ class Module(Resource):
     @staticmethod
     def _extract_pointers(raw_cls_or_fn: Union[Type, Callable], reqs: List[str]):
         """Get the path to the module, module name, and function name to be able to import it on the server"""
-        if isinstance(raw_cls_or_fn, str) and ":" in raw_cls_or_fn:
-            pointers = raw_cls_or_fn.split(":")
-            if len(pointers) == 3:
-                return tuple(pointers)
-            elif len(pointers) == 2:
-                return (os.getcwd(), pointers[0], pointers[1])
-            else:
-                raise ValueError(
-                    f"Expected 2 or 3 pointers separated by colons, but received {len(pointers)}"
-                )
-
         if not (isinstance(raw_cls_or_fn, type) or isinstance(raw_cls_or_fn, Callable)):
             raise TypeError(
                 f"Expected Type or Callable but received {type(raw_cls_or_fn)}"
