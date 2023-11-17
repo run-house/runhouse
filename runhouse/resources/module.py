@@ -305,7 +305,7 @@ class Module(Resource):
         # doesn't wipe the client of this function's cluster when deepcopy copies it.
         hw_backup = self.system
         self.system = None
-        new_module = copy.deepcopy(self)
+        new_module = copy.copy(self)
         self.system = hw_backup
 
         new_module.system = system
@@ -942,9 +942,11 @@ def _module_subclass_factory(cls, pointers, signature=None):
         # Create a copy of the item on the cluster under the new name
         new_module.name = name or self.name
         new_module.dryrun = dryrun
-        if not new_module.dryrun:
+        if not new_module.dryrun and new_module.system:
             new_module.system.put_resource(new_module)
             new_module.system.call(new_module.name, "_remote_init", *args, **kwargs)
+        else:
+            new_module._remote_init(*args, **kwargs)
 
         return new_module
 
