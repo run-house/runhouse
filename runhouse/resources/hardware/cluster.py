@@ -74,6 +74,7 @@ class Cluster(Resource):
         ssl_keyfile: str = None,
         ssl_certfile: str = None,
         den_auth: bool = False,
+        use_local_telemetry: bool = False,
         dryrun=False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
@@ -106,6 +107,7 @@ class Cluster(Resource):
         self.client_port = client_port
         self.ssh_port = ssh_port or self.DEFAULT_SSH_PORT
         self.server_host = server_host
+        self.use_local_telemetry = use_local_telemetry
 
     def save_config_to_cluster(self):
         import json
@@ -149,6 +151,7 @@ class Cluster(Resource):
                 "server_host",
                 "server_connection_type",
                 "den_auth",
+                "use_local_telemetry",
             ],
         )
         if self.ips is not None:
@@ -616,6 +619,7 @@ class Cluster(Resource):
         force_reinstall,
         use_nginx,
         certs_address,
+        use_local_telemetry,
     ):
         cmds = []
         if restart:
@@ -677,6 +681,13 @@ class Cluster(Resource):
         if address_flag:
             logger.info(f"Server public IP address: {certs_address}.")
             flags.append(address_flag)
+
+        use_local_telemetry_flag = (
+            " --use-local-telemetry" if use_local_telemetry else ""
+        )
+        if use_local_telemetry_flag:
+            logger.info("Configuring local telemetry on the cluster.")
+            flags.append(use_local_telemetry_flag)
 
         logger.info(
             f"Starting API server using the following command: {server_start_cmd}."
@@ -754,6 +765,8 @@ class Cluster(Resource):
 
         https_flag = self._use_https
         nginx_flag = self._use_nginx
+        use_local_telemetry = self.use_local_telemetry
+
         cmd = (
             self.CLI_RESTART_CMD
             + (" --no-restart-ray" if not restart_ray else "")
@@ -762,6 +775,7 @@ class Cluster(Resource):
             + (" --restart-proxy" if restart_proxy and nginx_flag else "")
             + (f" --ssl-certfile {cluster_cert_path}" if use_custom_cert else "")
             + (f" --ssl-keyfile {cluster_key_path}" if use_custom_key else "")
+            + (" --use-local-telemetry" if use_local_telemetry else "")
         )
 
         cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd

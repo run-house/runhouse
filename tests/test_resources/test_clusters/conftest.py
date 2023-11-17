@@ -319,7 +319,6 @@ def local_logged_out_docker_cluster(request):
         working_dir=None,
         name="base_env",
     ).to(c)
-
     c.save()
 
     # Yield the cluster
@@ -332,8 +331,8 @@ def local_logged_out_docker_cluster(request):
         client.images.prune()
 
 
-@pytest.fixture(scope="class")
-def local_docker_cluster_public_key(request):
+@pytest.fixture(scope="session")
+def local_docker_cluster_public_key(request, detached=True):
     image_name = "keypair"
     container_name = "rh-slim-keypair"
     dir_name = "public-key-auth"
@@ -343,8 +342,66 @@ def local_docker_cluster_public_key(request):
     )
     local_ssh_port = BASE_LOCAL_SSH_PORT + 2
 
+    client, rh_parent_path = build_and_run_image(
+        image_name=image_name,
+        container_name=container_name,
+        dir_name=dir_name,
+        detached=detached,
+        keypath=keypath,
+        force_rebuild=request.config.getoption("--force-rebuild"),
+        port_fwds=[f"{local_ssh_port}:22", "32300:32300"],
+    )
+
     detached = request.config.getoption("--detached")
     den_auth = "den_auth" in request.keywords
+
+    # Runhouse commands can now be run locally
+    args = dict(
+        name="local-docker-slim-keypair-telemetry",
+        host="localhost",
+        server_host="0.0.0.0",
+        ssh_port=local_ssh_port,
+        server_connection_type="ssh",
+        den_auth=den_auth,
+        ssh_creds={
+            "ssh_user": SSH_USER,
+            "ssh_private_key": keypath,
+        },
+        use_local_telemetry=True,
+    )
+    c = rh.cluster(**args)
+    init_args[id(c)] = args
+    rh.env(
+        reqs=["pytest", "httpx", "pytest_asyncio"],
+        working_dir=None,
+        setup_cmds=[
+            f'mkdir -p ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
+        ],
+        name="base_env",
+    ).to(c)
+    c.save()
+
+    # Yield the cluster
+    yield c
+
+    # Stop the Docker container
+    if not detached:
+        client.containers.get(container_name).stop()
+        client.containers.prune()
+        client.images.prune()
+
+
+@pytest.fixture(scope="session")
+def local_docker_cluster_telemetry_public_key(request, detached=True):
+    image_name = "keypair-telemetry"
+    container_name = "rh-slim-keypair-telemetry"
+    dir_name = "public-key-auth"
+    keypath = str(
+        Path(
+            rh.configs.get("default_keypair", "~/.ssh/runhouse/docker/id_rsa")
+        ).expanduser()
+    )
+    local_ssh_port = BASE_LOCAL_SSH_PORT + 6
 
     client, rh_parent_path = build_and_run_image(
         image_name=image_name,
@@ -358,21 +415,21 @@ def local_docker_cluster_public_key(request):
 
     # Runhouse commands can now be run locally
     args = dict(
-        name="local-docker-slim-keypair",
+        name="local-docker-slim-keypair-telemetry",
         host="localhost",
         server_host="0.0.0.0",
         ssh_port=local_ssh_port,
         server_connection_type="ssh",
-        den_auth=den_auth,
         ssh_creds={
             "ssh_user": SSH_USER,
             "ssh_private_key": keypath,
         },
+        use_local_telemetry=True,
     )
     c = rh.cluster(**args)
     init_args[id(c)] = args
     rh.env(
-        reqs=["pytest", "httpx", "pytest_asyncio"],
+        reqs=["pytest"],
         working_dir=None,
         setup_cmds=[
             f'mkdir -p ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
