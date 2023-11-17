@@ -68,7 +68,6 @@ def test_error_multiple_truths():
         assert isinstance(e, Exception)
 
 
-# TODO: this test is failing
 @pytest.mark.rnstest
 def test_custom_provider_secret():
     provider = "custom_provider1"

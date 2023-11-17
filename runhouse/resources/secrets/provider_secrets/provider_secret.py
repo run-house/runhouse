@@ -216,7 +216,6 @@ class ProviderSecret(Secret):
         return new_secret
 
     def _from_env(self, env_vars: Dict = None):
-        env_vars = env_vars or self.env_vars
         if not env_vars:
             return {}
 

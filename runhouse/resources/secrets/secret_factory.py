@@ -1,6 +1,7 @@
 from typing import Dict, Optional, Union
 
 from runhouse.resources.blobs.file import File
+from runhouse.resources.secrets.provider_secrets.provider_secret import ProviderSecret
 from runhouse.resources.secrets.secret import Secret
 
 from .provider_secrets.providers import _get_provider_class
@@ -10,7 +11,7 @@ def secret(
     name: Optional[str] = None,
     values: Optional[Dict] = None,
     dryrun: bool = False,
-):
+) -> Secret:
     """Builds an instance of :class:`Secret`.
 
     Args:
@@ -40,7 +41,7 @@ def provider_secret(
     path: Union[str, File] = None,
     env_vars: Optional[Dict] = None,
     dryrun: bool = False,
-):
+) -> ProviderSecret:
     """
     Builds an instance of :class:`ProviderSecret`. At most one of of values, path, and env_vars
     can be provided, to maintain one source of truth. If None are provided, will infer the values
