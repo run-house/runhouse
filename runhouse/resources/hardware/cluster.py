@@ -383,12 +383,11 @@ class Cluster(Resource):
         if self._rpc_tunnel and force_reconnect:
             self._rpc_tunnel.close()
 
-        tunnel_refcount = 0
         ssh_tunnel = None
         connected_port = self.server_port
         if self.address in open_cluster_tunnels:
-            ssh_tunnel, connected_port, tunnel_refcount = open_cluster_tunnels[
-                self.address
+            ssh_tunnel, connected_port = open_cluster_tunnels[
+                (self.address, self.ssh_port)
             ]
             if isinstance(ssh_tunnel, SSHTunnelForwarder):
                 ssh_tunnel.check_tunnels()
@@ -402,15 +401,14 @@ class Cluster(Resource):
         ):
             # Case 3: server connection requires SSH tunnel, but we don't have one up yet
             self._rpc_tunnel, connected_port = self.ssh_tunnel(
-                self.server_port,
+                local_port=self.server_port,
                 remote_port=self.server_port,
-                num_ports_to_try=5,
+                num_ports_to_try=10,
             )
 
-        open_cluster_tunnels[self.address] = (
+        open_cluster_tunnels[(self.address, self.ssh_port)] = (
             self._rpc_tunnel,
             connected_port,
-            tunnel_refcount + 1,
         )
 
         if self._rpc_tunnel:
