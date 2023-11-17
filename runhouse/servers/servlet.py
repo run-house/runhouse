@@ -11,7 +11,7 @@ from typing import List, Union
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-from runhouse.globals import configs, obj_store
+from runhouse.globals import obj_store
 
 from runhouse.resources.blobs import blob, Blob
 from runhouse.resources.module import Module
@@ -553,45 +553,6 @@ class EnvServlet:
         self.register_activity()
         keys: list = list(obj_store.keys())
         return Response(data=pickle_b64(keys), output_type=OutputType.RESULT)
-
-    def add_secrets(self, message: Message):
-        from runhouse import Secrets
-
-        self.register_activity()
-        secrets_to_add: dict = b64_unpickle(message.data)
-        failed_providers = (
-            {}
-        )  # Track which providers fail and send them back to the user
-        try:
-            for provider_name, provider_secrets in secrets_to_add.items():
-                p = Secrets.builtin_provider_class_from_name(provider_name)
-                if p is None:
-                    error_msg = f"{provider_name} is not a Runhouse builtin provider"
-                    failed_providers[provider_name] = error_msg
-                    continue
-
-                # NOTE: For now we are always saving in the provider's default location on the cluster
-                credentials_path = p.default_credentials_path()
-                try:
-                    p.save_secrets(provider_secrets, overwrite=True)
-                except Exception as e:
-                    failed_providers[provider_name] = str(e)
-                    continue
-
-                # update config on the cluster with the default creds path for each provider
-                configs.set_nested("secrets", {provider_name: credentials_path})
-                logger.info(f"Added secrets for {provider_name} to: {credentials_path}")
-            return Response(
-                data=pickle_b64(failed_providers), output_type=OutputType.RESULT
-            )
-        except Exception as e:
-            logger.exception(e)
-            self.register_activity()
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
 
     def call(
         self,

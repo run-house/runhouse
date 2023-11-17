@@ -10,6 +10,7 @@ from typing import Optional
 
 import ray
 import requests
+import yaml
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -622,9 +623,8 @@ class HTTPServer:
     @staticmethod
     def _cluster_sky_report():
         try:
-            from runhouse import Secrets
-
-            sky_ray_data = Secrets.read_yaml_file(HTTPServer.SKY_YAML)
+            with open(HTTPServer.SKY_YAML, "r") as stream:
+                sky_ray_data = yaml.safe_load(stream)
         except FileNotFoundError:
             # For non on-demand clusters we won't have sky data
             return {}

@@ -295,12 +295,11 @@ class Cluster(Resource):
         self.check_server()
         return self.get(run_name, remote=True).provenance
 
-    # TODO this doesn't need to be a dedicated rpc, it can just flow through Secrets.to and put_resource,
-    #  like installing packages. Also, it should accept an env (for env var secrets and docker envs).
-    def add_secrets(self, provider_secrets: dict):
+    # TODO This should accept an env (for env var secrets and docker envs).
+    def add_secrets(self, provider_secrets: List[str or "Secret"]):
         """Copy secrets from current environment onto the cluster"""
         self.check_server()
-        return self.client.add_secrets(provider_secrets)
+        self.sync_secrets(provider_secrets)
 
     def put(self, key: str, obj: Any, env=None):
         """Put the given object on the cluster's object store at the given key."""
