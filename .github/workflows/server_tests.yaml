@@ -1,0 +1,49 @@
+name: server-tests
+
+on: [push, pull_request]
+
+jobs:
+  server-test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+#        python-version: [3.7, 3.8, 3.9, 3.10]
+        python-version: [3.9]
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest httpx pytest_asyncio docker pyyaml
+        pip install -r requirements.txt
+    - name: Set up Docker SSH Private Key
+      run: |
+        mkdir -p $HOME/.ssh/runhouse/docker
+        echo "${{ secrets.DOCKER_SSH_KEY }}" > $HOME/.ssh/runhouse/docker/id_rsa
+        chmod 600 $HOME/.ssh/runhouse/docker/id_rsa
+    - name: Set up Docker SSH Public Key
+      run: |
+        echo "${{ secrets.DOCKER_SSH_PUBLIC_KEY }}" > $HOME/.ssh/runhouse/docker/id_rsa.pub
+        chmod 600 $HOME/.ssh/runhouse/docker/id_rsa.pub
+    - name: Save Runhouse config
+      env:
+        TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+        TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+      run: |
+        mkdir -p $HOME/.rh
+        python -c "import yaml; import os; config = {'token': os.environ['TEST_TOKEN'], 'username': os.environ['TEST_USERNAME'], 'default_folder': f\"/{os.environ['TEST_USERNAME']}\", 'default_keypair': '$HOME/.ssh/runhouse/docker/id_rsa'}; yaml.dump(config, open('$HOME/.rh/config.yaml', 'w'))"
+    - name: Add localhost to SSH known hosts
+      run: |
+        mkdir -p $HOME/.ssh
+        ssh-keyscan -t ed25519 localhost >> $HOME/.ssh/known_hosts
+        chmod 644 $HOME/.ssh/known_hosts
+    - name: Run all server tests
+      run: |
+        pytest tests/test_servers

@@ -114,7 +114,7 @@ class TLSCertConfig:
                 ip_addr = ipaddress.IPv4Address(address)
                 subject_names.append(x509.IPAddress(ip_addr))
             except ipaddress.AddressValueError:
-                # If not a valid IP address, treat it as a DNS name
+                # If not a valid IP address (e.g. "localhost"), treat it as a DNS name
                 subject_names.append(x509.DNSName(address))
 
         # Add Subject Alternative Name extension

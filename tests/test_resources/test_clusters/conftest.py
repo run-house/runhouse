@@ -472,7 +472,7 @@ def local_docker_cluster_telemetry_public_key(request, detached=True):
 
 
 @pytest.fixture(scope="session")
-def local_docker_cluster_telemetry_public_key_with_tls(request, detached=True):
+def local_docker_cluster_telemetry_public_key_with_https(request, detached=True):
     container_name = "rh-slim-keypair-telemetry"
     client, cluster_args = build_local_docker_cluster_with_telemetry(
         request,
@@ -481,6 +481,39 @@ def local_docker_cluster_telemetry_public_key_with_tls(request, detached=True):
         detached=detached,
         container_name=container_name,
         port_fwd_str="8443:443",
+    )
+    c = rh.cluster(**cluster_args)
+    init_args[id(c)] = cluster_args
+    rh.env(
+        reqs=["pytest"],
+        working_dir=None,
+        setup_cmds=[
+            f'mkdir -p ~/.rh; echo "token: {rh.configs.get("token")}" > ~/.rh/config.yaml'
+        ],
+        name="base_env",
+    ).to(c)
+    c.save()
+
+    # Yield the cluster
+    yield c
+
+    # Stop the Docker container
+    if not detached:
+        client.containers.get(container_name).stop()
+        client.containers.prune()
+        client.images.prune()
+
+
+@pytest.fixture(scope="session")
+def local_docker_cluster_telemetry_public_key_with_http(request, detached=True):
+    container_name = "rh-slim-keypair-telemetry"
+    client, cluster_args = build_local_docker_cluster_with_telemetry(
+        request,
+        den_auth=True,
+        detached=detached,
+        server_connection_type="none",
+        container_name=container_name,
+        port_fwd_str="8080:80",
     )
     c = rh.cluster(**cluster_args)
     init_args[id(c)] = cluster_args
