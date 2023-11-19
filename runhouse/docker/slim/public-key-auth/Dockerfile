@@ -21,7 +21,7 @@ RUN apt-get update --allow-insecure-repositories && \
 COPY $RUNHOUSE_PATH /app/runhouse
 
 # If using a local version of runhouse, install it from the local directory
-RUN if [ -d "/app/runhouse" ]; then pip install -U -e /app/runhouse; else pip install -U runhouse[opentelemetry]==$RUNHOUSE_VERSION; fi
+RUN if [ -d "/app/runhouse" ]; then pip install -U -e '/app/runhouse[opentelemetry]'; else pip install -U 'runhouse[opentelemetry]==$RUNHOUSE_VERSION'; fi
 
 # Create the privilege separation directory required by sshd
 RUN mkdir -p /run/sshd

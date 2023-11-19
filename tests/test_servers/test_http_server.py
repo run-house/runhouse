@@ -4,23 +4,19 @@ import unittest
 
 from pathlib import Path
 
-import httpx
 import pytest
 
 import runhouse as rh
 from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 
-from tests.test_servers.conftest import BASE_URL, http_server_is_up, summer
+from tests.test_servers.conftest import summer
 
 
 @pytest.fixture(scope="class")
 def base_cluster(local_docker_cluster_public_key):
-    if http_server_is_up():
-        # Should receive a 200 when den auth is disabled
-        resp = httpx.get(f"{BASE_URL}/keys")
-        if resp.status_code != 200:
-            # Restart the server without den auth
-            local_docker_cluster_public_key.restart_server()
+    # Restart the server on the cluster without den auth
+    local_docker_cluster_public_key.den_auth = False
+    local_docker_cluster_public_key.restart_server()
 
     return local_docker_cluster_public_key
 

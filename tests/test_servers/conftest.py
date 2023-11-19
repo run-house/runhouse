@@ -20,15 +20,6 @@ def summer(a, b):
     return a + b
 
 
-def http_server_is_up():
-    try:
-        resp = httpx.get(f"{BASE_URL}/check")
-        resp.raise_for_status()  # Will raise an exception for any status code 400 and above
-        return True
-    except httpx.HTTPError:
-        return False
-
-
 # -------- FIXTURES ----------- #
 @pytest.fixture(scope="module")
 def http_client():

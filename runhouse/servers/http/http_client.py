@@ -87,8 +87,14 @@ class HTTPClient:
             if req_type == "delete"
             else requests.post
         )
+        # Note: For localhost (e.g. docker) do not add trailing slash (will lead to connection errors)
         endpoint = endpoint.strip("/")
-        endpoint = (endpoint + "/") if "?" not in endpoint else endpoint
+        if (
+            self.host not in ["localhost", "127.0.0.1", "0.0.0.0"]
+            and "?" not in endpoint
+        ):
+            endpoint += "/"
+
         response = req_fn(
             self._formatted_url(endpoint),
             json={

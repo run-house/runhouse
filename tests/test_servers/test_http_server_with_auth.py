@@ -5,7 +5,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import httpx
 import pytest
 
 import runhouse as rh
@@ -13,17 +12,14 @@ import runhouse as rh
 from runhouse.globals import rns_client
 from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 
-from tests.test_servers.conftest import BASE_URL, http_server_is_up, summer
+from tests.test_servers.conftest import summer
 
 
 @pytest.fixture(scope="class")
 def base_cluster(local_docker_cluster_public_key):
-    if http_server_is_up():
-        resp = httpx.get(f"{BASE_URL}/keys")
-        # Should receive a 404 (no token provided in request) when den auth is enabled
-        if resp.status_code != 404:
-            # Restart the server with den auth
-            local_docker_cluster_public_key.restart_server()
+    # Restart the server on the cluster with den auth
+    local_docker_cluster_public_key.den_auth = True
+    local_docker_cluster_public_key.restart_server()
 
     return local_docker_cluster_public_key
 
@@ -219,17 +215,21 @@ class TestHTTPServerWithAuth:
 
     # -------- INVALID TOKEN / CLUSTER ACCESS TESTS ----------- #
     def test_request_with_no_cluster_config_yaml(self, http_client, base_cluster):
-        base_cluster.run(
+        ret_codes = base_cluster.run(
             ["mv ~/.rh/cluster_config.yaml ~/.rh/cluster_config_temp.yaml"]
         )
+        assert ret_codes[0][0] == 0, f"Failed to run command: {ret_codes[0]}"
+
         response = http_client.get("/keys", headers=rns_client.request_headers)
 
         assert response.status_code == 404
         assert "Failed to load current cluster" in response.text
 
-        base_cluster.run(
+        ret_codes = base_cluster.run(
             ["mv ~/.rh/cluster_config_temp.yaml ~/.rh/cluster_config.yaml"]
         )
+        assert ret_codes[0][0] == 0, f"Failed to run command: {ret_codes[0]}"
+
         response = http_client.get("/keys", headers=self.invalid_headers)
 
         assert response.status_code == 403

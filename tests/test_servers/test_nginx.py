@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, mock_open, patch
 import pytest
 import requests
 
+from runhouse.globals import rns_client
+from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 from runhouse.servers.nginx.config import NginxConfig
 
 
@@ -395,45 +397,58 @@ class TestNginxConfiguration:
         assert https_template == expected_https_template
 
 
-@pytest.fixture(scope="session")
-def local_docker_cluster(request):
-    if request.param == "https":
-        return request.getfixturevalue(
-            "local_docker_cluster_telemetry_public_key_with_https"
-        )
-    elif request.param == "http":
-        return request.getfixturevalue(
-            "local_docker_cluster_telemetry_public_key_with_http"
-        )
-
-
 class TestNginxServerLocally:
-    @pytest.mark.parametrize("local_docker_cluster", ["https", "http"], indirect=True)
-    def test_public_key_on_local_docker_cluster(self, local_docker_cluster):
-        local_docker_cluster.check_server()
+    def test_using_nginx_on_local_cluster_with_https(
+        self, local_docker_cluster_public_key_with_https
+    ):
+        local_docker_cluster_public_key_with_https.check_server()
 
-        # Make sure https or http is configured properly on the server
-        local_docker_cluster.restart_server()
+        assert local_docker_cluster_public_key_with_https.is_up()
 
-        assert local_docker_cluster.is_up()  # Should be true for a Cluster object
-
-        # Make a GET request to the /spans endpoint
-        # (ex: for local docker with nginx: http://localhost:443/spans)
-        suffix = (
-            "https" if local_docker_cluster.server_connection_type == "tls" else "http"
+        suffix = "https"
+        key = "key1"
+        test_list = list(range(5, 50, 2)) + ["a string"]
+        response = requests.post(
+            f"{suffix}://{local_docker_cluster_public_key_with_https.address}:{local_docker_cluster_public_key_with_https.server_port}/object",
+            json={"data": pickle_b64(test_list), "key": key},
+            headers=rns_client.request_headers,
+            verify=False,
         )
-        response = requests.get(
-            f"{suffix}://{local_docker_cluster.address}:{local_docker_cluster.server_port}/spans"
-        )
-
-        # Check the status code
         assert response.status_code == 200
 
-        # JSON parse the response
-        parsed_response = response.json()
+        response = requests.get(
+            f"{suffix}://{local_docker_cluster_public_key_with_https.address}:{local_docker_cluster_public_key_with_https.server_port}/keys",
+            headers=rns_client.request_headers,
+            verify=False,
+        )
 
-        # Assert that the key "spans" exists in the parsed response
-        assert "spans" in parsed_response, "'spans' not in response"
+        assert response.status_code == 200
+        assert key in b64_unpickle(response.json().get("data"))
+
+    def test_using_nginx_on_local_cluster_with_http(
+        self, local_docker_cluster_public_key_with_http
+    ):
+        local_docker_cluster_public_key_with_http.check_server()
+
+        assert local_docker_cluster_public_key_with_http.is_up()
+
+        suffix = "http"
+        key = "key1"
+        test_list = list(range(5, 50, 2)) + ["a string"]
+        response = requests.post(
+            f"{suffix}://{local_docker_cluster_public_key_with_http.address}:{local_docker_cluster_public_key_with_http.server_port}/object",
+            json={"data": pickle_b64(test_list), "key": key},
+            headers=rns_client.request_headers,
+        )
+        assert response.status_code == 200
+
+        response = requests.get(
+            f"{suffix}://{local_docker_cluster_public_key_with_http.address}:{local_docker_cluster_public_key_with_http.server_port}/keys",
+            headers=rns_client.request_headers,
+        )
+
+        assert response.status_code == 200
+        assert key in b64_unpickle(response.json().get("data"))
 
 
 if __name__ == "__main__":

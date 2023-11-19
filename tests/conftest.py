@@ -98,9 +98,9 @@ from tests.test_resources.test_clusters.conftest import (
     cluster,  # noqa: F401
     local_docker_cluster_passwd,  # noqa: F401
     local_docker_cluster_public_key,  # noqa: F401
+    local_docker_cluster_public_key_with_http,  # noqa: F401
+    local_docker_cluster_public_key_with_https,  # noqa: F401
     local_docker_cluster_telemetry_public_key,  # noqa: F401
-    local_docker_cluster_telemetry_public_key_with_http,  # noqa: F401
-    local_docker_cluster_telemetry_public_key_with_https,  # noqa: F401
     local_logged_out_docker_cluster,  # noqa: F401
     local_test_account_cluster_public_key,  # noqa: F401
     named_cluster,  # noqa: F401
@@ -187,7 +187,6 @@ from tests.test_resources.test_modules.test_tables.conftest import (
     ray_table,  # noqa: F401
     table,  # noqa: F401
 )
-
 
 ########## DEFAULT LEVELS ##########
 

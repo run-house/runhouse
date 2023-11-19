@@ -696,10 +696,9 @@ if __name__ == "__main__":
         "--conda-env", type=str, default=None, help="Conda env to run server in"
     )
     parser.add_argument(
-        "--enable-local-span-collection",
-        type=bool,
-        default=None,
-        help="Enable local span collection",
+        "--use-local-telemetry",
+        action="store_true",  # if providing --use-local-telemetry will be set to True
+        help="Enable local telemetry",
     )
     parser.add_argument(
         "--use-https",
@@ -753,7 +752,7 @@ if __name__ == "__main__":
     use_https = parse_args.use_https
     restart_proxy = parse_args.restart_proxy
     use_nginx = parse_args.use_nginx
-    should_enable_local_span_collection = parse_args.enable_local_span_collection
+    use_local_telemetry = parse_args.use_local_telemetry
 
     # Update globally inside the module based on the args passed in or the cluster config
     den_auth = parse_args.use_den_auth or cluster_config.get("den_auth")
@@ -770,7 +769,7 @@ if __name__ == "__main__":
 
     HTTPServer(
         conda_env=conda_name,
-        enable_local_span_collection=should_enable_local_span_collection,
+        enable_local_span_collection=use_local_telemetry,
     )
 
     if den_auth:
@@ -800,10 +799,10 @@ if __name__ == "__main__":
         )
 
         if not Path(ssl_keyfile).exists() and not Path(ssl_certfile).exists():
-            if https_port != default_https_port:
+            if https_port not in [default_https_port, 8443]:
                 # if using a custom HTTPS port must provide private key file and certs explicitly
                 raise FileNotFoundError(
-                    f"Could not find SSL private key and cert files on the cluster, which are required when specifying"
+                    f"Could not find SSL private key and cert files on the cluster, which are required when specifying "
                     f"a custom port ({https_port}). Please specify the paths using the --ssl-certfile and "
                     f"--ssl-keyfile flags."
                 )
@@ -846,7 +845,9 @@ if __name__ == "__main__":
 
     host = host or rh_server_host
     logger.info(
-        f"Launching Runhouse API server with den_auth={den_auth} on host: {host} and port: {rh_server_port}"
+        f"Launching Runhouse API server with den_auth={den_auth} and "
+        + f"use_local_telemetry={use_local_telemetry} "
+        + f"on host: {host} and port: {rh_server_port}"
     )
 
     # Only launch uvicorn with certs if HTTPS is enabled and not using Nginx
