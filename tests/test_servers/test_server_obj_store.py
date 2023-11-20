@@ -174,17 +174,17 @@ class TestAuthCacheObjStore:
     """Start object store in a local auth cache servlet"""
 
     def test_resource_access_level(self, obj_store, test_account):
-        with test_account as t:
-            token = t["test_token"]
-            resource_uri = f"/{t['test_username']}/summer"
+        with test_account as test_account_dict:
+            token = test_account_dict["token"]
+            resource_uri = f"/{test_account_dict['username']}/summer"
             access_level = obj_store.resource_access_level(
                 hash_token(token), resource_uri
             )
             assert access_level == "write"
 
     def test_user_resources(self, obj_store, test_account):
-        with test_account as t:
-            token = t["test_token"]
+        with test_account as test_account_dict:
+            token = test_account_dict["token"]
             resources = obj_store.user_resources(hash_token(token))
             assert isinstance(resources, dict)
 
@@ -194,9 +194,9 @@ class TestAuthCacheObjStore:
         assert not resources
 
     def test_no_resource_access_for_invalid_token(self, obj_store, test_account):
-        token = "abc"
-        with test_account as t:
-            resource_uri = f"/{t['test_username']}/summer"
+        with test_account as test_account_dict:
+            token = "abc"
+            resource_uri = f"/{test_account_dict['username']}/summer"
             access_level = obj_store.resource_access_level(
                 hash_token(token), resource_uri
             )

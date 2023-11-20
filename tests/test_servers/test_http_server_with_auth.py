@@ -16,16 +16,16 @@ from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 from tests.test_servers.conftest import BASE_URL, http_server_is_up, summer
 
 
-@pytest.fixture(scope="class")
-def base_cluster(local_docker_cluster_public_key):
+@pytest.fixture(scope="function")
+def base_cluster(local_docker_cluster_public_key_logged_in):
     if http_server_is_up():
         resp = httpx.get(f"{BASE_URL}/keys")
         # Should receive a 404 (no token provided in request) when den auth is enabled
         if resp.status_code != 404:
             # Restart the server with den auth
-            local_docker_cluster_public_key.restart_server()
+            local_docker_cluster_public_key_logged_in.restart_server()
 
-    return local_docker_cluster_public_key
+    return local_docker_cluster_public_key_logged_in
 
 
 @pytest.mark.usefixtures("base_cluster")
@@ -222,14 +222,15 @@ class TestHTTPServerWithAuth:
         base_cluster.run(
             ["mv ~/.rh/cluster_config.yaml ~/.rh/cluster_config_temp.yaml"]
         )
-        response = http_client.get("/keys", headers=rns_client.request_headers)
+        try:
+            response = http_client.get("/keys", headers=rns_client.request_headers)
 
-        assert response.status_code == 404
-        assert "Failed to load current cluster" in response.text
-
-        base_cluster.run(
-            ["mv ~/.rh/cluster_config_temp.yaml ~/.rh/cluster_config.yaml"]
-        )
+            assert response.status_code == 404
+            assert "Failed to load current cluster" in response.text
+        finally:
+            base_cluster.run(
+                ["mv ~/.rh/cluster_config_temp.yaml ~/.rh/cluster_config.yaml"]
+            )
         response = http_client.get("/keys", headers=self.invalid_headers)
 
         assert response.status_code == 403
@@ -526,15 +527,16 @@ class TestHTTPServerWithAuthLocally:
         destination_path = os.path.expanduser("~/.rh/cluster_config_temp.yaml")
 
         # Use the expanded paths in the command
-        subprocess.run(["mv", source_path, destination_path])
-        response = local_client_with_den_auth.get(
-            "/keys", headers=rns_client.request_headers
-        )
+        try:
+            subprocess.run(["mv", source_path, destination_path])
+            response = local_client_with_den_auth.get(
+                "/keys", headers=rns_client.request_headers
+            )
 
-        assert response.status_code == 404
-        assert "Failed to load current cluster" in response.text
-
-        subprocess.run(["mv", destination_path, source_path])
+            assert response.status_code == 404
+            assert "Failed to load current cluster" in response.text
+        finally:
+            subprocess.run(["mv", destination_path, source_path])
 
         resp = local_client_with_den_auth.get("/keys", headers=self.invalid_headers)
         assert resp.status_code == 403
