@@ -93,3 +93,9 @@ def _check_file_for_mismatches(path, existing_vals, new_vals, overwrite):
         )
         return True
     return False
+
+
+def _get_env_file_values(path):
+    from dotenv import dotenv_values
+
+    return dotenv_values(os.path.expanduser(path))

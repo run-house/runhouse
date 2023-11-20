@@ -286,6 +286,60 @@ def test_provider_secret_to_cluster(provider, path, values, ondemand_cpu_cluster
     assert_delete_local(local_secret, contents=delete_contents)
 
 
+# ------- ENV VAR SECRETS TEST ------- #
+env_var_map = {
+    "ENV_VAR1": "env_value",
+    "ENV_VAR2": "env_value2",
+}
+
+
+def _get_env_var_value(env_var):
+    import os
+
+    return os.environ[env_var]
+
+
+@pytest.mark.rnstest
+def test_vault_env_var_secret():
+    name = "_env_var_secret"
+    rh.env_var_secret(name=name, values=env_var_map).save()
+
+    reloaded_secret = rh.env_var_secret(name=name)
+    assert reloaded_secret.values == env_var_map
+
+    reloaded_secret.delete()
+    assert not reloaded_secret.in_vault()
+
+
+def test_secret_from_env_vars():
+    for key, val in env_var_map.items():
+        os.environ[key] = val
+    env_secret = rh.env_var_secret(env_vars=list(env_var_map.keys()))
+    assert env_secret.values == env_var_map
+
+
+def test_set_env_var_secret():
+    env_secret = rh.env_var_secret(values=env_var_map)
+    env_secret.set()
+    for key, val in env_var_map.items():
+        assert os.environ[key] == val
+        del os.environ[key]
+
+
+@pytest.mark.clustertest
+def test_env_var_secret_to(ondemand_cpu_cluster):
+    name = "_env_var_secret"
+    env = rh.env()  # base env
+    env_secret = rh.env_var_secret(name=name, values=env_var_map)
+    env_secret.to(ondemand_cpu_cluster, env)
+
+    assert ondemand_cpu_cluster.get(env_secret.name).values == env_var_map
+
+    get_env_var_fn = rh.function(_get_env_var_value).to(ondemand_cpu_cluster, env)
+    for key, val in env_var_map.items():
+        assert get_env_var_fn(key) == val
+
+
 # Other Secrets functionality tests
 
 

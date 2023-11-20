@@ -12,6 +12,8 @@ Secrets Factory Methods
 
 .. autofunction:: runhouse.provider_secret
 
+.. autofunction:: runhouse.env_var_secret
+
 
 Secret Class
 ~~~~~~~~~~~~
@@ -26,6 +28,15 @@ ProviderSecret Class
 ~~~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: runhouse.ProviderSecret
+   :members:
+   :exclude-members:
+
+    .. automethod:: __init__
+
+EnvVarSecret Class
+~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: runhouse.EnvVarSecret
    :members:
    :exclude-members:
 

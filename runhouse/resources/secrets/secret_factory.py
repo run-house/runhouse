@@ -1,6 +1,7 @@
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from runhouse.resources.blobs.file import File
+from runhouse.resources.secrets.env_var_secret import EnvVarSecret
 from runhouse.resources.secrets.provider_secrets.provider_secret import ProviderSecret
 from runhouse.resources.secrets.secret import Secret
 
@@ -93,3 +94,42 @@ def provider_secret(
         )
 
     raise ValueError("Only one of values, path, and env_vars should be set.")
+
+
+def env_var_secret(
+    name: str = None,
+    env_vars: List[str] = None,
+    values: Optional[Dict] = None,
+    dryrun: bool = False,
+) -> EnvVarSecret:
+    """
+    Builds an instance of :class:`EnvVarSecret`. At most one of of env_vars and values
+    can be provided, to maintain one source of truth.
+
+    Args:
+        name (str, optional): Name to assign the resource. If none is provided, resource name defaults to the
+            provider name.
+        env_vars (List[str], optional): Dictionary mapping secret keys to the corresponding
+            environment variable key.
+        values (Dict, optional): Dictionary mapping of environment variable keys to values.
+        dryrun (bool): Whether to creat in dryrun mode. (Default: False)
+
+    Returns:
+        EnvVarSecret: The resulting env var secret object.
+
+    Example:
+        >>> local_env_var_secret = rh.env_var_secret(env_vars=["PYTHONPATH"])
+        >>> env_secret = rh.env_var_secret(values={"API_KEY": "abcd"})
+    """
+    if name and not any([env_vars, values]):
+        return EnvVarSecret.from_name(name, dryrun)
+    if env_vars and values:
+        raise ValueError(
+            "Only one of env_vars and values should be set. One will be infered from the other."
+        )
+    return EnvVarSecret(
+        name=name,
+        env_vars=env_vars,
+        values=values,
+        dryrun=dryrun,
+    )
