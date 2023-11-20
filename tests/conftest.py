@@ -97,9 +97,9 @@ from tests.test_resources.test_clusters.conftest import (
     byo_cpu,  # noqa: F401
     cluster,  # noqa: F401
     local_docker_cluster_passwd,  # noqa: F401
-    local_docker_cluster_public_key,  # noqa: F401
+    local_docker_cluster_public_key_logged_in,  # noqa: F401
+    local_docker_cluster_public_key_logged_out,  # noqa: F401
     local_docker_cluster_telemetry_public_key,  # noqa: F401
-    local_logged_out_docker_cluster,  # noqa: F401
     local_test_account_cluster_public_key,  # noqa: F401
     named_cluster,  # noqa: F401
     password_cluster,  # noqa: F401
@@ -190,15 +190,26 @@ from tests.test_resources.test_modules.test_tables.conftest import (
 ########## DEFAULT LEVELS ##########
 
 default_fixtures = {}
-default_fixtures[TestLevels.UNIT] = {"cluster": [local_docker_cluster_public_key]}
+default_fixtures[TestLevels.UNIT] = {
+    "cluster": [
+        local_docker_cluster_public_key_logged_in,
+        local_docker_cluster_public_key_logged_out,
+    ]
+}
 default_fixtures[TestLevels.LOCAL] = {
-    "cluster": [local_docker_cluster_public_key, local_docker_cluster_passwd]
+    "cluster": [
+        local_docker_cluster_public_key_logged_in,
+        local_docker_cluster_public_key_logged_out,
+        local_docker_cluster_passwd,
+    ]
 }
 default_fixtures[TestLevels.MINIMAL] = {"cluster": [ondemand_cpu_cluster]}
 default_fixtures[TestLevels.THOROUGH] = {
     "cluster": [
         local_docker_cluster_passwd,
-        local_docker_cluster_public_key,
+        local_docker_cluster_public_key_logged_in,
+        local_docker_cluster_public_key_logged_out,
+        local_docker_cluster_telemetry_public_key,
         ondemand_cpu_cluster,
         ondemand_https_cluster_with_auth,
         password_cluster,
@@ -208,7 +219,9 @@ default_fixtures[TestLevels.THOROUGH] = {
 default_fixtures[TestLevels.MAXIMAL] = {
     "cluster": [
         local_docker_cluster_passwd,
-        local_docker_cluster_public_key,
+        local_docker_cluster_public_key_logged_in,
+        local_docker_cluster_public_key_logged_out,
+        local_docker_cluster_telemetry_public_key,
         ondemand_cpu_cluster,
         ondemand_https_cluster_with_auth,
         password_cluster,

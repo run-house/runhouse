@@ -11,7 +11,7 @@ RESOURCE_NAME = "my_resource"
 ######## Fixtures ########
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def resource(request):
     return request.getfixturevalue(request.param.__name__)
 
