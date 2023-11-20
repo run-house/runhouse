@@ -466,13 +466,15 @@ def local_docker_cluster_with_nginx(request):
 
     protocol = request.param
     if protocol == "https":
-        server_port = LOCAL_HTTPS_SERVER_PORT
+        server_port = 443
         server_connection_type = "tls"
-        port_fwds.append(f"{LOCAL_HTTPS_SERVER_PORT}:443")
+        client_port = LOCAL_HTTPS_SERVER_PORT + 3
+        port_fwds.append(f"{client_port}:443")
     else:
-        server_port = LOCAL_HTTP_SERVER_PORT
+        server_port = 80
         server_connection_type = "none"
-        port_fwds.append(f"{LOCAL_HTTP_SERVER_PORT}:80")
+        client_port = LOCAL_HTTP_SERVER_PORT + 3
+        port_fwds.append(f"{client_port}:80")
 
     client, rh_parent_path = build_and_run_image(
         image_name=image_name,
@@ -492,6 +494,7 @@ def local_docker_cluster_with_nginx(request):
         ssh_port=local_ssh_port,
         server_connection_type=server_connection_type,
         server_port=server_port,
+        client_port=client_port,
         den_auth=True,
         ssh_creds={
             "ssh_user": SSH_USER,

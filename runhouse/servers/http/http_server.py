@@ -799,7 +799,7 @@ if __name__ == "__main__":
         )
 
         if not Path(ssl_keyfile).exists() and not Path(ssl_certfile).exists():
-            if https_port not in [default_https_port, 8443]:
+            if https_port != default_https_port:
                 # if using a custom HTTPS port must provide private key file and certs explicitly
                 raise FileNotFoundError(
                     f"Could not find SSL private key and cert files on the cluster, which are required when specifying "

@@ -579,17 +579,10 @@ class Cluster(Resource):
 
     @property
     def _use_nginx(self) -> bool:
-        """Use Nginx if the server port is set to the default HTTP (80/ 8080) or HTTPS (443 / 8443) port.
+        """Use Nginx if the server port is set to the default HTTP (80) or HTTPS (443) port.
         Note: Nginx will serve as a reverse proxy, forwarding traffic from the server port to the Runhouse API
         server running on port 32300."""
-        # Support 8080 and 8443 as defaults for running locally (e.g. in a docker container, to avoid port conflicts
-        # on the host)
-        return self.server_port in [
-            self.DEFAULT_HTTP_PORT,
-            self.DEFAULT_HTTPS_PORT,
-            8080,
-            8443,
-        ]
+        return self.server_port in [self.DEFAULT_HTTP_PORT, self.DEFAULT_HTTPS_PORT]
 
     @property
     def _use_custom_cert(self):
