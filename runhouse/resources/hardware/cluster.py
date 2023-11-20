@@ -485,7 +485,7 @@ class Cluster(Resource):
                     self.up_if_not()
                 elif restart_server:
                     logger.info(
-                        f"Server {self.name} is up, but the HTTP server may not be up."
+                        f"Server {self.name} is up, but the Runhouse API server may not be up."
                     )
                     self.restart_server()
                     for i in range(5):
@@ -499,9 +499,9 @@ class Cluster(Resource):
                             requests.exceptions.ReadTimeout,
                         ) as error:
                             if i == 5:
-                                print(error)
+                                logger.error(error)
                             time.sleep(5)
-                raise ValueError(f"Could not connect to cluster <{self.name}>")
+                raise ValueError(f"Could not connect to server {self.name}")
 
         import runhouse
 
@@ -776,6 +776,7 @@ class Cluster(Resource):
             + (f" --ssl-certfile {cluster_cert_path}" if use_custom_cert else "")
             + (f" --ssl-keyfile {cluster_key_path}" if use_custom_key else "")
             + (" --use-local-telemetry" if use_local_telemetry else "")
+            + f" --port {self.server_port}"
         )
 
         cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd
@@ -913,6 +914,7 @@ class Cluster(Resource):
                 runner.run(["mkdir", "-p", dest], stream_logs=False)
             else:
                 Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
+
             runner.rsync(
                 source,
                 dest,
@@ -920,6 +922,7 @@ class Cluster(Resource):
                 filter_options=filter_options,
                 stream_logs=stream_logs,
             )
+
         else:
             import pexpect
 
