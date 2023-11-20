@@ -20,6 +20,25 @@ def summer(a, b):
     return a + b
 
 
+def get_ray_servlet(env_name):
+    """Helper method for getting auth servlet and base env servlet"""
+    import ray
+
+    ray.init(
+        ignore_reinit_error=True,
+        runtime_env=None,
+        namespace="runhouse",
+    )
+
+    servlet = HTTPServer.get_env_servlet(
+        env_name=env_name,
+        create=True,
+        runtime_env=None,
+    )
+
+    return servlet
+
+
 # -------- FIXTURES ----------- #
 @pytest.fixture(scope="module")
 def http_client():
@@ -65,23 +84,12 @@ def local_client_with_den_auth():
 
 @pytest.fixture(scope="session")
 def base_servlet():
-    import ray
-
-    try:
-        yield ray.get_actor(BASE_ENV_ACTOR_NAME, namespace="runhouse")
-    except Exception as e:
-        # Note: One easy way to ensure this base env actor is created is to run the HTTP server tests
-        raise RuntimeError(e)
+    yield get_ray_servlet(BASE_ENV_ACTOR_NAME)
 
 
 @pytest.fixture(scope="session")
 def cache_servlet():
-    import ray
-
-    try:
-        yield ray.get_actor(CACHE_ENV_ACTOR_NAME, namespace="runhouse")
-    except Exception as e:
-        raise RuntimeError(e)
+    yield get_ray_servlet(CACHE_ENV_ACTOR_NAME)
 
 
 @pytest.fixture(scope="session")
