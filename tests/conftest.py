@@ -14,7 +14,7 @@ class TestLevels(str, enum.Enum):
     MAXIMAL = "maximal"
 
 
-DEFAULT_LEVEL = TestLevels.LOCAL
+DEFAULT_LEVEL = TestLevels.UNIT
 
 
 def pytest_addoption(parser):

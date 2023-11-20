@@ -20,7 +20,7 @@ from tests.test_servers.conftest import summer
 def base_cluster(local_docker_cluster_public_key_logged_in):
 
     local_docker_cluster_public_key_logged_in.den_auth = True
-    local_docker_cluster_public_key_logged_in.restart_server()
+    local_docker_cluster_public_key_logged_in.restart_server(resync_rh=False)
 
     return local_docker_cluster_public_key_logged_in
 
@@ -55,7 +55,7 @@ class TestHTTPServerWithAuth:
         )
         assert response.status_code == 200
 
-    def test_put_object(self, http_client):
+    def test_put_object_and_get_keys(self, http_client):
         key = "key1"
         test_list = list(range(5, 50, 2)) + ["a string"]
         response = http_client.post(
@@ -66,6 +66,7 @@ class TestHTTPServerWithAuth:
         assert response.status_code == 200
 
         response = http_client.get("/keys", headers=rns_client.request_headers)
+        assert response.status_code == 200
         assert key in b64_unpickle(response.json().get("data"))
 
     def test_rename_object(self, http_client):
@@ -79,11 +80,6 @@ class TestHTTPServerWithAuth:
 
         response = http_client.get("/keys", headers=rns_client.request_headers)
         assert new_key in b64_unpickle(response.json().get("data"))
-
-    def test_get_keys(self, http_client):
-        response = http_client.get("/keys", headers=rns_client.request_headers)
-        assert response.status_code == 200
-        assert "key2" in b64_unpickle(response.json().get("data"))
 
     def test_delete_obj(self, http_client):
         # https://www.python-httpx.org/compatibility/#request-body-on-http-methods

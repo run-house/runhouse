@@ -4,30 +4,25 @@ import unittest
 
 from pathlib import Path
 
-import httpx
 import pytest
 
 import runhouse as rh
 from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 
-from tests.test_servers.conftest import BASE_URL, http_server_is_up, summer
+from tests.test_resources.test_clusters.conftest import (
+    local_docker_cluster_public_key_logged_in,
+)
+
+from tests.test_servers.conftest import summer
 
 
-@pytest.fixture(scope="class")
-def base_cluster(local_docker_cluster_public_key):
-    if http_server_is_up():
-        # Should receive a 200 when den auth is disabled
-        resp = httpx.get(f"{BASE_URL}/keys")
-        if resp.status_code != 200:
-            # Restart the server without den auth
-            local_docker_cluster_public_key.restart_server()
-
-    return local_docker_cluster_public_key
-
-
-@pytest.mark.usefixtures("base_cluster")
+@pytest.mark.usefixtures("cluster")
 class TestHTTPServer:
     """Start HTTP server in a docker container running locally"""
+
+    UNIT = {"cluster": [local_docker_cluster_public_key_logged_in]}
+    LOCAL = {"cluster": [local_docker_cluster_public_key_logged_in]}
+    # TODO add local_docker_cluster_passwd into LOCAL too?
 
     def test_get_cert(self, http_client):
         response = http_client.get("/cert")
@@ -43,14 +38,14 @@ class TestHTTPServer:
         response = http_client.get("/check")
         assert response.status_code == 200
 
-    def test_put_resource(self, http_client, local_blob, base_cluster):
+    def test_put_resource(self, http_client, cluster, local_blob):
         state = None
-        resource = local_blob.to(base_cluster)
+        resource = local_blob.to(cluster)
         data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
         response = http_client.post("/resource", json={"data": data})
         assert response.status_code == 200
 
-    def test_put_object(self, http_client):
+    def test_put_object_and_get_keys(self, http_client):
         key = "key1"
         test_list = list(range(5, 50, 2)) + ["a string"]
         response = http_client.post(
@@ -59,6 +54,7 @@ class TestHTTPServer:
         assert response.status_code == 200
 
         response = http_client.get("/keys")
+        assert response.status_code == 200
         assert key in b64_unpickle(response.json().get("data"))
 
     def test_rename_object(self, http_client):
@@ -70,11 +66,6 @@ class TestHTTPServer:
 
         response = http_client.get("/keys")
         assert new_key in b64_unpickle(response.json().get("data"))
-
-    def test_get_keys(self, http_client):
-        response = http_client.get("/keys")
-        assert response.status_code == 200
-        assert "key2" in b64_unpickle(response.json().get("data"))
 
     def test_delete_obj(self, http_client):
         # https://www.python-httpx.org/compatibility/#request-body-on-http-methods
@@ -104,9 +95,9 @@ class TestHTTPServer:
         assert isinstance(resp_data, dict)
         assert "test_provider is not a Runhouse builtin provider" in resp_data.values()
 
-    def test_call_module_method(self, http_client, base_cluster):
+    def test_call_module_method(self, http_client, cluster):
         # Send func to the cluster, then call it
-        remote_func = rh.function(summer, system=base_cluster)
+        remote_func = rh.function(summer, system=cluster)
 
         method_name = "call"
         module_name = remote_func.name
@@ -137,8 +128,8 @@ class TestHTTPServer:
             assert b64_unpickle(resp_obj["data"]) == 3
 
     @pytest.mark.asyncio
-    async def test_async_call(self, async_http_client, base_cluster):
-        remote_func = rh.function(summer, system=base_cluster)
+    async def test_async_call(self, async_http_client, cluster):
+        remote_func = rh.function(summer, system=cluster)
         method = "call"
 
         response = await async_http_client.post(
@@ -150,9 +141,9 @@ class TestHTTPServer:
 
     @pytest.mark.asyncio
     async def test_async_call_with_invalid_serialization(
-        self, async_http_client, base_cluster
+        self, async_http_client, cluster
     ):
-        remote_func = rh.function(summer, system=base_cluster)
+        remote_func = rh.function(summer, system=cluster)
         method = "call"
 
         response = await async_http_client.post(
@@ -163,9 +154,9 @@ class TestHTTPServer:
 
     @pytest.mark.asyncio
     async def test_async_call_with_pickle_serialization(
-        self, async_http_client, base_cluster
+        self, async_http_client, cluster
     ):
-        remote_func = rh.function(summer, system=base_cluster)
+        remote_func = rh.function(summer, system=cluster)
         method = "call"
 
         response = await async_http_client.post(
@@ -177,10 +168,8 @@ class TestHTTPServer:
         assert b64_unpickle(response.text) == 3
 
     @pytest.mark.asyncio
-    async def test_async_call_with_json_serialization(
-        self, async_http_client, base_cluster
-    ):
-        remote_func = rh.function(summer, system=base_cluster)
+    async def test_async_call_with_json_serialization(self, async_http_client, cluster):
+        remote_func = rh.function(summer, system=cluster)
         method = "call"
 
         response = await async_http_client.post(
@@ -292,9 +281,9 @@ class TestHTTPServerLocally:
 
     # TODO [JL] - Need a local cluster object?
     @pytest.mark.skip(reason="Not implemented yet")
-    def test_call_module_method(self, local_client, local_cluster):
+    def test_call_module_method(self, local_client, cluster):
         # Create new func on the cluster, then call it
-        remote_func = rh.function(summer, system=local_cluster)
+        remote_func = rh.function(summer, system=cluster)
 
         method_name = "call"
         module_name = remote_func.name
@@ -318,8 +307,8 @@ class TestHTTPServerLocally:
     # TODO [JL] - Need a local cluster object?
     @pytest.mark.skip(reason="Not implemented yet")
     @pytest.mark.asyncio
-    async def test_async_call(self, local_client, local_cluster):
-        remote_func = rh.function(summer, system=local_cluster)
+    async def test_async_call(self, local_client, cluster):
+        remote_func = rh.function(summer, system=cluster)
         method = "call"
 
         response = await local_client.post(

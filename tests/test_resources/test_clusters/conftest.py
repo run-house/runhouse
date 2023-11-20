@@ -339,7 +339,7 @@ def local_docker_cluster_public_key_logged_out(local_docker_cluster_public_key):
     local_docker_cluster_public_key.run(
         ["rm ~/.rh/config.yaml"],
     )
-    local_docker_cluster_public_key.restart_server()
+    local_docker_cluster_public_key.restart_server(resync_rh=False)
     return local_docker_cluster_public_key
 
 
@@ -351,7 +351,7 @@ def local_docker_cluster_public_key_logged_in(local_docker_cluster_public_key):
             f'echo "{yaml.safe_dump(rh.configs.defaults_cache)}" > ~/.rh/config.yaml'
         ],
     )
-    local_docker_cluster_public_key.restart_server()
+    local_docker_cluster_public_key.restart_server(resync_rh=False)
     return local_docker_cluster_public_key
 
 
