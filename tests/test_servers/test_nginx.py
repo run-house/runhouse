@@ -398,18 +398,20 @@ class TestNginxConfiguration:
 
 
 class TestNginxServerLocally:
-    def test_using_nginx_on_local_cluster_with_https(
-        self, local_docker_cluster_public_key_with_https
-    ):
-        local_docker_cluster_public_key_with_https.check_server()
+    @pytest.mark.parametrize(
+        "local_docker_cluster_with_nginx", ["http", "https"], indirect=True
+    )
+    def test_using_nginx_on_local_cluster(self, local_docker_cluster_with_nginx):
+        protocol = "https" if local_docker_cluster_with_nginx._use_https else "http"
 
-        assert local_docker_cluster_public_key_with_https.is_up()
+        local_docker_cluster_with_nginx.check_server()
 
-        suffix = "https"
+        assert local_docker_cluster_with_nginx.is_up()
+
         key = "key1"
         test_list = list(range(5, 50, 2)) + ["a string"]
         response = requests.post(
-            f"{suffix}://{local_docker_cluster_public_key_with_https.address}:{local_docker_cluster_public_key_with_https.server_port}/object",
+            f"{protocol}://{local_docker_cluster_with_nginx.address}:{local_docker_cluster_with_nginx.server_port}/object",
             json={"data": pickle_b64(test_list), "key": key},
             headers=rns_client.request_headers,
             verify=False,
@@ -417,34 +419,9 @@ class TestNginxServerLocally:
         assert response.status_code == 200
 
         response = requests.get(
-            f"{suffix}://{local_docker_cluster_public_key_with_https.address}:{local_docker_cluster_public_key_with_https.server_port}/keys",
+            f"{protocol}://{local_docker_cluster_with_nginx.address}:{local_docker_cluster_with_nginx.server_port}/keys",
             headers=rns_client.request_headers,
             verify=False,
-        )
-
-        assert response.status_code == 200
-        assert key in b64_unpickle(response.json().get("data"))
-
-    def test_using_nginx_on_local_cluster_with_http(
-        self, local_docker_cluster_public_key_with_http
-    ):
-        local_docker_cluster_public_key_with_http.check_server()
-
-        assert local_docker_cluster_public_key_with_http.is_up()
-
-        suffix = "http"
-        key = "key1"
-        test_list = list(range(5, 50, 2)) + ["a string"]
-        response = requests.post(
-            f"{suffix}://{local_docker_cluster_public_key_with_http.address}:{local_docker_cluster_public_key_with_http.server_port}/object",
-            json={"data": pickle_b64(test_list), "key": key},
-            headers=rns_client.request_headers,
-        )
-        assert response.status_code == 200
-
-        response = requests.get(
-            f"{suffix}://{local_docker_cluster_public_key_with_http.address}:{local_docker_cluster_public_key_with_http.server_port}/keys",
-            headers=rns_client.request_headers,
         )
 
         assert response.status_code == 200

@@ -451,37 +451,47 @@ def local_docker_cluster_telemetry_public_key(request, detached=True):
         client.images.prune()
 
 
-@pytest.fixture(scope="session")
-def local_docker_cluster_public_key_with_https(request):
+@pytest.fixture(scope="function")
+def local_docker_cluster_with_nginx(request):
     image_name = "keypair"
-    container_name = "rh-slim-keypair"
+    container_name = "rh-slim-nginx-keypair"
     dir_name = "public-key-auth"
 
     keypath = str(
         Path(rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)).expanduser()
     )
-    local_ssh_port = BASE_LOCAL_SSH_PORT + 2
+    local_ssh_port = BASE_LOCAL_SSH_PORT + 4
 
-    detached = request.config.getoption("--detached")
+    port_fwds = [f"{local_ssh_port}:22"]
+
+    protocol = request.param
+    if protocol == "https":
+        server_port = LOCAL_HTTPS_SERVER_PORT
+        server_connection_type = "tls"
+        port_fwds.append(f"{LOCAL_HTTPS_SERVER_PORT}:443")
+    else:
+        server_port = LOCAL_HTTP_SERVER_PORT
+        server_connection_type = "none"
+        port_fwds.append(f"{LOCAL_HTTP_SERVER_PORT}:80")
 
     client, rh_parent_path = build_and_run_image(
         image_name=image_name,
         container_name=container_name,
         dir_name=dir_name,
-        detached=detached,
+        detached=False,
         keypath=keypath,
         force_rebuild=request.config.getoption("--force-rebuild"),
-        port_fwds=[f"{local_ssh_port}:22", f"{LOCAL_HTTPS_SERVER_PORT}:443"],
+        port_fwds=port_fwds,
     )
 
     # Runhouse commands can now be run locally
     args = dict(
-        name="local-docker-slim-keypair-https",
+        name="local-docker-slim-keypair-nginx",
         host="localhost",
         server_host="0.0.0.0",
         ssh_port=local_ssh_port,
-        server_connection_type="tls",
-        server_port=LOCAL_HTTPS_SERVER_PORT,
+        server_connection_type=server_connection_type,
+        server_port=server_port,
         den_auth=True,
         ssh_creds={
             "ssh_user": SSH_USER,
@@ -495,7 +505,7 @@ def local_docker_cluster_public_key_with_https(request):
     json_config = f"{json.dumps(rh_config)}"
 
     rh.env(
-        reqs=["pytest", "httpx", "pytest_asyncio"],
+        reqs=["pytest"],
         working_dir=None,
         setup_cmds=[
             f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; echo '{json_config}' > ~/.rh/config.yaml"
@@ -508,73 +518,9 @@ def local_docker_cluster_public_key_with_https(request):
     yield c
 
     # Stop the Docker container
-    if not detached:
-        client.containers.get(container_name).stop()
-        client.containers.prune()
-        client.images.prune()
-
-
-@pytest.fixture(scope="session")
-def local_docker_cluster_public_key_with_http(request):
-    image_name = "keypair"
-    container_name = "rh-slim-keypair"
-    dir_name = "public-key-auth"
-
-    keypath = str(
-        Path(rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)).expanduser()
-    )
-    local_ssh_port = BASE_LOCAL_SSH_PORT + 2
-
-    detached = request.config.getoption("--detached")
-
-    client, rh_parent_path = build_and_run_image(
-        image_name=image_name,
-        container_name=container_name,
-        dir_name=dir_name,
-        detached=detached,
-        keypath=keypath,
-        force_rebuild=request.config.getoption("--force-rebuild"),
-        port_fwds=[f"{local_ssh_port}:22", f"{LOCAL_HTTP_SERVER_PORT}:80"],
-    )
-
-    # Runhouse commands can now be run locally
-    args = dict(
-        name="local-docker-slim-keypair-http",
-        host="localhost",
-        server_host="0.0.0.0",
-        ssh_port=local_ssh_port,
-        server_connection_type="none",
-        server_port=LOCAL_HTTP_SERVER_PORT,
-        den_auth=True,
-        ssh_creds={
-            "ssh_user": SSH_USER,
-            "ssh_private_key": keypath,
-        },
-    )
-    c = rh.cluster(**args)
-    init_args[id(c)] = args
-
-    rh_config = rh.configs.load_defaults_from_file()
-    json_config = f"{json.dumps(rh_config)}"
-
-    rh.env(
-        reqs=["pytest", "httpx", "pytest_asyncio"],
-        working_dir=None,
-        setup_cmds=[
-            f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; echo '{json_config}' > ~/.rh/config.yaml"
-        ],
-        name="base_env",
-    ).to(c)
-    c.save()
-
-    # Yield the cluster
-    yield c
-
-    # Stop the Docker container
-    if not detached:
-        client.containers.get(container_name).stop()
-        client.containers.prune()
-        client.images.prune()
+    client.containers.get(container_name).stop()
+    client.containers.prune()
+    client.images.prune()
 
 
 @pytest.fixture(scope="session")

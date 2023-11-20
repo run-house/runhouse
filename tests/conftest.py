@@ -98,9 +98,8 @@ from tests.test_resources.test_clusters.conftest import (
     cluster,  # noqa: F401
     local_docker_cluster_passwd,  # noqa: F401
     local_docker_cluster_public_key,  # noqa: F401
-    local_docker_cluster_public_key_with_http,  # noqa: F401
-    local_docker_cluster_public_key_with_https,  # noqa: F401
     local_docker_cluster_telemetry_public_key,  # noqa: F401
+    local_docker_cluster_with_nginx,  # noqa: F401
     local_logged_out_docker_cluster,  # noqa: F401
     local_test_account_cluster_public_key,  # noqa: F401
     named_cluster,  # noqa: F401
@@ -200,6 +199,7 @@ default_fixtures[TestLevels.THOROUGH] = {
     "cluster": [
         local_docker_cluster_passwd,
         local_docker_cluster_public_key,
+        local_docker_cluster_with_nginx,
         ondemand_cpu_cluster,
         ondemand_https_cluster_with_auth,
         password_cluster,
@@ -210,6 +210,7 @@ default_fixtures[TestLevels.MAXIMAL] = {
     "cluster": [
         local_docker_cluster_passwd,
         local_docker_cluster_public_key,
+        local_docker_cluster_with_nginx,
         ondemand_cpu_cluster,
         ondemand_https_cluster_with_auth,
         password_cluster,
