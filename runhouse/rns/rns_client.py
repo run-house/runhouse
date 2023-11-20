@@ -125,7 +125,7 @@ class RNSClient:
 
     @property
     def default_folder(self):
-        folder = self._configs.get("default_folder", None)
+        folder = self._configs.get("default_folder")
         if folder in [None, "~"] and self._configs.get("username"):
             folder = "/" + self._configs.get("username")
             self._configs.set("default_folder", folder)
@@ -364,8 +364,6 @@ class RNSClient:
                 f"Resource {rns_address} already exists and overwrite is False."
             )
 
-        config["name"] = rns_address
-
         if rns_address is None:
             raise ValueError("A resource must have a name to be saved.")
 
@@ -476,7 +474,7 @@ class RNSClient:
         if path == ".":
             return self.current_folder
         if path.startswith("./"):
-            return self.current_folder + "/" + path[2:]
+            return self.current_folder + "/" + path[len("./") :]
         # if path == '~':
         #     return '/rh'
         # if path.startswith('~/'):
@@ -485,7 +483,7 @@ class RNSClient:
         if path == "@":
             return self.default_folder
         if path.startswith("@/"):
-            return self.default_folder + "/" + path[2:]
+            return self.default_folder + "/" + path[len("@/") :]
         # if path == '^':
         #     return self.RH_BUILTINS_FOLDER
         # if path.startswith('^'):

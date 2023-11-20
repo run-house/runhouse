@@ -62,6 +62,7 @@ class Function(Module):
         system = config["system"]
         if isinstance(system, str):
             config["system"] = globals.rns_client.load_config(name=system)
+            logging.info(f"Loaded system config {config} from RNS.")
             # if the system is set to a cluster
             if not config["system"]:
                 raise Exception(f"No cluster config saved for {system}")
