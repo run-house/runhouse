@@ -355,6 +355,19 @@ def local_docker_cluster_public_key_logged_in(local_docker_cluster_public_key):
     return local_docker_cluster_public_key
 
 
+@pytest.fixture(scope="function")
+def local_docker_cluster_public_key_den_auth(local_docker_cluster_public_key):
+    local_docker_cluster_public_key.run(
+        [
+            f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
+            f'echo "{yaml.safe_dump(rh.configs.defaults_cache)}" > ~/.rh/config.yaml'
+        ],
+    )
+    local_docker_cluster_public_key.den_auth = True
+    local_docker_cluster_public_key.restart_server(resync_rh=False)
+    return local_docker_cluster_public_key
+
+
 @pytest.fixture(scope="session")
 def local_docker_cluster_telemetry_public_key(request, detached=True):
     image_name = "keypair-telemetry"
