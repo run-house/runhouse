@@ -193,9 +193,7 @@ class TestHTTPServerWithAuth:
         assert b64_unpickle(response.text) == 3
 
     @pytest.mark.asyncio
-    async def test_async_call_with_json_serialization(
-        self, async_http_client, cluster
-    ):
+    async def test_async_call_with_json_serialization(self, async_http_client, cluster):
         remote_func = rh.function(summer, system=cluster)
         method = "call"
 
@@ -209,18 +207,14 @@ class TestHTTPServerWithAuth:
 
     # -------- INVALID TOKEN / CLUSTER ACCESS TESTS ----------- #
     def test_request_with_no_cluster_config_yaml(self, http_client, cluster):
-        cluster.run(
-            ["mv ~/.rh/cluster_config.yaml ~/.rh/cluster_config_temp.yaml"]
-        )
+        cluster.run(["mv ~/.rh/cluster_config.yaml ~/.rh/cluster_config_temp.yaml"])
         try:
             response = http_client.get("/keys", headers=rns_client.request_headers)
 
             assert response.status_code == 404
             assert "Failed to load current cluster" in response.text
         finally:
-            cluster.run(
-                ["mv ~/.rh/cluster_config_temp.yaml ~/.rh/cluster_config.yaml"]
-            )
+            cluster.run(["mv ~/.rh/cluster_config_temp.yaml ~/.rh/cluster_config.yaml"])
         response = http_client.get("/keys", headers=self.invalid_headers)
 
         assert response.status_code == 403
@@ -249,9 +243,7 @@ class TestHTTPServerWithAuth:
         # Should be able to ping the server even without a valid token
         assert response.status_code == 200
 
-    def test_put_resource_with_invalid_token(
-        self, http_client, blob_data, cluster
-    ):
+    def test_put_resource_with_invalid_token(self, http_client, blob_data, cluster):
         state = None
         resource = rh.blob(blob_data, system=cluster)
         data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
