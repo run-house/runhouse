@@ -1,3 +1,4 @@
+import json
 import pkgutil
 import shlex
 import time
@@ -12,6 +13,8 @@ from tests.conftest import init_args
 
 SSH_USER = "rh-docker-user"
 BASE_LOCAL_SSH_PORT = 32320
+LOCAL_HTTPS_SERVER_PORT = 8443
+LOCAL_HTTP_SERVER_PORT = 8080
 DEFAULT_KEYPAIR_KEYPATH = "~/.ssh/sky-key"
 
 
@@ -427,7 +430,6 @@ def local_docker_cluster_telemetry_public_key(request, detached=True):
 @pytest.fixture(scope="function")
 def local_docker_cluster_with_nginx(request):
     image_name = "keypair"
-    container_name = "rh-slim-nginx-keypair"
     dir_name = "public-key-auth"
 
     keypath = str(
@@ -448,6 +450,8 @@ def local_docker_cluster_with_nginx(request):
         server_connection_type = "none"
         client_port = LOCAL_HTTP_SERVER_PORT + 3
         port_fwds.append(f"{client_port}:80")
+
+    container_name = f"rh-slim-{protocol}-nginx"
 
     client, rh_parent_path = build_and_run_image(
         image_name=image_name,

@@ -101,6 +101,7 @@ from tests.test_resources.test_clusters.conftest import (
     local_docker_cluster_public_key_logged_in,  # noqa: F401
     local_docker_cluster_public_key_logged_out,  # noqa: F401
     local_docker_cluster_telemetry_public_key,  # noqa: F401
+    local_docker_cluster_with_nginx,  # noqa: F401
     local_test_account_cluster_public_key,  # noqa: F401
     named_cluster,  # noqa: F401
     password_cluster,  # noqa: F401
