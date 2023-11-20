@@ -145,10 +145,14 @@ class TestServlet:
         assert "test_provider is not a Runhouse builtin provider" in resp_data.values()
 
     @unittest.skip("Not implemented yet.")
-    def test_call(self, base_servlet, test_account, local_docker_cluster_public_key):
+    def test_call(
+        self, base_servlet, test_account, local_docker_cluster_public_key_logged_in
+    ):
         token_hash = None
         den_auth = False
-        remote_func = rh.function(summer, system=local_docker_cluster_public_key)
+        remote_func = rh.function(
+            summer, system=local_docker_cluster_public_key_logged_in
+        )
 
         method_name = "call"
         module_name = remote_func.name
@@ -173,32 +177,31 @@ class TestServlet:
 
     @unittest.skip("Not implemented yet.")
     def test_call_with_den_auth(self, base_servlet, test_account):
-        with test_account as t:
-            token_hash = hash_token(t["test_token"])
-            den_auth = True
-            remote_func = rh.function(summer).save()
+        token_hash = hash_token(test_account["token"])
+        den_auth = True
+        remote_func = rh.function(summer).save()
 
-            method_name = "call"
-            module_name = remote_func.name
-            args = (1, 2)
-            kwargs = {}
-            serialization = "none"
+        method_name = "call"
+        module_name = remote_func.name
+        args = (1, 2)
+        kwargs = {}
+        serialization = "none"
 
-            resp = HTTPServer.call_servlet_method(
-                base_servlet,
-                "call",
-                [
-                    module_name,
-                    method_name,
-                    args,
-                    kwargs,
-                    serialization,
-                    token_hash,
-                    den_auth,
-                ],
-            )
+        resp = HTTPServer.call_servlet_method(
+            base_servlet,
+            "call",
+            [
+                module_name,
+                method_name,
+                args,
+                kwargs,
+                serialization,
+                token_hash,
+                den_auth,
+            ],
+        )
 
-            assert b64_unpickle(resp.data) == 3
+        assert b64_unpickle(resp.data) == 3
 
     @unittest.skip("Not implemented yet.")
     def test_call_module_method_(self, base_servlet, test_account):
@@ -222,24 +225,23 @@ class TestServlet:
 
     @unittest.skip("Not implemented yet.")
     def test_call_module_method_with_den_auth(self, base_servlet, test_account):
-        with test_account as t:
-            token_hash = hash_token(t["test_token"])
-            den_auth = True
-            remote_func = rh.function(summer).save()
+        token_hash = hash_token(test_account["token"])
+        den_auth = True
+        remote_func = rh.function(summer).save()
 
-            method_name = "call"
-            module_name = remote_func.name
-            args = (1, 2)
-            kwargs = {}
-            message = Message(data=pickle_b64(args, kwargs))
+        method_name = "call"
+        module_name = remote_func.name
+        args = (1, 2)
+        kwargs = {}
+        message = Message(data=pickle_b64(args, kwargs))
 
-            resp = HTTPServer.call_servlet_method(
-                base_servlet,
-                "call_module_method",
-                [module_name, method_name, message, token_hash, den_auth],
-            )
+        resp = HTTPServer.call_servlet_method(
+            base_servlet,
+            "call_module_method",
+            [module_name, method_name, message, token_hash, den_auth],
+        )
 
-            assert b64_unpickle(resp.data) == 3
+        assert b64_unpickle(resp.data) == 3
 
     @unittest.skip("Not implemented yet.")
     def cancel_run(self, base_servlet):

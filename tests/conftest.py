@@ -97,6 +97,7 @@ from tests.test_resources.test_clusters.conftest import (
     byo_cpu,  # noqa: F401
     cluster,  # noqa: F401
     local_docker_cluster_passwd,  # noqa: F401
+    local_docker_cluster_public_key,  # noqa: F401
     local_docker_cluster_public_key_logged_in,  # noqa: F401
     local_docker_cluster_public_key_logged_out,  # noqa: F401
     local_docker_cluster_telemetry_public_key,  # noqa: F401
