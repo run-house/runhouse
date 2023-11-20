@@ -50,7 +50,7 @@ class Resource:
         if name is not None:
             # TODO validate that name complies with a simple regex
             if name.startswith("/builtins/"):
-                name = name[10:]
+                name = name[len("/builtins/") :]
             if name[0] == "^" and name != "^":
                 name = name[1:]
             self._name, self._rns_folder = rns_client.split_rns_name_and_path(
