@@ -65,7 +65,7 @@ install_requires = [
     "fastapi",
     "fsspec<=2023.5.0",
     "pyarrow",
-    "pyOpenSSL>=21.1.0",
+    "pyOpenSSL>=23.3.0",
     "rich",
     "sentry-sdk",
     "skypilot==0.4.0",

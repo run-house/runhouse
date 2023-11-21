@@ -321,7 +321,7 @@ class OnDemandCluster(Cluster):
         if self.on_this_cluster():
             return self
 
-        if self.provider in ["aws", "gcp", "azure", "lambda", "cheapest"]:
+        if self.provider in ["aws", "gcp", "azure", "lambda", "kubernetes", "cheapest"]:
             task = sky.Task(
                 num_nodes=self.num_instances
                 if self.instance_type and ":" not in self.instance_type
@@ -374,8 +374,8 @@ class OnDemandCluster(Cluster):
                 idle_minutes_to_autostop=self.autostop_mins,
                 down=True,
             )
-        elif self.provider == "k8s":
-            raise NotImplementedError("Kubernetes Cluster provider not yet supported")
+        # elif self.provider == "k8s":
+        #     raise NotImplementedError("Kubernetes Cluster provider not yet supported")
         else:
             raise ValueError(f"Cluster provider {self.provider} not supported.")
 
