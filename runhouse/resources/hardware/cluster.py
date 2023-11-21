@@ -158,6 +158,7 @@ class Cluster(Resource):
             config["ssh_creds"] = self.ssh_creds()
         else:
             config["ips"] = [self.address]
+            config["ssh_creds"] = None
 
         if self._use_custom_cert:
             config["ssl_certfile"] = self.cert_config.cert_path

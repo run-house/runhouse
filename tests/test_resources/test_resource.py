@@ -28,6 +28,7 @@ class TestResource:
     THOROUGH = {"resource": [unnamed_resource, named_resource, local_named_resource]}
     FULL = {"resource": [unnamed_resource, named_resource, local_named_resource]}
 
+    @pytest.mark.level("unit")
     def test_resource_factory_and_properties(self, resource):
         assert isinstance(resource, rh.Resource)
         args = init_args.get(id(resource))
@@ -43,6 +44,7 @@ class TestResource:
 
         assert resource.RESOURCE_TYPE is not None
 
+    @pytest.mark.level("unit")
     def test_config_for_rns(self, resource):
         args = init_args.get(id(resource))
         config = resource.config_for_rns
@@ -53,6 +55,7 @@ class TestResource:
         if "dryrun" in args:
             assert config["dryrun"] == args["dryrun"]
 
+    @pytest.mark.level("unit")
     def test_from_config(self, resource):
         config = resource.config_for_rns
         new_resource = rh.Resource.from_config(config)
@@ -61,6 +64,7 @@ class TestResource:
         assert new_resource.dryrun == resource.dryrun
         # TODO allow resource subclass tests to extend set of properties to test
 
+    @pytest.mark.level("unit")
     def test_save_and_load(self, resource):
         if resource.name is None:
             with pytest.raises(ValueError):
@@ -88,6 +92,26 @@ class TestResource:
         resource.delete_configs()
         assert not rh.exists(resource.rns_address)
 
+    @pytest.mark.level("unit")
+    def test_history(self, resource):
+        if resource.name is None or resource.rns_address[:2] == "~/":
+            with pytest.raises(ValueError):
+                resource.history()
+            return
+
+        resource.save()
+        history = resource.history()
+        assert isinstance(history, list)
+        assert isinstance(history[0], dict)
+        assert "timestamp" in history[0]
+        assert "creator" in history[0]
+        assert "data" in history[0]
+        # Not all config_for_rns values are saved inside data field
+        for k, v in history[0]["data"].items():
+            assert resource.config_for_rns[k] == v
+        resource.delete_configs()
+
+    @pytest.mark.level("local")
     def test_sharing(self, resource, local_test_account_cluster_public_key):
         if resource.name is None:
             with pytest.raises(ValueError):
@@ -117,24 +141,6 @@ class TestResource:
             system=local_test_account_cluster_public_key,
         )
         assert load_shared_resource_config_cluster(resource) == resource.config_for_rns
-
-    def test_history(self, resource):
-        if resource.name is None or resource.rns_address[:2] == "~/":
-            with pytest.raises(ValueError):
-                resource.history()
-            return
-
-        resource.save()
-        history = resource.history()
-        assert isinstance(history, list)
-        assert isinstance(history[0], dict)
-        assert "timestamp" in history[0]
-        assert "creator" in history[0]
-        assert "data" in history[0]
-        # Not all config_for_rns values are saved inside data field
-        for k, v in history[0]["data"].items():
-            assert resource.config_for_rns[k] == v
-        resource.delete_configs()
 
     # TODO API to run this on local_docker_slim when level == "local"
     @pytest.mark.skip
