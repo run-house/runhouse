@@ -1,3 +1,5 @@
+import pytest
+
 import runhouse as rh
 
 import tests.test_resources.test_resource
@@ -34,12 +36,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     MAP_FIXTURES = {"resource": "cluster"}
 
-    UNIT = {
-        "cluster": [
-            local_docker_cluster_public_key_logged_out,
-            local_docker_cluster_public_key_logged_in,
-        ]
-    }
+    UNIT = {"cluster": [named_cluster]}
     LOCAL = {
         "cluster": [
             local_docker_cluster_public_key_logged_in,
@@ -49,9 +46,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         ]
     }
     MINIMAL = {"cluster": [static_cpu_cluster]}
-    THOROUGH = {"cluster": [named_cluster, password_cluster]}
-    MAXIMAL = {"cluster": [named_cluster, password_cluster]}
+    THOROUGH = {"cluster": [static_cpu_cluster, password_cluster]}
+    MAXIMAL = {"cluster": [static_cpu_cluster, password_cluster]}
 
+    @pytest.mark.level("unit")
     def test_cluster_factory_and_properties(self, cluster):
         assert isinstance(cluster, rh.Cluster)
         args = init_args[id(cluster)]
@@ -94,6 +92,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             # TODO: Test default behavior
             pass
 
+    @pytest.mark.level("local")
     def test_logged_in_local_cluster(self, local_docker_cluster_public_key_logged_in):
         save_resource_and_return_config_cluster = rh.function(
             save_resource_and_return_config,
@@ -107,6 +106,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             rh.configs.defaults_cache["default_folder"]
         )
 
+    @pytest.mark.level("local")
     def test_logged_out_local_cluster(self, local_docker_cluster_public_key_logged_out):
         save_resource_and_return_config_cluster = rh.function(
             save_resource_and_return_config,

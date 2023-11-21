@@ -16,6 +16,14 @@ class TestLevels(str, enum.Enum):
 
 DEFAULT_LEVEL = TestLevels.UNIT
 
+TEST_LEVEL_HIERARCHY = {
+    TestLevels.UNIT: 0,
+    TestLevels.LOCAL: 1,
+    TestLevels.MINIMAL: 2,
+    TestLevels.THOROUGH: 3,
+    TestLevels.MAXIMAL: 4,
+}
+
 
 def pytest_addoption(parser):
     parser.addoption(
@@ -40,6 +48,12 @@ def pytest_addoption(parser):
         default=True,
         help="Whether to run container in detached mode",
     )
+    parser.addoption(
+        "--ignore-filters",
+        action="store_true",
+        default=False,
+        help="Don't filter tests by marks.",
+    )
 
 
 def pytest_generate_tests(metafunc):
@@ -59,6 +73,24 @@ def pytest_generate_tests(metafunc):
     for fixture_name, fixture_list in level_fixtures.items():
         if fixture_name in metafunc.fixturenames:
             metafunc.parametrize(fixture_name, fixture_list, indirect=True)
+
+
+def pytest_collection_modifyitems(config, items):
+    ignore_filters = config.getoption("ignore_filters")
+    request_level = config.getoption("level")
+    if not ignore_filters:
+        new_items = []
+
+        for item in items:
+            test_level = item.get_closest_marker("level")
+            if (
+                test_level is not None
+                and TEST_LEVEL_HIERARCHY[test_level.args[0]]
+                <= TEST_LEVEL_HIERARCHY[request_level]
+            ):
+                new_items.append(item)
+
+        items[:] = new_items
 
 
 def pytest_configure():
