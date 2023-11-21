@@ -5,7 +5,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-# import httpx
 import pytest
 
 import runhouse as rh
@@ -13,24 +12,22 @@ import runhouse as rh
 from runhouse.globals import rns_client
 from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 
+from tests.test_resources.test_clusters.conftest import (
+    local_docker_cluster_public_key_den_auth,
+)
+
 from tests.test_servers.conftest import summer
 
 
-@pytest.fixture(scope="function")
-def base_cluster(local_docker_cluster_public_key_logged_in):
-
-    local_docker_cluster_public_key_logged_in.den_auth = True
-    local_docker_cluster_public_key_logged_in.restart_server()
-
-    return local_docker_cluster_public_key_logged_in
-
-
-@pytest.mark.usefixtures("base_cluster")
+@pytest.mark.usefixtures("cluster")
 @pytest.mark.den_auth
 class TestHTTPServerWithAuth:
     """Test the HTTP server with authentication enabled on a local docker container"""
 
     invalid_headers = {"Authorization": "Bearer InvalidToken"}
+
+    UNIT = {"cluster": [local_docker_cluster_public_key_den_auth]}
+    LOCAL = {"cluster": [local_docker_cluster_public_key_den_auth]}
 
     def test_get_cert(self, http_client):
         response = http_client.get("/cert")
@@ -46,16 +43,16 @@ class TestHTTPServerWithAuth:
         response = http_client.get("/check")
         assert response.status_code == 200
 
-    def test_put_resource(self, http_client, blob_data, base_cluster):
+    def test_put_resource(self, http_client, blob_data, cluster):
         state = None
-        resource = rh.blob(data=blob_data, system=base_cluster)
+        resource = rh.blob(data=blob_data, system=cluster)
         data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
         response = http_client.post(
             "/resource", json={"data": data}, headers=rns_client.request_headers
         )
         assert response.status_code == 200
 
-    def test_put_object(self, http_client):
+    def test_put_object_and_get_keys(self, http_client):
         key = "key1"
         test_list = list(range(5, 50, 2)) + ["a string"]
         response = http_client.post(
@@ -66,6 +63,7 @@ class TestHTTPServerWithAuth:
         assert response.status_code == 200
 
         response = http_client.get("/keys", headers=rns_client.request_headers)
+        assert response.status_code == 200
         assert key in b64_unpickle(response.json().get("data"))
 
     def test_rename_object(self, http_client):
@@ -79,11 +77,6 @@ class TestHTTPServerWithAuth:
 
         response = http_client.get("/keys", headers=rns_client.request_headers)
         assert new_key in b64_unpickle(response.json().get("data"))
-
-    def test_get_keys(self, http_client):
-        response = http_client.get("/keys", headers=rns_client.request_headers)
-        assert response.status_code == 200
-        assert "key2" in b64_unpickle(response.json().get("data"))
 
     def test_delete_obj(self, http_client):
         # https://www.python-httpx.org/compatibility/#request-body-on-http-methods
@@ -122,9 +115,9 @@ class TestHTTPServerWithAuth:
         assert isinstance(resp_data, dict)
         assert "test_provider is not a Runhouse builtin provider" in resp_data.values()
 
-    def test_call_module_method(self, http_client, base_cluster):
+    def test_call_module_method(self, http_client, cluster):
         # Create new func on the cluster, then call it
-        remote_func = rh.function(summer, system=base_cluster)
+        remote_func = rh.function(summer, system=cluster)
 
         method_name = "call"
         module_name = remote_func.name
@@ -157,8 +150,8 @@ class TestHTTPServerWithAuth:
             assert b64_unpickle(resp_obj["data"]) == 3
 
     @pytest.mark.asyncio
-    async def test_async_call(self, async_http_client, base_cluster):
-        remote_func = rh.function(summer, system=base_cluster)
+    async def test_async_call(self, async_http_client, cluster):
+        remote_func = rh.function(summer, system=cluster)
         method = "call"
 
         response = await async_http_client.post(
@@ -171,9 +164,9 @@ class TestHTTPServerWithAuth:
 
     @pytest.mark.asyncio
     async def test_async_call_with_invalid_serialization(
-        self, async_http_client, base_cluster
+        self, async_http_client, cluster
     ):
-        remote_func = rh.function(summer, system=base_cluster)
+        remote_func = rh.function(summer, system=cluster)
         method = "call"
 
         response = await async_http_client.post(
@@ -185,9 +178,9 @@ class TestHTTPServerWithAuth:
 
     @pytest.mark.asyncio
     async def test_async_call_with_pickle_serialization(
-        self, async_http_client, base_cluster
+        self, async_http_client, cluster
     ):
-        remote_func = rh.function(summer, system=base_cluster)
+        remote_func = rh.function(summer, system=cluster)
         method = "call"
 
         response = await async_http_client.post(
@@ -200,10 +193,8 @@ class TestHTTPServerWithAuth:
         assert b64_unpickle(response.text) == 3
 
     @pytest.mark.asyncio
-    async def test_async_call_with_json_serialization(
-        self, async_http_client, base_cluster
-    ):
-        remote_func = rh.function(summer, system=base_cluster)
+    async def test_async_call_with_json_serialization(self, async_http_client, cluster):
+        remote_func = rh.function(summer, system=cluster)
         method = "call"
 
         response = await async_http_client.post(
@@ -215,25 +206,21 @@ class TestHTTPServerWithAuth:
         assert json.loads(response.text) == "3"
 
     # -------- INVALID TOKEN / CLUSTER ACCESS TESTS ----------- #
-    def test_request_with_no_cluster_config_yaml(self, http_client, base_cluster):
-        base_cluster.run(
-            ["mv ~/.rh/cluster_config.yaml ~/.rh/cluster_config_temp.yaml"]
-        )
+    def test_request_with_no_cluster_config_yaml(self, http_client, cluster):
+        cluster.run(["mv ~/.rh/cluster_config.yaml ~/.rh/cluster_config_temp.yaml"])
         try:
             response = http_client.get("/keys", headers=rns_client.request_headers)
 
             assert response.status_code == 404
             assert "Failed to load current cluster" in response.text
         finally:
-            base_cluster.run(
-                ["mv ~/.rh/cluster_config_temp.yaml ~/.rh/cluster_config.yaml"]
-            )
+            cluster.run(["mv ~/.rh/cluster_config_temp.yaml ~/.rh/cluster_config.yaml"])
         response = http_client.get("/keys", headers=self.invalid_headers)
 
         assert response.status_code == 403
         assert "Cluster access is required for API" in response.text
 
-    def test_no_access_to_cluster(self, http_client, base_cluster, test_account):
+    def test_no_access_to_cluster(self, http_client, cluster, test_account):
         with test_account:
             response = http_client.get("/keys", headers=rns_client.request_headers)
 
@@ -256,11 +243,9 @@ class TestHTTPServerWithAuth:
         # Should be able to ping the server even without a valid token
         assert response.status_code == 200
 
-    def test_put_resource_with_invalid_token(
-        self, http_client, blob_data, base_cluster
-    ):
+    def test_put_resource_with_invalid_token(self, http_client, blob_data, cluster):
         state = None
-        resource = rh.blob(blob_data, system=base_cluster)
+        resource = rh.blob(blob_data, system=cluster)
         data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
         response = http_client.post(
             "/resource", json={"data": data}, headers=self.invalid_headers
@@ -268,9 +253,9 @@ class TestHTTPServerWithAuth:
         assert response.status_code == 403
         assert "Cluster access is required for API" in response.text
 
-    def test_call_module_method_with_invalid_token(self, http_client, base_cluster):
+    def test_call_module_method_with_invalid_token(self, http_client, cluster):
         # Create new func on the cluster, then call it
-        remote_func = rh.function(summer, system=base_cluster)
+        remote_func = rh.function(summer, system=cluster)
 
         method_name = "call"
         module_name = remote_func.name
