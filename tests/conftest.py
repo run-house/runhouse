@@ -38,14 +38,10 @@ def pytest_addoption(parser):
         default=False,
         help="Force rebuild of the relevant Runhouse image",
     )
-    # Specify "--detached False" in order to not run in detached mode
     parser.addoption(
         "--detached",
-        action="store",
-        type=bool,
-        nargs="?",
-        const=True,
-        default=True,
+        action="store_true",
+        default=False,
         help="Whether to run container in detached mode",
     )
     parser.addoption(
