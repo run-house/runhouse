@@ -4,7 +4,10 @@ from pathlib import Path
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
+import requests
 
+from runhouse.globals import rns_client
+from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 from runhouse.servers.nginx.config import NginxConfig
 
 
@@ -72,10 +75,17 @@ class TestNginxConfiguration:
     def test_nginx_http_reload(self, mock_subprocess_run):
         mock_subprocess_run.return_value = MagicMock(returncode=0)
 
+        # Assuming self.http_config.address is set to a value like "localhost"
+        expected_command = (
+            "sudo service nginx start && sudo nginx -s reload"
+            if self.http_config.address in ["localhost", "127.0.0.1", "0.0.0.0"]
+            else "sudo systemctl reload nginx"
+        )
+
         self.http_config.reload()
 
         mock_subprocess_run.assert_called_once_with(
-            "sudo systemctl reload nginx",
+            expected_command,
             shell=True,
             check=True,
             capture_output=True,
@@ -86,10 +96,17 @@ class TestNginxConfiguration:
     def test_nginx_https_reload(self, mock_subprocess_run):
         mock_subprocess_run.return_value = MagicMock(returncode=0)
 
+        # Assuming self.http_config.address is set to a value like "localhost"
+        expected_command = (
+            "sudo service nginx start && sudo nginx -s reload"
+            if self.https_config.address in ["localhost", "127.0.0.1", "0.0.0.0"]
+            else "sudo systemctl reload nginx"
+        )
+
         self.https_config.reload()
 
         mock_subprocess_run.assert_called_once_with(
-            "sudo systemctl reload nginx",
+            expected_command,
             shell=True,
             check=True,
             capture_output=True,
@@ -378,6 +395,37 @@ class TestNginxConfiguration:
         )
 
         assert https_template == expected_https_template
+
+
+class TestNginxServerLocally:
+    @pytest.mark.parametrize(
+        "local_docker_cluster_with_nginx", ["http", "https"], indirect=True
+    )
+    def test_using_nginx_on_local_cluster(self, local_docker_cluster_with_nginx):
+        protocol = "https" if local_docker_cluster_with_nginx._use_https else "http"
+
+        local_docker_cluster_with_nginx.check_server()
+
+        assert local_docker_cluster_with_nginx.is_up()
+
+        key = "key1"
+        test_list = list(range(5, 50, 2)) + ["a string"]
+        response = requests.post(
+            f"{protocol}://{local_docker_cluster_with_nginx.address}:{local_docker_cluster_with_nginx.client_port}/object",
+            json={"data": pickle_b64(test_list), "key": key},
+            headers=rns_client.request_headers,
+            verify=False,
+        )
+        assert response.status_code == 200
+
+        response = requests.get(
+            f"{protocol}://{local_docker_cluster_with_nginx.address}:{local_docker_cluster_with_nginx.client_port}/keys",
+            headers=rns_client.request_headers,
+            verify=False,
+        )
+
+        assert response.status_code == 200
+        assert key in b64_unpickle(response.json().get("data"))
 
 
 if __name__ == "__main__":

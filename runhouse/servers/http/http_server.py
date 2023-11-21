@@ -802,7 +802,7 @@ if __name__ == "__main__":
             if https_port != default_https_port:
                 # if using a custom HTTPS port must provide private key file and certs explicitly
                 raise FileNotFoundError(
-                    f"Could not find SSL private key and cert files on the cluster, which are required when specifying"
+                    f"Could not find SSL private key and cert files on the cluster, which are required when specifying "
                     f"a custom port ({https_port}). Please specify the paths using the --ssl-certfile and "
                     f"--ssl-keyfile flags."
                 )
