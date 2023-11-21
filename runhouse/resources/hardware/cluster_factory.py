@@ -461,9 +461,7 @@ def sagemaker_cluster(
             If no estimator is provided, will default to ``0``.
         job_name (str, optional): Name to provide for a training job. If not provided will generate a default name
             based on the image name and current timestamp (e.g. ``pytorch-training-2023-08-28-20-57-55-113``).
-        server_port (bool, optional): Port to use for the server. If not provided will use 80 for a
-            ``server_connection_type`` of ``none``, 443 for ``tls`` and ``32300`` for all other SSH connection types.
-            *Note: For SageMaker will use ``32300`` since the connection will always be made via SSH.*
+        server_port (bool, optional): Port to use for the server (Default: ``32300``).
         server_host (bool, optional): Host from which the server listens for traffic (i.e. the --host argument
             `runhouse start` run on the cluster).
             *Note: For SageMaker, since we connect to the Runhouse API server via an SSH tunnel, the only valid
@@ -502,12 +500,14 @@ def sagemaker_cluster(
         >>> reloaded_cluster = rh.sagemaker_cluster(name="sagemaker-cluster")
     """
     if (
-        "aws-cli/1."
-        in subprocess.run(["aws", "--version"], capture_output=True, text=True).stdout
+        "aws-cli/2."
+        not in subprocess.run(
+            ["aws", "--version"], capture_output=True, text=True
+        ).stdout
     ):
         raise RuntimeError(
-            "SageMaker SDK requires AWS CLI v2. For more info: "
-            "https://www.run.house/docs/api/python/cluster#id2"
+            "SageMaker SDK requires AWS CLI v2. You may also need to run `pip uninstall awscli` to ensure the right "
+            "version is being used. For more info: https://www.run.house/docs/api/python/cluster#id2"
         )
 
     ssh_key_path = relative_ssh_path(ssh_key_path) if ssh_key_path else None

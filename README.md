@@ -118,7 +118,7 @@ Please see the [Getting Started guide](https://www.run.house/docs/tutorials/quic
 tldr;
 ```commandline
 pip install runhouse
-# Or "runhouse[aws]", "runhouse[gcp]", "runhouse[azure]", "runhouse[all]"
+# Or "runhouse[aws]", "runhouse[gcp]", "runhouse[azure]", "runhouse[sagemaker]", "runhouse[all]"
 
 # [optional] to set up cloud provider secrets:
 sky check

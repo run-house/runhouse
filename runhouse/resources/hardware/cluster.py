@@ -519,7 +519,7 @@ class Cluster(Resource):
         # netstat -vanp tcp | grep 32300
         # lsof -i :32300
         # kill -9 <pid>
-        open_tunnels = open_cluster_tunnels[(self.address, self.ssh_port)]
+        open_tunnels = open_cluster_tunnels.get((self.address, self.ssh_port), [])
         for (tunnel, port) in open_tunnels:
             if port == local_port:
                 logger.info(

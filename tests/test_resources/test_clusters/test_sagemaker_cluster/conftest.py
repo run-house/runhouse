@@ -172,10 +172,12 @@ def sm_source_dir(sm_entry_point, pytorch_training_script, tmp_path):
     """Create the source directory and entry point needed for creating a SageMaker estimator"""
 
     # create tmp directory and file
-    with open(tmp_path, "w") as file:
-        file.write(pytorch_training_script)
+    file_path = tmp_path / sm_entry_point
 
-    return tmp_path.parent
+    with open(file_path, "w") as f:
+        f.write(pytorch_training_script)
+
+    return file_path.parent
 
 
 @pytest.fixture(scope="session")
