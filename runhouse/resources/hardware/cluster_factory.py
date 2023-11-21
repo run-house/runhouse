@@ -1,4 +1,6 @@
+import subprocess
 import warnings
+
 from typing import Dict, List, Optional, Union
 
 from runhouse.resources.hardware.utils import (
@@ -499,6 +501,15 @@ def sagemaker_cluster(
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.sagemaker_cluster(name="sagemaker-cluster")
     """
+    if (
+        "aws-cli/1."
+        in subprocess.run(["aws", "--version"], capture_output=True, text=True).stdout
+    ):
+        raise RuntimeError(
+            "SageMaker SDK requires AWS CLI v2. For more info: "
+            "https://www.run.house/docs/api/python/cluster#id2"
+        )
+
     ssh_key_path = relative_ssh_path(ssh_key_path) if ssh_key_path else None
 
     if (

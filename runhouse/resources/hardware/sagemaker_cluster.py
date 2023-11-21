@@ -91,7 +91,6 @@ class SageMakerCluster(Cluster):
         """
         super().__init__(
             name=name,
-            ssh_creds={},
             server_host=server_host,
             server_port=server_port,
             server_connection_type=server_connection_type,
@@ -471,6 +470,16 @@ class SageMakerCluster(Cluster):
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0, retry=True
     ) -> Tuple[SSHTunnelForwarder, int]:
+        if self._ports_are_in_use():
+            try:
+                # Check if tunnel has already been created
+                ssh_tunnel = open_cluster_tunnels[(self.address, self._ssh_port)][0]
+                if ssh_tunnel.local_bind_port == local_port:
+                    logger.info("SSH tunnel already created with the cluster")
+                    return ssh_tunnel, local_port
+            except:
+                pass
+
         try:
             remote_bind_addresses = ("127.0.0.1", local_port)
             local_bind_addresses = ("", local_port)
@@ -592,14 +601,10 @@ class SageMakerCluster(Cluster):
                 except subprocess.CalledProcessError as e:
                     return_codes.append((255, "", str(e)))
             else:
-                if self.instance_id not in open_cluster_tunnels:
-                    # Make sure tunnel is up before running commands (e.g. calling ``restart_server`` right after
-                    # loading the cluster with dryrun)
-                    self.connect_server_client()
-
                 # Host can be replaced with name (as reflected in the ~/.ssh/config file)
                 runner = SkySSHRunner(
                     self.name,
+                    port=self._ssh_port,
                     ssh_user=self.DEFAULT_USER,
                     ssh_private_key=self._abs_ssh_key_path,
                 )

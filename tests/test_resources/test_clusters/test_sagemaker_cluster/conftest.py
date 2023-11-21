@@ -4,8 +4,6 @@ import pytest
 
 import runhouse as rh
 
-from tests.test_resources.test_modules.test_functions.conftest import summer
-
 from ....conftest import init_args
 
 
@@ -182,6 +180,8 @@ def sm_source_dir(sm_entry_point, pytorch_training_script, tmp_path):
 
 @pytest.fixture(scope="session")
 def summer_func_sm_auth(sm_cluster_with_auth):
+    from tests.test_resources.test_modules.test_functions.conftest import summer
+
     return rh.function(summer, name="summer_func").to(
         sm_cluster_with_auth, env=["pytest"]
     )
