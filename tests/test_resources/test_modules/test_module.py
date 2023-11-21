@@ -4,17 +4,18 @@ import os
 import time
 import unittest
 
+import httpx
+
 import numpy as np
 import pandas as pd
-
 import pytest
 
 import runhouse as rh
 from runhouse import Package
 
+from tests.test_resources.conftest import BASE_URL, http_server_is_up
 
 logger = logging.getLogger(__name__)
-
 
 """ Tests for runhouse.Module. Structure:
     - Test call_module_method rpc, with various envs
@@ -24,36 +25,21 @@ logger = logging.getLogger(__name__)
 """
 
 
+# A docker container, used in the servers tests as well (https tests with auth, for example).
+@pytest.fixture(scope="class")
+def base_cluster(local_docker_cluster_public_key):
+    if http_server_is_up():
+        resp = httpx.get(f"{BASE_URL}/keys")
+        # Should receive a 404 (no token provided in request) when den auth is enabled
+        if resp.status_code != 404:
+            # Restart the server with den auth
+            local_docker_cluster_public_key.restart_server()
+
+    return local_docker_cluster_public_key
+
+
 def resolve_test_helper(obj):
     return obj
-
-
-@pytest.mark.clustertest
-# @pytest.mark.parametrize("env", [None, "base", "pytorch"])
-@pytest.mark.parametrize("env", [None])
-def test_call_module_method(cluster, env):
-    cluster.put("numpy_pkg", Package.from_string("numpy"), env=env)
-
-    # Test for method
-    res = cluster.call("numpy_pkg", "_detect_cuda_version_or_cpu", stream_logs=True)
-    assert res == "cpu"
-
-    # Test for property
-    res = cluster.call("numpy_pkg", "config_for_rns", stream_logs=True)
-    numpy_config = Package.from_string("numpy").config_for_rns
-    assert res
-    assert isinstance(res, dict)
-    assert res == numpy_config
-
-    # Test iterator
-    cluster.put("config_dict", list(numpy_config.keys()), env=env)
-    res = cluster.call("config_dict", "__iter__", stream_logs=True)
-    # Checks that all the keys in numpy_config were returned
-    inspect.isgenerator(res)
-    for key in res:
-        assert key
-        numpy_config.pop(key)
-    assert not numpy_config
 
 
 class SlowNumpyArray:
@@ -83,89 +69,6 @@ class SlowNumpyArray:
     @classmethod
     def factory_constructor(cls, size=5):
         return cls(size=size)
-
-
-@pytest.mark.clustertest
-# @pytest.mark.parametrize("env", [None, "base", "pytorch"])
-@pytest.mark.parametrize("env", [None])
-def test_module_from_factory(cluster, env):
-    size = 3
-    RemoteClass = rh.module(SlowNumpyArray).to(cluster)
-    remote_array = RemoteClass(size=size, name="remote_array1")
-
-    # Test that naming works properly, and "class" module was unaffacted
-    assert remote_array.name == "remote_array1"
-    assert RemoteClass.name == "SlowNumpyArray"
-
-    # Test that module was initialized correctly on the cluster
-    assert remote_array.system == cluster
-    assert remote_array.remote.size == size
-    assert all(remote_array.remote.arr == np.zeros(size))
-    assert remote_array.remote._hidden_1 == "hidden"
-
-    results = []
-    out = ""
-    with rh.capture_stdout() as stdout:
-        for i, val in enumerate(remote_array.slow_iter()):
-            assert val
-            print(val)
-            results += [val]
-            out = out + str(stdout)
-    assert len(results) == 3
-
-    # Check that stdout was captured. Skip the last result because sometimes we
-    # don't catch it and it makes the test flaky.
-    for i in range(size - 1):
-        assert f"Hello from the cluster stdout! {i}" in out
-        assert f"Hello from the cluster logs! {i}" in out
-
-    cluster_cpus = int(cluster.run_python(["import os; print(os.cpu_count())"])[0][1])
-    # Test classmethod on remote class
-    assert RemoteClass.cpu_count() == os.cpu_count()
-    assert RemoteClass.cpu_count(local=False) == cluster_cpus
-
-    # Test classmethod on remote instance
-    assert remote_array.cpu_count() == os.cpu_count()
-    assert remote_array.cpu_count(local=False) == cluster_cpus
-
-    # Test instance method
-    assert remote_array.size_minus_cpus() == size - cluster_cpus
-
-    # Test remote getter
-    arr = remote_array.remote.arr
-    assert isinstance(arr, np.ndarray)
-    assert arr.shape == (size,)
-    assert arr[0] == 0
-    assert arr[2] == 2
-
-    # Test remote setter
-    remote_array.remote.size = 20
-    assert remote_array.remote.size == 20
-
-    # Test creating a second instance of the same class
-    remote_array2 = RemoteClass(size=30, name="remote_array2")
-    assert remote_array2.system == cluster
-    assert remote_array2.remote.size == 30
-
-    # Test creating a third instance with the factory method
-    remote_array3 = RemoteClass.factory_constructor.remote(
-        size=40, run_name="remote_array3"
-    )
-    assert remote_array3.system.config_for_rns == cluster.config_for_rns
-    assert remote_array3.remote.size == 40
-    assert remote_array3.cpu_count(local=False) == cluster_cpus
-
-    # Make sure first array and class are unaffected by this change
-    assert remote_array.remote.size == 20
-    assert RemoteClass.cpu_count(local=False) == cluster_cpus
-
-    # Test resolve()
-    helper = rh.function(resolve_test_helper).to(cluster, env=rh.Env())
-    resolved_obj = helper(remote_array.resolve())
-    assert resolved_obj.__class__.__name__ == "SlowNumpyArray"
-    assert not hasattr(resolved_obj, "config_for_rns")
-    assert resolved_obj.size == 20
-    assert list(resolved_obj.arr) == [0, 1, 2]
 
 
 class SlowPandas(rh.Module):
@@ -198,123 +101,422 @@ class SlowPandas(rh.Module):
         return os.cpu_count()
 
 
-@pytest.mark.clustertest
-# @pytest.mark.parametrize("env", [None, "base", "pytorch"])
-@pytest.mark.parametrize("env", [None])
-def test_module_from_subclass(cluster, env):
-    size = 3
-    remote_df = SlowPandas(size=size).to(cluster, env)
-    assert remote_df.system == cluster
+class Calculator:
+    importer = "Calculators Inc"
 
-    # Test that module was initialized correctly on the cluster
-    assert remote_df.remote.size == size
-    assert len(remote_df.remote.df) == size
-    assert remote_df.remote._hidden_1 == "hidden"
+    def __init__(self, owner=None):
+        self.model = "Casio"
+        self._release_year = 2023
+        self.owner = owner
 
-    results = []
-    # Capture stdout to check that it's working
-    out = ""
-    with rh.capture_stdout() as stdout:
-        for i, val in enumerate(remote_df.slow_iter()):
-            assert val
-            print(val)
-            results += [val]
-            out = out + str(stdout)
-    assert len(results) == 3
+    def summer(self, a: int, b: int):
+        return a + b
 
-    # Check that stdout was captured. Skip the last result because sometimes we
-    # don't catch it and it makes the test flaky.
-    for i in range(remote_df.size - 1):
-        assert f"Hello from the cluster stdout! {i}" in out
-        assert f"Hello from the cluster logs! {i}" in out
+    def sub(self, a: int, b: int):
+        return a - b
 
-    cpu_count = int(cluster.run_python(["import os; print(os.cpu_count())"])[0][1])
-    print(remote_df.cpu_count())
-    assert remote_df.cpu_count() == os.cpu_count()
-    print(remote_df.cpu_count(local=False))
-    assert remote_df.cpu_count(local=False) == cpu_count
+    def divider(self, a: int, b: int):
+        if b == 0:
+            raise ZeroDivisionError
+        return round(a / b)
 
-    # Test setting and getting properties
-    df = remote_df.remote.df
-    assert isinstance(df, pd.DataFrame)
-    assert df.shape == (3, 3)
-    assert df.loc[0, 0] == 0
-    assert df.loc[2, 2] == 2
-
-    remote_df.size = 20
-    assert remote_df.remote.size == 20
-
-    del remote_df
-
-    # Test get_or_to
-    remote_df = SlowPandas(size=3).get_or_to(cluster, env=env, name="SlowPandas")
-    assert remote_df.system.config_for_rns == cluster.config_for_rns
-    assert remote_df.cpu_count(local=False, stream_logs=False) == cpu_count
-    # Check that size is unchanged from when we set it to 20 above
-    assert remote_df.remote.size == 20
-
-    # Test that resolve() has no effect
-    helper = rh.function(resolve_test_helper).to(cluster, env=rh.Env())
-    resolved_obj = helper(remote_df.resolve())
-    assert resolved_obj.__class__.__name__ == "SlowPandas"
-    assert resolved_obj.remote.size == 20
-    assert resolved_obj.config_for_rns == remote_df.config_for_rns
+    def mult(self, a: int, b: int):
+        return a * b
 
 
-@pytest.mark.clustertest
-@pytest.mark.asyncio
-# @pytest.mark.parametrize("env", [None, "base", "pytorch"])
-@pytest.mark.parametrize("env", [None])
-async def test_module_from_subclass_async(cluster, env):
-    remote_df = SlowPandas(size=3).to(cluster, env)
-    assert remote_df.system == cluster
-    results = []
-    # Capture stdout to check that it's working
-    out = ""
-    with rh.capture_stdout() as stdout:
-        async for val in remote_df.slow_iter_async():
-            assert val
-            print(val)
-            results += [val]
-            out = out + str(stdout)
-    assert len(results) == 3
+@pytest.mark.usefixtures("base_cluster")
+class TestModule:
 
-    # Check that stdout was captured. Skip the last result because sometimes we
-    # don't catch it and it makes the test flaky.
-    for i in range(remote_df.size - 1):
-        assert f"Hello from the cluster stdout! {i}" in out
-        assert f"Hello from the cluster logs! {i}" in out
+    # --------- integration tests ---------
+    # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
+    @pytest.mark.parametrize("env", [None])
+    def test_call_module_method(self, base_cluster, env):
+        base_cluster.put("numpy_pkg", Package.from_string("numpy"), env=env)
 
-    cpu_count = int(cluster.run_python(["import os; print(os.cpu_count())"])[0][1])
-    print(await remote_df.cpu_count_async())
-    assert await remote_df.cpu_count_async() == os.cpu_count()
-    print(await remote_df.cpu_count_async(local=False))
-    assert await remote_df.cpu_count_async(local=False) == cpu_count
+        # Test for method
+        res = base_cluster.call(
+            "numpy_pkg", "_detect_cuda_version_or_cpu", stream_logs=True
+        )
+        assert res == "cpu"
 
-    # Properties
-    df = await remote_df.fetch_async("df")
-    assert isinstance(df, pd.DataFrame)
-    assert df.shape == (3, 3)
-    assert df.loc[0, 0] == 0
-    assert df.loc[2, 2] == 2
+        # Test for property
+        res = base_cluster.call("numpy_pkg", "config_for_rns", stream_logs=True)
+        numpy_config = Package.from_string("numpy").config_for_rns
+        assert res
+        assert isinstance(res, dict)
+        assert res == numpy_config
 
-    await remote_df.set_async("size", 20)
-    assert remote_df.remote.size == 20
+        # Test iterator
+        base_cluster.put("config_dict", list(numpy_config.keys()), env=env)
+        res = base_cluster.call("config_dict", "__iter__", stream_logs=True)
+        # Checks that all the keys in numpy_config were returned
+        inspect.isgenerator(res)
+        for key in res:
+            assert key
+            numpy_config.pop(key)
+        assert not numpy_config
 
+    # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
+    @pytest.mark.parametrize("env", [None])
+    def test_module_from_factory(self, base_cluster, env):
+        size = 3
+        RemoteClass = rh.module(SlowNumpyArray).to(base_cluster)
+        remote_array = RemoteClass(size=size, name="remote_array1")
 
-@unittest.skip("Not working yet")
-@pytest.mark.clustertest
-def test_hf_autotokenizer(cluster):
-    from transformers import AutoTokenizer
+        # Test that naming works properly, and "class" module was unaffacted
+        assert remote_array.name == "remote_array1"
+        assert RemoteClass.name == "SlowNumpyArray"
 
-    AutoTokenizer.from_pretrained("bert-base-uncased")
-    RemoteAutoTokenizer = rh.module(AutoTokenizer).to(cluster, env=["transformers"])
-    tok = RemoteAutoTokenizer.from_pretrained.remote(
-        "bert-base-uncased", run_name="bert-tok"
-    )
-    # assert tok.remote.pad_token == "<pad>"
-    prompt = "Tell me about unified development interfaces into compute and data infrastructure."
-    assert tok(prompt, return_tensors="pt").shape == (1, 18)
+        # Test that module was initialized correctly on the cluster
+        assert remote_array.system == base_cluster
+        assert remote_array.remote.size == size
+        assert all(remote_array.remote.arr == np.zeros(size))
+        assert remote_array.remote._hidden_1 == "hidden"
+
+        results = []
+        out = ""
+        with rh.capture_stdout() as stdout:
+            for i, val in enumerate(remote_array.slow_iter()):
+                assert val
+                print(val)
+                results += [val]
+                out = out + str(stdout)
+        assert len(results) == 3
+
+        # Check that stdout was captured. Skip the last result because sometimes we
+        # don't catch it and it makes the test flaky.
+        for i in range(size - 1):
+            assert f"Hello from the cluster stdout! {i}" in out
+            assert f"Hello from the cluster logs! {i}" in out
+
+        cluster_cpus = int(
+            base_cluster.run_python(["import os; print(os.cpu_count())"])[0][1]
+        )
+        # Test classmethod on remote class
+        assert RemoteClass.cpu_count() == os.cpu_count()
+        assert RemoteClass.cpu_count(local=False) == cluster_cpus
+
+        # Test classmethod on remote instance
+        assert remote_array.cpu_count() == os.cpu_count()
+        assert remote_array.cpu_count(local=False) == cluster_cpus
+
+        # Test instance method
+        assert remote_array.size_minus_cpus() == size - cluster_cpus
+
+        # Test remote getter
+        arr = remote_array.remote.arr
+        assert isinstance(arr, np.ndarray)
+        assert arr.shape == (size,)
+        assert arr[0] == 0
+        assert arr[2] == 2
+
+        # Test remote setter
+        remote_array.remote.size = 20
+        assert remote_array.remote.size == 20
+
+        # Test creating a second instance of the same class
+        remote_array2 = RemoteClass(size=30, name="remote_array2")
+        assert remote_array2.system == base_cluster
+        assert remote_array2.remote.size == 30
+
+        # Test creating a third instance with the factory method
+        remote_array3 = RemoteClass.factory_constructor.remote(
+            size=40, run_name="remote_array3"
+        )
+        assert remote_array3.system.config_for_rns == base_cluster.config_for_rns
+        assert remote_array3.remote.size == 40
+        assert remote_array3.cpu_count(local=False) == cluster_cpus
+
+        # Make sure first array and class are unaffected by this change
+        assert remote_array.remote.size == 20
+        assert RemoteClass.cpu_count(local=False) == cluster_cpus
+
+        # Test resolve()
+        helper = rh.function(resolve_test_helper).to(base_cluster, env=rh.Env())
+        resolved_obj = helper(remote_array.resolve())
+        assert resolved_obj.__class__.__name__ == "SlowNumpyArray"
+        assert not hasattr(resolved_obj, "config_for_rns")
+        assert resolved_obj.size == 20
+        assert list(resolved_obj.arr) == [0, 1, 2]
+
+    # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
+    @pytest.mark.parametrize("env", [None])
+    def test_module_from_subclass(self, base_cluster, env):
+        size = 3
+        remote_df = SlowPandas(size=size).to(base_cluster, env)
+        assert remote_df.system == base_cluster
+
+        # Test that module was initialized correctly on the cluster
+        assert remote_df.remote.size == size
+        assert len(remote_df.remote.df) == size
+        assert remote_df.remote._hidden_1 == "hidden"
+
+        results = []
+        # Capture stdout to check that it's working
+        out = ""
+        with rh.capture_stdout() as stdout:
+            for i, val in enumerate(remote_df.slow_iter()):
+                assert val
+                print(val)
+                results += [val]
+                out = out + str(stdout)
+        assert len(results) == 3
+
+        # Check that stdout was captured. Skip the last result because sometimes we
+        # don't catch it and it makes the test flaky.
+        for i in range(remote_df.size - 1):
+            assert f"Hello from the cluster stdout! {i}" in out
+            assert f"Hello from the cluster logs! {i}" in out
+
+        cpu_count = int(
+            base_cluster.run_python(["import os; print(os.cpu_count())"])[0][1]
+        )
+        print(remote_df.cpu_count())
+        assert remote_df.cpu_count() == os.cpu_count()
+        print(remote_df.cpu_count(local=False))
+        assert remote_df.cpu_count(local=False) == cpu_count
+
+        # Test setting and getting properties
+        df = remote_df.remote.df
+        assert isinstance(df, pd.DataFrame)
+        assert df.shape == (3, 3)
+        assert df.loc[0, 0] == 0
+        assert df.loc[2, 2] == 2
+
+        remote_df.size = 20
+        assert remote_df.remote.size == 20
+
+        del remote_df
+
+        # Test get_or_to
+        remote_df = SlowPandas(size=3).get_or_to(
+            base_cluster, env=env, name="SlowPandas"
+        )
+        assert remote_df.system.config_for_rns == base_cluster.config_for_rns
+        assert remote_df.cpu_count(local=False, stream_logs=False) == cpu_count
+        # Check that size is unchanged from when we set it to 20 above
+        assert remote_df.remote.size == 20
+
+        # Test that resolve() has no effect
+        helper = rh.function(resolve_test_helper).to(base_cluster, env=rh.Env())
+        resolved_obj = helper(remote_df.resolve())
+        assert resolved_obj.__class__.__name__ == "SlowPandas"
+        assert resolved_obj.size == 20  # resolved_obj.remote.size causing an error
+        assert resolved_obj.config_for_rns == remote_df.config_for_rns
+
+    @pytest.mark.clustertest
+    @pytest.mark.asyncio
+    # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
+    @pytest.mark.parametrize("env", [None])
+    async def test_module_from_subclass_async(self, base_cluster, env):
+        remote_df = SlowPandas(size=3).to(base_cluster, env)
+        assert remote_df.system == base_cluster
+        results = []
+        # Capture stdout to check that it's working
+        out = ""
+        with rh.capture_stdout() as stdout:
+            async for val in remote_df.slow_iter_async():
+                assert val
+                print(val)
+                results += [val]
+                out = out + str(stdout)
+        assert len(results) == 3
+
+        # Check that stdout was captured. Skip the last result because sometimes we
+        # don't catch it and it makes the test flaky.
+        for i in range(remote_df.size - 1):
+            assert f"Hello from the cluster stdout! {i}" in out
+            assert f"Hello from the cluster logs! {i}" in out
+
+        cpu_count = int(
+            base_cluster.run_python(["import os; print(os.cpu_count())"])[0][1]
+        )
+        print(await remote_df.cpu_count_async())
+        assert await remote_df.cpu_count_async() == os.cpu_count()
+        print(await remote_df.cpu_count_async(local=False))
+        assert await remote_df.cpu_count_async(local=False) == cpu_count
+
+        # Properties
+        df = await remote_df.fetch_async("df")
+        assert isinstance(df, pd.DataFrame)
+        assert df.shape == (3, 3)
+        assert df.loc[0, 0] == 0
+        assert df.loc[2, 2] == 2
+
+        await remote_df.set_async("size", 20)
+        assert remote_df.remote.size == 20
+
+    @unittest.skip("Not working yet")
+    @pytest.mark.clustertest
+    def test_hf_autotokenizer(self, base_cluster):
+        from transformers import AutoTokenizer
+
+        AutoTokenizer.from_pretrained("bert-base-uncased")
+        RemoteAutoTokenizer = rh.module(AutoTokenizer).to(
+            base_cluster, env=["transformers"]
+        )
+        tok = RemoteAutoTokenizer.from_pretrained.remote(
+            "bert-base-uncased", run_name="bert-tok"
+        )
+        # assert tok.remote.pad_token == "<pad>"
+        prompt = "Tell me about unified development interfaces into compute and data infrastructure."
+        assert tok(prompt, return_tensors="pt").shape == (1, 18)
+
+    # --------- Unittests ---------
+
+    @pytest.mark.usefixtures("base_cluster")
+    @pytest.mark.parametrize("env", [None])
+    def test_create_and_rename(self, base_cluster, env):
+        RemoteCalc = rh.module(cls=Calculator).to(base_cluster)
+        remote_calc = RemoteCalc(owner="Runhouse", name="Runhouse_calc")
+        assert isinstance(RemoteCalc, rh.Module)
+        assert RemoteCalc.name == "Calculator"
+        assert remote_calc.name == "Runhouse_calc"
+        assert remote_calc.summer(2, 3) == 5
+        assert remote_calc.mult(3, 7) == 21
+
+        # test that after rename, module stays the same, apart from the name.
+        # Moreover, tests that the rename did not affect the existing remote instances, as well as creating new ones.
+        RemoteCalc.rename("my_calc_module")
+        assert RemoteCalc.name == "my_calc_module"
+        remote_calc_renamed = RemoteCalc(owner="Runhouse", name="Runhouse_calc_new")
+        assert remote_calc_renamed.summer(4, 6) == 10
+        assert remote_calc_renamed.divider(35, 7) == 5
+        assert remote_calc.summer(4, 6) == remote_calc_renamed.summer(4, 6)
+        assert remote_calc.divider(35, 7) == remote_calc_renamed.divider(35, 7)
+
+    @pytest.mark.usefixtures("base_cluster")
+    @pytest.mark.parametrize("env", [None])
+    def test_local_remote_properties(self, base_cluster, env):
+        RemoteCalc = rh.module(cls=Calculator).to(base_cluster)
+        remote_calc = RemoteCalc(owner="Runhouse", name="Runhouse_calc")
+        assert RemoteCalc.name == "Calculator"
+        assert remote_calc.name == "Runhouse_calc"
+        assert remote_calc.remote.model == "Casio"
+        assert remote_calc.remote._release_year == 2023
+        assert remote_calc.local.importer == "Calculators Inc"
+
+    @pytest.mark.parametrize("env", [None])
+    @pytest.mark.asyncio
+    async def test_fetch_class_and_properties(self, base_cluster, env):
+        RemoteCalc = rh.module(cls=Calculator).to(base_cluster)
+        owner = "Runhouse"
+
+        # fetch of a general class (not subclass)
+        remote_calc = RemoteCalc(owner=owner)
+        model = remote_calc.fetch("model")
+        release_year = remote_calc.fetch("_release_year")
+        remote_owner = remote_calc.fetch("owner")
+        model_async = await remote_calc.fetch_async("model")
+        release_year_async = await remote_calc.fetch_async("_release_year")
+        owner_async = await remote_calc.fetch_async("owner")
+        assert model == "Casio"
+        assert model_async == "Casio"
+        assert release_year == 2023
+        assert release_year == release_year_async
+        assert remote_owner == owner_async
+
+        # fetch subclass
+        remote_df_sync = SlowPandas(size=4).to(base_cluster, env).fetch()
+        assert remote_df_sync.size == 4
+        assert remote_df_sync.cpu_count() == SlowPandas(size=4).cpu_count()
+
+        assert (
+            await SlowPandas(size=4)
+            .to(system=base_cluster, env=env)
+            .fetch_async("size")
+            == 4
+        )
+
+    @pytest.mark.parametrize("env", [None])
+    def test_get_or_to(self, base_cluster, env):
+        RemoteCalcNew = rh.module(Calculator).get_or_to(
+            base_cluster, name="new_remote_cals"
+        )
+        remote_calc_new = RemoteCalcNew(owner="Runhouse_admin", name="Admin_calc")
+        assert remote_calc_new.mult(5, 9) == 45
+        assert remote_calc_new.remote.owner == "Runhouse_admin"
+        assert remote_calc_new.name == "Admin_calc"
+        RemoteCalcExisting = rh.module(Calculator).get_or_to(
+            base_cluster, name="new_remote_cals"
+        )
+        remote_calc_existing = RemoteCalcExisting(
+            owner="Runhouse_users", name="Users_calc"
+        )
+        assert remote_calc_existing.mult(6, 2) == 12
+        assert remote_calc_existing.remote.owner == "Runhouse_users"
+        assert remote_calc_existing.remote.name == "Users_calc"
+
+    @pytest.mark.parametrize("env", [None])
+    def test_refresh(self, base_cluster, env):
+        RemoteCalc = rh.module(cls=Calculator).to(base_cluster)
+        remote_calc = RemoteCalc(owner="Runhouse", name="General_calc")
+        assert remote_calc.sub(33, 5) == 28
+        assert remote_calc.mult(4, 9) == 36
+        RemoteCalcRefreshed = RemoteCalc.refresh().to(base_cluster)
+        remote_calc_refreshed = RemoteCalcRefreshed(
+            owner="Runhouse", name="General_calc_refreshed"
+        )
+        assert remote_calc_refreshed.mult(4, 9) == 36
+        assert remote_calc_refreshed.sub(33, 5) == 28
+
+    def get_class_name(self, cls):
+        return cls._name
+
+    def calc_square(self, a: int):
+        return a * a
+
+    @pytest.mark.parametrize("env", [None])
+    def test_resolve(self, base_cluster, env):
+        remote_calc = rh.module(Calculator).to(base_cluster)
+
+        # resolve method
+        assert self.get_class_name(remote_calc.resolve()) == "Calculator"
+        assert self.calc_square(remote_calc.resolve().mult(2, 3)) == 36
+        assert self.calc_square(remote_calc.resolve().summer(2, 3)) == 25
+        assert self.calc_square(remote_calc.resolve().divider(16, 2)) == 64
+        assert self.calc_square(remote_calc.resolve().sub(1, 1)) == 0
+
+        # resolved_state() method
+        assert self.get_class_name(remote_calc.resolved_state()) == "Calculator"
+        assert self.calc_square(remote_calc.resolved_state().mult(2, 3)) == 36
+        assert self.calc_square(remote_calc.resolved_state().summer(2, 3)) == 25
+        assert self.calc_square(remote_calc.resolved_state().divider(16, 2)) == 64
+        assert self.calc_square(remote_calc.resolved_state().sub(1, 1)) == 0
+
+    @pytest.mark.parametrize("env", [None])
+    def test_save(self, base_cluster, env):
+        # TODO: ask Josh for advice how to share it with a new user each time.
+        users = ["josh@run.house"]
+        remote_calc = rh.module(Calculator).to(base_cluster).save(name="rh_remote_calc")
+        added_users, new_users = remote_calc.share(
+            users=users, notify_users=False, access_type="write"
+        )
+        assert remote_calc.name == "rh_remote_calc"
+        assert added_users == {users[0]: "write"} or added_users == {}
+        assert new_users == {}
+
+    @pytest.mark.parametrize("env", [None])
+    @pytest.mark.asyncio
+    async def test_set_async(self, base_cluster, env):
+        RemoteCalc = rh.module(Calculator).to(base_cluster)
+        my_remote_calc = RemoteCalc(owner="Runhouse", name="Runhouse_remote_dev")
+
+        # test before changing the properties values.
+        assert my_remote_calc.remote.owner == "Runhouse"
+        assert my_remote_calc.remote.name == "Runhouse_remote_dev"
+        assert my_remote_calc.remote.model == "Casio"
+        assert my_remote_calc.remote._release_year == 2023
+
+        # test after changing the properties values.
+        await my_remote_calc.set_async("owner", "Runhouse_eng")
+        assert my_remote_calc.remote.owner == "Runhouse_eng"
+        await my_remote_calc.set_async("_release_year", 2020)
+        assert my_remote_calc.remote._release_year == 2020
+
+        # test that the unchanged properties remained the same.
+        assert my_remote_calc.remote.model == "Casio"
+        assert my_remote_calc.remote.name == "Runhouse_remote_dev"
 
 
 if __name__ == "__main__":
