@@ -2,7 +2,7 @@ import unittest
 
 import pytest
 
-from runhouse.servers.http.auth import hash_token
+from runhouse.servers.http.auth import hash_token, update_cache_for_user
 
 from tests.test_servers.conftest import BASE_ENV_ACTOR_NAME, CACHE_ENV_ACTOR_NAME
 
@@ -173,20 +173,20 @@ class TestBaseEnvObjStore:
 class TestAuthCacheObjStore:
     """Start object store in a local auth cache servlet"""
 
-    def test_resource_access_level(self, obj_store, test_account):
+    def test_save_resources_to_obj_store_cache(self, obj_store, test_account):
         with test_account as test_account_dict:
             token = test_account_dict["token"]
-            resource_uri = f"/{test_account_dict['username']}/summer"
-            access_level = obj_store.resource_access_level(
-                hash_token(token), resource_uri
-            )
-            assert access_level == "write"
+            hashed_token = hash_token(token)
 
-    def test_user_resources(self, obj_store, test_account):
-        with test_account as test_account_dict:
-            token = test_account_dict["token"]
-            resources = obj_store.user_resources(hash_token(token))
-            assert isinstance(resources, dict)
+            # Add test account resources to the local cache
+            update_cache_for_user(token)
+            resources = obj_store.user_resources(hashed_token)
+            assert resources
+
+            resource_uri = f"/{test_account_dict['username']}/summer"
+            access_level = obj_store.resource_access_level(hashed_token, resource_uri)
+
+            assert access_level == "write"
 
     def test_no_resources_for_invalid_token(self, obj_store):
         token = "abc"
