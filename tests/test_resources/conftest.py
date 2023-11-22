@@ -8,7 +8,6 @@ from tests.conftest import init_args
 
 RESOURCE_NAME = "my_resource"
 
-
 ######## Fixtures ########
 
 
