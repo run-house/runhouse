@@ -90,11 +90,9 @@ class Cluster(Resource):
 
         super().__init__(name=name, dryrun=dryrun)
 
-        self.address = ips[0] if isinstance(ips, List) else ips
         self._ssh_creds = ssh_creds
         self.ips = ips
         self._rpc_tunnel = None
-        self._rh_version = None
 
         self.client = None
         self.den_auth = den_auth
@@ -108,6 +106,15 @@ class Cluster(Resource):
         self.ssh_port = ssh_port or self.DEFAULT_SSH_PORT
         self.server_host = server_host
         self.use_local_telemetry = use_local_telemetry
+
+    @property
+    def address(self):
+        return self.ips[0] if isinstance(self.ips, List) else None
+
+    @address.setter
+    def address(self, addr):
+        self.ips = self.ips or [None]
+        self.ips[0] = addr
 
     def save_config_to_cluster(self):
         import json
@@ -152,13 +159,12 @@ class Cluster(Resource):
                 "server_connection_type",
                 "den_auth",
                 "use_local_telemetry",
+                "ssh_port",
+                "client_port",
             ],
         )
-        if self.ips is not None:
+        if self.is_up():
             config["ssh_creds"] = self.ssh_creds()
-        else:
-            config["ips"] = [self.address]
-            config["ssh_creds"] = None
 
         if self._use_custom_cert:
             config["ssl_certfile"] = self.cert_config.cert_path
@@ -504,17 +510,6 @@ class Cluster(Resource):
                             time.sleep(5)
                 raise ValueError(f"Could not connect to server {self.name}")
 
-        import runhouse
-
-        if self._rh_version is None:
-            self._rh_version = self._get_rh_version()
-
-        if not runhouse.__version__ == self._rh_version:
-            logger.warning(
-                f"Server was started with Runhouse version ({self._rh_version}), "
-                f"but local Runhouse version is ({runhouse.__version__})"
-            )
-
         return
 
     def ssh_tunnel(
@@ -799,8 +794,6 @@ class Cluster(Resource):
             self.client.use_https = https_flag
             self.client.cert_path = self.cert_config.cert_path
 
-        self._rh_version = self._get_rh_version()
-
         return status_codes
 
     @contextlib.contextmanager
@@ -990,11 +983,6 @@ class Cluster(Resource):
         if ssh_call.is_alive():
             raise TimeoutError("SSH call timed out")
         return True
-
-    def _get_rh_version(self):
-        return self.run_python(["import runhouse", "print(runhouse.__version__)"])[0][
-            1
-        ].strip()
 
     def run(
         self,

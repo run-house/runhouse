@@ -212,7 +212,9 @@ class HTTPServer:
             if not ray.is_initialized():
                 raise Exception("Ray is not initialized, restart the server.")
             logger.info("Server is up.")
-            return
+
+            import runhouse
+            return {"rh_version": runhouse.__version__}
         except Exception as e:
             logger.exception(e)
             HTTPServer.register_activity()
