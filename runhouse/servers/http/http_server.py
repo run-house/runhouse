@@ -214,6 +214,7 @@ class HTTPServer:
             logger.info("Server is up.")
 
             import runhouse
+
             return {"rh_version": runhouse.__version__}
         except Exception as e:
             logger.exception(e)

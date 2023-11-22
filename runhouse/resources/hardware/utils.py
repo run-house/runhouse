@@ -30,12 +30,14 @@ RESERVED_SYSTEM_NAMES = ["file", "s3", "gs", "azure", "here", "ssh", "sftp"]
 
 # Get rid of the constant "Found credentials in shared credentials file: ~/.aws/credentials" message
 try:
-    import boto3
     import logging
 
-    boto3.set_stream_logger(name='botocore.credentials', level=logging.ERROR)
+    import boto3
+
+    boto3.set_stream_logger(name="botocore.credentials", level=logging.ERROR)
 except ImportError:
     pass
+
 
 class ServerConnectionType(str, Enum):
     """Manage the type of connection Runhouse will make with the API server started on the cluster.
