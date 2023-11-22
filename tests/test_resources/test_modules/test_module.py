@@ -4,16 +4,12 @@ import os
 import time
 import unittest
 
-import httpx
-
 import numpy as np
 import pandas as pd
 import pytest
 
 import runhouse as rh
 from runhouse import Package
-
-from tests.test_resources.conftest import BASE_URL, http_server_is_up
 
 logger = logging.getLogger(__name__)
 
@@ -23,19 +19,6 @@ logger = logging.getLogger(__name__)
     - Test creating module as rh.Module subclass
     - Test calling Module methods async
 """
-
-
-# A docker container, used in the servers tests as well (https tests with auth, for example).
-@pytest.fixture(scope="class")
-def base_cluster(local_docker_cluster_public_key):
-    if http_server_is_up():
-        resp = httpx.get(f"{BASE_URL}/keys")
-        # Should receive a 404 (no token provided in request) when den auth is enabled
-        if resp.status_code != 404:
-            # Restart the server with den auth
-            local_docker_cluster_public_key.restart_server()
-
-    return local_docker_cluster_public_key
 
 
 def resolve_test_helper(obj):
@@ -124,31 +107,29 @@ class Calculator:
         return a * b
 
 
-@pytest.mark.usefixtures("base_cluster")
+@pytest.mark.usefixtures("cluster")
 class TestModule:
 
     # --------- integration tests ---------
     # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
     @pytest.mark.parametrize("env", [None])
-    def test_call_module_method(self, base_cluster, env):
-        base_cluster.put("numpy_pkg", Package.from_string("numpy"), env=env)
+    def test_call_module_method(self, cluster, env):
+        cluster.put("numpy_pkg", Package.from_string("numpy"), env=env)
 
         # Test for method
-        res = base_cluster.call(
-            "numpy_pkg", "_detect_cuda_version_or_cpu", stream_logs=True
-        )
+        res = cluster.call("numpy_pkg", "_detect_cuda_version_or_cpu", stream_logs=True)
         assert res == "cpu"
 
         # Test for property
-        res = base_cluster.call("numpy_pkg", "config_for_rns", stream_logs=True)
+        res = cluster.call("numpy_pkg", "config_for_rns", stream_logs=True)
         numpy_config = Package.from_string("numpy").config_for_rns
         assert res
         assert isinstance(res, dict)
         assert res == numpy_config
 
         # Test iterator
-        base_cluster.put("config_dict", list(numpy_config.keys()), env=env)
-        res = base_cluster.call("config_dict", "__iter__", stream_logs=True)
+        cluster.put("config_dict", list(numpy_config.keys()), env=env)
+        res = cluster.call("config_dict", "__iter__", stream_logs=True)
         # Checks that all the keys in numpy_config were returned
         inspect.isgenerator(res)
         for key in res:
@@ -158,9 +139,9 @@ class TestModule:
 
     # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
     @pytest.mark.parametrize("env", [None])
-    def test_module_from_factory(self, base_cluster, env):
+    def test_module_from_factory(self, cluster, env):
         size = 3
-        RemoteClass = rh.module(SlowNumpyArray).to(base_cluster)
+        RemoteClass = rh.module(SlowNumpyArray).to(cluster)
         remote_array = RemoteClass(size=size, name="remote_array1")
 
         # Test that naming works properly, and "class" module was unaffacted
@@ -168,7 +149,7 @@ class TestModule:
         assert RemoteClass.name == "SlowNumpyArray"
 
         # Test that module was initialized correctly on the cluster
-        assert remote_array.system == base_cluster
+        assert remote_array.system == cluster
         assert remote_array.remote.size == size
         assert all(remote_array.remote.arr == np.zeros(size))
         assert remote_array.remote._hidden_1 == "hidden"
@@ -190,7 +171,7 @@ class TestModule:
             assert f"Hello from the cluster logs! {i}" in out
 
         cluster_cpus = int(
-            base_cluster.run_python(["import os; print(os.cpu_count())"])[0][1]
+            cluster.run_python(["import os; print(os.cpu_count())"])[0][1]
         )
         # Test classmethod on remote class
         assert RemoteClass.cpu_count() == os.cpu_count()
@@ -216,14 +197,14 @@ class TestModule:
 
         # Test creating a second instance of the same class
         remote_array2 = RemoteClass(size=30, name="remote_array2")
-        assert remote_array2.system == base_cluster
+        assert remote_array2.system == cluster
         assert remote_array2.remote.size == 30
 
         # Test creating a third instance with the factory method
         remote_array3 = RemoteClass.factory_constructor.remote(
             size=40, run_name="remote_array3"
         )
-        assert remote_array3.system.config_for_rns == base_cluster.config_for_rns
+        assert remote_array3.system.config_for_rns == cluster.config_for_rns
         assert remote_array3.remote.size == 40
         assert remote_array3.cpu_count(local=False) == cluster_cpus
 
@@ -232,7 +213,7 @@ class TestModule:
         assert RemoteClass.cpu_count(local=False) == cluster_cpus
 
         # Test resolve()
-        helper = rh.function(resolve_test_helper).to(base_cluster, env=rh.Env())
+        helper = rh.function(resolve_test_helper).to(cluster, env=rh.Env())
         resolved_obj = helper(remote_array.resolve())
         assert resolved_obj.__class__.__name__ == "SlowNumpyArray"
         assert not hasattr(resolved_obj, "config_for_rns")
@@ -241,10 +222,10 @@ class TestModule:
 
     # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
     @pytest.mark.parametrize("env", [None])
-    def test_module_from_subclass(self, base_cluster, env):
+    def test_module_from_subclass(self, cluster, env):
         size = 3
-        remote_df = SlowPandas(size=size).to(base_cluster, env)
-        assert remote_df.system == base_cluster
+        remote_df = SlowPandas(size=size).to(cluster, env)
+        assert remote_df.system == cluster
 
         # Test that module was initialized correctly on the cluster
         assert remote_df.remote.size == size
@@ -268,9 +249,7 @@ class TestModule:
             assert f"Hello from the cluster stdout! {i}" in out
             assert f"Hello from the cluster logs! {i}" in out
 
-        cpu_count = int(
-            base_cluster.run_python(["import os; print(os.cpu_count())"])[0][1]
-        )
+        cpu_count = int(cluster.run_python(["import os; print(os.cpu_count())"])[0][1])
         print(remote_df.cpu_count())
         assert remote_df.cpu_count() == os.cpu_count()
         print(remote_df.cpu_count(local=False))
@@ -289,16 +268,14 @@ class TestModule:
         del remote_df
 
         # Test get_or_to
-        remote_df = SlowPandas(size=3).get_or_to(
-            base_cluster, env=env, name="SlowPandas"
-        )
-        assert remote_df.system.config_for_rns == base_cluster.config_for_rns
+        remote_df = SlowPandas(size=3).get_or_to(cluster, env=env, name="SlowPandas")
+        assert remote_df.system.config_for_rns == cluster.config_for_rns
         assert remote_df.cpu_count(local=False, stream_logs=False) == cpu_count
         # Check that size is unchanged from when we set it to 20 above
         assert remote_df.remote.size == 20
 
         # Test that resolve() has no effect
-        helper = rh.function(resolve_test_helper).to(base_cluster, env=rh.Env())
+        helper = rh.function(resolve_test_helper).to(cluster, env=rh.Env())
         resolved_obj = helper(remote_df.resolve())
         assert resolved_obj.__class__.__name__ == "SlowPandas"
         assert resolved_obj.size == 20  # resolved_obj.remote.size causing an error
@@ -308,9 +285,9 @@ class TestModule:
     @pytest.mark.asyncio
     # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
     @pytest.mark.parametrize("env", [None])
-    async def test_module_from_subclass_async(self, base_cluster, env):
-        remote_df = SlowPandas(size=3).to(base_cluster, env)
-        assert remote_df.system == base_cluster
+    async def test_module_from_subclass_async(self, cluster, env):
+        remote_df = SlowPandas(size=3).to(cluster, env)
+        assert remote_df.system == cluster
         results = []
         # Capture stdout to check that it's working
         out = ""
@@ -328,9 +305,7 @@ class TestModule:
             assert f"Hello from the cluster stdout! {i}" in out
             assert f"Hello from the cluster logs! {i}" in out
 
-        cpu_count = int(
-            base_cluster.run_python(["import os; print(os.cpu_count())"])[0][1]
-        )
+        cpu_count = int(cluster.run_python(["import os; print(os.cpu_count())"])[0][1])
         print(await remote_df.cpu_count_async())
         assert await remote_df.cpu_count_async() == os.cpu_count()
         print(await remote_df.cpu_count_async(local=False))
@@ -348,13 +323,11 @@ class TestModule:
 
     @unittest.skip("Not working yet")
     @pytest.mark.clustertest
-    def test_hf_autotokenizer(self, base_cluster):
+    def test_hf_autotokenizer(self, cluster):
         from transformers import AutoTokenizer
 
         AutoTokenizer.from_pretrained("bert-base-uncased")
-        RemoteAutoTokenizer = rh.module(AutoTokenizer).to(
-            base_cluster, env=["transformers"]
-        )
+        RemoteAutoTokenizer = rh.module(AutoTokenizer).to(cluster, env=["transformers"])
         tok = RemoteAutoTokenizer.from_pretrained.remote(
             "bert-base-uncased", run_name="bert-tok"
         )
@@ -364,10 +337,10 @@ class TestModule:
 
     # --------- Unittests ---------
 
-    @pytest.mark.usefixtures("base_cluster")
+    @pytest.mark.usefixtures("cluster")
     @pytest.mark.parametrize("env", [None])
-    def test_create_and_rename(self, base_cluster, env):
-        RemoteCalc = rh.module(cls=Calculator).to(base_cluster)
+    def test_create_and_rename(self, cluster, env):
+        RemoteCalc = rh.module(cls=Calculator).to(cluster)
         remote_calc = RemoteCalc(owner="Runhouse", name="Runhouse_calc")
         assert isinstance(RemoteCalc, rh.Module)
         assert RemoteCalc.name == "Calculator"
@@ -385,10 +358,10 @@ class TestModule:
         assert remote_calc.summer(4, 6) == remote_calc_renamed.summer(4, 6)
         assert remote_calc.divider(35, 7) == remote_calc_renamed.divider(35, 7)
 
-    @pytest.mark.usefixtures("base_cluster")
+    @pytest.mark.usefixtures("cluster")
     @pytest.mark.parametrize("env", [None])
-    def test_local_remote_properties(self, base_cluster, env):
-        RemoteCalc = rh.module(cls=Calculator).to(base_cluster)
+    def test_local_remote_properties(self, cluster, env):
+        RemoteCalc = rh.module(cls=Calculator).to(cluster)
         remote_calc = RemoteCalc(owner="Runhouse", name="Runhouse_calc")
         assert RemoteCalc.name == "Calculator"
         assert remote_calc.name == "Runhouse_calc"
@@ -398,8 +371,8 @@ class TestModule:
 
     @pytest.mark.parametrize("env", [None])
     @pytest.mark.asyncio
-    async def test_fetch_class_and_properties(self, base_cluster, env):
-        RemoteCalc = rh.module(cls=Calculator).to(base_cluster)
+    async def test_fetch_class_and_properties(self, cluster, env):
+        RemoteCalc = rh.module(cls=Calculator).to(cluster)
         owner = "Runhouse"
 
         # fetch of a general class (not subclass)
@@ -417,28 +390,24 @@ class TestModule:
         assert remote_owner == owner_async
 
         # fetch subclass
-        remote_df_sync = SlowPandas(size=4).to(base_cluster, env).fetch()
+        remote_df_sync = SlowPandas(size=4).to(cluster, env).fetch()
         assert remote_df_sync.size == 4
         assert remote_df_sync.cpu_count() == SlowPandas(size=4).cpu_count()
 
         assert (
-            await SlowPandas(size=4)
-            .to(system=base_cluster, env=env)
-            .fetch_async("size")
+            await SlowPandas(size=4).to(system=cluster, env=env).fetch_async("size")
             == 4
         )
 
     @pytest.mark.parametrize("env", [None])
-    def test_get_or_to(self, base_cluster, env):
-        RemoteCalcNew = rh.module(Calculator).get_or_to(
-            base_cluster, name="new_remote_cals"
-        )
+    def test_get_or_to(self, cluster, env):
+        RemoteCalcNew = rh.module(Calculator).get_or_to(cluster, name="new_remote_cals")
         remote_calc_new = RemoteCalcNew(owner="Runhouse_admin", name="Admin_calc")
         assert remote_calc_new.mult(5, 9) == 45
         assert remote_calc_new.remote.owner == "Runhouse_admin"
         assert remote_calc_new.name == "Admin_calc"
         RemoteCalcExisting = rh.module(Calculator).get_or_to(
-            base_cluster, name="new_remote_cals"
+            cluster, name="new_remote_cals"
         )
         remote_calc_existing = RemoteCalcExisting(
             owner="Runhouse_users", name="Users_calc"
@@ -448,15 +417,18 @@ class TestModule:
         assert remote_calc_existing.remote.name == "Users_calc"
 
     @pytest.mark.parametrize("env", [None])
-    def test_refresh(self, base_cluster, env):
-        RemoteCalc = rh.module(cls=Calculator).to(base_cluster)
-        remote_calc = RemoteCalc(owner="Runhouse", name="General_calc")
+    def test_refresh(self, cluster, env):
+        RemoteCalc = rh.module(cls=Calculator).to(cluster)
+        # Note: by reusing the name, we're overwriting the class module in the cluster's object store with
+        # the new instance.
+        remote_calc = RemoteCalc(owner="Runhouse", name=RemoteCalc.name)
         assert remote_calc.sub(33, 5) == 28
         assert remote_calc.mult(4, 9) == 36
-        RemoteCalcRefreshed = RemoteCalc.refresh().to(base_cluster)
-        remote_calc_refreshed = RemoteCalcRefreshed(
-            owner="Runhouse", name="General_calc_refreshed"
-        )
+        # Because we overwrote the class module in the cluster's object store, when we refresh it we should get
+        # the instance back.
+        remote_calc_refreshed = RemoteCalc.refresh()
+        assert remote_calc_refreshed.system.name == cluster.name
+        assert remote_calc_refreshed.remote.owner == "Runhouse"
         assert remote_calc_refreshed.mult(4, 9) == 36
         assert remote_calc_refreshed.sub(33, 5) == 28
 
@@ -467,8 +439,8 @@ class TestModule:
         return a * a
 
     @pytest.mark.parametrize("env", [None])
-    def test_resolve(self, base_cluster, env):
-        remote_calc = rh.module(Calculator).to(base_cluster)
+    def test_resolve(self, cluster, env):
+        remote_calc = rh.module(Calculator).to(cluster)
 
         # resolve method
         assert self.get_class_name(remote_calc.resolve()) == "Calculator"
@@ -485,10 +457,10 @@ class TestModule:
         assert self.calc_square(remote_calc.resolved_state().sub(1, 1)) == 0
 
     @pytest.mark.parametrize("env", [None])
-    def test_save(self, base_cluster, env):
+    def test_save(self, cluster, env):
         # TODO: ask Josh for advice how to share it with a new user each time.
         users = ["josh@run.house"]
-        remote_calc = rh.module(Calculator).to(base_cluster).save(name="rh_remote_calc")
+        remote_calc = rh.module(Calculator).to(cluster).save(name="rh_remote_calc")
         added_users, new_users = remote_calc.share(
             users=users, notify_users=False, access_type="write"
         )
@@ -498,8 +470,8 @@ class TestModule:
 
     @pytest.mark.parametrize("env", [None])
     @pytest.mark.asyncio
-    async def test_set_async(self, base_cluster, env):
-        RemoteCalc = rh.module(Calculator).to(base_cluster)
+    async def test_set_async(self, cluster, env):
+        RemoteCalc = rh.module(Calculator).to(cluster)
         my_remote_calc = RemoteCalc(owner="Runhouse", name="Runhouse_remote_dev")
 
         # test before changing the properties values.
