@@ -3,6 +3,7 @@ import logging
 import subprocess
 from pathlib import Path
 from typing import Any, Dict
+import pkgutil
 
 import sky
 import yaml
@@ -322,12 +323,25 @@ class OnDemandCluster(Cluster):
             return self
 
         if self.provider in ["aws", "gcp", "azure", "lambda", "kubernetes", "cheapest"]:
+
+            local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
+
+            if (
+            local_rh_package_path.parent.name == "runhouse"
+            and (local_rh_package_path.parent / "setup.py").exists()
+            ):
+                # Package is installed in editable mode
+                local_rh_package_path = local_rh_package_path.parent
+
             task = sky.Task(
                 num_nodes=self.num_instances
-                if self.instance_type and ":" not in self.instance_type
+                if self.instance_type and ":" not in self.instance_type or "--" not in self.instance_type
                 else None,
                 # docker_image=image,  # Zongheng: this is experimental, don't use it
                 # envs=None,
+
+                setup='python3 -m pip install ../runhouse',
+                # workdir=local_rh_package_path
             )
             cloud_provider = (
                 sky.clouds.CLOUD_REGISTRY.from_str(self.provider)
@@ -337,21 +351,28 @@ class OnDemandCluster(Cluster):
             task.set_resources(
                 sky.Resources(
                     cloud=cloud_provider,
+
                     instance_type=self.instance_type
                     if self.instance_type
-                    and ":" not in self.instance_type
-                    and "CPU" not in self.instance_type
+                    and ":" not in self.instance_type 
+                    and "CPU" in self.instance_type 
+                    and "--" in self.instance_type 
                     else None,
+
                     accelerators=self.instance_type
                     if self.instance_type
                     and ":" in self.instance_type
                     and "CPU" not in self.instance_type
+                    and "--" not in self.instance_type
                     else None,
+
                     cpus=self.instance_type.rsplit(":", 1)[1]
                     if self.instance_type
                     and ":" in self.instance_type
                     and "CPU" in self.instance_type
+                    and "--" not in self.instance_type
                     else None,
+
                     memory=self.memory,
                     region=self.region or configs.get("default_region"),
                     disk_size=self.disk_size,
@@ -364,6 +385,7 @@ class OnDemandCluster(Cluster):
                 task.set_file_mounts(
                     {
                         "~/.rh": "~/.rh",
+                        "~/runhouse": f"{local_rh_package_path}"
                     }
                 )
             # If we choose to reduce collisions of cluster names:
@@ -371,8 +393,8 @@ class OnDemandCluster(Cluster):
             sky.launch(
                 task,
                 cluster_name=self.name,
-                idle_minutes_to_autostop=self.autostop_mins,
-                down=True,
+                # idle_minutes_to_autostop=self.autostop_mins,
+                #down=True,
             )
         # elif self.provider == "k8s":
         #     raise NotImplementedError("Kubernetes Cluster provider not yet supported")
@@ -380,7 +402,7 @@ class OnDemandCluster(Cluster):
             raise ValueError(f"Cluster provider {self.provider} not supported.")
 
         self._update_from_sky_status()
-        self.restart_server(restart_ray=True)
+        self.restart_server(restart_ray=True, resync_rh=False)
 
         return self
 
@@ -469,3 +491,205 @@ class OnDemandCluster(Cluster):
             >>> rh.ondemand_cluster("rh-cpu").ssh()
         """
         subprocess.run(["ssh", f"{self.name}"])
+
+    def restart_server(
+        self,
+        _rh_install_url: str = None,
+        resync_rh: bool = True,
+        restart_ray: bool = True,
+        env_activate_cmd: str = None,
+        restart_proxy: bool = False,
+    ):
+        """Restart the RPC server.
+
+        Args:
+            resync_rh (bool): Whether to resync runhouse. (Default: ``True``)
+            restart_ray (bool): Whether to restart Ray. (Default: ``True``)
+            env_activate_cmd (str, optional): Command to activate the environment on the server. (Default: ``None``)
+            restart_proxy (bool): Whether to restart nginx on the cluster, if configured. (Default: ``False``)
+        Example:
+            >>> rh.cluster("rh-cpu").restart_server()
+        """
+        logger.info(f"Restarting Runhouse API server on {self.name}.")
+
+        if resync_rh:
+            self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
+
+        # Update the cluster config on the cluster
+        self.save_config_to_cluster()
+
+        use_custom_cert = self._use_custom_cert
+        if use_custom_cert:
+            # Copy the provided cert onto the cluster
+            from runhouse import folder
+
+            cert_dir = self.cert_config.DEFAULT_CERT_DIR
+            folder(path=self.cert_config.cert_dir).to(self, path=cert_dir)
+
+            # Path to cert file stored on the cluster
+            cluster_cert_path = f"{cert_dir}/{self.cert_config.CERT_NAME}"
+            logger.info(
+                f"Copied TLS cert onto the cluster in path: {cluster_cert_path}"
+            )
+
+        use_custom_key = self._use_custom_key
+        if use_custom_key:
+            # Copy the provided key onto the cluster
+            from runhouse import folder
+
+            keyfile_dir = self.cert_config.DEFAULT_PRIVATE_KEY_DIR
+            folder(path=self.cert_config.key_dir).to(self, path=keyfile_dir)
+
+            # Path to key file stored on the cluster
+            cluster_key_path = f"{keyfile_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
+
+            logger.info(
+                f"Copied TLS keyfile onto the cluster in path: {cluster_key_path}"
+            )
+
+        https_flag = self._use_https
+        nginx_flag = self._use_nginx
+        use_local_telemetry = self.use_local_telemetry
+
+        cmd = (
+            self.CLI_RESTART_CMD
+            + (" --no-restart-ray" if not restart_ray else "")
+            + (" --use-https" if https_flag else "")
+            + (" --use-nginx" if nginx_flag else "")
+            + (" --restart-proxy" if restart_proxy and nginx_flag else "")
+            + (f" --ssl-certfile {cluster_cert_path}" if use_custom_cert else "")
+            + (f" --ssl-keyfile {cluster_key_path}" if use_custom_key else "")
+            + (" --use-local-telemetry" if use_local_telemetry else "")
+            + f" --port {self.server_port}"
+        )
+
+        cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd
+
+        status_codes = self.run(commands=[cmd])
+        if not status_codes[0][0] == 0:
+            raise ValueError(f"Failed to restart server {self.name}.")
+
+        if https_flag:
+            rns_address = self.rns_address
+            if not rns_address:
+                raise ValueError("Cluster must have a name in order to enable HTTPS.")
+
+            if not self.client:
+                logger.info("Reconnecting server client. Server restarted with HTTPS.")
+                self.connect_server_client()
+
+            # Refresh the client params to use HTTPS
+            self.client.use_https = https_flag
+            self.client.cert_path = self.cert_config.cert_path
+
+        self._rh_version = self._get_rh_version()
+
+        return status_codes
+
+    def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
+        if not self.address:
+            raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
+
+        local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
+
+        # Check if runhouse is installed from source and has setup.py
+        if (
+            not _install_url
+            and local_rh_package_path.parent.name == "runhouse"
+            and (local_rh_package_path.parent / "setup.py").exists()
+        ):
+            # Package is installed in editable mode
+            local_rh_package_path = local_rh_package_path.parent
+            # dest_path = f"~/{local_rh_package_path.name}"
+
+            # self._rsync(
+            #     source=str(local_rh_package_path),
+            #     dest=dest_path,
+            #     up=True,
+            #     contents=True,
+            #     filter_options="- docs/",
+            # )
+            rh_install_cmd = "python3 -m pip install ./runhouse"
+
+            task = sky.Task(
+                num_nodes=self.num_instances
+                if self.instance_type and ":" not in self.instance_type or "--" not in self.instance_type
+                else None,
+                # docker_image=image,  # Zongheng: this is experimental, don't use it
+                # envs=None,
+
+                setup='python3 -m pip install ../runhouse',
+                #workdir=local_rh_package_path
+            )
+            cloud_provider = (
+                sky.clouds.CLOUD_REGISTRY.from_str(self.provider)
+                if self.provider != "cheapest"
+                else None
+            )
+            task.set_resources(
+                sky.Resources(
+                    cloud=cloud_provider,
+
+                    instance_type=self.instance_type
+                    if self.instance_type
+                    and ":" not in self.instance_type 
+                    and "CPU" in self.instance_type 
+                    and "--" in self.instance_type 
+                    else None,
+
+                    accelerators=self.instance_type
+                    if self.instance_type
+                    and ":" in self.instance_type
+                    and "CPU" not in self.instance_type
+                    and "--" not in self.instance_type
+                    else None,
+
+                    cpus=self.instance_type.rsplit(":", 1)[1]
+                    if self.instance_type
+                    and ":" in self.instance_type
+                    and "CPU" in self.instance_type
+                    and "--" not in self.instance_type
+                    else None,
+
+                    memory=self.memory,
+                    region=self.region or configs.get("default_region"),
+                    disk_size=self.disk_size,
+                    ports=self.open_ports,
+                    image_id=self.image_id,
+                    use_spot=self.use_spot,
+                )
+            )
+            if Path("~/.rh").expanduser().exists():
+                task.set_file_mounts(
+                    {
+                        "~/.rh": "~/.rh",
+                        "~/runhouse": f"{local_rh_package_path}"
+                    }
+                )
+            # If we choose to reduce collisions of cluster names:
+            # cluster_name = self.rns_address.strip('~/').replace("/", "-")
+            sky.launch(
+                task,
+                cluster_name=self.name,
+                #down=True,
+            )
+
+
+        # elif local_rh_package_path.parent.name == 'site-packages':
+        else:
+            # Package is installed in site-packages
+            # status_codes = self.run(['pip install runhouse-nightly==0.0.2.20221202'], stream_logs=True)
+            # rh_package = 'runhouse_nightly-0.0.1.dev20221202-py3-none-any.whl'
+            # rh_download_cmd = f'curl https://runhouse-package.s3.amazonaws.com/{rh_package} --output {rh_package}'
+            if not _install_url:
+                import runhouse
+
+                _install_url = f"runhouse=={runhouse.__version__}"
+            rh_install_cmd = f"python3 -m pip install {_install_url}"
+
+        install_cmd = f"{env._run_cmd} {rh_install_cmd}" if env else rh_install_cmd
+
+        status_codes = self.run([install_cmd], stream_logs=True)
+
+        if status_codes[0][0] != 0:
+            raise ValueError(f"Error installing runhouse on cluster <{self.name}>")

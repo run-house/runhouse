@@ -10,7 +10,7 @@ pyarrow
 pyopenssl>=21.1.0
 rich
 sentry-sdk
-skypilot==0.4.0
+skypilot==0.4.1
 sshfs
 sshtunnel>=0.3.0
 typer
