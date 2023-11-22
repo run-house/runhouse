@@ -118,11 +118,25 @@ class HTTPClient:
         return handle_response(resp_json, output_type, err_str)
 
     def check_server(self):
-        requests.get(
+        resp = requests.get(
             self._formatted_url("check"),
             timeout=self.CHECK_TIMEOUT_SEC,
             verify=self.verify,
         )
+
+        if resp.status_code != 200:
+            raise ValueError(
+                f"Error checking server: {resp.content.decode()}. Is the server running?"
+            )
+
+        rh_version = resp.json().get("rh_version", None)
+        import runhouse
+
+        if rh_version and not runhouse.__version__ == rh_version:
+            logger.warning(
+                f"Server was started with Runhouse version ({rh_version}), "
+                f"but local Runhouse version is ({runhouse.__version__})"
+            )
 
     def get_certificate(self):
         cert: bytes = self.request(

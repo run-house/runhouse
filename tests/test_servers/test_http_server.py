@@ -37,6 +37,7 @@ class TestHTTPServer:
     def test_check_server(self, http_client):
         response = http_client.get("/check")
         assert response.status_code == 200
+        assert rh.__version__ == response.json().get("rh_version")
 
     def test_put_resource(self, http_client, cluster, local_blob):
         state = None
@@ -219,6 +220,7 @@ class TestHTTPServerLocally:
     def test_check_server(self, local_client):
         response = local_client.get("/check")
         assert response.status_code == 200
+        assert rh.__version__ == response.json().get("rh_version")
 
     def test_put_resource(self, local_client, blob_data):
         with tempfile.TemporaryDirectory() as temp_dir:

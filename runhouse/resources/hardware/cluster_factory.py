@@ -307,7 +307,7 @@ def ondemand_cluster(
 
     if open_ports:
         open_ports = [str(p) for p in open_ports]
-        if server_port in open_ports:
+        if str(server_port) in open_ports:
             if (
                 server_connection_type
                 in [ServerConnectionType.TLS, ServerConnectionType.NONE]

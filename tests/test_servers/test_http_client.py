@@ -23,6 +23,8 @@ class TestHTTPClient:
     def test_check_server(self, mock_get):
         mock_response = Mock()
         mock_response.status_code = 200
+        rh_version_resp = {"rh_version": rh.__version__}
+        mock_response.json.return_value = rh_version_resp
         mock_get.return_value = mock_response
 
         self.client.check_server()
