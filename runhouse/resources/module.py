@@ -82,6 +82,8 @@ LOCAL_METHODS = [
     "to",
     "unname",
     "provenance",
+    "refresh",
+    "get_or_to",
 ]
 
 
