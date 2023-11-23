@@ -26,7 +26,6 @@ def send_tensor_to_cuda():
         return e
 
 
-@pytest.mark.localtest
 def test_from_string():
     p = rh.Package.from_string("reqs:~/runhouse")
     if (Path.home() / "runhouse").exists():
@@ -118,7 +117,6 @@ def test_package_file_system_to_cluster(cluster, s3_package):
     assert "sample_file_0.txt" in cluster.run([f"ls {folder_name}"])[0][1]
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "reqs_lines",
     [
@@ -141,7 +139,6 @@ def test_basic_command_generator_from_reqs(reqs_lines):
     assert True
 
 
-@pytest.mark.localtest
 def test_command_generator_from_reqs():
     reqs_lines = ["torch", "accelerate"]
     test_reqs_file = Path(__file__).parent / "requirements.txt"
@@ -162,7 +159,6 @@ def test_command_generator_from_reqs():
     assert True
 
 
-@pytest.mark.localtest
 def test_torch_install_command_generator_from_reqs():
     """Test correctly generating full install commands for torch-related packages."""
     test_cuda_version = "11.6"
@@ -193,7 +189,6 @@ def test_torch_install_command_generator_from_reqs():
         assert install_cmd == packages_to_install[idx][1]
 
 
-@pytest.mark.localtest
 def test_torch_install_command_generator():
     """Checks that the command itself is correct (without actually running it on the cluster)"""
     cuda_version = "11.6"

@@ -16,7 +16,6 @@ pip_reqs = ["torch", "numpy"]
 # -------- BASE ENV TESTS ----------- #
 
 
-@pytest.mark.localtest
 def test_create_env_from_name_local():
     env_name = "~/local_env"
     local_env = rh.env(name=env_name, reqs=pip_reqs).save()
@@ -36,7 +35,6 @@ def test_create_env_from_name_rns():
     assert set(pip_reqs).issubset(set(remote_env.reqs))
 
 
-@pytest.mark.localtest
 def test_create_env():
     test_env = rh.env(name="test_env", reqs=pip_reqs)
     assert len(test_env.reqs) >= 2
@@ -207,7 +205,6 @@ def _get_conda_python_version(env, system):
     return py_version[0][1]
 
 
-@pytest.mark.localtest
 def test_conda_env_from_name_local():
     env_name = "~/local_conda_env"
     conda_env = _get_conda_env()
