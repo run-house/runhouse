@@ -291,6 +291,3 @@ class Secret(Resource):
         if self.values:
             return True
         return False
-
-    def share(self):
-        pass

@@ -23,6 +23,10 @@ def load_config(name, endpoint: str = USER_ENDPOINT):
 
 
 def _load_vault_config(name, endpoint):
+    if "/" in name:
+        # extract the provider name from the rns address
+        name = name.split("/")[-1]
+
     resp = requests.get(
         f"{rns_client.api_server_url}/{endpoint}/{name}",
         headers=rns_client.request_headers,
