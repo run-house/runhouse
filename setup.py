@@ -62,6 +62,7 @@ def parse_readme(readme: str) -> str:
 
 
 install_requires = [
+    "python-dotenv",
     "fastapi",
     "fsspec<=2023.5.0",
     "pyarrow",
