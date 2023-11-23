@@ -31,10 +31,10 @@ jobs:
         run: |
           pip install runhouse[aws] pytest tqdm datasets
 
-      - name: Run all cluster tests
+      - name: Run all cluster unit tests tests
         env:
           TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
-        run: pytest -v -k "clustertest" -m "not gcptest" -m "not gputest"
+        run: pytest -v tests/test_resources/test_cluster.py --level unit
 
       - name: Teardown all test clusters
         run: |
