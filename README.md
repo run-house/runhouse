@@ -24,21 +24,19 @@ if __name__ == "__main__":
     print(remote_fn("Jack"))
 ```
 
-This is regular Python running on your own machine(s) with your existing code. There's no YAML, no magic CLI
-incantations, no decorators, and no prior setup (other than `pip install runhouse` and having `~/.aws/credentials` in
-this case).
+## 🤔 Why?
 
 Runhouse is built to do four things:
+1. Make it easy to send an arbitrary block of your code - function, subroutine, class, generator, whatever -
+to run on souped up remote infra. It's basically a flag flip.
+1. Eliminate CLI and Flask/FastAPI boilerplate by allowing you to send your function or class directly to remote
+infra to execute or serve, and keep them debuggable like the original code, not a subprocess.Popen or postman/curl call.
+1. Bake-in the middleware and automation to make your app production-quality, secure, and sharable instantly.
+That means giving you best-of-breed auth, HTTPS, telemetry, packaging, and deployment automation, with ample
+flexibility to swap in your own.
 1. Bring the power of Ray to any app, anywhere, without having to learn Ray or manage Ray clusters, like Next.js did
 for React. OpenAI, Uber, Shopify, and many others use Ray to power their ML infra, and Runhouse makes its best-in-class
 features accessible to any project, team, or company.
-2. Make it easy to send an arbitrary block of your code - function, subroutine, class, generator, whatever -
-to run on souped up remote infra. It's basically a flag flip.
-3. Eliminate CLI and Flask/FastAPI boilerplate by allowing you to send your function or class directly to remote
-infra to execute or serve, and keep them debuggable like the original code, not a subprocess.Popen or postman/curl call.
-4. Bake-in the middleware and automation to make your app production-quality, secure, and sharable instantly.
-That means giving you best-of-breed auth, HTTPS, telemetry, packaging, and deployment automation, with ample
-flexibility to swap in your own.
 
 ## 🤨 Who is this for?
 
