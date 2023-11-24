@@ -10,7 +10,7 @@
 ## 👵 Welcome Home!
 
 Runhouse is a Python framework for composing and sharing production-quality backend apps and services _ridiculously
-quickly_ on any infra. Running the following will stand up a microservice on a fresh AWS EC2 box:
+quickly_ on your own infra. Running the following will stand up a microservice on a fresh AWS EC2 box:
 
 ```python
 import runhouse as rh
@@ -29,7 +29,7 @@ if __name__ == "__main__":
 Runhouse is built to do four things:
 1. Make it easy to send an arbitrary block of your code - function, subroutine, class, generator, whatever -
 to run on souped up remote infra. It's basically a flag flip.
-1. Eliminate CLI and Flask/FastAPI boilerplate by allowing you to send your function or class directly to remote
+1. Eliminate CLI and Flask/FastAPI boilerplate by allowing you to send your function or class directly to your remote
 infra to execute or serve, and keep them debuggable like the original code, not a subprocess.Popen or postman/curl call.
 1. Bake-in the middleware and automation to make your app production-quality, secure, and sharable instantly.
 That means giving you best-of-breed auth, HTTPS, telemetry, packaging, and deployment automation, with ample
