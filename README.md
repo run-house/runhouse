@@ -1,11 +1,10 @@
 # 🏃‍♀️ Runhouse 🏠
 
-Quick links:
-* Discord: [![Discord](https://dcbadge.vercel.app/api/server/RnhB6589Hs?compact=true&style=flat)](https://discord.gg/RnhB6589Hs)
-* Twitter: [![Twitter](https://img.shields.io/twitter/url/https/twitter.com/runhouse_.svg?style=social&label=@runhouse_)](https://twitter.com/runhouse_)
-* Website: [![Website](https://img.shields.io/badge/run.house-green)](https://www.run.house)
-* Docs: [![Docs](https://img.shields.io/badge/docs-blue)](https://www.run.house/docs)
-* Runhouse Den: [![Den](https://img.shields.io/badge/runhouse_den-purple)](https://www.run.house/login)
+[![Discord](https://dcbadge.vercel.app/api/server/RnhB6589Hs?compact=true&style=flat)](https://discord.gg/RnhB6589Hs)
+[![Twitter](https://img.shields.io/twitter/url/https/twitter.com/runhouse_.svg?style=social&label=@runhouse_)](https://twitter.com/runhouse_)
+[![Website](https://img.shields.io/badge/run.house-green)](https://www.run.house)
+[![Docs](https://img.shields.io/badge/docs-blue)](https://www.run.house/docs)
+[![Den](https://img.shields.io/badge/runhouse_den-purple)](https://www.run.house/login)
 
 
 ## 👵 Welcome Home!
@@ -41,7 +40,7 @@ infra to execute or serve, and keep them debuggable like the original code, not 
 That means giving you best-of-breed auth, HTTPS, telemetry, packaging, and deployment automation, with ample
 flexibility to swap in your own.
 
-### 🤨 Who is this for?
+## 🤨 Who is this for?
 
 * 👩‍🔧 **Engineers, Researchers and Data Scientists** who don't want to spend 3-6 months translating and packaging
 their work to share it, and want to be able to iterate and improve production services, pipelines, and artifacts
@@ -52,7 +51,7 @@ research and production.
 on any infra, rather than build support or guides for each cloud or compute system (e.g. Kubernetes) one by one.
    * See this in action in 🤗 Hugging Face ([Transformers](https://github.com/huggingface/transformers/blob/main/examples/README.md#running-the-examples-on-remote-hardware-with-auto-setup), [Accelerate](https://github.com/huggingface/accelerate/blob/main/examples/README.md#simple-multi-gpu-hardware-launcher)) and 🦜🔗 [Langchain](https://python.langchain.com/en/latest/modules/models/llms/integrations/runhouse.html)
 
-### 🦾 How does it work?
+## 🦾 How does it work?
 
 Suppose you create a cluster object:
 
@@ -104,7 +103,7 @@ if __name__ == "__main__":
     imgs[0].show()
 ```
 
-### 🙅‍♀️ Runhouse is not
+## 🙅‍♀️ Runhouse is not
 
 * An orchestrator / scheduler (Airflow, Prefect, Metaflow)
 * A distributed compute DSL (Ray, Spark, Dask)
