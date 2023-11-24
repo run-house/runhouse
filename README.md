@@ -10,7 +10,7 @@
 ## 👵 Welcome Home!
 
 Runhouse is a Python framework for composing and sharing production-quality backend apps and services _ridiculously
-quickly_ on your own infra. Running the following will stand up a microservice on a fresh AWS EC2 box:
+quickly_ and on your own infra. Running the following will stand up a microservice on a fresh AWS EC2 box:
 
 ```python
 import runhouse as rh
@@ -108,7 +108,7 @@ if __name__ == "__main__":
 * An ML Platform (Sagemaker, Vertex, Azure ML)
 * A model registry / experiment manager / MLOps framework (MLFlow, WNB, Kubeflow)
 * Hosted compute (Modal, Banana, Replicate)
-* A serverless framework (Serverless, Zappa, Chalice, Apex)
+* A serverless framework (Knative, OpenFaaS, OpenWhisk)
 
 ## 🐣 Getting Started
 
