@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 import pytest
@@ -19,13 +18,12 @@ def test_create_func():
         aws_func = rh.aws_lambda_function(fn=summer, name="summer_lambdas").save()
         res = aws_func(1, 3)
         assert int(res) == 4
-        os.remove(
-            str(Path(aws_func.handler_path).parent / f"rh_handler_{aws_func.name}.py")
-        )
-
-        os.remove(
-            str(Path(aws_func.handler_path).parent / f"{aws_func.name}_code_files.zip")
-        )
+        Path(
+            Path(aws_func.handler_path).parent / f"rh_handler_{aws_func.name}.py"
+        ).unlink()
+        Path(
+            Path(aws_func.handler_path).parent / f"{aws_func.name}_code_files.zip"
+        ).unlink()
 
 
 def test_from_runhouse_func():
@@ -35,15 +33,11 @@ def test_from_runhouse_func():
         my_rh_lambda = rh.function(multiplier).to(system="AWS_LAMBDA")
         res = my_rh_lambda(3, 5)
         assert res == "15"
-        os.remove(
-            str(
-                Path(my_rh_lambda.handler_path).parent
-                / f"rh_handler_{my_rh_lambda.name}.py"
-            )
-        )
-        os.remove(
-            str(
-                Path(my_rh_lambda.handler_path).parent
-                / f"{my_rh_lambda.name}_code_files.zip"
-            )
-        )
+        Path(
+            Path(my_rh_lambda.handler_path).parent
+            / f"rh_handler_{my_rh_lambda.name}.py"
+        ).unlink()
+        Path(
+            Path(my_rh_lambda.handler_path).parent
+            / f"{my_rh_lambda.name}_code_files.zip"
+        ).unlink()
