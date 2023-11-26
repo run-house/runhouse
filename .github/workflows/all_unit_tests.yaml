@@ -19,7 +19,7 @@ jobs:
 
       - name: Install python packages & dependencies
         run: |
-          pip install runhouse pytest httpx pytest_asyncio
+          pip install runhouse pytest httpx pytest_asyncio docker
 
       - name: Run all unit tests
         run: pytest -v --level unit
