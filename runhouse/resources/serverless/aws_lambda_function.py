@@ -55,7 +55,6 @@ class AWSLambdaFunction(Function):
     ]
     GEN_ERROR = "could not create or update the AWS Lambda."
     FAIL_CODE = 1
-    EMPTY_ZIP = -1
     MAX_WAIT_TIME = 60  # seconds, max time that can pass before we raise an exception that AWS update takes too long.
     DEFAULT_REGION = "us-east-1"
     DEFAULT_RETENTION = 30  # one month, for lambdas log groups.
@@ -321,7 +320,7 @@ class AWSLambdaFunction(Function):
         if len(reqs) == 0:
             self.layer, self.layer_version = None, None
             shutil.rmtree(dir_name)
-            return self.EMPTY_ZIP
+            return None
         for req in reqs:
             folder_req = str(Path(__import__(req).__file__).parent)
             folder_req = folder_req.replace(f"/{req}", "")
@@ -344,7 +343,7 @@ class AWSLambdaFunction(Function):
         zip_file_name = self._create_layer_zip()
 
         # Creating layer of python libs which are not np, pd and are not supported by AWS Lambda by default.
-        if zip_file_name != self.EMPTY_ZIP:
+        if zip_file_name is not None:
             reqs_no_np = [req for req in self.reqs if req != "numpy" or req != "pandas"]
             description = f"This layer contains the following python libraries: {', '.join(reqs_no_np)}"
             with open(zip_file_name, "rb") as f:
