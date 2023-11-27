@@ -36,6 +36,7 @@ DEFAULT_PY_VERSION = "python3.9"
 
 class AWSLambdaFunction(Function):
     RESOURCE_TYPE = "aws_lambda"
+    DEFAULT_ACCESS = "write"
     DEFAULT_ROLE_POLICIES = [
         "cloudwatch:*",
         "lambda:Invoke",
@@ -78,9 +79,10 @@ class AWSLambdaFunction(Function):
         fn_pointers: tuple,
         name: str,
         env: Env,
-        timeout: int,  # seconds
-        memory_size: int,  # MB
+        timeout: int = 60,  # seconds
+        memory_size: int = 128,  # MB
         dryrun: bool = False,
+        access: Optional[str] = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
@@ -97,6 +99,7 @@ class AWSLambdaFunction(Function):
             system=self.RESOURCE_TYPE,
             env=env,
             fn_pointers=fn_pointers,
+            access=access or self.DEFAULT_ACCESS,
             **kwargs,
         )
 
@@ -227,28 +230,6 @@ class AWSLambdaFunction(Function):
                 last_update_status = (
                     response["Configuration"]["LastUpdateStatus"] != "InProgress"
                 )
-        return True
-
-    @contextlib.contextmanager
-    def _wait_until_log_group_update_is_finished(self, log_group_name):
-        log_groups = [
-            group["logGroupName"]
-            for group in self.LOGS_CLIENT.describe_log_groups()["logGroups"]
-        ]
-        time_passed = 0
-        while log_group_name not in log_groups:
-            if time_passed > self.MAX_WAIT_TIME:
-                raise TimeoutError(
-                    f"{self.name}'s log group (/aws/lambda/{self.name}) is being deployed in AWS "
-                    + "for too long. Please check the resource in AWS console, delete relevant resource(s)"
-                    + " if necessary, and re-run your Runhouse code."
-                )
-            time.sleep(1)
-            time_passed += 1
-            log_groups = [
-                group["logGroupName"]
-                for group in self.LOGS_CLIENT.describe_log_groups()["logGroups"]
-            ]
         return True
 
     def _rh_wrapper(self):
@@ -912,7 +893,7 @@ def aws_lambda_function(
         timeout = 3
         warnings.warn("Timeout can not be less then 3 sec, setting to 3 sec.")
     if memory_size is None:
-        warnings.warn("Memory size set to 1280 MB.")
+        warnings.warn("Memory size set to 128 MB.")
         timeout = AWSLambdaFunction.DEFAULT_MEMORY_SIZE
     if memory_size < 128:
         memory_size = 128
