@@ -19,6 +19,7 @@ class TestHTTPClient:
         self.local_cluster = rh.cluster(**args)
         self.client = HTTPClient("localhost", HTTPClient.DEFAULT_PORT)
 
+    @pytest.mark.level("unit")
     @patch("requests.get")
     def test_check_server(self, mock_get):
         mock_response = Mock()
@@ -35,6 +36,7 @@ class TestHTTPClient:
             verify=False,
         )
 
+    @pytest.mark.level("unit")
     @patch("runhouse.servers.http.HTTPClient.request")
     @patch("pathlib.Path.mkdir")  # Mock the mkdir method
     @patch("builtins.open", new_callable=mock_open, read_data="certificate_content")
@@ -54,6 +56,7 @@ class TestHTTPClient:
         # Check that the correct content was written to the file
         mock_file_open().write.assert_called_once_with(b"certificate_content")
 
+    @pytest.mark.level("unit")
     @patch("pathlib.Path.exists", return_value=True)
     @patch("builtins.open", mock_open(read_data="cert_data"))
     @patch("cryptography.x509.load_pem_x509_certificate")
@@ -97,6 +100,7 @@ class TestHTTPClient:
         )
         assert not client.verify
 
+    @pytest.mark.level("unit")
     @patch("requests.post")
     def test_call_module_method(self, mock_post):
         response_sequence = [
@@ -151,6 +155,7 @@ class TestHTTPClient:
             verify=expected_verify,
         )
 
+    @pytest.mark.level("unit")
     @patch("requests.post")
     def test_call_module_method_with_args_kwargs(self, mock_post):
         mock_response = MagicMock()
@@ -194,6 +199,7 @@ class TestHTTPClient:
             verify=expected_verify,
         )
 
+    @pytest.mark.level("unit")
     @patch("requests.post")
     def test_call_module_method_error_handling(self, mock_post):
         mock_response = Mock()
@@ -204,6 +210,7 @@ class TestHTTPClient:
         with pytest.raises(ValueError):
             self.client.call_module_method("module", "method")
 
+    @pytest.mark.level("unit")
     @patch("requests.post")
     def test_call_module_method_stream_logs(self, mock_post):
         # Setup the mock response with a log in the stream
@@ -222,6 +229,7 @@ class TestHTTPClient:
         assert inspect.isgenerator(res)
         assert next(res) == "Log message"
 
+    @pytest.mark.level("unit")
     @patch("requests.post")
     def test_call_module_method_config(self, mock_post):
         test_data = self.local_cluster.config_for_rns
@@ -237,6 +245,7 @@ class TestHTTPClient:
         cluster = self.client.call_module_method("base_env", "install")
         assert cluster.config_for_rns == test_data
 
+    @pytest.mark.level("unit")
     @patch("requests.post")
     def test_call_module_method_not_found_error(self, mock_post):
         mock_response = Mock()
@@ -254,6 +263,7 @@ class TestHTTPClient:
 
         assert f"key {missing_key} not found" in str(context)
 
+    @pytest.mark.level("unit")
     @patch("runhouse.servers.http.HTTPClient.request")
     def test_put_object(self, mock_request):
         key = "my_list"
@@ -274,6 +284,7 @@ class TestHTTPClient:
         actual_data = mock_request.call_args[1]["data"]
         assert actual_data == expected_data
 
+    @pytest.mark.level("unit")
     @patch("runhouse.servers.http.HTTPClient.request")
     def test_get_keys(self, mock_request):
         self.client.keys()
@@ -285,6 +296,7 @@ class TestHTTPClient:
         self.client.keys(env=test_env)
         mock_request.assert_called_with(f"keys/?env={test_env}", req_type="get")
 
+    @pytest.mark.level("unit")
     @patch("runhouse.servers.http.HTTPClient.request")
     def test_delete(self, mock_request):
         keys = ["key1", "key2"]
