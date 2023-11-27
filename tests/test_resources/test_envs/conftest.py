@@ -1,19 +1,77 @@
+import os
+
 import pytest
 
 import runhouse as rh
+import yaml
 
 from tests.conftest import init_args
 
 
-@pytest.fixture
+def _get_conda_env(name="rh-test", python_version="3.10.9"):
+    conda_env = {
+        "name": name,
+        "channels": ["defaults"],
+        "dependencies": [
+            f"python={python_version}",
+        ],
+    }
+    return conda_env
+
+
+@pytest.fixture(scope="function")
 def env(request):
     """Parametrize over multiple envs - useful for running the same test on multiple envs."""
     return request.getfixturevalue(request.param.__name__)
 
 
-@pytest.fixture
-def test_env():
-    args = {"reqs": ["pytest"]}
-    e = rh.env(**args)
-    init_args[id(e)] = args
-    return e
+@pytest.fixture(scope="function")
+def base_env():
+    args = {"reqs": ["npm"]}
+    env = rh.env(**args)
+    init_args[id(env)] = args
+    return env
+
+
+@pytest.fixture(scope="function")
+def base_conda_env():
+    args = {"name": "conda_base", "reqs": ["pytest", "npm"]}
+    env = rh.conda_env(**args)
+    init_args[id(env)] = args
+    return env
+
+
+@pytest.fixture(scope="function")
+def conda_env_from_dict():
+    env_name = "conda_from_dict"
+    conda_dict = _get_conda_env(name=env_name)
+
+    args = {"name": env_name, "conda_env": conda_dict}
+    env = rh.conda_env(**args)
+    init_args[id(env)] = args
+    return env
+
+
+@pytest.fixture(scope="function")
+def conda_env_from_path():
+    env_name = "conda_from_path"
+    file_path = f"{env_name}.yml"
+    yaml.dump(_get_conda_env(name=env_name), open(file_path, "w"))
+
+    args = {"name": env_name, "conda_env": file_path}
+    env = rh.conda_env(**args)
+    init_args[id(env)] = args
+    yield env
+
+    os.remove(file_path)
+
+
+@pytest.fixture(scope="function")
+def conda_env_from_local():
+    env_name = "test_conda_local_env"
+    os.system(f"conda create -n {env_name} -y python==3.10.6")
+
+    args = {"name": env_name, "conda_env": env_name}
+    env = rh.conda_env(**args)
+    init_args[id(env)] = args
+    return env
