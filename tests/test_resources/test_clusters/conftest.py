@@ -77,8 +77,8 @@ def static_cpu_cluster():
 
     args = dict(
         name="different-cluster",
-        ips=ip,
-        ssh_creds={"username": "ubuntu", "ssh_private_key": "~/.ssh/sky-key"},
+        host=ip,
+        ssh_creds={"ssh_user": "ubuntu", "ssh_private_key": "~/.ssh/sky-key"},
     )
     c = rh.cluster(**args).save()
     init_args[id(c)] = args
