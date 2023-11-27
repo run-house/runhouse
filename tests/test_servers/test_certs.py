@@ -58,6 +58,7 @@ class TestTLSCertConfig:
         Path(self.cert_config.cert_path).unlink(missing_ok=True)
         Path(self.cert_config.key_path).unlink(missing_ok=True)
 
+    @pytest.mark.level("unit")
     def test_generate_certs(self):
         # Generate certificates for a given address
         address = "127.0.0.1"
@@ -93,6 +94,7 @@ class TestTLSCertConfig:
                 private_key, rsa.RSAPrivateKey
             ), "Private key is not an RSA key."
 
+    @pytest.mark.level("unit")
     @patch("os.path.abspath")
     @patch("os.path.expanduser")
     def test_resolve_absolute_path(self, mock_expanduser, mock_abspath):
@@ -187,12 +189,14 @@ class TestHTTPSCertValidity:
 
         return True
 
+    @pytest.mark.level("unit")
     def test_https_request_with_cert_verification(self):
         response = requests.get(f"https://localhost:{self.port}", verify=self.cert_file)
 
         assert response.status_code == 200
         assert response.text == "Hello, SSL!"
 
+    @pytest.mark.level("unit")
     def test_https_request_with_invalid_cert_verification(self):
         dummy_cert_path = "dummy_cert.pem"
         with open(dummy_cert_path, "w") as f:
@@ -220,6 +224,7 @@ class TestHTTPSCertValidity:
         assert response.status_code == 200
         assert response.text == "Hello, SSL!"
 
+    @pytest.mark.level("unit")
     @patch("requests.get")
     def test_https_request_with_verified_cert(self, mock_get):
         # Mock the response of the requests.get call
