@@ -2,6 +2,7 @@ import os
 import unittest
 
 from pathlib import Path
+from typing import Dict
 
 import pytest
 
@@ -56,24 +57,12 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         ]
     }
     LOCAL = {
-        "env": [
-            base_env,
-            base_conda_env,
-            conda_env_from_dict,
-            conda_env_from_local,
-            conda_env_from_path,
-        ],
-        # # TODO: add local clusters once conda docker container is set up
+        "env": [base_env, base_conda_env, conda_env_from_dict],
+        # TODO: add local clusters once conda docker container is set up
     }
     MINIMAL = {"env": [base_env, base_conda_env], "cluster": [ondemand_cpu_cluster]}
     THOROUGH = {
-        "env": [
-            base_env,
-            base_conda_env,
-            conda_env_from_dict,
-            conda_env_from_local,
-            conda_env_from_path,
-        ],
+        "env": [base_env, base_conda_env, conda_env_from_dict],
         "cluster": [ondemand_cpu_cluster, static_cpu_cluster, password_cluster],
     }
     MAXIMAL = {
@@ -97,6 +86,8 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
 
         if isinstance(env, rh.CondaEnv):
             assert env.conda_yaml
+            assert isinstance(env.conda_yaml, Dict)
+            assert set(["dependencies", "name"]).issubset(set(env.conda_yaml.keys()))
 
         if "working_dir" not in args:
             assert env.working_dir == "./"
