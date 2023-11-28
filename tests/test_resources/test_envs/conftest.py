@@ -3,7 +3,6 @@ import os
 import pytest
 
 import runhouse as rh
-import yaml
 
 from tests.conftest import init_args
 
@@ -55,21 +54,26 @@ def conda_env_from_dict():
 @pytest.fixture(scope="function")
 def conda_env_from_path():
     env_name = "conda_from_path"
-    file_path = f"{env_name}.yml"
-    yaml.dump(_get_conda_env(name=env_name), open(file_path, "w"))
+    file_path = os.path.join(os.path.dirname(__file__), "assets", "test_conda_env.yml")
 
     args = {"name": env_name, "conda_env": file_path}
     env = rh.conda_env(**args)
     init_args[id(env)] = args
     yield env
 
-    os.remove(file_path)
+
+@pytest.fixture(scope="session")
+def _local_conda_env():
+    env_name = "test_conda_local_env"
+    os.system(f"conda create -n {env_name} -y python==3.10.9")
+    yield
+
+    os.system(f"conda env remove -n {env_name}")
 
 
 @pytest.fixture(scope="function")
-def conda_env_from_local():
+def conda_env_from_local(_local_conda_env):
     env_name = "test_conda_local_env"
-    os.system(f"conda create -n {env_name} -y python==3.10.6")
 
     args = {"name": env_name, "conda_env": env_name}
     env = rh.conda_env(**args)

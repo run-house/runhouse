@@ -7,8 +7,14 @@ import pytest
 
 import runhouse as rh
 
-from tests.conftest import init_args, ondemand_cpu_cluster, password_cluster
-from tests.test_resources.test_resource import TestResource
+import tests.test_resources.test_resource
+
+from tests.conftest import (
+    init_args,
+    ondemand_cpu_cluster,
+    password_cluster,
+    static_cpu_cluster,
+)
 
 from .conftest import (
     base_conda_env,
@@ -27,7 +33,7 @@ def _get_env_var_value(env_var):
 
 def _uninstall_env(env, cluster):
     for req in env.reqs:
-        if req != "./":
+        if "/" not in req:
             cluster.run([f"pip uninstall {req} -y"], env=env)
 
 
@@ -37,8 +43,7 @@ def np_summer(a, b):
     return int(np.sum([a, b]))
 
 
-class TestEnv(TestResource):
-
+class TestEnv(tests.test_resources.test_resource.TestResource):
     MAP_FIXTURES = {"resource": "env"}
 
     UNIT = {
@@ -58,7 +63,7 @@ class TestEnv(TestResource):
             conda_env_from_local,
             conda_env_from_path,
         ],
-        # TODO: add local clusters once conda docker container is set up
+        # # TODO: add local clusters once conda docker container is set up
     }
     MINIMAL = {"env": [base_env, base_conda_env], "cluster": [ondemand_cpu_cluster]}
     THOROUGH = {
@@ -69,7 +74,7 @@ class TestEnv(TestResource):
             conda_env_from_local,
             conda_env_from_path,
         ],
-        "cluster": [ondemand_cpu_cluster, password_cluster],
+        "cluster": [ondemand_cpu_cluster, static_cpu_cluster, password_cluster],
     }
     MAXIMAL = {
         "env": [
@@ -79,7 +84,7 @@ class TestEnv(TestResource):
             conda_env_from_local,
             conda_env_from_path,
         ],
-        "cluster": [ondemand_cpu_cluster, password_cluster],
+        "cluster": [ondemand_cpu_cluster, static_cpu_cluster, password_cluster],
     }
 
     @pytest.mark.level("unit")
@@ -93,9 +98,15 @@ class TestEnv(TestResource):
         if isinstance(env, rh.CondaEnv):
             assert env.conda_yaml
 
+        if "working_dir" not in args:
+            assert env.working_dir == "./"
+
+        if "name" not in args:
+            assert env.name == rh.Env.DEFAULT_NAME
+
     @pytest.mark.level("minimal")
     def test_env_to_cluster(self, env, cluster):
-        env.to(cluster)
+        env.to(cluster, force_install=True)
 
         for req in env.reqs:
             if not req == "./":
@@ -107,7 +118,7 @@ class TestEnv(TestResource):
     @unittest.skip("Running into s3 folder issue")
     @pytest.mark.level("minimal")
     def test_env_to_fs_to_cluster(self, env, cluster):
-        s3_env = env.to("s3")
+        s3_env = env.to("s3", force_install=True)
         for req in s3_env.reqs:
             if isinstance(req, rh.Package) and isinstance(
                 req.install_target, rh.Folder
@@ -119,7 +130,9 @@ class TestEnv(TestResource):
 
         folder_name = "test_package"
         count = 0
-        conda_env_cluster = s3_env.to(system=cluster, path=folder_name, mount=True)
+        conda_env_cluster = s3_env.to(
+            system=cluster, path=folder_name, mount=True, force_install=True
+        )
         for req in conda_env_cluster.reqs:
             if isinstance(req, rh.Package) and isinstance(
                 req.install_target, rh.Folder
@@ -135,7 +148,7 @@ class TestEnv(TestResource):
     def test_addtl_env_reqs(self, env, cluster):
         package = "jedi"
         env.reqs = env.reqs + [package] if env.reqs else [package]
-        env.to(cluster)
+        env.to(cluster, force_install=True)
 
         res = cluster.run([f"pip freeze | grep {package}"], env=env)
         assert res[0][0] == 0
@@ -147,7 +160,7 @@ class TestEnv(TestResource):
     def test_fn_to_env(self, env, cluster):
         package = "numpy"
         env.reqs = env.reqs + [package] or [package]
-        fn = rh.function(np_summer).to(system=cluster, env=env)
+        fn = rh.function(np_summer).to(system=cluster, env=env, force_install=True)
         assert fn(1, 4) == 5
 
     @pytest.mark.level("minimal")
@@ -156,7 +169,9 @@ class TestEnv(TestResource):
         test_value = "value"
         env.env_vars = {test_env_var: test_value}
 
-        get_env_var_cpu = rh.function(_get_env_var_value).to(cluster, env)
+        get_env_var_cpu = rh.function(_get_env_var_value).to(
+            system=cluster, env=env, force_install=True
+        )
         res = get_env_var_cpu(test_env_var)
 
         assert res == test_value
@@ -179,7 +194,9 @@ class TestEnv(TestResource):
 
         env.env_vars = env_file
 
-        get_env_var_cpu = rh.function(_get_env_var_value).to(cluster, env)
+        get_env_var_cpu = rh.function(_get_env_var_value).to(
+            system=cluster, env=env, force_install=True
+        )
         assert get_env_var_cpu("ENV_VAR1") == "value"
         assert get_env_var_cpu("ENV_VAR2") == "val2"
 
@@ -195,7 +212,7 @@ class TestEnv(TestResource):
         env.working_dir = str(working_dir)
 
         assert str(working_dir) in env.reqs
-        env.to(cluster)
+        env.to(cluster, force_install=True)
         assert working_dir.name in cluster.run(["ls"])[0][1]
 
         cluster.run([f"rm -r {working_dir.name}"])
