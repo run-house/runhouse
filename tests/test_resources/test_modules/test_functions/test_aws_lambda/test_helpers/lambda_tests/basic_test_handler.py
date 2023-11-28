@@ -3,4 +3,4 @@ def lambda_sum(arg1: int, arg2: int):
 
 
 def lambda_no_args():
-    return lambda_sum(6, 3)
+    return "no args lambda"

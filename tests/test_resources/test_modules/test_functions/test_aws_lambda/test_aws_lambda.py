@@ -1,11 +1,12 @@
 import logging
 import os
-import shutil
-import time
 import unittest
 from pathlib import Path
 
 import boto3
+import botocore
+import pytest
+
 import runhouse as rh
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,6 @@ def test_create_and_run_no_layers():
         name=name,
     )
 
-    time.sleep(5)  # letting the lambda be updated in AWS.
     my_lambda.save()
     res = my_lambda(3, 4)
     assert res == "7"
@@ -46,31 +46,36 @@ def test_create_and_run_no_layers():
 
 def test_load_not_existing_lambda():
     name = "test_lambda_create_and_run1"
-    my_lambda = rh.aws_lambda_function(name=name)
-    assert my_lambda == "LambdaNotFoundInAWS"
+    with pytest.raises(RuntimeError) as runtime_error:
+        rh.aws_lambda_function(name=name)
+    assert str(runtime_error.value) == (
+        f"Could not find a Lambda called {name}. Please provide a name of an "
+        + "existing Lambda, or paths_to_code, handler_function_name, runtime "
+        + "and args_names (and a name if you wish), in order to create a new lambda."
+    )
 
 
 def test_crate_no_arguments():
-    try:
+    with pytest.raises(RuntimeError) as no_args:
         rh.aws_lambda_function()
-    except Exception:
-        assert True is True
+    assert str(no_args.value) == "Please provide a path to the lambda handler file."
 
 
-def test_bad_handler_path_to_factory(caplog):
+def test_bad_handler_path_to_factory():
     name = "test_lambda_create_and_run"
-    caplog.set_level(logging.ERROR)
-    try:
+    with pytest.raises(RuntimeError) as no_handler_path:
         rh.aws_lambda_function(
             handler_function_name="lambda_sum",
             runtime="python3.9",
             args_names=["arg1", "arg2"],
             name=name,
         )
-    except RuntimeError:
-        assert "Please provide a path to the lambda handler file." in caplog.text
+    assert (
+        str(no_handler_path.value)
+        == "Please provide a path to the lambda handler file."
+    )
 
-    try:
+    with pytest.raises(RuntimeError) as handler_path_none:
         rh.aws_lambda_function(
             paths_to_code=None,
             handler_function_name="lambda_sum",
@@ -78,10 +83,12 @@ def test_bad_handler_path_to_factory(caplog):
             args_names=["arg1", "arg2"],
             name=name,
         )
-    except RuntimeError:
-        assert "Please provide a path to the lambda handler file." in caplog.text
+    assert (
+        str(handler_path_none.value)
+        == "Please provide a path to the lambda handler file."
+    )
 
-    try:
+    with pytest.raises(RuntimeError) as handler_path_empty:
         rh.aws_lambda_function(
             paths_to_code=[],
             handler_function_name="lambda_sum",
@@ -89,28 +96,28 @@ def test_bad_handler_path_to_factory(caplog):
             args_names=["arg1", "arg2"],
             name=name,
         )
-    except RuntimeError:
-        assert "Please provide a path to the lambda handler file." in caplog.text
+    assert (
+        str(handler_path_empty.value)
+        == "Please provide a path to the lambda handler file."
+    )
 
 
-def test_bad_handler_func_name_to_factory(caplog):
+def test_bad_handler_func_name_to_factory():
     name = "test_lambda_create_and_run"
     handler_path = [f"{TEST_RESOURCES}/basic_test_handler.py"]
-    caplog.set_level(logging.ERROR)
-    try:
+    with pytest.raises(RuntimeError) as no_func_name:
         rh.aws_lambda_function(
             paths_to_code=handler_path,
             runtime="python3.9",
             args_names=["arg1", "arg2"],
             name=name,
         )
-    except RuntimeError:
-        assert (
-            "Please provide the name of the function that should be executed by the lambda."
-            in caplog.text
-        )
+    assert (
+        str(no_func_name.value)
+        == "Please provide the name of the function that should be executed by the lambda."
+    )
 
-    try:
+    with pytest.raises(RuntimeError) as func_name_none:
         rh.aws_lambda_function(
             paths_to_code=handler_path,
             handler_function_name=None,
@@ -118,13 +125,12 @@ def test_bad_handler_func_name_to_factory(caplog):
             args_names=["arg1", "arg2"],
             name=name,
         )
-    except RuntimeError:
-        assert (
-            "Please provide the name of the function that should be executed by the lambda."
-            in caplog.text
-        )
+    assert (
+        str(func_name_none.value)
+        == "Please provide the name of the function that should be executed by the lambda."
+    )
 
-    try:
+    with pytest.raises(RuntimeError) as empty_name:
         rh.aws_lambda_function(
             paths_to_code=handler_path,
             handler_function_name="",
@@ -132,39 +138,21 @@ def test_bad_handler_func_name_to_factory(caplog):
             args_names=["arg1", "arg2"],
             name=name,
         )
-    except RuntimeError:
-        assert (
-            "Please provide the name of the function that should be executed by the lambda."
-            in caplog.text
-        )
+    assert (
+        str(empty_name.value)
+        == "Please provide the name of the function that should be executed by the lambda."
+    )
 
 
-def test_bad_runtime_to_factory(caplog):
-    name = "test_lambda_create_and_run"
+def test_bad_runtime_to_factory():
+    name = "test_wrong_runtime"
     handler_path = [f"{TEST_RESOURCES}/basic_test_handler.py"]
-    SUPPORTED_RUNTIMES = [
-        "python3.7",
-        "python3.8",
-        "python3.9",
-        "python3.10",
-        "python 3.11",
-    ]
-    caplog.set_level(logging.ERROR)
-    try:
-        rh.aws_lambda_function(
-            paths_to_code=handler_path,
-            handler_function_name="lambda_sum",
-            runtime="python3.91",
-            args_names=["arg1", "arg2"],
-            name=name,
-        )
-    except RuntimeError:
-        assert (
-            f"Please provide a supported lambda runtime, should be one of the following: {SUPPORTED_RUNTIMES}"
-            in caplog.text
-        )
+    invalid_pram_msg = (
+        "Parameter validation failed:\nInvalid type for parameter Runtime, "
+        + "value: None, type: <class 'NoneType'>, valid types: <class 'str'>"
+    )
 
-    try:
+    with pytest.raises(botocore.exceptions.ParamValidationError) as none_runtime:
         rh.aws_lambda_function(
             paths_to_code=handler_path,
             handler_function_name="lambda_sum",
@@ -172,24 +160,27 @@ def test_bad_runtime_to_factory(caplog):
             args_names=["arg1", "arg2"],
             name=name,
         )
-    except RuntimeError:
-        assert (
-            f"Please provide a supported lambda runtime, should be one of the following: {SUPPORTED_RUNTIMES}"
-            in caplog.text
-        )
+    assert str(none_runtime.value) == invalid_pram_msg
 
-    try:
+    with pytest.raises(botocore.exceptions.ParamValidationError) as no_runtime:
         rh.aws_lambda_function(
-            paths_to_code=None,
+            paths_to_code=handler_path,
             handler_function_name="lambda_sum",
             args_names=["arg1", "arg2"],
             name=name,
         )
-    except RuntimeError:
-        assert (
-            f"Please provide a supported lambda runtime, should be one of the following: {SUPPORTED_RUNTIMES}"
-            in caplog.text
-        )
+    assert str(no_runtime.value) == invalid_pram_msg
+
+    my_func1 = rh.aws_lambda_function(
+        paths_to_code=handler_path,
+        handler_function_name="lambda_sum",
+        runtime="python3.91",
+        args_names=["arg1", "arg2"],
+        name=name,
+    )
+
+    assert my_func1.runtime == "python3.9"
+    LAMBDAS_NAMES.add(name)
 
 
 def test_bad_args_names_to_factory(caplog):
@@ -226,7 +217,7 @@ def test_bad_args_names_to_factory(caplog):
         )
 
 
-def test_func_no_args(capsys):
+def test_func_no_args():
     handler_path = [f"{TEST_RESOURCES}/basic_test_handler.py"]
     name = "test_lambda_no_args"
     my_lambda = rh.aws_lambda_function(
@@ -236,8 +227,8 @@ def test_func_no_args(capsys):
         args_names=[],
         name=name,
     )
-    time.sleep(5)
-    assert my_lambda() == "9"
+    assert my_lambda() == '"no args lambda"'
+    LAMBDAS_NAMES.add(name)
 
 
 def test_create_and_run_generate_name():
@@ -248,12 +239,10 @@ def test_create_and_run_generate_name():
         runtime="python3.9",
         args_names=["arg1", "arg2"],
     )
-    time.sleep(5)  # letting the lambda be updated in AWS.
     res = my_lambda(3, 4)
     assert res == "7"
     my_lambda.save()
     reload_func = rh.aws_lambda_function(name="lambda_sum")
-    time.sleep(1)
     res2 = reload_func(12, 7)
     assert res2 == "19"
     LAMBDAS_NAMES.add(my_lambda.name)
@@ -270,7 +259,6 @@ def test_create_and_run_layers():
         name=name,
         env=["numpy", "pandas"],
     )
-    time.sleep(4)  # letting the lambda be updated in AWS.
     res = my_lambda([1, 2, 3], [1, 2, 3])
     assert res == "12"
     LAMBDAS_NAMES.add(my_lambda.name)
@@ -287,7 +275,6 @@ def test_different_runtimes_and_layers():
         name=name + "_37",
         env=["numpy", "pandas"],
     )
-    time.sleep(4)  # letting the lambda be updated in AWS.
     res37 = my_lambda_37([1, 2, 3], [2, 5, 6])
     assert res37 == "19"
     LAMBDAS_NAMES.add(my_lambda_37.name)
@@ -300,7 +287,6 @@ def test_different_runtimes_and_layers():
         name=name + "_38",
         env=["numpy", "pandas"],
     )
-    time.sleep(4)  # letting the lambda be updated in AWS.
     res38 = my_lambda_38([1, 2, 3], [12, 5, 9])
     assert res38 == "32"
     LAMBDAS_NAMES.add(my_lambda_38.name)
@@ -313,7 +299,6 @@ def test_different_runtimes_and_layers():
         name=name + "_310",
         env=["numpy", "pandas"],
     )
-    time.sleep(4)  # letting the lambda be updated in AWS.
     res310 = my_lambda_310([-2, 5, 1], [12, 5, 9])
     assert res310 == "30"
     LAMBDAS_NAMES.add(my_lambda_310.name)
@@ -326,7 +311,6 @@ def test_different_runtimes_and_layers():
         name=name + "_311",
         env=["numpy", "pandas"],
     )
-    time.sleep(4)  # letting the lambda be updated in AWS.
     res311 = my_lambda_311([-2, 5, 1], [8, 7, 6])
     assert res311 == "25"
     LAMBDAS_NAMES.add(my_lambda_311.name)
@@ -343,7 +327,6 @@ def test_create_and_run_layers_txt():
         name=name,
         env=f"{os.getcwd()}/test_helpers/lambda_tests/requirements.txt",
     )
-    time.sleep(5)  # letting the lambda be updated in AWS.
     res = my_lambda([1, 2, 3], [1, 2, 3])
     assert res == "12"
     LAMBDAS_NAMES.add(my_lambda.name)
@@ -359,11 +342,9 @@ def test_update_lambda_one_file():
         args_names=["arg1", "arg2"],
         name=name,
     )
-    time.sleep(5)  # letting the lambda be updated in AWS.
     res = my_lambda(6, 4)
     assert res == "10"
     reload_func = rh.aws_lambda_function(name=name)
-    time.sleep(1)
     res2 = reload_func(12, 13)
     assert res2 == "25"
     LAMBDAS_NAMES.add(my_lambda.name)
@@ -394,7 +375,6 @@ def test_mult_files_each():
         name=name,
         env=["numpy"],
     )
-    time.sleep(4)  # letting the lambda be updated in AWS.
     res1 = my_lambda_calc_1(2, 3)
     res2 = my_lambda_calc_1(5, 3)
     res3 = my_lambda_calc_1(2, 7)
@@ -429,7 +409,6 @@ def test_few_python_files_chain():
         args_names=["arg1", "arg2"],
         name=name,
     )
-    time.sleep(4)  # letting the lambda be updated in AWS.
     res1 = my_lambda_calc_2(2, 3)
     res2 = my_lambda_calc_2(5, 3)
     res3 = my_lambda_calc_2(2, 7)
@@ -443,7 +422,6 @@ def test_few_python_files_chain():
 
 def test_args():
     basic_func = rh.aws_lambda_function(name="test_lambda_create_and_run")
-    time.sleep(1)
     res1 = basic_func(2, 3)
     res2 = basic_func(5, arg2=3)
     res3 = basic_func(arg1=2, arg2=7)
@@ -454,7 +432,6 @@ def test_args():
 
 def test_map_starmap():
     basic_func = rh.aws_lambda_function(name="test_lambda_create_and_run")
-    time.sleep(1)
     res_map1 = basic_func.map([1, 2, 3], [4, 5, 6])
     res_map2 = basic_func.map([6, 2, 3], [15, 52, 61])
     res_map3 = basic_func.starmap([(1, 2), (3, 4), (5, 6)])
@@ -476,7 +453,6 @@ def test_create_from_config():
         "name": name,
     }
     config_lambda = rh.AWSLambdaFunction.from_config(config)
-    time.sleep(4)  # letting the lambda be updated in AWS.
     res1 = config_lambda(1, 2)
     res2 = config_lambda(8, 12)
     res3 = config_lambda(14, 17)
@@ -489,7 +465,6 @@ def test_create_from_config():
 
 def test_share_lambda():
     basic_func = rh.aws_lambda_function(name="test_lambda_create_and_run")
-    time.sleep(1)
     users = ["josh@run.house"]
     added_users, new_users = basic_func.share(
         users=users, notify_users=True, access_type="write"
@@ -499,9 +474,6 @@ def test_share_lambda():
 
 
 def test_remove_resources():
-    curr_folder = os.getcwd()
-    remoteDirectoryName = "test_helpers"
-    shutil.rmtree(f"{curr_folder}/{remoteDirectoryName}")
     for lambda_name in LAMBDAS_NAMES:
         policy_name = f"{lambda_name}_Policy"
         role_name = f"{lambda_name}_Role"
@@ -514,8 +486,6 @@ def test_remove_resources():
         assert del_role is not None
         assert del_lambda is not None
 
-
-# TODO: add test for saving a lambda with a layer (?)
 
 if __name__ == "__main__":
     unittest.main()

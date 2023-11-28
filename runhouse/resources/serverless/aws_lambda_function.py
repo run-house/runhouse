@@ -35,7 +35,7 @@ DEFAULT_PY_VERSION = "python3.9"
 
 
 class AWSLambdaFunction(Function):
-    RESOURCE_TYPE = "aws_lambda"
+    RESOURCE_TYPE = "lambda_function"
     DEFAULT_ACCESS = "write"
     DEFAULT_ROLE_POLICIES = [
         "cloudwatch:*",
@@ -59,8 +59,6 @@ class AWSLambdaFunction(Function):
     MAX_WAIT_TIME = 60  # seconds, max time that can pass before we raise an exception that AWS update takes too long.
     DEFAULT_REGION = "us-east-1"
     DEFAULT_RETENTION = 30  # one month, for lambdas log groups.
-    DEFAULT_TIMEOUT = 30  # seconds
-    DEFAULT_MEMORY_SIZE = 128  # MB
 
     if Path(CRED_PATH).is_file():
         LAMBDA_CLIENT = boto3.client("lambda")
@@ -237,6 +235,7 @@ class AWSLambdaFunction(Function):
         handler_path = self.local_path_to_code[0]
         wrapper_path = str(Path(handler_path).parent / f"rh_handler_{self.name}.py")
         handler_name = Path(handler_path).stem
+        Path(handler_path).touch()
 
         f = open(wrapper_path, "w")
         f.write(f"from {handler_name} import {self.handler_function_name}\n")
@@ -436,40 +435,55 @@ class AWSLambdaFunction(Function):
         return lambda_config
 
     def _deploy_lambda_to_aws_helper(self, layers, role_res, zipped_code, env_vars):
-        if len(layers) > 0:
-            lambda_config = self.LAMBDA_CLIENT.create_function(
-                FunctionName=self.name,
-                Runtime=self.runtime,
-                Role=role_res["Role"]["Arn"],
-                Handler=f"rh_handler_{self.name}.lambda_handler",
-                Code={"ZipFile": zipped_code},
-                Timeout=self.timeout,
-                MemorySize=self.memory_size,
-                Layers=layers,
-                Environment={"Variables": env_vars},
-            )
-        else:
-            lambda_config = self.LAMBDA_CLIENT.create_function(
-                FunctionName=self.name,
-                Runtime=self.runtime,
-                Role=role_res["Role"]["Arn"],
-                Handler=f"rh_handler_{self.name}.lambda_handler",
-                Code={"ZipFile": zipped_code},
-                Timeout=self.timeout,
-                MemorySize=self.memory_size,
-                Environment={"Variables": env_vars},
-            )
-        return lambda_config
+        try:
+            if len(layers) > 0:
+                lambda_config = self.LAMBDA_CLIENT.create_function(
+                    FunctionName=self.name,
+                    Runtime=self.runtime,
+                    Role=role_res["Role"]["Arn"],
+                    Handler=f"rh_handler_{self.name}.lambda_handler",
+                    Code={"ZipFile": zipped_code},
+                    Timeout=self.timeout,
+                    MemorySize=self.memory_size,
+                    Layers=layers,
+                    Environment={"Variables": env_vars},
+                )
+            else:
+                lambda_config = self.LAMBDA_CLIENT.create_function(
+                    FunctionName=self.name,
+                    Runtime=self.runtime,
+                    Role=role_res["Role"]["Arn"],
+                    Handler=f"rh_handler_{self.name}.lambda_handler",
+                    Code={"ZipFile": zipped_code},
+                    Timeout=self.timeout,
+                    MemorySize=self.memory_size,
+                    Environment={"Variables": env_vars},
+                )
+            func_state = lambda_config["State"]
+            func_name = lambda_config["FunctionName"]
+            time_passed = 0
+            while func_state != "Active":
+                if time_passed > self.MAX_WAIT_TIME:
+                    raise TimeoutError(
+                        f"Function called {func_name} is being created AWS for too long."
+                        + " Please check the resource in AWS console, delete relevant resource(s) "
+                        + "if necessary, and re-run your Runhouse code."
+                    )
+                time_passed += 1
+                time.sleep(1)
+                lambda_config = self.LAMBDA_CLIENT.get_function(FunctionName=func_name)
+                func_state = lambda_config["Configuration"]["State"]
+            return lambda_config
+        except self.LAMBDA_CLIENT.exceptions.InvalidParameterValueException or botocore.exceptions.ClientError:
+            return False
 
     @contextlib.contextmanager
-    def _deploy_lambda_to_aws(
-        self, layers, role_res, zipped_code, env_vars, time_passed=0
-    ):
-        try:
-            return self._deploy_lambda_to_aws_helper(
-                layers, role_res, zipped_code, env_vars
-            )
-        except self.LAMBDA_CLIENT.exceptions.InvalidParameterValueException or botocore.exceptions.ClientError:
+    def _deploy_lambda_to_aws(self, layers, role_res, zipped_code, env_vars):
+        config = self._deploy_lambda_to_aws_helper(
+            layers, role_res, zipped_code, env_vars
+        )
+        time_passed = 0
+        while config is False:
             if time_passed > self.MAX_WAIT_TIME:
                 raise TimeoutError(
                     f"Role called {role_res['RoleName']} is being created AWS for too long."
@@ -478,9 +492,10 @@ class AWSLambdaFunction(Function):
                 )
             time_passed += 1
             time.sleep(1)
-            self._deploy_lambda_to_aws(
-                layers, role_res, zipped_code, env_vars, time_passed
+            config = self._deploy_lambda_to_aws_helper(
+                layers, role_res, zipped_code, env_vars
             )
+        yield config
 
     def _create_new_lambda(self, env_vars):
         """Creates new AWS Lambda."""
@@ -567,7 +582,10 @@ class AWSLambdaFunction(Function):
         with self._deploy_lambda_to_aws(
             layers, role_res, zipped_code, env_vars
         ) as lambda_config:
-            logger.info(f'{lambda_config["FunctionName"]} was created successfully.')
+            logger.info(
+                f'{lambda_config["Configuration"]["FunctionName"]} was created successfully.'
+            )
+            Path(zip_file_name).absolute().unlink()
             return lambda_config
 
     def to(
@@ -613,6 +631,7 @@ class AWSLambdaFunction(Function):
             lambda_config = self._create_new_lambda(env_vars)
 
         self.aws_lambda_config = lambda_config
+        Path(rh_handler_wrapper).absolute().unlink()
         return self
 
     #
@@ -884,8 +903,7 @@ def aws_lambda_function(
         runtime = DEFAULT_PY_VERSION
 
     if timeout is None:
-        warnings.warn("Timeout set to 30 sec.")
-        timeout = AWSLambdaFunction.DEFAULT_TIMEOUT
+        warnings.warn("Timeout set to 60 sec.")
     if timeout > 900:
         timeout = 900
         warnings.warn("Timeout can not be more then 900 sec, setting to 900 sec.")
@@ -894,7 +912,6 @@ def aws_lambda_function(
         warnings.warn("Timeout can not be less then 3 sec, setting to 3 sec.")
     if memory_size is None:
         warnings.warn("Memory size set to 128 MB.")
-        timeout = AWSLambdaFunction.DEFAULT_MEMORY_SIZE
     if memory_size < 128:
         memory_size = 128
         warnings.warn("Memory size can not be less then 128 MB, setting to 128 MB.")
