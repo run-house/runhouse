@@ -110,7 +110,7 @@ my_env = my_env.to(gpu)  # Called implicitly if passed to Function.to, like abov
 ```
 
 rh.Function is actually a special case of rh.Module, which is how we send classes to clusters. There are a number of
-other built-in Modules in Runhouse, such as Blob, Queue, KVstore, Table, and more. Modules are very flexible. You can
+other built-in Modules in Runhouse, such as Blob, Queue, KVstore, and more. Modules are very flexible. You can
 leave them as classes or create instances, send the class or the instances to clusters, and even create instances
 remotely. You can call class methods, properties, generators, and async methods remotely, and they'll behave 
 the same as if they were called locally (e.g. generators will stream, asyncs will return awaitables), including 
@@ -141,21 +141,13 @@ my_remote_counter.increment(2)  # Prints "New count: 3" and returns 3
 
 You can also call the Runhouse HTTP server directly (though you may need to open a port or tunnel to do so):
 ```bash
-curl -X POST -H "Content-Type: application/json" -d '{"args": [1, 2, 3]}' http://my_cluster_ip:32300/my_counter/count
+curl -X POST -H "Content-Type: application/json" http://my_cluster_ip:32300/call/my_counter/count
 ```
 
-## 🙅‍♀️ Runhouse is not
-
-* An orchestrator / scheduler (Airflow, Prefect, Metaflow)
-* A distributed compute DSL (Ray, Spark, Dask)
-* An ML Platform (Sagemaker, Vertex, Azure ML)
-* A model registry / experiment manager / MLOps framework (MLFlow, WNB, Kubeflow)
-* Hosted compute (Modal, Banana, Replicate)
-* A serverless framework (Knative, OpenFaaS, OpenWhisk)
+This is only the tip of the iceberg. If you like what you see, please check out the 
+[Getting Started guide](https://www.run.house/docs/tutorials/quick_start).
 
 ## 🐣 Getting Started
-
-Please see the [Getting Started guide](https://www.run.house/docs/tutorials/quick_start).
 
 tldr;
 ```commandline
@@ -209,8 +201,15 @@ Please reach out (first name at run.house) to contribute or share feedback!
 [**Docs**](https://www.run.house/docs):
 Detailed API references, basic API examples and walkthroughs, end-to-end tutorials, and high-level architecture overview.
 
-[**Funhouse Repo**](https://github.com/run-house/funhouse): Standalone Runhouse apps to try out fun ML ideas,
-think the latest Stable Diffusion models, text generation models, launching Gradio spaces, and even more!
+[**Funhouse Repo**](https://github.com/run-house/funhouse): Standalone ML apps and examples to try with Runhouse, like image generation models, LLMs, 
+launching Gradio spaces, and more!
+
+[**Runhouse Blog**](https://www.run.house/blog): Deep dives into Runhouse features, use cases, and the future of ML 
+infra.
+
+[**Discord**](https://discord.gg/RnhB6589Hs): Join our community to ask questions, share ideas, and get help.
+
+[**Twitter**](https://twitter.com/runhouse_): Follow us for updates and announcements.
 
 ## 🙋‍♂️ Getting Help
 
