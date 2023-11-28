@@ -38,49 +38,50 @@ def named_cluster():
 
 @pytest.fixture(scope="session")
 def static_cpu_cluster():
-    # Spin up a new basic m5.xlarge EC2 instance
-    import boto3
+    # TODO: Spin up a new basic m5.xlarge EC2 instance
+    # import boto3
 
-    ec2 = boto3.resource("ec2")
-    instances = ec2.create_instances(
-        ImageId="ami-0a313d6098716f372",
-        InstanceType="m5.xlarge",
-        MinCount=1,
-        MaxCount=1,
-        KeyName="sky-key",
-        TagSpecifications=[
-            {
-                "ResourceType": "instance",
-                "Tags": [
-                    {"Key": "Name", "Value": "rh-cpu"},
-                ],
-            },
-        ],
-    )
-    instance = instances[0]
-    instance.wait_until_running()
-    instance.load()
-
-    ip = instance.public_ip_address
-
-    # c = (
-    #     rh.ondemand_cluster(
-    #         instance_type="m5.xlarge",
-    #         provider="aws",
-    #         region="us-east-1",
-    #         # image_id="ami-0a313d6098716f372",  # Upgraded to python 3.11.4 which is not compatible with ray 2.4.0
-    #         name="test-byo-cluster",
-    #     )
-    #     .up_if_not()
-    #     .save()
+    # ec2 = boto3.resource("ec2")
+    # instances = ec2.create_instances(
+    #     ImageId="ami-0a313d6098716f372",
+    #     InstanceType="m5.xlarge",
+    #     MinCount=1,
+    #     MaxCount=1,
+    #     KeyName="sky-key",
+    #     TagSpecifications=[
+    #         {
+    #             "ResourceType": "instance",
+    #             "Tags": [
+    #                 {"Key": "Name", "Value": "rh-cpu"},
+    #             ],
+    #         },
+    #     ],
     # )
+    # instance = instances[0]
+    # instance.wait_until_running()
+    # instance.load()
+
+    # ip = instance.public_ip_address
+
+    c = (
+        rh.ondemand_cluster(
+            instance_type="m5.xlarge",
+            provider="aws",
+            region="us-east-1",
+            # image_id="ami-0a313d6098716f372",  # Upgraded to python 3.11.4 which is not compatible with ray 2.4.0
+            name="test-byo-cluster",
+        )
+        .up_if_not()
+        .save()
+    )
 
     args = dict(
         name="different-cluster",
-        host=ip,
+        host=c.address,
         ssh_creds={"ssh_user": "ubuntu", "ssh_private_key": "~/.ssh/sky-key"},
     )
     c = rh.cluster(**args).save()
+    c.restart_server(resync_rh=True)  # needed to override the cluster's config file
     init_args[id(c)] = args
 
     c.install_packages(["pytest"])
@@ -140,7 +141,7 @@ def password_cluster():
 
     # instantiate byo cluster with password
     ssh_creds = {"ssh_user": "ubuntu", "password": "cluster-pass"}
-    args = dict(name="rh-password", ips=[sky_cluster.address], ssh_creds=ssh_creds)
+    args = dict(name="rh-password", host=[sky_cluster.address], ssh_creds=ssh_creds)
     c = rh.cluster(**args).save()
     init_args[id(c)] = args
 

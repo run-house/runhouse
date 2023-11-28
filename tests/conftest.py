@@ -239,7 +239,6 @@ default_fixtures[TestLevels.THOROUGH] = {
         local_docker_cluster_passwd,
         local_docker_cluster_public_key_logged_in,
         local_docker_cluster_public_key_logged_out,
-        local_docker_cluster_telemetry_public_key,
         ondemand_cpu_cluster,
         ondemand_https_cluster_with_auth,
         password_cluster,

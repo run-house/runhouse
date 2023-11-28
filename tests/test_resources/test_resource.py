@@ -89,6 +89,7 @@ class TestResource:
         resource = resource.__class__.from_name(original_name)
         assert resource.rns_address != loaded_resource.rns_address
 
+        resource.save(original_name)
         resource.delete_configs()
         assert not rh.exists(resource.rns_address)
 
