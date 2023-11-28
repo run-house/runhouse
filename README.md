@@ -145,21 +145,7 @@ curl -X POST -H "Content-Type: application/json" http://my_cluster_ip:32300/call
 ```
 
 This is only the tip of the iceberg. If you like what you see, please check out the 
-[Getting Started guide](https://www.run.house/docs/tutorials/quick_start).
-
-## 🐣 Getting Started
-
-tldr;
-```commandline
-pip install runhouse
-# Or "runhouse[aws]", "runhouse[gcp]", "runhouse[azure]", "runhouse[sagemaker]", "runhouse[all]"
-
-# [optional] to set up cloud provider secrets:
-sky check
-
-# [optional] login for portability:
-runhouse login
-```
+[🐣 Getting Started guide](https://www.run.house/docs/tutorials/quick_start).
 
 ## 🔒 Creating a Runhouse Den Account for Secrets and Sharing
 
@@ -168,8 +154,14 @@ You can unlock some unique portability features by creating an (always free)
 Log in from anywhere to access all previously saved secrets and resources, ready to be used with
 no additional setup.
 
-To log in, run `runhouse login` from the command line, or
-`rh.login()` from Python.
+To log in, run: 
+```shell
+runhouse login
+```
+or from Python:
+```python
+rh.login()
+```
 
 > **Note**:
 Secrets are stored in Hashicorp Vault (an industry standard for secrets management), and our APIs simply call Vault's APIs. We only ever store light metadata about your resources
