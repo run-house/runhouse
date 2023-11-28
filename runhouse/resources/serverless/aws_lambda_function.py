@@ -4,7 +4,6 @@ import inspect
 import json
 import logging
 import os
-import shutil
 import time
 import warnings
 import zipfile
@@ -42,12 +41,7 @@ class AWSLambdaFunction(Function):
         "lambda:Invoke",
         "lambda:InvokeAsync",
         "lambda:InvokeFunction",
-        "lambda:PublishLayerVersion",
         "lambda:PublishVersion",
-        "lambda:GetLayerVersion",
-        "lambda:GetLayerVersionPolicy",
-        "lambda:ListLayers",
-        "lambda:ListLayerVersions",
         "logs:*",
         "s3:DeleteObject",
         "s3:GetObject",
@@ -59,6 +53,8 @@ class AWSLambdaFunction(Function):
     MAX_WAIT_TIME = 60  # seconds, max time that can pass before we raise an exception that AWS update takes too long.
     DEFAULT_REGION = "us-east-1"
     DEFAULT_RETENTION = 30  # one month, for lambdas log groups.
+    DEFAULT_TIMEOUT = 300  # sec
+    DEFAULT_MEMORY_SIZE = 128  # MB
 
     if Path(CRED_PATH).is_file():
         LAMBDA_CLIENT = boto3.client("lambda")
@@ -77,8 +73,8 @@ class AWSLambdaFunction(Function):
         fn_pointers: tuple,
         name: str,
         env: Env,
-        timeout: int = 60,  # seconds
-        memory_size: int = 128,  # MB
+        timeout: int,  # seconds
+        memory_size: int,  # MB
         dryrun: bool = False,
         access: Optional[str] = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
@@ -108,24 +104,14 @@ class AWSLambdaFunction(Function):
         self.timeout = timeout
         self.memory_size = memory_size
         self.env_vars, self.reqs = None, None
-        self.layer, self.layer_version, self.np_layer, self.np_layer_version = (
-            None,
-            None,
-            None,
-            None,
-        )
         if env:
             self.env_vars = env.env_vars if len(env.env_vars) > 0 else None
-            if env.reqs:
-                self.reqs = env.reqs if len(env.reqs) > 0 else None
-                if self.reqs == "requirements.txt":
-                    self.reqs = self._reqs_to_list(self.reqs)
-                (
-                    self.layer,
-                    self.layer_version,
-                    self.np_layer,
-                    self.np_layer_version,
-                ) = self._create_layer()  # returns layers ARNs and versions in AWS.
+            supported_reqs = self._supported_python_libs()
+            self.reqs = (
+                [req for req in env.reqs if req not in supported_reqs]
+                if len(env.reqs) > 0
+                else None
+            )
         self.aws_lambda_config = (
             None  # Lambda config and role arn from aws will be saved here
         )
@@ -171,8 +157,8 @@ class AWSLambdaFunction(Function):
         """Overload this method of the function class."""
         return config
 
-    @staticmethod
-    def _reqs_to_list(env):
+    @classmethod
+    def _reqs_to_list(cls, env):
         """Converting requirements from requirements.txt to a list"""
         if env == "requirements.txt":
             env = Path(env).absolute()
@@ -238,15 +224,21 @@ class AWSLambdaFunction(Function):
         Path(handler_path).touch()
 
         f = open(wrapper_path, "w")
-        f.write(f"from {handler_name} import {self.handler_function_name}\n")
-        f = open(wrapper_path, "w")
-        f.write(f"from {handler_name} import {self.handler_function_name}\n")
+        f.write(
+            "import subprocess\n"
+            "import sys\n"
+            f"from {handler_name} import {self.handler_function_name}\n"
+        )
+        f.write("def lambda_handler(event, context):\n")
+
+        # installing python libraries
         if self.reqs:
             for req in self.reqs:
-                f.write(f"import {req}\n")
-            f.write("\n\n")
+                f.write(
+                    f"\tsubprocess.call(['pip', 'install', '{req}', '-t', '/tmp'])\n"
+                )
         f.write(
-            "def lambda_handler(event, context):\n"
+            "\tsys.path.insert(1, '/tmp/')\n"
             f"\treturn {self.handler_function_name}(**event)"
         )
         f.close()
@@ -285,127 +277,16 @@ class AWSLambdaFunction(Function):
 
         return supported_libs
 
-    def _create_layer_zip(self):
-        """Creates a zip of all required python libs, that will be sent to the Lambda as a layer"""
-        supported_libs = self._supported_python_libs()
-        reqs = [req for req in self.reqs if req not in supported_libs]
-        dir_name = str(Path(__file__).parent / "all_reqs")
-        all_req_dir = Path(__file__).parent / "all_reqs" / "python"
-        Path(all_req_dir).mkdir(parents=True, exist_ok=True)
-
-        if "numpy" in reqs:
-            reqs.remove("numpy")
-        if "pandas" in reqs:
-            reqs.remove("pandas")
-        if len(reqs) == 0:
-            self.layer, self.layer_version = None, None
-            shutil.rmtree(dir_name)
-            return None
-        for req in reqs:
-            folder_req = str(Path(__import__(req).__file__).parent)
-            folder_req = folder_req.replace(f"/{req}", "")
-            sub_reqs = [
-                str(item) for item in Path(folder_req).iterdir() if req in str(item)
-            ]
-            for r in sub_reqs:
-                shutil.copytree(folder_req + "/" + r, str(all_req_dir) + "/" + r)
-
-        shutil.make_archive(dir_name, "zip", dir_name)
-        shutil.rmtree(dir_name)
-        return dir_name + ".zip"
-
-    def _create_layer(self):
-        """Creates a layer, which contains required python libs.
-        If needed, pandas and numpy layer is also created and returned
-        Returns layers' ARNs and versions"""
-
-        layer_name, layer_arn, layer_version = self.name + "_layer", None, None
-        zip_file_name = self._create_layer_zip()
-
-        # Creating layer of python libs which are not np, pd and are not supported by AWS Lambda by default.
-        if zip_file_name is not None:
-            reqs_no_np = [req for req in self.reqs if req != "numpy" or req != "pandas"]
-            description = f"This layer contains the following python libraries: {', '.join(reqs_no_np)}"
-            with open(zip_file_name, "rb") as f:
-                layer_zf = f.read()
-            layer = self.LAMBDA_CLIENT.publish_layer_version(
-                LayerName=layer_name,
-                Description=description,
-                Content={"ZipFile": layer_zf},
-                CompatibleRuntimes=[self.runtime],
-            )
-            layer_arn, layer_version = layer["LayerVersionArn"], int(
-                layer["LayerVersionArn"].split(":")[-1]
-            )
-            Path(zip_file_name).unlink()
-
-        # Creating and getting the np and pd layer, suitable to the runtime provided during init.
-        list_layers = self.LAMBDA_CLIENT.list_layers(
-            CompatibleRuntime=f"{self.runtime}", CompatibleArchitecture="x86_64"
-        )
-
-        layer_names = [layer["LayerName"] for layer in list_layers["Layers"]]
-
-        pd_np_layer_name = f"numpy_pandas_{self.runtime}"
-        pd_np_layer_name = pd_np_layer_name.replace(".", "_")
-
-        # create the layer if not existing in AWS.
-        # TODO: see how can we copy if without exposing the user to rh s3 bucket.
-        if pd_np_layer_name not in layer_names:
-            np_layer = self.LAMBDA_CLIENT.publish_layer_version(
-                LayerName=pd_np_layer_name,
-                Description=f"This layer contains numpy and pandas suitable for {self.runtime}",
-                Content={
-                    "S3Bucket": "runhouse-lambda-resources",
-                    "S3Key": f"layer_helpers/{self.runtime}/python.zip",
-                },
-                CompatibleRuntimes=[self.runtime],
-            )
-            pd_np_layer_arn = np_layer["LayerVersionArn"]
-            pd_np_layer_version = np_layer["Version"]
-
-        # get the layer version and ARN if existing in AWS.
-        else:
-            pd_np_layer_arn = [
-                layer["LatestMatchingVersion"]["LayerVersionArn"]
-                for layer in list_layers["Layers"]
-                if layer["LayerName" == pd_np_layer_name]
-            ][0]
-            pd_np_layer_version = [
-                layer["LayerArn"]
-                for layer in list_layers["Layers"]
-                if layer["LayerName"] == pd_np_layer_name
-            ]
-            pd_np_layer_version = pd_np_layer_version[0].split(":")[-1]
-
-        return layer_arn, layer_version, pd_np_layer_arn, pd_np_layer_version
-
     def _update_lambda_config(self, env_vars):
         """Updates existing Lambda in AWS (config) that was provided in the init."""
-        time.sleep(4)
         logger.info(f"Updating a Lambda called {self.name}")
-        layers = []
-        if self.layer:
-            layers.append(self.layer)
-        if self.np_layer:
-            layers.append(self.np_layer)
-        if len(layers) > 0:
-            lambda_config = self.LAMBDA_CLIENT.update_function_configuration(
-                FunctionName=self.name,
-                Runtime=self.runtime,
-                Timeout=self.timeout,
-                MemorySize=self.memory_size,
-                Layers=layers,
-                Environment={"Variables": env_vars},
-            )
-        else:
-            lambda_config = self.LAMBDA_CLIENT.update_function_configuration(
-                FunctionName=self.name,
-                Runtime=self.runtime,
-                Timeout=self.timeout,
-                MemorySize=self.memory_size,
-                Environment={"Variables": env_vars},
-            )
+        lambda_config = self.LAMBDA_CLIENT.update_function_configuration(
+            FunctionName=self.name,
+            Runtime=self.runtime,
+            Timeout=self.timeout,
+            MemorySize=self.memory_size,
+            Environment={"Variables": env_vars},
+        )
 
         # TODO [SB]: in the next phase, enable for other to update the Lambda code.
         # wait for the config update process to finish, and then update the code (Lambda logic).
@@ -434,31 +315,18 @@ class AWSLambdaFunction(Function):
 
         return lambda_config
 
-    def _deploy_lambda_to_aws_helper(self, layers, role_res, zipped_code, env_vars):
+    def _deploy_lambda_to_aws_helper(self, role_res, zipped_code, env_vars):
         try:
-            if len(layers) > 0:
-                lambda_config = self.LAMBDA_CLIENT.create_function(
-                    FunctionName=self.name,
-                    Runtime=self.runtime,
-                    Role=role_res["Role"]["Arn"],
-                    Handler=f"rh_handler_{self.name}.lambda_handler",
-                    Code={"ZipFile": zipped_code},
-                    Timeout=self.timeout,
-                    MemorySize=self.memory_size,
-                    Layers=layers,
-                    Environment={"Variables": env_vars},
-                )
-            else:
-                lambda_config = self.LAMBDA_CLIENT.create_function(
-                    FunctionName=self.name,
-                    Runtime=self.runtime,
-                    Role=role_res["Role"]["Arn"],
-                    Handler=f"rh_handler_{self.name}.lambda_handler",
-                    Code={"ZipFile": zipped_code},
-                    Timeout=self.timeout,
-                    MemorySize=self.memory_size,
-                    Environment={"Variables": env_vars},
-                )
+            lambda_config = self.LAMBDA_CLIENT.create_function(
+                FunctionName=self.name,
+                Runtime=self.runtime,
+                Role=role_res["Role"]["Arn"],
+                Handler=f"rh_handler_{self.name}.lambda_handler",
+                Code={"ZipFile": zipped_code},
+                Timeout=self.timeout,
+                MemorySize=self.memory_size,
+                Environment={"Variables": env_vars},
+            )
             func_state = lambda_config["State"]
             func_name = lambda_config["FunctionName"]
             time_passed = 0
@@ -478,10 +346,8 @@ class AWSLambdaFunction(Function):
             return False
 
     @contextlib.contextmanager
-    def _deploy_lambda_to_aws(self, layers, role_res, zipped_code, env_vars):
-        config = self._deploy_lambda_to_aws_helper(
-            layers, role_res, zipped_code, env_vars
-        )
+    def _deploy_lambda_to_aws(self, role_res, zipped_code, env_vars):
+        config = self._deploy_lambda_to_aws_helper(role_res, zipped_code, env_vars)
         time_passed = 0
         while config is False:
             if time_passed > self.MAX_WAIT_TIME:
@@ -492,9 +358,7 @@ class AWSLambdaFunction(Function):
                 )
             time_passed += 1
             time.sleep(1)
-            config = self._deploy_lambda_to_aws_helper(
-                layers, role_res, zipped_code, env_vars
-            )
+            config = self._deploy_lambda_to_aws_helper(role_res, zipped_code, env_vars)
         yield config
 
     def _create_new_lambda(self, env_vars):
@@ -557,30 +421,8 @@ class AWSLambdaFunction(Function):
             PolicyDocument=json.dumps(role_policy),
         )
 
-        layers = []
-        if self.layer:
-            self.LAMBDA_CLIENT.add_layer_version_permission(
-                LayerName=self.name + "_layer",
-                VersionNumber=self.layer_version,
-                StatementId=role_res["Role"]["RoleId"],
-                Action="lambda:GetLayerVersion",
-                Principal="*",
-            )
-
-            layers.append(self.layer)
-
-        if self.np_layer:
-            layers.append(self.np_layer)
-            layer_name = self.np_layer.split(":")[-2]
-            self.LAMBDA_CLIENT.add_layer_version_permission(
-                LayerName=layer_name,
-                VersionNumber=self.np_layer_version,
-                StatementId=role_res["Role"]["RoleId"],
-                Action="lambda:GetLayerVersion",
-                Principal="*",
-            )
         with self._deploy_lambda_to_aws(
-            layers, role_res, zipped_code, env_vars
+            role_res, zipped_code, env_vars
         ) as lambda_config:
             logger.info(
                 f'{lambda_config["Configuration"]["FunctionName"]} was created successfully.'
@@ -678,7 +520,6 @@ class AWSLambdaFunction(Function):
 
         except KeyError:
             if invoke_for_the_first_time:
-
                 self.LOGS_CLIENT.put_retention_policy(
                     logGroupName=curr_lambda_log_group,
                     retentionInDays=self.DEFAULT_RETENTION,
@@ -737,7 +578,6 @@ class AWSLambdaFunction(Function):
                 "timeout": self.timeout,
                 "memory_size": self.memory_size,
                 "args_names": self.args_names,
-                "layer": self.layer,  # TODO: save the layer arn + version. (if needed)
             }
         )
         return config
@@ -762,8 +602,8 @@ def aws_lambda_function(
     args_names: list[str] = None,
     name: Optional[str] = None,
     env: Optional[dict or Env] = None,
-    timeout: Optional[int] = 30,
-    memory_size: Optional[int] = 128,
+    timeout: Optional[int] = None,
+    memory_size: Optional[int] = None,
     dryrun: bool = False,
 ):
     """Builds an instance of :class:`AWSLambdaFunction`.
@@ -788,7 +628,7 @@ def aws_lambda_function(
             env_vars: dictionary containing the env_vars that will be a part of the lambda configuration.
             2. An insrantce of Runhouse Env class.
         timeout: Optional[int]: The maximum amount of time (in secods) during which the Lambda will run in AWS
-            without timing-out. (Default: ``30``, Min: ``3``, Max: ``900``)
+            without timing-out. (Default: ``300``, Min: ``3``, Max: ``900``)
         memory_size: Optional[int], The amount of memeory, im MB, that will be aloocatied to the lambda.
              (Default: ``128``, Min: ``128``, Max: ``10240``)
         dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
@@ -798,10 +638,7 @@ def aws_lambda_function(
         AWSLambdaFunction: The resulting AWS Lambda Function object.
 
         .. note::
-            1. Some older python versions are not suporrted by the latest numpy and pandas versions.
-            When creating a numpy or pandas layer, their version will be according to the Lambda's python version
-            (aka Lambda's runtime).\n
-            2. When creating the function for the first time (and not reloading it), the following arguments are
+            When creating the function for the first time (and not reloading it), the following arguments are
             mandatory: paths_to_code, handler_function_name, runtime, args_names.
 
     Example:
@@ -846,16 +683,16 @@ def aws_lambda_function(
         elif isinstance(env, dict):
             reqs = env["reqs"]
             if isinstance(reqs, str):
+                # TODO: think how to handle requirements.txt
+                # if reqs == "requirements.txt":
+                #     reqs = AWSLambdaFunction._reqs_to_list(reqs)
+                # else:
                 reqs = [reqs]
             env_vars = env["env_vars"]
+            if env_vars is None or len(env_vars) == 0:
+                env_vars = {}
             f_name = name or fn.__name__ or handler_function_name
             env = Env(reqs=reqs, name=f"{f_name}_env", env_vars=env_vars)
-        else:
-            received_type = str(type(env)).removeprefix("<class '").removesuffix("'>")
-            raise TypeError(
-                f"Env cannot be an instance of {received_type}. Please provide a dictionary or a Runhouse Env instance"
-                + " and rerun."
-            )
 
     if isinstance(fn, Callable):
         handler_function_name = fn.__name__
@@ -903,21 +740,27 @@ def aws_lambda_function(
         runtime = DEFAULT_PY_VERSION
 
     if timeout is None:
-        warnings.warn("Timeout set to 60 sec.")
-    if timeout > 900:
-        timeout = 900
-        warnings.warn("Timeout can not be more then 900 sec, setting to 900 sec.")
-    if timeout < 3:
-        timeout = 3
-        warnings.warn("Timeout can not be less then 3 sec, setting to 3 sec.")
+        warnings.warn("Timeout set to 5 min.")
+        timeout = AWSLambdaFunction.DEFAULT_TIMEOUT
+    else:
+        if timeout > 900:
+            timeout = 900
+            warnings.warn("Timeout can not be more then 900 sec, setting to 900 sec.")
+        if timeout < 3:
+            timeout = 3
+            warnings.warn("Timeout can not be less then 3 sec, setting to 3 sec.")
     if memory_size is None:
         warnings.warn("Memory size set to 128 MB.")
-    if memory_size < 128:
-        memory_size = 128
-        warnings.warn("Memory size can not be less then 128 MB, setting to 128 MB.")
-    if memory_size > 10240:
-        memory_size = 10240
-        warnings.warn("Memory size can not be more then 10240 MB, setting to 10240 MB.")
+        memory_size = AWSLambdaFunction.DEFAULT_MEMORY_SIZE
+    else:
+        if memory_size < 128:
+            memory_size = 128
+            warnings.warn("Memory size can not be less then 128 MB, setting to 128 MB.")
+        if memory_size > 10240:
+            memory_size = 10240
+            warnings.warn(
+                "Memory size can not be more then 10240 MB, setting to 10240 MB."
+            )
 
     new_function = AWSLambdaFunction(
         fn_pointers=fn_pointers,

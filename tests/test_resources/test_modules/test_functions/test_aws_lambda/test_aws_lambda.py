@@ -253,11 +253,11 @@ def test_create_and_run_layers():
     name = "test_lambda_numpy"
     my_lambda = rh.aws_lambda_function(
         paths_to_code=handler_path,
-        handler_function_name="lambda_handler",
+        handler_function_name="arr_handler",
         runtime="python3.9",
         args_names=["arr1", "arr2"],
         name=name,
-        env=["numpy", "pandas"],
+        env={"reqs": ["numpy", "pandas"], "env_vars": None},
     )
     res = my_lambda([1, 2, 3], [1, 2, 3])
     assert res == "12"
@@ -269,7 +269,7 @@ def test_different_runtimes_and_layers():
     name = "test_lambda_numpy"
     my_lambda_37 = rh.aws_lambda_function(
         paths_to_code=handler_path,
-        handler_function_name="lambda_handler",
+        handler_function_name="arr_handler",
         runtime="python3.7",
         args_names=["arr1", "arr2"],
         name=name + "_37",
@@ -321,7 +321,7 @@ def test_create_and_run_layers_txt():
     name = "test_lambda_numpy_txt"
     my_lambda = rh.aws_lambda_function(
         paths_to_code=handler_path,
-        handler_function_name="lambda_handler",
+        handler_function_name="arr_handler",
         runtime="python3.9",
         args_names=["arr1", "arr2"],
         name=name,
