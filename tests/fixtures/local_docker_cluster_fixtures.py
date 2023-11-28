@@ -25,7 +25,7 @@ def get_rh_parent_path():
 
 @pytest.fixture(scope="function")
 def cluster(request):
-    return request.getfixturevalue(request.param.__name__)
+    return request.getfixturevalue(request.param)
 
 
 @pytest.fixture(scope="session")

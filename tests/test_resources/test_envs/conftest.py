@@ -21,7 +21,7 @@ def _get_conda_env(name="rh-test", python_version="3.10.9"):
 @pytest.fixture(scope="function")
 def env(request):
     """Parametrize over multiple envs - useful for running the same test on multiple envs."""
-    return request.getfixturevalue(request.param.__name__)
+    return request.getfixturevalue(request.param)
 
 
 @pytest.fixture(scope="function")

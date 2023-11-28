@@ -9,20 +9,7 @@ import runhouse as rh
 
 import tests.test_resources.test_resource
 
-from tests.conftest import (
-    init_args,
-    ondemand_cpu_cluster,
-    password_cluster,
-    static_cpu_cluster,
-)
-
-from .conftest import (
-    base_conda_env,
-    base_env,
-    conda_env_from_dict,
-    conda_env_from_local,
-    conda_env_from_path,
-)
+from tests.conftest import init_args
 
 
 def _get_env_var_value(env_var):
@@ -48,31 +35,34 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
 
     UNIT = {
         "env": [
-            base_env,
-            base_conda_env,
-            conda_env_from_dict,
-            conda_env_from_local,
-            conda_env_from_path,
+            "base_env",
+            "base_conda_env",
+            "conda_env_from_dict",
+            "conda_env_from_local",
+            "conda_env_from_path",
         ]
     }
     LOCAL = {
-        "env": [base_env, base_conda_env, conda_env_from_dict],
+        "env": ["base_env", "base_conda_env", "conda_env_from_dict"],
         # TODO: add local clusters once conda docker container is set up
     }
-    MINIMAL = {"env": [base_env, base_conda_env], "cluster": [ondemand_cpu_cluster]}
+    MINIMAL = {
+        "env": ["base_env", "base_conda_env"],
+        "cluster": ["ondemand_cpu_cluster"],
+    }
     THOROUGH = {
-        "env": [base_env, base_conda_env, conda_env_from_dict],
-        "cluster": [ondemand_cpu_cluster, static_cpu_cluster, password_cluster],
+        "env": ["base_env", "base_conda_env", "conda_env_from_dict"],
+        "cluster": ["ondemand_cpu_cluster", "static_cpu_cluster", "password_cluster"],
     }
     MAXIMAL = {
         "env": [
-            base_env,
-            base_conda_env,
-            conda_env_from_dict,
-            conda_env_from_local,
-            conda_env_from_path,
+            "base_env",
+            "base_conda_env",
+            "conda_env_from_dict",
+            "conda_env_from_local",
+            "conda_env_from_path",
         ],
-        "cluster": [ondemand_cpu_cluster, static_cpu_cluster, password_cluster],
+        "cluster": ["ondemand_cpu_cluster", "static_cpu_cluster", "password_cluster"],
     }
 
     @pytest.mark.level("unit")

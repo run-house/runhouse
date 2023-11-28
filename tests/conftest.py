@@ -5,6 +5,54 @@ import pytest
 
 from runhouse.globals import rns_client
 
+"""
+HOW TO USE FIXTURES IN RUNHOUSE TESTS
+
+You can parameterize a fixture to run on many variations for any test.
+
+Make sure your parameterized fixture is defined in this file (can be imported from some other file)
+like so:
+
+@pytest.fixture(scope="function")
+def cluster(request):
+    return request.getfixturevalue(request.param)
+
+You can define default_fixtures for any parameterized fixture below.
+
+You can use MAP_FIXTURES to map a parameterized fixture to a different name. This
+is useful if you have a subclass that you want to test the parent's parameterized
+fixtures with.  Moreover, you can override the fixture parameters in your actual Test class.
+See examples for both of these below:
+
+class TestCluster(tests.test_resources.test_resource.TestResource):
+
+    MAP_FIXTURES = {"resource": "cluster"}
+
+    UNIT = {"cluster": ["named_cluster"]}
+    LOCAL = {
+        "cluster": [
+            "local_docker_cluster_public_key_logged_in",
+            "local_docker_cluster_public_key_logged_out",
+            "local_docker_cluster_telemetry_public_key",
+            "local_docker_cluster_passwd",
+        ]
+    }
+    MINIMAL = {"cluster": ["static_cpu_cluster"]}
+    THOROUGH = {"cluster": ["static_cpu_cluster", "password_cluster"]}
+    MAXIMAL = {"cluster": ["static_cpu_cluster", "password_cluster"]}
+
+Some key things to avoid:
+- Avoid ever importing from any conftest.py file. This can cause erratic
+behavior in fixture initialization, and should always be avoided. Put test
+utility items in `tests/<some path>` and import from there instead.
+
+- Avoid using nested conftest.py files if we can avoid it. We should be
+able to put most of our info in our top level conftest.py file, with
+`tests/fixtures/<some path>` as an organizational spot for more fixtures.
+Imports that you see below from nested conftest.py files will slowly be eliminated.
+
+"""
+
 
 class TestLevels(str, enum.Enum):
     UNIT = "unit"
@@ -120,12 +168,13 @@ def test_account():
 
 # ----------------- Clusters -----------------
 
-from tests.test_resources.test_clusters.conftest import (
+from tests.fixtures.local_docker_cluster_fixtures import (
     build_and_run_image,  # noqa: F401
     byo_cpu,  # noqa: F401
     cluster,  # noqa: F401
     local_docker_cluster_passwd,  # noqa: F401
     local_docker_cluster_public_key,  # noqa: F401
+    local_docker_cluster_public_key_den_auth,  # noqa: F401
     local_docker_cluster_public_key_logged_in,  # noqa: F401
     local_docker_cluster_public_key_logged_out,  # noqa: F401
     local_docker_cluster_telemetry_public_key,  # noqa: F401
@@ -226,38 +275,38 @@ from tests.test_resources.test_modules.test_tables.conftest import (
 default_fixtures = {}
 default_fixtures[TestLevels.UNIT] = {
     "cluster": [
-        local_docker_cluster_public_key_logged_in,
-        local_docker_cluster_public_key_logged_out,
+        "local_docker_cluster_public_key_logged_in",
+        "local_docker_cluster_public_key_logged_out",
     ]
 }
 default_fixtures[TestLevels.LOCAL] = {
     "cluster": [
-        local_docker_cluster_public_key_logged_in,
-        local_docker_cluster_public_key_logged_out,
-        local_docker_cluster_passwd,
+        "local_docker_cluster_public_key_logged_in",
+        "local_docker_cluster_public_key_logged_out",
+        "local_docker_cluster_passwd",
     ]
 }
-default_fixtures[TestLevels.MINIMAL] = {"cluster": [ondemand_cpu_cluster]}
+default_fixtures[TestLevels.MINIMAL] = {"cluster": ["ondemand_cpu_cluster"]}
 default_fixtures[TestLevels.THOROUGH] = {
     "cluster": [
-        local_docker_cluster_passwd,
-        local_docker_cluster_public_key_logged_in,
-        local_docker_cluster_public_key_logged_out,
-        ondemand_cpu_cluster,
-        ondemand_https_cluster_with_auth,
-        password_cluster,
-        static_cpu_cluster,
+        "local_docker_cluster_passwd",
+        "local_docker_cluster_public_key_logged_in",
+        "local_docker_cluster_public_key_logged_out",
+        "ondemand_cpu_cluster",
+        "ondemand_https_cluster_with_auth",
+        "password_cluster",
+        "static_cpu_cluster",
     ]
 }
 default_fixtures[TestLevels.MAXIMAL] = {
     "cluster": [
-        local_docker_cluster_passwd,
-        local_docker_cluster_public_key_logged_in,
-        local_docker_cluster_public_key_logged_out,
-        local_docker_cluster_telemetry_public_key,
-        ondemand_cpu_cluster,
-        ondemand_https_cluster_with_auth,
-        password_cluster,
-        static_cpu_cluster,
+        "local_docker_cluster_passwd",
+        "local_docker_cluster_public_key_logged_in",
+        "local_docker_cluster_public_key_logged_out",
+        "local_docker_cluster_telemetry_public_key",
+        "ondemand_cpu_cluster",
+        "ondemand_https_cluster_with_auth",
+        "password_cluster",
+        "static_cpu_cluster",
     ]
 }
