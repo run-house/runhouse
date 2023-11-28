@@ -155,8 +155,12 @@ from tests.test_resources.test_clusters.test_sagemaker_cluster.conftest import (
 # ----------------- Envs -----------------
 
 from tests.test_resources.test_envs.conftest import (
+    base_conda_env,  # noqa: F401
+    base_env,  # noqa: F401
+    conda_env_from_dict,  # noqa: F401
+    conda_env_from_local,  # noqa: F401
+    conda_env_from_path,  # noqa: F401
     env,  # noqa: F401
-    test_env,  # noqa: F401
 )
 
 # ----------------- Blobs -----------------

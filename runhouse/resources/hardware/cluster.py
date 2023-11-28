@@ -1126,6 +1126,7 @@ class Cluster(Resource):
         # If invoking a run as part of the python commands also return the Run object
         return_codes = self.run(
             [formatted_command],
+            env=env,
             stream_logs=stream_logs,
             port_forward=port_forward,
             run_name=run_name,

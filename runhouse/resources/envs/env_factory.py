@@ -17,7 +17,7 @@ def env(
     setup_cmds: List[str] = None,
     env_vars: Union[Dict, str] = {},
     working_dir: Optional[Union[str, Path]] = "./",
-    dryrun: bool = True,
+    dryrun: bool = False,
 ):
     """Builds an instance of :class:`Env`.
 
@@ -32,7 +32,7 @@ def env(
             environment variables. (Default: {})
         working_dir (str or Path): Working directory of the environment, to be loaded onto the system.
             (Default: "./")
-        dryrun (bool, optional): Whether to run in dryrun mode. (Default: ``True``)
+        dryrun (bool, optional): Whether to run in dryrun mode. (Default: ``False``)
 
 
     Returns:
@@ -86,7 +86,7 @@ def conda_env(
     setup_cmds: List[str] = None,
     env_vars: Optional[Dict] = {},
     working_dir: Optional[Union[str, Path]] = "./",
-    dryrun: bool = True,
+    dryrun: bool = False,
 ):
     """Builds an instance of :class:`CondaEnv`.
 
@@ -101,7 +101,7 @@ def conda_env(
             environment variables. (Default: {})
         working_dir (str or Path): Working directory of the environment, to be loaded onto the system.
             (Default: "./")
-        dryrun (bool, optional): Whether to run in dryrun mode. (Default: ``True``)
+        dryrun (bool, optional): Whether to run in dryrun mode. (Default: ``False``)
 
     Returns:
         CondaEnv: The resulting CondaEnv object.
