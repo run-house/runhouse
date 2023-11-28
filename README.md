@@ -51,7 +51,10 @@ on any infra, rather than build support or guides for each cloud or compute syst
 
 ## 🦾 How does it work?
 
-Suppose you create a cluster object:
+In Runhouse, a "cluster" is a unit of compute - somewhere you can send code, data, and requests to execute. It 
+can represent long-lived compute like a static IP or Ray cluster, or ephemeral/scale-to-zero compute like on-demand VMs 
+from a cloud provider or Kubernetes. When you first use a cluster, we check that the hardware is up if applicable (and 
+bring it up if not), and start Ray and a Runhouse HTTP server on it via SSH. Suppose you create a cluster object:
 
 ```python
 import runhouse as rh
@@ -59,12 +62,12 @@ import runhouse as rh
 gpu = rh.cluster(name="my-a100", host=my_cluster_ip, ssh_creds={"user": "ubuntu", "key": "~/.ssh/id_rsa"})
 gpu = rh.cluster(name="my-a100", instance_type="A100:1", provider="cheapest")
 gpu = rh.cluster(name="my-a10", provider="gcp", instance_type="A10:1", zone="us-west1-b", image_id="id-1332353432432", spot=True)
+
+gpu.up_if_not()  # Optional, as it's called automatically when you use the cluster
 ```
 
-When you send something to a cluster, we check that the cluster's up (and bring it up if not), and start Ray
-and a Runhouse HTTP server on it via SSH. There are lots of things you can send to the cluster. For example,
-a folder, from local or cloud storage (these work in any direction, so you can send folders arbitrarily between local,
-cloud storage, and cluster storage):
+There are lots of things you can send to a cluster. For example, a folder, from local or cloud storage (these work 
+in any direction, so you can send folders arbitrarily between local, cloud storage, and cluster storage):
 
 ```python
 my_cluster_folder = rh.folder(path="./my_folder").to(gpu, path="~/my_folder")
@@ -72,20 +75,12 @@ my_s3_folder = my_cluster_folder.to("s3", path="my_bucket/my_folder")
 my_local_folder = my_s3_folder.to("here")
 ```
 
-Or an "environment", which lives in its own Ray process. Local folders are synced up as needed, and the environment
-setup is cached so it only reruns if something changes.
-
-```python
-my_env = rh.env(reqs=["torch", "diffusers", "~/code/my_other_repo"],
-                setup_cmds=["source activate ~/.bash_rc"],
-                env_vars={"TOKEN": "1234"},
-                workdir="./")
-my_env = my_env.to(gpu)
-```
-
-You can send a function to the cluster and env, where it lives inside the env's Ray process. You can send it to an
-existing env, or create a new one on the fly. Note that the function is not serialized, but rather reimported on the
-cluster after the local git package (`"./"`) is sent up.
+You can send a function to the cluster, including the environment in which the function will live, which is actually
+set up in its own Ray process. You can send it to an existing env, or create a new one on the fly. Like the folder 
+above, the function object which is returned from `.to` is a proxy to the remote function. When you call it a 
+lightweight request is sent to the cluster's Runhouse HTTP server to execute the function with the given inputs and 
+returns the results. Note that the function is not serialized, but rather imported on the cluster after the local 
+working directory (`"./"`, by default the git root) is sent up.
 
 
 ```python
@@ -99,6 +94,54 @@ if __name__ == "__main__":
     remote_sd_generate = rh.function(sd_generate).to(gpu, env=["./", "torch", "diffusers"])
     imgs = remote_sd_generate("A hot dog made out of matcha.")
     imgs[0].show()
+```
+
+The above env list is a shorthand, but you can create quite elaborate envs (even quite a bit more elaborate than the 
+example below). Local folders are sent (rsynced) up as needed, and the environment setup is cached so it only reruns 
+if something changes.
+
+```python
+my_env = rh.env(name="my_env",
+                reqs=["torch", "diffusers", "~/code/my_other_repo"],
+                setup_cmds=["source activate ~/.bash_rc"],
+                env_vars={"TOKEN": "1234"},
+                workdir="./")  # Current git root
+my_env = my_env.to(gpu)  # Called implicitly if passed to Function.to, like above
+```
+
+rh.Function is actually a special case of rh.Module, which is how we send classes to clusters. There are a number of
+other built-in Modules in Runhouse, such as Blob, Queue, KVstore, Table, and more. Modules are very flexible. You can
+leave them as classes or create instances, send the class or the instances to clusters, and even create instances
+remotely. You can call class methods, properties, generators, and async methods remotely, and they'll behave 
+the same as if they were called locally (e.g. generators will stream, asyncs will return awaitables), including 
+streaming logs and stdout back to you.
+
+```python
+# You can create a module out of an existing class 
+MyRemoteClass = rh.module(MyClass).to(gpu)
+MyRemoteClass.my_class_method(1, 2, 3)
+# Notice how we sent the module to gpu above, so now this instance already lives on gpu
+my_remote_instance = MyRemoteClass(1, 2, 3)
+
+# You can define a new module as a subclass of rh.Module to have more control 
+# over how it's instantiated, or provide it within a library
+class MyCounter(rh.Module):
+    def __init__(self, count, **kwargs):
+        super().__init__(**kwargs)
+        self.count = count
+
+    def increment(self, y):
+        self.count += y
+        print(f"New count: {self.count}")
+        return self.count
+
+my_remote_counter = MyCounter(count=1).to(gpu, name="my_counter")
+my_remote_counter.increment(2)  # Prints "New count: 3" and returns 3
+```
+
+You can also call the Runhouse HTTP server directly (though you may need to open a port or tunnel to do so):
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{"args": [1, 2, 3]}' http://my_cluster_ip:32300/my_counter/count
 ```
 
 ## 🙅‍♀️ Runhouse is not
