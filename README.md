@@ -160,6 +160,7 @@ runhouse login
 ```
 or from Python:
 ```python
+import runhouse as rh
 rh.login()
 ```
 
