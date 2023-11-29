@@ -87,6 +87,7 @@ class Function(Module):
             >>> rh.function(fn=local_fn).to(gpu_cluster)
             >>> rh.function(fn=local_fn).to(system=gpu_cluster, env=my_conda_env)
         """
+
         if setup_cmds:
             warnings.warn(
                 "``setup_cmds`` argument has been deprecated. "
@@ -104,6 +105,13 @@ class Function(Module):
         else:
             env = env or self.env or Env(name=Env.DEFAULT_NAME)
             env = _get_env_from(env)
+
+        if system == "AWS_LAMBDA":
+            from runhouse.resources.serverless import aws_lambda_function
+
+            return aws_lambda_function(
+                fn=self._get_obj_from_pointers(*self.fn_pointers), env=env
+            )
 
         if (
             self.dryrun
