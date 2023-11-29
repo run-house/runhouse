@@ -53,7 +53,7 @@ class AWSLambdaFunction(Function):
     MAX_WAIT_TIME = 60  # seconds, max time that can pass before we raise an exception that AWS update takes too long.
     DEFAULT_REGION = "us-east-1"
     DEFAULT_RETENTION = 30  # one month, for lambdas log groups.
-    DEFAULT_TIMEOUT = 300  # sec
+    DEFAULT_TIMEOUT = 900  # sec
     DEFAULT_MEMORY_SIZE = 128  # MB
 
     if Path(CRED_PATH).is_file():
@@ -106,7 +106,7 @@ class AWSLambdaFunction(Function):
         self.env_vars, self.reqs = None, None
         if env:
             self.env_vars = env.env_vars if len(env.env_vars) > 0 else None
-            supported_reqs = self._supported_python_libs()
+            supported_reqs = AWSLambdaFunction._supported_python_libs()
             self.reqs = (
                 [req for req in env.reqs if req not in supported_reqs]
                 if len(env.reqs) > 0
@@ -129,8 +129,14 @@ class AWSLambdaFunction(Function):
         keys = config.keys()
         if "fn_pointers" not in keys:
             config["fn_pointers"] = None
+        if "timeout" not in keys:
+            config["timeout"] = AWSLambdaFunction.DEFAULT_TIMEOUT
+        if "memory_size" not in keys:
+            config["memory_size"] = AWSLambdaFunction.DEFAULT_MEMORY_SIZE
         if "env" not in keys:
             config["env"] = None
+        else:
+            config["env"] = Env(name=config["env"])
 
         return AWSLambdaFunction(**config, dryrun=dryrun).to()
 
@@ -227,6 +233,7 @@ class AWSLambdaFunction(Function):
         f.write(
             "import subprocess\n"
             "import sys\n"
+            "import os\n"
             f"from {handler_name} import {self.handler_function_name}\n"
         )
         f.write("def lambda_handler(event, context):\n")
@@ -235,7 +242,8 @@ class AWSLambdaFunction(Function):
         if self.reqs:
             for req in self.reqs:
                 f.write(
-                    f"\tsubprocess.call(['pip', 'install', '{req}', '-t', '/tmp'])\n"
+                    f"\tif not os.path.isdir('/tmp/{req}'):\n"
+                    f"\t\tsubprocess.call(['pip', 'install', '{req}', '-t', '/tmp'])\n"
                 )
         f.write(
             "\tsys.path.insert(1, '/tmp/')\n"
@@ -244,7 +252,8 @@ class AWSLambdaFunction(Function):
         f.close()
         return wrapper_path
 
-    def _supported_python_libs(self):
+    @classmethod
+    def _supported_python_libs(cls):
         """ " Returns a list of the supported python libs by the AWS Lambda resource"""
         # TODO [SB]: think what is the better implementation: via website, or AWS lambda. for now, hard-coded.
         # url = "https://www.feitsui.com/en/article/2"
@@ -492,12 +501,16 @@ class AWSLambdaFunction(Function):
         """
         return self._invoke(*args, **kwargs)
 
-    def _invoke(self, *args, **kwargs) -> Any:
-        log_group_prefix = "/aws/lambda/"
+    def _get_log_group_names(self, log_group_prefix):
         lambdas_log_groups = self.LOGS_CLIENT.describe_log_groups(
             logGroupNamePrefix=log_group_prefix
         )["logGroups"]
         lambdas_log_groups = [group["logGroupName"] for group in lambdas_log_groups]
+        return lambdas_log_groups
+
+    def _invoke(self, *args, **kwargs) -> Any:
+        log_group_prefix = "/aws/lambda/"
+        lambdas_log_groups = self._get_log_group_names(log_group_prefix)
         curr_lambda_log_group = f"{log_group_prefix}{self.name}"
         invoke_for_the_first_time = curr_lambda_log_group not in lambdas_log_groups
 
@@ -520,6 +533,10 @@ class AWSLambdaFunction(Function):
 
         except KeyError:
             if invoke_for_the_first_time:
+                lambdas_log_groups = self._get_log_group_names(log_group_prefix)
+                while curr_lambda_log_group not in lambdas_log_groups:
+                    time.sleep(1)
+                    lambdas_log_groups = self._get_log_group_names(log_group_prefix)
                 self.LOGS_CLIENT.put_retention_policy(
                     logGroupName=curr_lambda_log_group,
                     retentionInDays=self.DEFAULT_RETENTION,
@@ -696,7 +713,9 @@ def aws_lambda_function(
 
     if isinstance(fn, Callable):
         handler_function_name = fn.__name__
-        fn_pointers = Function._extract_pointers(fn, reqs=env.reqs or [])
+        fn_pointers = Function._extract_pointers(
+            fn, reqs=[] if env is None else env.reqs
+        )
         paths_to_code = _paths_to_code_from_fn_pointers(fn_pointers)
         args_names = [param.name for param in inspect.signature(fn).parameters.values()]
         if name is None:
@@ -733,14 +752,14 @@ def aws_lambda_function(
         fn_pointers = None
 
     # ------- More arguments validation -------
-    if runtime is not None and runtime not in SUPPORTED_RUNTIMES:
+    if runtime is None or runtime not in SUPPORTED_RUNTIMES:
         warnings.warn(
             f"{runtime} is not a supported by AWS Lambda. Setting runtime to python3.9."
         )
         runtime = DEFAULT_PY_VERSION
 
     if timeout is None:
-        warnings.warn("Timeout set to 5 min.")
+        warnings.warn("Timeout set to 15 min.")
         timeout = AWSLambdaFunction.DEFAULT_TIMEOUT
     else:
         if timeout > 900:

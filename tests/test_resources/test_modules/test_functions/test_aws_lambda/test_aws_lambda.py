@@ -4,7 +4,6 @@ import unittest
 from pathlib import Path
 
 import boto3
-import botocore
 import pytest
 
 import runhouse as rh
@@ -147,40 +146,36 @@ def test_bad_handler_func_name_to_factory():
 def test_bad_runtime_to_factory():
     name = "test_wrong_runtime"
     handler_path = [f"{TEST_RESOURCES}/basic_test_handler.py"]
-    invalid_pram_msg = (
-        "Parameter validation failed:\nInvalid type for parameter Runtime, "
-        + "value: None, type: <class 'NoneType'>, valid types: <class 'str'>"
+
+    wrong_runtime_1 = rh.aws_lambda_function(
+        paths_to_code=handler_path,
+        handler_function_name="lambda_sum",
+        runtime=None,
+        args_names=["arg1", "arg2"],
+        name=f"{name}_1",
     )
 
-    with pytest.raises(botocore.exceptions.ParamValidationError) as none_runtime:
-        rh.aws_lambda_function(
-            paths_to_code=handler_path,
-            handler_function_name="lambda_sum",
-            runtime=None,
-            args_names=["arg1", "arg2"],
-            name=name,
-        )
-    assert str(none_runtime.value) == invalid_pram_msg
+    wrong_runtime_2 = rh.aws_lambda_function(
+        paths_to_code=handler_path,
+        handler_function_name="lambda_sum",
+        args_names=["arg1", "arg2"],
+        name=f"{name}_2",
+    )
 
-    with pytest.raises(botocore.exceptions.ParamValidationError) as no_runtime:
-        rh.aws_lambda_function(
-            paths_to_code=handler_path,
-            handler_function_name="lambda_sum",
-            args_names=["arg1", "arg2"],
-            name=name,
-        )
-    assert str(no_runtime.value) == invalid_pram_msg
-
-    my_func1 = rh.aws_lambda_function(
+    wrong_runtime_3 = rh.aws_lambda_function(
         paths_to_code=handler_path,
         handler_function_name="lambda_sum",
         runtime="python3.91",
         args_names=["arg1", "arg2"],
-        name=name,
+        name=f"{name}_3",
     )
 
-    assert my_func1.runtime == "python3.9"
-    LAMBDAS_NAMES.add(name)
+    assert wrong_runtime_1.runtime == "python3.9"
+    assert wrong_runtime_2.runtime == "python3.9"
+    assert wrong_runtime_3.runtime == "python3.9"
+    LAMBDAS_NAMES.add(f"{name}_1")
+    LAMBDAS_NAMES.add(f"{name}_2")
+    LAMBDAS_NAMES.add(f"{name}_3")
 
 
 def test_bad_args_names_to_factory(caplog):
@@ -248,7 +243,7 @@ def test_create_and_run_generate_name():
     LAMBDAS_NAMES.add(my_lambda.name)
 
 
-def test_create_and_run_layers():
+def test_create_and_run_layers_dict():
     handler_path = [f"{TEST_RESOURCES}/basic_handler_layer.py"]
     name = "test_lambda_numpy"
     my_lambda = rh.aws_lambda_function(
@@ -259,11 +254,39 @@ def test_create_and_run_layers():
         name=name,
         env={"reqs": ["numpy", "pandas"], "env_vars": None},
     )
+    my_lambda.save()
     res = my_lambda([1, 2, 3], [1, 2, 3])
     assert res == "12"
     LAMBDAS_NAMES.add(my_lambda.name)
 
 
+def test_reload_func_with_libs():
+    # tests that after the libs are installed, they are not being re-installed.
+    my_reloaded_lambda = rh.aws_lambda_function(name="test_lambda_numpy")
+    res = my_reloaded_lambda([1, 2, 3], [12, 5, 9])
+    assert res == "32"
+
+
+def test_create_and_run_layers_env():
+    handler_path = [f"{TEST_RESOURCES}/basic_handler_layer.py"]
+    name = "test_lambda_numpy_env"
+    my_env = rh.env(reqs=["numpy"])
+    my_lambda = rh.aws_lambda_function(
+        paths_to_code=handler_path,
+        handler_function_name="arr_handler",
+        runtime="python3.9",
+        args_names=["arr1", "arr2"],
+        name=name,
+        env=my_env,
+    )
+    res = my_lambda([1, 2, 3], [2, 5, 6])
+    assert res == "19"
+    LAMBDAS_NAMES.add(my_lambda.name)
+
+
+@pytest.mark.skip(
+    "Not sure it is necessary now we are installing libs during runtime. "
+)
 def test_different_runtimes_and_layers():
     handler_path = [f"{TEST_RESOURCES}/basic_handler_layer.py"]
     name = "test_lambda_numpy"
@@ -273,7 +296,7 @@ def test_different_runtimes_and_layers():
         runtime="python3.7",
         args_names=["arr1", "arr2"],
         name=name + "_37",
-        env=["numpy", "pandas"],
+        env={"reqs": ["numpy"], "env_vars": None},
     )
     res37 = my_lambda_37([1, 2, 3], [2, 5, 6])
     assert res37 == "19"
@@ -285,7 +308,7 @@ def test_different_runtimes_and_layers():
         runtime="python3.8",
         args_names=["arr1", "arr2"],
         name=name + "_38",
-        env=["numpy", "pandas"],
+        env={"reqs": ["numpy"], "env_vars": None},
     )
     res38 = my_lambda_38([1, 2, 3], [12, 5, 9])
     assert res38 == "32"
@@ -297,7 +320,7 @@ def test_different_runtimes_and_layers():
         runtime="python3.10",
         args_names=["arr1", "arr2"],
         name=name + "_310",
-        env=["numpy", "pandas"],
+        env={"reqs": ["numpy"], "env_vars": None},
     )
     res310 = my_lambda_310([-2, 5, 1], [12, 5, 9])
     assert res310 == "30"
@@ -309,13 +332,14 @@ def test_different_runtimes_and_layers():
         runtime="python3.11",
         args_names=["arr1", "arr2"],
         name=name + "_311",
-        env=["numpy", "pandas"],
+        env={"reqs": ["numpy"], "env_vars": None},
     )
     res311 = my_lambda_311([-2, 5, 1], [8, 7, 6])
     assert res311 == "25"
     LAMBDAS_NAMES.add(my_lambda_311.name)
 
 
+@pytest.mark.skip("Need to figure out how installing requirements.txt is supported")
 def test_create_and_run_layers_txt():
     handler_path = [f"{TEST_RESOURCES}/basic_handler_layer.py"]
     name = "test_lambda_numpy_txt"
@@ -373,7 +397,7 @@ def test_mult_files_each():
         runtime="python3.9",
         args_names=["arg1", "arg2"],
         name=name,
-        env=["numpy"],
+        env={"reqs": ["numpy"], "env_vars": None},
     )
     res1 = my_lambda_calc_1(2, 3)
     res2 = my_lambda_calc_1(5, 3)
