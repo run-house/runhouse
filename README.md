@@ -1,6 +1,4 @@
-<p align="center" style="font-size: 72px;">
-🏃‍♀️Runhouse🏠
-</p>
+# 🏃‍♀️Runhouse🏠
 
 [![Discord](https://dcbadge.vercel.app/api/server/RnhB6589Hs?compact=true&style=flat)](https://discord.gg/RnhB6589Hs)
 [![Twitter](https://img.shields.io/twitter/url/https/twitter.com/runhouse_.svg?style=social&label=@runhouse_)](https://twitter.com/runhouse_)
