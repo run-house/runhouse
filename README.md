@@ -10,7 +10,7 @@
 
 ## 👵 Welcome Home!
 
-Runhouse is a Python framework for composing and sharing production-quality backend apps and services _ridiculously
+([Runhouse](https://run.house)) is a Python framework for composing and sharing production-quality backend apps and services _ridiculously
 quickly_ and on your own infra. Running the following will stand up a microservice on a fresh AWS EC2 box:
 
 ```python
@@ -20,7 +20,7 @@ def run_home(name: str):
     return f"Run home {name}!"
 
 if __name__ == "__main__":
-    cpu_box = rh.ondemand_cluster(name="my-cpu", instance_type="CPU:2", provider="aws")
+    cpu_box = rh.ondemand_cluster(name="my-cpu", instance_type="CPU:2", provider="aws").up_if_not()
     remote_fn = rh.function(run_home).to(cpu_box)
     print(remote_fn("Jack"))
 ```
@@ -28,12 +28,12 @@ if __name__ == "__main__":
 ## 🤔 Why?
 
 Runhouse is built to do four things:
-1. Make it easy to send an arbitrary block of your code - function, subroutine, class, generator, whatever -
+1. Make it easy to send an arbitrary block of your code - function, subroutine, class, generator -
 to run on souped up remote infra. It's basically a flag flip.
 1. Eliminate CLI and Flask/FastAPI boilerplate by allowing you to send your function or class directly to your remote
-infra to execute or serve, and keep them debuggable like the original code, not a subprocess.Popen or postman/curl call.
+infra to execute or serve, and keep them debuggable like the original code, not a subprocess.Popen or Postman/curl call.
 1. Bake-in the middleware and automation to make your app production-quality, secure, and sharable instantly.
-That means giving you best-of-breed auth, HTTPS, telemetry, packaging, and deployment automation, with ample
+That means giving you out of the box, state-of-the-art auth, HTTPS, telemetry, packaging, and deployment automation, with ample
 flexibility to swap in your own.
 1. Bring the power of [Ray](https://www.ray.io/) to any app, anywhere, without having to learn Ray or manage Ray
 clusters, like [Next.js](https://nextjs.org/) did for React. OpenAI, Uber, Shopify, and many others use Ray to
@@ -42,9 +42,9 @@ power their ML infra, and Runhouse makes its best-in-class features accessible t
 ## 🤨 Who is this for?
 
 * 👩‍🔧 **Engineers, Researchers and Data Scientists** who don't want to spend 3-6 months translating and packaging
-their work to share it, and want to be able to iterate and improve production services, pipelines, and data artifacts
+their work to share it, and want to be able to iterate and improve their experiments, production services, pipelines, and data artifacts
 with a Pythonic, debuggable devX.
-* 👩‍🔬 **ML and data teams** who want a versioned, shared, maintainable stack of services used across
+* 👩‍🔬 **ML and data teams** who want a stable, versioned, shareable, maintainable stack of services used across
 research and production, spanning any cloud or infra type (e.g. Instances, Kubernetes, Serverless, etc.).
 * 🦸‍♀️ **OSS maintainers** who want to supercharge their setup flow by providing a single script to stand up their app
 on any infra, rather than build support or guides for each cloud or compute system (e.g. Kubernetes) one by one.
@@ -55,7 +55,7 @@ on any infra, rather than build support or guides for each cloud or compute syst
 In Runhouse, a "cluster" is a unit of compute - somewhere you can send code, data, and requests to execute. It
 can represent long-lived compute like a static IP or Ray cluster, or ephemeral/scale-to-zero compute like on-demand VMs
 from a cloud provider or Kubernetes. When you first use a cluster, we check that the hardware is up if applicable (and
-bring it up if not), and start Ray and a Runhouse HTTP server on it via SSH. Suppose you create a cluster object:
+bring it up automatically if not!), and start Ray and a Runhouse HTTP server on it via SSH. Suppose you create a cluster object:
 
 ```python
 import runhouse as rh
