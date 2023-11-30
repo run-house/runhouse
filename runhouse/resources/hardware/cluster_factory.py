@@ -76,6 +76,23 @@ def cluster(
             "``ips`` argument has been deprecated. Please use ``host`` to refer to the cluster IPs or host instead."
         )
 
+    if name and all(
+        not x
+        for x in [
+            host,
+            ssh_creds,
+            server_port,
+            server_host,
+            server_connection_type,
+            ssl_keyfile,
+            ssl_certfile,
+            den_auth,
+            kwargs,
+        ]
+    ):
+        # If only the name is provided
+        return Cluster.from_name(name, dryrun)
+
     if host and ("localhost" in host or ":" in host):
         server_connection_type = server_connection_type or ServerConnectionType.NONE
         if ":" in host:
@@ -96,23 +113,6 @@ def cluster(
             server_port = Cluster.DEFAULT_HTTP_PORT
         else:
             server_port = Cluster.DEFAULT_SERVER_PORT
-
-    if name and all(
-        x is None
-        for x in [
-            host,
-            ssh_creds,
-            server_port,
-            server_host,
-            server_connection_type,
-            ssl_keyfile,
-            ssl_certfile,
-            den_auth,
-            kwargs,
-        ]
-    ):
-        # If only the name is provided
-        return Cluster.from_name(name, dryrun)
 
     if name in RESERVED_SYSTEM_NAMES:
         raise ValueError(

@@ -321,7 +321,7 @@ class TestModule:
         await remote_df.set_async("size", 20)
         assert remote_df.remote.size == 20
 
-    @unittest.skip("Not working yet")
+    @pytest.mark.skip("Not working yet")
     @pytest.mark.clustertest
     def test_hf_autotokenizer(self, cluster):
         from transformers import AutoTokenizer

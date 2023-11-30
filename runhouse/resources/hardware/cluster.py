@@ -394,8 +394,8 @@ class Cluster(Resource):
             self._rpc_tunnel.close()
 
         ssh_tunnel = None
-        connected_port = self.server_port
-        if self.address in open_cluster_tunnels:
+        connected_port = None
+        if (self.address, self.ssh_port) in open_cluster_tunnels:
             ssh_tunnel, connected_port = open_cluster_tunnels[
                 (self.address, self.ssh_port)
             ]
@@ -426,7 +426,7 @@ class Cluster(Resource):
                 f"Connecting to server via SSH, port forwarding via port {connected_port}."
             )
 
-        self.client_port = self.client_port or connected_port
+        self.client_port = connected_port or self.client_port or self.server_port
         use_https = self._use_https
         cert_path = self.cert_config.cert_path if use_https else None
 
@@ -898,7 +898,7 @@ class Cluster(Resource):
             source = source + "/" if not source.endswith("/") else source
             dest = dest + "/" if not dest.endswith("/") else dest
 
-        ssh_credentials = copy.copy(self.ssh_creds())
+        ssh_credentials = copy.copy(self.ssh_creds()) or {}
         ssh_credentials.pop("ssh_host", self.address)
         pwd = ssh_credentials.pop("password", None)
 

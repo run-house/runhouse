@@ -534,7 +534,7 @@ class HTTPServer:
     @validate_cluster_access
     def rename_object(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
-            "rename_object", [message], env=message.env
+            "rename_object", [message], env=message.env, lookup_env_for_name=message.key
         )
 
     @staticmethod
