@@ -1,3 +1,4 @@
+import argparse
 import os
 import shutil
 import subprocess
@@ -126,11 +127,11 @@ def generate_docs_for_branches():
 
 
 def generate_docs_for_tags():
-    # Handle tag releases
-    tags_url = f"https://api.github.com/repos/{SOURCE_REPO_PATH}/releases"
+    # Handle tags (not releases)
+    tags_url = f"https://api.github.com/repos/{SOURCE_REPO_PATH}/tags"
     releases = get_refs_from_repo(tags_url)
     for release in releases:
-        tag_name = release["tag_name"]
+        tag_name = release["name"]
         tag_url = (
             f"https://api.github.com/repos/{SOURCE_REPO_PATH}/git/refs/tags/{tag_name}"
         )
@@ -144,6 +145,28 @@ def generate_docs_for_tags():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Generate docs for tags, branches, or both."
+    )
+    parser.add_argument(
+        "--docs-type",
+        nargs="?",
+        default="tags",
+        choices=["branches", "tags", "all"],
+        help="Type of docs to build. If 'all' provided will build for both branches and tags. "
+        "Default is 'tags'",
+    )
+
+    args = parser.parse_args()
+    docs_type = args.docs_type
+
     clone_repo()
-    generate_docs_for_branches()
-    generate_docs_for_tags()
+
+    if docs_type == "tags":
+        generate_docs_for_tags()
+    elif docs_type == "branches":
+        generate_docs_for_branches()
+    elif docs_type == "all":
+        # run for branches & tags
+        generate_docs_for_branches()
+        generate_docs_for_tags()
