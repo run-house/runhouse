@@ -171,7 +171,7 @@ def _login_upload_secrets(interactive: bool):
 
     logger.info(f"Uploading secrets for {list(local_secrets)} to Vault.")
     for _, secret in local_secrets.items():
-        secret.save(values=True)
+        secret.save(save_values=True)
 
 
 def logout(
