@@ -1,141 +1,169 @@
-# 🏃‍♀️ Runhouse 🏠
+<br>
+
+# 🏃‍♀️Runhouse🏠
 
 [![Discord](https://dcbadge.vercel.app/api/server/RnhB6589Hs?compact=true&style=flat)](https://discord.gg/RnhB6589Hs)
 [![Twitter](https://img.shields.io/twitter/url/https/twitter.com/runhouse_.svg?style=social&label=@runhouse_)](https://twitter.com/runhouse_)
-
 [![Website](https://img.shields.io/badge/run.house-green)](https://www.run.house)
 [![Docs](https://img.shields.io/badge/docs-blue)](https://www.run.house/docs)
 [![Den](https://img.shields.io/badge/runhouse_den-purple)](https://www.run.house/login)
 
-
 ## 👵 Welcome Home!
 
-Runhouse is a unified interface into *existing* compute and data systems, built to reclaim
-the 50-75% of ML practitioners' time lost to debugging, adapting, or repackaging code
-for different environments.
-
-### 🤨 Who is this for?
-
-* 🦸‍♀️ **OSS maintainers** who want to improve the accessibility, reproducibility, and reach of their code,
-without having to build support or examples for every cloud or compute system (e.g. Kubernetes) one by one.
-   * See this in action in 🤗 Hugging Face ([Transformers](https://github.com/huggingface/transformers/blob/main/examples/README.md#running-the-examples-on-remote-hardware-with-auto-setup), [Accelerate](https://github.com/huggingface/accelerate/blob/main/examples/README.md#simple-multi-gpu-hardware-launcher)) and 🦜🔗 [Langchain](https://python.langchain.com/en/latest/modules/models/llms/integrations/runhouse.html)
-* 👩‍🔬 **ML Researchers and Data Scientists** who don't want to spend or wait 3-6 months translating and packaging
-their work for production.
-* 👩‍🏭 **ML Engineers** who want to be able to update and improve production services, pipelines, and artifacts with a
-Pythonic, debuggable devX.
-* 👩‍🔧 **ML Platform teams** who want a versioned, shared, maintainable stack of services and data artifacts that
-research and production pipelines both depend on.
-
-### 🦾 How does it work?
-
-_"Learn once, run anywhere"_
-
-Runhouse is like **PyTorch + Terraform + Google Drive.**
-
-1. Just as **PyTorch** lets you send a model or tensor `.to(device)`, Runhouse OSS
-lets you do `my_fn.to('gcp_a100')` or `my_table.to('s3')`: send functions and data to any of your compute or
-data infra, all in Python, and continue to interact with them eagerly (there's no DAG) from your existing code and
-environment. Think of it as an expansion pack to Python that lets it take detours to remote
-machines or manipulate remote data.
-2. Just as **Terraform** is a unified language for creation and destruction of infra, the
-Runhouse APIs are a unified interface into existing compute and data systems.
-See what we already support and what's on the [roadmap, below](#supported-infra).
-3. Runhouse resources can be shared across environments or teams, providing a **Google Drive**-like
-layer for accessibility, visibility, and management across all your infra and providers.
-
-This allows you to:
-* Call your preprocessing, training, and inference each on different hardware from
-inside a single notebook or script
-* Slot that script into a single orchestrator node rather than translate it into an ML pipeline DAG of Docker images
-* Share any of those services or data artifacts with your team instantly, and update them over time
-
-![img.png](https://raw.githubusercontent.com/run-house/runhouse/main/docs/assets/img.png)
-![img.png](https://raw.githubusercontent.com/run-house/runhouse/main/docs/assets/img_1.png)
-
-It wraps industry-standard tooling like Ray and the Cloud SDKs (boto, gsutil, etc. via [SkyPilot](https://github.com/skypilot-org/skypilot/))
-to give you production-quality features like queuing, distributed, async, logging,
-low latency, hardware efficiency, auto-launching, and auto-termination out of the box.
-
-### 👩‍💻 Enough chitchat, just show me the code
-
-Here is **all the code you need** to stand up a stable diffusion inference service on
-a fresh cloud GPU.
-
+Runhouse is a Python framework for composing and sharing production-quality backend apps and services _ridiculously
+quickly_ and on your own infra. Running the following will stand up a microservice on a fresh AWS EC2 box:
 
 ```python
 import runhouse as rh
+
+def run_home(name: str):
+    return f"Run home {name}!"
+
+if __name__ == "__main__":
+    cpu_box = rh.ondemand_cluster(name="my-cpu", instance_type="CPU:2", provider="aws")
+    remote_fn = rh.function(run_home).to(cpu_box)
+    print(remote_fn("Jack"))
+```
+
+## 🤔 Why?
+
+Runhouse is built to do four things:
+1. Make it easy to send an arbitrary block of your code - function, subroutine, class, generator, whatever -
+to run on souped up remote infra. It's basically a flag flip.
+1. Eliminate CLI and Flask/FastAPI boilerplate by allowing you to send your function or class directly to your remote
+infra to execute or serve, and keep them debuggable like the original code, not a subprocess.Popen or postman/curl call.
+1. Bake-in the middleware and automation to make your app production-quality, secure, and sharable instantly.
+That means giving you best-of-breed auth, HTTPS, telemetry, packaging, and deployment automation, with ample
+flexibility to swap in your own.
+1. Bring the power of [Ray](https://www.ray.io/) to any app, anywhere, without having to learn Ray or manage Ray
+clusters, like [Next.js](https://nextjs.org/) did for React. OpenAI, Uber, Shopify, and many others use Ray to
+power their ML infra, and Runhouse makes its best-in-class features accessible to any project, team, or company.
+
+## 🤨 Who is this for?
+
+* 👩‍🔧 **Engineers, Researchers and Data Scientists** who don't want to spend 3-6 months translating and packaging
+their work to share it, and want to be able to iterate and improve production services, pipelines, and data artifacts
+with a Pythonic, debuggable devX.
+* 👩‍🔬 **ML and data teams** who want a versioned, shared, maintainable stack of services used across
+research and production, spanning any cloud or infra type (e.g. Instances, Kubernetes, Serverless, etc.).
+* 🦸‍♀️ **OSS maintainers** who want to supercharge their setup flow by providing a single script to stand up their app
+on any infra, rather than build support or guides for each cloud or compute system (e.g. Kubernetes) one by one.
+   * See this in action in 🤗 Hugging Face ([Transformers](https://github.com/huggingface/transformers/blob/main/examples/README.md#running-the-examples-on-remote-hardware-with-auto-setup), [Accelerate](https://github.com/huggingface/accelerate/blob/main/examples/README.md#simple-multi-gpu-hardware-launcher)) and 🦜🔗 [Langchain](https://python.langchain.com/en/latest/modules/models/llms/integrations/runhouse.html)
+
+## 🦾 How does it work?
+
+In Runhouse, a "cluster" is a unit of compute - somewhere you can send code, data, and requests to execute. It
+can represent long-lived compute like a static IP or Ray cluster, or ephemeral/scale-to-zero compute like on-demand VMs
+from a cloud provider or Kubernetes. When you first use a cluster, we check that the hardware is up if applicable (and
+bring it up if not), and start Ray and a Runhouse HTTP server on it via SSH. Suppose you create a cluster object:
+
+```python
+import runhouse as rh
+
+gpu = rh.cluster(name="my-a100", host=my_cluster_ip, ssh_creds={"ssh_user": "ubuntu", "key": "~/.ssh/id_rsa"})
+gpu = rh.cluster(name="my-a100", instance_type="A100:1", provider="cheapest")
+cpus = rh.cluster(name="my-cpus", provider="gcp", zone="us-west1-b", spot=True,
+                 instance_type="CPU:32", disk_size="100+", memory="32+", open_ports=[8080],
+                 image_id="id-1332353432432")
+```
+
+There are lots of things you can send to a cluster. For example, a folder, from local or cloud storage (these work
+in any direction, so you can send folders arbitrarily between local, cloud storage, and cluster storage):
+
+```python
+my_cluster_folder = rh.folder(path="./my_folder").to(gpu, path="~/my_folder")
+my_s3_folder = my_cluster_folder.to("s3", path="my_bucket/my_folder")
+my_local_folder = my_s3_folder.to("here")
+```
+
+You can send a function to the cluster, including the environment in which the function will live, which is actually
+set up in its own Ray process. You can send it to an existing env, or create a new one on the fly. Like the folder
+above, the function object which is returned from `.to` is a proxy to the remote function. When you call it a
+lightweight request is sent to the cluster's Runhouse HTTP server to execute the function with the given inputs and
+returns the results. Note that the function is not serialized, but rather imported on the cluster after the local
+working directory (`"./"`, by default the git root) is sent up.
+
+
+```python
 from diffusers import StableDiffusionPipeline
 
 def sd_generate(prompt):
     model = StableDiffusionPipeline.from_pretrained("stabilityai/stable-diffusion-2-base").to("cuda")
-    return model(prompt).images[0]
+    return model(prompt).images
 
-gpu = rh.ondemand_cluster(name="my-a100", instance_type="A100:1").up_if_not()
-sd_generate = rh.function(sd_generate).to(gpu, env=["torch", "diffusers"])
-
-# the following runs on our remote A100 gpu
-sd_generate("An oil painting of Keanu Reeves eating a sandwich.").show()
-sd_generate.save(name="sd_generate")
+if __name__ == "__main__":
+    remote_sd_generate = rh.function(sd_generate).to(gpu, env=["./", "torch", "diffusers"])
+    imgs = remote_sd_generate("A hot dog made out of matcha.")
+    imgs[0].show()
 ```
 
-On the data side, sync folders, tables, or blobs between local, clusters, and file storage. All
-this is done without bouncing off the laptop.
+The above env list is a shorthand, but you can create quite elaborate envs (even quite a bit more elaborate than the
+example below). Local folders are sent (rsynced) up as needed, and the environment setup is cached so it only reruns
+if something changes.
 
 ```python
-import runhouse as rh
-
-folder_on_gpu = rh.folder(path="./instance_images").to(gpu, path="dreambooth/instance_images")
-
-folder_on_s3 = folder_on_gpu.to("s3", path="dreambooth/instance_images")
-folder_on_s3.save("dreambooth_outputs")
+my_env = rh.env(name="my_env",
+                reqs=["torch", "diffusers", "~/code/my_other_repo"],
+                setup_cmds=["source activate ~/.bash_rc"],
+                env_vars={"TOKEN": "1234"},
+                workdir="./")  # Current git root
+my_env = my_env.to(gpu)  # Called implicitly if passed to Function.to, like above
 ```
 
-Reuse your saved compute and data resources from anywhere, with a single line of Python.
+`rh.Function` is actually a special case of `rh.Module`, which is how we send classes to clusters. There are a number of
+other built-in Modules in Runhouse, such as Blob, Queue, KVstore, and more. Modules are very flexible. You can
+leave them as classes or create instances, send the class or the instances to clusters, and even create instances
+remotely. You can call class methods, properties, generators, and async methods remotely, and they'll behave
+the same as if they were called locally (e.g. generators will stream, `async`s will return `awaitable`s), including
+streaming logs and stdout back to you.
 
 ```python
-sd_generate = rh.function(name="sd_generate")
-image = sd_generate("A hot dog made of matcha.")
+# You can create a module out of an existing class
+MyRemoteClass = rh.module(MyClass).to(gpu)
+MyRemoteClass.my_class_method(1, 2, 3)
+# Notice how we sent the module to gpu above, so now this instance already lives on gpu
+my_remote_instance = MyRemoteClass(1, 2, 3)
 
-folder_on_s3 = rh.folder(name="dreambooth_outputs")
-folder_on_local = folder_on_s3.to("here")
+# You can define a new module as a subclass of rh.Module to have more control
+# over how it's instantiated, or provide it within a library
+class MyCounter(rh.Module):
+    def __init__(self, count, **kwargs):
+        super().__init__(**kwargs)
+        self.count = count
+
+    def increment(self, y):
+        self.count += y
+        print(f"New count: {self.count}")
+        return self.count
+
+my_remote_counter = MyCounter(count=1).to(gpu, name="my_counter")
+my_remote_counter.increment(2)  # Prints "New count: 3" and returns 3
 ```
 
-These APIs work from anywhere with a Python interpreter and an internet connection.
-Notebooks, scripts, pipeline nodes, etc. are all fair game.
-
-### 🙅‍♀️ Runhouse is not
-
-* An orchestrator / scheduler (Airflow, Prefect, Metaflow)
-* A distributed compute DSL (Ray, Spark, Dask)
-* An ML Platform (Sagemaker, Vertex, Azure ML)
-* A model registry / experiment manager / MLOps framework (MLFlow, WNB, Kubeflow)
-* Hosted compute (Modal, Banana, Replicate)
-
-## 🐣 Getting Started
-
-Please see the [Getting Started guide](https://www.run.house/docs/tutorials/quick_start).
-
-tldr;
-```commandline
-pip install runhouse
-# Or "runhouse[aws]", "runhouse[gcp]", "runhouse[azure]", "runhouse[sagemaker]", "runhouse[all]"
-
-# [optional] to set up cloud provider secrets:
-sky check
-
-# [optional] login for portability:
-runhouse login
+You can also call the Runhouse HTTP server directly (though you may need to open a port or tunnel to do so):
+```bash
+curl -X POST -H "Content-Type: application/json" http://my_cluster_address:32300/call/my_counter/count
 ```
 
-## 🔒 Creating a Runhouse Account for Secrets and Portability
+This is only the tip of the iceberg. If you like what you see, please check out the
+[🐣 Getting Started guide](https://www.run.house/docs/tutorials/quick_start).
+
+## 🛋️ Creating a Runhouse Den Account for Secrets and Sharing
 
 You can unlock some unique portability features by creating an (always free)
-[account](https://www.run.house) and saving your secrets and resource metadata there.
-Log in from anywhere to access all previously saved secrets and resources, ready to be used with with
+[Den account](https://www.run.house) and saving your secrets and resource metadata there.
+Log in from anywhere to access all previously saved secrets and resources, ready to be used with
 no additional setup.
 
-To log in, run `runhouse login` from the command line, or
-`rh.login()` from Python.
+To log in, run:
+```shell
+runhouse login
+```
+or from Python:
+```python
+import runhouse as rh
+rh.login()
+```
 
 > **Note**:
 Secrets are stored in Hashicorp Vault (an industry standard for secrets management), and our APIs simply call Vault's APIs. We only ever store light metadata about your resources
@@ -149,45 +177,35 @@ add support for BYO secrets management shortly. Let us know if you need it and w
 Runhouse is an ambitious project to provide a unified API into many paradigms and providers for
 various types of infra. You can find our currently support systems and high-level roadmap below.
 Please reach out (first name at run.house) to contribute or share feedback!
-- Compute
-  - On-prem
-    - Single instance - **Supported**
-    - Ray cluster - **Supported**
-    - Kubernetes - Planned
-    - Slurm - Exploratory
-  - Cloud VMs
-    - AWS - **Supported**
-    - GCP - **Supported**
-    - Azure - **Supported**
-    - Lambda - **Supported**
-  - Serverless - Planned
-- Data
-  - Blob storage
-    - AWS - **Supported**
-    - GCP - **Supported**
-    - R2 - Planned
-    - Azure - Exploratory
-  - Tables
-    - Arrow-based (Pandas, Hugging Face, PyArrow, Ray.data, Dask, CuDF) - **Supported**
-    - SQL-style - Planned
-    - Lakehouse - Exploratory
-  - KVStores - Exploratory
-- Management
-  - Secrets
-    - Runhouse Den (via Hashicorp Vault) - **Supported**
-    - Custom (Vault, AWS, GCP, Azure) - Planned
-  - RBAC - Planned
-  - Telemetry - Planned
+  - Single box - **Supported**
+  - Ray cluster - **Supported**
+  - Kubernetes - **In Progress**
+  - AWS
+    - EC2 - **Supported**
+    - SageMaker - **Supported**
+    - Lambda - **In Progress**
+  - GCP - **Supported**
+  - Azure - **Supported**
+  - Lambda Labs - **Supported**
+  - Modal - Planned
+  - Slurm - Exploratory
 
 ## 👨‍🏫 Learn More
 
-[**Docs**](https://www.run.house/docs):
+[**🐣 Getting Started**](https://www.run.house/docs/tutorials/quick_start): Installation, setup, and a quick walkthrough.
+
+[**📖 Docs**](https://www.run.house/docs):
 Detailed API references, basic API examples and walkthroughs, end-to-end tutorials, and high-level architecture overview.
 
-[**Funhouse Repo**](https://github.com/run-house/funhouse): Standalone Runhouse apps to try out fun ML ideas,
-think the latest Stable Diffusion models, text generation models, launching Gradio spaces, and even more!
+[**🎪 Funhouse**](https://github.com/run-house/funhouse): Standalone ML apps and examples to try with Runhouse, like image generation models, LLMs,
+launching Gradio spaces, and more!
 
-[**Comparisons Repo**](https://github.com/run-house/comparisons): Comparisons of Runhouse with other ML solutions, with working code examples.
+[**👩‍💻 Blog**](https://www.run.house/blog): Deep dives into Runhouse features, use cases, and the future of ML
+infra.
+
+[**👾 Discord**](https://discord.gg/RnhB6589Hs): Join our community to ask questions, share ideas, and get help.
+
+[**𝑋 Twitter**](https://twitter.com/runhouse_): Follow us for updates and announcements.
 
 ## 🙋‍♂️ Getting Help
 
