@@ -144,6 +144,10 @@ class Cluster(Resource):
             from .sagemaker_cluster import SageMakerCluster
 
             return SageMakerCluster(**config, dryrun=dryrun)
+        elif resource_subtype == "KubernetesCluster":
+            from .kubernetes_cluster import KubernetesCluster
+
+            return KubernetesCluster(**config, dryrun=dryrun)
         else:
             raise ValueError(f"Unknown cluster type {resource_subtype}")
 
@@ -472,14 +476,21 @@ class Cluster(Resource):
 
         if not self.client:
             try:
+                logger.info("TRIED HERE")
                 self.connect_server_client()
+                logger.info("TRIED HERE 1")
                 cluster_config = self.config_for_rns
+                logger.info("TRIED HERE 2")
                 if "live_state" in cluster_config.keys():
                     # a bunch of setup commands that mess up json dump
+                    logger.info("TRIED HERE 3")
                     del cluster_config["live_state"]
+                logger.info("TRIED HERE 4")
                 logger.info(f"Checking server {self.name}")
                 self.client.check_server()
+                logger.info("TRIED HERE 5")
                 logger.info(f"Server {self.name} is up.")
+                logger.info("TRIED HERE 6")
             except (
                 requests.exceptions.ConnectionError,
                 sshtunnel.BaseSSHTunnelForwarderError,
@@ -570,8 +581,11 @@ class Cluster(Resource):
 
         if isinstance(connection_type, str):
             return connection_type == tls_conn
-
-        return connection_type.value == tls_conn
+        
+        if connection_type is not None:
+            return connection_type.value == tls_conn
+        
+        return False
 
     @property
     def _use_nginx(self) -> bool:
