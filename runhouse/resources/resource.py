@@ -157,15 +157,8 @@ class Resource:
         rns_client.add_downstream_resource(name or self.name)
 
         self._save_sub_resources()
-        # TODO deal with logic of saving anonymous folder for the first time after naming, i.e.
-        # Path(tempfile.gettempdir()).relative_to(self.path) ...
         if name:
-            if "/" in name[1:] or self._rns_folder is None:
-                self._name, self._rns_folder = split_rns_name_and_path(
-                    resolve_rns_path(name)
-                )
-            else:
-                self._name = name
+            self.name = name
 
         # TODO handle self.access == 'read' instead of this weird overwrite argument
         save(self, overwrite=overwrite)

@@ -30,7 +30,8 @@ def cluster(request):
 
 @pytest.fixture(scope="session")
 def named_cluster():
-    args = {"name": "test-simple-cluster"}
+    # Name cannot be the only arg or we attempt to load from name, and throw an error when it's not found
+    args = dict(name="test-simple-cluster", host="my_url.com")
     c = rh.cluster(**args)
     init_args[id(c)] = args
     return c

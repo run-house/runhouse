@@ -8,7 +8,7 @@ import runhouse as rh
 from tests.test_resources.test_clusters.cluster_tests import np_array, sd_generate_image
 
 
-@unittest.skip("Support for multiple live clusters not yet implemented")
+@pytest.mark.skip("Support for multiple live clusters not yet implemented")
 def test_connections_to_multiple_sm_clusters(sm_cluster):
     assert sm_cluster.is_up()
 

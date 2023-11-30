@@ -280,6 +280,7 @@ class HTTPClient:
             "object",
             req_type="put",
             data=pickle_b64((old_key, new_key)),
+            key=old_key,
             err_str=f"Error renaming object {old_key}",
         )
 

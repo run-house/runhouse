@@ -18,7 +18,7 @@ from tests.conftest import (
 )
 
 from tests.test_resources.test_modules.test_functions.test_function import (
-    multiproc_torch_sum,
+    multiproc_np_sum,
 )
 
 TEMP_FILE = "my_file.txt"
@@ -182,7 +182,7 @@ def serialization_helper_2():
     return tensor.device()  # Should succeed if array hasn't been serialized
 
 
-@unittest.skip
+@pytest.mark.skip
 @pytest.mark.clustertest
 @pytest.mark.gputest
 def test_pinning_to_gpu(k80_gpu_cluster):
@@ -222,9 +222,7 @@ def test_pinning_in_memory(cluster):
 
 @pytest.mark.clustertest
 def test_multiprocessing_streaming(cluster):
-    re_fn = rh.function(
-        multiproc_torch_sum, system=cluster, env=["./", "torch==1.12.1"]
-    )
+    re_fn = rh.function(multiproc_np_sum, system=cluster, env=["numpy"])
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn(summands)
     assert res == [4, 6, 8, 10, 12]

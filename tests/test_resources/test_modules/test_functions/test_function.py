@@ -1,8 +1,8 @@
 import logging
+import multiprocessing
 import os
 import time
 import unittest
-from multiprocessing import Pool
 from unittest.mock import patch
 
 import pytest
@@ -20,14 +20,11 @@ def call_function(fn, **kwargs):
     return fn(**kwargs)
 
 
-def torch_summer(a, b):
-    # import inside so tests that don't use torch don't fail because torch isn't in their reqs
-    import torch
-
-    return int(torch.Tensor([a, b]).sum())
-
-
 def summer(a, b):
+    return a + b
+
+
+async def async_summer(a, b):
     return a + b
 
 
@@ -37,14 +34,19 @@ def np_array(list):
     return np.array(list)
 
 
-async def async_summer(a, b):
-    return a + b
+def np_summer(a, b):
+    import numpy as np
+
+    print(f"Summing {a} and {b}")
+    return int(np.array([a, b]).sum())
 
 
-def multiproc_torch_sum(inputs):
+def multiproc_np_sum(inputs):
     print(f"CPUs: {os.cpu_count()}")
-    with Pool() as P:
-        return P.starmap(torch_summer, inputs)
+    # See https://pythonspeed.com/articles/python-multiprocessing/
+    # and https://github.com/pytorch/pytorch/issues/3492
+    with multiprocessing.get_context("spawn").Pool() as P:
+        return P.starmap(np_summer, inputs)
 
 
 def getpid(a=0):
@@ -128,19 +130,18 @@ class TestFunction:
         history = remote_sum.history()
         assert history
 
-    @pytest.mark.rnstest
     @pytest.mark.level("local")
-    def test_remote_function_with_multiprocessing(self, cluster):
-        re_fn = rh.function(multiproc_torch_sum, name="test_function").to(
-            cluster, env=["torch==1.12.1"]
+    def test_function_in_new_env_with_multiprocessing(self, cluster):
+        multiproc_remote_sum = rh.function(multiproc_np_sum, name="test_function").to(
+            cluster, env=rh.env(reqs=["numpy"], name="numpy_env")
         )
 
-        summands = list(zip(range(5), range(4, 9)))
-        res = re_fn(summands)
+        summands = [[1, 3], [2, 4], [3, 5]]
+        res = multiproc_remote_sum(summands)
 
-        assert res == [4, 6, 8, 10, 12]
+        assert res == [4, 6, 8]
 
-    @unittest.skip("Does not work properly following Module refactor.")
+    @pytest.mark.skip("Does not work properly following Module refactor.")
     @pytest.mark.clustertest
     @pytest.mark.level("local")
     def test_maps(self, cluster):
@@ -194,17 +195,18 @@ class TestFunction:
 
         pid_key = pid_fn.run()
         time.sleep(1)
-        pid_res = cluster.get(pid_key).fetch()
+        pid_res = cluster.get(pid_key).data
         assert pid_res > 0
 
         # Test passing a remote into a normal call
         pid_blob = pid_fn.remote()
         time.sleep(1)
-        pid_res = cluster.get(pid_blob.name).fetch()
+        pid_res = cluster.get(pid_blob.name).data
         assert pid_res > 0
         pid_res = pid_blob.fetch()
         assert pid_res > 0
 
+    @pytest.mark.skip("Install is way too heavy, choose a lighter example")
     @pytest.mark.level("local")
     def test_function_git_fn(self, cluster):
         remote_parse = rh.function(
@@ -279,7 +281,7 @@ class TestFunction:
                 e, (ray.exceptions.TaskCancelledError, ray.exceptions.RayTaskError)
             )
 
-    @unittest.skip("Does not work properly following Module refactor.")
+    @pytest.mark.skip("Does not work properly following Module refactor.")
     @pytest.mark.level("local")
     def test_function_queueing(self, cluster):
         pid_fn = rh.function(getpid).to(cluster)
@@ -287,32 +289,23 @@ class TestFunction:
         pids = [pid_fn.enqueue(resources={"num_cpus": 1}) for _ in range(10)]
         assert len(pids) == 10
 
-    def test_function_to_env(self, cluster):
-        cluster.run(["pip uninstall numpy -y"])
-
-        np_func = rh.function(np_array).to(cluster, env=["numpy"])
-
-        list = [1, 2, 3]
-        res = np_func(list)
-        assert res.tolist() == list
-
-    @unittest.skip("Not working properly.")
+    # @pytest.mark.skip("Not working properly.")
     # originally used ondemand_cpu_cluster, therefore marked as minimal
     @pytest.mark.level("minimal")
     def test_function_external_fn(self, cluster):
         """Test functioning a module from reqs, not from working_dir"""
-        import torch
+        import numpy as np
 
-        re_fn = rh.function(torch.sum).to(cluster, env=["torch"])
-        res = re_fn(torch.arange(5))
+        re_fn = rh.function(np.sum).to(cluster, env=["numpy"])
+        res = re_fn(np.arange(5))
         assert int(res) == 10
 
-    @unittest.skip("Runs indefinitely.")
+    @pytest.mark.skip("Runs indefinitely.")
     # originally used ondemand_cpu_cluster, therefore marked as minimal
     @pytest.mark.level("minimal")
     def test_notebook(self, cluster):
-        nb_sum = lambda x: multiproc_torch_sum(x)
-        re_fn = rh.function(nb_sum).to(cluster, env=["torch==1.12.1"])
+        nb_sum = lambda x: multiproc_np_sum(x)
+        re_fn = rh.function(nb_sum).to(cluster, env=["numpy"])
 
         re_fn.notebook()
         summands = list(zip(range(5), range(4, 9)))
@@ -321,7 +314,7 @@ class TestFunction:
         assert res == [4, 6, 8, 10, 12]
         re_fn.delete_configs()
 
-    @unittest.skip("Runs indefinitely.")
+    @pytest.mark.skip("Runs indefinitely.")
     def test_ssh(self):
         # TODO do this properly
         my_function = rh.function(name="local_function")
@@ -352,30 +345,31 @@ class TestFunction:
     @pytest.mark.clustertest
     @pytest.mark.rnstest
     @pytest.mark.level("thorough")
-    def test_load_function_in_new_env(self, ondemand_cpu_cluster, byo_cpu):
-        # TODO: refactor needed.
+    def test_load_function_in_new_cluster(
+        self, ondemand_cpu_cluster, static_cpu_cluster
+    ):
         ondemand_cpu_cluster.save(
             f"@/{ondemand_cpu_cluster.name}"
         )  # Needs to be saved to rns, right now has a local name by default
         remote_sum = rh.function(summer).to(ondemand_cpu_cluster).save(REMOTE_FUNC_NAME)
 
+        static_cpu_cluster.sync_secrets(["sky"])
         remote_python = (
             "import runhouse as rh; "
             f"remote_sum = rh.function(name='{REMOTE_FUNC_NAME}'); "
             "res = remote_sum(1, 5); "
             "assert res == 6"
         )
-        res = byo_cpu.run_python([remote_python], stream_logs=True)
+        res = static_cpu_cluster.run_python([remote_python], stream_logs=True)
         assert res[0][0] == 0
 
         remote_sum.delete_configs()
 
     @pytest.mark.clustertest
     @pytest.mark.level("thorough")
-    def test_nested_diff_clusters(self, ondemand_cpu_cluster, byo_cpu):
-        # TODO: refactor needed.
+    def test_nested_diff_clusters(self, ondemand_cpu_cluster, static_cpu_cluster):
         summer_cpu = rh.function(summer).to(ondemand_cpu_cluster)
-        call_function_diff_cpu = rh.function(call_function).to(byo_cpu)
+        call_function_diff_cpu = rh.function(call_function).to(static_cpu_cluster)
 
         kwargs = {"a": 1, "b": 5}
         res = call_function_diff_cpu(summer_cpu, **kwargs)
@@ -395,31 +389,39 @@ class TestFunction:
     @pytest.mark.clustertest
     @pytest.mark.level("local")
     def test_http_url(self, cluster):
-        # TODO: refactor needed.
-        rh.function(summer).to(cluster).save("@/remote_function")
-        tun, port = cluster.ssh_tunnel(80, 32300)
+        # TODO convert into something like function.request_args() and/or function.curl_command()
+        remote_sum = rh.function(summer).to(cluster).save("@/remote_function")
         ssh_creds = cluster.ssh_creds()
+        addr = (
+            "http://" + cluster.LOCALHOST
+            if cluster.server_connection_type in ["ssh", "aws_ssm"]
+            else "https://" + cluster.address
+            if cluster.server_connection_type == "tls"
+            else "http://" + cluster.address
+        )
         auth = (
             (ssh_creds.get("ssh_user"), ssh_creds.get("password"))
             if ssh_creds.get("password")
             else None
         )
         sum1 = requests.post(
-            "http://127.0.0.1:80/call/remote_function/call",
+            url=f"{addr}:{cluster.client_port}/call/{remote_sum.name}/call",
             json={"args": [1, 2]},
+            headers=rh.configs.request_headers if cluster.den_auth else None,
             auth=auth,
+            verify=False,
         ).json()
         assert int(sum1) == 3
         sum2 = requests.post(
-            "http://127.0.0.1:80/call/remote_function/call",
+            url=f"{addr}:{cluster.client_port}/call/{remote_sum.name}/call",
             json={"kwargs": {"a": 1, "b": 2}},
+            headers=rh.configs.request_headers if cluster.den_auth else None,
             auth=auth,
+            verify=False,
         ).json()
         assert int(sum2) == 3
 
-        tun.close()
-
-    @unittest.skip("Not yet implemented.")
+    @pytest.mark.skip("Not yet implemented.")
     @pytest.mark.level("local")
     def test_http_url_with_curl(self):
         # TODO: refactor needed, once the Function.http_url() is implemented.
@@ -436,24 +438,14 @@ class TestFunction:
     # test that deprecated arguments are still backwards compatible for now
     @pytest.mark.level("local")
     def test_reqs_backwards_compatible(self, cluster):
-        summer_cpu = rh.function(fn=summer).to(system=cluster)
-        res = summer_cpu(1, 5)
+        # Check that warning is thrown
+        with pytest.warns(UserWarning):
+            remote_summer = rh.function(fn=np_summer).to(system=cluster, reqs=["numpy"])
+        res = remote_summer(1, 5)
         assert res == 6
-
-        torch_summer_cpu = rh.function(fn=summer).to(system=cluster, env=["torch"])
-        torch_res = torch_summer_cpu(1, 5)
-        assert torch_res == 6
-
-    @pytest.mark.level("local")
-    def test_setup_cmds_backwards_compatible(self, cluster):
-        torch_summer_cpu = rh.function(fn=summer).to(system=cluster, env=["torch"])
-        torch_res = torch_summer_cpu(1, 5)
-        assert torch_res == 6
 
     @pytest.mark.level("local")
     def test_from_config(self, cluster):
-        import numpy as np
-
         summer_pointers = rh.Function._extract_pointers(summer, reqs=[])
         summer_function_config = {
             "fn_pointers": summer_pointers,
@@ -464,12 +456,16 @@ class TestFunction:
         my_summer_func = my_summer_func.to(system=cluster)
         assert my_summer_func(4, 6) == 10
 
-        np_arr_pointers = rh.Function._extract_pointers(np_array, reqs=["numpy"])
-        np_arr_config = {"fn_pointers": np_arr_pointers, "system": None, "env": None}
-        my_np_func = rh.Function.from_config(np_arr_config).to(
+        np_summer_pointers = rh.Function._extract_pointers(np_summer, reqs=["numpy"])
+        np_summer_config = {
+            "fn_pointers": np_summer_pointers,
+            "system": None,
+            "env": None,
+        }
+        my_np_func = rh.Function.from_config(np_summer_config).to(
             system=cluster, env=["numpy"]
         )
-        assert all(my_np_func([1, 3, 5])) == all(np.array([1, 3, 5]))
+        assert my_np_func(1, 3) == 4
 
     @pytest.mark.level("local")
     def test_get(self, cluster):
