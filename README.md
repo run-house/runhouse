@@ -178,16 +178,16 @@ various types of infra. You can find our currently support systems and high-leve
 Please reach out (first name at run.house) to contribute or share feedback!
   - Single box - **Supported**
   - Ray cluster - **Supported**
-  - Kubernetes - **In Progress**
+  - Kubernetes (K8S) - **In Progress**
   - Docker - **In Progress**
-  - AWS
+  - Amazon Web Services (AWS)
     - EC2 - **Supported**
     - SageMaker - **Supported**
     - Lambda - **In Progress**
-  - GCP - **Supported**
-  - Azure - **Supported**
+  - Google Cloud Platform (GCP) - **Supported**
+  - Microsoft Azure - **Supported**
   - Lambda Labs - **Supported**
-  - Modal - Planned
+  - Modal Labs - Planned
   - Slurm - Exploratory
 
 ## 👨‍🏫 Learn More
