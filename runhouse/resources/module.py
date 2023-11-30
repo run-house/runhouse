@@ -798,14 +798,18 @@ class Module(Resource):
         """Register the resource and save to local working_dir config and RNS config store."""
         # Need to override Resource's save to handle key changes in the obj store
         # Also check that this is a Blob and not a File
-        if name and not self.name == name:
-            if overwrite:
-                self.rename(name)
-            else:
-                self.name = name
-                if isinstance(self.system, Cluster):
-                    self.system.put_resource(self)
-        return super().save(name=name, overwrite=overwrite)
+        if name:
+            _, base_name = rns_client.split_rns_name_and_path(
+                rns_client.resolve_rns_path(name)
+            )
+            if self.name != base_name:
+                if overwrite:
+                    self.rename(name)
+                else:
+                    self.name = name
+                    if isinstance(self.system, Cluster):
+                        self.system.put_resource(self)
+        return super().save(overwrite=overwrite)
 
     @staticmethod
     def _extract_pointers(raw_cls_or_fn: Union[Type, Callable], reqs: List[str]):

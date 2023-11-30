@@ -246,7 +246,7 @@ default_fixtures[TestLevels.THOROUGH] = {
         ondemand_cpu_cluster,
         ondemand_https_cluster_with_auth,
         password_cluster,
-        byo_cpu,
+        static_cpu_cluster,
     ]
 }
 default_fixtures[TestLevels.MAXIMAL] = {
@@ -258,6 +258,6 @@ default_fixtures[TestLevels.MAXIMAL] = {
         ondemand_cpu_cluster,
         ondemand_https_cluster_with_auth,
         password_cluster,
-        byo_cpu,
+        static_cpu_cluster,
     ]
 }

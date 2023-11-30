@@ -1,5 +1,4 @@
 import os
-import unittest
 
 from pathlib import Path
 from typing import Dict
@@ -106,7 +105,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
 
         _uninstall_env(env, cluster)
 
-    @unittest.skip("Running into s3 folder issue")
+    @pytest.mark.skip("Running into s3 folder issue")
     @pytest.mark.level("minimal")
     def test_env_to_fs_to_cluster(self, env, cluster):
         s3_env = env.to("s3", force_install=True)
