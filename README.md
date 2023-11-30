@@ -80,7 +80,7 @@ set up in its own Ray process. You can send it to an existing env, or create a n
 above, the function object which is returned from `.to` is a proxy to the remote function. When you call it, a
 lightweight request is sent to the cluster's Runhouse HTTP server to execute the function with the given inputs and
 returns the results. Note that the function is not serialized, but rather imported on the cluster after the local
-working directory (`"./"`, by default the git root) is sent up. This results in a significant speed reduction vs. the serialized approach.
+working directory (`"./"`, by default the git root) is sent up.
 
 
 ```python
