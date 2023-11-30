@@ -10,7 +10,7 @@
 
 ## 👵 Welcome Home!
 
-([Runhouse](https://run.house)) is a Python framework for composing and sharing production-quality backend apps and services _ridiculously
+[Runhouse](https://run.house) is a Python framework for composing and sharing production-quality backend apps and services _ridiculously
 quickly_ and on your own infra. Running the following will stand up a microservice on a fresh AWS EC2 box:
 
 ```python
@@ -31,7 +31,7 @@ Runhouse is built to do four things:
 1. Make it easy to send an arbitrary block of your code - function, subroutine, class, generator -
 to run on souped up remote infra. It's basically a flag flip.
 1. Eliminate CLI and Flask/FastAPI boilerplate by allowing you to send your function or class directly to your remote
-infra to execute or serve, and keep them debuggable like the original code, not a subprocess.Popen or Postman/curl call.
+infra to execute or serve, and keep them debuggable like the original code, not a `subprocess.Popen` or Postman/`curl` call.
 1. Bake-in the middleware and automation to make your app production-quality, secure, and sharable instantly.
 That means giving you out of the box, state-of-the-art auth, HTTPS, telemetry, packaging, developer tools and deployment automation, with ample
 flexibility to swap in your own.
@@ -52,10 +52,9 @@ on any infra, rather than build support or guides for each cloud or compute syst
 
 ## 🦾 How does it work?
 
-In Runhouse, a "cluster" is a unit of compute - somewhere you can send code, data, and requests to execute. It
+In Runhouse, a ["cluster"](https://www.run.house/docs/api/python/cluster#cluster) is a unit of compute - somewhere you can send code, data, and requests to execute. It
 can represent long-lived compute like a static IP or Ray cluster, or ephemeral/scale-to-zero compute like on-demand VMs
-from a cloud provider or Kubernetes. When you first use a cluster, we check that the hardware is up if applicable (and
-bring it up automatically if not!), and start Ray and a Runhouse HTTP server on it via SSH. Suppose you create a cluster object:
+from a cloud provider or Kubernetes (local Docker support coming soon). When you first use a cluster, we check that the hardware is up if applicable (bringing it up automatically if not), and start Ray and a Runhouse HTTP server on it via SSH. Suppose you create a cluster object:
 
 ```python
 import runhouse as rh
@@ -67,7 +66,7 @@ cpus = rh.cluster(name="my-cpus", provider="gcp", zone="us-west1-b", spot=True,
                  image_id="id-1332353432432")
 ```
 
-There are lots of things you can send to a cluster. For example, a folder, from local or cloud storage (these work
+There are lots of things you can send to a cluster. For example, a [folder](https://www.run.house/docs/api/python/folder#folder), from local or cloud storage (these work
 in any direction, so you can send folders arbitrarily between local, cloud storage, and cluster storage):
 
 ```python
@@ -76,12 +75,12 @@ my_s3_folder = my_cluster_folder.to("s3", path="my_bucket/my_folder")
 my_local_folder = my_s3_folder.to("here")
 ```
 
-You can send a function to the cluster, including the environment in which the function will live, which is actually
+You can send a [function](https://www.run.house/docs/api/python/function#function) to the cluster, including the environment in which the function will live, which is actually
 set up in its own Ray process. You can send it to an existing env, or create a new one on the fly. Like the folder
-above, the function object which is returned from `.to` is a proxy to the remote function. When you call it a
+above, the function object which is returned from `.to` is a proxy to the remote function. When you call it, a
 lightweight request is sent to the cluster's Runhouse HTTP server to execute the function with the given inputs and
 returns the results. Note that the function is not serialized, but rather imported on the cluster after the local
-working directory (`"./"`, by default the git root) is sent up.
+working directory (`"./"`, by default the git root) is sent up. This results in a significant speed reduction vs. the serialized approach.
 
 
 ```python
@@ -180,6 +179,7 @@ Please reach out (first name at run.house) to contribute or share feedback!
   - Single box - **Supported**
   - Ray cluster - **Supported**
   - Kubernetes - **In Progress**
+  - Docker - **In Progress**
   - AWS
     - EC2 - **Supported**
     - SageMaker - **Supported**
