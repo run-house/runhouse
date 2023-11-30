@@ -4,7 +4,7 @@ import pytest
 
 @pytest.fixture(scope="session")
 def table(request):
-    return request.getfixturevalue(request.param.__name__)
+    return request.getfixturevalue(request.param)
 
 
 @pytest.fixture

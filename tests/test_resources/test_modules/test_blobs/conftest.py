@@ -9,13 +9,13 @@ from tests.conftest import init_args
 @pytest.fixture
 def blob(request):
     """Parametrize over multiple blobs - useful for running the same test on multiple storage types."""
-    return request.getfixturevalue(request.param.__name__)
+    return request.getfixturevalue(request.param)
 
 
 @pytest.fixture
 def file(request):
     """Parametrize over multiple files - useful for running the same test on multiple storage types."""
-    return request.getfixturevalue(request.param.__name__)
+    return request.getfixturevalue(request.param)
 
 
 @pytest.fixture(scope="session")

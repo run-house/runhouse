@@ -12,14 +12,11 @@ import runhouse as rh
 from runhouse.globals import rns_client
 from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 
-from tests.test_resources.test_clusters.conftest import (
-    local_docker_cluster_public_key_den_auth,
-    local_docker_cluster_public_key_logged_in,
-)
-
-from tests.test_servers.conftest import local_client, local_client_with_den_auth, summer
-
 INVALID_HEADERS = {"Authorization": "Bearer InvalidToken"}
+
+# Helper used for testing rh.Function
+def summer(a, b):
+    return a + b
 
 
 @pytest.mark.usefixtures("cluster")
@@ -33,14 +30,14 @@ class TestHTTPServerDocker:
 
     UNIT = {
         "cluster": [
-            local_docker_cluster_public_key_den_auth,
-            local_docker_cluster_public_key_logged_in,
+            "local_docker_cluster_public_key_den_auth",
+            "local_docker_cluster_public_key_logged_in",
         ]
     }
     LOCAL = {
         "cluster": [
-            local_docker_cluster_public_key_den_auth,
-            local_docker_cluster_public_key_logged_in,
+            "local_docker_cluster_public_key_den_auth",
+            "local_docker_cluster_public_key_logged_in",
         ]
     }
 
@@ -231,8 +228,8 @@ class TestHTTPServerDockerDenAuthOnly:
     but it is a server without Den Auth enabled at all?
     """
 
-    UNIT = {"cluster": [local_docker_cluster_public_key_den_auth]}
-    LOCAL = {"cluster": [local_docker_cluster_public_key_den_auth]}
+    UNIT = {"cluster": ["local_docker_cluster_public_key_den_auth"]}
+    LOCAL = {"cluster": ["local_docker_cluster_public_key_den_auth"]}
 
     # -------- INVALID TOKEN / CLUSTER ACCESS TESTS ----------- #
 
@@ -385,7 +382,7 @@ def setup_cluster_config(test_account):
 
 @pytest.fixture(scope="function")
 def client(request):
-    return request.getfixturevalue(request.param.__name__)
+    return request.getfixturevalue(request.param)
 
 
 @pytest.mark.den_auth
@@ -400,11 +397,11 @@ class TestHTTPServerNoDocker:
 
     # There is no default for this fixture, we should specify
     # it for each testing level.
-    UNIT = {"client": [local_client, local_client_with_den_auth]}
-    LOCAL = {"client": [local_client, local_client_with_den_auth]}
-    MINIMAL = {"client": [local_client, local_client_with_den_auth]}
-    THOROUGH = {"client": [local_client, local_client_with_den_auth]}
-    MAXIMAL = {"client": [local_client, local_client_with_den_auth]}
+    UNIT = {"client": ["local_client", "local_client_with_den_auth"]}
+    LOCAL = {"client": ["local_client", "local_client_with_den_auth"]}
+    MINIMAL = {"client": ["local_client", "local_client_with_den_auth"]}
+    THOROUGH = {"client": ["local_client", "local_client_with_den_auth"]}
+    MAXIMAL = {"client": ["local_client", "local_client_with_den_auth"]}
 
     @pytest.mark.level("unit")
     def test_get_cert(self, client):

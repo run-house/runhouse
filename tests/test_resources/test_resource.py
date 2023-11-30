@@ -5,12 +5,6 @@ import runhouse as rh
 
 from tests.conftest import init_args
 
-from tests.test_resources.conftest import (
-    local_named_resource,
-    named_resource,
-    unnamed_resource,
-)
-
 
 def load_shared_resource_config(original_resource):
     loaded_resource = original_resource.__class__.from_name(
@@ -22,11 +16,13 @@ def load_shared_resource_config(original_resource):
 
 class TestResource:
 
-    UNIT = {"resource": [unnamed_resource, named_resource, local_named_resource]}
-    LOCAL = {"resource": [unnamed_resource, named_resource, local_named_resource]}
-    MINIMAL = {"resource": [named_resource]}
-    THOROUGH = {"resource": [unnamed_resource, named_resource, local_named_resource]}
-    FULL = {"resource": [unnamed_resource, named_resource, local_named_resource]}
+    UNIT = {"resource": ["unnamed_resource", "named_resource", "local_named_resource"]}
+    LOCAL = {"resource": ["unnamed_resource", "named_resource", "local_named_resource"]}
+    MINIMAL = {"resource": ["named_resource"]}
+    THOROUGH = {
+        "resource": ["unnamed_resource", "named_resource", "local_named_resource"]
+    }
+    FULL = {"resource": ["unnamed_resource", "named_resource", "local_named_resource"]}
 
     @pytest.mark.level("unit")
     def test_resource_factory_and_properties(self, resource):

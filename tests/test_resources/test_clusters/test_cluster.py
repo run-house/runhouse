@@ -5,16 +5,6 @@ import runhouse as rh
 import tests.test_resources.test_resource
 from tests.conftest import init_args
 
-from .conftest import (
-    local_docker_cluster_passwd,
-    local_docker_cluster_public_key_logged_in,
-    local_docker_cluster_public_key_logged_out,
-    local_docker_cluster_telemetry_public_key,
-    named_cluster,
-    password_cluster,
-    static_cpu_cluster,
-)
-
 """ TODO:
 1) In subclasses, test factory methods create same type as parent
 2) In subclasses, use monkeypatching to make sure `up()` is called for various methods if the server is not up
@@ -36,18 +26,18 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     MAP_FIXTURES = {"resource": "cluster"}
 
-    UNIT = {"cluster": [named_cluster]}
+    UNIT = {"cluster": ["named_cluster"]}
     LOCAL = {
         "cluster": [
-            local_docker_cluster_public_key_logged_in,
-            local_docker_cluster_public_key_logged_out,
-            local_docker_cluster_telemetry_public_key,
-            local_docker_cluster_passwd,
+            "local_docker_cluster_public_key_logged_in",
+            "local_docker_cluster_public_key_logged_out",
+            "local_docker_cluster_telemetry_public_key",
+            "local_docker_cluster_passwd",
         ]
     }
-    MINIMAL = {"cluster": [static_cpu_cluster]}
-    THOROUGH = {"cluster": [static_cpu_cluster, password_cluster]}
-    MAXIMAL = {"cluster": [static_cpu_cluster, password_cluster]}
+    MINIMAL = {"cluster": ["static_cpu_cluster"]}
+    THOROUGH = {"cluster": ["static_cpu_cluster", "password_cluster"]}
+    MAXIMAL = {"cluster": ["static_cpu_cluster", "password_cluster"]}
 
     @pytest.mark.level("unit")
     def test_cluster_factory_and_properties(self, cluster):
