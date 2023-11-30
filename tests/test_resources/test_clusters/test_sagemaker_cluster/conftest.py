@@ -4,8 +4,6 @@ import pytest
 
 import runhouse as rh
 
-from tests.test_resources.test_modules.test_functions.conftest import summer
-
 from ....conftest import init_args
 
 
@@ -174,14 +172,18 @@ def sm_source_dir(sm_entry_point, pytorch_training_script, tmp_path):
     """Create the source directory and entry point needed for creating a SageMaker estimator"""
 
     # create tmp directory and file
-    with open(tmp_path, "w") as file:
-        file.write(pytorch_training_script)
+    file_path = tmp_path / sm_entry_point
 
-    return tmp_path.parent
+    with open(file_path, "w") as f:
+        f.write(pytorch_training_script)
+
+    return file_path.parent
 
 
 @pytest.fixture(scope="session")
 def summer_func_sm_auth(sm_cluster_with_auth):
+    from tests.test_resources.test_modules.test_functions.conftest import summer
+
     return rh.function(summer, name="summer_func").to(
         sm_cluster_with_auth, env=["pytest"]
     )

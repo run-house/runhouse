@@ -9,8 +9,6 @@ from runhouse.resources.hardware import OnDemandCluster
 from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import resolve_absolute_path
 
-from tests.test_resources.test_modules.test_functions.conftest import summer
-
 
 def is_on_cluster(cluster):
     return cluster.on_this_cluster()
@@ -99,6 +97,8 @@ def test_on_diff_cluster(ondemand_cpu_cluster, byo_cpu):
 
 @pytest.mark.clustertest
 def test_byo_cluster(byo_cpu, local_folder):
+    from tests.test_resources.test_modules.test_functions.conftest import summer
+
     assert byo_cpu.is_up()
 
     summer_func = rh.function(summer).to(byo_cpu)
@@ -128,6 +128,8 @@ def test_byo_cluster_with_https(byo_cpu):
 
 @pytest.mark.clustertest
 def test_byo_proxy(byo_cpu, local_folder):
+    from tests.test_resources.test_modules.test_functions.conftest import summer
+
     rh.globals.open_cluster_tunnels.pop(byo_cpu.address)
     byo_cpu.client = None
     # byo_cpu._rpc_tunnel.close()

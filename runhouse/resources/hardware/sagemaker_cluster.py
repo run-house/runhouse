@@ -14,6 +14,7 @@ import sys
 import textwrap
 import threading
 import time
+import warnings
 from pathlib import Path
 from typing import Dict, Tuple, Union
 
@@ -91,9 +92,10 @@ class SageMakerCluster(Cluster):
         """
         super().__init__(
             name=name,
-            ssh_creds={},
+            ssh_creds=kwargs.pop("ssh_creds", {}),
+            ssh_port=kwargs.pop("ssh_port", self.DEFAULT_SSH_PORT),
             server_host=server_host,
-            server_port=server_port,
+            server_port=kwargs.pop("server_port", self.DEFAULT_SERVER_PORT),
             server_connection_type=server_connection_type,
             ssl_certfile=ssl_certfile,
             ssl_keyfile=ssl_keyfile,
@@ -104,15 +106,10 @@ class SageMakerCluster(Cluster):
         self._connection_wait_time = connection_wait_time
         self._instance_type = instance_type
         self._instance_count = instance_count
-        self._region = region
         self._ssh_key_path = ssh_key_path
 
         # SSHEstimatorWrapper to facilitate the SSH connection to the cluster
         self._ssh_wrapper = None
-
-        # Keep track of the ports used for forwarding to the cluster
-        self._local_port = self.DEFAULT_SERVER_PORT
-        self._ssh_port = self.DEFAULT_SSH_PORT  # TODO reconcile with Cluster.ssh_port?
 
         # Note: Relevant only if an estimator is explicitly provided
         self._estimator_entry_point = kwargs.get("estimator_entry_point")
@@ -120,6 +117,14 @@ class SageMakerCluster(Cluster):
         self._estimator_framework = kwargs.get("estimator_framework")
 
         self.job_name = job_name
+
+        # Set initial region - may be overwritten depending on the profile used
+        self.region = region or self.DEFAULT_REGION
+
+        # Set a default sessions initially - may overwrite depending on the profile loaded below
+        self._set_boto_session()
+        self._set_sagemaker_session()
+
         # Either use the user-provided instance_id, or look it up from the job_name
         self.instance_id = instance_id or (
             self._cluster_instance_id() if self.job_name else None
@@ -173,7 +178,7 @@ class SageMakerCluster(Cluster):
             config.update(
                 {
                     "estimator_entry_point": self._estimator_entry_point,
-                    "estimator_source_dir": self._estimator_source_dir,
+                    "estimator_source_dir": str(self._estimator_source_dir),
                 }
             )
 
@@ -200,11 +205,11 @@ class SageMakerCluster(Cluster):
 
     @property
     def hosts_path(self):
-        return os.path.expanduser("~/.ssh/known_hosts")
+        return Path("~/.ssh/known_hosts").expanduser()
 
     @property
     def ssh_config_file(self):
-        return os.path.expanduser("~/.ssh/config")
+        return Path("~/.ssh/config").expanduser()
 
     @property
     def ssh_key_path(self):
@@ -264,24 +269,6 @@ class SageMakerCluster(Cluster):
         self._instance_type = instance_type
 
     @property
-    def region(self):
-        if self._region:
-            return self._region
-
-        # If no region is specified, try using the one associated with the sagemaker session
-        try:
-            region = self._sagemaker_session.boto_region_name
-            if region is None:
-                return self.DEFAULT_REGION
-            return region
-        except:
-            return self.DEFAULT_REGION
-
-    @region.setter
-    def region(self, region):
-        self._region = region
-
-    @property
     def default_bucket(self):
         """Default bucket to use for storing the cluster's authorized public keys."""
         return self._sagemaker_session.default_bucket()
@@ -297,10 +284,7 @@ class SageMakerCluster(Cluster):
         """Extra SSH arguments to be used when connecting to the cluster."""
         # Note - port 12345 can be used for Python Debug Server: "-R localhost:12345:localhost:12345"
         # https://github.com/aws-samples/sagemaker-ssh-helper#remote-debugging-with-pycharm-debug-server-over-ssh
-        return (
-            f"-L localhost:{self._local_port}:localhost:{self._local_port} "
-            f"-L localhost:{self._ssh_port}:localhost:22"
-        )
+        return f"-L localhost:{self.ssh_port}:localhost:22"
 
     @property
     def _s3_keys_path(self):
@@ -328,9 +312,49 @@ class SageMakerCluster(Cluster):
         """Username and hostname to be used as the comment for the public key."""
         return f"{getpass.getuser()}@{socket.gethostname()}"
 
+    @property
+    def _s3_client(self):
+        if self._boto_session is None:
+            self._set_boto_session()
+
+        return self._boto_session.client("s3")
+
+    def _set_boto_session(self, profile_name: str = None):
+        self._boto_session = boto3.Session(
+            region_name=self.region, profile_name=profile_name
+        )
+
+    def _set_sagemaker_session(self):
+        """Create a SageMaker session required for using the SageMaker APIs."""
+        self._sagemaker_session = sagemaker.Session(boto_session=self._boto_session)
+
     # -------------------------------------------------------
     # Cluster State & Lifecycle Methods
     # -------------------------------------------------------
+    def restart_server(
+        self,
+        _rh_install_url: str = None,
+        resync_rh: bool = True,
+        restart_ray: bool = True,
+        env_activate_cmd: str = None,
+        restart_proxy: bool = False,
+    ):
+        """Restart the RPC server on the SageMaker instance.
+
+        Args:
+            resync_rh (bool): Whether to resync runhouse. (Default: ``True``)
+            restart_ray (bool): Whether to restart Ray. (Default: ``True``)
+            env_activate_cmd (str, optional): Command to activate the environment on the server. If not provided
+                will activate the default conda environment provided on the cluster.
+            restart_proxy (bool): Whether to restart nginx on the cluster, if configured. (Default: ``False``)
+        Example:
+            >>> rh.sagemaker_cluster("sagemaker-cluster").restart_server()
+        """
+        env_activate_cmd = env_activate_cmd or self._env_activate_cmd
+        return super().restart_server(
+            _rh_install_url, resync_rh, restart_ray, env_activate_cmd, restart_proxy
+        )
+
     def check_server(self, restart_server=True):
         if self.on_this_cluster():
             return
@@ -404,7 +428,7 @@ class SageMakerCluster(Cluster):
             >>> rh.sagemaker_cluster("sagemaker-cluster").is_up()
         """
         try:
-            resp = self.status()
+            resp: dict = self.status()
             status = resp.get("TrainingJobStatus")
             # Up if the instance is in progress
             return status == "InProgress"
@@ -471,14 +495,24 @@ class SageMakerCluster(Cluster):
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0, retry=True
     ) -> Tuple[SSHTunnelForwarder, int]:
+        if (self.address, self.ssh_port) in open_cluster_tunnels:
+            open_tunnels = open_cluster_tunnels[(self.address, self.ssh_port)]
+            for (tunnel, port) in open_tunnels:
+                if port == local_port:
+                    logger.info(
+                        f"SSH tunnel on ports {local_port, remote_port} already created with the cluster"
+                    )
+                return tunnel, local_port
+
         try:
             remote_bind_addresses = ("127.0.0.1", local_port)
             local_bind_addresses = ("", local_port)
 
             ssh_tunnel = SSHTunnelForwarder(
-                (self.DEFAULT_SERVER_HOST, self._ssh_port),
+                self.DEFAULT_SERVER_HOST,
                 ssh_username=self.DEFAULT_USER,
                 ssh_pkey=self._abs_ssh_key_path,
+                ssh_port=self.ssh_port,
                 remote_bind_address=remote_bind_addresses,
                 local_bind_address=local_bind_addresses,
                 set_keepalive=1800,
@@ -495,7 +529,10 @@ class SageMakerCluster(Cluster):
         except BaseSSHTunnelForwarderError as e:
             if not retry:
                 # Failed to create the SSH tunnel object even after successfully refreshing the SSM session
-                raise e
+                raise BaseSSHTunnelForwarderError(
+                    f"{e} Make sure ports {self.server_port} and {self.ssh_port} are "
+                    f"not already in use."
+                )
 
             # Refresh the SSM session, which should bind the HTTP and SSH ports to localhost which are forwarded
             # to the cluster
@@ -592,14 +629,10 @@ class SageMakerCluster(Cluster):
                 except subprocess.CalledProcessError as e:
                     return_codes.append((255, "", str(e)))
             else:
-                if self.instance_id not in open_cluster_tunnels:
-                    # Make sure tunnel is up before running commands (e.g. calling ``restart_server`` right after
-                    # loading the cluster with dryrun)
-                    self.connect_server_client()
-
                 # Host can be replaced with name (as reflected in the ~/.ssh/config file)
                 runner = SkySSHRunner(
                     self.name,
+                    port=self.ssh_port,
                     ssh_user=self.DEFAULT_USER,
                     ssh_private_key=self._abs_ssh_key_path,
                 )
@@ -819,14 +852,14 @@ class SageMakerCluster(Cluster):
                 connected = True
 
                 logger.info(
-                    f"Created SSM session using ports {self._ssh_port} and {self._local_port}. "
+                    f"Created SSM session using ports {self.ssh_port} and {self.server_port}. "
                     f"All active sessions can be viewed with: ``aws ssm describe-sessions --state Active``"
                 )
 
             except (ConnectionError, subprocess.CalledProcessError):
                 # Try re-running with updated the ports - possible the ports are already in use
-                self._local_port += 1
-                self._ssh_port += 1
+                self.server_port += 1
+                self.ssh_port += 1
                 num_ports_to_try -= 1
                 pass
 
@@ -953,8 +986,8 @@ class SageMakerCluster(Cluster):
             except socket.error:
                 # If the refresh didn't work try connecting with a different port - could be that the port
                 # is already taken
-                self._local_port += 1
-                self._ssh_port += 1
+                self.server_port += 1
+                self.ssh_port += 1
                 num_ports_to_try -= 1
                 pass
 
@@ -1046,7 +1079,7 @@ class SageMakerCluster(Cluster):
             f"rsync -rvh --exclude='.git' --exclude='venv*/' --exclude='dist/' --exclude='docs/' "
             f"--exclude='__pycache__/' --exclude='.*' "
             f"--include='.rh/' -e 'ssh -o StrictHostKeyChecking=no "
-            f"-i {self._abs_ssh_key_path} -p {self._ssh_port}' {source} root@localhost:{dest}"
+            f"-i {self._abs_ssh_key_path} -p {self.ssh_port}' {source} root@localhost:{dest}"
         )
 
         logger.info(f"Syncing {source} to: {dest} on cluster")
@@ -1087,7 +1120,7 @@ class SageMakerCluster(Cluster):
             role = self.estimator.role
 
         if role and role.startswith("arn:aws"):
-            profile = profile or self._find_profile_for_role(role)
+            profile = profile or self._load_profile_and_region_for_role(role)
 
         else:
             # https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-roles.html
@@ -1098,13 +1131,10 @@ class SageMakerCluster(Cluster):
                     f"No profile provided or environment variable set to `AWS_PROFILE`, using the {profile} profile"
                 )
 
-        # Create a sagemaker session using the profile provided
         try:
-            self._boto_session = boto3.Session(
-                region_name=self.DEFAULT_REGION, profile_name=profile
-            )
-            self._s3_client = self._boto_session.client("s3")
-            self._sagemaker_session = self._load_sagemaker_session()
+            # Update the sessions using the profile provided
+            self._set_boto_session(profile_name=profile)
+            self._set_sagemaker_session()
 
             # If no role explicitly provided, use sagemaker to get it via the profile
             role = role or sagemaker.get_execution_role(
@@ -1120,8 +1150,8 @@ class SageMakerCluster(Cluster):
 
         return role, profile
 
-    def _find_profile_for_role(self, role_arn: str) -> Union[str, None]:
-        """Find the profile associated with a particular role ARN. If no profile is found, return None."""
+    def _load_profile_and_region_for_role(self, role_arn: str) -> Union[str, None]:
+        """Find the profile (and region) associated with a particular role ARN. If no profile is found, return None."""
         try:
             aws_dir = os.path.expanduser("~/.aws")
             credentials_path = os.path.join(aws_dir, "credentials")
@@ -1134,10 +1164,19 @@ class SageMakerCluster(Cluster):
                 config.read(path)
 
                 for section in config.sections():
-                    if "role_arn" in config[section]:
-                        if config[section]["role_arn"] == role_arn:
-                            # Add just the name of the profile (not the full section heading)
-                            profiles_with_role.add(section.split(" ")[-1])
+                    config_section = config[section]
+                    config_role_arn = config_section.get("role_arn")
+                    if config_role_arn == role_arn:
+                        # Add just the name of the profile (not the full section heading)
+                        profiles_with_role.add(section.split(" ")[-1])
+
+                    # Update the region to use the one associated with this profile
+                    profile_region = config_section.get("region")
+                    if profile_region != self.region:
+                        warnings.warn(
+                            f"Updating region based on AWS config to: {profile_region}"
+                        )
+                        self.region = profile_region
 
             if not profiles_with_role:
                 return None
@@ -1168,22 +1207,14 @@ class SageMakerCluster(Cluster):
 
         return self._base_image_uri()
 
-    def _load_sagemaker_session(self):
-        """Create a SageMaker session required for using the SageMaker APIs. If none is provided
-        create one using the default region."""
-        if self.estimator:
-            return self.estimator.sagemaker_session
-
-        return sagemaker.Session(boto_session=self._boto_session)
-
     def _stop_instance(self, delete_configs=True):
         """Stop the SageMaker instance. Optionally remove its config from RNS."""
         self._sagemaker_session.stop_training_job(job_name=self.job_name)
 
-        if not self.is_up():
-            raise Exception(f"Failed to stop cluster {self.name}")
+        if self.is_up():
+            raise Exception(f"Failed to stop instance {self.name}")
 
-        logger.info(f"Successfully stopped cluster {self.name}")
+        logger.info(f"Successfully stopped instance {self.name}")
 
         # Remove stale host key(s) from known hosts
         self._filter_known_hosts()
@@ -1191,10 +1222,7 @@ class SageMakerCluster(Cluster):
         if delete_configs:
             # Delete from RNS
             rns_client.delete_configs(resource=self)
-
-            # Delete entry from ~/.ssh/config
-            self._delete_ssh_config_entry()
-            logger.info(f"Deleted cluster {self.name} from configs")
+            logger.info(f"Deleted {self.name} from configs")
 
     def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
         if not self.instance_id:
@@ -1205,7 +1233,7 @@ class SageMakerCluster(Cluster):
 
         # Sync the local ~/.rh directory to the cluster
         self._rsync(
-            source=os.path.expanduser("~/.rh"),
+            source=str(Path("~/.rh").expanduser()),
             dest="~/.rh",
             up=True,
             contents=True,
@@ -1269,6 +1297,11 @@ class SageMakerCluster(Cluster):
             raise TypeError(
                 f"Unsupported estimator type. Expected dictionary or EstimatorBase, got {type(estimator)}"
             )
+        if "sagemaker_session" not in estimator:
+            # Estimator requires an initialized sagemaker session
+            # https://stackoverflow.com/questions/55869651/how-to-fix-aws-region-error-valueerror-must-setup-local-aws-configuration-with
+            estimator["sagemaker_session"] = self._sagemaker_session
+
         # Re-build the estimator object from its config
         estimator_framework = self._estimator_framework
         if estimator_framework == "PyTorch":
@@ -1289,7 +1322,7 @@ class SageMakerCluster(Cluster):
         from runhouse import folder
 
         estimator_folder = folder(
-            path=os.path.expanduser(self._estimator_source_dir)
+            path=Path(self._estimator_source_dir).expanduser()
         ).to(self, path=self.ESTIMATOR_SRC_CODE_PATH)
         logger.info(
             f"Synced estimator source directory to the cluster in path: {estimator_folder.path}"
@@ -1338,25 +1371,27 @@ class SageMakerCluster(Cluster):
     def _bind_ports_to_localhost(self):
         """Try binding the SSH and HTTP ports to localhost to check if they are in use."""
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s1:
-            s1.bind(("localhost", self._ssh_port))
+            s1.bind(("localhost", self.ssh_port))
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s2:
-            s2.bind(("localhost", self._local_port))
+            s2.bind(("localhost", self.server_port))
 
     # -------------------------------------------------------
     # SSH config
     # -------------------------------------------------------
     def _filter_known_hosts(self):
-        """To prevent host key collisions in the ~/.ssh/known_hosts file, remove any existing entries of localhost.
-        Since the connection to the cluster is made via localhost, remove stale entries"""
+        """To prevent host key collisions in the ~/.ssh/known_hosts file, remove any stale entries of localhost
+        using the SSH port."""
         known_hosts = self.hosts_path
-        if not Path(known_hosts).exists():
+        if not known_hosts.exists():
             # e.g. in a collab or notebook environment
             return
 
         valid_hosts = []
         with open(known_hosts, "r") as f:
             for line in f:
-                if not line.strip().startswith(f"[{self.DEFAULT_SERVER_HOST}]"):
+                if not line.strip().startswith(
+                    f"[{self.DEFAULT_SERVER_HOST}]:{self.ssh_port}"
+                ):
                     valid_hosts.append(line)
 
         with open(known_hosts, "w") as f:
@@ -1383,7 +1418,7 @@ class SageMakerCluster(Cluster):
 
     def _add_or_update_ssh_config_entry(self):
         """Update the SSH config to allow for accessing the cluster via: ssh <cluster name>"""
-        connected_ssh_port = self._ssh_port
+        connected_ssh_port = self.ssh_port
         config_file = self.ssh_config_file
 
         with open(config_file, "r") as f:
@@ -1411,30 +1446,3 @@ class SageMakerCluster(Cluster):
             new_entry = self._ssh_config_entry(port=connected_ssh_port)
             with open(config_file, "a") as f:
                 f.write(new_entry)
-
-    def _delete_ssh_config_entry(self):
-        """Remove the SSH config entry for the cluster."""
-        config_file = self.ssh_config_file
-
-        with open(config_file) as f:
-            lines = f.readlines()
-
-        # Find the start and end lines of the entry to be deleted
-        start_line = None
-        for i, line in enumerate(lines):
-            if self.job_name in line:
-                start_line = i
-                break
-
-        if not start_line:
-            return
-
-        # Find the end of the entry (next empty line)
-        end_line = start_line
-        while end_line < len(lines) and lines[end_line].strip():
-            end_line += 1
-
-        del lines[start_line:end_line]
-
-        with open(config_file, "w") as f:
-            f.writelines(lines)

@@ -519,6 +519,15 @@ class Cluster(Resource):
         # netstat -vanp tcp | grep 32300
         # lsof -i :32300
         # kill -9 <pid>
+        open_tunnels = open_cluster_tunnels.get((self.address, self.ssh_port), [])
+        for (tunnel, port) in open_tunnels:
+            if port == local_port and tunnel.remote_bind_address[1] == (
+                remote_port or local_port
+            ):
+                logger.info(
+                    f"SSH tunnel on ports {local_port, remote_port} already created with the cluster"
+                )
+                return tunnel, local_port
 
         creds: dict = self.ssh_creds()
         connected = False

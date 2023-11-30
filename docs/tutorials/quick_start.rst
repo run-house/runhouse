@@ -153,14 +153,16 @@ SageMaker Cluster
 ~~~~~~~~~~~~~~~~~
 
 Runhouse facilitates easy access to existing or new SageMaker compute.
-Just provide your SageMaker execution role ARN or have it configured in your local environment.
+Just provide your SageMaker execution role ARN, profile name, or have it configured in your local environment.
 
 .. code:: ipython3
 
-    # Launch a new SageMaker instance and keep it up indefinitely
+    # Create a SageMaker instance which uses the "sagemaker" profile configured locally
+    # Once the instance is up, we can run a function or send other resources to the SageMaker compute, just as we would
+    # for any other cluster type.
     cluster = rh.sagemaker_cluster(name='sm-cluster', profile="sagemaker").save()
 
-    # Running a training job with a provided Estimator
+    # Alternatively, provide an Estimator and launch a dedicated training job once the cluster is launched
     pytorch_estimator = PyTorch(entry_point='train.py',
                                 role='arn:aws:iam::123456789012:role/MySageMakerRole',
                                 source_dir='/Users/myuser/dev/sagemaker',
