@@ -20,7 +20,7 @@ def run_home(name: str):
     return f"Run home {name}!"
 
 if __name__ == "__main__":
-    cpu_box = rh.ondemand_cluster(name="my-cpu", instance_type="CPU:2", provider="aws").up_if_not()
+    cpu_box = rh.ondemand_cluster(name="my-cpu", instance_type="CPU:2", provider="aws")
     remote_fn = rh.function(run_home).to(cpu_box)
     print(remote_fn("Jack"))
 ```
@@ -33,7 +33,7 @@ to run on souped up remote infra. It's basically a flag flip.
 1. Eliminate CLI and Flask/FastAPI boilerplate by allowing you to send your function or class directly to your remote
 infra to execute or serve, and keep them debuggable like the original code, not a subprocess.Popen or Postman/curl call.
 1. Bake-in the middleware and automation to make your app production-quality, secure, and sharable instantly.
-That means giving you out of the box, state-of-the-art auth, HTTPS, telemetry, packaging, and deployment automation, with ample
+That means giving you out of the box, state-of-the-art auth, HTTPS, telemetry, packaging, developer tools and deployment automation, with ample
 flexibility to swap in your own.
 1. Bring the power of [Ray](https://www.ray.io/) to any app, anywhere, without having to learn Ray or manage Ray
 clusters, like [Next.js](https://nextjs.org/) did for React. OpenAI, Uber, Shopify, and many others use Ray to
