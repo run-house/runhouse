@@ -285,7 +285,6 @@ class SageMakerCluster(Cluster):
         # Note - port 12345 can be used for Python Debug Server: "-R localhost:12345:localhost:12345"
         # https://github.com/aws-samples/sagemaker-ssh-helper#remote-debugging-with-pycharm-debug-server-over-ssh
         return (
-            f"-L localhost:{self.server_port}:localhost:{self.server_port} "
             f"-L localhost:{self.ssh_port}:localhost:22"
         )
 
