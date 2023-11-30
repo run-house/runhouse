@@ -42,9 +42,9 @@ power their ML infra, and Runhouse makes its best-in-class features accessible t
 ## 🤨 Who is this for?
 
 * 👩‍🔧 **Engineers, Researchers and Data Scientists** who don't want to spend 3-6 months translating and packaging
-their work to share it, and want to be able to iterate and improve their experiments, production services, pipelines, and data artifacts
+their work to share it, and want to be able to iterate and improve production services, pipelines, experiments and data artifacts
 with a Pythonic, debuggable devX.
-* 👩‍🔬 **ML and data teams** who want a stable, versioned, shareable, maintainable stack of services used across
+* 👩‍🔬 **ML and data teams** who want a versioned, shared, maintainable stack of services used across
 research and production, spanning any cloud or infra type (e.g. Instances, Kubernetes, Serverless, etc.).
 * 🦸‍♀️ **OSS maintainers** who want to supercharge their setup flow by providing a single script to stand up their app
 on any infra, rather than build support or guides for each cloud or compute system (e.g. Kubernetes) one by one.
