@@ -292,6 +292,28 @@ env_var_map = {
     "ENV_VAR2": "env_value2",
 }
 
+# ENV VAR SECRET TESTS
+
+# parameterize
+# - env_var only (pre-set in user env oops)
+# - values only
+# - env_var + path
+#       assert saves to path.
+#       assert throws error if path already exists
+# - values + path
+#       same as previous
+
+# tests
+# - save to vault --> subclass resource tests
+# - save to rns --> subclass resource tests
+# - ? set (local) env var ?
+# - .to() no path
+# - .to() with path
+
+# Q: what does sync secrets mean for env secrets. guess it calls .to()
+# it's fine that it sets the env var variables? maybe excluded by default
+# and only sync providers by default?
+
 
 def _get_env_var_value(env_var):
     import os

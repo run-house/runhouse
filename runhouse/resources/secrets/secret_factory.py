@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from runhouse.resources.blobs.file import File
@@ -100,6 +101,7 @@ def env_var_secret(
     name: str = None,
     env_vars: List[str] = None,
     values: Optional[Dict] = None,
+    path: Union[str, Path] = None,
     dryrun: bool = False,
 ) -> EnvVarSecret:
     """
@@ -121,15 +123,17 @@ def env_var_secret(
         >>> local_env_var_secret = rh.env_var_secret(env_vars=["PYTHONPATH"])
         >>> env_secret = rh.env_var_secret(values={"API_KEY": "abcd"})
     """
-    if name and not any([env_vars, values]):
+    if name and not any([env_vars, values, path]):
         return EnvVarSecret.from_name(name, dryrun)
     if env_vars and values:
         raise ValueError(
             "Only one of env_vars and values should be set. One will be infered from the other."
         )
+
     return EnvVarSecret(
         name=name,
         env_vars=env_vars,
         values=values,
+        path=path,
         dryrun=dryrun,
     )
