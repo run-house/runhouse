@@ -28,6 +28,17 @@ from runhouse.resources.tables import Table, table
 
 from runhouse.rns.secrets.secrets import Secrets
 
+from runhouse.rns.top_level_rns_fns import (
+    current_folder,
+    exists,
+    here,
+    ipython,
+    load,
+    locate,
+    set_folder,
+    unset_folder,
+)
+
 # Note these are global variables that are instantiated within globals.py:
 from .globals import configs, obj_store
 
