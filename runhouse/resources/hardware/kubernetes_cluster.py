@@ -37,12 +37,6 @@ class KubernetesCluster(OnDemandCluster):
         self.kube_config_path = kube_config_path
         self.context = context
 
-        if self.instance_type is None:
-            raise ValueError("You must specify an instance type")
-        
-        if self.name is None:
-            raise ValueError("You must specify a name for your cluster")
-
         if self.context is not None and self.namespace is not None:
             warnings.warn("You passed both a context and a namespace. The namespace will be ignored.", UserWarning)
             self.namespace = None
