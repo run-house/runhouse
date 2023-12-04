@@ -17,7 +17,7 @@ import botocore.exceptions
 from runhouse.globals import rns_client
 from runhouse.resources.envs import _get_env_from, Env
 
-from runhouse.resources.function import Function
+from runhouse.resources.functions.function import Function
 
 logger = logging.getLogger(__name__)
 
@@ -233,8 +233,9 @@ class AWSLambdaFunction(Function):
 
         # adding code for installing python libraries
         reqs = self.env.reqs
-        if "runhouse" not in reqs:
-            reqs.append("runhouse")
+        # TODO: checking the posability to change the home dir
+        # if "runhouse" not in reqs:
+        #     reqs.append("runhouse")
         if "./" in reqs:
             reqs.remove("./")
         for req in reqs:
@@ -707,7 +708,7 @@ def aws_lambda_function(
         original_env = copy.deepcopy(env)
         if isinstance(original_env, dict) and "env_vars" in original_env.keys():
             env = _get_env_from(env["reqs"]) or Env(
-                working_dir="./", name=Env.DEFAULT_NAME
+                working_dir="../serverless/", name=Env.DEFAULT_NAME
             )
             env.env_vars = (
                 original_env["env_vars"] if original_env["env_vars"] is not None else {}
@@ -715,7 +716,9 @@ def aws_lambda_function(
         elif isinstance(original_env, str):
             env = _get_env_from(AWSLambdaFunction._reqs_to_list(env))
         else:
-            env = _get_env_from(env) or Env(working_dir="./", name=Env.DEFAULT_NAME)
+            env = _get_env_from(env) or Env(
+                working_dir="../serverless/", name=Env.DEFAULT_NAME
+            )
 
     elif env is None:
         env = Env(reqs=[], name=Env.DEFAULT_NAME)

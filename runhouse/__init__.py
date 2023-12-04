@@ -1,7 +1,11 @@
 from runhouse.resources.blobs import blob, Blob, file, File
 from runhouse.resources.envs import conda_env, CondaEnv, env, Env
 from runhouse.resources.folders import Folder, folder, GCSFolder, S3Folder
-from runhouse.resources.function import function, Function
+from runhouse.resources.functions.aws_lambda import (
+    aws_lambda_function,
+    AWSLambdaFunction,
+)
+from runhouse.resources.functions.function import function, Function
 from runhouse.resources.hardware import (
     _current_cluster,
     cluster,
@@ -20,21 +24,9 @@ from runhouse.resources.packages import git_package, GitPackage, package, Packag
 from runhouse.resources.provenance import capture_stdout, Run, run, RunStatus, RunType
 from runhouse.resources.queues import Queue
 from runhouse.resources.resource import Resource
-from runhouse.resources.serverless import aws_lambda_function, AWSLambdaFunction
 from runhouse.resources.tables import Table, table
 
 from runhouse.rns.secrets.secrets import Secrets
-
-from runhouse.rns.top_level_rns_fns import (
-    current_folder,
-    exists,
-    here,
-    ipython,
-    load,
-    locate,
-    set_folder,
-    unset_folder,
-)
 
 # Note these are global variables that are instantiated within globals.py:
 from .globals import configs, obj_store

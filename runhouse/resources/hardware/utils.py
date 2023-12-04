@@ -10,22 +10,19 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import yaml
 
-try:
-    from sky.skylet import log_lib
-    from sky.utils import subprocess_utils
+from sky.skylet import log_lib
+from sky.utils import subprocess_utils
 
-    from sky.utils.command_runner import (
-        common_utils,
-        GIT_EXCLUDE,
-        RSYNC_DISPLAY_OPTION,
-        RSYNC_EXCLUDE_OPTION,
-        RSYNC_FILTER_OPTION,
-        ssh_options_list,
-        SSHCommandRunner,
-        SshMode,
-    )
-except:
-    pass
+from sky.utils.command_runner import (
+    common_utils,
+    GIT_EXCLUDE,
+    RSYNC_DISPLAY_OPTION,
+    RSYNC_EXCLUDE_OPTION,
+    RSYNC_FILTER_OPTION,
+    ssh_options_list,
+    SSHCommandRunner,
+    SshMode,
+)
 
 logger = logging.getLogger(__name__)
 
