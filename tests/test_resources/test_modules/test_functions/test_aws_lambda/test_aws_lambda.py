@@ -284,6 +284,45 @@ def test_create_and_run_layers_env():
     LAMBDAS_NAMES.add(my_lambda.name)
 
 
+def test_create_and_run_layers_list():
+    handler_path = [f"{TEST_RESOURCES}/basic_handler_layer.py"]
+    name = "test_lambda_numpy_list"
+    my_lambda = rh.aws_lambda_function(
+        paths_to_code=handler_path,
+        handler_function_name="arr_handler",
+        runtime="python3.9",
+        args_names=["arr1", "arr2"],
+        name=name,
+        env=["numpy"],
+    )
+    res = my_lambda([1, 2, 3], [4, 7, 9])
+    assert res == "26"
+    LAMBDAS_NAMES.add(my_lambda.name)
+
+
+def test_layers_increase_timeout_and_memory():
+    handler_path = [f"{TEST_RESOURCES}/basic_handler_layer.py"]
+    name = "test_lambda_numpy_increase_params"
+    my_lambda = rh.aws_lambda_function(
+        paths_to_code=handler_path,
+        handler_function_name="arr_handler",
+        runtime="python3.9",
+        args_names=["arr1", "arr2"],
+        name=name,
+        env=["numpy"],
+        timeout=3,
+        memory_size=128,
+    )
+    res = my_lambda([1, 2, 3], [4, 7, 9])
+    assert res == "26"
+    lambda_config = LAMBDA_CLIENT.get_function(FunctionName=my_lambda.name)
+    assert lambda_config["Configuration"]["Timeout"] == 600
+    assert lambda_config["Configuration"]["MemorySize"] == 128
+    assert lambda_config["Configuration"]["EphemeralStorage"]["Size"] == 1024
+    assert lambda_config["Configuration"]["FunctionName"] == my_lambda.name
+    LAMBDAS_NAMES.add(my_lambda.name)
+
+
 @pytest.mark.skip(
     "Not sure it is necessary now we are installing libs during runtime. "
 )
@@ -339,7 +378,6 @@ def test_different_runtimes_and_layers():
     LAMBDAS_NAMES.add(my_lambda_311.name)
 
 
-@pytest.mark.skip("Need to figure out how installing requirements.txt is supported")
 def test_create_and_run_layers_txt():
     handler_path = [f"{TEST_RESOURCES}/basic_handler_layer.py"]
     name = "test_lambda_numpy_txt"
