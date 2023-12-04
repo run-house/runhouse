@@ -105,46 +105,56 @@ def test_sharing_for_resource_and_secrets_apis(test_account):
         rns_address = vault_secret.rns_address
 
         # Share the resource (incl. access to the secrets in Vault)
-        added_users, _ = vault_secret.share(username_to_share, access_type="write")
-        assert added_users
+        vault_secret.share(username_to_share, access_type="write")
 
         del vault_secret
 
-    # TODO [JL / CC] add flag on OSS side for loading shared secrets? (might only be relevant for Den?)
+    # By default we can re-load shared secrets
     reloaded_secret = rh.secret(name=rns_address)
-    # Will not return any secret values since the secret is shared, not saved directly by the user to Vault
-    assert not reloaded_secret.values
+    assert reloaded_secret.values == test_secret_values
 
 
 @pytest.mark.rnstest
 def test_sharing_for_resource_and_builtin_secret_apis(test_account):
     username_to_share = rh.configs.defaults_cache["username"]
     secret_name = "aws_secret"
+    provider = "aws"
 
     # Create & share
     with test_account:
         headers = rns_client.request_headers
 
-        vault_secret = rh.provider_secret(provider="aws", name=secret_name)
+        vault_secret = rh.provider_secret(provider=provider, name=secret_name)
         vault_secret.save(headers=headers)
 
         rns_address = vault_secret.rns_address
 
-        added_users, _ = vault_secret.share(username_to_share, access_type="write")
-        assert added_users
+        vault_secret.share(username_to_share, access_type="write")
 
-    # Get
-    resource_uri = rns_client.format_rns_address(rns_address)
+    # Get the resource
+    resource_uri = rns_client.resource_uri(rns_address)
     uri = f"resource/{resource_uri}"
     resp = requests.get(
-        f"{rns_client.api_server_url}/{uri}?shared", headers=rns_client.request_headers
+        f"{rns_client.api_server_url}/{uri}", headers=rns_client.request_headers
     )
     assert resp.status_code == 200
 
-    secret_data = read_resp_data(resp)
-    secret_values = secret_data["data"]["values"]
-    assert "access_key" in secret_values
-    assert "secret_key" in secret_values
+    resource_data = read_resp_data(resp)
+    assert "values" not in resource_data["data"]
+
+    # get the Vault secrets
+    resp = requests.get(
+        f"{rns_client.api_server_url}/user/secret/{resource_uri}?shared=true",
+        headers=rns_client.request_headers,
+    )
+    assert resp.status_code == 200
+
+    secrets_data = read_resp_data(resp)
+    assert provider in secrets_data
+
+    secret_keys = list(secrets_data[provider].keys())
+    assert "access_key" in secret_keys
+    assert "secret_key" in secret_keys
 
 
 # -------------------------------------------

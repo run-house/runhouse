@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 import typer
 
@@ -135,10 +136,10 @@ def login(
         return token
 
 
-def _login_download_secrets(headers: str = rns_client.request_headers):
+def _login_download_secrets(headers: Optional[str] = None):
     from runhouse import Secret
 
-    secrets = Secret.vault_secrets(headers=headers)
+    secrets = Secret.vault_secrets(headers=headers or rns_client.request_headers)
     for name, secret in secrets.items():
         try:
             download_path = secret.path or secret._DEFAULT_CREDENTIALS_PATH

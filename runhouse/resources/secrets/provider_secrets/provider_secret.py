@@ -75,8 +75,10 @@ class ProviderSecret(Secret):
         """Create a ProviderSecret object from a config dictionary."""
         return ProviderSecret(**config, dryrun=dryrun)
 
-    def delete(self, headers: str = rns_client.request_headers, contents: bool = False):
-        """Delete the secret config from Vault/local. Optionally also delete contents of secret file or env vars."""
+    def delete(self, headers: Optional[str] = None, contents: bool = False):
+        """Delete the secret config from Den and from Vault/local. Optionally also delete contents of secret file
+        or env vars."""
+        headers = headers or rns_client.request_headers
         if self.path and contents:
             if isinstance(self.path, File):
                 if self.path.exists_in_system():

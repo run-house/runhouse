@@ -18,7 +18,6 @@ def secret(
         name (str, optional): Name to assign the secret resource.
         values (Dict, optional): Dictionary of secret key-value pairs.
         dryrun (bool, optional): Whether to create in dryrun mode. (Default: False)
-
     Returns:
         Secret: The resulting Secret object.
 

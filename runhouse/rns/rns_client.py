@@ -307,9 +307,9 @@ class RNSClient:
         if rns_address.startswith("/"):
             resource_uri = self.resource_uri(name)
             logger.info(f"Attempting to load config for {rns_address} from RNS.")
-            uri = "resource/" + resource_uri
             resp = requests.get(
-                f"{self.api_server_url}/{uri}", headers=self.request_headers
+                f"{self.api_server_url}/resource/{resource_uri}",
+                headers=self.request_headers,
             )
             if resp.status_code != 200:
                 logger.info(f"No config found in RNS: {load_resp_content(resp)}")

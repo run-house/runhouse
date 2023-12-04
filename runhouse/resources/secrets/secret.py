@@ -68,12 +68,8 @@ class Secret(Resource):
             raise ValueError(f"Secret {name} not found in Den.")
 
         # Load via Secrets API
-        resource_subtype = rns_config.get("resource_subtype")
-        if resource_subtype != "Secret":
-            # If the resource is a builtin provider, set its name to the provider
-            name = rns_config["provider"]
-
-        secret_values = load_config(name, cls.USER_ENDPOINT)
+        rns_address = rns_config["name"]
+        secret_values = load_config(rns_address, cls.USER_ENDPOINT)
         secrets_data = {**rns_config, **{"values": secret_values}}
 
         return cls.from_config(config=secrets_data, dryrun=dryrun)
@@ -91,13 +87,13 @@ class Secret(Resource):
 
     @classmethod
     def vault_secrets(
-        cls, names: List[str] = None, headers: str = rns_client.request_headers
+        cls, names: List[str] = None, headers: Optional[str] = None
     ) -> Dict[str, "Secret"]:
         from runhouse.resources.secrets import provider_secret, Secret, secret
 
         resp = requests.get(
             f"{rns_client.api_server_url}/{cls.USER_ENDPOINT}",
-            headers=headers,
+            headers=headers or rns_client.request_headers,
         )
 
         if resp.status_code != 200:
@@ -121,7 +117,7 @@ class Secret(Resource):
                     new_secret = secret(name=name, values=config)
 
                 secrets[name] = new_secret
-                new_secret._delete_vault_config()
+                new_secret._delete_secret_configs()
                 new_secret.save()
 
         return secrets
@@ -183,13 +179,14 @@ class Secret(Resource):
         return secrets
 
     # TODO: refactor this code to reuse rns_client save_config code instead of rewriting
-    def save(self, save_values: bool = True, headers: str = rns_client.request_headers):
+    def save(self, save_values: bool = True, headers: Optional[str] = None):
         """
-        Save the secret config, into Vault if the user is logged in,
+        Save the secret config to Den. Save the secret values into Vault if the user is logged in,
         or to local if not or if the resource is a local resource.
         """
         config = self.config_for_rns
         config["name"] = self.rns_address
+        headers = headers or rns_client.request_headers
 
         # Save metadata to Den
         if self.rns_address.startswith("/"):
@@ -200,25 +197,18 @@ class Secret(Resource):
                 data=json.dumps(payload),
                 headers=headers,
             )
-            # If resource already saved in Den will return a 422
+
+            # If resource config hasn't changed (i.e. nothing to update) will return a 422
             if resp.status_code not in [200, 422]:
                 raise Exception(
                     f"Failed to save metadata to Den: {load_resp_content(resp)}"
                 )
 
         if save_values:
-            config_for_rns = self.config_for_rns
-
-            # If the resource is a builtin provider, set its name to the provider
-            secret_name = (
-                self.name
-                if config_for_rns.get("resource_subtype") == "Secret"
-                else config_for_rns["provider"]
-            )
-
             logger.info(f"Saving secrets for {self.name} to Vault")
+            resource_uri = rns_client.resource_uri(self.rns_address)
             resp = requests.put(
-                f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{secret_name}",
+                f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{resource_uri}",
                 data=json.dumps(
                     {"name": self.rns_address, "data": {"values": self.values}}
                 ),
@@ -239,14 +229,14 @@ class Secret(Resource):
         return self
 
     def delete(self, headers: str = rns_client.request_headers):
-        """Delete the secret config from Vault/local."""
+        """Delete the secret config from Den and from Vault/local."""
         if not self.in_vault() or self.is_local():
             logger.warning(
                 "Can not delete a secret that has not been saved down to Vault or local."
             )
 
         if self.rns_address.startswith("/"):
-            self._delete_vault_config(headers)
+            self._delete_secret_configs(headers)
         else:
             self._delete_local_config()
         configs.delete_provider(self.name)
@@ -256,16 +246,28 @@ class Secret(Resource):
         if os.path.exists(config_path):
             os.remove(config_path)
 
-    def _delete_vault_config(self, headers: str = rns_client.request_headers):
-        # Delete data from RNS & associated secrets in Vault
-        resource_uri = rns_client.format_rns_address(self.rns_address)
+    def _delete_secret_configs(self, headers: Optional[str] = None):
+        headers = headers or rns_client.request_headers
+
+        # Delete secrets in Vault
+        resource_uri = rns_client.resource_uri(self.rns_address)
+        resp = requests.delete(
+            f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{resource_uri}",
+            headers=headers,
+        )
+        if resp.status_code != 200:
+            logger.error(
+                f"Failed to delete secrets from Vault: {load_resp_content(resp)}"
+            )
+
+        # Delete RNS data for resource
         resp = requests.delete(
             f"{rns_client.api_server_url}/resource/{resource_uri}",
             headers=headers,
         )
         if resp.status_code != 200:
             logger.error(
-                f"Failed to delete secret {self.name}: {load_resp_content(resp)}"
+                f"Failed to delete secret resource from Den: {load_resp_content(resp)}"
             )
 
     def to(
@@ -301,11 +303,11 @@ class Secret(Resource):
             return True
         return False
 
-    def in_vault(self, headers=rns_client.request_headers):
+    def in_vault(self, headers=None):
         """Whether the secret is stored in Vault"""
         resp = requests.get(
             f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{self.name}",
-            headers=headers,
+            headers=headers or rns_client.request_headers,
         )
         if resp.status_code != 200:
             return False
