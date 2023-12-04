@@ -62,19 +62,18 @@ def parse_readme(readme: str) -> str:
 
 
 install_requires = [
-    "python-dotenv",
-    "fastapi",
+    "wheel",
+    "rich",
     "fsspec<=2023.5.0",
     "pyarrow",
-    "pyOpenSSL>=21.1.0",
-    "rich",
-    "sentry-sdk",
-    "skypilot==0.4.0",
-    "sshfs",
     "sshtunnel>=0.3.0",
+    "sshfs",
     "typer",
+    "skypilot==0.4.1",
+    "sentry-sdk",
+    "fastapi",
     "uvicorn",
-    "wheel",
+    "pyOpenSSL>=23.3.0",
 ]
 
 # NOTE: Change the templates/spot-controller.yaml.j2 file if any of the following
@@ -98,13 +97,6 @@ extras_require = {
         "sagemaker==2.135.0",  # SkyPilot depends on PyYAML<=5.3.1, which is incompatible with sagemaker>=2.135.0
         "paramiko>=3.2.0",
         "boto3>=1.26.131,<2.0",
-    ],
-    "opentelemetry": [
-        "opentelemetry-api",
-        "opentelemetry-instrumentation",
-        "opentelemetry-instrumentation-fastapi",
-        "opentelemetry-instrumentation-requests",
-        "opentelemetry-sdk",
     ],
 }
 

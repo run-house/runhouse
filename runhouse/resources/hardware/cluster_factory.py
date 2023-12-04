@@ -408,7 +408,11 @@ def kubernetes_cluster(
     namespace: str = "default",
     kube_config_path: str = None,
     context: str = None,
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 8440805 (feat(k8s): Runhouse k8s support functional)
 ) -> KubernetesCluster:
     """
     Builds an instance of :class:`KubernetesCluster`.

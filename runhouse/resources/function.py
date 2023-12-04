@@ -136,8 +136,8 @@ class Function(Module):
 
         # temporarily commented out the below to enable k8s support 
 
-        # new_env = env.to(new_function.system, force_install=force_install)
-        # new_function.env = new_env
+        new_env = env.to(new_function.system, force_install=force_install)
+        new_function.env = new_env
 
         new_function.dryrun = True
         system.put_resource(new_function, dryrun=True)

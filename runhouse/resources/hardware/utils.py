@@ -12,6 +12,7 @@ import yaml
 from sky.skylet import log_lib
 from sky.utils import subprocess_utils
 
+<<<<<<< HEAD
 from sky.utils.command_runner import (
     common_utils,
     GIT_EXCLUDE,
@@ -22,6 +23,23 @@ from sky.utils.command_runner import (
     SSHCommandRunner,
     SshMode,
 )
+=======
+from sky.utils.command_runner import ssh_options_list, SSHCommandRunner, SshMode
+from sky.utils import common_utils
+from sky.utils import subprocess_utils
+
+GIT_EXCLUDE = '.git/info/exclude'
+# Rsync options
+RSYNC_DISPLAY_OPTION = '-Pavz'
+# Legend
+#   dir-merge: ignore file can appear in any subdir, applies to that
+#     subdir downwards
+# Note that "-" is mandatory for rsync and means all patterns in the ignore
+# files are treated as *exclude* patterns.  Non-exclude patterns, e.g., "!
+# do_not_exclude" doesn't work, even though git allows it.
+RSYNC_FILTER_OPTION = '--filter=\'dir-merge,- .gitignore\''
+RSYNC_EXCLUDE_OPTION = '--exclude-from={}'
+>>>>>>> 8440805 (feat(k8s): Runhouse k8s support functional)
 
 logger = logging.getLogger(__name__)
 
@@ -297,6 +315,7 @@ class SkySSHRunner(SSHCommandRunner):
         for proc in self._tunnel_procs:
             proc.kill()
 
+
     def rsync(
         self,
         source: str,
@@ -304,7 +323,10 @@ class SkySSHRunner(SSHCommandRunner):
         *,
         up: bool,
         # Advanced options.
+<<<<<<< HEAD
         filter_options: Optional[str] = None,  # RH MODIFIED
+=======
+>>>>>>> 8440805 (feat(k8s): Runhouse k8s support functional)
         log_path: str = os.devnull,
         stream_logs: bool = True,
         max_retry: int = 1,
@@ -317,12 +339,18 @@ class SkySSHRunner(SSHCommandRunner):
             target: The target path.
             up: The direction of the sync, True for local to cluster, False
               for cluster to local.
+<<<<<<< HEAD
             filter_options: The filter options for rsync.
+=======
+>>>>>>> 8440805 (feat(k8s): Runhouse k8s support functional)
             log_path: Redirect stdout/stderr to the log_path.
             stream_logs: Stream logs to the stdout/stderr.
             max_retry: The maximum number of retries for the rsync command.
               This value should be non-negative.
+<<<<<<< HEAD
             return_cmd: If True, return the command string instead of running it.
+=======
+>>>>>>> 8440805 (feat(k8s): Runhouse k8s support functional)
 
         Raises:
             exceptions.CommandError: rsync command failed.
@@ -332,15 +360,23 @@ class SkySSHRunner(SSHCommandRunner):
         # shooting a lot of messages to the output. --info=progress2 is used
         # to get a total progress bar, but it requires rsync>=3.1.0 and Mac
         # OS has a default rsync==2.6.9 (16 years old).
+<<<<<<< HEAD
         rsync_command = ["rsync", RSYNC_DISPLAY_OPTION]
 
         # RH MODIFIED: add --filter option
         addtl_filter_options = f" --filter='{filter_options}'" if filter_options else ""
         rsync_command.append(RSYNC_FILTER_OPTION + addtl_filter_options)
+=======
+        rsync_command = ['rsync', RSYNC_DISPLAY_OPTION]
+
+        # --filter
+        rsync_command.append(RSYNC_FILTER_OPTION)
+>>>>>>> 8440805 (feat(k8s): Runhouse k8s support functional)
 
         if up:
             # The source is a local path, so we need to resolve it.
             # --exclude-from
+<<<<<<< HEAD
             resolved_source = pathlib.Path(source).expanduser().resolve()
             if (resolved_source / GIT_EXCLUDE).exists():
                 # Ensure file exists; otherwise, rsync will error out.
@@ -353,15 +389,37 @@ class SkySSHRunner(SSHCommandRunner):
         else:
             docker_ssh_proxy_command = None
         ssh_options = " ".join(
+=======
+            resolved_source = Path(source).expanduser().resolve()
+            if (resolved_source / GIT_EXCLUDE).exists():
+                # Ensure file exists; otherwise, rsync will error out.
+                #
+                # We shlex.quote() because the path may contain spaces:
+                #   'my dir/.git/info/exclude'
+                # Without quoting rsync fails.
+                rsync_command.append(
+                    RSYNC_EXCLUDE_OPTION.format(
+                        shlex.quote(str(resolved_source / GIT_EXCLUDE))))
+
+        if self._docker_ssh_proxy_command is not None:
+            docker_ssh_proxy_command = self._docker_ssh_proxy_command(['ssh'])
+        else:
+            docker_ssh_proxy_command = None
+        ssh_options = ' '.join(
+>>>>>>> 8440805 (feat(k8s): Runhouse k8s support functional)
             ssh_options_list(
                 self.ssh_private_key,
                 self.ssh_control_name,
                 ssh_proxy_command=self._ssh_proxy_command,
                 docker_ssh_proxy_command=docker_ssh_proxy_command,
                 port=self.port,
+<<<<<<< HEAD
                 disable_control_master=self.disable_control_master,
             )
         )
+=======
+                disable_control_master=self.disable_control_master))
+>>>>>>> 8440805 (feat(k8s): Runhouse k8s support functional)
         rsync_command.append(f'-e "ssh {ssh_options}"')
         # To support spaces in the path, we need to quote source and target.
         # rsync doesn't support '~' in a quoted local path, but it is ok to
@@ -369,6 +427,7 @@ class SkySSHRunner(SSHCommandRunner):
         if up:
             full_source_str = str(resolved_source)
             if resolved_source.is_dir():
+<<<<<<< HEAD
                 full_source_str = os.path.join(full_source_str, "")
             rsync_command.extend(
                 [
@@ -391,6 +450,22 @@ class SkySSHRunner(SSHCommandRunner):
         if return_cmd:
             return command
 
+=======
+                full_source_str = os.path.join(full_source_str, '')
+            rsync_command.extend([
+                f'{full_source_str!r}',
+                f'{self.ssh_user}@{self.ip}:{target!r}',
+            ])
+        else:
+            rsync_command.extend([
+                f'{self.ssh_user}@{self.ip}:{source!r}',
+                f'{os.path.expanduser(target)!r}',
+            ])
+        command = ' '.join(rsync_command)
+
+        command = command.replace("-o Port=True", "")
+
+>>>>>>> 8440805 (feat(k8s): Runhouse k8s support functional)
         backoff = common_utils.Backoff(initial_backoff=5, max_backoff_factor=5)
         while max_retry >= 0:
             returncode, _, stderr = log_lib.run_with_log(
@@ -398,13 +473,18 @@ class SkySSHRunner(SSHCommandRunner):
                 log_path=log_path,
                 stream_logs=stream_logs,
                 shell=True,
+<<<<<<< HEAD
                 require_outputs=True,
             )
+=======
+                require_outputs=True)
+>>>>>>> 8440805 (feat(k8s): Runhouse k8s support functional)
             if returncode == 0:
                 break
             max_retry -= 1
             time.sleep(backoff.current_backoff())
 
+<<<<<<< HEAD
         direction = "up" if up else "down"
         error_msg = (
             f"Failed to rsync {direction}: {source} -> {target}. "
@@ -413,3 +493,13 @@ class SkySSHRunner(SSHCommandRunner):
         subprocess_utils.handle_returncode(
             returncode, command, error_msg, stderr=stderr, stream_logs=stream_logs
         )
+=======
+        direction = 'up' if up else 'down'
+        error_msg = (f'Failed to rsync {direction}: {source} -> {target}. '
+                     'Ensure that the network is stable, then retry.')
+        subprocess_utils.handle_returncode(returncode,
+                                           command,
+                                           error_msg,
+                                           stderr=stderr,
+                                           stream_logs=stream_logs)
+>>>>>>> 8440805 (feat(k8s): Runhouse k8s support functional)
