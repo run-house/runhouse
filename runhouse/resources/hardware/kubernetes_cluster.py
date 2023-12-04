@@ -170,3 +170,32 @@ class KubernetesCluster(OnDemandCluster):
                 dest = dest[2:]
 
             self._fsspec_sync(source, dest, up)
+            
+    def ssh(self):
+        """SSH into the cluster.
+
+        Example:
+            >>> cluster = rh.kubernetes_cluster (
+                    name="cpu-cluster-05",
+                    instance_type="1CPU--1GB",
+                )
+            >>> cluster.ssh()
+        """
+        # Get pod name
+        command = f"kubectl get pods -n {self.namespace} | grep {self.name}"
+
+        try:
+
+            output = subprocess.check_output(command, shell=True, text=True)
+
+            lines = output.strip().split('\n')
+            if lines:
+                pod_name = lines[0].split()[0]
+            else:
+                print("No matching pods found.")
+        except subprocess.CalledProcessError as e:
+            print(f"Error: {e}")
+
+        cmd = f"kubectl exec -it {pod_name} -- /bin/bash"
+        subprocess.run(cmd, shell=True, check=True)
+
