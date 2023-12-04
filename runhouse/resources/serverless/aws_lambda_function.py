@@ -46,7 +46,6 @@ class AWSLambdaFunction(Function):
         "s3:GetObject",
         "s3:ListBucket",
         "s3:PutObject",
-        "kms:Decrypt",
     ]
     MAX_WAIT_TIME = 60  # seconds, max time that can pass before we raise an exception that AWS update takes too long.
     DEFAULT_REGION = "us-east-1"
@@ -234,8 +233,8 @@ class AWSLambdaFunction(Function):
 
         # adding code for installing python libraries
         reqs = self.env.reqs
-        # if "runhouse" not in reqs:
-        #     reqs.append("runhouse")
+        if "runhouse" not in reqs:
+            reqs.append("runhouse")
         if "./" in reqs:
             reqs.remove("./")
         for req in reqs:
