@@ -430,7 +430,6 @@ def test_create_local_ctx_manager_run(summer_func, ondemand_cpu_cluster):
     ]
 
 
-@pytest.mark.localtest
 @pytest.mark.runstest
 def test_load_named_ctx_manager_run():
     # Load from local file system

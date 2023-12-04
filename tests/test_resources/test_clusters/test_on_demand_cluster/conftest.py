@@ -12,7 +12,7 @@ from ....conftest import init_args
 
 @pytest.fixture(scope="session")
 def on_demand_cluster(request):
-    return request.getfixturevalue(request.param.__name__)
+    return request.getfixturevalue(request.param)
 
 
 @pytest.fixture(

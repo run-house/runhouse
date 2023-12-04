@@ -70,7 +70,7 @@ def _get_conda_yaml(conda_env=None):
             res = subprocess.check_output(
                 f"conda env export -n {conda_env} --no-build".split(" ")
             ).decode("utf-8")
-            conda_yaml = yaml.load(res)
+            conda_yaml = yaml.safe_load(res)
         else:
             raise Exception(
                 f"{conda_env} must be a Dict or point to an existing path or conda environment."

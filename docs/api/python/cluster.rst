@@ -138,11 +138,11 @@ instructions on creating and configuring an ARN Role.
 AWS CLI V2
 ^^^^^^^^^^
 
-Runhouse requires the AWS CLI V2 to be installed on your local machine.
+The SageMaker SDK uses AWS CLI V2, which must be installed on your local machine. Doing so requires one of two steps:
 
-- `Uninstall <https://docs.aws.amazon.com/cli/latest/userguide/cliv2-migration-instructions.html#cliv2-migration-instructions-migrate>`_ AWS CLI V1
+- `Migrate from V1 to V2 <https://docs.aws.amazon.com/cli/latest/userguide/cliv2-migration-instructions.html#cliv2-migration-instructions-migrate>`_
 
-- `Install <https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html>`_ AWS CLI V2
+- `Install V2 <https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html>`_
 
 
 To confirm the installation succeeded, run ``aws --version`` in the command line. You should see something like:

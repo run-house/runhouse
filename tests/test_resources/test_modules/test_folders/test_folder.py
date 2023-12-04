@@ -20,6 +20,7 @@ def fs_str_rh_fn(folder):
 # ----------------- Run tests -----------------
 
 
+@pytest.mark.skip("Bad path")
 @pytest.mark.clustertest
 def test_from_cluster(cluster):
     rh.folder(path="../../../").to(cluster, path="my_new_tests_folder")

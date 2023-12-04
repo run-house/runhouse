@@ -10,7 +10,7 @@ from .utils import create_gcs_bucket, create_s3_bucket
 @pytest.fixture
 def folder(request):
     """Parametrize over multiple folders - useful for running the same test on multiple storage types."""
-    return request.getfixturevalue(request.param.__name__)
+    return request.getfixturevalue(request.param)
 
 
 @pytest.fixture

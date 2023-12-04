@@ -62,6 +62,7 @@ class Function(Module):
         system = config["system"]
         if isinstance(system, str):
             config["system"] = globals.rns_client.load_config(name=system)
+            logging.info(f"Loaded system config {config} from RNS.")
             # if the system is set to a cluster
             if not config["system"]:
                 raise Exception(f"No cluster config saved for {system}")
@@ -326,16 +327,17 @@ class Function(Module):
         """
         # TODO let's just do this for functions initially, and decide if we want to support it for calls on modules
         #  as well. Right now this only works with remote=True, we should decide if we want to fix that later.
+
         if load:
             resource = globals.rns_client.load_config(name=run_name)
             if resource:
                 return Resource.from_name(name=run_name, dryrun=self.dryrun)
         try:
-            return self.system.get(run_name, default=KeyError, remote=True)
+            return self.system.get(run_name, default=KeyError)
         except KeyError:
             logger.info(f"Item {run_name} not found on cluster. Running function.")
 
-        return self.call(*args, **kwargs, run_name=run_name, remote=True)
+        return self.call(*args, **kwargs, run_name=run_name)
 
     def keep_warm(
         self,

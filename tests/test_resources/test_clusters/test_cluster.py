@@ -1,17 +1,9 @@
+import pytest
+
 import runhouse as rh
 
 import tests.test_resources.test_resource
 from tests.conftest import init_args
-
-from .conftest import (
-    local_docker_cluster_passwd,
-    local_docker_cluster_public_key,
-    local_logged_out_docker_cluster,
-    local_test_account_cluster_public_key,
-    named_cluster,
-    password_cluster,
-    static_cpu_cluster,
-)
 
 """ TODO:
 1) In subclasses, test factory methods create same type as parent
@@ -20,24 +12,34 @@ from .conftest import (
 """
 
 
+def save_resource_and_return_config():
+    import pandas as pd
+
+    df = pd.DataFrame(
+        {"id": [1, 2, 3, 4, 5, 6], "grade": ["a", "b", "b", "a", "a", "e"]}
+    )
+    table = rh.table(df, name="test_table")
+    return table.config_for_rns
+
+
 class TestCluster(tests.test_resources.test_resource.TestResource):
 
     MAP_FIXTURES = {"resource": "cluster"}
 
-    UNIT = {"cluster": [local_docker_cluster_public_key]}
+    UNIT = {"cluster": ["named_cluster"]}
     LOCAL = {
         "cluster": [
-            named_cluster,
-            local_docker_cluster_public_key,
-            local_docker_cluster_passwd,
-            local_logged_out_docker_cluster,
-            local_test_account_cluster_public_key,
+            "local_docker_cluster_public_key_logged_in",
+            "local_docker_cluster_public_key_logged_out",
+            "local_docker_cluster_telemetry_public_key",
+            "local_docker_cluster_passwd",
         ]
     }
-    REMOTE = {"cluster": [static_cpu_cluster]}
-    FULL = {"cluster": [named_cluster, password_cluster]}
-    ALL = {"cluster": [named_cluster, password_cluster]}
+    MINIMAL = {"cluster": ["static_cpu_cluster"]}
+    THOROUGH = {"cluster": ["static_cpu_cluster", "password_cluster"]}
+    MAXIMAL = {"cluster": ["static_cpu_cluster", "password_cluster"]}
 
+    @pytest.mark.level("unit")
     def test_cluster_factory_and_properties(self, cluster):
         assert isinstance(cluster, rh.Cluster)
         args = init_args[id(cluster)]
@@ -79,3 +81,29 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         else:
             # TODO: Test default behavior
             pass
+
+    @pytest.mark.level("local")
+    def test_logged_in_local_cluster(self, local_docker_cluster_public_key_logged_in):
+        save_resource_and_return_config_cluster = rh.function(
+            save_resource_and_return_config,
+            name="save_resource_and_return_config_cluster",
+            system=local_docker_cluster_public_key_logged_in,
+        )
+        saved_config_on_cluster = save_resource_and_return_config_cluster()
+        # This cluster was created using our own logged in Runhouse config. Make sure that the simple resource
+        # created on the cluster starts with /default_folder, e.g. /rohinb2/<resource>s
+        assert saved_config_on_cluster["name"].startswith(
+            rh.configs.defaults_cache["default_folder"]
+        )
+
+    @pytest.mark.level("local")
+    def test_logged_out_local_cluster(self, local_docker_cluster_public_key_logged_out):
+        save_resource_and_return_config_cluster = rh.function(
+            save_resource_and_return_config,
+            name="save_resource_and_return_config_cluster",
+            system=local_docker_cluster_public_key_logged_out,
+        )
+        saved_config_on_cluster = save_resource_and_return_config_cluster()
+        # This cluster was created without any logged in Runhouse config. Make sure that the simple resource
+        # created on the cluster starts with "~", which is the prefix that local Runhouse configs are saved with.
+        assert saved_config_on_cluster["name"].startswith("~")

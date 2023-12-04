@@ -8,7 +8,7 @@ from tests.conftest import init_args
 @pytest.fixture(scope="session")
 def package(request):
     """Parametrize over multiple packages - useful for running the same test on multiple storage types."""
-    return request.getfixturevalue(request.param.__name__)
+    return request.getfixturevalue(request.param)
 
 
 @pytest.fixture

@@ -1,12 +1,57 @@
 import contextlib
 import enum
-import os
-
-import dotenv
 
 import pytest
 
-import runhouse as rh
+from runhouse.globals import rns_client
+
+"""
+HOW TO USE FIXTURES IN RUNHOUSE TESTS
+
+You can parameterize a fixture to run on many variations for any test.
+
+Make sure your parameterized fixture is defined in this file (can be imported from some other file)
+like so:
+
+@pytest.fixture(scope="function")
+def cluster(request):
+    return request.getfixturevalue(request.param)
+
+You can define default_fixtures for any parameterized fixture below.
+
+You can use MAP_FIXTURES to map a parameterized fixture to a different name. This
+is useful if you have a subclass that you want to test the parent's parameterized
+fixtures with.  Moreover, you can override the fixture parameters in your actual Test class.
+See examples for both of these below:
+
+class TestCluster(tests.test_resources.test_resource.TestResource):
+
+    MAP_FIXTURES = {"resource": "cluster"}
+
+    UNIT = {"cluster": ["named_cluster"]}
+    LOCAL = {
+        "cluster": [
+            "local_docker_cluster_public_key_logged_in",
+            "local_docker_cluster_public_key_logged_out",
+            "local_docker_cluster_telemetry_public_key",
+            "local_docker_cluster_passwd",
+        ]
+    }
+    MINIMAL = {"cluster": ["static_cpu_cluster"]}
+    THOROUGH = {"cluster": ["static_cpu_cluster", "password_cluster"]}
+    MAXIMAL = {"cluster": ["static_cpu_cluster", "password_cluster"]}
+
+Some key things to avoid:
+- Avoid ever importing from any conftest.py file. This can cause erratic
+behavior in fixture initialization, and should always be avoided. Put test
+utility items in `tests/<some path>` and import from there instead.
+
+- Avoid using nested conftest.py files if we can avoid it. We should be
+able to put most of our info in our top level conftest.py file, with
+`tests/fixtures/<some path>` as an organizational spot for more fixtures.
+Imports that you see below from nested conftest.py files will slowly be eliminated.
+
+"""
 
 
 class TestLevels(str, enum.Enum):
@@ -18,6 +63,14 @@ class TestLevels(str, enum.Enum):
 
 
 DEFAULT_LEVEL = TestLevels.UNIT
+
+TEST_LEVEL_HIERARCHY = {
+    TestLevels.UNIT: 0,
+    TestLevels.LOCAL: 1,
+    TestLevels.MINIMAL: 2,
+    TestLevels.THOROUGH: 3,
+    TestLevels.MAXIMAL: 4,
+}
 
 
 def pytest_addoption(parser):
@@ -32,6 +85,18 @@ def pytest_addoption(parser):
         action="store_true",
         default=False,
         help="Force rebuild of the relevant Runhouse image",
+    )
+    parser.addoption(
+        "--detached",
+        action="store_true",
+        default=False,
+        help="Whether to run container in detached mode",
+    )
+    parser.addoption(
+        "--ignore-filters",
+        action="store_true",
+        default=False,
+        help="Don't filter tests by marks.",
     )
 
 
@@ -54,6 +119,24 @@ def pytest_generate_tests(metafunc):
             metafunc.parametrize(fixture_name, fixture_list, indirect=True)
 
 
+def pytest_collection_modifyitems(config, items):
+    ignore_filters = config.getoption("ignore_filters")
+    request_level = config.getoption("level")
+    if not ignore_filters:
+        new_items = []
+
+        for item in items:
+            test_level = item.get_closest_marker("level")
+            if (
+                test_level is not None
+                and TEST_LEVEL_HIERARCHY[test_level.args[0]]
+                <= TEST_LEVEL_HIERARCHY[request_level]
+            ):
+                new_items.append(item)
+
+        items[:] = new_items
+
+
 def pytest_configure():
     pytest.init_args = {}
 
@@ -66,55 +149,36 @@ init_args = {}
 ############## HELPERS ##############
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 @contextlib.contextmanager
 def test_account():
     """Used for the purposes of testing resource sharing among different accounts.
     When inside the context manager, use the test account credentials before reverting back to the original
     account when exiting."""
-    dotenv.load_dotenv()
-
-    test_token = os.getenv("TEST_TOKEN")
-    test_username = os.getenv("TEST_USERNAME")
-    assert test_token and test_username
-
-    current_token = rh.configs.get("token")
-    current_username = rh.configs.get("username")
 
     try:
-        # Assume the role of the test account when inside the context manager
-        test_account_token = test_token
-        test_account_username = test_username
-        test_account_folder = f"/{test_account_username}"
-
-        # Hack to avoid actually writing down these values, in case the user stops mid-test and we don't reach the
-        # finally block
-        rh.configs.defaults_cache["token"] = test_account_token
-        rh.configs.defaults_cache["username"] = test_account_username
-        rh.configs.defaults_cache["default_folder"] = test_account_folder
-
-        yield {
-            "test_token": test_account_token,
-            "test_username": test_account_username,
-            "test_folder": test_account_folder,
-        }
+        account = rns_client.load_account_from_env()
+        if account is None:
+            pytest.skip("`TEST_TOKEN` or `TEST_USERNAME` not set, skipping test.")
+        yield account
 
     finally:
-        # Reset configs back to original account
-        rh.configs.defaults_cache["token"] = current_token
-        rh.configs.defaults_cache["username"] = current_username
-        rh.configs.defaults_cache["default_folder"] = f"/{current_username}"
+        rns_client.load_account_from_file()
 
 
 # ----------------- Clusters -----------------
 
-from tests.test_resources.test_clusters.conftest import (
+from tests.fixtures.local_docker_cluster_fixtures import (
     build_and_run_image,  # noqa: F401
     byo_cpu,  # noqa: F401
     cluster,  # noqa: F401
     local_docker_cluster_passwd,  # noqa: F401
     local_docker_cluster_public_key,  # noqa: F401
-    local_logged_out_docker_cluster,  # noqa: F401
+    local_docker_cluster_public_key_den_auth,  # noqa: F401
+    local_docker_cluster_public_key_logged_in,  # noqa: F401
+    local_docker_cluster_public_key_logged_out,  # noqa: F401
+    local_docker_cluster_telemetry_public_key,  # noqa: F401
+    local_docker_cluster_with_nginx,  # noqa: F401
     local_test_account_cluster_public_key,  # noqa: F401
     named_cluster,  # noqa: F401
     password_cluster,  # noqa: F401
@@ -140,14 +204,19 @@ from tests.test_resources.test_clusters.test_sagemaker_cluster.conftest import (
 # ----------------- Envs -----------------
 
 from tests.test_resources.test_envs.conftest import (
+    base_conda_env,  # noqa: F401
+    base_env,  # noqa: F401
+    conda_env_from_dict,  # noqa: F401
+    conda_env_from_local,  # noqa: F401
+    conda_env_from_path,  # noqa: F401
     env,  # noqa: F401
-    test_env,  # noqa: F401
 )
 
 # ----------------- Blobs -----------------
 
 from tests.test_resources.test_modules.test_blobs.conftest import (
     blob,  # noqa: F401
+    blob_data,  # noqa: F401
     cluster_blob,  # noqa: F401
     cluster_file,  # noqa: F401
     file,  # noqa: F401
@@ -204,28 +273,40 @@ from tests.test_resources.test_modules.test_tables.conftest import (
 ########## DEFAULT LEVELS ##########
 
 default_fixtures = {}
-default_fixtures[TestLevels.UNIT] = {"cluster": [local_docker_cluster_public_key]}
-default_fixtures[TestLevels.LOCAL] = {
-    "cluster": [local_docker_cluster_passwd, local_docker_cluster_public_key]
+default_fixtures[TestLevels.UNIT] = {
+    "cluster": [
+        "local_docker_cluster_public_key_logged_in",
+        "local_docker_cluster_public_key_logged_out",
+    ]
 }
-default_fixtures[TestLevels.MINIMAL] = {"cluster": [ondemand_cpu_cluster]}
+default_fixtures[TestLevels.LOCAL] = {
+    "cluster": [
+        "local_docker_cluster_public_key_logged_in",
+        "local_docker_cluster_public_key_logged_out",
+        "local_docker_cluster_passwd",
+    ]
+}
+default_fixtures[TestLevels.MINIMAL] = {"cluster": ["ondemand_cpu_cluster"]}
 default_fixtures[TestLevels.THOROUGH] = {
     "cluster": [
-        local_docker_cluster_passwd,
-        local_docker_cluster_public_key,
-        ondemand_cpu_cluster,
-        ondemand_https_cluster_with_auth,
-        password_cluster,
-        byo_cpu,
+        "local_docker_cluster_passwd",
+        "local_docker_cluster_public_key_logged_in",
+        "local_docker_cluster_public_key_logged_out",
+        "ondemand_cpu_cluster",
+        "ondemand_https_cluster_with_auth",
+        "password_cluster",
+        "static_cpu_cluster",
     ]
 }
 default_fixtures[TestLevels.MAXIMAL] = {
     "cluster": [
-        local_docker_cluster_passwd,
-        local_docker_cluster_public_key,
-        ondemand_cpu_cluster,
-        ondemand_https_cluster_with_auth,
-        password_cluster,
-        byo_cpu,
+        "local_docker_cluster_passwd",
+        "local_docker_cluster_public_key_logged_in",
+        "local_docker_cluster_public_key_logged_out",
+        "local_docker_cluster_telemetry_public_key",
+        "ondemand_cpu_cluster",
+        "ondemand_https_cluster_with_auth",
+        "password_cluster",
+        "static_cpu_cluster",
     ]
 }

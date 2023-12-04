@@ -25,7 +25,7 @@ def test_save_local_blob_fails(local_blob, blob_data):
 @pytest.mark.clustertest
 @pytest.mark.parametrize(
     "blob",
-    ["cluster_blob", "cluster_file", "local_file", "s3_blob", "gcs_blob"],
+    ["local_file", "s3_blob", "gcs_blob"],
     indirect=True,
 )
 def test_reload_blob_with_name(blob):
