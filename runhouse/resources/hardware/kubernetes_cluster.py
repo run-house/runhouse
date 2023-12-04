@@ -5,6 +5,7 @@ import logging
 import os
 from runhouse.resources.hardware.utils import SkySSHRunner
 import copy
+import warnings 
 
 from .on_demand_cluster import OnDemandCluster
 
@@ -36,12 +37,18 @@ class KubernetesCluster(OnDemandCluster):
         self.kube_config_path = kube_config_path
         self.context = context
 
+        if self.instance_type is None:
+            raise ValueError("You must specify an instance type")
+        
+        if self.name is None:
+            raise ValueError("You must specify a name for your cluster")
+
         if self.context is not None and self.namespace is not None:
-            print("Warning: You passed both a context and a namespace. The namespace will be ignored.")
+            warnings.warn("You passed both a context and a namespace. The namespace will be ignored.", UserWarning)
             self.namespace = None
 
-        cmd = f"kubectl config set-context --current --namespace={self.namespace}"
 
+        cmd = f"kubectl config set-context --current --namespace={self.namespace}"
         try:
             process = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             print(process.stdout)
