@@ -107,7 +107,7 @@ class Function(Module):
             env = env or self.env or Env(name=Env.DEFAULT_NAME)
             env = _get_env_from(env)
 
-        if system.upper() == "AWS_LAMBDA":
+        if isinstance(system, str) and system.upper() == "AWS_LAMBDA":
             from runhouse.resources.serverless import aws_lambda_function
 
             return aws_lambda_function(

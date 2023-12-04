@@ -46,6 +46,7 @@ class AWSLambdaFunction(Function):
         "s3:GetObject",
         "s3:ListBucket",
         "s3:PutObject",
+        "kms:Decrypt",
     ]
     MAX_WAIT_TIME = 60  # seconds, max time that can pass before we raise an exception that AWS update takes too long.
     DEFAULT_REGION = "us-east-1"
@@ -510,7 +511,7 @@ class AWSLambdaFunction(Function):
             time.sleep(1)
             lambdas_log_groups = self._get_log_group_names(log_group_prefix)
             time_passed += 1
-        return True
+        yield True
 
     def _invoke(self, *args, **kwargs) -> Any:
         log_group_prefix = "/aws/lambda/"
