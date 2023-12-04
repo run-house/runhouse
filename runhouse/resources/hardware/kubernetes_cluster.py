@@ -32,11 +32,13 @@ class KubernetesCluster(OnDemandCluster):
             **kwargs,
         )
 
-        # TODO: add error handling so that user doesn't mess up passing in context and namespaces
-
         self.namespace = namespace
         self.kube_config_path = kube_config_path
         self.context = context
+
+        if self.context is not None and self.namespace is not None:
+            print("Warning: You passed both a context and a namespace. The namespace will be ignored.")
+            self.namespace = None
 
         cmd = f"kubectl config set-context --current --namespace={self.namespace}"
 
