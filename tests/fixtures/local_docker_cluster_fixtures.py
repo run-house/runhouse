@@ -489,7 +489,7 @@ def local_docker_cluster_with_nginx(request):
 
 
 @pytest.fixture(scope="function")
-def local_test_account_cluster_public_key(request, test_account, detached=True):
+def local_test_account_cluster_public_key(request, test_account):
     """
     This fixture is not parameterized for every test; it is a separate cluster started with a test account
     (username: kitchen_tester) in order to test sharing resources with other users.
@@ -516,10 +516,8 @@ def local_test_account_cluster_public_key(request, test_account, detached=True):
             },
         )
 
-    # Yield the cluster
     yield local_cluster
 
-    # Stop the Docker container
     cleanup()
 
 
