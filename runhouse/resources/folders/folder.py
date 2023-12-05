@@ -429,6 +429,8 @@ class Folder(Resource):
         )
         self.fsspec_fs.mkdirs(folder_path, exist_ok=True)
 
+        return self
+
     def mount(self, path: Optional[str] = None, tmp: bool = False) -> str:
         """Mount the folder locally.
 

@@ -1,4 +1,6 @@
+import subprocess
 import warnings
+
 from typing import Dict, List, Optional, Union
 
 from runhouse.resources.hardware.utils import (
@@ -76,11 +78,28 @@ def cluster(
             "``ips`` argument has been deprecated. Please use ``host`` to refer to the cluster IPs or host instead."
         )
 
-    if "localhost" in host or ":" in host:
+    if name and all(
+        not x
+        for x in [
+            host,
+            ssh_creds,
+            server_port,
+            server_host,
+            server_connection_type,
+            ssl_keyfile,
+            ssl_certfile,
+            den_auth,
+            kwargs,
+        ]
+    ):
+        # If only the name is provided
+        return Cluster.from_name(name, dryrun)
+
+    if host and ("localhost" in host or ":" in host):
         server_connection_type = server_connection_type or ServerConnectionType.NONE
         if ":" in host:
             # e.g. "localhost:23324" or <real_ip>:<custom port> (e.g. a port is already open to the server)
-            host, client_port = self.address.split(":")
+            host, client_port = host.split(":")
             kwargs["client_port"] = client_port
 
     server_connection_type = server_connection_type or (
@@ -96,23 +115,6 @@ def cluster(
             server_port = Cluster.DEFAULT_HTTP_PORT
         else:
             server_port = Cluster.DEFAULT_SERVER_PORT
-
-    if name and all(
-        x is None
-        for x in [
-            host,
-            ssh_creds,
-            server_port,
-            server_host,
-            server_connection_type,
-            ssl_keyfile,
-            ssl_certfile,
-            den_auth,
-            kwargs,
-        ]
-    ):
-        # If only the name is provided
-        return Cluster.from_name(name, dryrun)
 
     if name in RESERVED_SYSTEM_NAMES:
         raise ValueError(
@@ -166,6 +168,9 @@ def cluster(
             f"Cluster does not support server connection type of {server_connection_type}"
         )
 
+    if isinstance(host, str):
+        host = [host]
+
     c = Cluster(
         ips=host,
         ssh_creds=ssh_creds,
@@ -206,6 +211,7 @@ def ondemand_cluster(
     ssl_certfile: str = None,
     den_auth: bool = False,
     dryrun: bool = False,
+    **kwargs,
 ) -> OnDemandCluster:
     """
     Builds an instance of :class:`OnDemandCluster`. Note that image_id, region, memory, disk_size, and open_ports
@@ -303,7 +309,7 @@ def ondemand_cluster(
 
     if open_ports:
         open_ports = [str(p) for p in open_ports]
-        if server_port in open_ports:
+        if str(server_port) in open_ports:
             if (
                 server_connection_type
                 in [ServerConnectionType.TLS, ServerConnectionType.NONE]
@@ -415,6 +421,7 @@ def sagemaker_cluster(
     ssl_certfile: str = None,
     den_auth: bool = False,
     dryrun: bool = False,
+    **kwargs,
 ) -> SageMakerCluster:
     """
     Builds an instance of :class:`SageMakerCluster`.
@@ -454,9 +461,7 @@ def sagemaker_cluster(
             If no estimator is provided, will default to ``0``.
         job_name (str, optional): Name to provide for a training job. If not provided will generate a default name
             based on the image name and current timestamp (e.g. ``pytorch-training-2023-08-28-20-57-55-113``).
-        server_port (bool, optional): Port to use for the server. If not provided will use 80 for a
-            ``server_connection_type`` of ``none``, 443 for ``tls`` and ``32300`` for all other SSH connection types.
-            *Note: For SageMaker will use ``32300`` since the connection will always be made via SSH.*
+        server_port (bool, optional): Port to use for the server (Default: ``32300``).
         server_host (bool, optional): Host from which the server listens for traffic (i.e. the --host argument
             `runhouse start` run on the cluster).
             *Note: For SageMaker, since we connect to the Runhouse API server via an SSH tunnel, the only valid
@@ -494,6 +499,17 @@ def sagemaker_cluster(
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.sagemaker_cluster(name="sagemaker-cluster")
     """
+    if (
+        "aws-cli/2."
+        not in subprocess.run(
+            ["aws", "--version"], capture_output=True, text=True
+        ).stdout
+    ):
+        raise RuntimeError(
+            "SageMaker SDK requires AWS CLI v2. You may also need to run `pip uninstall awscli` to ensure the right "
+            "version is being used. For more info: https://www.run.house/docs/api/python/cluster#id2"
+        )
+
     ssh_key_path = relative_ssh_path(ssh_key_path) if ssh_key_path else None
 
     if (

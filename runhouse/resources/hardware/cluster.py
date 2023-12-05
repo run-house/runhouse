@@ -74,6 +74,7 @@ class Cluster(Resource):
         ssl_keyfile: str = None,
         ssl_certfile: str = None,
         den_auth: bool = False,
+        use_local_telemetry: bool = False,
         dryrun=False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
@@ -89,11 +90,9 @@ class Cluster(Resource):
 
         super().__init__(name=name, dryrun=dryrun)
 
-        self.address = ips[0] if isinstance(ips, List) else ips
         self._ssh_creds = ssh_creds
         self.ips = ips
         self._rpc_tunnel = None
-        self._rh_version = None
 
         self.client = None
         self.den_auth = den_auth
@@ -106,6 +105,16 @@ class Cluster(Resource):
         self.client_port = client_port
         self.ssh_port = ssh_port or self.DEFAULT_SSH_PORT
         self.server_host = server_host
+        self.use_local_telemetry = use_local_telemetry
+
+    @property
+    def address(self):
+        return self.ips[0] if isinstance(self.ips, List) else None
+
+    @address.setter
+    def address(self, addr):
+        self.ips = self.ips or [None]
+        self.ips[0] = addr
 
     def save_config_to_cluster(self):
         import json
@@ -149,12 +158,13 @@ class Cluster(Resource):
                 "server_host",
                 "server_connection_type",
                 "den_auth",
+                "use_local_telemetry",
+                "ssh_port",
+                "client_port",
             ],
         )
-        if self.ips is not None:
+        if self.is_up():
             config["ssh_creds"] = self.ssh_creds()
-        else:
-            config["ips"] = [self.address]
 
         if self._use_custom_cert:
             config["ssl_certfile"] = self.cert_config.cert_path
@@ -382,12 +392,11 @@ class Cluster(Resource):
         if self._rpc_tunnel and force_reconnect:
             self._rpc_tunnel.close()
 
-        tunnel_refcount = 0
         ssh_tunnel = None
-        connected_port = self.server_port
-        if self.address in open_cluster_tunnels:
-            ssh_tunnel, connected_port, tunnel_refcount = open_cluster_tunnels[
-                self.address
+        connected_port = None
+        if (self.address, self.ssh_port) in open_cluster_tunnels:
+            ssh_tunnel, connected_port = open_cluster_tunnels[
+                (self.address, self.ssh_port)
             ]
             if isinstance(ssh_tunnel, SSHTunnelForwarder):
                 ssh_tunnel.check_tunnels()
@@ -401,15 +410,14 @@ class Cluster(Resource):
         ):
             # Case 3: server connection requires SSH tunnel, but we don't have one up yet
             self._rpc_tunnel, connected_port = self.ssh_tunnel(
-                self.server_port,
+                local_port=self.server_port,
                 remote_port=self.server_port,
-                num_ports_to_try=5,
+                num_ports_to_try=10,
             )
 
-        open_cluster_tunnels[self.address] = (
+        open_cluster_tunnels[(self.address, self.ssh_port)] = (
             self._rpc_tunnel,
             connected_port,
-            tunnel_refcount + 1,
         )
 
         if self._rpc_tunnel:
@@ -417,7 +425,7 @@ class Cluster(Resource):
                 f"Connecting to server via SSH, port forwarding via port {connected_port}."
             )
 
-        self.client_port = self.client_port or connected_port
+        self.client_port = connected_port or self.client_port or self.server_port
         use_https = self._use_https
         cert_path = self.cert_config.cert_path if use_https else None
 
@@ -483,7 +491,7 @@ class Cluster(Resource):
                     self.up_if_not()
                 elif restart_server:
                     logger.info(
-                        f"Server {self.name} is up, but the HTTP server may not be up."
+                        f"Server {self.name} is up, but the Runhouse API server may not be up."
                     )
                     self.restart_server()
                     for i in range(5):
@@ -497,20 +505,9 @@ class Cluster(Resource):
                             requests.exceptions.ReadTimeout,
                         ) as error:
                             if i == 5:
-                                print(error)
+                                logger.error(error)
                             time.sleep(5)
-                raise ValueError(f"Could not connect to cluster <{self.name}>")
-
-        import runhouse
-
-        if self._rh_version is None:
-            self._rh_version = self._get_rh_version()
-
-        if not runhouse.__version__ == self._rh_version:
-            logger.warning(
-                f"Server was started with Runhouse version ({self._rh_version}), "
-                f"but local Runhouse version is ({runhouse.__version__})"
-            )
+                raise ValueError(f"Could not connect to server {self.name}")
 
         return
 
@@ -521,6 +518,15 @@ class Cluster(Resource):
         # netstat -vanp tcp | grep 32300
         # lsof -i :32300
         # kill -9 <pid>
+        open_tunnels = open_cluster_tunnels.get((self.address, self.ssh_port), [])
+        for (tunnel, port) in open_tunnels:
+            if port == local_port and tunnel.remote_bind_address[1] == (
+                remote_port or local_port
+            ):
+                logger.info(
+                    f"SSH tunnel on ports {local_port, remote_port} already created with the cluster"
+                )
+                return tunnel, local_port
 
         creds: dict = self.ssh_creds()
         connected = False
@@ -617,6 +623,7 @@ class Cluster(Resource):
         force_reinstall,
         use_nginx,
         certs_address,
+        use_local_telemetry,
     ):
         cmds = []
         if restart:
@@ -678,6 +685,13 @@ class Cluster(Resource):
         if address_flag:
             logger.info(f"Server public IP address: {certs_address}.")
             flags.append(address_flag)
+
+        use_local_telemetry_flag = (
+            " --use-local-telemetry" if use_local_telemetry else ""
+        )
+        if use_local_telemetry_flag:
+            logger.info("Configuring local telemetry on the cluster.")
+            flags.append(use_local_telemetry_flag)
 
         logger.info(
             f"Starting API server using the following command: {server_start_cmd}."
@@ -755,6 +769,8 @@ class Cluster(Resource):
 
         https_flag = self._use_https
         nginx_flag = self._use_nginx
+        use_local_telemetry = self.use_local_telemetry
+
         cmd = (
             self.CLI_RESTART_CMD
             + (" --no-restart-ray" if not restart_ray else "")
@@ -763,6 +779,8 @@ class Cluster(Resource):
             + (" --restart-proxy" if restart_proxy and nginx_flag else "")
             + (f" --ssl-certfile {cluster_cert_path}" if use_custom_cert else "")
             + (f" --ssl-keyfile {cluster_key_path}" if use_custom_key else "")
+            + (" --use-local-telemetry" if use_local_telemetry else "")
+            + f" --port {self.server_port}"
         )
 
         cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd
@@ -783,8 +801,6 @@ class Cluster(Resource):
             # Refresh the client params to use HTTPS
             self.client.use_https = https_flag
             self.client.cert_path = self.cert_config.cert_path
-
-        self._rh_version = self._get_rh_version()
 
         return status_codes
 
@@ -890,7 +906,7 @@ class Cluster(Resource):
             source = source + "/" if not source.endswith("/") else source
             dest = dest + "/" if not dest.endswith("/") else dest
 
-        ssh_credentials = copy.copy(self.ssh_creds())
+        ssh_credentials = copy.copy(self.ssh_creds()) or {}
         ssh_credentials.pop("ssh_host", self.address)
         pwd = ssh_credentials.pop("password", None)
 
@@ -900,6 +916,7 @@ class Cluster(Resource):
                 runner.run(["mkdir", "-p", dest], stream_logs=False)
             else:
                 Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
+
             runner.rsync(
                 source,
                 dest,
@@ -907,6 +924,7 @@ class Cluster(Resource):
                 filter_options=filter_options,
                 stream_logs=stream_logs,
             )
+
         else:
             import pexpect
 
@@ -973,11 +991,6 @@ class Cluster(Resource):
         if ssh_call.is_alive():
             raise TimeoutError("SSH call timed out")
         return True
-
-    def _get_rh_version(self):
-        return self.run_python(["import runhouse", "print(runhouse.__version__)"])[0][
-            1
-        ].strip()
 
     def run(
         self,
@@ -1121,6 +1134,7 @@ class Cluster(Resource):
         # If invoking a run as part of the python commands also return the Run object
         return_codes = self.run(
             [formatted_command],
+            env=env,
             stream_logs=stream_logs,
             port_forward=port_forward,
             run_name=run_name,

@@ -1,8 +1,6 @@
 import os
 import unittest
 
-import pytest
-
 import runhouse as rh
 import sky
 from runhouse.rns.login import _login_download_secrets
@@ -36,7 +34,6 @@ def add_secrets_to_vault(headers):
     ).save(headers=headers)
 
 
-@pytest.mark.logintest
 def test_login_flow_in_new_env():
     token = os.getenv("TEST_TOKEN")
     headers = {"Authorization": f"Bearer {token}"}

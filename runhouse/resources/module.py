@@ -82,6 +82,8 @@ LOCAL_METHODS = [
     "to",
     "unname",
     "provenance",
+    "refresh",
+    "get_or_to",
 ]
 
 
@@ -305,7 +307,7 @@ class Module(Resource):
         # doesn't wipe the client of this function's cluster when deepcopy copies it.
         hw_backup = self.system
         self.system = None
-        new_module = copy.deepcopy(self)
+        new_module = copy.copy(self)
         self.system = hw_backup
 
         new_module.system = system
@@ -796,14 +798,18 @@ class Module(Resource):
         """Register the resource and save to local working_dir config and RNS config store."""
         # Need to override Resource's save to handle key changes in the obj store
         # Also check that this is a Blob and not a File
-        if name and not self.name == name:
-            if overwrite:
-                self.rename(name)
-            else:
-                self.name = name
-                if isinstance(self.system, Cluster):
-                    self.system.put_resource(self)
-        return super().save(name=name, overwrite=overwrite)
+        if name:
+            _, base_name = rns_client.split_rns_name_and_path(
+                rns_client.resolve_rns_path(name)
+            )
+            if self.name != base_name:
+                if overwrite:
+                    self.rename(name)
+                else:
+                    self.name = name
+                    if isinstance(self.system, Cluster):
+                        self.system.put_resource(self)
+        return super().save(overwrite=overwrite)
 
     @staticmethod
     def _extract_pointers(raw_cls_or_fn: Union[Type, Callable], reqs: List[str]):
@@ -942,9 +948,11 @@ def _module_subclass_factory(cls, pointers, signature=None):
         # Create a copy of the item on the cluster under the new name
         new_module.name = name or self.name
         new_module.dryrun = dryrun
-        if not new_module.dryrun:
+        if not new_module.dryrun and new_module.system:
             new_module.system.put_resource(new_module)
             new_module.system.call(new_module.name, "_remote_init", *args, **kwargs)
+        else:
+            new_module._remote_init(*args, **kwargs)
 
         return new_module
 

@@ -15,13 +15,6 @@ from tests.test_obj_store import (
     test_tqdm_streaming,  # noqa: F401
 )
 
-from tests.test_resources.test_modules.test_module import (
-    test_call_module_method,  # noqa: F401
-    test_module_from_factory,  # noqa: F401
-    test_module_from_subclass,  # noqa: F401
-    test_module_from_subclass_async,  # noqa: F401
-)
-
 logger = logging.getLogger(__name__)
 
 UNIT = {"cluster": [local_docker_cluster_passwd]}

@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 from runhouse.resources.envs import _get_env_from, Env
@@ -118,7 +119,7 @@ class Blob(Module):
 def blob(
     data: [Any] = None,
     name: Optional[str] = None,
-    path: Optional[str] = None,
+    path: Optional[Union[str, Path]] = None,
     system: Optional[str] = None,
     env: Optional[Union[str, Env]] = None,
     data_config: Optional[Dict] = None,
@@ -130,7 +131,7 @@ def blob(
     Args:
         data: Blob data. The data to persist either on the cluster or in the filesystem.
         name (Optional[str]): Name to give the blob object, to be reused later on.
-        path (Optional[str]): Path (or path) to the blob object. Specfying a path will force the blob to be
+        path (Optional[str or Path]): Path (or path) to the blob object. Specfying a path will force the blob to be
             saved to the filesystem rather than persist in the cluster's object store.
         system (Optional[str or Cluster]): File system or cluster name. If providing a file system this must be one of:
             [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].

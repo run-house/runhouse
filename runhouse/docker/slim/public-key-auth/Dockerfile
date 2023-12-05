@@ -13,7 +13,7 @@ RUN mkdir -p /app/ssh
 
 # Install the required packages
 RUN apt-get update --allow-insecure-repositories && \
-    apt-get install -y --no-install-recommends gcc python3-dev openssh-server rsync supervisor screen curl && \
+    apt-get install -y --no-install-recommends gcc python3-dev openssh-server rsync supervisor screen curl sudo ufw git && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
@@ -21,13 +21,13 @@ RUN apt-get update --allow-insecure-repositories && \
 COPY $RUNHOUSE_PATH /app/runhouse
 
 # If using a local version of runhouse, install it from the local directory
-RUN if [ -d "/app/runhouse" ]; then pip install -U -e /app/runhouse; else pip install -U runhouse[opentelemetry]==$RUNHOUSE_VERSION; fi
+RUN if [ -d "/app/runhouse" ]; then pip install -U -e '/app/runhouse[opentelemetry]'; else pip install -U 'runhouse[opentelemetry]==$RUNHOUSE_VERSION'; fi
 
 # Create the privilege separation directory required by sshd
 RUN mkdir -p /run/sshd
 
-# Create a user for SSH access
-RUN useradd -m rh-docker-user
+# Create a user for SSH access and add to sudo group
+RUN useradd -m rh-docker-user && echo "rh-docker-user ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/rh-docker-user
 
 # Create .ssh directory for the user
 RUN mkdir -p /home/rh-docker-user/.ssh
@@ -41,7 +41,7 @@ RUN --mount=type=secret,id=ssh_key,dst=/tmp/id_rsa.pub \
 
 # Update SSHD Configuration to allow public key authentication and disable password and root login
 RUN echo "PasswordAuthentication no" >> /etc/ssh/sshd_config && \
-    echo "PermitRootLogin no" >> /etc/ssh/sshd_config && \
+    echo "PermitRootLogin yes" >> /etc/ssh/sshd_config && \
     echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
 
 # Create supervisord configuration file
@@ -52,6 +52,7 @@ RUN echo "[supervisord]" > /etc/supervisor/conf.d/supervisord.conf && \
     echo "command=/usr/sbin/sshd -D" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stdout_logfile=/var/log/sshd.log" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stderr_logfile=/var/log/sshd.err" >> /etc/supervisor/conf.d/supervisord.conf
+
 
 # Ray dashboard port
 EXPOSE 52365

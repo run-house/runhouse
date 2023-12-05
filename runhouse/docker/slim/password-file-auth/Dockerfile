@@ -14,7 +14,7 @@ RUN mkdir -p /app/ssh
 
 # Install the required packages
 RUN apt-get update --allow-insecure-repositories && \
-    apt-get install -y --no-install-recommends gcc python3-dev openssh-server rsync supervisor screen curl && \
+    apt-get install -y --no-install-recommends gcc python3-dev openssh-server rsync supervisor screen curl sudo ufw git && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
