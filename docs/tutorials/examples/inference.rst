@@ -305,7 +305,7 @@ while the model actually runs on an A100/A10G in the cloud.
     <div class="ipyplot-placeholder-div-ciwsTsagCbGynZrGzcK5cc">
         <div id="ipyplot-content-div-ciwsTsagCbGynZrGzcK5cc-DXJFBL2Rm6vZ4T4kcCvGyv" class="ipyplot-content-div-ciwsTsagCbGynZrGzcK5cc">
             <h4 style="font-size: 12px; word-wrap: break-word;">0</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/sd_0.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/sd_0.png" alt="digital illustration of a woman running on the roof of a house"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -318,7 +318,7 @@ while the model actually runs on an A100/A10G in the cloud.
     <div class="ipyplot-placeholder-div-ciwsTsagCbGynZrGzcK5cc">
         <div id="ipyplot-content-div-ciwsTsagCbGynZrGzcK5cc-MoGxsQQg5t2VXMZnYGaNqD" class="ipyplot-content-div-ciwsTsagCbGynZrGzcK5cc">
             <h4 style="font-size: 12px; word-wrap: break-word;">1</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/sd_1.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/sd_1.png" alt="digital illustration of a woman running on the roof of a house"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -331,7 +331,7 @@ while the model actually runs on an A100/A10G in the cloud.
     <div class="ipyplot-placeholder-div-ciwsTsagCbGynZrGzcK5cc">
         <div id="ipyplot-content-div-ciwsTsagCbGynZrGzcK5cc-H8bdZVYWHTKpowowURxzdu" class="ipyplot-content-div-ciwsTsagCbGynZrGzcK5cc">
             <h4 style="font-size: 12px; word-wrap: break-word;">2</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/sd_2.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/sd_2.png" alt="digital illustration of a woman running on the roof of a house"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -344,7 +344,7 @@ while the model actually runs on an A100/A10G in the cloud.
     <div class="ipyplot-placeholder-div-ciwsTsagCbGynZrGzcK5cc">
         <div id="ipyplot-content-div-ciwsTsagCbGynZrGzcK5cc-idzjZHiuzvWESgu9PPssMx" class="ipyplot-content-div-ciwsTsagCbGynZrGzcK5cc">
             <h4 style="font-size: 12px; word-wrap: break-word;">3</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/sd_3.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/sd_3.png" alt="digital illustration of a woman running on the roof of a house"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -436,7 +436,7 @@ while the model actually runs on an A100/A10G in the cloud.
     <div class="ipyplot-placeholder-div-ciwsTsagCbGynZrGzcK5cc">
         <div id="ipyplot-content-div-ciwsTsagCbGynZrGzcK5cc-DXJFBL2Rm6vZ4T4kcCvGyv" class="ipyplot-content-div-ciwsTsagCbGynZrGzcK5cc">
             <h4 style="font-size: 12px; word-wrap: break-word;">0</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/sd_0.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/sd_0.png" alt="digital illustration of a woman running on the roof of a house"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -449,7 +449,7 @@ while the model actually runs on an A100/A10G in the cloud.
     <div class="ipyplot-placeholder-div-ciwsTsagCbGynZrGzcK5cc">
         <div id="ipyplot-content-div-ciwsTsagCbGynZrGzcK5cc-MoGxsQQg5t2VXMZnYGaNqD" class="ipyplot-content-div-ciwsTsagCbGynZrGzcK5cc">
             <h4 style="font-size: 12px; word-wrap: break-word;">1</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/sd_1.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/sd_1.png" alt="digital illustration of a woman running on the roof of a house"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -462,7 +462,7 @@ while the model actually runs on an A100/A10G in the cloud.
     <div class="ipyplot-placeholder-div-ciwsTsagCbGynZrGzcK5cc">
         <div id="ipyplot-content-div-ciwsTsagCbGynZrGzcK5cc-H8bdZVYWHTKpowowURxzdu" class="ipyplot-content-div-ciwsTsagCbGynZrGzcK5cc">
             <h4 style="font-size: 12px; word-wrap: break-word;">2</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/sd_2.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/sd_2.png" alt="digital illustration of a woman running on the roof of a house"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -475,7 +475,7 @@ while the model actually runs on an A100/A10G in the cloud.
     <div class="ipyplot-placeholder-div-ciwsTsagCbGynZrGzcK5cc">
         <div id="ipyplot-content-div-ciwsTsagCbGynZrGzcK5cc-idzjZHiuzvWESgu9PPssMx" class="ipyplot-content-div-ciwsTsagCbGynZrGzcK5cc">
             <h4 style="font-size: 12px; word-wrap: break-word;">3</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/sd_3.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/sd_3.png" alt="digital illustration of a woman running on the roof of a house"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -682,7 +682,7 @@ so speed-ups will only be observed in future runs.
     <div class="ipyplot-placeholder-div-7j3Fk4SG4Jwxoafp6tRuiB">
         <div id="ipyplot-content-div-7j3Fk4SG4Jwxoafp6tRuiB-5aCbbqqDJtgDsv3xRXWWr8" class="ipyplot-content-div-7j3Fk4SG4Jwxoafp6tRuiB">
             <h4 style="font-size: 12px; word-wrap: break-word;">0</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/pin_0.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/pin_0.png" alt="image of a prepared hot dog with green powder on top and side dishes" />
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -695,7 +695,7 @@ so speed-ups will only be observed in future runs.
     <div class="ipyplot-placeholder-div-7j3Fk4SG4Jwxoafp6tRuiB">
         <div id="ipyplot-content-div-7j3Fk4SG4Jwxoafp6tRuiB-89y7xSULgpfyqd9QX8X9sf" class="ipyplot-content-div-7j3Fk4SG4Jwxoafp6tRuiB">
             <h4 style="font-size: 12px; word-wrap: break-word;">1</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/pin_1.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/pin_1.png" alt="image of a bright green hot dog on a irregular-shaped plate"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -708,7 +708,7 @@ so speed-ups will only be observed in future runs.
     <div class="ipyplot-placeholder-div-7j3Fk4SG4Jwxoafp6tRuiB">
         <div id="ipyplot-content-div-7j3Fk4SG4Jwxoafp6tRuiB-XDXTQZXDutnkP2UeJ89UQE" class="ipyplot-content-div-7j3Fk4SG4Jwxoafp6tRuiB">
             <h4 style="font-size: 12px; word-wrap: break-word;">2</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/pin_2.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/pin_2.png" alt="image of a hot dog in a bun with matcha topping on a wooden surface"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -721,7 +721,7 @@ so speed-ups will only be observed in future runs.
     <div class="ipyplot-placeholder-div-7j3Fk4SG4Jwxoafp6tRuiB">
         <div id="ipyplot-content-div-7j3Fk4SG4Jwxoafp6tRuiB-g5ofaCEvZ4UHffLp3H6evR" class="ipyplot-content-div-7j3Fk4SG4Jwxoafp6tRuiB">
             <h4 style="font-size: 12px; word-wrap: break-word;">3</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/pin_3.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/pin_3.png" alt="image of a hot dog in a bun spread with matcha on a marble surface"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -813,7 +813,7 @@ so speed-ups will only be observed in future runs.
     <div class="ipyplot-placeholder-div-7j3Fk4SG4Jwxoafp6tRuiB">
         <div id="ipyplot-content-div-7j3Fk4SG4Jwxoafp6tRuiB-5aCbbqqDJtgDsv3xRXWWr8" class="ipyplot-content-div-7j3Fk4SG4Jwxoafp6tRuiB">
             <h4 style="font-size: 12px; word-wrap: break-word;">0</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/pin_0.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/pin_0.png" alt="image of a prepared hot dog with green powder on top and side dishes"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -826,7 +826,7 @@ so speed-ups will only be observed in future runs.
     <div class="ipyplot-placeholder-div-7j3Fk4SG4Jwxoafp6tRuiB">
         <div id="ipyplot-content-div-7j3Fk4SG4Jwxoafp6tRuiB-89y7xSULgpfyqd9QX8X9sf" class="ipyplot-content-div-7j3Fk4SG4Jwxoafp6tRuiB">
             <h4 style="font-size: 12px; word-wrap: break-word;">1</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/pin_1.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/pin_1.png" alt="image of a bright green hot dog on a irregular-shaped plate"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -839,7 +839,7 @@ so speed-ups will only be observed in future runs.
     <div class="ipyplot-placeholder-div-7j3Fk4SG4Jwxoafp6tRuiB">
         <div id="ipyplot-content-div-7j3Fk4SG4Jwxoafp6tRuiB-XDXTQZXDutnkP2UeJ89UQE" class="ipyplot-content-div-7j3Fk4SG4Jwxoafp6tRuiB">
             <h4 style="font-size: 12px; word-wrap: break-word;">2</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/pin_2.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/pin_2.png" alt="image of a hot dog in a bun with matcha topping on a wooden surface"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -852,7 +852,7 @@ so speed-ups will only be observed in future runs.
     <div class="ipyplot-placeholder-div-7j3Fk4SG4Jwxoafp6tRuiB">
         <div id="ipyplot-content-div-7j3Fk4SG4Jwxoafp6tRuiB-g5ofaCEvZ4UHffLp3H6evR" class="ipyplot-content-div-7j3Fk4SG4Jwxoafp6tRuiB">
             <h4 style="font-size: 12px; word-wrap: break-word;">3</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/pin_3.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/pin_3.png" alt="image of a hot dog in a bun spread with matcha on a marble surface"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -1111,7 +1111,7 @@ then pipe the outputs into our Stable Diffusion service.
     <div class="ipyplot-placeholder-div-ctt8w42CeJB5xSoBbRX7Pi">
         <div id="ipyplot-content-div-ctt8w42CeJB5xSoBbRX7Pi-6vBxQ9aAKu9e5dBydz3wnd" class="ipyplot-content-div-ctt8w42CeJB5xSoBbRX7Pi">
             <h4 style="font-size: 12px; word-wrap: break-word;">0</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/flan_0.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/flan_0.png" alt="generated image of a detailed oil painting of an ancient Greek vase"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -1124,7 +1124,7 @@ then pipe the outputs into our Stable Diffusion service.
     <div class="ipyplot-placeholder-div-ctt8w42CeJB5xSoBbRX7Pi">
         <div id="ipyplot-content-div-ctt8w42CeJB5xSoBbRX7Pi-iNHddryXJPQBpaDXBjqMxN" class="ipyplot-content-div-ctt8w42CeJB5xSoBbRX7Pi">
             <h4 style="font-size: 12px; word-wrap: break-word;">1</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/flan_1.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/flan_1.png" alt="generated image of a detailed oil painting of a rose in the sun"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -1137,7 +1137,7 @@ then pipe the outputs into our Stable Diffusion service.
     <div class="ipyplot-placeholder-div-ctt8w42CeJB5xSoBbRX7Pi">
         <div id="ipyplot-content-div-ctt8w42CeJB5xSoBbRX7Pi-efUNKGLZXEg2WPbtyMoNLr" class="ipyplot-content-div-ctt8w42CeJB5xSoBbRX7Pi">
             <h4 style="font-size: 12px; word-wrap: break-word;">2</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/flan_2.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/flan_2.png" alt="generated image of a detailed oil painting of horses and a cart on an idyllic country farm"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -1150,7 +1150,7 @@ then pipe the outputs into our Stable Diffusion service.
     <div class="ipyplot-placeholder-div-ctt8w42CeJB5xSoBbRX7Pi">
         <div id="ipyplot-content-div-ctt8w42CeJB5xSoBbRX7Pi-MN7beZHJBF6X42xSNzZ5Gb" class="ipyplot-content-div-ctt8w42CeJB5xSoBbRX7Pi">
             <h4 style="font-size: 12px; word-wrap: break-word;">3</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/flan_3.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/flan_3.png" alt="generated image of a detailed oil painting of the ancient greek god"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -1242,7 +1242,7 @@ then pipe the outputs into our Stable Diffusion service.
     <div class="ipyplot-placeholder-div-ctt8w42CeJB5xSoBbRX7Pi">
         <div id="ipyplot-content-div-ctt8w42CeJB5xSoBbRX7Pi-6vBxQ9aAKu9e5dBydz3wnd" class="ipyplot-content-div-ctt8w42CeJB5xSoBbRX7Pi">
             <h4 style="font-size: 12px; word-wrap: break-word;">0</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/flan_0.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/flan_0.png" alt="generated image of a detailed oil painting of an ancient Greek vase"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -1255,7 +1255,7 @@ then pipe the outputs into our Stable Diffusion service.
     <div class="ipyplot-placeholder-div-ctt8w42CeJB5xSoBbRX7Pi">
         <div id="ipyplot-content-div-ctt8w42CeJB5xSoBbRX7Pi-iNHddryXJPQBpaDXBjqMxN" class="ipyplot-content-div-ctt8w42CeJB5xSoBbRX7Pi">
             <h4 style="font-size: 12px; word-wrap: break-word;">1</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/flan_1.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/flan_1.png" alt="generated image of a detailed oil painting of a rose in the sun"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -1268,7 +1268,7 @@ then pipe the outputs into our Stable Diffusion service.
     <div class="ipyplot-placeholder-div-ctt8w42CeJB5xSoBbRX7Pi">
         <div id="ipyplot-content-div-ctt8w42CeJB5xSoBbRX7Pi-efUNKGLZXEg2WPbtyMoNLr" class="ipyplot-content-div-ctt8w42CeJB5xSoBbRX7Pi">
             <h4 style="font-size: 12px; word-wrap: break-word;">2</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/flan_2.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/flan_2.png" alt="generated image of a detailed oil painting of horses and a cart on an idyllic country farm"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
@@ -1281,7 +1281,7 @@ then pipe the outputs into our Stable Diffusion service.
     <div class="ipyplot-placeholder-div-ctt8w42CeJB5xSoBbRX7Pi">
         <div id="ipyplot-content-div-ctt8w42CeJB5xSoBbRX7Pi-MN7beZHJBF6X42xSNzZ5Gb" class="ipyplot-content-div-ctt8w42CeJB5xSoBbRX7Pi">
             <h4 style="font-size: 12px; word-wrap: break-word;">3</h4>
-            <img src="https://runhouse-tutorials.s3.amazonaws.com/flan_3.png"/>
+            <img src="https://runhouse-tutorials.s3.amazonaws.com/flan_3.png" alt="generated image of a detailed oil painting of the ancient greek god"/>
             <a href="#!">
                 <span class="ipyplot-img-close"/>
             </a>
