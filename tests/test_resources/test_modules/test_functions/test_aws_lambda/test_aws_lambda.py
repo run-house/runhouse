@@ -317,8 +317,8 @@ def test_layers_increase_timeout_and_memory():
     assert res == "26"
     lambda_config = LAMBDA_CLIENT.get_function(FunctionName=my_lambda.name)
     assert lambda_config["Configuration"]["Timeout"] == 600
-    assert lambda_config["Configuration"]["MemorySize"] == 128
-    assert lambda_config["Configuration"]["EphemeralStorage"]["Size"] == 1024
+    assert lambda_config["Configuration"]["MemorySize"] == 1024
+    assert lambda_config["Configuration"]["EphemeralStorage"]["Size"] == 3072
     assert lambda_config["Configuration"]["FunctionName"] == my_lambda.name
     LAMBDAS_NAMES.add(my_lambda.name)
 
@@ -513,6 +513,7 @@ def test_create_from_config():
         "runtime": "python3.9",
         "args_names": ["arg1", "arg2"],
         "name": name,
+        "tmp_size": 3072,
     }
     config_lambda = rh.AWSLambdaFunction.from_config(config)
     res1 = config_lambda(1, 2)

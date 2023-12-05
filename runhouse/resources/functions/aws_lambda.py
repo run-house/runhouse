@@ -51,7 +51,8 @@ class AWSLambdaFunction(Function):
     DEFAULT_REGION = "us-east-1"
     DEFAULT_RETENTION = 30  # one month, for lambdas log groups.
     DEFAULT_TIMEOUT = 900  # sec. meaning 15 min.
-    DEFAULT_MEMORY_SIZE = 1024  # MB, meaning 1GB.
+    DEFAULT_MEMORY_SIZE = 1024  # MB
+    DEFAULT_TMP_SIZE = 3072  # MB, meaning 3G
 
     # setup needs to be here and not in __init__ for the reload option.
     if Path(CRED_PATH).is_file():
@@ -73,6 +74,7 @@ class AWSLambdaFunction(Function):
         env: Env,
         timeout: int,  # seconds
         memory_size: int,  # MB
+        tmp_size: int,  # MB
         retention_time: int = DEFAULT_RETENTION,  # days
         dryrun: bool = False,
         access: Optional[str] = None,
@@ -102,6 +104,7 @@ class AWSLambdaFunction(Function):
         self.runtime = runtime
         self.timeout = timeout
         self.memory_size = memory_size
+        self.tmp_size = tmp_size
         self.aws_lambda_config = (
             None  # Lambda config and role arn from aws will be saved here
         )
@@ -125,7 +128,9 @@ class AWSLambdaFunction(Function):
         if "memory_size" not in keys:
             config["memory_size"] = AWSLambdaFunction.DEFAULT_MEMORY_SIZE
         if "env" not in keys:
-            config["env"] = Env(reqs=[], name=Env.DEFAULT_NAME)
+            config["env"] = Env(
+                reqs=[], env_vars={"HOME": "/tmp"}, name=Env.DEFAULT_NAME
+            )
         else:
             config["env"] = Env.from_config(config["env"])
 
@@ -233,9 +238,8 @@ class AWSLambdaFunction(Function):
 
         # adding code for installing python libraries
         reqs = self.env.reqs
-        # TODO: checking the posability to change the home dir
-        # if "runhouse" not in reqs:
-        #     reqs.append("runhouse")
+        if "runhouse" not in reqs:
+            reqs.append("runhouse")
         if "./" in reqs:
             reqs.remove("./")
         for req in reqs:
@@ -247,6 +251,7 @@ class AWSLambdaFunction(Function):
             f.write("\tsys.path.insert(1, '/tmp/')\n\n")
 
         f.write(
+            "\timport runhouse\n"
             f"\tfrom {handler_name} import {self.handler_function_name}\n"
             f"\treturn {self.handler_function_name}(**event)"
         )
@@ -323,9 +328,7 @@ class AWSLambdaFunction(Function):
                 Timeout=self.timeout,
                 MemorySize=self.memory_size,
                 Environment={"Variables": env_vars},
-                EphemeralStorage={
-                    "Size": self.DEFAULT_MEMORY_SIZE
-                },  # size of /tmp folder.
+                EphemeralStorage={"Size": self.tmp_size},  # size of /tmp folder.
             )
             func_name = lambda_config["FunctionName"]
             with self._wait_until_lambda_update_is_finished(func_name):
@@ -599,6 +602,7 @@ class AWSLambdaFunction(Function):
                 "runtime": self.runtime,
                 "timeout": self.timeout,
                 "memory_size": self.memory_size,
+                "tmp_size": self.tmp_size,
                 "args_names": self.args_names,
             }
         )
@@ -627,6 +631,7 @@ def aws_lambda_function(
     env: Optional[dict or list[str] or Env] = None,
     timeout: Optional[int] = None,
     memory_size: Optional[int] = None,
+    tmp_size: Optional[int] = None,
     region: Optional[str] = None,
     retention_time: Optional[int] = None,
     dryrun: bool = False,
@@ -653,11 +658,13 @@ def aws_lambda_function(
             env_vars: dictionary containing the env_vars that will be a part of the lambda configuration.
             2. A list of strings, containing all the required python packeages.
             3. An insrantce of Runhouse Env class.
-            By default, ``runhouse`` package will be installed.
+            By default, ``runhouse`` package will be installed, and env_vars will include ``{HOME: /tmp}``
         timeout: Optional[int]: The maximum amount of time (in secods) during which the Lambda will run in AWS
             without timing-out. (Default: ``900``, Min: ``3``, Max: ``900``)
         memory_size: Optional[int], The amount of memeory, im MB, that will be aloocatied to the lambda.
-             (Default: ``128``, Min: ``128``, Max: ``10240``)
+             (Default: ``1024``, Min: ``128``, Max: ``10240``)
+        tmp_size: Optional[int], This size of the /tmp folder in the aws lambda file system.
+             (Default: ``3072``, Min: ``512``, Max: ``10240``).
         region: The AWS region where the lambda will be created. In order to make sure that any packages will be
             installed proparly, please provide the closest region to your workplace. (Default: ``us-east-1``)
         retention_time: Optional[int] The time (in days) that sepcific lambda exection logs will be saved in AWS
@@ -696,33 +703,34 @@ def aws_lambda_function(
         >>> lambdas_func = rh.aws_lambda_function(fn=summer, name="lambdas_func")
 
     """
+    # TODO: [SB] in the next phase, maybe add the option to create func from git.
     if name and not any(
         [paths_to_code, handler_function_name, runtime, fn, args_names]
     ):
         # Try reloading existing function
         return AWSLambdaFunction.from_name(name=name)
 
-    # TODO: [SB] in the next phase, maybe add the option to create func from git.
-
+    # Env setup.
     if env is not None and not isinstance(env, Env):
         original_env = copy.deepcopy(env)
         if isinstance(original_env, dict) and "env_vars" in original_env.keys():
             env = _get_env_from(env["reqs"]) or Env(
-                working_dir="../serverless/", name=Env.DEFAULT_NAME
-            )
-            env.env_vars = (
-                original_env["env_vars"] if original_env["env_vars"] is not None else {}
+                working_dir="../functions/", name=Env.DEFAULT_NAME
             )
         elif isinstance(original_env, str):
             env = _get_env_from(AWSLambdaFunction._reqs_to_list(env))
         else:
             env = _get_env_from(env) or Env(
-                working_dir="../serverless/", name=Env.DEFAULT_NAME
+                working_dir="../functions/", name=Env.DEFAULT_NAME
             )
 
     elif env is None:
-        env = Env(reqs=[], name=Env.DEFAULT_NAME)
+        env = Env(reqs=[], env_vars={"HOME": "/tmp"}, name=Env.DEFAULT_NAME)
 
+    if "HOME" not in env.env_vars.keys():
+        env.env_vars["HOME"] = "/tmp"
+
+    # extract function pointers, path to code and arg names from callable function.
     if isinstance(fn, Callable):
         handler_function_name = fn.__name__
         fn_pointers = Function._extract_pointers(
@@ -732,6 +740,7 @@ def aws_lambda_function(
         args_names = [param.name for param in inspect.signature(fn).parameters.values()]
         if name is None:
             name = fn.__name__
+
     else:
 
         # ------- arguments validation -------
@@ -789,6 +798,13 @@ def aws_lambda_function(
         warnings.warn("Memory size set to 1024 MB.")
         memory_size = AWSLambdaFunction.DEFAULT_MEMORY_SIZE
     else:
+        if (
+            env.reqs is not None or len(env.reqs) > 0
+        ) and memory_size < AWSLambdaFunction.DEFAULT_MEMORY_SIZE:
+            warnings.warn(
+                "Increasing the memory size to 1G, in order to enable the packages setup."
+            )
+            memory_size = AWSLambdaFunction.DEFAULT_MEMORY_SIZE
         if memory_size < 128:
             memory_size = 128
             warnings.warn("Memory size can not be less then 128 MB, setting to 128 MB.")
@@ -797,6 +813,14 @@ def aws_lambda_function(
             warnings.warn(
                 "Memory size can not be more then 10240 MB, setting to 10240 MB."
             )
+    if tmp_size is None or tmp_size < AWSLambdaFunction.DEFAULT_TMP_SIZE:
+        warnings.warn(
+            "Setting /tmp size to 3GB, in order to enable the packages setup."
+        )
+        tmp_size = AWSLambdaFunction.DEFAULT_TMP_SIZE
+    elif tmp_size > 10240:
+        tmp_size = 10240
+        warnings.warn("/tmp size can not be more then 10240 MB, setting to 10240 MB.")
     if region is None:
         region = AWSLambdaFunction.DEFAULT_REGION
     if retention_time is None:
@@ -813,6 +837,7 @@ def aws_lambda_function(
         dryrun=dryrun,
         timeout=timeout,
         memory_size=memory_size,
+        tmp_size=tmp_size,
         region=region,
         retention_time=retention_time,
     ).to()
