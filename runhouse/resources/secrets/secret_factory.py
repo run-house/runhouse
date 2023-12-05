@@ -18,7 +18,6 @@ def secret(
         name (str, optional): Name to assign the secret resource.
         values (Dict, optional): Dictionary of secret key-value pairs.
         dryrun (bool, optional): Whether to create in dryrun mode. (Default: False)
-
     Returns:
         Secret: The resulting Secret object.
 
@@ -43,7 +42,7 @@ def provider_secret(
     dryrun: bool = False,
 ) -> ProviderSecret:
     """
-    Builds an instance of :class:`ProviderSecret`. At most one of of values, path, and env_vars
+    Builds an instance of :class:`ProviderSecret`. At most one of values, path, and env_vars
     can be provided, to maintain one source of truth. If None are provided, will infer the values
     from the default path or env vars for the given provider.
 
@@ -62,8 +61,8 @@ def provider_secret(
         ProviderSecret: The resulting provider secret object.
 
     Example:
-        >>> aws_secret = rh.provider("aws")
-        >>> lamdba_secret = rh.provider("lambda", values={"api_key": "xxxxx"})
+        >>> aws_secret = rh.provider_secret("aws")
+        >>> lamdba_secret = rh.provider_secret("lambda", values={"api_key": "xxxxx"})
         >>>
     """
     if not provider:
@@ -74,7 +73,7 @@ def provider_secret(
 
     elif not any([values, path, env_vars]):
         secret_class = _get_provider_class(provider)
-        return secret_class()
+        return secret_class(name=name, provider=provider, dryrun=dryrun)
 
     elif sum([bool(x) for x in [values, path, env_vars]]) == 1:
         secret_class = _get_provider_class(provider)

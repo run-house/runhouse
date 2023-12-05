@@ -1,10 +1,13 @@
 import os
 
 import pytest
+import requests
 
 import runhouse as rh
+from runhouse.globals import rns_client
 from runhouse.resources.blobs import file
 from runhouse.resources.secrets.utils import load_config
+from runhouse.rns.utils.api import read_resp_data
 
 test_secret_values = {"secret_key": "secret_val"}
 
@@ -43,6 +46,119 @@ def test_create_secret_from_name_vault():
     assert reloaded_secret.values == test_secret_values
 
     assert_delete_local(reloaded_secret)
+
+
+# -------------------------------------------
+# -------------------------------------------
+@pytest.mark.rnstest
+def test_resource_and_secrets_apis_for_custom_secret():
+    secret_name = "cohere"
+    vault_secret = rh.secret(name=secret_name, values=test_secret_values)
+    vault_secret.save()
+
+    del vault_secret
+
+    reloaded_secret = rh.secret(name=secret_name)
+    assert reloaded_secret.values == test_secret_values
+
+    # Delete the secret (includes both metadata in Den and secrets in Vault)
+    reloaded_secret.delete()
+
+    del reloaded_secret
+
+    with pytest.raises(ValueError):
+        rh.secret(name=secret_name)
+
+
+@pytest.mark.rnstest
+def test_resource_and_secrets_apis_for_builtin_provider():
+    secret_name = "aws_secret"
+    vault_secret = rh.provider_secret(provider="aws", name=secret_name)
+    vault_secret.save()
+
+    del vault_secret
+
+    reloaded_secret = rh.provider_secret(name=secret_name)
+    assert "access_key" in reloaded_secret.values
+    assert "secret_key" in reloaded_secret.values
+
+    # Delete the secret (includes both metadata in Den and secrets in Vault)
+    reloaded_secret.delete()
+
+    del reloaded_secret
+
+    with pytest.raises(ValueError):
+        rh.provider_secret(name=secret_name)
+
+
+@pytest.mark.rnstest
+def test_sharing_for_resource_and_secrets_apis(test_account):
+    username_to_share = rh.configs.defaults_cache["username"]
+    secret_name = "openai"
+
+    # Create & share
+    with test_account:
+        test_headers = rns_client.request_headers
+        vault_secret = rh.secret(name=secret_name, values=test_secret_values)
+        vault_secret.save(headers=test_headers)
+
+        rns_address = vault_secret.rns_address
+
+        # Share the resource (incl. access to the secrets in Vault)
+        vault_secret.share(username_to_share, access_type="write")
+
+        del vault_secret
+
+    # By default we can re-load shared secrets
+    reloaded_secret = rh.secret(name=rns_address)
+    assert reloaded_secret.values == test_secret_values
+
+
+@pytest.mark.rnstest
+def test_sharing_for_resource_and_builtin_secret_apis(test_account):
+    username_to_share = rh.configs.defaults_cache["username"]
+    secret_name = "aws_secret"
+    provider = "aws"
+
+    # Create & share
+    with test_account:
+        headers = rns_client.request_headers
+
+        vault_secret = rh.provider_secret(provider=provider, name=secret_name)
+        vault_secret.save(headers=headers)
+
+        rns_address = vault_secret.rns_address
+
+        vault_secret.share(username_to_share, access_type="write")
+
+    # Get the resource
+    resource_uri = rns_client.resource_uri(rns_address)
+    uri = f"resource/{resource_uri}"
+    resp = requests.get(
+        f"{rns_client.api_server_url}/{uri}", headers=rns_client.request_headers
+    )
+    assert resp.status_code == 200
+
+    resource_data = read_resp_data(resp)
+    assert "values" not in resource_data["data"]
+
+    # get the Vault secrets
+    resp = requests.get(
+        f"{rns_client.api_server_url}/user/secret/{resource_uri}?shared=true",
+        headers=rns_client.request_headers,
+    )
+    assert resp.status_code == 200
+
+    secrets_data = read_resp_data(resp)
+    assert provider in secrets_data
+
+    secret_keys = list(secrets_data[provider].keys())
+    assert "access_key" in secret_keys
+    assert "secret_key" in secret_keys
+
+
+# -------------------------------------------
+# -------------------------------------------
 
 
 @pytest.mark.clustertest
