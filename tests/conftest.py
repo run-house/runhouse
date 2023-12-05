@@ -250,6 +250,11 @@ from tests.test_resources.test_modules.test_tables.conftest import (
     table,  # noqa: F401
 )
 
+from tests.test_resources.test_secrets.conftest import (
+    custom_secret,  # noqa: F401
+    provider_secret,  # noqa: F401
+)
+
 
 ########## DEFAULT LEVELS ##########
 
