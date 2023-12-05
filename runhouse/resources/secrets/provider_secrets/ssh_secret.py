@@ -39,13 +39,16 @@ class SSHSecret(ProviderSecret):
         if self.path == self._DEFAULT_CREDENTIALS_PATH:
             self.path = str(Path(self._DEFAULT_CREDENTIALS_PATH) / self.key)
 
+    @staticmethod
     def from_config(config: dict, dryrun: bool = False):
         return SSHSecret(**config, dryrun=dryrun)
 
-    def save(self, values: bool = True, headers: str = rns_client.request_headers):
+    def save(self, save_values: bool = True, headers: Optional[str] = None):
         if not self.name:
             self.name = f"ssh-{self.key}"
-        super().save(values=values, headers=headers)
+        super().save(
+            save_values=save_values, headers=headers or rns_client.request_headers
+        )
 
     def _write_to_file(
         self, path: Union[str, File], values: Dict = None, overwrite: bool = False

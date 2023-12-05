@@ -6,7 +6,7 @@ from pathlib import Path
 import requests
 
 from runhouse.globals import rns_client
-from runhouse.rns.utils.api import read_resp_data
+from runhouse.rns.utils.api import load_resp_content, read_resp_data
 
 logger = logging.getLogger(__name__)
 
@@ -17,18 +17,24 @@ def load_config(name, endpoint: str = USER_ENDPOINT):
     rns_address = rns_client.resolve_rns_path(name)
 
     if rns_address.startswith("/"):
-        return _load_vault_config(name, endpoint)
+        resource_uri = rns_client.resource_uri(name)
+        return _load_vault_secrets(resource_uri, endpoint)
 
     return _load_local_config(name)
 
 
-def _load_vault_config(name, endpoint):
+def _load_vault_secrets(
+    resource_uri,
+    endpoint,
+):
+    """Load secrets data from Vault for a particular resource URI. By default we allow for reloading shared secrets."""
     resp = requests.get(
-        f"{rns_client.api_server_url}/{endpoint}/{name}",
+        f"{rns_client.api_server_url}/{endpoint}/{resource_uri}?shared=true",
         headers=rns_client.request_headers,
     )
     if resp.status_code != 200:
-        raise Exception(f"Secret {name} not found in Vault.")
+        raise Exception(f"Failed to load secret from Vault: {load_resp_content(resp)}")
+
     config = read_resp_data(resp)
 
     if len(config.keys()) == 1:
