@@ -456,15 +456,15 @@ class TestFunction:
         my_summer_func = my_summer_func.to(system=cluster)
         assert my_summer_func(4, 6) == 10
 
-        np_summer_pointers = rh.Function._extract_pointers(np_summer, reqs=["numpy"])
+        np_summer_pointers = rh.Function._extract_pointers(
+            np_summer, reqs=["numpy", "./"]
+        )
         np_summer_config = {
             "fn_pointers": np_summer_pointers,
             "system": None,
-            "env": None,
+            "env": {"reqs": ["numpy"], "working_dir": "./"},
         }
-        my_np_func = rh.Function.from_config(np_summer_config).to(
-            system=cluster, env=["numpy"]
-        )
+        my_np_func = rh.Function.from_config(np_summer_config).to(system=cluster)
         assert my_np_func(1, 3) == 4
 
     @pytest.mark.level("local")
