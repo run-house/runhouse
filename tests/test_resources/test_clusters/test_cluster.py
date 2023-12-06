@@ -116,3 +116,13 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # This cluster was created without any logged in Runhouse config. Make sure that the simple resource
         # created on the cluster starts with "~", which is the prefix that local Runhouse configs are saved with.
         assert saved_config_on_cluster["name"].startswith("~")
+
+    @pytest.mark.level("local")
+    def test_cluster_recreate(self, cluster):
+        num_open_tunnels = len(rh.globals.ssh_tunnel_cache)
+
+        # Create a new cluster object for the same remote cluster
+        new_cluster = rh.cluster(cluster.name)
+        new_cluster.run(["echo hello"])
+        # Check that the same underlying ssh connection was used
+        assert len(rh.globals.ssh_tunnel_cache) == num_open_tunnels

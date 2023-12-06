@@ -96,6 +96,8 @@ def cluster(
         return Cluster.from_name(name, dryrun)
 
     if host and ("localhost" in host or ":" in host):
+        # If server_connection_type is not specified, we
+        # assume we can hit the server directly via HTTP
         server_connection_type = server_connection_type or ServerConnectionType.NONE
         if ":" in host:
             # e.g. "localhost:23324" or <real_ip>:<custom port> (e.g. a port is already open to the server)
