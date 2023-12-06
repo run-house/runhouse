@@ -150,9 +150,9 @@ def test_sharing_for_resource_and_builtin_secret_apis(test_account):
     assert resp.status_code == 200
 
     secrets_data = read_resp_data(resp)
-    assert provider in secrets_data
+    assert secret_name in secrets_data
 
-    secret_keys = list(secrets_data[provider].keys())
+    secret_keys = list(secrets_data[secret_name].keys())
     assert "access_key" in secret_keys
     assert "secret_key" in secret_keys
 

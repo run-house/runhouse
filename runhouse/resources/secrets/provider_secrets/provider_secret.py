@@ -75,6 +75,12 @@ class ProviderSecret(Secret):
         """Create a ProviderSecret object from a config dictionary."""
         return ProviderSecret(**config, dryrun=dryrun)
 
+    def save(
+        self, name: str = None, save_values: bool = True, headers: Optional[str] = None
+    ):
+        name = name or self.name or self.provider
+        super().save(name=name, save_values=save_values, headers=headers)
+
     def delete(self, headers: Optional[str] = None, contents: bool = False):
         """Delete the secret config from Den and from Vault/local. Optionally also delete contents of secret file
         or env vars."""
@@ -127,7 +133,8 @@ class ProviderSecret(Secret):
         Args:
             system (str or Cluster): Cluster to send the secret to
             path (str or Path, optional): Path on cluster to write down the secret values to.
-                If not provided, secret values are not written down.
+                If not provided and secret is not already associated with a path, the secret values
+                will not be written down on the cluster.
             env (str or Env, optional): Env to send the secret to. This will save down the secrets
                 as env vars in the env.
             values (bool, optional): Whether to save down the values in the resource config. (Default: True)
@@ -158,9 +165,9 @@ class ProviderSecret(Secret):
 
         key = system.put_resource(new_secret)
         if path:
-            new_secret.path = self._file_to(key, system, path, self.values)
-        else:
-            new_secret.path = file(path=self.path, system=system)
+            new_secret.path = self._file_to(
+                key=key, system=system, path=path, values=self.values
+            )
 
         if env or self.env_vars:
             env_vars = {self.env_vars[key]: self.values[key] for key in self.values}
@@ -183,7 +190,9 @@ class ProviderSecret(Secret):
             remote_file = file(path=path, system=system)
         return remote_file
 
-    def _write_to_file(self, path: Union[str, File], values: Any, overwrite: bool):
+    def _write_to_file(
+        self, path: Union[str, File], values: Any, overwrite: bool = False
+    ):
         new_secret = copy.deepcopy(self)
         if not _check_file_for_mismatches(
             path, self._from_path(path), values, overwrite
@@ -233,7 +242,7 @@ class ProviderSecret(Secret):
             return ""
 
         if isinstance(path, File):
-            contents = path.fetch(mode="r")
+            contents = path.fetch(mode="r", deserialize=False)
             try:
                 return json.loads(contents)
             except json.decoder.JSONDecodeError:

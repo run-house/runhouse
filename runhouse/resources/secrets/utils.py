@@ -17,9 +17,17 @@ def load_config(name, endpoint: str = USER_ENDPOINT):
     rns_address = rns_client.resolve_rns_path(name)
 
     if rns_address.startswith("/"):
-        resource_uri = rns_client.resource_uri(name)
-        return _load_vault_secrets(resource_uri, endpoint)
+        # Load via Resource API
+        rns_config = rns_client.load_config(name=name)
+        if not rns_config:
+            raise ValueError(f"Secret {name} not found in Den.")
 
+        # Load via Secrets API
+        resource_uri = rns_client.resource_uri(name)
+        secret_values = _load_vault_secrets(resource_uri, endpoint)
+        return {**rns_config, **{"values": secret_values}}
+
+    # Load from local config
     return _load_local_config(name)
 
 
@@ -41,8 +49,7 @@ def _load_vault_secrets(
         vault_key = list(config.keys())[0]
         config = config[vault_key]
     if config.get("data", None):
-        config.update(config["data"])
-        del config["data"]
+        return config["data"]["values"]
     return config
 
 

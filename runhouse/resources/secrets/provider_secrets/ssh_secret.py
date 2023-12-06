@@ -43,8 +43,12 @@ class SSHSecret(ProviderSecret):
     def from_config(config: dict, dryrun: bool = False):
         return SSHSecret(**config, dryrun=dryrun)
 
-    def save(self, save_values: bool = True, headers: Optional[str] = None):
-        if not self.name:
+    def save(
+        self, name: str = None, save_values: bool = True, headers: Optional[str] = None
+    ):
+        if name:
+            self.name = name
+        elif not self.name:
             self.name = f"ssh-{self.key}"
         super().save(
             save_values=save_values, headers=headers or rns_client.request_headers
@@ -62,6 +66,7 @@ class SSHSecret(ProviderSecret):
         if priv_key_path.exists() or pub_key_path.exists():
             if values == self._from_path(path):
                 logger.info(f"Secrets already exist in {path}. Skipping.")
+                self.path = path
                 return self
             logger.warning(
                 f"SSH Secrets for {self.key} already exist in {path}. "
@@ -90,9 +95,9 @@ class SSHSecret(ProviderSecret):
         if isinstance(path, File):
             from runhouse.resources.blobs.file import file
 
-            priv_key = path.fetch(mode="r")
-            pub_key_file = file(path=f"{priv_key.path}.pub", system=priv_key.system)
-            pub_key = pub_key_file.fetch(mode="r")
+            priv_key = path.fetch(mode="r", deserialize=False)
+            pub_key_file = file(path=f"{path.path}.pub", system=path.system)
+            pub_key = pub_key_file.fetch(mode="r", deserialize=False)
         else:
             pub_key_path = os.path.expanduser(f"{path}.pub")
             priv_key_path = os.path.expanduser(path)
