@@ -1,5 +1,6 @@
 import contextlib
 import copy
+import json
 import logging
 import os
 import pkgutil
@@ -27,6 +28,7 @@ from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware.utils import (
     _current_cluster,
     cache_open_tunnel,
+    CLUSTER_CONFIG_PATH,
     get_open_tunnel,
     ServerConnectionType,
     SkySSHRunner,
@@ -119,17 +121,15 @@ class Cluster(Resource):
         self.ips[0] = addr
 
     def save_config_to_cluster(self):
-        import json
-
         config = self.config_for_rns
         if "live_state" in config.keys():
-            # a bunch of setup commands that mess up json dump
+            # a bunch of setup commands that mess up dumping
             del config["live_state"]
         json_config = f"{json.dumps(config)}"
 
         self.run(
             [
-                f"mkdir -p ~/.rh; touch ~/.rh/cluster_config.yaml; echo '{json_config}' > ~/.rh/cluster_config.yaml"
+                f"mkdir -p ~/.rh; touch {CLUSTER_CONFIG_PATH}; echo '{json_config}' > {CLUSTER_CONFIG_PATH}"
             ]
         )
 
@@ -465,10 +465,6 @@ class Cluster(Resource):
         if not self.client:
             try:
                 self.connect_server_client()
-                cluster_config = self.config_for_rns
-                if "live_state" in cluster_config.keys():
-                    # a bunch of setup commands that mess up json dump
-                    del cluster_config["live_state"]
                 logger.info(f"Checking server {self.name}")
                 self.client.check_server()
                 logger.info(f"Server {self.name} is up.")

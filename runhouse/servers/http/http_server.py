@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 from runhouse.globals import configs, env_servlets, rns_client
-from runhouse.resources.hardware.utils import _load_cluster_config
+from runhouse.resources.hardware.utils import _load_cluster_config, CLUSTER_CONFIG_PATH
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.auth import hash_token, verify_cluster_access
@@ -65,8 +65,8 @@ def validate_cluster_access(func):
         cluster_uri = load_current_cluster()
         if cluster_uri is None:
             logger.error(
-                "Failed to load cluster RNS address. Make sure cluster config YAML has been saved "
-                "on the cluster in path: ~/.rh/cluster_config.yaml"
+                f"Failed to load cluster RNS address. Make sure cluster config YAML has been saved "
+                f"on the cluster in path: {CLUSTER_CONFIG_PATH}"
             )
             raise HTTPException(
                 status_code=404,
@@ -742,11 +742,7 @@ if __name__ == "__main__":
         help="Address to use for generating self-signed certs and enabling HTTPS. (e.g. public IP address)",
     )
 
-    cluster_config = (
-        _load_cluster_config()
-        if Path("~/.rh/cluster_config.yaml").expanduser().exists()
-        else {}
-    )
+    cluster_config = _load_cluster_config()
     parse_args = parser.parse_args()
 
     conda_name = parse_args.conda_env
