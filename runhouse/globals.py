@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 configs = Defaults()
 
-open_cluster_tunnels = {}
+ssh_tunnel_cache = {}
 
 rns_client = RNSClient(configs=configs)
 

@@ -23,6 +23,10 @@ from sky.utils.command_runner import (
     SshMode,
 )
 
+from sshtunnel import SSHTunnelForwarder
+
+from runhouse.globals import ssh_tunnel_cache
+
 logger = logging.getLogger(__name__)
 
 RESERVED_SYSTEM_NAMES = ["file", "s3", "gs", "azure", "here", "ssh", "sftp"]
@@ -37,6 +41,35 @@ try:
     boto3.set_stream_logger(name="botocore.credentials", level=logging.ERROR)
 except ImportError:
     pass
+
+# TODO: Move the following two functions into a networking module
+def get_open_tunnel(address: str, ssh_port: str):
+    if (address, ssh_port) in ssh_tunnel_cache:
+        ssh_tunnel, connected_port = ssh_tunnel_cache[(address, ssh_port)]
+        if isinstance(ssh_tunnel, SSHTunnelForwarder):
+            # Initializes tunnel_is_up dictionary
+            ssh_tunnel.check_tunnels()
+
+            if (
+                ssh_tunnel.is_active
+                and ssh_tunnel.tunnel_is_up[ssh_tunnel.local_bind_address]
+            ):
+                return ssh_tunnel, connected_port
+
+            else:
+                # If the tunnel is no longer active or up, pop it from the global cache
+                ssh_tunnel_cache.pop((address, ssh_port))
+
+    return None, None
+
+
+def cache_open_tunnel(
+    address: str,
+    ssh_port: str,
+    ssh_tunnel: SSHTunnelForwarder,
+    connected_port: int,
+):
+    ssh_tunnel_cache[(address, ssh_port)] = (ssh_tunnel, connected_port)
 
 
 class ServerConnectionType(str, Enum):
