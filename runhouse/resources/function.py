@@ -132,9 +132,7 @@ class Function(Module):
         new_function.system.check_server()
         new_function.name = new_function.name or self.fn_pointers[2]
         # TODO
-        # env.name = env.name or (new_function.name + "_env")
-
-        # temporarily commented out the below to enable k8s support 
+        # env.name = env.name or (new_function.name + "_env") 
 
         new_env = env.to(new_function.system, force_install=force_install)
         new_function.env = new_env
