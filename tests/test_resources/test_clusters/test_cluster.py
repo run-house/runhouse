@@ -37,7 +37,16 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     }
     MINIMAL = {"cluster": ["static_cpu_cluster"]}
     THOROUGH = {"cluster": ["static_cpu_cluster", "password_cluster"]}
-    MAXIMAL = {"cluster": ["static_cpu_cluster", "password_cluster"]}
+    MAXIMAL = {
+        "cluster": [
+            "local_docker_cluster_public_key_logged_in",
+            "local_docker_cluster_public_key_logged_out",
+            "local_docker_cluster_telemetry_public_key",
+            "local_docker_cluster_passwd",
+            "static_cpu_cluster",
+            "password_cluster",
+        ]
+    }
 
     @pytest.mark.level("unit")
     def test_cluster_factory_and_properties(self, cluster):

@@ -388,17 +388,18 @@ def setup_cluster_config(test_account):
     except ValueError:
         c = None
 
-    if not c:
-        current_username = rh.configs.get("username")
-        with test_account:
-            c = rh.cluster(name="local_cluster", den_auth=True).save()
-            c.share(current_username, access_type="write", notify_users=False)
-
-    with open(cluster_config_path, "w") as file:
-        json.dump(cluster_config, file)
-
     try:
+        if not c:
+            current_username = rh.configs.get("username")
+            with test_account:
+                c = rh.cluster(name="local_cluster", den_auth=True).save()
+                c.share(current_username, access_type="write", notify_users=False)
+
+        with open(cluster_config_path, "w") as file:
+            json.dump(cluster_config, file)
+
         yield
+
     finally:
         if cluster_config_path.exists():
             cluster_config_path.unlink()
