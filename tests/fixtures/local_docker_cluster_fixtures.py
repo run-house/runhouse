@@ -494,31 +494,33 @@ def local_test_account_cluster_public_key(request, test_account):
     This fixture is not parameterized for every test; it is a separate cluster started with a test account
     (username: kitchen_tester) in order to test sharing resources with other users.
     """
-    with test_account:
+    try:
+        with test_account:
 
-        local_ssh_port = BASE_LOCAL_SSH_PORT + 4
-        local_cluster, cleanup = set_up_local_cluster(
-            image_name="keypair",
-            container_name="rh-slim-test-acct",
-            dir_name="public-key-auth",
-            keypath=str(
-                Path(
-                    rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
-                ).expanduser()
-            ),
-            detached=request.config.getoption("--detached"),
-            force_rebuild=request.config.getoption("--force-rebuild"),
-            port_fwds=[f"{local_ssh_port}:22"],
-            local_ssh_port=local_ssh_port,
-            additional_cluster_init_args={
-                "name": "local_test_account_cluster_public_key",
-                "den_auth": "den_auth" in request.keywords,
-            },
-        )
+            local_ssh_port = BASE_LOCAL_SSH_PORT + 4
+            local_cluster, cleanup = set_up_local_cluster(
+                image_name="keypair",
+                container_name="rh-slim-test-acct",
+                dir_name="public-key-auth",
+                keypath=str(
+                    Path(
+                        rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
+                    ).expanduser()
+                ),
+                detached=request.config.getoption("--detached"),
+                force_rebuild=request.config.getoption("--force-rebuild"),
+                port_fwds=[f"{local_ssh_port}:22"],
+                local_ssh_port=local_ssh_port,
+                additional_cluster_init_args={
+                    "name": "local_test_account_cluster_public_key",
+                    "den_auth": "den_auth" in request.keywords,
+                },
+            )
 
-    yield local_cluster
+        yield local_cluster
 
-    cleanup()
+    finally:
+        cleanup()
 
 
 @pytest.fixture(scope="session")
