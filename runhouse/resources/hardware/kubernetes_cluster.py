@@ -33,6 +33,13 @@ class KubernetesCluster(OnDemandCluster):
             **kwargs,
         )
 
+        # TODO: extract namespace off context 
+        # Cases that need to be handled: 
+        # 1. User passes context and no namespace. Namespace needs to be extracted from context and set to it. 
+        # 2. User passes namespace and no context. Namespace needs to be set with kubectl cmd (This should update the kubeconfig). 
+        # 3. User passes neither. Then, namespace needs to be extracted from current context
+        # 4. User passes both namespace and context. Invalid. Warn user and ignore namespace argument. Set namespace to be value extracted from context. 
+
         self.namespace = namespace
         self.kube_config_path = kube_config_path
         self.context = context
@@ -41,15 +48,16 @@ class KubernetesCluster(OnDemandCluster):
             warnings.warn("You passed both a context and a namespace. The namespace will be ignored.", UserWarning)
             self.namespace = None
 
+        
+        if self.namespace is not None or self.namespace is not "default": # check if user passed a user-defined namespace
+            cmd = f"kubectl config set-context --current --namespace={self.namespace}"
+            try:
+                process = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                print(process.stdout)
+                print(f"Kubernetes namespace set to {self.namespace}")
 
-        cmd = f"kubectl config set-context --current --namespace={self.namespace}"
-        try:
-            process = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            print(process.stdout)
-            print(f"Kubernetes namespace set to {self.namespace}")
-
-        except subprocess.CalledProcessError as e:   
-            print(f"Error: {e}")
+            except subprocess.CalledProcessError as e:   
+                print(f"Error: {e}")
 
 
         if self.kube_config_path is not None:     # check if user passed a user-defined kube_config_path 
