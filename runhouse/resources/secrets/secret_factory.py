@@ -10,6 +10,7 @@ from .provider_secrets.providers import _get_provider_class
 def secret(
     name: Optional[str] = None,
     values: Optional[Dict] = None,
+    provider: Optional[str] = None,
     dryrun: bool = False,
 ) -> Secret:
     """Builds an instance of :class:`Secret`.
@@ -24,6 +25,11 @@ def secret(
     Example:
         >>> rh.secret("in_memory_secret", values={"secret_key": "secret_val"})
     """
+    if provider:
+        return provider_secret(
+            name=name, provider=provider, values=values, dryrun=dryrun
+        )
+
     if name and not values:
         return Secret.from_name(name, dryrun)
 

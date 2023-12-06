@@ -47,6 +47,17 @@ class Secret(Resource):
     def values(self):
         return self._values
 
+    @property
+    def config_for_rns(self):
+        config = super().config_for_rns
+        if self._values:
+            config.update(
+                {
+                    "values": self._values,
+                }
+            )
+        return config
+
     @staticmethod
     def from_config(config: dict, dryrun: bool = False):
         """Create a Secret object from a config dictionary."""
@@ -56,23 +67,15 @@ class Secret(Resource):
             )
 
             provider_class = _get_provider_class(config["provider"])
-            return provider_class(**config, dryrun=dryrun)
+            return provider_class.from_config(config, dryrun=dryrun)
         return Secret(**config, dryrun=dryrun)
 
     @classmethod
     def from_name(cls, name, dryrun=False):
         """Load existing Secret via its name."""
-        # Load via Resource API
-        rns_config = rns_client.load_config(name=name)
-        if not rns_config:
-            raise ValueError(f"Secret {name} not found in Den.")
+        config = load_config(name, cls.USER_ENDPOINT)
 
-        # Load via Secrets API
-        rns_address = rns_config["name"]
-        secret_values = load_config(rns_address, cls.USER_ENDPOINT)
-        secrets_data = {**rns_config, **{"values": secret_values}}
-
-        return cls.from_config(config=secrets_data, dryrun=dryrun)
+        return cls.from_config(config=config, dryrun=dryrun)
 
     @classmethod
     def builtin_providers(cls, as_str: bool = False) -> list:
@@ -86,11 +89,8 @@ class Secret(Resource):
         return list(_str_to_provider_class.values())
 
     @classmethod
-    def vault_secrets(
-        cls, names: List[str] = None, headers: Optional[str] = None
-    ) -> Dict[str, "Secret"]:
-        from runhouse.resources.secrets import provider_secret, Secret, secret
-
+    def vault_secrets(cls, headers: Optional[str] = None) -> List[str]:
+        """Get secret names that are stored in Vault"""
         resp = requests.get(
             f"{rns_client.api_server_url}/{cls.USER_ENDPOINT}",
             headers=headers or rns_client.request_headers,
@@ -99,28 +99,8 @@ class Secret(Resource):
         if resp.status_code != 200:
             raise Exception("Failed to download secrets from Vault")
 
-        secrets = {}
         response = read_resp_data(resp)
-        if names is not None:
-            response = {name: response[name] for name in names if name in response}
-        for name, config in response.items():
-            if config.get("name", None):
-                if config.get("data", None):
-                    config.update(config["data"])
-                    del config["data"]
-                secrets[name] = Secret.from_config(config)
-            else:
-                # handle converting previous type of secrets saving format to new resource format
-                if name in cls.builtin_providers():
-                    new_secret = provider_secret(provider=name, values=config)
-                else:
-                    new_secret = secret(name=name, values=config)
-
-                secrets[name] = new_secret
-                new_secret._delete_secret_configs()
-                new_secret.save()
-
-        return secrets
+        return list(response.keys())
 
     @classmethod
     def local_secrets(cls, names: List[str] = None) -> Dict[str, "Secret"]:
@@ -179,13 +159,23 @@ class Secret(Resource):
         return secrets
 
     # TODO: refactor this code to reuse rns_client save_config code instead of rewriting
-    def save(self, save_values: bool = True, headers: Optional[str] = None):
+    def save(
+        self, name: str = None, save_values: bool = True, headers: Optional[str] = None
+    ):
         """
         Save the secret config to Den. Save the secret values into Vault if the user is logged in,
         or to local if not or if the resource is a local resource.
         """
+        if name:
+            self.name = name
+        elif not self.name:
+            raise ValueError("A resource must have a name to be saved.")
+
         config = self.config_for_rns
         config["name"] = self.rns_address
+        if "values" in config:
+            # don't save values into Den config
+            del config["values"]
         headers = headers or rns_client.request_headers
 
         # Save metadata to Den
@@ -204,24 +194,28 @@ class Secret(Resource):
                     f"Failed to save metadata to Den: {load_resp_content(resp)}"
                 )
 
-        if save_values:
-            logger.info(f"Saving secrets for {self.name} to Vault")
-            resource_uri = rns_client.resource_uri(self.rns_address)
-            resp = requests.put(
-                f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{resource_uri}",
-                data=json.dumps(
-                    {"name": self.rns_address, "data": {"values": self.values}}
-                ),
-                headers=headers,
-            )
-            if resp.status_code != 200:
-                raise Exception(
-                    f"Failed to upload secrets in Vault: {load_resp_content(resp)}"
+            if save_values:
+                logger.info(f"Saving secrets for {self.name} to Vault")
+                resource_uri = rns_client.resource_uri(self.rns_address)
+                resp = requests.put(
+                    f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{resource_uri}",
+                    data=json.dumps(
+                        {"name": self.rns_address, "data": {"values": self.values}}
+                    ),
+                    headers=headers,
                 )
+                if resp.status_code != 200:
+                    raise Exception(
+                        f"Failed to upload secrets in Vault: {load_resp_content(resp)}"
+                    )
 
         else:
             config_path = os.path.expanduser(f"~/.rh/secrets/{self.name}.json")
             os.makedirs(os.path.dirname(config_path), exist_ok=True)
+
+            if save_values:
+                config["values"] = self.values
+
             with open(config_path, "w") as f:
                 json.dump(config, f, indent=4)
             logger.info(f"Saving config for {self.rns_address} to: {config_path}")
@@ -230,16 +224,17 @@ class Secret(Resource):
 
     def delete(self, headers: str = rns_client.request_headers):
         """Delete the secret config from Den and from Vault/local."""
-        if not self.in_vault() or self.is_local():
+        if not (self.in_vault() or self.is_local()):
             logger.warning(
                 "Can not delete a secret that has not been saved down to Vault or local."
             )
 
-        if self.rns_address.startswith("/"):
-            self._delete_secret_configs(headers)
         else:
-            self._delete_local_config()
-        configs.delete_provider(self.name)
+            if self.rns_address.startswith("/"):
+                self._delete_secret_configs(headers)
+            else:
+                self._delete_local_config()
+            configs.delete_provider(self.name)
 
     def _delete_local_config(self):
         config_path = os.path.expanduser(f"~/.rh/secrets/{self.name}.json")
@@ -305,14 +300,18 @@ class Secret(Resource):
 
     def in_vault(self, headers=None):
         """Whether the secret is stored in Vault"""
+        if not self.rns_address:
+            return False
+        resource_uri = rns_client.resource_uri(self.rns_address)
         resp = requests.get(
-            f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{self.name}",
+            f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{resource_uri}",
             headers=headers or rns_client.request_headers,
         )
         if resp.status_code != 200:
             return False
         response = read_resp_data(resp)
-        if response and response[self.name]:
+        # TODO: switch this to use self.name once vault updates
+        if response and response[list(response.keys())[0]]:
             return True
         return False
 

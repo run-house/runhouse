@@ -1,6 +1,8 @@
 import logging
 from typing import Optional
 
+import requests
+
 import typer
 
 from runhouse.globals import configs, rns_client
@@ -137,21 +139,34 @@ def login(
 
 
 def _login_download_secrets(headers: Optional[str] = None):
-    from runhouse import Secret
+    from runhouse import provider_secret, Secret
 
     secrets = Secret.vault_secrets(headers=headers or rns_client.request_headers)
-    for name, secret in secrets.items():
+    for name in secrets:
         try:
+            resource_uri = rns_client.resource_uri(name)
+            resp = requests.get(
+                f"{rns_client.api_server_url}/resource/{resource_uri}",
+                headers=headers or rns_client.request_headers,
+            )
+            if resp == 200:
+                secret = Secret.from_name(name)
+            elif name in Secret.builtin_providers(as_str=True):
+                secret = provider_secret(name)
+            else:
+                continue
+
             download_path = secret.path or secret._DEFAULT_CREDENTIALS_PATH
             if download_path:
                 logger.info(f"Loading down secrets for {name} into {download_path}")
                 secret.write()
+
         except AttributeError:
             logger.warning(f"Was not able to load down secrets for {name}.")
             continue
 
 
-def _login_upload_secrets(interactive: bool):
+def _login_upload_secrets(interactive: bool, headers: Optional[str] = None):
     from runhouse import Secret
 
     local_secrets = Secret.local_secrets()
@@ -159,10 +174,13 @@ def _login_upload_secrets(interactive: bool):
     local_secrets.update(provider_secrets)
     names = list(local_secrets.keys())
 
-    vault_secrets = Secret.vault_secrets()
-
     for name in names:
-        if name in vault_secrets:
+        resource_uri = rns_client.resource_uri(name)
+        resp = requests.get(
+            f"{rns_client.api_server_url}/resource/{resource_uri}",
+            headers=headers or rns_client.request_headers,
+        )
+        if resp.status_code == 200:
             local_secrets.pop(name, None)
             continue
         if interactive:
@@ -215,11 +233,12 @@ def logout(
                 f"Delete credentials file for {name}?"
             )
 
-        if delete_loaded_secrets:
-            secret.delete(contents=True)
-        else:
-            secret.delete()
-            configs.delete(name)
+        if secret.in_vault() or secret.is_local():
+            if delete_loaded_secrets:
+                secret.delete(contents=True)
+            else:
+                secret.delete()
+                configs.delete(name)
 
     local_secrets = Secret.local_secrets()
     for _, secret in local_secrets.items():

@@ -43,8 +43,12 @@ class SSHSecret(ProviderSecret):
     def from_config(config: dict, dryrun: bool = False):
         return SSHSecret(**config, dryrun=dryrun)
 
-    def save(self, save_values: bool = True, headers: Optional[str] = None):
-        if not self.name:
+    def save(
+        self, name: str = None, save_values: bool = True, headers: Optional[str] = None
+    ):
+        if name:
+            self.name = name
+        elif not self.name:
             self.name = f"ssh-{self.key}"
         super().save(
             save_values=save_values, headers=headers or rns_client.request_headers
