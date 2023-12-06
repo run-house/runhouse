@@ -6,14 +6,10 @@ import warnings
 from pathlib import Path
 
 import sky
-from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
+from sshtunnel import SSHTunnelForwarder
 
-from runhouse.globals import obj_store, open_cluster_tunnels, rns_client
-from runhouse.resources.hardware.utils import (
-    ServerConnectionType,
-    SkySSHRunner,
-    SshMode,
-)
+from runhouse.globals import open_cluster_tunnels
+from runhouse.resources.hardware.utils import ServerConnectionType, SkySSHRunner
 from runhouse.servers.http import HTTPClient
 
 from .on_demand_cluster import OnDemandCluster
