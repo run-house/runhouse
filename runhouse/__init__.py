@@ -6,12 +6,12 @@ from runhouse.resources.hardware import (
     _current_cluster,
     cluster,
     Cluster,
+    kubernetes_cluster,
+    KubernetesCluster,
     ondemand_cluster,
     OnDemandCluster,
     sagemaker_cluster,
     SageMakerCluster,
-    kubernetes_cluster,
-    KubernetesCluster
 )
 
 # WARNING: Any built-in module that is imported here must be capitalized followed by all lowercase, or we will

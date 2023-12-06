@@ -1,10 +1,10 @@
 import shlex
 import subprocess
+import sys
 import time
 import webbrowser
 from pathlib import Path
 from typing import Optional
-import sys
 
 import typer
 from rich.console import Console
@@ -140,9 +140,9 @@ def _start_server(
         # We do these one by one so it's more obvious where the error is if there is one
         for i, cmd in enumerate(cmds):
 
-            last_cmd = i == len(cmds)-1
+            last_cmd = i == len(cmds) - 1
 
-            # need to clean up this execution logic 
+            # need to clean up this execution logic
             if last_cmd:
                 try:
                     # consider cleaning up this command to parameterize it more
@@ -154,10 +154,10 @@ def _start_server(
                         if reg_output.returncode != 0:
                             console.print(f"Error while executing `{cmd}`")
                             raise typer.Exit(1)
-                        return 
+                        return
                     return
                 except subprocess.CalledProcessError as e:
-                    print(f"Error: {e}")    
+                    print(f"Error: {e}")
 
             console.print(f"Executing `{cmd}`")
             result = subprocess.run(shlex.split(cmd), text=True)
@@ -165,7 +165,6 @@ def _start_server(
             if result.returncode != 0 and "pkill" not in cmd:
                 console.print(f"Error while executing `{cmd}`")
                 raise typer.Exit(1)
-            
 
         server_started_str = "Uvicorn running on"
         # Read and print the server logs until the

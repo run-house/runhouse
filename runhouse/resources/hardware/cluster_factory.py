@@ -10,9 +10,9 @@ from runhouse.resources.hardware.utils import (
 from runhouse.rns.utils.api import relative_ssh_path
 
 from .cluster import Cluster
+from .kubernetes_cluster import KubernetesCluster
 from .on_demand_cluster import OnDemandCluster
 from .sagemaker_cluster import SageMakerCluster
-from .kubernetes_cluster import KubernetesCluster
 
 
 # Cluster factory method
@@ -401,6 +401,7 @@ def ondemand_cluster(
 
     return c
 
+
 # KubernetesCluster factory method
 def kubernetes_cluster(
     name: str,
@@ -408,7 +409,6 @@ def kubernetes_cluster(
     namespace: str = "default",
     kube_config_path: str = None,
     context: str = None,
-
 ) -> KubernetesCluster:
     """
     Builds an instance of :class:`KubernetesCluster`.
@@ -433,7 +433,7 @@ def kubernetes_cluster(
         >>> cluster = rh.kubernetes_cluster(
         >>>            name="cpu-cluster-test",
         >>>            instance_type="CPU:1",
-        >>>            provider="kubernetes",      
+        >>>            provider="kubernetes",
         >>>        )
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.kubernetes_cluster(name="rh-4-a100s")
@@ -453,7 +453,7 @@ def kubernetes_cluster(
         instance_type=instance_type,
         namespace=namespace,
         kube_config_path=kube_config_path,
-        context=context
+        context=context,
     )
 
 

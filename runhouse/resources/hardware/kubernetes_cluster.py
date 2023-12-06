@@ -1,23 +1,25 @@
-import sky
-from pathlib import Path
-import subprocess
+import copy
 import logging
 import os
-from runhouse.resources.hardware.utils import SkySSHRunner
-import copy
-import warnings 
-from runhouse.globals import obj_store, open_cluster_tunnels, rns_client
-from runhouse.servers.http import HTTPClient
+import subprocess
+import warnings
+from pathlib import Path
+
+import sky
 from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
+
+from runhouse.globals import obj_store, open_cluster_tunnels, rns_client
 from runhouse.resources.hardware.utils import (
     ServerConnectionType,
     SkySSHRunner,
     SshMode,
 )
+from runhouse.servers.http import HTTPClient
 
 from .on_demand_cluster import OnDemandCluster
 
 logger = logging.getLogger(__name__)
+
 
 class KubernetesCluster(OnDemandCluster):
     RESOURCE_TYPE = "cluster"
@@ -32,7 +34,7 @@ class KubernetesCluster(OnDemandCluster):
         context: str = None,
         **kwargs,
     ):
-        
+
         kwargs.pop("provider", None)
         super().__init__(
             name=name,
@@ -41,40 +43,56 @@ class KubernetesCluster(OnDemandCluster):
             **kwargs,
         )
 
-        # TODO: extract namespace off context 
-        # Cases that need to be handled: 
-        # 1. User passes context and no namespace. Namespace needs to be extracted from context and set to it. 
-        # 2. User passes namespace and no context. Namespace needs to be set with kubectl cmd (This should update the kubeconfig). 
+        # TODO: extract namespace off context
+        # Cases that need to be handled:
+        # 1. User passes context and no namespace. Namespace needs to be extracted from context and set to it.
+        # 2. User passes namespace and no context. Namespace needs to be set with kubectl cmd (This should update the kubeconfig).
         # 3. User passes neither. Then, namespace needs to be extracted from current context
-        # 4. User passes both namespace and context. Invalid. Warn user and ignore namespace argument. Set namespace to be value extracted from context. 
+        # 4. User passes both namespace and context. Invalid. Warn user and ignore namespace argument. Set namespace to be value extracted from context.
 
         self.namespace = namespace
         self.kube_config_path = kube_config_path
         self.context = context
 
         if self.context is not None and self.namespace is not None:
-            warnings.warn("You passed both a context and a namespace. The namespace will be ignored.", UserWarning)
+            warnings.warn(
+                "You passed both a context and a namespace. The namespace will be ignored.",
+                UserWarning,
+            )
             self.namespace = None
 
-        
-        if self.namespace is not None and self.namespace != "default": # check if user passed a user-defined namespace
+        if (
+            self.namespace is not None and self.namespace != "default"
+        ):  # check if user passed a user-defined namespace
             cmd = f"kubectl config set-context --current --namespace={self.namespace}"
             try:
-                process = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                process = subprocess.run(
+                    cmd,
+                    shell=True,
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
                 print(process.stdout)
                 print(f"Kubernetes namespace set to {self.namespace}")
 
-            except subprocess.CalledProcessError as e:   
+            except subprocess.CalledProcessError as e:
                 print(f"Error: {e}")
 
-
-        if self.kube_config_path is not None:     # check if user passed a user-defined kube_config_path 
+        if (
+            self.kube_config_path is not None
+        ):  # check if user passed a user-defined kube_config_path
             kube_config_dir = os.path.expanduser("~/.kube")
-            kube_config_path_rl = os.path.join(kube_config_dir, "config") 
+            kube_config_path_rl = os.path.join(kube_config_dir, "config")
 
-            if not os.path.exists(kube_config_dir): # check if ~/.kube directory exists on local machine
+            if not os.path.exists(
+                kube_config_dir
+            ):  # check if ~/.kube directory exists on local machine
                 try:
-                    os.makedirs(kube_config_dir)     # create ~/.kube directory if it doesn't exist
+                    os.makedirs(
+                        kube_config_dir
+                    )  # create ~/.kube directory if it doesn't exist
                     print(f"Created directory: {kube_config_dir}")
                 except OSError as e:
                     print(f"Error creating directory: {e}")
@@ -82,36 +100,32 @@ class KubernetesCluster(OnDemandCluster):
             try:
                 cmd = f"cp {self.kube_config_path} {kube_config_path_rl}"  # copy user-defined kube_config to ~/.kube/config
                 subprocess.run(cmd, shell=True, check=True)
-                print(f"Copied kubeconfig to: {kube_config_path}") # note: this will overwrite any existing kubeconfig in ~/.kube/config
+                print(
+                    f"Copied kubeconfig to: {kube_config_path}"
+                )  # note: this will overwrite any existing kubeconfig in ~/.kube/config
             except subprocess.CalledProcessError as e:
                 print(f"Error copying kubeconfig: {e}")
 
-
-        if self.context is not None: # check if user passed a user-defined context
+        if self.context is not None:  # check if user passed a user-defined context
             try:
-                cmd = f"kubectl config use-context {self.context}" # set user-defined context as current context
-                subprocess.run(cmd, shell=True, check=True) 
-                print(f"Kubernetes context has been set to: {self.context}") 
-            except subprocess.CalledProcessError as e: 
-                print(f"Error setting context: {e}") 
-
-
+                cmd = f"kubectl config use-context {self.context}"  # set user-defined context as current context
+                subprocess.run(cmd, shell=True, check=True)
+                print(f"Kubernetes context has been set to: {self.context}")
+            except subprocess.CalledProcessError as e:
+                print(f"Error setting context: {e}")
 
     def sky_up(self):
 
         task = sky.Task(
-            num_nodes=1, # TODO: Add Multi-node support for Kubernetes in Runhouse. May need to use `setup` and `set_file_mounts` in Sky API 
+            num_nodes=1,  # TODO: Add Multi-node support for Kubernetes in Runhouse. May need to use `setup` and `set_file_mounts` in Sky API
         )
-        cloud_provider = (
-            sky.clouds.CLOUD_REGISTRY.from_str(self.provider)
-        )
+        cloud_provider = sky.clouds.CLOUD_REGISTRY.from_str(self.provider)
         task.set_resources(
             sky.Resources(
                 cloud=cloud_provider,
                 instance_type=self.instance_type
-                if self.instance_type
-                and "--" in self.instance_type 
-                else None, 
+                if self.instance_type and "--" in self.instance_type
+                else None,
             )
         )
         if Path("~/.rh").expanduser().exists():
@@ -120,7 +134,7 @@ class KubernetesCluster(OnDemandCluster):
                     "~/.rh": "~/.rh",
                 }
             )
-            
+
         sky.launch(
             task,
             cluster_name=self.name,
@@ -128,18 +142,17 @@ class KubernetesCluster(OnDemandCluster):
             down=True,
         )
 
-
     def up(self):
         if self.on_this_cluster():
             return self
-        
+
         self.sky_up()
-    
+
         self._update_from_sky_status()
         self.restart_server(restart_ray=True)
 
         return self
-        
+
     def _rsync(
         self,
         source: str,
@@ -173,14 +186,17 @@ class KubernetesCluster(OnDemandCluster):
             else:
                 Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
             runner.rsync(
-                source, dest, up=up, stream_logs=False # removed filter_options to work with new rsync in utils.py
+                source,
+                dest,
+                up=up,
+                stream_logs=False,  # removed filter_options to work with new rsync in utils.py
             )
         else:
             if dest.startswith("~/"):
                 dest = dest[2:]
 
             self._fsspec_sync(source, dest, up)
-            
+
     def ssh(self):
         """SSH into the cluster.
 
@@ -198,7 +214,7 @@ class KubernetesCluster(OnDemandCluster):
 
             output = subprocess.check_output(command, shell=True, text=True)
 
-            lines = output.strip().split('\n')
+            lines = output.strip().split("\n")
             if lines:
                 pod_name = lines[0].split()[0]
             else:
@@ -271,9 +287,8 @@ class KubernetesCluster(OnDemandCluster):
             )
         else:
             self.client = HTTPClient(
-                host=self.LOCALHOST,   # k8s needs this to be localhost and not the server address. Server address is address of k8s pod
+                host=self.LOCALHOST,  # k8s needs this to be localhost and not the server address. Server address is address of k8s pod
                 port=self.client_port,
                 cert_path=cert_path,
                 use_https=use_https,
             )
-
