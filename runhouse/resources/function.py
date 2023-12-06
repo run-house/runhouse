@@ -128,12 +128,10 @@ class Function(Module):
 
         logging.info("Setting up Function on cluster.")
         # To up cluster in case it's not yet up
-
         new_function.system.check_server()
         new_function.name = new_function.name or self.fn_pointers[2]
         # TODO
-        # env.name = env.name or (new_function.name + "_env") 
-
+        # env.name = env.name or (new_function.name + "_env")
         new_env = env.to(new_function.system, force_install=force_install)
         new_function.env = new_env
 
