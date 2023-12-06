@@ -6,6 +6,14 @@ import os
 from runhouse.resources.hardware.utils import SkySSHRunner
 import copy
 import warnings 
+from runhouse.globals import obj_store, open_cluster_tunnels, rns_client
+from runhouse.servers.http import HTTPClient
+from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
+from runhouse.resources.hardware.utils import (
+    ServerConnectionType,
+    SkySSHRunner,
+    SshMode,
+)
 
 from .on_demand_cluster import OnDemandCluster
 
@@ -49,7 +57,7 @@ class KubernetesCluster(OnDemandCluster):
             self.namespace = None
 
         
-        if self.namespace is not None or self.namespace is not "default": # check if user passed a user-defined namespace
+        if self.namespace is not None and self.namespace != "default": # check if user passed a user-defined namespace
             cmd = f"kubectl config set-context --current --namespace={self.namespace}"
             try:
                 process = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -200,4 +208,72 @@ class KubernetesCluster(OnDemandCluster):
 
         cmd = f"kubectl exec -it {pod_name} -- /bin/bash"
         subprocess.run(cmd, shell=True, check=True)
+
+    def connect_server_client(self, force_reconnect=False):
+        if not self.address:
+            raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
+
+        if self._rpc_tunnel and force_reconnect:
+            self._rpc_tunnel.close()
+
+        ssh_tunnel = None
+        connected_port = None
+        if (self.address, self.ssh_port) in open_cluster_tunnels:
+            ssh_tunnel, connected_port = open_cluster_tunnels[
+                (self.address, self.ssh_port)
+            ]
+            if isinstance(ssh_tunnel, SSHTunnelForwarder):
+                ssh_tunnel.check_tunnels()
+                if ssh_tunnel.tunnel_is_up[ssh_tunnel.local_bind_address]:
+                    self._rpc_tunnel = ssh_tunnel
+
+        if (
+            self.server_connection_type
+            not in [ServerConnectionType.NONE, ServerConnectionType.TLS]
+            and ssh_tunnel is None
+        ):
+            # Case 3: server connection requires SSH tunnel, but we don't have one up yet
+            self._rpc_tunnel, connected_port = self.ssh_tunnel(
+                local_port=self.server_port,
+                remote_port=self.server_port,
+                num_ports_to_try=10,
+            )
+
+        open_cluster_tunnels[(self.address, self.ssh_port)] = (
+            self._rpc_tunnel,
+            connected_port,
+        )
+
+        if self._rpc_tunnel:
+            logger.info(
+                f"Connecting to server via SSH, port forwarding via port {connected_port}."
+            )
+
+        self.client_port = connected_port or self.client_port or self.server_port
+        use_https = self._use_https
+        cert_path = self.cert_config.cert_path if use_https else None
+
+        # Connecting to localhost because it's tunneled into the server at the specified port.
+        creds = self.ssh_creds()
+        if self.server_connection_type in [
+            ServerConnectionType.SSH,
+            ServerConnectionType.AWS_SSM,
+        ]:
+            ssh_user = creds.get("ssh_user")
+            password = creds.get("password")
+            auth = (ssh_user, password) if ssh_user and password else None
+            self.client = HTTPClient(
+                host=self.LOCALHOST,
+                port=self.client_port,
+                auth=auth,
+                cert_path=cert_path,
+                use_https=use_https,
+            )
+        else:
+            self.client = HTTPClient(
+                host=self.LOCALHOST,   # k8s needs this to be localhost and not the server address. Server address is address of k8s pod
+                port=self.client_port,
+                cert_path=cert_path,
+                use_https=use_https,
+            )
 

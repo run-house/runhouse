@@ -587,7 +587,10 @@ class Cluster(Resource):
         if isinstance(connection_type, str):
             return connection_type == tls_conn
 
-        return connection_type.value == tls_conn
+        if connection_type is not None and connection_type.value is not None:
+            return connection_type.value == tls_conn
+        else:
+            return False
 
     @property
     def _use_nginx(self) -> bool:
