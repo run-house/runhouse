@@ -72,7 +72,7 @@ class Cluster(Resource):
         server_port: int = None,
         ssh_port: int = None,
         client_port: int = None,
-        server_connection_type: str = None,
+        server_connection_type: Union[ServerConnectionType, str] = None,
         ssl_keyfile: str = None,
         ssl_certfile: str = None,
         den_auth: bool = False,
@@ -102,7 +102,12 @@ class Cluster(Resource):
             cert_path=ssl_certfile, key_path=ssl_keyfile, dir_name=self.name
         )
 
-        self.server_connection_type = server_connection_type
+        if isinstance(server_connection_type, str):
+            self.server_connection_type = ServerConnectionType(server_connection_type)
+        else:
+            # This is already a ServerConnectionType, came from factory
+            self.server_connection_type = server_connection_type
+
         self.server_port = server_port or self.DEFAULT_SERVER_PORT
         self.client_port = client_port
         self.ssh_port = ssh_port or self.DEFAULT_SSH_PORT
@@ -566,13 +571,7 @@ class Cluster(Resource):
     @property
     def _use_https(self) -> bool:
         """Use HTTPS if server connection type is set to ``tls``"""
-        connection_type = self.server_connection_type
-        tls_conn = ServerConnectionType.TLS.value
-
-        if isinstance(connection_type, str):
-            return connection_type == tls_conn
-
-        return connection_type.value == tls_conn
+        return self.server_connection_type == ServerConnectionType.TLS
 
     @property
     def _use_nginx(self) -> bool:
