@@ -17,16 +17,17 @@ RUN . /root/.bashrc && \
 # Create the password file directory
 RUN mkdir -p /app/ssh
 
-# Make RUN commands use the conda base environment
-RUN echo "conda activate base" >> ~/.bashrc && \
-    pip install --upgrade pip
-SHELL ["/bin/bash", "--login", "-c"]
-
 # Install the required packages
 RUN apt-get update --allow-insecure-repositories && \
-    apt-get install -y --no-install-recommends gcc python3-dev openssh-server rsync supervisor screen curl sudo ufw && \
+    apt-get install -y --no-install-recommends gcc python3-dev python3-pip openssh-server rsync supervisor screen curl sudo ufw && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Make RUN commands use the conda base environment
+SHELL ["/bin/bash", "--login", "-c"]
+RUN echo "conda activate base" >> ~/.bashrc && \
+    pip install pip --upgrade && \
+    pip install cryptography pyopenssl --upgrade
 
 # COPY local Runhouse package into the image if provided
 COPY $RUNHOUSE_PATH /app/runhouse
