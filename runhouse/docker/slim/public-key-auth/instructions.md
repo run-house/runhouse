@@ -29,4 +29,5 @@ docker run --rm --shm-size=4gb -it -p 32300:32300 -p 6379:6379 -p 52365:52365 -p
 
 6. Verify via SSH
 
+ssh-keygen -R localhost
 ssh -i ~/.ssh/runhouse/docker/id_rsa rh-docker-user@localhost
