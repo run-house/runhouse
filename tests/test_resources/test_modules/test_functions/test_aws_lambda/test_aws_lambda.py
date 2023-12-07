@@ -67,7 +67,7 @@ def test_load_not_existing_lambda():
     name_no_user = "test_lambda_create_and_run1"
     with pytest.raises(ValueError) as valueError:
         rh.aws_lambda_function(name=name_no_user)
-    assert str(valueError.value) == (f"Could not find a Lambda called {name_no_user}.")
+    assert str(valueError.value) == f"Could not find a Lambda called {name_no_user}."
 
     name_with_user = "/sashab/test_lambda_no_such_lambda"
     with pytest.raises(ValueError) as valueError:

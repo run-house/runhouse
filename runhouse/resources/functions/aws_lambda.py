@@ -163,11 +163,6 @@ class AWSLambdaFunction(Function):
     # --------------------------------------
 
     @classmethod
-    def _check_for_child_configs(cls, config):
-        """Overload this method of the function class."""
-        return config
-
-    @classmethod
     def _reqs_to_list(cls, env):
         """Converting requirements from requirements.txt to a list"""
         if env == "requirements.txt":
