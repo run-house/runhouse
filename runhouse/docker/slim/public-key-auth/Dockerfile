@@ -1,5 +1,4 @@
-# Debian based image (should work for Ubuntu as well) using public key authentication
-FROM python:3.9.15-slim
+FROM continuumio/miniconda3:22.11.1
 
 ARG RUNHOUSE_PATH
 ARG RUNHOUSE_VERSION
@@ -8,8 +7,20 @@ WORKDIR /app
 
 COPY . .
 
+ENV PATH /opt/conda/bin/:$PATH
+
+# Conda init
+RUN . /root/.bashrc && \
+    conda init bash && \
+    conda activate base
+
 # Create the password file directory
 RUN mkdir -p /app/ssh
+
+# Make RUN commands use the conda base environment
+RUN echo "conda activate base" >> ~/.bashrc && \
+    pip install --upgrade pip
+SHELL ["/bin/bash", "--login", "-c"]
 
 # Install the required packages
 RUN apt-get update --allow-insecure-repositories && \
@@ -21,6 +32,7 @@ RUN apt-get update --allow-insecure-repositories && \
 COPY $RUNHOUSE_PATH /app/runhouse
 
 # If using a local version of runhouse, install it from the local directory
+RUN conda install grpcio
 RUN if [ -d "/app/runhouse" ]; then pip install -U -e '/app/runhouse[opentelemetry]'; else pip install -U 'runhouse[opentelemetry]==$RUNHOUSE_VERSION'; fi
 
 # Create the privilege separation directory required by sshd
@@ -28,6 +40,9 @@ RUN mkdir -p /run/sshd
 
 # Create a user for SSH access and add to sudo group
 RUN useradd -m rh-docker-user && echo "rh-docker-user ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/rh-docker-user
+
+# Set the path for the user
+RUN echo 'export PATH="/opt/conda/bin:/home/rh-docker-user/.local/bin:$PATH"' >> /home/rh-docker-user/.bashrc
 
 # Create .ssh directory for the user
 RUN mkdir -p /home/rh-docker-user/.ssh
