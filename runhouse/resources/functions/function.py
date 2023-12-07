@@ -298,7 +298,7 @@ class Function(Module):
             if sync_package_on_close:
                 if sync_package_on_close == "./":
                     sync_package_on_close = globals.rns_client.locate_working_dir()
-                from .folders import folder
+                from ..folders import folder
 
                 folder(system=self.system, path=sync_package_on_close).to("here")
             if not persist:

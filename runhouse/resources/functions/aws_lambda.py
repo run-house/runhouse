@@ -53,15 +53,7 @@ class AWSLambdaFunction(Function):
     DEFAULT_TIMEOUT = 900  # sec. meaning 15 min.
     DEFAULT_MEMORY_SIZE = 1024  # MB
     DEFAULT_TMP_SIZE = 3072  # MB, meaning 3G
-
-    # setup needs to be here and not in __init__ for the reload option.
-    if Path(CRED_PATH).is_file():
-        LAMBDA_CLIENT = boto3.client("lambda")
-        LOGS_CLIENT = boto3.client("logs")
-
-    else:
-        LAMBDA_CLIENT = boto3.client("lambda", region_name=DEFAULT_REGION)
-        LOGS_CLIENT = boto3.client("logs", region_name=DEFAULT_REGION)
+    HOME_DIR = "/tmp/home"
 
     def __init__(
         self,
@@ -77,12 +69,13 @@ class AWSLambdaFunction(Function):
         tmp_size: int,  # MB
         retention_time: int = DEFAULT_RETENTION,  # days
         dryrun: bool = False,
+        function_arn: Optional[str] = None,
         access: Optional[str] = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
         Runhouse AWS Lambda object. It is comprised of the entry point, configuration,
-        and dependencies necessary to run the service.
+        and dependencies necessary to run the service on AWS infra.
 
         .. note::
                 To create an AWS lambda resource, please use the factory method :func:`aws_lambda_function`.
@@ -109,8 +102,28 @@ class AWSLambdaFunction(Function):
             None  # Lambda config and role arn from aws will be saved here
         )
         self.retention_time = retention_time
+        self.function_arn = function_arn
 
-    # ----------------- Constructor helper methods -----------------
+        # will be used for reloading shared functions from other regions.
+        if function_arn:
+            region = function_arn.split(":")[3]
+            self.lambda_client = boto3.client("lambda", region_name=region)
+            self.logs_client = boto3.client("logs", region_name=region)
+        else:
+
+            if Path(CRED_PATH).is_file():
+                self.lambda_client = boto3.client("lambda")
+                self.logs_client = boto3.client("logs")
+
+            else:
+                self.lambda_client = boto3.client(
+                    "lambda", region_name=self.DEFAULT_REGION
+                )
+                self.logs_client = boto3.client("logs", region_name=self.DEFAULT_REGION)
+
+    # --------------------------------------
+    # Constructor helper methods
+    # --------------------------------------
 
     @classmethod
     def from_config(cls, config: dict, dryrun: bool = False):
@@ -129,7 +142,9 @@ class AWSLambdaFunction(Function):
             config["memory_size"] = AWSLambdaFunction.DEFAULT_MEMORY_SIZE
         if "env" not in keys:
             config["env"] = Env(
-                reqs=[], env_vars={"HOME": "/tmp"}, name=Env.DEFAULT_NAME
+                reqs=[],
+                env_vars={"HOME": AWSLambdaFunction.HOME_DIR},
+                name=Env.DEFAULT_NAME,
             )
         else:
             config["env"] = Env.from_config(config["env"])
@@ -138,20 +153,14 @@ class AWSLambdaFunction(Function):
 
     @classmethod
     def from_name(cls, name, dryrun=False, alt_options=None):
-        funcs = cls.LAMBDA_CLIENT.list_functions()
-        funcs = funcs["Functions"]
-        func_names = [func["FunctionName"] for func in funcs]
-        if name in func_names:
-            func = super().from_name(name=name)
-            return func.to()
-        else:
-            raise RuntimeError(
-                f"Could not find a Lambda called {name}. Please provide a name of an existing Lambda, "
-                + "or paths_to_code, handler_function_name, runtime and args_names (and a name if you"
-                + " wish), in order to create a new lambda."
-            )
+        config = rns_client.load_config(name=name)
+        if not config:
+            raise ValueError(f"Could not find a Lambda called {name}.")
+        return cls.from_config(config)
 
-    # ----------------- Private helping methods -----------------
+    # --------------------------------------
+    # Private helping methods
+    # --------------------------------------
 
     @classmethod
     def _check_for_child_configs(cls, config):
@@ -183,7 +192,7 @@ class AWSLambdaFunction(Function):
         """Checks if a Lambda with the name given during init is already exists in AWS"""
         func_names = [
             func["FunctionName"]
-            for func in self.LAMBDA_CLIENT.list_functions()["Functions"]
+            for func in self.lambda_client.list_functions()["Functions"]
         ]
         return name in func_names
 
@@ -192,7 +201,7 @@ class AWSLambdaFunction(Function):
         """Verifies that a running update of the function (in AWS) is finished (so the next one could be executed)"""
 
         time_passed = 0  # seconds
-        response = self.LAMBDA_CLIENT.get_function(FunctionName=name)
+        response = self.lambda_client.get_function(FunctionName=name)
         state = response["Configuration"]["State"] == "Active"
 
         try:
@@ -214,7 +223,7 @@ class AWSLambdaFunction(Function):
                     )
                 time.sleep(1)
                 time_passed += 1
-                response = self.LAMBDA_CLIENT.get_function(FunctionName=name)
+                response = self.lambda_client.get_function(FunctionName=name)
                 state = response["Configuration"]["State"] == "Active"
                 try:
                     last_update_status = (
@@ -235,6 +244,8 @@ class AWSLambdaFunction(Function):
         f = open(wrapper_path, "w")
         f.write("import subprocess\n" "import sys\n" "import os\n\n")
         f.write("def lambda_handler(event, context):\n")
+        f.write(f"\tif not os.path.isdir('{self.HOME_DIR}'):\n")
+        f.write(f"\t\tos.mkdir('{self.HOME_DIR}')\n")
 
         # adding code for installing python libraries
         reqs = self.env.reqs
@@ -244,11 +255,11 @@ class AWSLambdaFunction(Function):
             reqs.remove("./")
         for req in reqs:
             f.write(
-                f"\tif not os.path.isdir('/tmp/{req}'):\n"
-                f"\t\tsubprocess.call(['pip', 'install', '{req}', '-t', '/tmp/'])\n"
+                f"\tif not os.path.isdir('{self.HOME_DIR}/{req}'):\n"
+                f"\t\tsubprocess.call(['pip', 'install', '{req}', '-t', '{self.HOME_DIR}/'])\n"
             )
         if reqs is not None and len(reqs) > 0:
-            f.write("\tsys.path.insert(1, '/tmp/')\n\n")
+            f.write(f"\tsys.path.insert(1, '{self.HOME_DIR}/')\n\n")
 
         f.write(
             "\timport runhouse\n"
@@ -281,7 +292,7 @@ class AWSLambdaFunction(Function):
     def _update_lambda_config(self, env_vars):
         """Updates existing Lambda in AWS (config) that was provided in the init."""
         logger.info(f"Updating a Lambda called {self.name}")
-        lambda_config = self.LAMBDA_CLIENT.update_function_configuration(
+        lambda_config = self.lambda_client.update_function_configuration(
             FunctionName=self.name,
             Runtime=self.runtime,
             Timeout=self.timeout,
@@ -308,7 +319,7 @@ class AWSLambdaFunction(Function):
             with open(zip_file_name, "rb") as f:
                 zipped_code = f.read()
 
-            lambda_config = self.LAMBDA_CLIENT.update_function_code(
+            lambda_config = self.lambda_client.update_function_code(
                 FunctionName=self.name, ZipFile=zipped_code
             )
 
@@ -319,7 +330,7 @@ class AWSLambdaFunction(Function):
     def _deploy_lambda_to_aws_helper(self, role_res, zipped_code, env_vars):
         """Deploying new lambda to AWS helping function"""
         try:
-            lambda_config = self.LAMBDA_CLIENT.create_function(
+            lambda_config = self.lambda_client.create_function(
                 FunctionName=self.name,
                 Runtime=self.runtime,
                 Role=role_res["Role"]["Arn"],
@@ -332,9 +343,9 @@ class AWSLambdaFunction(Function):
             )
             func_name = lambda_config["FunctionName"]
             with self._wait_until_lambda_update_is_finished(func_name):
-                lambda_config = self.LAMBDA_CLIENT.get_function(FunctionName=func_name)
+                lambda_config = self.lambda_client.get_function(FunctionName=func_name)
                 return lambda_config
-        except self.LAMBDA_CLIENT.exceptions.InvalidParameterValueException or botocore.exceptions.ClientError:
+        except self.lambda_client.exceptions.InvalidParameterValueException or botocore.exceptions.ClientError:
             return False
 
     @contextlib.contextmanager
@@ -466,7 +477,7 @@ class AWSLambdaFunction(Function):
             # updating the configuration with the initial configuration.
             # TODO [SB]: in the next phase, enable the user to change the config of the Lambda.
             # lambda_config = self._update_lambda_config(env_vars)
-            lambda_config = self.LAMBDA_CLIENT.get_function(FunctionName=self.name)
+            lambda_config = self.lambda_client.get_function(FunctionName=self.name)
 
         else:
             # creating a new Lambda function, since it's not existing in the AWS account which is configured locally.
@@ -476,9 +487,9 @@ class AWSLambdaFunction(Function):
         Path(rh_handler_wrapper).absolute().unlink()
         return self
 
-    #
-    #     # ----------------- Function call methods -----------------
-    #
+    # --------------------------------------
+    # Lambda Function call methods
+    # --------------------------------------
 
     def __call__(self, *args, **kwargs) -> Any:
         """Call (invoke) the Lambdas function
@@ -493,7 +504,7 @@ class AWSLambdaFunction(Function):
         return self._invoke(*args, **kwargs)
 
     def _get_log_group_names(self, log_group_prefix):
-        lambdas_log_groups = self.LOGS_CLIENT.describe_log_groups(
+        lambdas_log_groups = self.logs_client.describe_log_groups(
             logGroupNamePrefix=log_group_prefix
         )["logGroups"]
         lambdas_log_groups = [group["logGroupName"] for group in lambdas_log_groups]
@@ -526,7 +537,7 @@ class AWSLambdaFunction(Function):
 
         if len(args) > 0 and self.args_names is not None:
             payload_invoke = {self.args_names[i]: args[i] for i in range(len(args))}
-        invoke_res = self.LAMBDA_CLIENT.invoke(
+        invoke_res = self.lambda_client.invoke(
             FunctionName=self.name,
             Payload=json.dumps({**payload_invoke, **kwargs}),
             LogType="Tail",
@@ -546,7 +557,7 @@ class AWSLambdaFunction(Function):
                 with self._wait_till_log_group_is_created(
                     curr_lambda_log_group, lambdas_log_groups, log_group_prefix
                 ):
-                    self.LOGS_CLIENT.put_retention_policy(
+                    self.logs_client.put_retention_policy(
                         logGroupName=curr_lambda_log_group,
                         retentionInDays=self.retention_time,
                     )
@@ -591,7 +602,9 @@ class AWSLambdaFunction(Function):
 
         return [self._invoke(*args, **kwargs) for args in args_lists]
 
-    # ----------------- Properties setup -----------------
+    # --------------------------------------
+    # Properties setup
+    # --------------------------------------
     @property
     def config_for_rns(self):
         config = super().config_for_rns
@@ -604,6 +617,7 @@ class AWSLambdaFunction(Function):
                 "memory_size": self.memory_size,
                 "tmp_size": self.tmp_size,
                 "args_names": self.args_names,
+                "function_arn": self.aws_lambda_config["Configuration"]["FunctionArn"],
             }
         )
         return config
@@ -611,6 +625,41 @@ class AWSLambdaFunction(Function):
     @property
     def handler_path(self):
         return self.local_path_to_code[0]
+
+    # --------------------------------------
+    # Lambda Function delete methods
+    # --------------------------------------
+    def delete(self):
+        try:
+            lambda_name = self.name
+            # delete from rns (if exists)
+            if rns_client.exists(self.rns_address):
+                rns_client.delete_configs(self)
+            # delete from aws console
+            if self._lambda_exist(lambda_name):
+                policy_name = f"{lambda_name}_Policy"
+                role_name = f"{lambda_name}_Role"
+                log_group_name = f"/aws/lambda/{lambda_name}"
+
+                # TODO: do we want to delete role and log group?
+                #  maybe we want to reuse the role or save logs even if the lambda was deleted.
+                iam_client = boto3.client("iam")
+                iam_client.delete_role_policy(
+                    RoleName=role_name, PolicyName=policy_name
+                )
+
+                iam_client.delete_role(RoleName=role_name)
+
+                if len(self._get_log_group_names(log_group_name)) > 0:
+                    self.logs_client.delete_log_group(logGroupName=log_group_name)
+
+                self.lambda_client.delete_function(FunctionName=lambda_name)
+
+            return True
+        except botocore.exceptions.ClientError as aws_exception:
+            raise RuntimeError(
+                f"Could nor delete an AWS resource, got {aws_exception.response['Error']['Message']}"
+            )
 
 
 def _paths_to_code_from_fn_pointers(fn_pointers):
@@ -632,7 +681,6 @@ def aws_lambda_function(
     timeout: Optional[int] = None,
     memory_size: Optional[int] = None,
     tmp_size: Optional[int] = None,
-    region: Optional[str] = None,
     retention_time: Optional[int] = None,
     dryrun: bool = False,
 ):
@@ -658,7 +706,7 @@ def aws_lambda_function(
             env_vars: dictionary containing the env_vars that will be a part of the lambda configuration.
             2. A list of strings, containing all the required python packeages.
             3. An insrantce of Runhouse Env class.
-            By default, ``runhouse`` package will be installed, and env_vars will include ``{HOME: /tmp}``
+            By default, ``runhouse`` package will be installed, and env_vars will include ``{HOME: /tmp/home}``
         timeout: Optional[int]: The maximum amount of time (in secods) during which the Lambda will run in AWS
             without timing-out. (Default: ``900``, Min: ``3``, Max: ``900``)
         memory_size: Optional[int], The amount of memeory, im MB, that will be aloocatied to the lambda.
@@ -677,7 +725,7 @@ def aws_lambda_function(
 
         .. note::
             When creating the function for the first time (and not reloading it), the following arguments are
-            mandatory: paths_to_code, handler_function_name, runtime, args_names.
+            mandatory: paths_to_code, handler_function_name, runtime, args_names OR a callable function.
 
     Example:
         >>> import runhouse as rh
@@ -725,10 +773,14 @@ def aws_lambda_function(
             )
 
     elif env is None:
-        env = Env(reqs=[], env_vars={"HOME": "/tmp"}, name=Env.DEFAULT_NAME)
+        env = Env(
+            reqs=[],
+            env_vars={"HOME": AWSLambdaFunction.HOME_DIR},
+            name=Env.DEFAULT_NAME,
+        )
 
     if "HOME" not in env.env_vars.keys():
-        env.env_vars["HOME"] = "/tmp"
+        env.env_vars["HOME"] = AWSLambdaFunction.HOME_DIR
 
     # extract function pointers, path to code and arg names from callable function.
     if isinstance(fn, Callable):
@@ -753,7 +805,7 @@ def aws_lambda_function(
         if args_names is None:
             # Parsing the handler file and extracting the arguments names of the handler function.
             file_path = paths_to_code[0]
-            func_name = handler_function_name[0]
+            func_name = handler_function_name
             with (open(file_path) as f):
                 a = f.read()
                 index = a.index(func_name)
@@ -821,8 +873,6 @@ def aws_lambda_function(
     elif tmp_size > 10240:
         tmp_size = 10240
         warnings.warn("/tmp size can not be more then 10240 MB, setting to 10240 MB.")
-    if region is None:
-        region = AWSLambdaFunction.DEFAULT_REGION
     if retention_time is None:
         retention_time = AWSLambdaFunction.DEFAULT_RETENTION
 
@@ -838,7 +888,6 @@ def aws_lambda_function(
         timeout=timeout,
         memory_size=memory_size,
         tmp_size=tmp_size,
-        region=region,
         retention_time=retention_time,
     ).to()
 
