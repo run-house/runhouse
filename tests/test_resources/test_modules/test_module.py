@@ -503,6 +503,133 @@ class TestModule:
         assert my_remote_calc.remote.model == "Casio"
         assert my_remote_calc.remote.name == "Runhouse_remote_dev"
 
+    @pytest.mark.level("unit")
+    def test_signature(self):
+
+        SlowNumpy = rh.module(SlowNumpyArray)
+        assert set(SlowNumpy.signature.keys()) == {
+            "slow_iter",
+            "cpu_count",
+            "size_minus_cpus",
+            "factory_constructor",
+        }
+        assert SlowNumpy.signature == {
+            "cpu_count": {
+                "signature": "(local=True)",
+                "property": False,
+                "async": False,
+                "gen": False,
+                "local": True,
+            },
+            "factory_constructor": {
+                "signature": "(size=5)",
+                "property": False,
+                "async": False,
+                "gen": False,
+                "local": False,
+            },
+            "size_minus_cpus": {
+                "signature": "(self)",
+                "property": False,
+                "async": False,
+                "gen": False,
+                "local": False,
+            },
+            "slow_iter": {
+                "signature": "(self)",
+                "property": False,
+                "async": False,
+                "gen": True,
+                "local": False,
+            },
+        }
+
+        arr = SlowNumpy(size=5)
+        assert set(arr.signature.keys()) == {
+            "slow_iter",
+            "cpu_count",
+            "size_minus_cpus",
+            "factory_constructor",
+        }
+
+        df = SlowPandas(size=10)
+        assert df.signature == {
+            "cpu_count": {
+                "signature": "(self, local=True)",
+                "property": False,
+                "async": False,
+                "gen": False,
+                "local": True,
+            },
+            "cpu_count_async": {
+                "signature": "(self, local=True)",
+                "property": False,
+                "async": True,
+                "gen": False,
+                "local": True,
+            },
+            "slow_iter": {
+                "signature": "(self)",
+                "property": False,
+                "async": False,
+                "gen": True,
+                "local": False,
+            },
+            "slow_iter_async": {
+                "signature": "(self)",
+                "property": False,
+                "async": True,
+                "gen": True,
+                "local": False,
+            },
+        }
+
+        RemoteCalc = rh.module(Calculator)
+        assert set(RemoteCalc.signature.keys()) == {
+            "summer",
+            "sub",
+            "divider",
+            "mult",
+            "importer",
+        }
+        assert RemoteCalc.signature == {
+            "divider": {
+                "signature": "(self, a: int, b: int)",
+                "property": False,
+                "async": False,
+                "gen": False,
+                "local": False,
+            },
+            "importer": {
+                "signature": None,
+                "property": True,
+                "async": False,
+                "gen": False,
+                "local": False,
+            },
+            "mult": {
+                "signature": "(self, a: int, b: int)",
+                "property": False,
+                "async": False,
+                "gen": False,
+                "local": False,
+            },
+            "sub": {
+                "signature": "(self, a: int, b: int)",
+                "property": False,
+                "async": False,
+                "gen": False,
+                "local": False,
+            },
+            "summer": {
+                "signature": "(self, a: int, b: int)",
+                "property": False,
+                "async": False,
+                "gen": False,
+                "local": False,
+            },
+        }
+
 
 if __name__ == "__main__":
     unittest.main()

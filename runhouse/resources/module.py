@@ -19,52 +19,17 @@ from runhouse.rns.utils.names import _generate_default_name
 logger = logging.getLogger(__name__)
 
 # These are methods that the Module's __getattribute__ logic should not intercept to run remotely
-LOCAL_METHODS = [
-    "RESOURCE_TYPE",
-    "__class__",
-    "__delattr__",
-    "__dict__",
-    "__dir__",
-    "__doc__",
-    "__eq__",
-    "__format__",
-    "__ge__",
-    "__gt__",
-    "__hash__",
-    "__init__",
-    "__init_subclass__",
-    "__le__",
-    "__lt__",
-    "__module__",
-    "__ne__",
-    "__new__",
-    "__reduce__",
-    "__reduce_ex__",
-    "__repr__",
-    "__setattr__",
-    "set_async",
-    "__getattribute__",
-    "__sizeof__",
-    "__str__",
-    "__subclasshook__",
-    "__weakref__",
-    "_check_for_child_configs",
-    "_cls_pointers",
+# Should we just be using inspect.getclasstree to get signatures without the Module methods instead?
+LOCAL_METHODS = dir(Resource) + [
+    "_pointers",
+    "env",
     "_env",
     "_extract_pointers",
     "_name",
-    "_resource_string_for_subconfig",
     "_rns_folder",
-    "_save_sub_resources",
+    "system",
     "_system",
-    "config_for_rns",
-    "delete_configs",
     "dryrun",
-    "env",
-    "from_config",
-    "from_name",
-    "history",
-    "is_local",
     "remote",
     "local",
     "resolve",
@@ -72,18 +37,14 @@ LOCAL_METHODS = [
     "resolved_state",
     "fetch",
     "fetch_async",
-    "name",
+    "set_async",
     "rename",
-    "rns_address",
-    "save",
-    "save_attrs_to_config",
-    "share",
-    "system",
     "to",
-    "unname",
     "provenance",
-    "refresh",
     "get_or_to",
+    "signature",
+    "_signature",
+    "method_signature",
 ]
 
 
@@ -92,7 +53,8 @@ class Module(Resource):
 
     def __init__(
         self,
-        cls_pointers: Optional[Tuple] = None,
+        pointers: Optional[Tuple] = None,
+        signature: Optional[dict] = None,
         name: Optional[str] = None,
         system: Union[Cluster] = None,
         env: Optional[Env] = None,
@@ -109,14 +71,18 @@ class Module(Resource):
         )
         self._env = env
         is_builtin = hasattr(sys.modules["runhouse"], self.__class__.__qualname__)
-        if not cls_pointers and not is_builtin:
+        if not pointers and not is_builtin:
+            # If there are no pointers and this isn't a builtin module, we assume this is a user-created subclass
+            # of rh.Module, and we need to do the factory constructor logic here.
+
             # When creating a module as a subclass of rh.Module, we need to collect pointers here
             self._env = env or Env(name=Env.DEFAULT_NAME)
             # If we're creating pointers, we're also local to the class definition and package, so it should be
             # set as the workdir (we can do this in a fancier way later)
             self._env.working_dir = self._env.working_dir or "./"
-            cls_pointers = Module._extract_pointers(self.__class__, reqs=self._env.reqs)
-        self._cls_pointers = cls_pointers
+            pointers = Module._extract_pointers(self.__class__, reqs=self._env.reqs)
+        self._pointers = pointers
+        self._signature = signature
         self._resolve = False
 
     @property
@@ -137,29 +103,41 @@ class Module(Resource):
             if self.env.name == Env.DEFAULT_NAME
             else self._resource_string_for_subconfig(self.env)
         )
-        if self._cls_pointers:
+        if self._pointers:
             # For some reason sometimes this is coming back as a string, so we force it into a tuple
-            config["cls_pointers"] = tuple(self._cls_pointers)
+            config["pointers"] = tuple(self._pointers)
+
+        # If not signature is set, we assume this is where the Module was created and we're local to its code.
+        # We'll collect the signatures of all the methods here before saving or sending them somewhere.
+        # Note that we even do this for built-in modules, because 1) we want their methods preserved in Den for when
+        # they're called via HTTP and 2) we want to preserve the exact set of methods in case the methods on built-in
+        # modules change across Runhouse versions.
+        config["signature"] = self.signature
         return config
 
     @classmethod
     def from_config(cls, config: dict, dryrun=False):
-        if config.get("cls_pointers"):
+        if config.get("pointers"):
             config.pop("resource_subtype", None)
-            logger.debug(f"Constructing module from pointers {config['cls_pointers']}")
-            (module_path, module_name, class_name) = config["cls_pointers"]
-            module_cls = cls._get_obj_from_pointers(
-                module_path, module_name, class_name
-            )
-            if not issubclass(module_cls, Module):
-                # Case when module was created through rh.module(new_class) factory, and needs to be
-                # made into a subclass of rh.Module. We'll follow the same flow as the subclass-created module below,
-                # where we don't call __init__ explicitly, because __init__ will call the subclass's init and this may
-                # a "type" module rather than an "instance". The user might instantiate it later, or it may be
-                # populated with attributes by the servlet's put_resource.
-                module_cls = _module_subclass_factory(
-                    module_cls, config.get("cls_pointers")
+            logger.debug(f"Constructing module from pointers {config['pointers']}")
+            (module_path, module_name, class_name) = config["pointers"]
+            try:
+                module_cls = cls._get_obj_from_pointers(
+                    module_path, module_name, class_name
                 )
+                if not issubclass(module_cls, Module):
+                    # Case when module was created through rh.module(new_class) factory, and needs to be
+                    # made into a subclass of rh.Module. We'll follow the same flow as the subclass-created module
+                    # below, where we don't call __init__ explicitly, because __init__ will call the subclass's init
+                    # and this may a "type" module rather than an "instance". The user might instantiate it later, or
+                    # it may be populated with attributes by the servlet's put_resource.
+                    module_cls = _module_subclass_factory(
+                        module_cls, config.get("pointers")
+                    )
+            except ModuleNotFoundError:
+                # If we fail to construct the module class from the pointers, we check if the code is not local,
+                # i.e. the system is elsewhere. If so, we can still use this module from its signature alone.
+                module_cls = Module
 
             # Module created as subclass of rh.Module may not have rh.Module's
             # constructor signature (e.g. system, env, etc.), so assign them manually
@@ -171,7 +149,8 @@ class Module(Resource):
             new_module.system = config.pop("system", None)
             new_module.env = config.pop("env", None)
             new_module.name = config.pop("name", None)
-            new_module._cls_pointers = config.pop("cls_pointers", None)
+            new_module._pointers = config.pop("pointers", None)
+            new_module._signature = config.pop("signature", None)
             new_module.dryrun = config.pop("dryrun", False)
             new_module.provenance = config.pop("provenance", None)
             return new_module
@@ -220,11 +199,51 @@ class Module(Resource):
     def env(self, new_env: Optional[Union[str, Env]]):
         self._env = _get_env_from(new_env)
 
+    @property
+    def signature(self):
+        return self._signature or {
+            name: self.method_signature(method)
+            for (name, method) in inspect.getmembers(self.__class__)
+            if not name[0] == "_" and name not in LOCAL_METHODS
+        }
+
+    def method_signature(self, method, rich=False):
+        """Extracts the properties of a method that we want to preserve when sending the method over the wire."""
+        if not callable(method):
+            return {
+                "signature": None,
+                "property": True,
+                "async": False,
+                "gen": False,
+                "local": False,
+            }
+
+        signature = inspect.signature(method)
+        signature_metadata = {
+            "signature": str(signature),
+            "property": not callable(method),
+            "async": inspect.iscoroutinefunction(method)
+            or inspect.isasyncgenfunction(method),
+            "gen": inspect.isgeneratorfunction(method)
+            or inspect.isasyncgenfunction(method),
+            "local": "local" in signature.parameters
+            and signature.parameters["local"].default is True,
+        }
+        if rich:
+            signature_metadata["doc"] = (
+                inspect.getdoc(method) if method.__doc__ else None
+            )
+            signature_metadata["annotations"] = (
+                method.__annotations__ if method.__annotations__ else None
+            )
+
+        return signature_metadata
+
     def _remote_init(self, *args, **kwargs):
         if len(self.__class__.__bases__) > 1:
             module_cls = self.__class__.__bases__[1]
-        elif self._cls_pointers:
-            (module_path, module_name, class_name) = self._cls_pointers
+        elif self._pointers:
+            (module_path, module_name, class_name) = self._pointers
             # Reload needs to be false here, because if we reload the class, the reloaded class actually doesn't
             # match the class object of which self was a subclass, so we can't call super().__init__ on it within
             # module_cls's __init__.
@@ -319,8 +338,8 @@ class Module(Resource):
                 name
                 or self.name
                 or (
-                    self._cls_pointers[2]
-                    if self._cls_pointers
+                    self._pointers[2]
+                    if self._pointers
                     else None
                     or _generate_default_name(
                         prefix=self.__class__.__qualname__.lower()
@@ -337,7 +356,7 @@ class Module(Resource):
                     "_rns_folder",
                     "dryrun",
                     "_env",
-                    "_cls_pointers",
+                    "_pointers",
                     "_resolve",
                 ]
                 state = {}
@@ -386,40 +405,36 @@ class Module(Resource):
             return super().__getattribute__(item)
         system = super().__getattribute__("_system")
 
-        attr = super().__getattribute__(item)
+        try:
+            attr = super().__getattribute__(item)
 
-        if not system or not isinstance(system, Cluster) or system.on_this_cluster():
-            return attr
+            if (
+                not system
+                or not isinstance(system, Cluster)
+                or system.on_this_cluster()
+            ):
+                return attr
 
-        # Don't try to run private methods or attributes remotely
-        if item[0] == "_":
-            return attr
+            # Don't try to run private methods or attributes remotely
+            if item[0] == "_":
+                return attr
+
+            _, is_prop, is_async, is_gen, local_default = list(
+                self.method_signature(attr).values()
+            )[0:5]
+
+            # Handle properties
+            if is_prop:
+                return attr
+        except AttributeError as e:
+            if item in self.signature:
+                _, is_prop, is_async, is_gen, local_default = list(
+                    self.signature.get(item).values()
+                )[0:5]
+            else:
+                raise e
 
         name = super().__getattribute__("_name")
-
-        # Handle properties
-        if not callable(attr):
-            # TODO should we throw a warning here or is that annoying?
-            return attr
-
-        signature = inspect.signature(attr)
-        has_local_arg = "local" in signature.parameters
-        local_default_true = (
-            has_local_arg and signature.parameters["local"].default is True
-        )
-
-        # Needed to handle async Functions, because we can't detect if the function they wrap is async like we
-        # do below for Module methods
-        try:
-            is_async = (
-                super().__getattribute__("_is_async") if item == "call" else False
-            )
-            is_async_gen = (
-                super().__getattribute__("_is_async_gen") if item == "call" else False
-            )
-        except AttributeError:
-            is_async = False
-            is_async_gen = False
 
         class RemoteMethodWrapper:
             """Helper class to allow methods to be called with __call__, remote, or run."""
@@ -430,15 +445,11 @@ class Module(Resource):
                 # method signature.
 
                 # Check if the method has a "local=True" arg, and check that the user didn't pass local=False instead
-                if local_default_true and kwargs.pop("local", True):
+                if local_default and kwargs.pop("local", True):
                     return attr(*args, **kwargs)
 
                 # If the method is a coroutine, we need to wrap it in a function so we can await it
-                if (
-                    inspect.iscoroutinefunction(attr)
-                    or inspect.isasyncgenfunction(attr)
-                    or is_async
-                ):
+                if is_async:
 
                     def call_wrapper():
                         return system.call(
@@ -448,7 +459,7 @@ class Module(Resource):
                             **kwargs,
                         )
 
-                    if inspect.isasyncgenfunction(attr) or is_async_gen:
+                    if is_gen:
 
                         async def async_gen():
                             for res in call_wrapper():
@@ -671,11 +682,14 @@ class Module(Resource):
                     return self.__getattribute__(key)
             return system.call(name, key, remote=remote, stream_logs=stream_logs)
 
-        if (
-            key
-            and hasattr(self, key)
-            and inspect.isasyncgenfunction(super().__getattribute__(key))
-        ):
+        try:
+            is_gen = (key and hasattr(self, key)) and inspect.isasyncgenfunction(
+                super().__getattribute__(key)
+            )
+        except AttributeError:
+            is_gen = self.signature.get(key, {}).get("gen", False)
+
+        if is_gen:
 
             async def async_gen():
                 for res in call_wrapper():
@@ -750,11 +764,11 @@ class Module(Resource):
     def resolved_state(self):
         """Return the resolved state of the module. By default, this is the original class of the module if it was
         created with the ``module`` factory constructor."""
-        if not self._cls_pointers:
+        if not self._pointers:
             self._resolve = False
             return self
 
-        (module_path, module_name, class_name) = self._cls_pointers
+        (module_path, module_name, class_name) = self._pointers
         original_class = self._get_obj_from_pointers(
             module_path, module_name, class_name
         )
@@ -909,14 +923,15 @@ class Module(Resource):
     #     full_name = func_name
 
 
-def _module_subclass_factory(cls, pointers, signature=None):
+def _module_subclass_factory(cls, cls_pointers):
     def __init__(
         self,
         *args,
         system=None,
         env=None,
         dryrun=False,
-        cls_pointers=pointers,
+        pointers=cls_pointers,
+        signature=None,
         name=None,
         provenance=None,
         **kwargs,
@@ -925,7 +940,8 @@ def _module_subclass_factory(cls, pointers, signature=None):
         # shouldn't be passed otherwise.
         Module.__init__(
             self,
-            cls_pointers=cls_pointers,
+            pointers=pointers,
+            signature=signature,
             name=name,
             system=system,
             env=env,
@@ -957,8 +973,7 @@ def _module_subclass_factory(cls, pointers, signature=None):
         return new_module
 
     methods = {"__init__": __init__, "__call__": __call__}
-    new_type = type(pointers[2], (Module, cls), methods)
-    new_type.__signature__ = signature
+    new_type = type(cls_pointers[2], (Module, cls), methods)
     return new_type
 
 
@@ -1069,14 +1084,17 @@ def module(
         env = _get_env_from(env) or Env(name=Env.DEFAULT_NAME)
         env.working_dir = env.working_dir or "./"
 
-    pointers = Module._extract_pointers(cls, env.reqs)
+    cls_pointers = Module._extract_pointers(cls, env.reqs)
     name = name or (
-        pointers[2] if pointers else _generate_default_name(prefix="module")
+        cls_pointers[2] if cls_pointers else _generate_default_name(prefix="module")
     )
-    signature = inspect.signature(cls)
 
     # return _module_subclass_factory(cls, pointers, system, env, name, signature)
-    module_subclass = _module_subclass_factory(cls, pointers, signature)
+    module_subclass = _module_subclass_factory(cls, cls_pointers)
     return module_subclass(
-        system=system, env=env, dryrun=dryrun, cls_pointers=pointers, name=name
+        system=system,
+        env=env,
+        dryrun=dryrun,
+        pointers=cls_pointers,
+        name=name,
     )
