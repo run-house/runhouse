@@ -109,7 +109,7 @@ def byo_cpu():
         .save()
     )
 
-    args = dict(name="different-cluster", ips=[c.address], ssh_creds=c.ssh_creds())
+    args = dict(name="different-cluster", ips=[c.address], ssh_creds=c.ssh_creds)
     c = rh.cluster(**args).save()
     init_args[id(c)] = args
 

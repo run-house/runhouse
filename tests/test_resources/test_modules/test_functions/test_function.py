@@ -395,7 +395,7 @@ class TestFunction:
     def test_http_url(self, cluster):
         # TODO convert into something like function.request_args() and/or function.curl_command()
         remote_sum = rh.function(summer).to(cluster).save("@/remote_function")
-        ssh_creds = cluster.ssh_creds()
+        ssh_creds = cluster.ssh_creds
         addr = (
             "http://" + cluster.LOCALHOST
             if cluster.server_connection_type in ["ssh", "aws_ssm"]
