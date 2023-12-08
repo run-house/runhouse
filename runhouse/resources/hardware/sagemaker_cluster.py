@@ -494,8 +494,8 @@ class SageMakerCluster(Cluster):
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0, retry=True
     ) -> Tuple[SSHTunnelForwarder, int]:
-        tunnel, connected_port = get_open_tunnel(self.address, self.ssh_port)
-        if connected_port == local_port:
+        tunnel = get_open_tunnel(self.address, self.ssh_port)
+        if tunnel and tunnel.local_bind_port == local_port:
             logger.info(
                 f"SSH tunnel on ports {local_port, remote_port} already created with the cluster"
             )

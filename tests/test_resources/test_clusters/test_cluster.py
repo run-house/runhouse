@@ -59,7 +59,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert cluster.address == args["ips"][0]
 
         if "ssh_creds" in args:
-            assert cluster.ssh_creds() == args["ssh_creds"]
+            assert cluster.ssh_creds == args["ssh_creds"]
 
         if "server_host" in args:
             assert cluster.server_host == args["server_host"]
