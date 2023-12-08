@@ -10,6 +10,7 @@ import pytest
 import runhouse as rh
 
 from runhouse.globals import rns_client
+from runhouse.resources.hardware.utils import CLUSTER_CONFIG_PATH
 from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 
 INVALID_HEADERS = {"Authorization": "Bearer InvalidToken"}
@@ -247,15 +248,15 @@ class TestHTTPServerDockerDenAuthOnly:
     # -------- INVALID TOKEN / CLUSTER ACCESS TESTS ----------- #
 
     @pytest.mark.level("local")
-    def test_request_with_no_cluster_config_yaml(self, http_client, cluster):
-        cluster.run(["mv ~/.rh/cluster_config.yaml ~/.rh/cluster_config_temp.yaml"])
+    def test_request_with_no_cluster_config_json(self, http_client, cluster):
+        cluster.run([f"mv {CLUSTER_CONFIG_PATH} ~/.rh/cluster_config_temp.json"])
         try:
             response = http_client.get("/keys", headers=rns_client.request_headers)
 
             assert response.status_code == 404
             assert "Failed to load current cluster" in response.text
         finally:
-            cluster.run(["mv ~/.rh/cluster_config_temp.yaml ~/.rh/cluster_config.yaml"])
+            cluster.run([f"mv ~/.rh/cluster_config_temp.json {CLUSTER_CONFIG_PATH}"])
         response = http_client.get("/keys", headers=INVALID_HEADERS)
 
         assert response.status_code == 403
@@ -554,8 +555,8 @@ class TestHTTPServerNoDockerDenAuthOnly:
     # -------- INVALID TOKEN / CLUSTER ACCESS TESTS ----------- #
 
     @pytest.mark.level("unit")
-    def test_request_with_no_cluster_config_yaml(self, local_client_with_den_auth):
-        source_path = os.path.expanduser("~/.rh/cluster_config.yaml")
+    def test_request_with_no_cluster_config_json(self, local_client_with_den_auth):
+        source_path = os.path.expanduser(CLUSTER_CONFIG_PATH)
         destination_path = os.path.expanduser("~/.rh/cluster_config_temp.yaml")
 
         # Use the expanded paths in the command
