@@ -21,24 +21,7 @@ provider_secret_values = {
 providers = provider_secret_values.keys()
 
 
-@pytest.fixture(scope="function")
-def secret(request):
-    """Parametrize over multiple secrets - useful for running the same test on multiple envs."""
-    return request.getfixturevalue(request.param)
-
-
-@pytest.fixture(scope="function")
-def custom_secret():
-    args = {"values": base_secret_values}
-    custom_secret = rh.secret(**args)
-    init_args[id(custom_secret)] = args
-    return custom_secret
-
-
-@pytest.fixture(params=providers)
-def provider_secret(request):
-    provider = request.param
-
+def _provider_secret(provider):
     name = f"_test_{provider}"
     values = provider_secret_values[provider]
 
@@ -47,3 +30,62 @@ def provider_secret(request):
     init_args[id(prov_secret)] = args
 
     return prov_secret
+
+
+@pytest.fixture(scope="function")
+def secret(request):
+    """Parametrize over multiple secrets - useful for running the same test on multiple envs."""
+    return request.getfixturevalue(request.param)
+
+
+@pytest.fixture(scope="function")
+def custom_secret():
+    args = {"name": "custom_secret", "values": base_secret_values}
+    custom_secret = rh.secret(**args)
+    init_args[id(custom_secret)] = args
+    return custom_secret
+
+
+@pytest.fixture(scope="function")
+def aws_secret():
+    return _provider_secret("aws")
+
+
+@pytest.fixture(scope="function")
+def azure_secret():
+    return _provider_secret("azure")
+
+
+@pytest.fixture(scope="function")
+def gcp_secret():
+    return _provider_secret("gcp")
+
+
+@pytest.fixture(scope="function")
+def lambda_secret():
+    return _provider_secret("lambda")
+
+
+@pytest.fixture(scope="function")
+def github_secret():
+    return _provider_secret("github")
+
+
+@pytest.fixture(scope="function")
+def huggingface_secret():
+    return _provider_secret("huggingface")
+
+
+@pytest.fixture(scope="function")
+def ssh_secret():
+    return _provider_secret("ssh")
+
+
+@pytest.fixture(scope="function")
+def sky_secret():
+    return _provider_secret("sky")
+
+
+@pytest.fixture(scope="function")
+def custom_provider_secret():
+    return _provider_secret("custom_provider")
