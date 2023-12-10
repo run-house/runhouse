@@ -688,7 +688,7 @@ def aws_lambda_function(
             (handler) function. If ``fn`` is provided, this argument is ignored.
         handler_function_name: (Optional[str]): The name of the function in the handler file that will be executed
             by the Lambda.
-        runtime: (Optional[str]): The coding language of the fuction. Should be one of the following:
+        runtime: (Optional[str]): The coding language of the function. Should be one of the following:
             python3.7, python3.8, python3.9, python3.10, python3.11. (Default: ``python3.9``)
         args_names: (Optional[list[str]]): List of the function's accepted parameters, which will be passed to the
             Lambda Function. If ``fn`` is provided, this argument is ignored.
