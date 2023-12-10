@@ -162,27 +162,6 @@ class AWSLambdaFunction(Function):
     # Private helping methods
     # --------------------------------------
 
-    @classmethod
-    def _reqs_to_list(cls, env):
-        """Converting requirements from requirements.txt to a list"""
-        if env == "requirements.txt":
-            env = Path(env).absolute()
-
-        def _get_lib_name(req: str):
-            index = len(req)
-            if "<" in req:
-                index = req.index("<")
-            elif ">" in req:
-                index = req.index(">")
-            elif "=" in req:
-                index = req.index("=")
-            return req[:index]
-
-        with open(env, "r") as f:
-            reqs = f.read().split("\n")
-            reqs = [_get_lib_name(req) for req in reqs]
-        return reqs
-
     def _lambda_exist(self, name):
         """Checks if a Lambda with the name given during init is already exists in AWS"""
         func_names = [
@@ -243,18 +222,27 @@ class AWSLambdaFunction(Function):
         f.write(f"\t\tos.mkdir('{self.HOME_DIR}')\n")
 
         # adding code for installing python libraries
-        reqs = self.env.reqs
-        if "runhouse" not in reqs:
-            reqs.append("runhouse")
-        if "./" in reqs:
-            reqs.remove("./")
-        for req in reqs:
+        if isinstance(self.env, str):
             f.write(
-                f"\tif not os.path.isdir('{self.HOME_DIR}/{req}'):\n"
-                f"\t\tsubprocess.call(['pip', 'install', '{req}', '-t', '{self.HOME_DIR}/'])\n"
+                "\tsubprocess.call(['pip', 'install', '-r', 'requirements.txt',"
+                + " '--ignore-installed', '-t', '{self.HOME_DIR}/'])\n"
+                f"\tif not os.path.isdir('{self.HOME_DIR}/runhouse'):\n"
+                f"\t\tsubprocess.call(['pip', 'install', 'runhouse', '-t', '{self.HOME_DIR}/'])\n"
+                f"\tsys.path.insert(1, '{self.HOME_DIR}/')\n\n"
             )
-        if reqs is not None and len(reqs) > 0:
-            f.write(f"\tsys.path.insert(1, '{self.HOME_DIR}/')\n\n")
+        else:
+            reqs = self.env.reqs
+            if "runhouse" not in reqs:
+                reqs.append("runhouse")
+            if "./" in reqs:
+                reqs.remove("./")
+            for req in reqs:
+                f.write(
+                    f"\tif not os.path.isdir('{self.HOME_DIR}/{req}'):\n"
+                    f"\t\tsubprocess.call(['pip', 'install', '{req}', '-t', '{self.HOME_DIR}/'])\n"
+                )
+            if reqs is not None and len(reqs) > 0:
+                f.write(f"\tsys.path.insert(1, '{self.HOME_DIR}/')\n\n")
 
         f.write(
             "\timport runhouse\n"
@@ -461,11 +449,12 @@ class AWSLambdaFunction(Function):
         if not Path(CRED_PATH).is_file():
             logger.error("No credentials found")
             raise FileNotFoundError("No credentials found")
-
         rh_handler_wrapper = self._rh_wrapper()
         self.local_path_to_code.append(rh_handler_wrapper)
 
-        env_vars = self.env.env_vars if self.env else {}
+        env_vars = (
+            self.env.env_vars if isinstance(self.env, Env) else {"HOME": self.HOME_DIR}
+        )
 
         # if function exist - will update it. Else, a new one will be created.
         if self._lambda_exist(self.name):
@@ -765,7 +754,7 @@ def aws_lambda_function(
                 working_dir="../functions/", name=Env.DEFAULT_NAME
             )
         elif isinstance(original_env, str):
-            env = _get_env_from(AWSLambdaFunction._reqs_to_list(env))
+            env = _get_env_from(env)
         else:
             env = _get_env_from(env) or Env(
                 working_dir="../functions/", name=Env.DEFAULT_NAME
@@ -778,7 +767,7 @@ def aws_lambda_function(
             name=Env.DEFAULT_NAME,
         )
 
-    if "HOME" not in env.env_vars.keys():
+    if isinstance(env, Env) and "HOME" not in env.env_vars.keys():
         env.env_vars["HOME"] = AWSLambdaFunction.HOME_DIR
 
     # extract function pointers, path to code and arg names from callable function.
@@ -797,6 +786,8 @@ def aws_lambda_function(
         # ------- arguments validation -------
         if paths_to_code is None or len(paths_to_code) == 0:
             raise RuntimeError("Please provide a path to the lambda handler file.")
+        if isinstance(env, str) and "requirements.txt" in env:
+            paths_to_code.append(Path(env).absolute())
         if handler_function_name is None or len(handler_function_name) == 0:
             raise RuntimeError(
                 "Please provide the name of the function that should be executed by the lambda."
