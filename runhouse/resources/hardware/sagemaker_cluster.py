@@ -32,12 +32,12 @@ except ImportError:
 
 from sshtunnel import BaseSSHTunnelForwarderError, SSHTunnelForwarder
 
-from runhouse.globals import configs, open_cluster_tunnels, rns_client
+from runhouse.globals import configs, rns_client, ssh_tunnel_cache
+
+from runhouse.resources.hardware.cluster import Cluster
+from runhouse.resources.hardware.utils import get_open_tunnel, SkySSHRunner
 from runhouse.rns.utils.api import is_jsonable, relative_ssh_path, resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
-
-from .cluster import Cluster
-from .utils import SkySSHRunner
 
 logger = logging.getLogger(__name__)
 
@@ -495,14 +495,12 @@ class SageMakerCluster(Cluster):
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0, retry=True
     ) -> Tuple[SSHTunnelForwarder, int]:
-        if (self.address, self.ssh_port) in open_cluster_tunnels:
-            open_tunnels = open_cluster_tunnels[(self.address, self.ssh_port)]
-            for (tunnel, port) in open_tunnels:
-                if port == local_port:
-                    logger.info(
-                        f"SSH tunnel on ports {local_port, remote_port} already created with the cluster"
-                    )
-                return tunnel, local_port
+        tunnel, connected_port = get_open_tunnel(self.address, self.ssh_port)
+        if connected_port == local_port:
+            logger.info(
+                f"SSH tunnel on ports {local_port, remote_port} already created with the cluster"
+            )
+            return tunnel, local_port
 
         try:
             remote_bind_addresses = ("127.0.0.1", local_port)
@@ -555,7 +553,7 @@ class SageMakerCluster(Cluster):
             >>> rh.sagemaker_cluster(name="sagemaker-cluster").ssh()
         """
 
-        if self.instance_id not in open_cluster_tunnels:
+        if (self.address, self.ssh_port) not in ssh_tunnel_cache:
             # Make sure SSM session and SSH tunnels are up before running the command
             self.connect_server_client()
 

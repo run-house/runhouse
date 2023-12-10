@@ -93,11 +93,15 @@ def cache_servlet():
 
 
 @pytest.fixture(scope="session")
-def obj_store(request, base_servlet):
+def obj_store(request):
     base_obj_store = ObjStore()
 
     # Use the parameter to set the name of the servlet actor to use
     actor_name = request.param
+
+    # Ensure servlet is running
+    _ = get_ray_servlet(actor_name)
+
     base_obj_store.set_name(actor_name)
 
     yield base_obj_store

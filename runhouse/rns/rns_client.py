@@ -111,11 +111,11 @@ class RNSClient:
         # 4. User's cwd
 
         for search_target in [
-            "rh",
             ".git",
-            "requirements.txt",
             "setup.py",
             "pyproject.toml",
+            "rh",
+            "requirements.txt",
         ]:
             dir_with_target = cls.find_parent_with_file(cwd, search_target)
             if dir_with_target is not None:

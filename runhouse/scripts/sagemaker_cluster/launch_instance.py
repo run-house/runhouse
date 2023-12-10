@@ -1,11 +1,13 @@
 """Script used to keep the SageMaker cluster up, pending the autostop time provided in the cluster's config."""
+import json
 import os
 import subprocess
 import time
 import warnings
 from pathlib import Path
+from typing import Dict
 
-import yaml
+from runhouse.resources.hardware.utils import CLUSTER_CONFIG_PATH
 
 DEFAULT_AUTOSTOP = -1
 MAIN_DIR = "/opt/ml/code"
@@ -58,12 +60,12 @@ def run_training_job(path_to_job: str, num_attempts: int):
         return job_succeeded, num_attempts
 
 
-def read_cluster_config():
+def read_cluster_config() -> Dict:
     try:
         # Read the autostop from the cluster's config - this will get populated when the cluster
         # is created (via check_server) or via the autostop APIs (e.g. pause_autostop or keep_warm)
-        with open(os.path.expanduser("~/.rh/cluster_config.yaml"), "r") as f:
-            config = yaml.safe_load(f)
+        with open(os.path.expanduser(CLUSTER_CONFIG_PATH), "r") as f:
+            config = json.load(f)
     except FileNotFoundError:
         config = {}
 

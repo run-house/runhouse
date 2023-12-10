@@ -22,7 +22,9 @@ class TestResource:
     THOROUGH = {
         "resource": ["unnamed_resource", "named_resource", "local_named_resource"]
     }
-    FULL = {"resource": ["unnamed_resource", "named_resource", "local_named_resource"]}
+    MAXIMAL = {
+        "resource": ["unnamed_resource", "named_resource", "local_named_resource"]
+    }
 
     @pytest.mark.level("unit")
     def test_resource_factory_and_properties(self, resource):

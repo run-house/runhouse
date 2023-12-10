@@ -10,6 +10,7 @@ import pytest
 import runhouse as rh
 
 from runhouse.globals import rns_client
+from runhouse.resources.hardware.utils import CLUSTER_CONFIG_PATH
 from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 
 INVALID_HEADERS = {"Authorization": "Bearer InvalidToken"}
@@ -41,6 +42,7 @@ class TestHTTPServerDocker:
         ]
     }
 
+    @pytest.mark.level("local")
     def test_get_cert(self, http_client):
         response = http_client.get("/cert")
         assert response.status_code == 200
@@ -51,10 +53,12 @@ class TestHTTPServerDocker:
         assert isinstance(error_message, FileNotFoundError)
         assert "No certificate found on cluster in path" in str(error_message)
 
+    @pytest.mark.level("local")
     def test_check_server(self, http_client):
         response = http_client.get("/check")
         assert response.status_code == 200
 
+    @pytest.mark.level("local")
     def test_put_resource(self, http_client, blob_data, cluster):
         state = None
         resource = rh.blob(data=blob_data, system=cluster)
@@ -64,6 +68,7 @@ class TestHTTPServerDocker:
         )
         assert response.status_code == 200
 
+    @pytest.mark.level("local")
     def test_put_object_and_get_keys(self, http_client):
         key = "key1"
         test_list = list(range(5, 50, 2)) + ["a string"]
@@ -78,6 +83,7 @@ class TestHTTPServerDocker:
         assert response.status_code == 200
         assert key in b64_unpickle(response.json().get("data"))
 
+    @pytest.mark.level("local")
     def test_rename_object(self, http_client):
         old_key = "key1"
         new_key = "key2"
@@ -90,6 +96,7 @@ class TestHTTPServerDocker:
         response = http_client.get("/keys", headers=rns_client.request_headers)
         assert new_key in b64_unpickle(response.json().get("data"))
 
+    @pytest.mark.level("local")
     def test_delete_obj(self, http_client):
         # https://www.python-httpx.org/compatibility/#request-body-on-http-methods
         key = "key2"
@@ -105,6 +112,7 @@ class TestHTTPServerDocker:
         response = http_client.get("/keys", headers=rns_client.request_headers)
         assert key not in b64_unpickle(response.json().get("data"))
 
+    @pytest.mark.level("local")
     def test_add_secrets(self, http_client):
         secrets = {"aws": {"access_key": "abc123", "secret_key": "abc123"}}
         data = pickle_b64(secrets)
@@ -115,6 +123,7 @@ class TestHTTPServerDocker:
         assert response.status_code == 200
         assert not b64_unpickle(response.json().get("data"))
 
+    @pytest.mark.level("local")
     def test_add_secrets_for_unsupported_provider(self, http_client):
         secrets = {"test_provider": {"access_key": "abc123"}}
         data = pickle_b64(secrets)
@@ -127,6 +136,7 @@ class TestHTTPServerDocker:
         assert isinstance(resp_data, dict)
         assert "test_provider is not a Runhouse builtin provider" in resp_data.values()
 
+    @pytest.mark.level("local")
     def test_call_module_method(self, http_client, cluster):
         # Create new func on the cluster, then call it
         remote_func = rh.function(summer, system=cluster)
@@ -161,6 +171,7 @@ class TestHTTPServerDocker:
         if resp_obj["output_type"] == "result":
             assert b64_unpickle(resp_obj["data"]) == 3
 
+    @pytest.mark.level("local")
     @pytest.mark.asyncio
     async def test_async_call(self, async_http_client, cluster):
         remote_func = rh.function(summer, system=cluster)
@@ -174,6 +185,7 @@ class TestHTTPServerDocker:
         assert response.status_code == 200
         assert response.text == "3"
 
+    @pytest.mark.level("local")
     @pytest.mark.asyncio
     async def test_async_call_with_invalid_serialization(
         self, async_http_client, cluster
@@ -188,6 +200,7 @@ class TestHTTPServerDocker:
         )
         assert response.status_code == 500
 
+    @pytest.mark.level("local")
     @pytest.mark.asyncio
     async def test_async_call_with_pickle_serialization(
         self, async_http_client, cluster
@@ -204,6 +217,7 @@ class TestHTTPServerDocker:
         assert response.status_code == 200
         assert b64_unpickle(response.text) == 3
 
+    @pytest.mark.level("local")
     @pytest.mark.asyncio
     async def test_async_call_with_json_serialization(self, async_http_client, cluster):
         remote_func = rh.function(summer, system=cluster)
@@ -233,20 +247,22 @@ class TestHTTPServerDockerDenAuthOnly:
 
     # -------- INVALID TOKEN / CLUSTER ACCESS TESTS ----------- #
 
-    def test_request_with_no_cluster_config_yaml(self, http_client, cluster):
-        cluster.run(["mv ~/.rh/cluster_config.yaml ~/.rh/cluster_config_temp.yaml"])
+    @pytest.mark.level("local")
+    def test_request_with_no_cluster_config_json(self, http_client, cluster):
+        cluster.run([f"mv {CLUSTER_CONFIG_PATH} ~/.rh/cluster_config_temp.json"])
         try:
             response = http_client.get("/keys", headers=rns_client.request_headers)
 
             assert response.status_code == 404
             assert "Failed to load current cluster" in response.text
         finally:
-            cluster.run(["mv ~/.rh/cluster_config_temp.yaml ~/.rh/cluster_config.yaml"])
+            cluster.run([f"mv ~/.rh/cluster_config_temp.json {CLUSTER_CONFIG_PATH}"])
         response = http_client.get("/keys", headers=INVALID_HEADERS)
 
         assert response.status_code == 403
         assert "Cluster access is required for API" in response.text
 
+    @pytest.mark.level("local")
     def test_no_access_to_cluster(self, http_client, test_account):
         with test_account:
             response = http_client.get("/keys", headers=rns_client.request_headers)
@@ -254,22 +270,26 @@ class TestHTTPServerDockerDenAuthOnly:
             assert response.status_code == 403
             assert "Cluster access is required for API" in response.text
 
+    @pytest.mark.level("local")
     def test_request_with_no_token(self, http_client):
         response = http_client.get("/keys")  # No headers are passed
         assert response.status_code == 404
 
         assert "No token found in request auth headers" in response.text
 
+    @pytest.mark.level("local")
     def test_get_cert_with_invalid_token(self, http_client):
         response = http_client.get("/cert", headers=INVALID_HEADERS)
         # Should be able to download the cert even without a valid token
         assert response.status_code == 200
 
+    @pytest.mark.level("local")
     def test_check_server_with_invalid_token(self, http_client):
         response = http_client.get("/check", headers=INVALID_HEADERS)
         # Should be able to ping the server even without a valid token
         assert response.status_code == 200
 
+    @pytest.mark.level("local")
     def test_put_resource_with_invalid_token(self, http_client, blob_data, cluster):
         state = None
         resource = rh.blob(blob_data, system=cluster)
@@ -280,6 +300,7 @@ class TestHTTPServerDockerDenAuthOnly:
         assert response.status_code == 403
         assert "Cluster access is required for API" in response.text
 
+    @pytest.mark.level("local")
     def test_call_module_method_with_invalid_token(self, http_client, cluster):
         # Create new func on the cluster, then call it
         remote_func = rh.function(summer, system=cluster)
@@ -304,6 +325,7 @@ class TestHTTPServerDockerDenAuthOnly:
         )
         assert "No read or write access to requested resource" in response.text
 
+    @pytest.mark.level("local")
     def test_put_object_with_invalid_token(self, http_client):
         test_list = list(range(5, 50, 2)) + ["a string"]
         response = http_client.post(
@@ -314,6 +336,7 @@ class TestHTTPServerDockerDenAuthOnly:
         assert response.status_code == 403
         assert "Cluster access is required for API" in response.text
 
+    @pytest.mark.level("local")
     def test_rename_object_with_invalid_token(self, http_client):
         old_key = "key1"
         new_key = "key2"
@@ -324,12 +347,14 @@ class TestHTTPServerDockerDenAuthOnly:
         assert response.status_code == 403
         assert "Cluster access is required for API" in response.text
 
+    @pytest.mark.level("local")
     def test_get_keys_with_invalid_token(self, http_client):
         response = http_client.get("/keys", headers=INVALID_HEADERS)
 
         assert response.status_code == 403
         assert "Cluster access is required for API" in response.text
 
+    @pytest.mark.level("local")
     def test_add_secrets_with_invalid_token(self, http_client):
         secrets = {"aws": {"access_key": "abc123", "secret_key": "abc123"}}
         data = pickle_b64(secrets)
@@ -364,17 +389,18 @@ def setup_cluster_config(test_account):
     except ValueError:
         c = None
 
-    if not c:
-        current_username = rh.configs.get("username")
-        with test_account:
-            c = rh.cluster(name="local_cluster", den_auth=True).save()
-            c.share(current_username, access_type="write", notify_users=False)
-
-    with open(cluster_config_path, "w") as file:
-        json.dump(cluster_config, file)
-
     try:
+        if not c:
+            current_username = rh.configs.get("username")
+            with test_account:
+                c = rh.cluster(name="local_cluster", den_auth=True).save()
+                c.share(current_username, access_type="write", notify_users=False)
+
+        with open(cluster_config_path, "w") as file:
+            json.dump(cluster_config, file)
+
         yield
+
     finally:
         if cluster_config_path.exists():
             cluster_config_path.unlink()
@@ -529,8 +555,8 @@ class TestHTTPServerNoDockerDenAuthOnly:
     # -------- INVALID TOKEN / CLUSTER ACCESS TESTS ----------- #
 
     @pytest.mark.level("unit")
-    def test_request_with_no_cluster_config_yaml(self, local_client_with_den_auth):
-        source_path = os.path.expanduser("~/.rh/cluster_config.yaml")
+    def test_request_with_no_cluster_config_json(self, local_client_with_den_auth):
+        source_path = os.path.expanduser(CLUSTER_CONFIG_PATH)
         destination_path = os.path.expanduser("~/.rh/cluster_config_temp.yaml")
 
         # Use the expanded paths in the command

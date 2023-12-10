@@ -26,6 +26,7 @@ class TestNginxConfiguration:
                 use_https=True,
             )
 
+    @pytest.mark.level("unit")
     @patch("builtins.open", new_callable=mock_open)
     @patch("pathlib.Path.exists")
     @patch("subprocess.run")
@@ -49,6 +50,7 @@ class TestNginxConfiguration:
         # Assert that subprocess.run was called to change permissions
         mock_subprocess_run.assert_called()
 
+    @pytest.mark.level("unit")
     @patch("builtins.open", new_callable=mock_open)
     @patch("pathlib.Path.exists")
     @patch("subprocess.run")
@@ -71,6 +73,7 @@ class TestNginxConfiguration:
 
         mock_subprocess_run.assert_called()
 
+    @pytest.mark.level("unit")
     @patch("subprocess.run")
     def test_nginx_http_reload(self, mock_subprocess_run):
         mock_subprocess_run.return_value = MagicMock(returncode=0)
@@ -92,6 +95,7 @@ class TestNginxConfiguration:
             text=True,
         )
 
+    @pytest.mark.level("unit")
     @patch("subprocess.run")
     def test_nginx_https_reload(self, mock_subprocess_run):
         mock_subprocess_run.return_value = MagicMock(returncode=0)
@@ -113,6 +117,7 @@ class TestNginxConfiguration:
             text=True,
         )
 
+    @pytest.mark.level("unit")
     @patch("subprocess.run")
     def test_nginx_reload_error_handling(self, mock_subprocess_run):
         # Simulate a failed reload
@@ -123,6 +128,7 @@ class TestNginxConfiguration:
         with pytest.raises(RuntimeError):
             self.http_config.reload()
 
+    @pytest.mark.level("unit")
     @patch("pathlib.Path.exists")
     @patch("subprocess.run")
     def test_http_firewall_rule_application(
@@ -142,6 +148,7 @@ class TestNginxConfiguration:
             text=True,
         )
 
+    @pytest.mark.level("unit")
     @patch("pathlib.Path.exists")
     @patch("subprocess.run")
     def test_https_firewall_rule_application(
@@ -161,6 +168,7 @@ class TestNginxConfiguration:
             text=True,
         )
 
+    @pytest.mark.level("unit")
     @patch("pathlib.Path.exists")
     @patch("subprocess.run")
     def test_symlink_creation(self, mock_subprocess_run, mock_path_exists):
@@ -182,6 +190,7 @@ class TestNginxConfiguration:
             text=True,
         )
 
+    @pytest.mark.level("unit")
     def test_invalid_ssl_paths_for_https(self):
         with pytest.raises(FileNotFoundError):
             # Incorrect SSL key and cert paths provided
@@ -192,6 +201,7 @@ class TestNginxConfiguration:
                 use_https=True,
             )
 
+    @pytest.mark.level("unit")
     def test_empty_ssl_paths_for_https(self):
         with pytest.raises(FileNotFoundError):
             # SSL key and cert paths not provided
@@ -200,6 +210,7 @@ class TestNginxConfiguration:
                 use_https=True,
             )
 
+    @pytest.mark.level("unit")
     def test_ignore_invalid_ssl_paths_for_http(self):
         # Invalid SSL key and cert paths not provided, which we ignore for HTTP config
         NginxConfig(
@@ -208,6 +219,7 @@ class TestNginxConfiguration:
             ssl_key_path="/path/to/nonexistent/key",
         )
 
+    @pytest.mark.level("unit")
     @patch("builtins.open", new_callable=mock_open)
     @patch("pathlib.Path.exists")
     @patch("subprocess.run")
@@ -223,6 +235,7 @@ class TestNginxConfiguration:
         expected_template = self.http_config._http_template()
         file_handle.write.assert_called_once_with(expected_template)
 
+    @pytest.mark.level("unit")
     @patch("builtins.open", new_callable=mock_open)
     @patch("pathlib.Path.exists")
     @patch("subprocess.run")
@@ -238,6 +251,7 @@ class TestNginxConfiguration:
         expected_template = self.https_config._https_template()
         file_handle.write.assert_called_once_with(expected_template)
 
+    @pytest.mark.level("unit")
     @patch("subprocess.run")
     @patch("builtins.open", new_callable=mock_open)
     @patch("pathlib.Path.exists")
@@ -260,6 +274,7 @@ class TestNginxConfiguration:
         public_ip_template = self.http_config._http_template()
         mock_file_open().write.assert_called_with(public_ip_template)
 
+    @pytest.mark.level("unit")
     @patch("builtins.open", new_callable=mock_open)
     @patch("pathlib.Path.exists")
     @patch("subprocess.run")
@@ -328,6 +343,7 @@ class TestNginxConfiguration:
 
         assert http_template == expected_http_template
 
+    @pytest.mark.level("unit")
     @patch("builtins.open", new_callable=mock_open)
     @patch("pathlib.Path.exists")
     @patch("subprocess.run")
@@ -398,6 +414,7 @@ class TestNginxConfiguration:
 
 
 class TestNginxServerLocally:
+    @pytest.mark.level("local")
     @pytest.mark.parametrize(
         "local_docker_cluster_with_nginx", ["http", "https"], indirect=True
     )

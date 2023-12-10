@@ -1,5 +1,6 @@
 import contextlib
 import copy
+import json
 import logging
 import os
 import pkgutil
@@ -22,10 +23,13 @@ import sshtunnel
 
 from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
-from runhouse.globals import obj_store, open_cluster_tunnels, rns_client
+from runhouse.globals import obj_store, rns_client
 from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware.utils import (
     _current_cluster,
+    cache_open_tunnel,
+    CLUSTER_CONFIG_PATH,
+    get_open_tunnel,
     ServerConnectionType,
     SkySSHRunner,
     SshMode,
@@ -117,17 +121,15 @@ class Cluster(Resource):
         self.ips[0] = addr
 
     def save_config_to_cluster(self):
-        import json
-
         config = self.config_for_rns
         if "live_state" in config.keys():
-            # a bunch of setup commands that mess up json dump
+            # a bunch of setup commands that mess up dumping
             del config["live_state"]
         json_config = f"{json.dumps(config)}"
 
         self.run(
             [
-                f"mkdir -p ~/.rh; touch ~/.rh/cluster_config.yaml; echo '{json_config}' > ~/.rh/cluster_config.yaml"
+                f"mkdir -p ~/.rh; touch {CLUSTER_CONFIG_PATH}; echo '{json_config}' > {CLUSTER_CONFIG_PATH}"
             ]
         )
 
@@ -393,21 +395,12 @@ class Cluster(Resource):
         if self._rpc_tunnel and force_reconnect:
             self._rpc_tunnel.close()
 
-        ssh_tunnel = None
-        connected_port = None
-        if (self.address, self.ssh_port) in open_cluster_tunnels:
-            ssh_tunnel, connected_port = open_cluster_tunnels[
-                (self.address, self.ssh_port)
-            ]
-            if isinstance(ssh_tunnel, SSHTunnelForwarder):
-                ssh_tunnel.check_tunnels()
-                if ssh_tunnel.tunnel_is_up[ssh_tunnel.local_bind_address]:
-                    self._rpc_tunnel = ssh_tunnel
+        self._rpc_tunnel, connected_port = get_open_tunnel(self.address, self.ssh_port)
 
         if (
             self.server_connection_type
             not in [ServerConnectionType.NONE, ServerConnectionType.TLS]
-            and ssh_tunnel is None
+            and self._rpc_tunnel is None
         ):
             # Case 3: server connection requires SSH tunnel, but we don't have one up yet
             self._rpc_tunnel, connected_port = self.ssh_tunnel(
@@ -416,15 +409,14 @@ class Cluster(Resource):
                 num_ports_to_try=10,
             )
 
-        open_cluster_tunnels[(self.address, self.ssh_port)] = (
-            self._rpc_tunnel,
-            connected_port,
-        )
-
-        if self._rpc_tunnel:
-            logger.info(
-                f"Connecting to server via SSH, port forwarding via port {connected_port}."
+            cache_open_tunnel(
+                self.address, self.ssh_port, self._rpc_tunnel, connected_port
             )
+
+            if self._rpc_tunnel:
+                logger.info(
+                    f"Connecting to server via SSH, port forwarding via port {connected_port}."
+                )
 
         self.client_port = connected_port or self.client_port or self.server_port
         use_https = self._use_https
@@ -473,10 +465,6 @@ class Cluster(Resource):
         if not self.client:
             try:
                 self.connect_server_client()
-                cluster_config = self.config_for_rns
-                if "live_state" in cluster_config.keys():
-                    # a bunch of setup commands that mess up json dump
-                    del cluster_config["live_state"]
                 logger.info(f"Checking server {self.name}")
                 self.client.check_server()
                 logger.info(f"Server {self.name} is up.")
@@ -519,13 +507,13 @@ class Cluster(Resource):
         # netstat -vanp tcp | grep 32300
         # lsof -i :32300
         # kill -9 <pid>
-        open_tunnels = open_cluster_tunnels.get((self.address, self.ssh_port), [])
-        for (tunnel, port) in open_tunnels:
+        tunnel, port = get_open_tunnel(self.address, self.ssh_port)
+        if tunnel is not None:
             if port == local_port and tunnel.remote_bind_address[1] == (
                 remote_port or local_port
             ):
                 logger.info(
-                    f"SSH tunnel on ports {local_port, remote_port} already created with the cluster"
+                    f"SSH tunnel on ports {local_port, remote_port} already created with the cluster."
                 )
                 return tunnel, local_port
 
