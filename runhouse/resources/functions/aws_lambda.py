@@ -32,7 +32,7 @@ SUPPORTED_RUNTIMES = [
 DEFAULT_PY_VERSION = "python3.9"
 
 
-class AWSLambdaFunction(Function):
+class LambdaFunction(Function):
     RESOURCE_TYPE = "lambda_function"
     DEFAULT_ACCESS = "write"
     DEFAULT_ROLE_POLICIES = [
@@ -78,7 +78,7 @@ class AWSLambdaFunction(Function):
         and dependencies necessary to run the service on AWS infra.
 
         .. note::
-                To create an AWS lambda resource, please use the factory method :func:`aws_lambda_function`.
+                To create an AWS lambda resource, please use the factory method :func:`lambda_function`.
         """
 
         super().__init__(
@@ -137,19 +137,19 @@ class AWSLambdaFunction(Function):
         if "fn_pointers" not in keys:
             config["fn_pointers"] = None
         if "timeout" not in keys:
-            config["timeout"] = AWSLambdaFunction.DEFAULT_TIMEOUT
+            config["timeout"] = LambdaFunction.DEFAULT_TIMEOUT
         if "memory_size" not in keys:
-            config["memory_size"] = AWSLambdaFunction.DEFAULT_MEMORY_SIZE
+            config["memory_size"] = LambdaFunction.DEFAULT_MEMORY_SIZE
         if "env" not in keys:
             config["env"] = Env(
                 reqs=[],
-                env_vars={"HOME": AWSLambdaFunction.HOME_DIR},
+                env_vars={"HOME": LambdaFunction.HOME_DIR},
                 name=Env.DEFAULT_NAME,
             )
         else:
             config["env"] = Env.from_config(config["env"])
 
-        return AWSLambdaFunction(**config, dryrun=dryrun).to()
+        return LambdaFunction(**config, dryrun=dryrun).to()
 
     @classmethod
     def from_name(cls, name, dryrun=False, alt_options=None):
@@ -436,10 +436,10 @@ class AWSLambdaFunction(Function):
         """
         Set up a function on AWS as a Lambda function.
 
-        See the args of the factory method :func:`aws_lambda` for more information.
+        See the args of the factory method :func:`lambda_function` for more information.
 
         Example:
-            >>> my_aws_lambda = rh.aws_lambda_function(path_to_codes=["full/path/to/model_a_handler.py"],
+            >>> my_lambda = rh.lambda_function(path_to_codes=["full/path/to/model_a_handler.py"],
             >>> handler_function_name='main_func',
             >>> runtime='python_3_9',
             >>> name="my_lambda_func").to()
@@ -562,11 +562,11 @@ class AWSLambdaFunction(Function):
             >>>     return arg1 + arg2 + arg3
             >>>
             >>> # your 'main' python file, where you are using runhouse
-            >>> aws_lambda = rh.aws_lambda_function(path_to_code=["full/path/to/my_lambda_handler.py"],
+            >>> my_lambda = rh.lambda_function(path_to_code=["full/path/to/my_lambda_handler.py"],
             >>> handler_function_name='my_summer',
             >>> runtime='python_3_9',
             >>> name="my_summer").to()
-            >>> aws_lambda.map([1, 2], [1, 4], [2, 3])
+            >>> my_lambda.map([1, 2], [1, 4], [2, 3])
             >>> # output: ["4", "9"] (It returns str type because of AWS API)
 
         """
@@ -581,7 +581,7 @@ class AWSLambdaFunction(Function):
         Example:
             >>> arg_list = [(1,2), (3, 4)]
             >>> # runs the function twice, once with args (1, 2) and once with args (3, 4)
-            >>> my_aws_lambda.starmap(arg_list)
+            >>> my_lambda.starmap(arg_list)
         """
 
         return [self._invoke(*args, **kwargs) for args in args_lists]
@@ -654,7 +654,7 @@ def _paths_to_code_from_fn_pointers(fn_pointers):
     return paths_to_code
 
 
-def aws_lambda_function(
+def lambda_function(
     fn: Optional[str] = None,
     paths_to_code: Optional[str] = None,
     handler_function_name: Optional[str] = None,
@@ -668,7 +668,7 @@ def aws_lambda_function(
     retention_time: Optional[int] = None,
     dryrun: bool = False,
 ):
-    """Builds an instance of :class:`AWSLambdaFunction`.
+    """Builds an instance of :class:`LambdaFunction`.
 
     Args:
         fn (Optional[Callable]): The Lambda function to be executed.
@@ -704,7 +704,7 @@ def aws_lambda_function(
             (Default: ``False``).
 
     Returns:
-        AWSLambdaFunction: The resulting AWS Lambda Function object.
+        LambdaFunction: The resulting AWS Lambda Function object.
 
         .. note::
             When creating the function for the first time (and not reloading it), the following arguments are
@@ -718,7 +718,7 @@ def aws_lambda_function(
         >>>    return a + b
 
         >>> # your 'main' python file, where you are using runhouse
-        >>> lambdas_func = rh.aws_lambda_function(
+        >>> lambdas_func = rh.lambda_function(
         >>>                     paths_to_code=['/full/path/to/handler_file.py'],
         >>>                     handler_function_name = 'summer',
         >>>                     runtime = 'python3.9',
@@ -728,10 +728,10 @@ def aws_lambda_function(
         >>> res = summer(5, 8)  # returns "13". (It returns str type because of AWS API)
 
         >>> # Load function from above
-        >>> reloaded_function = rh.aws_lambda_function(name="my_func")
+        >>> reloaded_function = rh.lambda_function(name="my_func")
 
         >>> # Pass in the function itself when creating the Lambda
-        >>> lambdas_func = rh.aws_lambda_function(fn=summer, name="lambdas_func")
+        >>> lambdas_func = rh.lambda_function(fn=summer, name="lambdas_func")
 
     """
     # TODO: [SB] in the next phase, maybe add the option to create func from git.
@@ -739,7 +739,7 @@ def aws_lambda_function(
         [paths_to_code, handler_function_name, runtime, fn, args_names]
     ):
         # Try reloading existing function
-        return AWSLambdaFunction.from_name(name=name)
+        return LambdaFunction.from_name(name=name)
 
     if not (fn or (handler_function_name and paths_to_code)):
         raise RuntimeError(
@@ -763,12 +763,12 @@ def aws_lambda_function(
     elif env is None:
         env = Env(
             reqs=[],
-            env_vars={"HOME": AWSLambdaFunction.HOME_DIR},
+            env_vars={"HOME": LambdaFunction.HOME_DIR},
             name=Env.DEFAULT_NAME,
         )
 
     if isinstance(env, Env) and "HOME" not in env.env_vars.keys():
-        env.env_vars["HOME"] = AWSLambdaFunction.HOME_DIR
+        env.env_vars["HOME"] = LambdaFunction.HOME_DIR
 
     # extract function pointers, path to code and arg names from callable function.
     if isinstance(fn, Callable):
@@ -823,7 +823,7 @@ def aws_lambda_function(
 
     if timeout is None:
         warnings.warn("Timeout set to 15 min.")
-        timeout = AWSLambdaFunction.DEFAULT_TIMEOUT
+        timeout = LambdaFunction.DEFAULT_TIMEOUT
     else:
         if (env.reqs is not None or len(env.reqs) > 0) and timeout < 600:
             warnings.warn(
@@ -838,15 +838,15 @@ def aws_lambda_function(
             warnings.warn("Timeout can not be less then 3 sec, setting to 3 sec.")
     if memory_size is None:
         warnings.warn("Memory size set to 1024 MB.")
-        memory_size = AWSLambdaFunction.DEFAULT_MEMORY_SIZE
+        memory_size = LambdaFunction.DEFAULT_MEMORY_SIZE
     else:
         if (
             env.reqs is not None or len(env.reqs) > 0
-        ) and memory_size < AWSLambdaFunction.DEFAULT_MEMORY_SIZE:
+        ) and memory_size < LambdaFunction.DEFAULT_MEMORY_SIZE:
             warnings.warn(
                 "Increasing the memory size to 1G, in order to enable the packages setup."
             )
-            memory_size = AWSLambdaFunction.DEFAULT_MEMORY_SIZE
+            memory_size = LambdaFunction.DEFAULT_MEMORY_SIZE
         if memory_size < 128:
             memory_size = 128
             warnings.warn("Memory size can not be less then 128 MB, setting to 128 MB.")
@@ -855,18 +855,18 @@ def aws_lambda_function(
             warnings.warn(
                 "Memory size can not be more then 10240 MB, setting to 10240 MB."
             )
-    if tmp_size is None or tmp_size < AWSLambdaFunction.DEFAULT_TMP_SIZE:
+    if tmp_size is None or tmp_size < LambdaFunction.DEFAULT_TMP_SIZE:
         warnings.warn(
             "Setting /tmp size to 3GB, in order to enable the packages setup."
         )
-        tmp_size = AWSLambdaFunction.DEFAULT_TMP_SIZE
+        tmp_size = LambdaFunction.DEFAULT_TMP_SIZE
     elif tmp_size > 10240:
         tmp_size = 10240
         warnings.warn("/tmp size can not be more then 10240 MB, setting to 10240 MB.")
     if retention_time is None:
-        retention_time = AWSLambdaFunction.DEFAULT_RETENTION
+        retention_time = LambdaFunction.DEFAULT_RETENTION
 
-    new_function = AWSLambdaFunction(
+    new_function = LambdaFunction(
         fn_pointers=fn_pointers,
         paths_to_code=paths_to_code,
         handler_function_name=handler_function_name,

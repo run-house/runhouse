@@ -81,13 +81,14 @@ class Function(Module):
     ):
         """
         Set up a Function and Env on the given system.
-        If the funciton is sent to AWS, the system parameter should be the string ``AWS_LAMBDA`` (not case sensetive).
+        If the funciton is sent to AWS, the system parameter should be the string ``Lambda_Function``
+            (not case sensetive).
         See the args of the factory method :func:`function` for more information.
 
         Example:
             >>> rh.function(fn=local_fn).to(gpu_cluster)
             >>> rh.function(fn=local_fn).to(system=gpu_cluster, env=my_conda_env)
-            >>> rh.function(fn=local_fn).to(system='AWS_LAMBDA')
+            >>> rh.function(fn=local_fn).to(system='Lambda_Function')
         """
 
         if setup_cmds:
@@ -108,10 +109,10 @@ class Function(Module):
             env = env or self.env or Env(name=Env.DEFAULT_NAME)
             env = _get_env_from(env)
 
-        if isinstance(system, str) and system.upper() == "AWS_LAMBDA":
-            from runhouse.resources.functions.aws_lambda import aws_lambda_function
+        if isinstance(system, str) and system.lower() == "lambda_function":
+            from runhouse.resources.functions.aws_lambda import lambda_function
 
-            return aws_lambda_function(
+            return lambda_function(
                 fn=self._get_obj_from_pointers(*self.fn_pointers), env=env
             )
 
