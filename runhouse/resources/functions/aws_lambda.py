@@ -566,8 +566,8 @@ class LambdaFunction(Function):
             >>> handler_function_name='my_summer',
             >>> runtime='python_3_9',
             >>> name="my_summer").to()
-            >>> my_lambda.map([1, 2], [1, 4], [2, 3])
-            >>> # output: ["4", "9"] (It returns str type because of AWS API)
+            >>> output = my_lambda.map([1, 2], [1, 4], [2, 3])
+            >>> # output = ["4", "9"] (It returns str type because of AWS API)
 
         """
 
@@ -581,7 +581,7 @@ class LambdaFunction(Function):
         Example:
             >>> arg_list = [(1,2), (3, 4)]
             >>> # runs the function twice, once with args (1, 2) and once with args (3, 4)
-            >>> my_lambda.starmap(arg_list)
+            >>> output = my_lambda.starmap(arg_list) # output = ["3", "7"]
         """
 
         return [self._invoke(*args, **kwargs) for args in args_lists]
