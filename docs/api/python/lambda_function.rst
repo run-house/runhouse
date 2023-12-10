@@ -1,4 +1,4 @@
-AWS Lambda Function
+Lambda Function
 ====================================
 
 An AWS Lambda Function is a serverless provided by AWS. It allows to run applications and backend services without
@@ -10,15 +10,15 @@ It is comprised of the entry point, configuration, and dependencies necessary to
     Lambda Function support is an alpha and under active development.
     Please report any bugs or let us know of any feature requests.
 
-AWS Lambda Function Factory Method
+Lambda Function Factory Method
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autofunction:: runhouse.aws_lambda_function
+.. autofunction:: runhouse.lambda_function
 
-AWS Lambda Function Function Class
+Lambda Function Class
 ~~~~~~~~~~~~~~
 
-.. autoclass:: runhouse.AWSLambdaFunction
+.. autoclass:: runhouse.LambdaFunction
    :members:
    :exclude-members:
 

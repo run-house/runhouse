@@ -31,7 +31,7 @@ and rich debugging and accessibility interfaces built-in.
 .. toctree::
    :maxdepth: 1
 
-   python/aws_lambda_function
+   python/lambda_function
 
 .. toctree::
    :maxdepth: 1
