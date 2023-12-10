@@ -666,11 +666,11 @@ def _paths_to_code_from_fn_pointers(fn_pointers):
 
 
 def aws_lambda_function(
-    fn: Callable = None,
-    paths_to_code: list[str] = None,
-    handler_function_name: str = None,
-    runtime: str = None,
-    args_names: list[str] = None,
+    fn: Optional[str] = None,
+    paths_to_code: Optional[str] = None,
+    handler_function_name: Optional[str] = None,
+    runtime: Optional[str] = None,
+    args_names: Optional[list[str]] = None,
     name: Optional[str] = None,
     env: Optional[dict or list[str] or Env] = None,
     timeout: Optional[int] = None,
@@ -684,36 +684,35 @@ def aws_lambda_function(
     Args:
         fn (Optional[Callable]): The Lambda function to be executed.
         paths_to_code: (Optional[list[str]]): List of the FULL paths to the python code file(s) that should be sent to
-            AWS Lambda. First path in the list should be the path to the handler file which contaitns the main
+            AWS Lambda. First path in the list should be the path to the handler file which contains the main
             (handler) function. If ``fn`` is provided, this argument is ignored.
-        handler_function_name: str: The name of the function in the handler file that will be executed by the Lambda.
-        runtime: str: The coding language of the fuction. Should be one of the following:
-            python3.7, python3.8, python3.9, python3.10, python 3.11. (Default: ``python3.9``)
+        handler_function_name: (Optional[str]): The name of the function in the handler file that will be executed
+            by the Lambda.
+        runtime: (Optional[str]): The coding language of the fuction. Should be one of the following:
+            python3.7, python3.8, python3.9, python3.10, python3.11. (Default: ``python3.9``)
         args_names: (Optional[list[str]]): List of the function's accepted parameters, which will be passed to the
             Lambda Function. If ``fn`` is provided, this argument is ignored.
             If your function doesn't accept arguments, please provide an empty list.
         name (Optional[str]): Name of the Lambda Function to create or retrieve.
             This can be either from a local config or from the RNS.
-        env (Optional[Dict or List[str] or Env]): Specifies the requirments that will be installed, and the enviourment
-            vars that should be attached to the Lambda. Excepts three possible types:
+        env (Optional[Dict or List[str] or Env]): Specifies the requirements that will be installed, and the environment
+            vars that should be attached to the Lambda. Accepts three possible types:
             1. A dict which should contain the following keys:
-            reqs - a lisr og the python libraries, which will be used by the Lambda or just a 'requiremnts.txt' string.
+            reqs - a list of the python libraries, to be installed by the Lambda, or just a ``requirements.txt`` string.
             env_vars: dictionary containing the env_vars that will be a part of the lambda configuration.
             2. A list of strings, containing all the required python packeages.
             3. An insrantce of Runhouse Env class.
             By default, ``runhouse`` package will be installed, and env_vars will include ``{HOME: /tmp/home}``
         timeout: Optional[int]: The maximum amount of time (in secods) during which the Lambda will run in AWS
             without timing-out. (Default: ``900``, Min: ``3``, Max: ``900``)
-        memory_size: Optional[int], The amount of memeory, im MB, that will be aloocatied to the lambda.
+        memory_size: Optional[int], The amount of memeory (in MB) to be allocated to the Lambda.
              (Default: ``1024``, Min: ``128``, Max: ``10240``)
         tmp_size: Optional[int], This size of the /tmp folder in the aws lambda file system.
              (Default: ``3072``, Min: ``512``, Max: ``10240``).
-        region: The AWS region where the lambda will be created. In order to make sure that any packages will be
-            installed proparly, please provide the closest region to your workplace. (Default: ``us-east-1``)
-        retention_time: Optional[int] The time (in days) that sepcific lambda exection logs will be saved in AWS
+        retention_time: Optional[int] The time (in days) the Lambda execution logs will be saved in AWS
             cloudwatch. After that, they will be deleted. (Default: ``30`` days)
         dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
-            (Default: ``False``). Is not used by Lambda, but is a port of Function constructor signatuere.
+            (Default: ``False``).
 
     Returns:
         AWSLambdaFunction: The resulting AWS Lambda Function object.
@@ -753,6 +752,11 @@ def aws_lambda_function(
         # Try reloading existing function
         return AWSLambdaFunction.from_name(name=name)
 
+    if not (fn or (handler_function_name and paths_to_code)):
+        raise RuntimeError(
+            "Please provide a callable function OR path to handler function and its name "
+            + "in order to create a Lambda function."
+        )
     # Env setup.
     if env is not None and not isinstance(env, Env):
         original_env = copy.deepcopy(env)
@@ -884,6 +888,9 @@ def aws_lambda_function(
         memory_size=memory_size,
         tmp_size=tmp_size,
         retention_time=retention_time,
-    ).to()
+    )
 
-    return new_function
+    if dryrun:
+        return new_function
+
+    return new_function.to()
