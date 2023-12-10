@@ -9,8 +9,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
-import yaml
-
 from sky.skylet import log_lib
 from sky.utils import subprocess_utils
 
