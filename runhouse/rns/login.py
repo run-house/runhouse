@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import requests
 
@@ -156,7 +156,7 @@ def _login_download_secrets(headers: Optional[str] = None):
             logger.warning(f"Was not able to load down secrets for {name}.")
 
 
-def _login_upload_secrets(interactive: bool, headers: Optional[str] = None):
+def _login_upload_secrets(interactive: bool, headers: Optional[Dict] = None):
     from runhouse import Secret
 
     local_secrets = Secret.local_secrets()
@@ -173,14 +173,15 @@ def _login_upload_secrets(interactive: bool, headers: Optional[str] = None):
         if resp.status_code == 200:
             local_secrets.pop(name, None)
             continue
-        if interactive:
+        if interactive is not False:
             upload_secrets = typer.confirm(f"Upload secrets for {name}?")
             if not upload_secrets:
                 local_secrets.pop(name, None)
 
-    logger.info(f"Uploading secrets for {list(local_secrets)} to Vault.")
-    for _, secret in local_secrets.items():
-        secret.save(save_values=True)
+    if local_secrets:
+        logger.info(f"Uploading secrets for {list(local_secrets)} to Vault.")
+        for _, secret in local_secrets.items():
+            secret.save(save_values=True)
 
 
 def _convert_secrets_resource(names: List[str] = None, headers: Optional[str] = None):
@@ -203,13 +204,6 @@ def _convert_secrets_resource(names: List[str] = None, headers: Optional[str] = 
                 values = _load_vault_secrets(name)
                 secret = provider_secret(name, values=values)
                 secret.save()
-            else:
-                secret = Secret.from_name(name)
-
-            download_path = secret.path or secret._DEFAULT_CREDENTIALS_PATH
-            if download_path:
-                logger.info(f"Loading down secrets for {name} into {download_path}")
-                secret.write()
 
         except AttributeError:
             logger.warning(f"Was not able to load down secrets for {name}.")
