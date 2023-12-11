@@ -113,6 +113,7 @@ class TestModule:
     # --------- integration tests ---------
     # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
     @pytest.mark.parametrize("env", [None])
+    @pytest.mark.level("local")
     def test_call_module_method(self, cluster, env):
         cluster.put("numpy_pkg", Package.from_string("numpy"), env=env)
 
@@ -139,6 +140,7 @@ class TestModule:
 
     # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
     @pytest.mark.parametrize("env", [None])
+    @pytest.mark.level("local")
     def test_module_from_factory(self, cluster, env):
         size = 3
         RemoteClass = rh.module(SlowNumpyArray).to(cluster)
@@ -222,6 +224,7 @@ class TestModule:
 
     # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
     @pytest.mark.parametrize("env", [None])
+    @pytest.mark.level("local")
     def test_module_from_subclass(self, cluster, env):
         size = 3
         remote_df = SlowPandas(size=size).to(cluster, env)
@@ -285,6 +288,7 @@ class TestModule:
     @pytest.mark.asyncio
     # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
     @pytest.mark.parametrize("env", [None])
+    @pytest.mark.level("local")
     async def test_module_from_subclass_async(self, cluster, env):
         remote_df = SlowPandas(size=3).to(cluster, env)
         assert remote_df.system == cluster
@@ -323,6 +327,7 @@ class TestModule:
 
     @pytest.mark.skip("Not working yet")
     @pytest.mark.clustertest
+    @pytest.mark.level("local")
     def test_hf_autotokenizer(self, cluster):
         from transformers import AutoTokenizer
 
@@ -339,6 +344,7 @@ class TestModule:
 
     @pytest.mark.usefixtures("cluster")
     @pytest.mark.parametrize("env", [None])
+    @pytest.mark.level("local")
     def test_create_and_rename(self, cluster, env):
         RemoteCalc = rh.module(cls=Calculator).to(cluster)
         remote_calc = RemoteCalc(owner="Runhouse", name="Runhouse_calc")
@@ -360,6 +366,7 @@ class TestModule:
 
     @pytest.mark.usefixtures("cluster")
     @pytest.mark.parametrize("env", [None])
+    @pytest.mark.level("local")
     def test_local_remote_properties(self, cluster, env):
         RemoteCalc = rh.module(cls=Calculator).to(cluster)
         remote_calc = RemoteCalc(owner="Runhouse", name="Runhouse_calc")
@@ -371,6 +378,7 @@ class TestModule:
 
     @pytest.mark.parametrize("env", [None])
     @pytest.mark.asyncio
+    @pytest.mark.level("local")
     async def test_fetch_class_and_properties(self, cluster, env):
         RemoteCalc = rh.module(cls=Calculator).to(cluster)
         owner = "Runhouse"
@@ -400,6 +408,7 @@ class TestModule:
         )
 
     @pytest.mark.parametrize("env", [None])
+    @pytest.mark.level("local")
     def test_get_or_to(self, cluster, env):
         RemoteCalcNew = rh.module(Calculator).get_or_to(cluster, name="new_remote_cals")
         remote_calc_new = RemoteCalcNew(owner="Runhouse_admin", name="Admin_calc")
@@ -417,6 +426,7 @@ class TestModule:
         assert remote_calc_existing.remote.name == "Users_calc"
 
     @pytest.mark.parametrize("env", [None])
+    @pytest.mark.level("local")
     def test_refresh(self, cluster, env):
         RemoteCalc = rh.module(cls=Calculator).to(cluster)
         # Note: by reusing the name, we're overwriting the class module in the cluster's object store with
@@ -439,6 +449,7 @@ class TestModule:
         return a * a
 
     @pytest.mark.parametrize("env", [None])
+    @pytest.mark.level("local")
     def test_resolve(self, cluster, env):
         remote_calc = rh.module(Calculator).to(cluster)
 
@@ -457,6 +468,7 @@ class TestModule:
         assert self.calc_square(remote_calc.resolved_state().sub(1, 1)) == 0
 
     @pytest.mark.parametrize("env", [None])
+    @pytest.mark.level("local")
     def test_save(self, cluster, env):
         # TODO: ask Josh for advice how to share it with a new user each time.
         users = ["josh@run.house"]
@@ -470,6 +482,7 @@ class TestModule:
 
     @pytest.mark.parametrize("env", [None])
     @pytest.mark.asyncio
+    @pytest.mark.level("local")
     async def test_set_async(self, cluster, env):
         RemoteCalc = rh.module(Calculator).to(cluster)
         my_remote_calc = RemoteCalc(owner="Runhouse", name="Runhouse_remote_dev")
