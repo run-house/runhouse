@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 USER_ENDPOINT = "user/secret"
 
 
-def load_config(name, endpoint: str = USER_ENDPOINT):
+def load_config(name: str, endpoint: str = USER_ENDPOINT):
     rns_address = rns_client.resolve_rns_path(name)
 
     if rns_address.startswith("/"):
@@ -32,8 +32,8 @@ def load_config(name, endpoint: str = USER_ENDPOINT):
 
 
 def _load_vault_secrets(
-    resource_uri,
-    endpoint,
+    resource_uri: str,
+    endpoint: str = USER_ENDPOINT,
 ):
     """Load secrets data from Vault for a particular resource URI. By default we allow for reloading shared secrets."""
     resp = requests.get(

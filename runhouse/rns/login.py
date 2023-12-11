@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import List, Optional
 
 import requests
 
@@ -127,6 +127,8 @@ def login(
         configs.set("username", defaults["username"])
         configs.set("default_folder", defaults["default_folder"])
 
+    _convert_secrets_resource()
+
     if download_secrets:
         _login_download_secrets()
 
@@ -139,31 +141,19 @@ def login(
 
 
 def _login_download_secrets(headers: Optional[str] = None):
-    from runhouse import provider_secret, Secret
+    from runhouse import Secret
 
     secrets = Secret.vault_secrets(headers=headers or rns_client.request_headers)
     for name in secrets:
         try:
-            resource_uri = rns_client.resource_uri(name)
-            resp = requests.get(
-                f"{rns_client.api_server_url}/resource/{resource_uri}",
-                headers=headers or rns_client.request_headers,
-            )
-            if resp == 200:
-                secret = Secret.from_name(name)
-            elif name in Secret.builtin_providers(as_str=True):
-                secret = provider_secret(name)
-            else:
-                continue
+            secret = Secret.from_name(name)
 
             download_path = secret.path or secret._DEFAULT_CREDENTIALS_PATH
             if download_path:
                 logger.info(f"Loading down secrets for {name} into {download_path}")
                 secret.write()
-
-        except AttributeError:
+        except ValueError:
             logger.warning(f"Was not able to load down secrets for {name}.")
-            continue
 
 
 def _login_upload_secrets(interactive: bool, headers: Optional[str] = None):
@@ -191,6 +181,39 @@ def _login_upload_secrets(interactive: bool, headers: Optional[str] = None):
     logger.info(f"Uploading secrets for {list(local_secrets)} to Vault.")
     for _, secret in local_secrets.items():
         secret.save(save_values=True)
+
+
+def _convert_secrets_resource(names: List[str] = None, headers: Optional[str] = None):
+    # Convert vault-only secrets to a resource to maintain backwards compatibility,
+    # following secrets resource revamp
+    from runhouse import provider_secret, Secret
+    from runhouse.resources.secrets.utils import _load_vault_secrets
+
+    secrets = names or Secret.vault_secrets(
+        headers=headers or rns_client.request_headers
+    )
+    for name in secrets:
+        try:
+            resource_uri = rns_client.resource_uri(name)
+            resp = requests.get(
+                f"{rns_client.api_server_url}/resource/{resource_uri}",
+                headers=headers or rns_client.request_headers,
+            )
+            if resp.status_code != 200:
+                values = _load_vault_secrets(name)
+                secret = provider_secret(name, values=values)
+                secret.save()
+            else:
+                secret = Secret.from_name(name)
+
+            download_path = secret.path or secret._DEFAULT_CREDENTIALS_PATH
+            if download_path:
+                logger.info(f"Loading down secrets for {name} into {download_path}")
+                secret.write()
+
+        except AttributeError:
+            logger.warning(f"Was not able to load down secrets for {name}.")
+            continue
 
 
 def logout(

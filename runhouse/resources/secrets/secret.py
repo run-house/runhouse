@@ -105,7 +105,7 @@ class Secret(Resource):
             headers=headers or rns_client.request_headers,
         )
 
-        if resp.status_code != 200:
+        if resp.status_code not in [200, 404]:
             raise Exception("Failed to download secrets from Vault")
 
         response = read_resp_data(resp)

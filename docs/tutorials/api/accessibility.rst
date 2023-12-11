@@ -67,6 +67,7 @@ this is automatically set.
 
 
 .. parsed-literal::
+    :class: code-output
 
     [default]
     aws_access_key_id = ABCD_KEY
@@ -83,6 +84,7 @@ this is automatically set.
 
 
 .. parsed-literal::
+    :class: code-output
 
     extracted path: ~/.aws/credentials
     extracted values: {'access_key': 'ABCD_KEY', 'secret_key': '1234_KEY'}
@@ -181,14 +183,15 @@ account.
 .. parsed-literal::
     :class: code-output
 
-    {'aws': <runhouse.resources.secrets.provider_secrets.aws_secret.AWSSecret at 0x154ee99a0>,
-     'gcp': <runhouse.resources.secrets.provider_secrets.gcp_secret.GCPSecret at 0x103da3af0>,
-     'github': <runhouse.resources.secrets.provider_secrets.github_secret.GitHubSecret at 0x103c871f0>,
-     'huggingface': <runhouse.resources.secrets.provider_secrets.huggingface_secret.HuggingFaceSecret at 0x103da3fd0>,
-     'lambda': <runhouse.resources.secrets.provider_secrets.lambda_secret.LambdaSecret at 0x103da3cd0>,
-     'ssh-sagemaker-ssh-gw': <runhouse.resources.secrets.provider_secrets.ssh_secret.SSHSecret at 0x154eae8b0>,
-     'ssh-id_rsa': <runhouse.resources.secrets.provider_secrets.ssh_secret.SSHSecret at 0x154eae790>,
-     'ssh-id_rsa_tmp': <runhouse.resources.secrets.provider_secrets.ssh_secret.SSHSecret at 0x154eae730>}
+    {'aws': <runhouse.resources.secrets.provider_secrets.aws_secret.AWSSecret at 0x155109c70>,
+     'gcp': <runhouse.resources.secrets.provider_secrets.gcp_secret.GCPSecret at 0x107d14bb0>,
+     'github': <runhouse.resources.secrets.provider_secrets.github_secret.GitHubSecret at 0x107c9c8b0>,
+     'huggingface': <runhouse.resources.secrets.provider_secrets.huggingface_secret.HuggingFaceSecret at 0x107c9c040>,
+     'lambda': <runhouse.resources.secrets.provider_secrets.lambda_secret.LambdaSecret at 0x107c9c100>,
+     'sky': <runhouse.resources.secrets.provider_secrets.sky_secret.SkySecret at 0x107c9c970>,
+     'ssh-sagemaker-ssh-gw': <runhouse.resources.secrets.provider_secrets.ssh_secret.SSHSecret at 0x107c9c6d0>,
+     'ssh-id_rsa': <runhouse.resources.secrets.provider_secrets.ssh_secret.SSHSecret at 0x154f4eca0>,
+     'ssh-id_rsa_tmp': <runhouse.resources.secrets.provider_secrets.ssh_secret.SSHSecret at 0x154f4ed60>}
 
 
 
@@ -204,11 +207,7 @@ account.
 .. parsed-literal::
     :class: code-output
 
-    {'aws': <runhouse.resources.secrets.provider_secrets.aws_secret.AWSSecret at 0x154ee9eb0>,
-     'gcp': <runhouse.resources.secrets.provider_secrets.gcp_secret.GCPSecret at 0x154ee9790>,
-     'lambda': <runhouse.resources.secrets.provider_secrets.lambda_secret.LambdaSecret at 0x154ee9d30>,
-     'github': <runhouse.resources.secrets.provider_secrets.github_secret.GitHubSecret at 0x154ee9f10>,
-     'a': <runhouse.resources.secrets.secret.Secret at 0x154ee9e80>}
+    ['aws', 'gcp', 'github', 'huggingface', 'lambda', 'ssh-id_rsa']
 
 
 
@@ -228,8 +227,10 @@ of the lists above.
 .. parsed-literal::
     :class: code-output
 
-    INFO | 2023-11-06 15:37:55.564620 | Saving config for aws to Vault
-    INFO | 2023-11-06 15:37:56.901182 | Saving config for gcp to Vault
+    INFO | 2023-12-11 17:50:58.715913 | Saving config for aws to Den
+    INFO | 2023-12-11 17:50:58.748314 | Saving secrets for aws to Vault
+    INFO | 2023-12-11 17:50:59.565812 | Saving config for gcp to Den
+    INFO | 2023-12-11 17:50:59.597261 | Saving secrets for gcp to Vault
 
 
 Setting Config Options

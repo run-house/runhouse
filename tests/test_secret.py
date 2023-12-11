@@ -1,3 +1,4 @@
+import json
 import os
 
 import pytest
@@ -305,3 +306,28 @@ def test_sync_secrets(ondemand_cpu_cluster):
 
     assert_delete_local(aws_secret, contents=True)
     remote_file.rm()
+
+
+# BC-Breaking Testing
+
+
+@pytest.mark.rnstest
+def test_convert_secret_resource():
+    from runhouse.rns.login import _convert_secrets_resource
+
+    name = "vault_only"
+    requests.put(
+        f"{rns_client.api_server_url}/{rh.Secret.USER_ENDPOINT}/{name}",
+        data=json.dumps(test_secret_values),
+        headers=rns_client.request_headers,
+    )
+
+    with pytest.raises(ValueError):
+        load_config(name)
+
+    _convert_secrets_resource([name])
+    assert load_config(name)
+
+    rh.Secret.from_name(name).delete()
+    with pytest.raises(ValueError):
+        load_config(name)
