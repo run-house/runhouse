@@ -20,6 +20,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import requests.exceptions
 import sshtunnel
+from sshtunnel import SSHTunnelForwarder
 
 from runhouse.globals import obj_store, rns_client
 from runhouse.resources.envs.utils import _get_env_from
@@ -438,11 +439,8 @@ class Cluster(Resource):
             ServerConnectionType.AWS_SSM,
         ]:
             # Case 1: Server connection requires SSH tunnel, but we don't have one up yet
-            self._rpc_tunnel = ssh_tunnel(
-                address=self.address,
-                ssh_creds=self.ssh_creds,
+            self._rpc_tunnel = self.ssh_tunnel(
                 local_port=self.server_port,
-                ssh_port=self.ssh_port,
                 remote_port=self.server_port,
                 num_ports_to_try=10,
             )
@@ -459,26 +457,27 @@ class Cluster(Resource):
                 host=LOCALHOST,
                 port=self.client_port,
                 auth=auth,
-                cert_path=cert_path,
-                use_https=use_https,
                 system=self,
             )
 
         else:
             # Case 2: We're making a direct connection to the server, either via HTTP or HTTPS
-            assert self.server_connection_type in [
+            if self.server_connection_type not in [
                 ServerConnectionType.NONE,
                 ServerConnectionType.TLS,
-            ]
-            use_https = self.server_connection_type == ServerConnectionType.TLS
-            cert_path = self.cert_config.cert_path if use_https else None
+            ]:
+                raise ValueError(
+                    f"Unknown server connection type {self.server_connection_type}."
+                )
+
+            cert_path = self.cert_config.cert_path if self._use_https else None
             self.client_port = self.client_port or self.server_port
 
             self.client = HTTPClient(
                 host=self.server_address,
                 port=self.client_port,
                 cert_path=cert_path,
-                use_https=use_https,
+                use_https=self._use_https,
                 system=self,
             )
 
@@ -535,6 +534,18 @@ class Cluster(Resource):
                 raise ValueError(f"Could not connect to server {self.name}")
 
         return
+
+    def ssh_tunnel(
+        self, local_port, remote_port=None, num_ports_to_try: int = 0
+    ) -> SSHTunnelForwarder:
+        return ssh_tunnel(
+            address=self.address,
+            ssh_creds=self.ssh_creds,
+            local_port=local_port,
+            ssh_port=self.ssh_port,
+            remote_port=remote_port,
+            num_ports_to_try=num_ports_to_try,
+        )
 
     @property
     def _use_https(self) -> bool:
@@ -1154,11 +1165,8 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("test-cluster").notebook()
         """
-        tunnel = ssh_tunnel(
-            address=self.address,
-            ssh_creds=self.ssh_creds,
+        tunnel = self.ssh_tunnel(
             local_port=port_forward,
-            ssh_port=self.ssh_port,
             num_ports_to_try=10,
         )
         port_fwd = tunnel.local_bind_port

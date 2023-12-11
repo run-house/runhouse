@@ -10,6 +10,7 @@ import ray.exceptions
 import requests
 
 import runhouse as rh
+from runhouse.resources.hardware.utils import LOCALHOST, ServerConnectionType
 
 from tests.utils import test_account
 
@@ -397,10 +398,11 @@ class TestFunction:
         remote_sum = rh.function(summer).to(cluster).save("@/remote_function")
         ssh_creds = cluster.ssh_creds
         addr = (
-            "http://" + cluster.LOCALHOST
-            if cluster.server_connection_type in ["ssh", "aws_ssm"]
+            "http://" + LOCALHOST
+            if cluster.server_connection_type
+            in [ServerConnectionType.SSH, ServerConnectionType.AWS_SSM]
             else "https://" + cluster.address
-            if cluster.server_connection_type == "tls"
+            if cluster.server_connection_type == ServerConnectionType.TLS
             else "http://" + cluster.address
         )
         auth = (

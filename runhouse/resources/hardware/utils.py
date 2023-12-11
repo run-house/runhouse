@@ -1,3 +1,4 @@
+import copy
 import json
 import logging
 import os
@@ -44,7 +45,7 @@ except ImportError:
     pass
 
 # TODO: Move the following two functions into a networking module
-def get_open_tunnel(address: str, ssh_port: str):
+def get_open_tunnel(address: str, ssh_port: int) -> Optional[SSHTunnelForwarder]:
     if (address, ssh_port) in ssh_tunnel_cache:
         ssh_tunnel = ssh_tunnel_cache[(address, ssh_port)]
         if isinstance(ssh_tunnel, SSHTunnelForwarder):
@@ -472,7 +473,7 @@ def ssh_tunnel(
     ssh_port: int = 22,
     remote_port: Optional[int] = None,
     num_ports_to_try: int = 0,
-) -> Tuple[SSHTunnelForwarder, int]:
+) -> SSHTunnelForwarder:
     """Initialize an ssh tunnel from a remote server to localhost
 
     Args:
