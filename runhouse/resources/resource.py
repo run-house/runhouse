@@ -370,8 +370,7 @@ class Resource:
         if isinstance(access_type, str):
             access_type = ResourceAccess(access_type)
 
-        if not rns_client.exists(self.rns_address):
-            self.save(name=rns_client.local_to_remote_address(self.rns_address))
+        self.save()
 
         if isinstance(users, str):
             users = [users]
