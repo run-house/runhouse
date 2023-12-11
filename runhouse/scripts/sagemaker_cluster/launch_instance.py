@@ -62,7 +62,7 @@ def read_cluster_config() -> Dict:
     """Read the autostop from the cluster's config - this will get populated when the cluster is created,
     or via the autostop APIs (e.g. `pause_autostop` or `keep_warm`)"""
     try:
-        # Note: Runhouse has not yet been installed at this stage on the cluster, 
+        # Note: Runhouse has not yet been installed at this stage on the cluster,
         # so we can't import CLUSTER_CONFIG_PATH, we just need to hardcode it.
         with open(os.path.expanduser("~/.rh/cluster_config.json"), "r") as f:
             cluster_config = json.load(f)
