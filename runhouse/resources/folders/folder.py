@@ -515,7 +515,6 @@ class Folder(Resource):
                     f"Error syncing folder to destination cluster ({dest_cluster.name}). "
                     f"Make sure the source cluster ({self.system.name}) has the necessary provider keys "
                     f"if applicable. "
-                    f"For example: `rh.Secrets.to({self.system.name}, providers=['aws'])`"
                 )
         else:
             local_folder = self._cluster_to_local(self.system, self.path)
