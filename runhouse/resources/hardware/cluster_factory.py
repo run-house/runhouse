@@ -96,9 +96,9 @@ def cluster(
         return Cluster.from_name(name, dryrun)
 
     if host and ("localhost" in host or ":" in host):
-        # If server_connection_type is not specified, we
-        # assume we can hit the server directly via HTTP
-        server_connection_type = server_connection_type or ServerConnectionType.NONE
+        server_connection_type = (
+            server_connection_type or ServerConnectionType.DIRECT_HTTP
+        )
         if ":" in host:
             # e.g. "localhost:23324" or <real_ip>:<custom port> (e.g. a port is already open to the server)
             host, client_port = host.split(":")
@@ -113,7 +113,7 @@ def cluster(
     if server_port is None:
         if server_connection_type == ServerConnectionType.TLS:
             server_port = Cluster.DEFAULT_HTTPS_PORT
-        elif server_connection_type == ServerConnectionType.NONE:
+        elif server_connection_type == ServerConnectionType.DIRECT_HTTP:
             server_port = Cluster.DEFAULT_HTTP_PORT
         else:
             server_port = Cluster.DEFAULT_SERVER_PORT
@@ -287,13 +287,14 @@ def ondemand_cluster(
     if server_port is None:
         if server_connection_type == ServerConnectionType.TLS:
             server_port = Cluster.DEFAULT_HTTPS_PORT
-        elif server_connection_type == ServerConnectionType.NONE:
+        elif server_connection_type == ServerConnectionType.DIRECT_HTTP:
             server_port = Cluster.DEFAULT_HTTP_PORT
         else:
             server_port = Cluster.DEFAULT_SERVER_PORT
 
     if (
-        server_connection_type in [ServerConnectionType.TLS, ServerConnectionType.NONE]
+        server_connection_type
+        in [ServerConnectionType.TLS, ServerConnectionType.DIRECT_HTTP]
         and server_host in Cluster.LOCAL_HOSTS
     ):
         warnings.warn(
@@ -314,7 +315,7 @@ def ondemand_cluster(
         if str(server_port) in open_ports:
             if (
                 server_connection_type
-                in [ServerConnectionType.TLS, ServerConnectionType.NONE]
+                in [ServerConnectionType.TLS, ServerConnectionType.DIRECT_HTTP]
                 and not den_auth
             ):
                 warnings.warn(
@@ -329,7 +330,7 @@ def ondemand_cluster(
         # If using HTTP or HTTPS must enable traffic on the relevant port
         if server_connection_type in [
             ServerConnectionType.TLS,
-            ServerConnectionType.NONE,
+            ServerConnectionType.DIRECT_HTTP,
         ]:
             if server_port:
                 warnings.warn(

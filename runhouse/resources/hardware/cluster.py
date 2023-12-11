@@ -463,7 +463,7 @@ class Cluster(Resource):
         else:
             # Case 2: We're making a direct connection to the server, either via HTTP or HTTPS
             if self.server_connection_type not in [
-                ServerConnectionType.NONE,
+                ServerConnectionType.DIRECT_HTTP,
                 ServerConnectionType.TLS,
             ]:
                 raise ValueError(

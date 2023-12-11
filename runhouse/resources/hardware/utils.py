@@ -86,7 +86,7 @@ class ServerConnectionType(str, Enum):
 
     SSH = "ssh"
     TLS = "tls"
-    NONE = "none"
+    DIRECT_HTTP = "http"
     AWS_SSM = "aws_ssm"
 
 

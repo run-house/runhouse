@@ -61,7 +61,7 @@ async def async_http_client():
 @pytest.fixture(scope="session")
 def local_cluster():
     c = rh.cluster(
-        name="local_cluster", host="localhost", server_connection_type="none"
+        name="local_cluster", host="localhost", server_connection_type="http"
     )
     return c
 
