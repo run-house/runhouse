@@ -3,6 +3,8 @@ import requests
 
 import runhouse as rh
 
+from runhouse.resources.hardware.utils import LOCALHOST
+
 import tests.test_resources.test_resource
 from tests.conftest import init_args
 
@@ -106,7 +108,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         endpoint = cluster.endpoint()
         if cluster.server_connection_type in ["ssh", "aws_ssm"]:
             assert cluster.endpoint(external=True) is None
-            assert endpoint == f"http://{rh.Cluster.LOCALHOST}:{cluster.client_port}"
+            assert endpoint == f"http://{LOCALHOST}:{cluster.client_port}"
         else:
             url_base = "https" if cluster.server_connection_type == "tls" else "http"
             assert endpoint == f"{url_base}://{cluster.address}:{cluster.server_port}"
