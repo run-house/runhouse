@@ -44,7 +44,7 @@ class SSHSecret(ProviderSecret):
         return SSHSecret(**config, dryrun=dryrun)
 
     def save(
-        self, name: str = None, save_values: bool = True, headers: Optional[str] = None
+        self, name: str = None, save_values: bool = True, headers: Optional[Dict] = None
     ):
         if name:
             self.name = name

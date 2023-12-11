@@ -98,7 +98,7 @@ class Secret(Resource):
         return list(_str_to_provider_class.values())
 
     @classmethod
-    def vault_secrets(cls, headers: Optional[str] = None) -> List[str]:
+    def vault_secrets(cls, headers: Optional[Dict] = None) -> List[str]:
         """Get secret names that are stored in Vault"""
         resp = requests.get(
             f"{rns_client.api_server_url}/{cls.USER_ENDPOINT}",
@@ -169,7 +169,7 @@ class Secret(Resource):
 
     # TODO: refactor this code to reuse rns_client save_config code instead of rewriting
     def save(
-        self, name: str = None, save_values: bool = True, headers: Optional[str] = None
+        self, name: str = None, save_values: bool = True, headers: Optional[Dict] = None
     ):
         """
         Save the secret config to Den. Save the secret values into Vault if the user is logged in,
@@ -231,7 +231,7 @@ class Secret(Resource):
 
         return self
 
-    def delete(self, headers: str = rns_client.request_headers):
+    def delete(self, headers: Optional[Dict] = None):
         """Delete the secret config from Den and from Vault/local."""
         if not (self.in_vault() or self.is_local()):
             logger.warning(
@@ -250,7 +250,7 @@ class Secret(Resource):
         if os.path.exists(config_path):
             os.remove(config_path)
 
-    def _delete_secret_configs(self, headers: Optional[str] = None):
+    def _delete_secret_configs(self, headers: Optional[Dict] = None):
         headers = headers or rns_client.request_headers
 
         # Delete secrets in Vault

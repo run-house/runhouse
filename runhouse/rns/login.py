@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Dict, Optional
 
 import requests
 
@@ -138,7 +138,7 @@ def login(
         return token
 
 
-def _login_download_secrets(headers: Optional[str] = None):
+def _login_download_secrets(headers: Optional[Dict] = None):
     from runhouse import provider_secret, Secret
 
     secrets = Secret.vault_secrets(headers=headers or rns_client.request_headers)
@@ -166,7 +166,7 @@ def _login_download_secrets(headers: Optional[str] = None):
             continue
 
 
-def _login_upload_secrets(interactive: bool, headers: Optional[str] = None):
+def _login_upload_secrets(interactive: bool, headers: Optional[Dict] = None):
     from runhouse import Secret
 
     local_secrets = Secret.local_secrets()

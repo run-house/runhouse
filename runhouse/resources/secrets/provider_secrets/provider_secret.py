@@ -76,12 +76,12 @@ class ProviderSecret(Secret):
         return ProviderSecret(**config, dryrun=dryrun)
 
     def save(
-        self, name: str = None, save_values: bool = True, headers: Optional[str] = None
+        self, name: str = None, save_values: bool = True, headers: Optional[Dict] = None
     ):
         name = name or self.name or self.provider
         super().save(name=name, save_values=save_values, headers=headers)
 
-    def delete(self, headers: Optional[str] = None, contents: bool = False):
+    def delete(self, headers: Optional[Dict] = None, contents: bool = False):
         """Delete the secret config from Den and from Vault/local. Optionally also delete contents of secret file
         or env vars."""
         headers = headers or rns_client.request_headers
