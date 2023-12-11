@@ -97,7 +97,8 @@ def test_bad_handler_path_to_factory():
         )
     assert (
         str(no_handler_path.value)
-        == "Please provide a path to the lambda handler file."
+        == "Please provide a callable function OR path to handler function "
+        + "and its name in order to create a Lambda function."
     )
 
     with pytest.raises(RuntimeError) as handler_path_none:
@@ -110,7 +111,8 @@ def test_bad_handler_path_to_factory():
         )
     assert (
         str(handler_path_none.value)
-        == "Please provide a path to the lambda handler file."
+        == "Please provide a callable function OR path to handler function "
+        + "and its name in order to create a Lambda function."
     )
 
     with pytest.raises(RuntimeError) as handler_path_empty:
@@ -123,7 +125,8 @@ def test_bad_handler_path_to_factory():
         )
     assert (
         str(handler_path_empty.value)
-        == "Please provide a path to the lambda handler file."
+        == "Please provide a callable function OR path to handler function "
+        + "and its name in order to create a Lambda function."
     )
 
 
@@ -139,7 +142,8 @@ def test_bad_handler_func_name_to_factory():
         )
     assert (
         str(no_func_name.value)
-        == "Please provide the name of the function that should be executed by the lambda."
+        == "Please provide a callable function OR path to handler function "
+        + "and its name in order to create a Lambda function."
     )
 
     with pytest.raises(RuntimeError) as func_name_none:
@@ -152,7 +156,8 @@ def test_bad_handler_func_name_to_factory():
         )
     assert (
         str(func_name_none.value)
-        == "Please provide the name of the function that should be executed by the lambda."
+        == "Please provide a callable function OR path to handler function "
+        + "and its name in order to create a Lambda function."
     )
 
     with pytest.raises(RuntimeError) as empty_name:
@@ -165,7 +170,8 @@ def test_bad_handler_func_name_to_factory():
         )
     assert (
         str(empty_name.value)
-        == "Please provide the name of the function that should be executed by the lambda."
+        == "Please provide a callable function OR path to handler function "
+        + "and its name in order to create a Lambda function."
     )
 
 

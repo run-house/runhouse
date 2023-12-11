@@ -642,7 +642,8 @@ class LambdaFunction(Function):
 
                 self.iam_client.delete_role(RoleName=role_name)
 
-                if len(self._get_log_group_names()) > 0:
+                log_groups = self._get_log_group_names()
+                if len(log_groups) > 0 and log_group_name in log_groups:
                     self.logs_client.delete_log_group(logGroupName=log_group_name)
 
                 self.lambda_client.delete_function(FunctionName=lambda_name)
