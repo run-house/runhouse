@@ -31,10 +31,14 @@ class TestResource:
         assert isinstance(resource, rh.Resource)
         args = init_args.get(id(resource))
         if "name" in args:
+
+            if args["name"].startswith("^"):
+                args["name"] = args["name"][1:]
+
             if "/" in args["name"]:
                 assert resource.rns_address == args["name"]
             else:
-                assert args["name"] == resource.name
+                assert resource.name == args["name"]
                 assert resource.rns_address.split("/")[-1] == args["name"]
 
         if "dryrun" in args:
