@@ -80,7 +80,10 @@ def test_load_not_existing_lambda():
 def test_crate_no_arguments():
     with pytest.raises(RuntimeError) as no_args:
         rh.lambda_function()
-    assert str(no_args.value) == "Please provide a path to the lambda handler file."
+    assert str(no_args.value) == (
+        "Please provide a callable function OR path to handler function and its name"
+        + " in order to create a Lambda function."
+    )
 
 
 def test_bad_handler_path_to_factory():

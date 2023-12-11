@@ -1,6 +1,7 @@
 import base64
 import contextlib
 import copy
+import importlib.util
 import inspect
 import json
 import logging
@@ -27,9 +28,10 @@ SUPPORTED_RUNTIMES = [
     "python3.8",
     "python3.9",
     "python3.10",
-    "python 3.11",
+    "python3.11",
 ]
 DEFAULT_PY_VERSION = "python3.9"
+LOG_GROUP_PREFIX = "/aws/lambda/"
 
 
 class LambdaFunction(Function):
@@ -69,7 +71,6 @@ class LambdaFunction(Function):
         tmp_size: int,  # MB
         retention_time: int = DEFAULT_RETENTION,  # days
         dryrun: bool = False,
-        function_arn: Optional[str] = None,
         access: Optional[str] = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
@@ -102,9 +103,11 @@ class LambdaFunction(Function):
             None  # Lambda config and role arn from aws will be saved here
         )
         self.retention_time = retention_time
-        self.function_arn = function_arn
 
         # will be used for reloading shared functions from other regions.
+        function_arn = (
+            kwargs.get("function_arn") if "function_arn" in kwargs.keys() else None
+        )
         if function_arn:
             region = function_arn.split(":")[3]
             self.lambda_client = boto3.client("lambda", region_name=region)
@@ -120,6 +123,7 @@ class LambdaFunction(Function):
                     "lambda", region_name=self.DEFAULT_REGION
                 )
                 self.logs_client = boto3.client("logs", region_name=self.DEFAULT_REGION)
+        self.iam_client = boto3.client("iam")
 
     # --------------------------------------
     # Constructor helper methods
@@ -164,11 +168,11 @@ class LambdaFunction(Function):
 
     def _lambda_exist(self, name):
         """Checks if a Lambda with the name given during init is already exists in AWS"""
-        func_names = [
-            func["FunctionName"]
-            for func in self.lambda_client.list_functions()["Functions"]
-        ]
-        return name in func_names
+        try:
+            self.lambda_client.get_function(FunctionName=name)
+            return True
+        except self.lambda_client.exceptions.ResourceNotFoundException:
+            return False
 
     @contextlib.contextmanager
     def _wait_until_lambda_update_is_finished(self, name):
@@ -272,6 +276,14 @@ class LambdaFunction(Function):
 
         return supported_libs
 
+    @classmethod
+    def _paths_to_code_from_fn_pointers(cls, fn_pointers):
+        """creates path to code from fn_pointers"""
+        root_dir = rns_client.locate_working_dir()
+        file_path = fn_pointers[1].replace(".", "/") + ".py"
+        paths_to_code = [os.path.join(root_dir, file_path)]
+        return paths_to_code
+
     def _update_lambda_config(self, env_vars):
         """Updates existing Lambda in AWS (config) that was provided in the init."""
         logger.info(f"Updating a Lambda called {self.name}")
@@ -351,8 +363,6 @@ class LambdaFunction(Function):
     def _create_role_in_aws(self):
         """create a new role for the lambda function. If already exists - returns it."""
 
-        iam_client = boto3.client("iam")
-
         role_policy = {
             "Version": "2012-10-17",
             "Statement": [
@@ -376,16 +386,16 @@ class LambdaFunction(Function):
         }
 
         try:
-            role_res = iam_client.create_role(
+            role_res = self.iam_client.create_role(
                 RoleName=f"{self.name}_Role",
                 AssumeRolePolicyDocument=json.dumps(assume_role_policy_document),
             )
             logger.info(f'{role_res["Role"]["RoleName"]} was created successfully.')
 
-        except iam_client.exceptions.EntityAlreadyExistsException:
-            role_res = iam_client.get_role(RoleName=f"{self.name}_Role")
+        except self.iam_client.exceptions.EntityAlreadyExistsException:
+            role_res = self.iam_client.get_role(RoleName=f"{self.name}_Role")
 
-        iam_client.put_role_policy(
+        self.iam_client.put_role_policy(
             RoleName=role_res["Role"]["RoleName"],
             PolicyName=f"{self.name}_Policy",
             PolicyDocument=json.dumps(role_policy),
@@ -426,12 +436,12 @@ class LambdaFunction(Function):
 
     def to(
         self,
-        # Variables below are deprecated
         env: Optional[List[str]] = [],
+        cloud: str = "aws_lambda",
+        # Variables below are deprecated
         reqs: Optional[List[str]] = None,
         setup_cmds: Optional[List[str]] = [],
         force_install: Optional[bool] = False,
-        cloud: str = "aws_lambda",
     ):
         """
         Set up a function on AWS as a Lambda function.
@@ -441,7 +451,7 @@ class LambdaFunction(Function):
         Example:
             >>> my_lambda = rh.lambda_function(path_to_codes=["full/path/to/model_a_handler.py"],
             >>> handler_function_name='main_func',
-            >>> runtime='python_3_9',
+            >>> runtime='python3.9',
             >>> name="my_lambda_func").to()
         """
 
@@ -487,34 +497,33 @@ class LambdaFunction(Function):
         """
         return self._invoke(*args, **kwargs)
 
-    def _get_log_group_names(self, log_group_prefix):
+    def _get_log_group_names(self):
         lambdas_log_groups = self.logs_client.describe_log_groups(
-            logGroupNamePrefix=log_group_prefix
+            logGroupNamePrefix=LOG_GROUP_PREFIX
         )["logGroups"]
         lambdas_log_groups = [group["logGroupName"] for group in lambdas_log_groups]
         return lambdas_log_groups
 
     @contextlib.contextmanager
     def _wait_till_log_group_is_created(
-        self, curr_lambda_log_group, lambdas_log_groups, log_group_prefix
+        self, curr_lambda_log_group, lambdas_log_groups
     ):
         time_passed = 0
         while curr_lambda_log_group not in lambdas_log_groups:
             if time_passed > self.MAX_WAIT_TIME:
                 raise TimeoutError(
-                    f"The log group called {log_group_prefix} is being deployed in AWS cloudwatch for too long. "
+                    f"The log group called {curr_lambda_log_group} is being deployed in AWS cloudwatch for too long. "
                     + " Please check the resource in AWS console, delete relevant resource(s) "
                     + "if necessary, and re-run your Runhouse code."
                 )
             time.sleep(1)
-            lambdas_log_groups = self._get_log_group_names(log_group_prefix)
+            lambdas_log_groups = self._get_log_group_names()
             time_passed += 1
         yield True
 
     def _invoke(self, *args, **kwargs) -> Any:
-        log_group_prefix = "/aws/lambda/"
-        lambdas_log_groups = self._get_log_group_names(log_group_prefix)
-        curr_lambda_log_group = f"{log_group_prefix}{self.name}"
+        lambdas_log_groups = self._get_log_group_names()
+        curr_lambda_log_group = f"{LOG_GROUP_PREFIX}{self.name}"
         invoke_for_the_first_time = curr_lambda_log_group not in lambdas_log_groups
 
         payload_invoke = {}
@@ -537,9 +546,9 @@ class LambdaFunction(Function):
 
         except KeyError:
             if invoke_for_the_first_time:
-                lambdas_log_groups = self._get_log_group_names(log_group_prefix)
+                lambdas_log_groups = self._get_log_group_names()
                 with self._wait_till_log_group_is_created(
-                    curr_lambda_log_group, lambdas_log_groups, log_group_prefix
+                    curr_lambda_log_group, lambdas_log_groups
                 ):
                     self.logs_client.put_retention_policy(
                         logGroupName=curr_lambda_log_group,
@@ -627,14 +636,13 @@ class LambdaFunction(Function):
 
                 # TODO: do we want to delete role and log group?
                 #  maybe we want to reuse the role or save logs even if the lambda was deleted.
-                iam_client = boto3.client("iam")
-                iam_client.delete_role_policy(
+                self.iam_client.delete_role_policy(
                     RoleName=role_name, PolicyName=policy_name
                 )
 
-                iam_client.delete_role(RoleName=role_name)
+                self.iam_client.delete_role(RoleName=role_name)
 
-                if len(self._get_log_group_names(log_group_name)) > 0:
+                if len(self._get_log_group_names()) > 0:
                     self.logs_client.delete_log_group(logGroupName=log_group_name)
 
                 self.lambda_client.delete_function(FunctionName=lambda_name)
@@ -646,17 +654,9 @@ class LambdaFunction(Function):
             )
 
 
-def _paths_to_code_from_fn_pointers(fn_pointers):
-    """creates path to code from fn_pinters"""
-    root_dir = rns_client.locate_working_dir()
-    file_path = fn_pointers[1].replace(".", "/") + ".py"
-    paths_to_code = [os.path.join(root_dir, file_path)]
-    return paths_to_code
-
-
 def lambda_function(
-    fn: Optional[str] = None,
-    paths_to_code: Optional[str] = None,
+    fn: Optional[Callable] = None,
+    paths_to_code: Optional[list[str]] = None,
     handler_function_name: Optional[str] = None,
     runtime: Optional[str] = None,
     args_names: Optional[list[str]] = None,
@@ -776,7 +776,7 @@ def lambda_function(
         fn_pointers = Function._extract_pointers(
             fn, reqs=[] if env is None else env.reqs
         )
-        paths_to_code = _paths_to_code_from_fn_pointers(fn_pointers)
+        paths_to_code = LambdaFunction._paths_to_code_from_fn_pointers(fn_pointers)
         args_names = [param.name for param in inspect.signature(fn).parameters.values()]
         if name is None:
             name = fn.__name__
@@ -793,20 +793,15 @@ def lambda_function(
                 "Please provide the name of the function that should be executed by the lambda."
             )
         if args_names is None:
-            # Parsing the handler file and extracting the arguments names of the handler function.
+            # extracting the arguments names of the handler function.
             file_path = paths_to_code[0]
             func_name = handler_function_name
-            with (open(file_path) as f):
-                a = f.read()
-                index = a.index(func_name)
-                open_par = index + len(func_name)
-                close_par = open_par + 1
-                while a[close_par] != ")":
-                    close_par += 1
-                args_names = a[open_par + 1 : close_par].split(",")
-                args_names = [
-                    arg.strip().split(":")[0] for arg in args_names if len(arg) > 0
-                ]
+            spec = importlib.util.spec_from_file_location(file_path, file_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            # Extract the function and its arguments
+            func = getattr(module, func_name, None)
+            args_names = inspect.getfullargspec(func).args
             warnings.warn(
                 f"Arguments names were not provided. Extracted the following args names: {args_names}."
             )
