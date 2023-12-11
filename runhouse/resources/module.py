@@ -426,7 +426,7 @@ class Module(Resource):
             # Handle properties
             if is_prop:
                 return attr
-        except AttributeError as e:
+        except (ModuleNotFoundError, AttributeError) as e:
             if item in self.signature:
                 _, is_prop, is_async, is_gen, local_default = list(
                     self.signature.get(item).values()
