@@ -28,7 +28,7 @@ documentation below.
 Lambda Function Factory Method
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autofunction:: runhouse.lambda_function
+.. autofunction:: runhouse.aws_lambda_fn
 
 Lambda Function Class
 ~~~~~~~~~~~~~~
