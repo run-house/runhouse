@@ -1,7 +1,7 @@
 from runhouse.resources.blobs import blob, Blob, file, File
 from runhouse.resources.envs import conda_env, CondaEnv, env, Env
 from runhouse.resources.folders import Folder, folder, GCSFolder, S3Folder
-from runhouse.resources.functions.aws_lambda import lambda_function, LambdaFunction
+from runhouse.resources.functions.aws_lambda import aws_lambda_fn, LambdaFunction
 from runhouse.resources.functions.function import function, Function
 from runhouse.resources.hardware import (
     _current_cluster,

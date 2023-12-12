@@ -79,7 +79,7 @@ class LambdaFunction(Function):
         and dependencies necessary to run the service on AWS infra.
 
         .. note::
-                To create an AWS lambda resource, please use the factory method :func:`lambda_function`.
+                To create an AWS lambda resource, please use the factory method :func:`aws_lambda_fn`.
         """
 
         super().__init__(
@@ -153,7 +153,7 @@ class LambdaFunction(Function):
         else:
             config["env"] = Env.from_config(config["env"])
 
-        return LambdaFunction(**config, dryrun=dryrun).to()
+        return LambdaFunction(**config, dryrun=dryrun).deploy()
 
     @classmethod
     def from_name(cls, name, dryrun=False, alt_options=None):
@@ -434,6 +434,9 @@ class LambdaFunction(Function):
             Path(zip_file_name).absolute().unlink()
             return lambda_config
 
+    def deploy(self):
+        return self.to()
+
     def to(
         self,
         env: Optional[List[str]] = [],
@@ -446,14 +449,7 @@ class LambdaFunction(Function):
         """
         Set up a function on AWS as a Lambda function.
 
-        See the args of the factory method :func:`lambda_function` for more information.
-
-        Example:
-            >>> summer_lambda = rh.lambda_function(
-            >>>                     paths_to_code=['/full/path/to/handler_file.py'],
-            >>>                     handler_function_name = 'function_to_invoke_name',
-            >>>                     name="my_lambda_func").to()
-
+        See the args of the factory method :func:`aws_lambda_fn` for more information.
         """
 
         # Checking if the user have a credentials file
@@ -572,14 +568,12 @@ class LambdaFunction(Function):
             >>>     return arg1 + arg2 + arg3
             >>>
             >>> # your 'main' python file, where you are using runhouse
-            >>> summer_lambda = rh.lambda_function(
+            >>> summer_lambda = rh.aws_lambda_fn(
             >>>                     paths_to_code=['/full/path/to/handler_file.py'],
             >>>                     handler_function_name = 'summer',
             >>>                     runtime = 'python3.9',
-            >>>                     name="my_func").to()
+            >>>                     name="my_func")
             >>> output = summer_lambda.map([1, 2], [1, 4], [2, 3])  # output = ["4", "9"]
-
-
         """
 
         return [self._invoke(*args, **kwargs) for args in zip(*args)]
@@ -601,22 +595,19 @@ class LambdaFunction(Function):
     # Lambda Function delete methods
     # --------------------------------------
     def delete(self):
-        """Deletes rh.LambdaFunction instance from DEN (if saved) and from AWS. All relevant AWS resources
+        """Deletes rh.LambdaFunction instance and from AWS. All relevant AWS resources
         (role, log group) are deleted as well.
 
         Example:
             >>> def multiply(a, b):
             >>>     return a * b
-            >>> multiply_lambda = rh.lambda_function(fn=multiply, name="lambdas_mult_func")
+            >>> multiply_lambda = rh.aws_lambda_fn(fn=multiply, name="lambdas_mult_func")
             >>> mult_res = multiply_lambda(4, 5)  # returns "20".
             >>> multiply_lambda.delete()  # returns true if succeeded, raises an exception otherwise.
 
         """
         try:
             lambda_name = self.name
-            # delete from rns (if exists)
-            if rns_client.exists(self.rns_address):
-                rns_client.delete_configs(self)
             # delete from aws console
             if self._lambda_exist(lambda_name):
                 policy_name = f"{lambda_name}_Policy"
@@ -643,6 +634,23 @@ class LambdaFunction(Function):
                 f"Could nor delete an AWS resource, got {aws_exception.response['Error']['Message']}"
             )
 
+    def delete_from_den(self):
+        """Deletes rh.LambdaFunction instance from DEN (if saved) and from AWS. All relevant AWS resources
+        (role, log group) are deleted as well.
+
+        Example:
+            >>> def multiply(a, b):
+            >>>     return a * b
+            >>> multiply_lambda = rh.aws_lambda_fn(fn=multiply, name="lambdas_mult_func")
+            >>> mult_res = multiply_lambda(4, 5)  # returns "20".
+            >>> multiply_lambda.delete_from_den()  # returns true if succeeded, raises an exception otherwise.
+
+        """
+        # delete from rns (if exists)
+        if rns_client.exists(self.rns_address):
+            rns_client.delete_configs(self)
+        return self.delete()
+
     # --------------------------------------
     # Properties setup
     # --------------------------------------
@@ -668,7 +676,7 @@ class LambdaFunction(Function):
         return self.local_path_to_code[0]
 
 
-def lambda_function(
+def aws_lambda_fn(
     fn: Optional[Callable] = None,
     paths_to_code: Optional[list[str]] = None,
     handler_function_name: Optional[str] = None,
@@ -733,23 +741,23 @@ def lambda_function(
         >>>    return a + b
 
         >>> # your 'main' python file, where you are using runhouse
-        >>> summer_lambda = rh.lambda_function(
+        >>> summer_lambda = rh.aws_lambda_fn(
         >>>                     paths_to_code=['/full/path/to/handler_file.py'],
         >>>                     handler_function_name = 'summer',
         >>>                     runtime = 'python3.9',
-        >>>                     name="my_func").to().save()
+        >>>                     name="my_func").save()
 
         >>> # invoking the function
         >>> summer_res = summer_lambda(5, 8)  # returns "13". (It returns str type because of AWS API)
 
         >>> # Load function from above
-        >>> reloaded_function = rh.lambda_function(name="my_func")
+        >>> reloaded_function = rh.aws_lambda_fn(name="my_func")
         >>> reloaded_function_res = reloaded_function(3, 4)  # returns "7".
 
         >>> # Pass in a callable function  when creating a Lambda
         >>> def multiply(a, b):
         >>>     return a * b
-        >>> multiply_lambda = rh.lambda_function(fn=multiply, name="lambdas_mult_func")
+        >>> multiply_lambda = rh.aws_lambda_fn(fn=multiply, name="lambdas_mult_func")
         >>> mult_res = multiply_lambda(4, 5)  # returns "20".
 
     """
@@ -898,4 +906,4 @@ def lambda_function(
     if dryrun:
         return new_function
 
-    return new_function.to()
+    return new_function.deploy()
