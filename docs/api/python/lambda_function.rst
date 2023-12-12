@@ -19,7 +19,7 @@ Lambda Function Class
 ~~~~~~~~~~~~~~
 
 .. autoclass:: runhouse.LambdaFunction
-   :members: from_config, from_name, map, starmap, to, delete
+   :members:
    :exclude-members:
 
     .. automethod:: __init__
