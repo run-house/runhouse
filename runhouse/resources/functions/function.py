@@ -109,9 +109,9 @@ class Function(Module):
             env = _get_env_from(env)
 
         if isinstance(system, str) and system.lower() == "lambda_function":
-            from runhouse.resources.functions.aws_lambda import lambda_function
+            from runhouse.resources.functions.aws_lambda import aws_lambda_fn
 
-            return lambda_function(
+            return aws_lambda_fn(
                 fn=self._get_obj_from_pointers(*self.fn_pointers), env=env
             )
 
