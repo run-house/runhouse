@@ -449,10 +449,11 @@ class LambdaFunction(Function):
         See the args of the factory method :func:`lambda_function` for more information.
 
         Example:
-            >>> my_lambda = rh.lambda_function(path_to_codes=["full/path/to/model_a_handler.py"],
-            >>> handler_function_name='main_func',
-            >>> runtime='python3.9',
-            >>> name="my_lambda_func").to()
+            >>> summer_lambda = rh.lambda_function(
+            >>>                     paths_to_code=['/full/path/to/handler_file.py'],
+            >>>                     handler_function_name = 'function_to_invoke_name',
+            >>>                     name="my_lambda_func").to()
+
         """
 
         # Checking if the user have a credentials file
@@ -571,12 +572,13 @@ class LambdaFunction(Function):
             >>>     return arg1 + arg2 + arg3
             >>>
             >>> # your 'main' python file, where you are using runhouse
-            >>> my_lambda = rh.lambda_function(path_to_code=["full/path/to/my_lambda_handler.py"],
-            >>> handler_function_name='my_summer',
-            >>> runtime='python_3_9',
-            >>> name="my_summer").to()
-            >>> output = my_lambda.map([1, 2], [1, 4], [2, 3])
-            >>> # output = ["4", "9"] (It returns str type because of AWS API)
+            >>> summer_lambda = rh.lambda_function(
+            >>>                     paths_to_code=['/full/path/to/handler_file.py'],
+            >>>                     handler_function_name = 'summer',
+            >>>                     runtime = 'python3.9',
+            >>>                     name="my_func").to()
+            >>> output = summer_lambda.map([1, 2], [1, 4], [2, 3])  # output = ["4", "9"]
+
 
         """
 
@@ -588,41 +590,28 @@ class LambdaFunction(Function):
         that are unpacked as arguments. An iterable of [(1,2), (3, 4)] results in [func(1,2), func(3,4)].
 
         Example:
-            >>> arg_list = [(1,2), (3, 4)]
-            >>> # runs the function twice, once with args (1, 2) and once with args (3, 4)
-            >>> output = my_lambda.starmap(arg_list) # output = ["3", "7"]
+            >>> arg_list = [(1,2, 3), (3, 4, 5)]
+            >>> # invokes the Lambda function twice, once with args (1, 2, 3) and once with args (3, 4, 5)
+            >>> output = summer_lambda.starmap(arg_list) # output = ["6", "12"]
         """
 
         return [self._invoke(*args, **kwargs) for args in args_lists]
 
     # --------------------------------------
-    # Properties setup
-    # --------------------------------------
-    @property
-    def config_for_rns(self):
-        config = super().config_for_rns
-        config.update(
-            {
-                "paths_to_code": self.local_path_to_code,
-                "handler_function_name": self.handler_function_name,
-                "runtime": self.runtime,
-                "timeout": self.timeout,
-                "memory_size": self.memory_size,
-                "tmp_size": self.tmp_size,
-                "args_names": self.args_names,
-                "function_arn": self.aws_lambda_config["Configuration"]["FunctionArn"],
-            }
-        )
-        return config
-
-    @property
-    def handler_path(self):
-        return self.local_path_to_code[0]
-
-    # --------------------------------------
     # Lambda Function delete methods
     # --------------------------------------
     def delete(self):
+        """Deletes rh.LambdaFunction instance from DEN (if saved) and from AWS. All relevant AWS resources
+        (role, log group) are deleted as well.
+
+        Example:
+            >>> def multiply(a, b):
+            >>>     return a * b
+            >>> multiply_lambda = rh.lambda_function(fn=multiply, name="lambdas_mult_func")
+            >>> mult_res = multiply_lambda(4, 5)  # returns "20".
+            >>> multiply_lambda.delete()  # returns true if succeeded, raises an exception otherwise.
+
+        """
         try:
             lambda_name = self.name
             # delete from rns (if exists)
@@ -654,6 +643,30 @@ class LambdaFunction(Function):
                 f"Could nor delete an AWS resource, got {aws_exception.response['Error']['Message']}"
             )
 
+    # --------------------------------------
+    # Properties setup
+    # --------------------------------------
+    @property
+    def config_for_rns(self):
+        config = super().config_for_rns
+        config.update(
+            {
+                "paths_to_code": self.local_path_to_code,
+                "handler_function_name": self.handler_function_name,
+                "runtime": self.runtime,
+                "timeout": self.timeout,
+                "memory_size": self.memory_size,
+                "tmp_size": self.tmp_size,
+                "args_names": self.args_names,
+                "function_arn": self.aws_lambda_config["Configuration"]["FunctionArn"],
+            }
+        )
+        return config
+
+    @property
+    def handler_path(self):
+        return self.local_path_to_code[0]
+
 
 def lambda_function(
     fn: Optional[Callable] = None,
@@ -677,21 +690,22 @@ def lambda_function(
             AWS Lambda. First path in the list should be the path to the handler file which contains the main
             (handler) function. If ``fn`` is provided, this argument is ignored.
         handler_function_name: (Optional[str]): The name of the function in the handler file that will be executed
-            by the Lambda.
+            by the Lambda. If ``fn`` is provided, this argument is ignored.
         runtime: (Optional[str]): The coding language of the function. Should be one of the following:
             python3.7, python3.8, python3.9, python3.10, python3.11. (Default: ``python3.9``)
         args_names: (Optional[list[str]]): List of the function's accepted parameters, which will be passed to the
-            Lambda Function. If ``fn`` is provided, this argument is ignored.
-            If your function doesn't accept arguments, please provide an empty list.
+            Lambda Function. If your function doesn't accept arguments, please provide an empty list.
+            If ``fn`` is provided, this argument is ignored.
         name (Optional[str]): Name of the Lambda Function to create or retrieve.
             This can be either from a local config or from the RNS.
         env (Optional[Dict or List[str] or Env]): Specifies the requirements that will be installed, and the environment
-            vars that should be attached to the Lambda. Accepts three possible types:
-            1. A dict which should contain the following keys:
-            reqs - a list of the python libraries, to be installed by the Lambda, or just a ``requirements.txt`` string.
-            env_vars: dictionary containing the env_vars that will be a part of the lambda configuration.
-            2. A list of strings, containing all the required python packeages.
-            3. An insrantce of Runhouse Env class.
+            vars that should be attached to the Lambda. Accepts three possible types:\n
+            1. A dict which should contain the following keys:\n
+               a. reqs: a list of the python libraries, to be installed by the Lambda, or just a ``requirements.txt``
+                  string.\n
+               b. env_vars: dictionary containing the env_vars that will be a part of the lambda configuration.\n
+            2. A list of strings, containing all the required python packeages.\n
+            3. An instance of Runhouse Env class.\n
             By default, ``runhouse`` package will be installed, and env_vars will include ``{HOME: /tmp/home}``
         timeout: Optional[int]: The maximum amount of time (in secods) during which the Lambda will run in AWS
             without timing-out. (Default: ``900``, Min: ``3``, Max: ``900``)
@@ -709,9 +723,9 @@ def lambda_function(
 
         .. note::
             When creating the function for the first time (and not reloading it), the following arguments are
-            mandatory: paths_to_code, handler_function_name, runtime, args_names OR a callable function.
+            mandatory: paths_to_code and handler_function_name OR a callable function.
 
-    Example:
+    Examples:
         >>> import runhouse as rh
 
         >>> # handler_file.py
@@ -719,20 +733,24 @@ def lambda_function(
         >>>    return a + b
 
         >>> # your 'main' python file, where you are using runhouse
-        >>> lambdas_func = rh.lambda_function(
+        >>> summer_lambda = rh.lambda_function(
         >>>                     paths_to_code=['/full/path/to/handler_file.py'],
         >>>                     handler_function_name = 'summer',
         >>>                     runtime = 'python3.9',
         >>>                     name="my_func").to().save()
 
-        >>> # using the function
-        >>> res = summer(5, 8)  # returns "13". (It returns str type because of AWS API)
+        >>> # invoking the function
+        >>> summer_res = summer_lambda(5, 8)  # returns "13". (It returns str type because of AWS API)
 
         >>> # Load function from above
         >>> reloaded_function = rh.lambda_function(name="my_func")
+        >>> reloaded_function_res = reloaded_function(3, 4)  # returns "7".
 
-        >>> # Pass in the function itself when creating the Lambda
-        >>> lambdas_func = rh.lambda_function(fn=summer, name="lambdas_func")
+        >>> # Pass in a callable function  when creating a Lambda
+        >>> def multiply(a, b):
+        >>>     return a * b
+        >>> multiply_lambda = rh.lambda_function(fn=multiply, name="lambdas_mult_func")
+        >>> mult_res = multiply_lambda(4, 5)  # returns "20".
 
     """
     # TODO: [SB] in the next phase, maybe add the option to create func from git.

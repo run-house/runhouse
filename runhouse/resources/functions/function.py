@@ -81,14 +81,13 @@ class Function(Module):
     ):
         """
         Set up a Function and Env on the given system.
-        If the funciton is sent to AWS, the system parameter should be the string ``Lambda_Function``
-            (not case sensetive).
+        If the funciton is sent to AWS, the system should be ``Lambda_Function`` (not case sensetive).
         See the args of the factory method :func:`function` for more information.
 
         Example:
             >>> rh.function(fn=local_fn).to(gpu_cluster)
             >>> rh.function(fn=local_fn).to(system=gpu_cluster, env=my_conda_env)
-            >>> rh.function(fn=local_fn).to(system='Lambda_Function')
+            >>> rh.function(fn=local_fn).to(system='Lambda_Function')  # will deploy the rh.function to AWS as a Lambda.
         """
 
         if setup_cmds:
