@@ -7,8 +7,6 @@ import warnings
 from pathlib import Path
 from typing import Dict
 
-from runhouse.resources.hardware.utils import CLUSTER_CONFIG_PATH
-
 DEFAULT_AUTOSTOP = -1
 MAIN_DIR = "/opt/ml/code"
 OUT_FILE = "sm_cluster.out"
@@ -61,15 +59,17 @@ def run_training_job(path_to_job: str, num_attempts: int):
 
 
 def read_cluster_config() -> Dict:
+    """Read the autostop from the cluster's config - this will get populated when the cluster is created,
+    or via the autostop APIs (e.g. `pause_autostop` or `keep_warm`)"""
     try:
-        # Read the autostop from the cluster's config - this will get populated when the cluster
-        # is created (via check_server) or via the autostop APIs (e.g. pause_autostop or keep_warm)
-        with open(os.path.expanduser(CLUSTER_CONFIG_PATH), "r") as f:
-            config = json.load(f)
+        # Note: Runhouse has not yet been installed at this stage on the cluster,
+        # so we can't import CLUSTER_CONFIG_PATH, we just need to hardcode it.
+        with open(os.path.expanduser("~/.rh/cluster_config.json"), "r") as f:
+            cluster_config = json.load(f)
     except FileNotFoundError:
-        config = {}
+        cluster_config = {}
 
-    return config
+    return cluster_config
 
 
 if __name__ == "__main__":

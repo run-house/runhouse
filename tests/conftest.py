@@ -275,8 +275,7 @@ from tests.test_resources.test_modules.test_tables.conftest import (
 default_fixtures = {}
 default_fixtures[TestLevels.UNIT] = {
     "cluster": [
-        "local_docker_cluster_public_key_logged_in",
-        "local_docker_cluster_public_key_logged_out",
+        "named_cluster",
     ]
 }
 default_fixtures[TestLevels.LOCAL] = {

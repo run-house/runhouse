@@ -1,244 +1,333 @@
-import unittest
+import json
+import os
 
 import pytest
+import requests
 
 import runhouse as rh
+from runhouse.globals import rns_client
+from runhouse.resources.blobs import file
+from runhouse.resources.secrets.utils import load_config
+from runhouse.rns.utils.api import read_resp_data
+
+test_secret_values = {"secret_key": "secret_val"}
+
+
+def assert_delete_local(secret, contents: bool = False):
+    secret.delete(contents=contents) if contents else secret.delete()
+    with pytest.raises(Exception) as e:
+        rh.secret(name=secret.name)
+        assert isinstance(e, Exception)
+    if contents and secret.path:
+        assert not os.path.exists(os.path.expanduser(secret.path))
+
+
+# ------- BASE/CUSTOM SECRETS TEST ------- #
+
+
+@pytest.mark.localtest
+def test_create_delete_secret_from_name_local():
+    secret_name = "~/custom_secret"
+    local_secret = rh.secret(name=secret_name, values=test_secret_values).save()
+    del local_secret
+
+    reloaded_secret = rh.secret(name=secret_name)
+    assert reloaded_secret.values == test_secret_values
+
+    assert_delete_local(reloaded_secret)
 
 
 @pytest.mark.rnstest
-def test_get_all_secrets_from_vault():
-    vault_secrets = rh.Secrets.download_into_env(save_locally=False)
-    providers = rh.Secrets.enabled_providers(as_str=True)
-    assert set(list(vault_secrets)).issubset(
-        providers
-    ), "Secrets saved in Vault which are not enabled locally!"
+def test_create_secret_from_name_vault():
+    secret_name = "vault_secret"
+    vault_secret = rh.secret(name=secret_name, values=test_secret_values).save()
+    del vault_secret
+
+    reloaded_secret = rh.secret(name=secret_name)
+    assert reloaded_secret.values == test_secret_values
+
+    assert_delete_local(reloaded_secret)
+
+
+# -------------------------------------------
+# -------------------------------------------
+@pytest.mark.rnstest
+def test_resource_and_secrets_apis_for_custom_secret():
+    secret_name = "cohere"
+    vault_secret = rh.secret(name=secret_name, values=test_secret_values)
+    vault_secret.save()
+
+    del vault_secret
+
+    reloaded_secret = rh.secret(name=secret_name)
+    assert reloaded_secret.values == test_secret_values
+
+    # Delete the secret (includes both metadata in Den and secrets in Vault)
+    reloaded_secret.delete()
+
+    del reloaded_secret
+
+    with pytest.raises(ValueError):
+        rh.secret(name=secret_name)
 
 
 @pytest.mark.rnstest
-def test_upload_custom_provider_to_vault():
-    provider = "sample_provider"
-    rh.Secrets.put(provider=provider, secret={"secret_key": "abcdefg"})
+def test_resource_and_secrets_apis_for_builtin_provider():
+    secret_name = "aws_secret"
+    vault_secret = rh.provider_secret(provider="aws", name=secret_name)
+    vault_secret.save()
 
-    # Retrieve the secret from Vault
-    provider_secrets = rh.Secrets.get(provider=provider)
-    assert provider_secrets
+    del vault_secret
 
-    rh.Secrets.delete_from_vault(providers=[provider])
-    provider_secrets = rh.Secrets.get(provider=provider)
-    assert not provider_secrets
+    reloaded_secret = rh.provider_secret(name=secret_name)
+    assert "access_key" in reloaded_secret.values
+    assert "secret_key" in reloaded_secret.values
+
+    # Delete the secret (includes both metadata in Den and secrets in Vault)
+    reloaded_secret.delete()
+
+    del reloaded_secret
+
+    with pytest.raises(ValueError):
+        rh.provider_secret(name=secret_name)
 
 
 @pytest.mark.rnstest
-def test_upload_aws_to_vault():
+def test_sharing_for_resource_and_secrets_apis(test_account):
+    username_to_share = rh.configs.defaults_cache["username"]
+    secret_name = "openai"
+
+    # Create & share
+    with test_account:
+        test_headers = rns_client.request_headers
+        vault_secret = rh.secret(name=secret_name, values=test_secret_values)
+        vault_secret.save(headers=test_headers)
+
+        rns_address = vault_secret.rns_address
+
+        # Share the resource (incl. access to the secrets in Vault)
+        vault_secret.share(username_to_share, access_type="write")
+
+        del vault_secret
+
+    # By default we can re-load shared secrets
+    reloaded_secret = rh.secret(name=rns_address)
+    assert reloaded_secret.values == test_secret_values
+
+
+@pytest.mark.rnstest
+def test_sharing_for_resource_and_builtin_secret_apis(test_account):
+    username_to_share = rh.configs.defaults_cache["username"]
+    secret_name = "aws_secret"
     provider = "aws"
 
-    # NOTE: We don't need to provide any secrets here - they will be extracted from the local config file
-    rh.Secrets.put(provider=provider)
+    # Create & share
+    with test_account:
+        headers = rns_client.request_headers
 
-    # Retrieve the secret from Vault
-    provider_secrets = rh.Secrets.get(provider=provider)
-    assert provider_secrets
+        vault_secret = rh.provider_secret(provider=provider, name=secret_name)
+        vault_secret.save(headers=headers)
 
-    rh.Secrets.delete_from_vault(providers=[provider])
-    provider_secrets = rh.Secrets.get(provider=provider)
-    assert not provider_secrets
+        rns_address = vault_secret.rns_address
 
+        vault_secret.share(username_to_share, access_type="write")
 
-@pytest.mark.rnstest
-def test_add_custom_provider():
-    import configparser
-    import shutil
-    from pathlib import Path
+    # Get the resource
+    resource_uri = rns_client.resource_uri(rns_address)
+    uri = f"resource/{resource_uri}"
+    resp = requests.get(
+        f"{rns_client.api_server_url}/{uri}", headers=rns_client.request_headers
+    )
+    assert resp.status_code == 200
 
-    provider = "new_provider"
-    creds_dir = Path("~/.config/new_provider").expanduser()
-    creds_dir.mkdir(parents=True, exist_ok=True)
+    resource_data = read_resp_data(resp)
+    assert "values" not in resource_data["data"]
 
-    creds_file_path = str(creds_dir / "config")
+    # get the Vault secrets
+    resp = requests.get(
+        f"{rns_client.api_server_url}/user/secret/{resource_uri}?shared=true",
+        headers=rns_client.request_headers,
+    )
+    assert resp.status_code == 200
 
-    parser = configparser.ConfigParser()
-    parser.add_section(provider)
-    parser.set(section=provider, option="token", value="abcdefg")
+    secrets_data = read_resp_data(resp)
+    assert secret_name in secrets_data
 
-    rh.Secrets.save_to_config_file(parser, creds_file_path)
-    rh.configs.set_nested("secrets", {provider: creds_file_path})
-
-    # Upload to vault
-    rh.Secrets.put(provider, secret={"token": "abcdefg"})
-    assert rh.Secrets.get(provider)
-
-    rh.Secrets.delete_from_vault([provider])
-    shutil.rmtree(str(creds_dir))
-    rh.configs.delete(provider)
-
-    assert not rh.Secrets.get(provider)
+    secret_keys = list(secrets_data[secret_name].keys())
+    assert "access_key" in secret_keys
+    assert "secret_key" in secret_keys
 
 
-@pytest.mark.rnstest
-def test_upload_all_provider_secrets_to_vault():
-    rh.Secrets.extract_and_upload()
-    # Download back from Vault
-    secrets = rh.Secrets.download_into_env(save_locally=False)
-    assert secrets
-
-
-@pytest.mark.rnstest
-def test_add_ssh_secrets():
-    from runhouse.rns.secrets.ssh_secrets import SSHSecrets
-
-    provider = "ssh"
-    # Save to local .ssh directory
-    sample_ssh_keys = {"key-one": "12345", "key-one.pub": "ABCDE"}
-    SSHSecrets.save_secrets(secrets=sample_ssh_keys, overwrite=True)
-    local_secrets: dict = rh.Secrets.load_provider_secrets(providers=[provider])
-    assert local_secrets
-    assert rh.configs.get("secrets", {}).get(provider)
-
-    # Upload to Vault
-    rh.Secrets.put(provider=provider, secret=sample_ssh_keys)
-    vault_secrets = rh.Secrets.get(provider=provider)
-    assert vault_secrets
-
-    # Delete from Vault & local configs
-    rh.configs.delete_provider(provider)
-    rh.Secrets.delete_from_vault([provider])
-    for f_name, _ in sample_ssh_keys.items():
-        ssh_key_path = f"{SSHSecrets.default_credentials_path()}/{f_name}"
-        rh.Secrets.delete_secrets_file(file_path=ssh_key_path)
-
-    assert not rh.Secrets.get(provider)
-    assert not rh.configs.get("secrets", {}).get(provider)
-
-
-@pytest.mark.rnstest
-def test_add_github_secrets():
-    from runhouse.rns.secrets.github_secrets import GitHubSecrets
-
-    provider = "github"
-
-    vault_secrets = rh.Secrets.get(provider=provider)
-    if not vault_secrets:
-        # Create mock tokens and test uploading / downloading / deleting
-        # Upload to Vault
-        sample_gh_token = {"token": "12345"}
-        rh.Secrets.put(provider=provider, secret=sample_gh_token)
-
-        # save to local config file
-        GitHubSecrets.save_secrets(secrets=sample_gh_token, overwrite=True)
-        assert rh.configs.rh.configs.get("secrets", {}).get(provider)
-        assert rh.Secrets.get(provider)
-
-        # Delete from Vault & local config
-        rh.Secrets.delete_from_vault(providers=[provider])
-        rh.Secrets.delete_from_local_env(providers=[provider])
-
-        assert not rh.Secrets.get(provider)
-        assert not rh.configs.get("secrets", {}).get(provider)
-
-    else:
-        # Load from local config so as not to overwrite existing GitHub secrets
-        local_secrets: dict = rh.Secrets.load_provider_secrets(providers=[provider])
-        assert local_secrets
-        assert rh.configs.get("secrets", {}).get(provider)
+# -------------------------------------------
+# -------------------------------------------
 
 
 @pytest.mark.clustertest
+def test_secret_to(ondemand_cpu_cluster):
+    secret_name = "test_secret"
+    secret = rh.secret(name=secret_name, values=test_secret_values)
+
+    secret.to(ondemand_cpu_cluster)
+    remote_secret = ondemand_cpu_cluster.get(secret_name)
+    assert remote_secret.values == test_secret_values
+
+    assert_delete_local(secret)
+
+
+# ------- PROVIDER SECRETS TEST ------- #
+
+
+def test_error_multiple_truths():
+    provider = "custom_provider"
+    path = "~/custom_provider/config.json"
+    with pytest.raises(Exception) as e:
+        rh.provider_secret(provider=provider, path=path, values=test_secret_values)
+        assert isinstance(e, Exception)
+
+
 @pytest.mark.rnstest
-def test_sending_secrets_to_cluster(cluster):
-    # only send a few to the cluster
-    providers: list = rh.Secrets.enabled_providers()[:3]
+def test_custom_provider_secret():
+    provider = "custom_provider1"
+    custom_secret = rh.provider_secret(provider=provider, values=test_secret_values)
 
-    cluster.sync_secrets(providers=providers)
+    path = "~/.rh/tests/custom_provider/config.json"
+    custom_secret = custom_secret.write(path=path)
+    assert custom_secret.values == test_secret_values
+    assert os.path.exists(os.path.expanduser(path))
 
-    # Confirm the secrets now exist on the cluster
-    for provider_cls in providers:
-        provider_name = provider_cls.PROVIDER_NAME
-        commands = [
-            f"from runhouse.rns.secrets.{provider_name}_secrets import {str(provider_cls)}",
-            f"print({str(provider_cls)}.has_secrets_file())",
-        ]
-        status_codes: list = cluster.run_python(commands)
-        if "False" in status_codes[0][1]:
-            assert False, f"No credentials file found on cluster for {provider_name}"
+    custom_secret.save()
+    assert load_config(provider)
 
-    assert True
+    del custom_secret
+    reloaded_secret = rh.provider_secret(name=provider)
+    assert reloaded_secret.values == test_secret_values
+
+    assert_delete_local(reloaded_secret, contents=True)
+    assert not reloaded_secret.in_vault()
 
 
-@unittest.skip("for manually debugging full login flow")
-def test_login_manual():
-    rh.login(
-        token="...",
-        download_config=False,
-        download_secrets=True,
-        upload_secrets=False,
-        upload_config=False,
+# Provider Secrets
+gcp_secret_values = {
+    "client_id": "test_client_id",
+    "client_secret": "test_client_secret",
+}
+
+aws_secret_values = {
+    "access_key": "test_access_key",
+    "secret_key": "test_secret_key",
+}
+
+azure_secret_values = {"subscription_id": "test_subscription_id"}
+lambda_secret_values = {"api_key": "test_api_key"}
+github_secret_values = {"oauth_token": "test_oauth_token"}
+huggingface_secret_values = {"token": "test_token"}
+
+ssh_secret_values = {
+    "public_key": "test_public_key",
+    "private_key": "test_private_key",
+}
+
+provider_params = [
+    ("aws", "credentials", aws_secret_values),
+    ("gcp", "credentials.json", gcp_secret_values),
+    ("azure", "clouds.config", azure_secret_values),
+    ("lambda", "lambda_key", lambda_secret_values),
+    ("github", "hosts.yml", github_secret_values),
+    ("huggingface", "token", huggingface_secret_values),
+    ("ssh", "id_rsa", ssh_secret_values),
+    ("sky", "sky-key", ssh_secret_values),
+]
+
+
+@pytest.mark.parametrize("provider,path,values", provider_params)
+def test_local_provider_secrets(provider, path, values):
+    test_path = os.path.join("~/.rh/tests", path)
+    test_name = "_" + provider
+    provider_secret = rh.provider_secret(
+        name=test_name, provider=provider, values=values
     )
+    provider_secret.write(path=test_path)
+    assert os.path.exists(os.path.expanduser(test_path))
+
+    local_secret = rh.provider_secret(name=test_name, provider=provider, path=test_path)
+    assert local_secret.values == values
+
+    delete_contents = provider not in ["ssh", "sky"]
+    assert_delete_local(local_secret, contents=delete_contents)
 
 
-@unittest.skip("This test overrides local rh token if done incorrectly")
-# Running this unit test will override local rh config token to "..."
-# Was meant to be run by manually inputting token, but need a better way to test
-def test_login():
-    # TODO [DG] create a mock account and test this properly in CI
-    token = "..."
-
-    rh.login(
-        token=token,
-        download_config=False,
-        download_secrets=False,
-        upload_secrets=False,
-        upload_config=False,
-    )
-
-    rh.login(
-        token=token,
-        download_config=False,
-        download_secrets=False,
-        upload_secrets=True,
-        upload_config=True,
-    )
-
-    rh.login(
-        token=token,
-        download_config=True,
-        download_secrets=True,
-        upload_secrets=False,
-        upload_config=False,
-    )
-
-    rh.login(
-        token=token,
-        download_config=True,
-        download_secrets=True,
-        upload_secrets=True,
-        upload_config=True,
-    )
-
-    assert rh.globals.rns_client.default_folder == "/..."
-
-
-@unittest.skip("This test deletes local secrets")
 @pytest.mark.rnstest
-def test_logout():
-    enabled_providers = rh.Secrets.enabled_providers(as_str=True)
-    current_config: dict = rh.configs.load_defaults_from_file()
+@pytest.mark.parametrize("provider,path,values", provider_params)
+def test_vault_provider_secrets(provider, path, values):
+    test_name = "_" + provider
+    rh.provider_secret(name=test_name, provider=provider, values=values).save()
 
-    rh.logout(delete_loaded_secrets=True, delete_rh_config_file=True)
+    reloaded_secret = rh.provider_secret(name=test_name)
+    assert reloaded_secret.values == values
 
-    for provider_name in enabled_providers:
-        p = rh.Secrets.builtin_provider_class_from_name(provider_name)
-        assert not p.has_secrets_file()
-        assert not rh.configs.get(provider_name)
+    delete_contents = provider not in ["ssh", "sky"]
+    assert_delete_local(reloaded_secret, contents=delete_contents)
+    assert not reloaded_secret.in_vault()
 
-    assert not rh.configs.load_defaults_from_file()
 
-    # Restore the config and secrets to its pre-logout state
-    rh.configs.save_defaults(defaults=current_config)
-    secrets = rh.Secrets.download_into_env(
-        providers=enabled_providers, save_locally=True
+@pytest.mark.clustertest
+@pytest.mark.parametrize("provider,path,values", provider_params)
+def test_provider_secret_to_cluster(provider, path, values, ondemand_cpu_cluster):
+    test_path = os.path.join("~/.rh/tests", path)
+    test_name = "_" + provider
+    local_secret = rh.provider_secret(name=test_name, provider=provider, values=values)
+    remote_secret = local_secret.to(ondemand_cpu_cluster, path=test_path)
+
+    assert remote_secret.path.system == ondemand_cpu_cluster
+    assert remote_secret.values == local_secret.values
+    assert remote_secret.path.exists_in_system()
+
+    delete_contents = provider not in ["ssh", "sky"]
+    remote_secret.delete(contents=delete_contents)
+    assert_delete_local(local_secret, contents=delete_contents)
+
+
+# Other Secrets functionality tests
+
+
+@pytest.mark.clustertest
+def test_sync_secrets(ondemand_cpu_cluster):
+    aws_secret = rh.provider_secret(
+        provider="aws",
+        name="_aws",
+        values=aws_secret_values,
+    ).write(path="~/.rh/tests/aws_creds")
+
+    ondemand_cpu_cluster.sync_secrets([aws_secret])
+    remote_file = file(path=aws_secret.path, system=ondemand_cpu_cluster)
+
+    assert remote_file.exists_in_system()
+    assert aws_secret._from_path(remote_file) == aws_secret_values
+
+    assert_delete_local(aws_secret, contents=True)
+    remote_file.rm()
+
+
+# BC-Breaking Testing
+
+
+@pytest.mark.rnstest
+def test_convert_secret_resource():
+    from runhouse.rns.login import _convert_secrets_resource
+
+    name = "vault_only"
+    requests.put(
+        f"{rns_client.api_server_url}/{rh.Secret.USER_ENDPOINT}/{name}",
+        data=json.dumps(test_secret_values),
+        headers=rns_client.request_headers,
     )
-    assert secrets
 
+    with pytest.raises(ValueError):
+        load_config(name)
 
-if __name__ == "__main__":
-    unittest.main()
+    _convert_secrets_resource([name])
+    assert load_config(name)
+
+    rh.Secret.from_name(name).delete()
+    with pytest.raises(ValueError):
+        load_config(name)

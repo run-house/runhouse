@@ -95,7 +95,7 @@ class SageMakerCluster(Cluster):
             ssh_creds=kwargs.pop("ssh_creds", {}),
             ssh_port=kwargs.pop("ssh_port", self.DEFAULT_SSH_PORT),
             server_host=server_host,
-            server_port=kwargs.pop("server_port", self.DEFAULT_SERVER_PORT),
+            server_port=server_port,
             server_connection_type=server_connection_type,
             ssl_certfile=ssl_certfile,
             ssl_keyfile=ssl_keyfile,
@@ -275,7 +275,6 @@ class SageMakerCluster(Cluster):
 
     @property
     def _use_https(self) -> bool:
-        """Use HTTPS if cert or private key file paths are provided."""
         # Note: Since always connecting via SSM no need for HTTPS
         return False
 
@@ -840,7 +839,7 @@ class SageMakerCluster(Cluster):
                     # the bash script with a different set of ports
                     # E.g. ❯ lsof -i:11022,32300
                     # COMMAND   PID   USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
-                    # ssh     97115 myuser    3u  IPv4 0xcf81f230786cc9fd      0t0  TCP localhost:50052 (LISTEN)
+                    # ssh     97115 myuser    3u  IPv4 0xcf81f230786cc9fd      0t0  TCP localhost:32300 (LISTEN)
                     # ssh     97115 myuser    6u  IPv4 0xcf81f230786eff6d      0t0  TCP localhost:11022 (LISTEN)
                     raise ConnectionError
 

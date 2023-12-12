@@ -174,29 +174,10 @@ class Function(Module):
         fn = self._get_obj_from_pointers(*self.fn_pointers)
         return fn(*args, **kwargs)
 
-    @property
-    def _is_async(self) -> Any:
-        if not self.fn_pointers:
-            return False
-        try:
-            fn = self._get_obj_from_pointers(*self.fn_pointers)
-        except ModuleNotFoundError:
-            return False
-        if not fn:
-            return False
-        return inspect.iscoroutinefunction(fn) or inspect.isasyncgenfunction(fn)
-
-    @property
-    def _is_async_gen(self) -> Any:
-        if not self.fn_pointers:
-            return False
-        try:
-            fn = self._get_obj_from_pointers(*self.fn_pointers)
-        except ModuleNotFoundError:
-            return False
-        if not fn:
-            return False
-        return inspect.isasyncgenfunction(fn)
+    def method_signature(self, method, rich=False):
+        if callable(method) and method.__name__ == "call":
+            return self.method_signature(self._get_obj_from_pointers(*self.fn_pointers))
+        return super().method_signature(method, rich=rich)
 
     def map(self, *args, **kwargs):
         """Map a function over a list of arguments.

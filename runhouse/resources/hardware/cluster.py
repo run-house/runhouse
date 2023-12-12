@@ -307,12 +307,11 @@ class Cluster(Resource):
         self.check_server()
         return self.get(run_name, remote=True).provenance
 
-    # TODO this doesn't need to be a dedicated rpc, it can just flow through Secrets.to and put_resource,
-    #  like installing packages. Also, it should accept an env (for env var secrets and docker envs).
-    def add_secrets(self, provider_secrets: dict):
+    # TODO This should accept an env (for env var secrets and docker envs).
+    def add_secrets(self, provider_secrets: List[str or "Secret"]):
         """Copy secrets from current environment onto the cluster"""
         self.check_server()
-        return self.client.add_secrets(provider_secrets)
+        self.sync_secrets(provider_secrets)
 
     def put(self, key: str, obj: Any, env=None):
         """Put the given object on the cluster's object store at the given key."""
@@ -1131,7 +1130,7 @@ class Cluster(Resource):
 
         return return_codes
 
-    def sync_secrets(self, providers: Optional[List[str]] = None):
+    def sync_secrets(self, providers: Optional[List[str or "Secret"]] = None):
         """Send secrets for the given providers.
 
         Args:
@@ -1139,13 +1138,25 @@ class Cluster(Resource):
                 If `None`, all providers configured in the environment will by sent.
 
         Example:
-            >>> cpu.sync_secrets(providers=["aws", "lambda"])
+            >>> cpu.sync_secrets(secrets=["aws", "lambda"])
         """
         self.check_server()
+        from runhouse.resources.secrets import Secret
 
-        from runhouse import Secrets
+        secrets = []
+        if providers:
+            for secret in providers:
+                secrets.append(
+                    Secret.from_name(secret) if isinstance(secret, str) else secret
+                )
+        else:
+            secrets = Secret.local_secrets()
+            enabled_provider_secrets = Secret.extract_provider_secrets()
+            secrets.update(enabled_provider_secrets)
+            secrets = secrets.values()
 
-        Secrets.to(system=self, providers=providers)
+        for secret in secrets:
+            secret.to(self)
 
     def ipython(self):
         # TODO tunnel into python interpreter in cluster

@@ -145,17 +145,6 @@ class TestServlet:
         assert resp.output_type == "exception"
         assert isinstance(b64_unpickle(resp.error), KeyError)
 
-    @pytest.mark.level("unit")
-    def test_add_secrets_for_unsupported_provider(self, base_servlet):
-        secrets = {"test_provider": {"access_key": "abc123"}}
-        message = Message(data=pickle_b64(secrets))
-        resp = HTTPServer.call_servlet_method(base_servlet, "add_secrets", [message])
-        assert resp.output_type == "result"
-
-        resp_data = b64_unpickle(resp.data)
-        assert isinstance(resp_data, dict)
-        assert "test_provider is not a Runhouse builtin provider" in resp_data.values()
-
     @pytest.mark.skip("Not implemented yet.")
     @pytest.mark.level("unit")
     def test_call(

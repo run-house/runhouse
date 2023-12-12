@@ -266,11 +266,14 @@ class HTTPClient:
         if env and not isinstance(env, str):
             env = _get_env_from(env)
             env = env.name or env.env_name
+        config = resource.config_for_rns
+        if config["resource_type"] == "secret":
+            config["values"] = resource.values
         return self.request(
             "resource",
             req_type="post",
             # TODO wire up dryrun properly
-            data=pickle_b64((resource.config_for_rns, state, resource.dryrun)),
+            data=pickle_b64((config, state, resource.dryrun)),
             env=env,
             err_str=f"Error putting resource {resource.name or type(resource)}",
         )
