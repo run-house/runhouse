@@ -113,30 +113,6 @@ class TestHTTPServerDocker:
         assert key not in b64_unpickle(response.json().get("data"))
 
     @pytest.mark.level("local")
-    def test_add_secrets(self, http_client):
-        secrets = {"aws": {"access_key": "abc123", "secret_key": "abc123"}}
-        data = pickle_b64(secrets)
-        response = http_client.post(
-            "/secrets", json={"data": data}, headers=rns_client.request_headers
-        )
-
-        assert response.status_code == 200
-        assert not b64_unpickle(response.json().get("data"))
-
-    @pytest.mark.level("local")
-    def test_add_secrets_for_unsupported_provider(self, http_client):
-        secrets = {"test_provider": {"access_key": "abc123"}}
-        data = pickle_b64(secrets)
-        response = http_client.post(
-            "/secrets", json={"data": data}, headers=rns_client.request_headers
-        )
-        assert response.status_code == 200
-
-        resp_data = b64_unpickle(response.json().get("data"))
-        assert isinstance(resp_data, dict)
-        assert "test_provider is not a Runhouse builtin provider" in resp_data.values()
-
-    @pytest.mark.level("local")
     def test_call_module_method(self, http_client, cluster):
         # Create new func on the cluster, then call it
         remote_func = rh.function(summer, system=cluster)
@@ -357,17 +333,6 @@ class TestHTTPServerDockerDenAuthOnly:
         assert response.status_code == 403
         assert "Cluster access is required for API" in response.text
 
-    @pytest.mark.level("local")
-    def test_add_secrets_with_invalid_token(self, http_client):
-        secrets = {"aws": {"access_key": "abc123", "secret_key": "abc123"}}
-        data = pickle_b64(secrets)
-        response = http_client.post(
-            "/secrets", json={"data": data}, headers=INVALID_HEADERS
-        )
-
-        assert response.status_code == 403
-        assert "Cluster access is required for API" in response.text
-
 
 @pytest.fixture(scope="function")
 def setup_cluster_config(test_account):
@@ -531,19 +496,6 @@ class TestHTTPServerNoDocker:
         response = client.get("/keys", headers=rns_client.request_headers)
         assert key not in b64_unpickle(response.json().get("data"))
 
-    @pytest.mark.level("unit")
-    def test_add_secrets_for_unsupported_provider(self, client):
-        secrets = {"test_provider": {"access_key": "abc123"}}
-        data = pickle_b64(secrets)
-        response = client.post(
-            "/secrets", json={"data": data}, headers=rns_client.request_headers
-        )
-        assert response.status_code == 200
-
-        resp_data = b64_unpickle(response.json().get("data"))
-        assert isinstance(resp_data, dict)
-        assert "test_provider is not a Runhouse builtin provider" in resp_data.values()
-
     # TODO [JL]: Test call_module_method and async_call with local and not just Docker.
 
 
@@ -644,17 +596,6 @@ class TestHTTPServerNoDockerDenAuthOnly:
     @pytest.mark.level("unit")
     def test_get_keys_with_invalid_token(self, local_client_with_den_auth):
         resp = local_client_with_den_auth.get("/keys", headers=INVALID_HEADERS)
-        assert resp.status_code == 403
-        assert "Cluster access is required for API" in resp.text
-
-    @pytest.mark.level("unit")
-    def test_add_secrets_with_invalid_token(self, local_client_with_den_auth):
-        secrets = {"aws": {"access_key": "abc123", "secret_key": "abc123"}}
-        data = pickle_b64(secrets)
-        resp = local_client_with_den_auth.post(
-            "/secrets", json={"data": data}, headers=INVALID_HEADERS
-        )
-
         assert resp.status_code == 403
         assert "Cluster access is required for API" in resp.text
 

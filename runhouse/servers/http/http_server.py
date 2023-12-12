@@ -567,14 +567,6 @@ class HTTPServer:
         return HTTPServer.call_in_env_servlet("get_keys", [], env=env)
 
     @staticmethod
-    @app.post("/secrets")
-    @validate_cluster_access
-    def add_secrets(request: Request, message: Message):
-        return HTTPServer.call_in_env_servlet(
-            "add_secrets", [message], env=message.env, create=True
-        )
-
-    @staticmethod
     @app.post("/call/{module}/{method}")
     @validate_cluster_access
     async def call(
