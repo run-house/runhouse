@@ -20,8 +20,8 @@ def summer(a, b):
     return a + b
 
 
-@pytest.mark.usefixtures("cluster")
 @pytest.mark.den_auth
+@pytest.mark.usefixtures("cluster")
 class TestHTTPServerDocker:
     """
     Test the HTTP server running on a local Docker container.
@@ -232,8 +232,8 @@ class TestHTTPServerDocker:
         assert json.loads(response.text) == "3"
 
 
-@pytest.mark.usefixtures("cluster")
 @pytest.mark.den_auth
+@pytest.mark.usefixtures("cluster")
 class TestHTTPServerDockerDenAuthOnly:
     """
     Testing HTTP Server, but only against a container with Den Auth enabled.
@@ -244,6 +244,9 @@ class TestHTTPServerDockerDenAuthOnly:
 
     UNIT = {"cluster": ["local_docker_cluster_public_key_den_auth"]}
     LOCAL = {"cluster": ["local_docker_cluster_public_key_den_auth"]}
+    MINIMAL = {"cluster": []}
+    THOROUGH = {"cluster": ["local_docker_cluster_public_key_den_auth"]}
+    MAXIMAL = {"cluster": ["local_docker_cluster_public_key_den_auth"]}
 
     # -------- INVALID TOKEN / CLUSTER ACCESS TESTS ----------- #
 
@@ -257,10 +260,10 @@ class TestHTTPServerDockerDenAuthOnly:
             assert "Failed to load current cluster" in response.text
         finally:
             cluster.run([f"mv ~/.rh/cluster_config_temp.json {CLUSTER_CONFIG_PATH}"])
-        response = http_client.get("/keys", headers=INVALID_HEADERS)
 
-        assert response.status_code == 403
-        assert "Cluster access is required for API" in response.text
+        # Assert that things work once again
+        response = http_client.get("/keys", headers=rns_client.request_headers)
+        assert response.status_code == 200
 
     @pytest.mark.level("local")
     def test_no_access_to_cluster(self, http_client, test_account):
@@ -366,13 +369,13 @@ class TestHTTPServerDockerDenAuthOnly:
         assert "Cluster access is required for API" in response.text
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(scope="function")
 def setup_cluster_config(test_account):
     # Create a temporary directory that simulates the user's home directory
     home_dir = Path("~/.rh").expanduser()
     home_dir.mkdir(exist_ok=True)
 
-    cluster_config_path = home_dir / "cluster_config.yaml"
+    cluster_config_path = home_dir / "cluster_config.json"
     rns_address = "/kitchen_tester/local_cluster"
 
     cluster_config = {
@@ -412,6 +415,7 @@ def client(request):
 
 
 @pytest.mark.den_auth
+@pytest.mark.usefixtures("setup_cluster_config")
 class TestHTTPServerNoDocker:
     """
     Directly analagous to the Docker equivalent above, but with a fully
@@ -543,6 +547,8 @@ class TestHTTPServerNoDocker:
     # TODO [JL]: Test call_module_method and async_call with local and not just Docker.
 
 
+@pytest.mark.den_auth
+@pytest.mark.usefixtures("setup_cluster_config")
 class TestHTTPServerNoDockerDenAuthOnly:
     """
     Directly analagous to the Docker equivalent above, but with a fully
@@ -557,7 +563,7 @@ class TestHTTPServerNoDockerDenAuthOnly:
     @pytest.mark.level("unit")
     def test_request_with_no_cluster_config_json(self, local_client_with_den_auth):
         source_path = os.path.expanduser(CLUSTER_CONFIG_PATH)
-        destination_path = os.path.expanduser("~/.rh/cluster_config_temp.yaml")
+        destination_path = os.path.expanduser("~/.rh/cluster_config_temp.json")
 
         # Use the expanded paths in the command
         try:
@@ -571,9 +577,11 @@ class TestHTTPServerNoDockerDenAuthOnly:
         finally:
             subprocess.run(["mv", destination_path, source_path])
 
-        resp = local_client_with_den_auth.get("/keys", headers=INVALID_HEADERS)
-        assert resp.status_code == 403
-        assert "Cluster access is required for API" in resp.text
+        # Assert that things work once again
+        response = local_client_with_den_auth.get(
+            "/keys", headers=rns_client.request_headers
+        )
+        assert response.status_code == 200
 
     @pytest.mark.level("unit")
     def test_request_with_no_token(self, local_client_with_den_auth):

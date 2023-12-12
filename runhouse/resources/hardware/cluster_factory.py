@@ -215,8 +215,8 @@ def ondemand_cluster(
 ) -> OnDemandCluster:
     """
     Builds an instance of :class:`OnDemandCluster`. Note that image_id, region, memory, disk_size, and open_ports
-    are all passed through to SkyPilot's Resource constructor:
-    https://skypilot.readthedocs.io/en/latest/reference/api.html#resources
+    are all passed through to SkyPilot's `Resource constructor
+    <https://skypilot.readthedocs.io/en/latest/reference/api.html#resources>`_.
 
     Args:
         name (str): Name for the cluster, to re-use later on.
@@ -424,7 +424,8 @@ def sagemaker_cluster(
     **kwargs,
 ) -> SageMakerCluster:
     """
-    Builds an instance of :class:`SageMakerCluster`.
+    Builds an instance of :class:`SageMakerCluster`. See SageMaker Hardware Setup section for more specific
+    instructions and requirements for providing the role and setting up the cluster.
 
     Args:
         name (str): Name for the cluster, to re-use later on.

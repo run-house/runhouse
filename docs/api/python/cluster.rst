@@ -7,10 +7,14 @@ This can be either an :ref:`on-demand cluster <OnDemandCluster Class>` (requires
 
 A cluster is assigned a name, through which it can be accessed and reused later on.
 
-Cluster Factory Method
-~~~~~~~~~~~~~~~~~~~~~~
+Cluster Factory Methods
+~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autofunction:: runhouse.cluster
+
+.. autofunction:: runhouse.ondemand_cluster
+
+.. autofunction:: runhouse.sagemaker_cluster
 
 Cluster Class
 ~~~~~~~~~~~~~
@@ -170,18 +174,12 @@ To configure your SageMaker IAM role with the AWS Systems Manager, please
 refer to `these instructions <https://github.com/aws-samples/sagemaker-ssh-helper/blob/main/IAM_SSM_Setup.md>`_.
 
 
-SageMaker Factory Method
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autofunction:: runhouse.sagemaker_cluster
-
-
 Cluster Authentication & Verification
-====================================
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Runhouse provides a couple of options to manage the connection to the Runhouse API server running on a cluster.
 
 Server Connection
-~~~~~~~~~~~~~~~~~
+-----------------
 
 The below options can be specified with the ``server_connection_type`` parameter
 when :ref:`initializing a cluster <Cluster Factory Method>`. By default the Runhouse API server will
@@ -209,7 +207,7 @@ be started on the cluster on port :code:`32300`.
     to the public internet.
 
 Server Authentication
-~~~~~~~~~~~~~~~~~~~~~
+---------------------
 
 If desired, Runhouse provides out-of-the-box authentication via users' Runhouse token (generated when
 :ref:`logging in <Login/Logout>`) and set locally at: :code:`~/.rh/config.yaml`). This is crucial if the cluster
@@ -224,7 +222,7 @@ automatically, so your users do not need to worry about it after logging into Ru
 
 
 TLS Certificates
-----------------
+^^^^^^^^^^^^^^^^
 Enabling TLS and `Runhouse Den Dashboard <https://www.run.house/dashboard>`_ Auth for the API server makes it incredibly
 fast and easy to stand up a microservice with standard token authentication, allowing you to easily share Runhouse
 resources with collaborators, teams, customers, etc.
@@ -282,7 +280,7 @@ the :code:`np_array` function.
     the :ref:`Compute Guide <Compute: Clusters, Functions, Packages, & Envs>`.
 
 Nginx
------
+^^^^^
 Runhouse gives you the option of using `Nginx <https://www.nginx.com/>`_ as a reverse proxy for the Runhouse API
 server, which is a FastAPI app launched with `Uvicorn <https://www.uvicorn.org/>`_. Using Nginx provides you with a
 safer and more conventional approach running the FastAPI app on a higher, non-privileged port (such as 32300, the
