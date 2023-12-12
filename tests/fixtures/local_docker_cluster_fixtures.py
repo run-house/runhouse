@@ -183,7 +183,7 @@ def build_and_run_image(
         },
     )
     if len(containers) > 0 and detached:
-        print(f"Container {container_name} already running, skipping build and run")
+        print(f"Container {container_name} already running, skipping build and run.")
     else:
         # Check if image has already been built before re-building
         images = client.images.list(filters={"reference": f"runhouse:{image_name}"})
@@ -444,25 +444,14 @@ def local_docker_cluster_telemetry_public_key(request, detached=True):
 
 
 @pytest.fixture(scope="session")
-def local_docker_cluster_with_nginx(request):
-    protocol = request.param
+def local_docker_cluster_with_nginx_http(request):
     local_ssh_port = BASE_LOCAL_SSH_PORT + 3
-    port_fwds = [f"{local_ssh_port}:22"]
-
-    if protocol == "https":
-        server_port = 443
-        server_connection_type = "tls"
-        client_port = LOCAL_HTTPS_SERVER_PORT + 3
-        port_fwds.append(f"{client_port}:443")
-    else:
-        server_port = 80
-        server_connection_type = "none"
-        client_port = LOCAL_HTTP_SERVER_PORT + 3
-        port_fwds.append(f"{client_port}:80")
+    client_port = LOCAL_HTTP_SERVER_PORT + 3
+    port_fwds = [f"{local_ssh_port}:22", f"{client_port}:80"]
 
     local_cluster, cleanup = set_up_local_cluster(
         image_name="keypair",
-        container_name=f"rh-slim-{protocol}-nginx",
+        container_name="rh-slim-http-nginx",
         dir_name="public-key-auth",
         keypath=str(
             Path(
@@ -475,8 +464,42 @@ def local_docker_cluster_with_nginx(request):
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
             "name": "local_docker_cluster_with_nginx",
-            "server_connection_type": server_connection_type,
-            "server_port": server_port,
+            "server_connection_type": "none",
+            "server_port": 80,
+            "client_port": client_port,
+            "den_auth": True,
+        },
+    )
+    # Yield the cluster
+    yield local_cluster
+
+    # Stop the Docker container
+    cleanup()
+
+
+@pytest.fixture(scope="session")
+def local_docker_cluster_with_nginx_https(request):
+    local_ssh_port = BASE_LOCAL_SSH_PORT + 4
+    client_port = LOCAL_HTTPS_SERVER_PORT + 3
+    port_fwds = [f"{local_ssh_port}:22", f"{client_port}:443"]
+
+    local_cluster, cleanup = set_up_local_cluster(
+        image_name="keypair",
+        container_name="rh-slim-https-nginx",
+        dir_name="public-key-auth",
+        keypath=str(
+            Path(
+                rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
+            ).expanduser()
+        ),
+        detached=request.config.getoption("--detached"),
+        force_rebuild=request.config.getoption("--force-rebuild"),
+        port_fwds=port_fwds,
+        local_ssh_port=local_ssh_port,
+        additional_cluster_init_args={
+            "name": "local_docker_cluster_with_nginx",
+            "server_connection_type": "tls",
+            "server_port": 443,
             "client_port": client_port,
             "den_auth": True,
         },
@@ -496,7 +519,7 @@ def local_test_account_cluster_public_key(request, test_account):
     """
     with test_account:
 
-        local_ssh_port = BASE_LOCAL_SSH_PORT + 4
+        local_ssh_port = BASE_LOCAL_SSH_PORT + 5
         local_cluster, cleanup = set_up_local_cluster(
             image_name="keypair",
             container_name="rh-slim-test-acct",
@@ -535,7 +558,7 @@ def shared_cluster(test_account, local_test_account_cluster_public_key):
 
 @pytest.fixture(scope="session")
 def local_docker_cluster_passwd(request):
-    local_ssh_port = BASE_LOCAL_SSH_PORT + 5
+    local_ssh_port = BASE_LOCAL_SSH_PORT + 6
     pwd_file = "docker_user_passwd"
     rh_parent_path = get_rh_parent_path()
     pwd = (rh_parent_path.parent / pwd_file).read_text().strip()
