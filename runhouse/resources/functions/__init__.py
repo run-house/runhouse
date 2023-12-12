@@ -1,2 +1,2 @@
-from .aws_lambda import lambda_function, LambdaFunction
+from .aws_lambda import aws_lambda_fn, LambdaFunction
 from .function import function, Function
