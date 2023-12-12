@@ -26,6 +26,7 @@ class Resource:
         name: Optional[str] = None,
         dryrun: bool = False,
         provenance=None,
+        telemetry=None,
         **kwargs,
     ):
         """
