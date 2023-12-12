@@ -414,21 +414,50 @@ class TestNginxConfiguration:
 
 
 class TestNginxServerLocally:
+
+    UNIT = {
+        "cluster": [
+            "local_docker_cluster_with_nginx_http",
+            "local_docker_cluster_with_nginx_https",
+        ]
+    }
+    LOCAL = {
+        "cluster": [
+            "local_docker_cluster_with_nginx_http",
+            "local_docker_cluster_with_nginx_https",
+        ]
+    }
+    MINIMAL = {
+        "cluster": [
+            "local_docker_cluster_with_nginx_http",
+            "local_docker_cluster_with_nginx_https",
+        ]
+    }
+    THOROUGH = {
+        "cluster": [
+            "local_docker_cluster_with_nginx_http",
+            "local_docker_cluster_with_nginx_https",
+        ]
+    }
+    MAXIMAL = {
+        "cluster": [
+            "local_docker_cluster_with_nginx_http",
+            "local_docker_cluster_with_nginx_https",
+        ]
+    }
+
     @pytest.mark.level("local")
-    @pytest.mark.parametrize(
-        "local_docker_cluster_with_nginx", ["http", "https"], indirect=True
-    )
-    def test_using_nginx_on_local_cluster(self, local_docker_cluster_with_nginx):
-        protocol = "https" if local_docker_cluster_with_nginx._use_https else "http"
+    def test_using_nginx_on_local_cluster(self, cluster):
+        protocol = "https" if cluster._use_https else "http"
 
-        local_docker_cluster_with_nginx.check_server()
+        cluster.check_server()
 
-        assert local_docker_cluster_with_nginx.is_up()
+        assert cluster.is_up()
 
         key = "key1"
         test_list = list(range(5, 50, 2)) + ["a string"]
         response = requests.post(
-            f"{protocol}://{local_docker_cluster_with_nginx.address}:{local_docker_cluster_with_nginx.client_port}/object",
+            f"{protocol}://{cluster.address}:{cluster.client_port}/object",
             json={"data": pickle_b64(test_list), "key": key},
             headers=rns_client.request_headers,
             verify=False,
@@ -436,7 +465,7 @@ class TestNginxServerLocally:
         assert response.status_code == 200
 
         response = requests.get(
-            f"{protocol}://{local_docker_cluster_with_nginx.address}:{local_docker_cluster_with_nginx.client_port}/keys",
+            f"{protocol}://{cluster.address}:{cluster.client_port}/keys",
             headers=rns_client.request_headers,
             verify=False,
         )
