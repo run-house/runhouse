@@ -8,20 +8,22 @@ Lambda Function
 
 | A `Lambda Function <https://aws.amazon.com/lambda/>`_ is a serverless compute service provided by AWS. It allows  you
  to run applications and backend services without provisioning or managing servers. Runhouse will allow you to
- maintain, invoke and share your lambda functions and code. It is comprised of the entry point, configuration, and
+ maintain, invoke and share your Lambda functions and code. It is comprised of the entry point, configuration, and
  dependencies necessary to run the service.
 
 
-| There are two core options to create an AWS Lambda using Runhouse:
+| There are few core options to create an AWS Lambda using Runhouse:
 #. Pass a callable Python function to the factory method.
-#. Follow a typical Lambda creation flow (as if you are using AWS APIs). That includes passing path(s) to Python file(s)
-   and providing a handler function name to the constructor. Arguments such as runtime, Lambda name, timeout
-   and memory size are accepted by the factory method as well, but they are not mandatory and have default values.
-#. Create rh.function instance, and than send it over to AWS Lambdas. (e.g. :code: `rh.function(summer).to(system=aws_lambda)`
+#. Follow a typical Lambda creation flow (as if you are using AWS APIs). That includes passing to the constructor
+   path(s) to Python file(s) (containing the code) and a handler function name . Arguments such as runtime, Lambda name,
+   timeout and memory size are accepted by the factory method as well, but they are not mandatory and have default values.
+#. Create rh.function instance, and than send it over to AWS Lambdas. For example:
+   :code:`rh.function(summer).to(system=aws_lambda)`
 
-More specific information about acceptable arguments can be found in the the Lambda function factory method
+
+
+More information about acceptable arguments can be found in the Lambda function factory method
 documentation below.
-
 
 
 
@@ -42,7 +44,7 @@ Lambda Function Class
 Lambda Hardware Setup
 ~~~~~~~~~~~~~~
 
-In order to create an AWS Lambda, you must grant the necessary permissions to do so. It can be done using an IAM
+To create an AWS Lambda, you must grant the necessary permissions to do so. They are provided by an IAM
 role, which should be attached to a certain AWS profile. This setup is made in the :code:`~/.aws/config` file.
 
 For example, your local :code:`~/.aws/config` contains:

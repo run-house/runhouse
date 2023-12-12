@@ -595,7 +595,7 @@ class LambdaFunction(Function):
     # Lambda Function delete methods
     # --------------------------------------
     def delete(self):
-        """Deletes rh.LambdaFunction instance and from AWS. All relevant AWS resources
+        """Deletes a Lambda function instance and from AWS. All relevant AWS resources
         (role, log group) are deleted as well.
 
         Example:
@@ -635,7 +635,7 @@ class LambdaFunction(Function):
             )
 
     def delete_from_den(self):
-        """Deletes rh.LambdaFunction instance from DEN (if saved) and from AWS. All relevant AWS resources
+        """Deletes a Lambda function instance from DEN (if saved) and from AWS. All relevant AWS resources
         (role, log group) are deleted as well.
 
         Example:
@@ -714,7 +714,7 @@ def aws_lambda_fn(
                b. env_vars: dictionary containing the env_vars that will be a part of the lambda configuration.\n
             2. A list of strings, containing all the required python packeages.\n
             3. An instance of Runhouse Env class.\n
-            By default, ``runhouse`` package will be installed, and env_vars will include ``{HOME: /tmp/home}``
+            By default, ``runhouse`` package will be installed, and env_vars will include ``{HOME: /tmp/home}``.
         timeout: Optional[int]: The maximum amount of time (in secods) during which the Lambda will run in AWS
             without timing-out. (Default: ``900``, Min: ``3``, Max: ``900``)
         memory_size: Optional[int], The amount of memeory (in MB) to be allocated to the Lambda.
