@@ -43,7 +43,7 @@ class AuthCache:
 
         resp_data = json.loads(resp.content)
         all_resources: dict = {
-            resource["name"]: resource["access_type"] for resource in resp_data["data"]
+            resource["name"]: resource["access_level"] for resource in resp_data["data"]
         }
         # Update server cache with a user's resources and access type
         cls.CACHE[hash_token(token)] = all_resources
@@ -63,16 +63,16 @@ def verify_cluster_access(
     cached_resources: dict = obj_store.user_resources(token_hash)
 
     # e.g. {"/jlewitt1/bert-preproc": "read"}
-    cluster_access_type = cached_resources.get(cluster_uri)
+    cluster_access_level = cached_resources.get(cluster_uri)
 
-    if cluster_access_type is None:
+    if cluster_access_level is None:
         # Reload from cache and check again
         update_cache_for_user(token)
 
         cached_resources: dict = obj_store.user_resources(token_hash)
-        cluster_access_type = cached_resources.get(cluster_uri)
+        cluster_access_level = cached_resources.get(cluster_uri)
 
-    if cluster_access_type in [ResourceAccess.WRITE, ResourceAccess.READ]:
+    if cluster_access_level in [ResourceAccess.WRITE, ResourceAccess.READ]:
         return True
 
     return False
