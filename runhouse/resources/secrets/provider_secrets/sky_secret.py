@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 class SkySecret(SSHSecret):
     _PROVIDER = "sky"
     _DEFAULT_KEY = "sky-key"
-    _ENV_VARS = {}
 
     def __init__(
         self,

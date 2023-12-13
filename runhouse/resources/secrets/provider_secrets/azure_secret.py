@@ -60,14 +60,15 @@ class AzureSecret(ProviderSecret):
         return new_secret
 
     def _from_path(self, path: Union[str, File]):
+        config = configparser.ConfigParser()
         if isinstance(path, File):
             if not path.exists_in_system():
                 return {}
-            config.read_string(path.fetch(model="r"))
+            config.read_string(path.fetch(mode="r", deserialize=False))
         elif path and os.path.exists(os.path.expanduser(path)):
             path = os.path.expanduser(path)
-            config = configparser.ConfigParser()
             config.read(path)
+        if config and "AzureCloud" in config.sections():
             subscription_id = config["AzureCloud"]["subscription"]
             return {"subscription_id": subscription_id}
         return {}

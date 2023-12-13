@@ -43,7 +43,7 @@ class HuggingFaceSecret(ProviderSecret):
         token = None
         if isinstance(path, File):
             if path.exists_in_system():
-                token = path.fetch(mode="r").strip("\n")
+                token = path.fetch(mode="r", deserialize=False).strip("\n")
         elif path and os.path.exists(os.path.expanduser(path)):
             token = Path(os.path.expanduser(path)).read_text().strip("\n")
         if token:
