@@ -186,7 +186,7 @@ from tests.fixtures.local_docker_cluster_fixtures import (
     shared_cluster,  # noqa: F401
     static_cpu_cluster,  # noqa: F401
 )
-from tests.test_resources.test_clusters.test_on_demand_cluster.conftest import (
+from tests.fixtures.on_demand_cluster_fixtures import (
     a10g_gpu_cluster,  # noqa: F401
     k80_gpu_cluster,  # noqa: F401
     on_demand_cluster,  # noqa: F401
