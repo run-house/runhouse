@@ -367,6 +367,7 @@ class Module(Resource):
                         for attr, val in self.__dict__.items()
                         if attr not in excluded_state_keys
                     }
+                logger.info(f"Sending module {new_module.name} to {system.name}")
                 system.put_resource(new_module, state, dryrun=True)
 
         return new_module

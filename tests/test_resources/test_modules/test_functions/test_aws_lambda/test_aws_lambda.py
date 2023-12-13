@@ -8,6 +8,10 @@ import pytest
 
 import runhouse as rh
 
+from .test_helpers.lambda_tests.basic_handler_layer import arr_handler
+
+from .test_helpers.lambda_tests.basic_test_handler import lambda_no_args, lambda_sum
+
 logger = logging.getLogger(__name__)
 CUR_WORK_DIR = os.path.dirname(os.path.abspath(__file__))
 TEST_RESOURCES = f"{CUR_WORK_DIR}/test_helpers/lambda_tests"
@@ -18,28 +22,24 @@ DEFAULT_REGION = "us-east-1"
 
 @pytest.fixture(scope="session")
 def basic_function():
-    handler_path = [f"{TEST_RESOURCES}/basic_test_handler.py"]
-    name = "test_lambda_create_and_run"
     my_lambda = rh.aws_lambda_fn(
-        paths_to_code=handler_path,
-        handler_function_name="lambda_sum",
+        fn=lambda_sum,
         runtime="python3.9",
         args_names=["arg1", "arg2"],
-        name=name,
+        name="test_lambda_create_and_run",
     )
     my_lambda.save()
-    yield my_lambda
-
-    my_lambda.delete()
+    try:
+        yield my_lambda
+    finally:
+        my_lambda.delete()
 
 
 @pytest.fixture(scope="session")
 def numpy_function():
-    handler_path = [f"{TEST_RESOURCES}/basic_handler_layer.py"]
     name = "test_lambda_numpy"
     my_lambda = rh.aws_lambda_fn(
-        paths_to_code=handler_path,
-        handler_function_name="arr_handler",
+        fn=arr_handler,
         runtime="python3.9",
         args_names=["arr1", "arr2"],
         name=name,
@@ -175,26 +175,22 @@ def test_bad_handler_func_name_to_factory():
 
 def test_bad_runtime_to_factory():
     name = "test_wrong_runtime"
-    handler_path = [f"{TEST_RESOURCES}/basic_test_handler.py"]
 
     wrong_runtime_1 = rh.aws_lambda_fn(
-        paths_to_code=handler_path,
-        handler_function_name="lambda_sum",
+        fn=lambda_sum,
         runtime=None,
         args_names=["arg1", "arg2"],
         name=f"{name}_1",
     )
 
     wrong_runtime_2 = rh.aws_lambda_fn(
-        paths_to_code=handler_path,
-        handler_function_name="lambda_sum",
+        fn=lambda_sum,
         args_names=["arg1", "arg2"],
         name=f"{name}_2",
     )
 
     wrong_runtime_3 = rh.aws_lambda_fn(
-        paths_to_code=handler_path,
-        handler_function_name="lambda_sum",
+        fn=lambda_sum,
         runtime="python3.91",
         args_names=["arg1", "arg2"],
         name=f"{name}_3",
@@ -210,10 +206,8 @@ def test_bad_runtime_to_factory():
 
 def test_no_args_names_to_factory():
     name = "test_lambda_no_args_names_to_factory"
-    handler_path = f"{TEST_RESOURCES}/basic_test_handler.py"
     no_args1 = rh.aws_lambda_fn(
-        paths_to_code=[handler_path],
-        handler_function_name="lambda_sum",
+        fn=lambda_sum,
         runtime="python3.9",
         args_names=None,
         name=name + "_1",
@@ -221,8 +215,7 @@ def test_no_args_names_to_factory():
     assert no_args1(8, 11) == "19"
 
     no_args2 = rh.aws_lambda_fn(
-        paths_to_code=[handler_path],
-        handler_function_name="lambda_sum",
+        fn=lambda_sum,
         runtime="python3.9",
         name=name + "_2",
     )
@@ -234,11 +227,9 @@ def test_no_args_names_to_factory():
 
 
 def test_func_no_args():
-    handler_path = [f"{TEST_RESOURCES}/basic_test_handler.py"]
     name = "test_lambda_no_args"
     my_lambda = rh.aws_lambda_fn(
-        paths_to_code=handler_path,
-        handler_function_name="lambda_no_args",
+        fn=lambda_no_args,
         runtime="python3.9",
         args_names=[],
         name=name,
@@ -249,10 +240,8 @@ def test_func_no_args():
 
 
 def test_create_and_run_generate_name():
-    handler_path = [f"{TEST_RESOURCES}/basic_test_handler.py"]
     my_lambda = rh.aws_lambda_fn(
-        paths_to_code=handler_path,
-        handler_function_name="lambda_sum",
+        fn=lambda_sum,
         runtime="python3.9",
         args_names=["arg1", "arg2"],
     )
@@ -279,12 +268,10 @@ def test_reload_func_with_libs(numpy_function):
 
 
 def test_create_and_run_layers_env():
-    handler_path = [f"{TEST_RESOURCES}/basic_handler_layer.py"]
     name = "test_lambda_numpy_env"
     my_env = rh.env(reqs=["numpy"])
     my_lambda = rh.aws_lambda_fn(
-        paths_to_code=handler_path,
-        handler_function_name="arr_handler",
+        fn=arr_handler,
         runtime="python3.9",
         args_names=["arr1", "arr2"],
         name=name,
@@ -296,11 +283,9 @@ def test_create_and_run_layers_env():
 
 
 def test_create_and_run_layers_list():
-    handler_path = [f"{TEST_RESOURCES}/basic_handler_layer.py"]
     name = "test_lambda_numpy_list"
     my_lambda = rh.aws_lambda_fn(
-        paths_to_code=handler_path,
-        handler_function_name="arr_handler",
+        fn=arr_handler,
         runtime="python3.9",
         args_names=["arr1", "arr2"],
         name=name,
@@ -312,11 +297,9 @@ def test_create_and_run_layers_list():
 
 
 def test_layers_increase_timeout_and_memory():
-    handler_path = [f"{TEST_RESOURCES}/basic_handler_layer.py"]
     name = "test_lambda_numpy_increase_params"
     my_lambda = rh.aws_lambda_fn(
-        paths_to_code=handler_path,
-        handler_function_name="arr_handler",
+        fn=arr_handler,
         runtime="python3.9",
         args_names=["arr1", "arr2"],
         name=name,
@@ -342,8 +325,7 @@ def test_different_runtimes_and_layers():
     handler_path = [f"{TEST_RESOURCES}/basic_handler_layer.py"]
     name = "test_lambda_numpy"
     my_lambda_37 = rh.aws_lambda_fn(
-        paths_to_code=handler_path,
-        handler_function_name="arr_handler",
+        fn=arr_handler,
         runtime="python3.7",
         args_names=["arr1", "arr2"],
         name=name + "_37",
@@ -391,15 +373,13 @@ def test_different_runtimes_and_layers():
 
 
 def test_create_and_run_layers_txt():
-    handler_path = [f"{TEST_RESOURCES}/basic_handler_layer.py"]
     name = "test_lambda_numpy_txt"
     my_lambda = rh.aws_lambda_fn(
-        paths_to_code=handler_path,
-        handler_function_name="arr_handler",
+        fn=arr_handler,
         runtime="python3.9",
         args_names=["arr1", "arr2"],
         name=name,
-        env=f"{os.getcwd()}/test_helpers/lambda_tests/requirements.txt",
+        env=[f"reqs:{TEST_RESOURCES}/"],
     )
     res = my_lambda([1, 2, 3], [1, 2, 3])
     assert res == "12"
@@ -407,11 +387,9 @@ def test_create_and_run_layers_txt():
 
 
 def test_update_lambda_one_file():
-    handler_path = [f"{TEST_RESOURCES}/basic_test_handler.py"]
     name = "test_lambda_create_and_run"
     my_lambda = rh.aws_lambda_fn(
-        paths_to_code=handler_path,
-        handler_function_name="lambda_sum",
+        fn=lambda_sum,
         runtime="python3.9",
         args_names=["arg1", "arg2"],
         name=name,
@@ -539,11 +517,9 @@ def test_delete_lambda():
     lambda_client = boto3.client("lambda")
     iam_client = boto3.client("iam")
     logs_client = boto3.client("logs")
-    handler_path = [f"{TEST_RESOURCES}/basic_test_handler.py"]
     name = "test_lambda_to_delete"
     lambda_to_delete = rh.aws_lambda_fn(
-        paths_to_code=handler_path,
-        handler_function_name="lambda_sum",
+        fn=lambda_sum,
         runtime="python3.9",
         args_names=["arg1", "arg2"],
         name=name,
@@ -557,7 +533,7 @@ def test_delete_lambda():
     lambda_role = f"{lambda_name}_Role"
     lambda_log_group = f"/aws/lambda/{lambda_name}"
 
-    del_res = lambda_to_delete.delete()
+    del_res = lambda_to_delete.delete_from_den()
     assert del_res is True
 
     functions_in_aws = [
