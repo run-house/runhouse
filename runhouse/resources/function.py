@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 
 class Function(Module):
     RESOURCE_TYPE = "function"
-    DEFAULT_ACCESS = "write"
 
     def __init__(
         self,
@@ -28,7 +27,6 @@ class Function(Module):
         system: Optional[Cluster] = None,
         env: Optional[Env] = None,
         dryrun: bool = False,
-        access: Optional[str] = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
@@ -39,7 +37,6 @@ class Function(Module):
                 To create a Function, please use the factory method :func:`function`.
         """
         self.fn_pointers = fn_pointers
-        self.access = access or self.DEFAULT_ACCESS
         super().__init__(name=name, dryrun=dryrun, system=system, env=env, **kwargs)
 
     # ----------------- Constructor helper methods -----------------
@@ -106,11 +103,7 @@ class Function(Module):
             env = env or self.env or Env(name=Env.DEFAULT_NAME)
             env = _get_env_from(env)
 
-        if (
-            self.dryrun
-            or not (system or self.system)
-            or self.access not in ["write", "read"]
-        ):
+        if self.dryrun or not (system or self.system):
             # don't move the function to a system
             self.env = env
             return self
@@ -469,7 +462,6 @@ def function(
 
     new_function = Function(
         fn_pointers=fn_pointers,
-        access=Function.DEFAULT_ACCESS,
         name=name,
         dryrun=dryrun,
     ).to(system=system, env=env)
