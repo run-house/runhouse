@@ -210,6 +210,8 @@ class Folder(Resource):
             }
             ret_config = self._data_config.copy()
             ret_config.update(config_creds)
+            if creds and self.system.ssh_port:
+                ret_config["port"] = self.system.ssh_port
             return ret_config
         return self._data_config
 
