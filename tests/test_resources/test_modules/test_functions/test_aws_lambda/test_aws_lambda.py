@@ -557,7 +557,7 @@ def test_delete_lambda():
     lambda_role = f"{lambda_name}_Role"
     lambda_log_group = f"/aws/lambda/{lambda_name}"
 
-    del_res = lambda_to_delete.delete()
+    del_res = lambda_to_delete.delete_from_den()
     assert del_res is True
 
     functions_in_aws = [
