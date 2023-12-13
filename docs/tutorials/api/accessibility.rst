@@ -452,7 +452,7 @@ to notify them.
 
     loaded.share(
         users=["teammate1@email.com"],
-        access_type="write",
+        access_level="write",
     )
 
 
