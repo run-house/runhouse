@@ -65,6 +65,7 @@ install_requires = [
     "python-dotenv",
     "fastapi",
     "fsspec<=2023.5.0",
+    "pexpect",
     "pyarrow",
     "pyOpenSSL>=21.1.0",
     "rich",
