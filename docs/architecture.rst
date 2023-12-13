@@ -86,3 +86,42 @@ Runhouse provides tools for visibility and management of resources as long-livin
 * `Runhouse Den <https://www.run.house/dashboard>`__: provides an individual or admin view of all resources, secrets,
   groups, and sharing. Resource metadata is automatically versioned in RNS, allowing teams to maintain single-sources
   of truth for assets with zero downtime to update or roll back, and trace exact lineage for any existing resource.
+
+Resource Access Levels
+----------------------
+
+Runhouse lets you control the access levels you provide to the users of your resources:
+
+- :code:`read` (default): Users cannot modify the config, but can access the resource directly.
+- :code:`write`: Users have full control over the resource, including modifying its config.
+
+
+Resource Visibility
+-------------------
+
+In addition to providing control over the access levels, Runhouse lets you control the visibility you provide
+to your users.
+
+Similar to Google Drive, you can choose how visible you would like each resource to be:
+
+- :code:`private` (default): Only users who have been granted access explicitly to the resource can view and access it.
+- :code:`unlisted`: Users can access and search for the resource by its name only (will not be vieweable by default).
+- :code:`public`: Resource will be available publicly to all users.
+
+You can specify these options when sharing any Runhouse resource.
+Here are some examples for how that could look when sharing a function:
+
+.. code-block:: python
+
+    # Share a function with a particular user, giving them write access to the resource and private visibility
+    # The function will be visible to the user in their Den dashboard
+    my_func.share("user_a@gmail.com", access_level="write", global_visibility="private")
+
+    # Make this function available to all users, who will be given read access to that resource
+    my_func.share(global_visibility="public")
+
+    # Share the function with a list of users, giving them read only access to the resource and unlisted visibility,
+    # The function will not be visible by default in these users' Den dashboards, and will only appear
+    # if searched by name
+    my_func.share(["user_a@gmail.com", "rh_username_2"],
+                  global_visibility="unlisted")

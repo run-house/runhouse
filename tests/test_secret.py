@@ -118,6 +118,30 @@ def test_sharing_for_resource_and_secrets_apis():
 
 
 @pytest.mark.rnstest
+def test_sharing_public_secret():
+    secret_name = "global_secret"
+
+    # Create & share
+    with test_account():
+        test_headers = rns_client.request_headers
+        vault_secret = rh.secret(name=secret_name, values=test_secret_values)
+        vault_secret.save(headers=test_headers)
+
+        rns_address = vault_secret.rns_address
+
+        # Make the resource available to all users, without explicitly sharing with any users
+        vault_secret.share(global_visibility="public")
+
+        del vault_secret
+
+    # By default we can re-load the public resource
+    reloaded_secret = rh.secret(name=rns_address)
+
+    # NOTE: currently not loading the values for public secret resources (i.e. reloaded_secret.values will be empty)
+    assert reloaded_secret
+
+
+@pytest.mark.rnstest
 def test_revoke_secret():
     username_to_share = rh.configs.defaults_cache["username"]
     secret_name = "openai"

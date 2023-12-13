@@ -95,5 +95,5 @@ class ResourceAccess(str, Enum):
 
 class ResourceVisibility(str, Enum):
     PRIVATE = "private"
+    UNLISTED = "unlisted"
     PUBLIC = "public"
-    SEARCHABLE = "searchable"

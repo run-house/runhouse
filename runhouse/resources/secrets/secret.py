@@ -186,6 +186,7 @@ class Secret(Resource):
         if "values" in config:
             # don't save values into Den config
             del config["values"]
+
         headers = headers or rns_client.request_headers
 
         # Save metadata to Den
