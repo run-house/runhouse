@@ -4,11 +4,11 @@ Lambda Function
 .. note::
 
     Lambda Function support is an alpha and under active development.
-    Please report any bugs or let us know of any feature requests.
+    Please report any bugs and let us know of any feature requests.
 
 | A `Lambda Function <https://aws.amazon.com/lambda/>`_ is a serverless compute service provided by AWS. It allows  you
  to run applications and backend services without provisioning or managing servers. Runhouse will allow you to
- maintain, invoke and share your Lambda functions and code. It is comprised of the entry point, configuration, and
+ maintain, invoke and share your Lambda functions and their code. It is comprised of the entry point, configuration, and
  dependencies necessary to run the service.
 
 
@@ -19,11 +19,6 @@ Lambda Function
    timeout and memory size are accepted by the factory method as well, but they are not mandatory and have default values.
 #. Create rh.function instance, and than send it over to AWS Lambdas. For example:
    :code:`rh.function(summer).to(system=aws_lambda)`
-
-
-
-More information about acceptable arguments can be found in the Lambda function factory method
-documentation below.
 
 
 
@@ -67,5 +62,5 @@ There are several ways to provide the necessary credentials which enables Lambda
 
 .. note::
     If no specific profile is provided, Runhouse will try using the default profile. Note if this default AWS identity
-    will not have the relevant IAM permissions for creating a Lambda attached to it, you will not be able to create a
+    will not have the relevant IAM permissions for creating a Lambda, you will not be able to create a
     Lambda.

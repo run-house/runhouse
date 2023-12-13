@@ -595,7 +595,7 @@ class LambdaFunction(Function):
     # Lambda Function delete methods
     # --------------------------------------
     def delete(self):
-        """Deletes a Lambda function instance and from AWS. All relevant AWS resources
+        """Deletes a Lambda function instance from AWS. All relevant AWS resources
         (role, log group) are deleted as well.
 
         Example:
@@ -730,7 +730,7 @@ def aws_lambda_fn(
         LambdaFunction: The resulting AWS Lambda Function object.
 
         .. note::
-            When creating the function for the first time (and not reloading it), the following arguments are
+            When creating a Lambda function for the first time (not reloading it), the following arguments are
             mandatory: paths_to_code and handler_function_name OR a callable function.
 
     Examples:
