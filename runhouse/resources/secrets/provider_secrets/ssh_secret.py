@@ -18,7 +18,6 @@ class SSHSecret(ProviderSecret):
     _DEFAULT_CREDENTIALS_PATH = "~/.ssh"
     _PROVIDER = "ssh"
     _DEFAULT_KEY = "id_rsa"
-    _ENV_VARS = {}
 
     def __init__(
         self,
@@ -63,7 +62,7 @@ class SSHSecret(ProviderSecret):
         pub_key_path = Path(f"{os.path.expanduser(priv_key_path)}.pub")
         values = self.values
 
-        if priv_key_path.exists() or pub_key_path.exists():
+        if priv_key_path.exists() and pub_key_path.exists():
             if values == self._from_path(path):
                 logger.info(f"Secrets already exist in {path}. Skipping.")
                 self.path = path
@@ -73,6 +72,7 @@ class SSHSecret(ProviderSecret):
                 "Automatically overriding SSH keys is not supported by Runhouse. "
                 "Please manually edit these files."
             )
+            self.path = path
             return self
 
         priv_key_path.parent.mkdir(parents=True, exist_ok=True)

@@ -2,6 +2,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from typing import Dict, Optional
 
 import requests
 
@@ -34,11 +35,13 @@ def load_config(name: str, endpoint: str = USER_ENDPOINT):
 def _load_vault_secrets(
     resource_uri: str,
     endpoint: str = USER_ENDPOINT,
+    headers: Optional[Dict] = None,
 ):
     """Load secrets data from Vault for a particular resource URI. By default we allow for reloading shared secrets."""
+    headers = headers or rns_client.request_headers
     resp = requests.get(
         f"{rns_client.api_server_url}/{endpoint}/{resource_uri}?shared=true",
-        headers=rns_client.request_headers,
+        headers=headers,
     )
     if resp.status_code != 200:
         raise Exception(f"Failed to load secret from Vault: {load_resp_content(resp)}")
