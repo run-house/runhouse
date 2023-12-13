@@ -126,7 +126,7 @@ def test_sharing_blob(cluster_blob):
     cluster_blob.save("shared_blob")
     cluster_blob.share(
         users=["donny@run.house", "josh@run.house"],
-        access_type="write",
+        access_level="write",
         notify_users=False,
         headers=headers,
     )

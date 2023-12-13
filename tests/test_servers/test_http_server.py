@@ -362,7 +362,7 @@ def setup_cluster_config(test_account):
             current_username = rh.configs.get("username")
             with test_account:
                 c = rh.cluster(name="local_cluster", den_auth=True).save()
-                c.share(current_username, access_type="write", notify_users=False)
+                c.share(current_username, access_level="write", notify_users=False)
 
         with open(cluster_config_path, "w") as file:
             json.dump(cluster_config, file)

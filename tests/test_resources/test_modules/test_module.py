@@ -474,7 +474,7 @@ class TestModule:
         users = ["josh@run.house"]
         remote_calc = rh.module(Calculator).to(cluster).save(name="rh_remote_calc")
         added_users, new_users = remote_calc.share(
-            users=users, notify_users=False, access_type="write"
+            users=users, notify_users=False, access_level="write"
         )
         assert remote_calc.name == "rh_remote_calc"
         assert added_users == {users[0]: "write"} or added_users == {}

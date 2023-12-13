@@ -383,7 +383,7 @@ environment, or share it with your collaborators.
 
     num_cpus_cluster.share(
         users=["<email_to_runhouse_account>"],
-        access_type="write",
+        access_level="write",
     )
 
 Now, you, or whoever you shared it with, can reload this function from

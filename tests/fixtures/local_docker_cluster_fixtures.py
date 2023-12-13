@@ -529,7 +529,7 @@ def shared_cluster(test_account, local_test_account_cluster_public_key):
     with test_account:
         # Share the cluster with the test account
         local_test_account_cluster_public_key.share(
-            username_to_share, access_type="read"
+            username_to_share, access_level="read"
         )
 
     return local_test_account_cluster_public_key

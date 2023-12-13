@@ -259,7 +259,7 @@ class RNSClient:
         self,
         rns_address: str,
         user_emails: list,
-        access_type: ResourceAccess,
+        access_level: ResourceAccess,
         notify_users: bool,
         headers: Optional[dict] = None,
     ):
@@ -267,7 +267,7 @@ class RNSClient:
         headers = headers or self.request_headers
         access_payload = {
             "users": user_emails,
-            "access_type": access_type,
+            "access_level": access_level,
             "notify_users": notify_users,
         }
         uri = "resource/" + resource_uri

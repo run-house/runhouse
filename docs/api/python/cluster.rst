@@ -254,7 +254,7 @@ Let's illustrate this with a simple example:
 
     # Give read access to the function to another user - this will allow them to call this service remotely
     # and view the function metadata in Runhouse Den
-    remote_func.share("user1@gmail.com", access_type="read")
+    remote_func.share("user1@gmail.com", access_level="read")
 
     # Users can then call the function from any environment
     res = remote_func([1,2,3])

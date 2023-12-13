@@ -106,7 +106,7 @@ def test_sharing_for_resource_and_secrets_apis(test_account):
         rns_address = vault_secret.rns_address
 
         # Share the resource (incl. access to the secrets in Vault)
-        vault_secret.share(username_to_share, access_type="write")
+        vault_secret.share(username_to_share, access_level="write")
 
         del vault_secret
 
@@ -130,7 +130,7 @@ def test_sharing_for_resource_and_builtin_secret_apis(test_account):
 
         rns_address = vault_secret.rns_address
 
-        vault_secret.share(username_to_share, access_type="write")
+        vault_secret.share(username_to_share, access_level="write")
 
     # Get the resource
     resource_uri = rns_client.resource_uri(rns_address)

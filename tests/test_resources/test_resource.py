@@ -131,7 +131,7 @@ class TestResource:
 
         resource.share(
             users=["info@run.house"],
-            access_type="read",
+            access_level="read",
             notify_users=False,
         )
 

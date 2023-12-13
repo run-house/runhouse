@@ -169,7 +169,7 @@ def test_running_func_with_cluster_write_access(
             data=json.dumps(
                 {
                     "users": [current_username],
-                    "access_type": "write",
+                    "access_level": "write",
                     "notify_users": False,
                 }
             ),
