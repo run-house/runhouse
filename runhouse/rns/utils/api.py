@@ -91,3 +91,9 @@ class ResourceAccess(str, Enum):
     WRITE = "write"
     READ = "read"
     PROXY = "proxy"
+
+
+class ResourceVisibility(str, Enum):
+    PRIVATE = "private"
+    PUBLIC = "public"
+    SEARCHABLE = "searchable"

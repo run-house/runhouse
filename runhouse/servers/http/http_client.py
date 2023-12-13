@@ -311,12 +311,3 @@ class HTTPClient:
             env = _get_env_from(env)
             env = env.name
         return self.request(f"keys/?env={env}" if env else "keys", req_type="get")
-
-    def add_secrets(self, secrets):
-        failed_providers = self.request(
-            "secrets",
-            req_type="post",
-            data=pickle_b64(secrets),
-            err_str="Error sending secrets",
-        )
-        return failed_providers

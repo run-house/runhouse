@@ -13,7 +13,12 @@ from runhouse.rns.top_level_rns_fns import (
     save,
     split_rns_name_and_path,
 )
-from runhouse.rns.utils.api import load_resp_content, read_resp_data, ResourceAccess
+from runhouse.rns.utils.api import (
+    load_resp_content,
+    read_resp_data,
+    ResourceAccess,
+    ResourceVisibility,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +31,8 @@ class Resource:
         name: Optional[str] = None,
         dryrun: bool = False,
         provenance=None,
+        access_type: Optional[ResourceAccess] = ResourceAccess.WRITE,
+        global_visibility: Optional[ResourceVisibility] = ResourceVisibility.PRIVATE,
         **kwargs,
     ):
         """
@@ -67,6 +74,8 @@ class Resource:
             if isinstance(provenance, Dict)
             else provenance
         )
+        self.access_type = access_type
+        self.global_visibility = global_visibility
 
     # TODO add a utility to allow a parameter to be specified as "default" and then use the default value
 
@@ -314,6 +323,7 @@ class Resource:
         self,
         users: Union[str, List[str]],
         access_type: Union[ResourceAccess, str] = ResourceAccess.READ,
+        global_visibility: Optional[ResourceVisibility] = None,
         notify_users: bool = True,
         headers: Optional[Dict] = None,
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
@@ -370,6 +380,8 @@ class Resource:
         if isinstance(access_type, str):
             access_type = ResourceAccess(access_type)
 
+        if global_visibility is not None:
+            self.global_visibility = global_visibility
         self.save()
 
         if isinstance(users, str):
