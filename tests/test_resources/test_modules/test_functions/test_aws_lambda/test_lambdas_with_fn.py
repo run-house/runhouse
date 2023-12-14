@@ -10,7 +10,7 @@ def multiplier(a: int, b: int):
 
 
 def test_create_func():
-    aws_func = rh.lambda_function(fn=summer, name="summer_lambdas")
+    aws_func = rh.aws_lambda_fn(fn=summer, name="summer_lambdas")
     aws_func.save()
     res = aws_func(1, 3)
     assert int(res) == 4
@@ -27,10 +27,10 @@ def test_from_runhouse_func():
 def test_share_lambda(test_account):
     user = rh.configs.get("username")
     with test_account:
-        lambda_func = rh.lambda_function(fn=summer, name="summer_to_share")
+        lambda_func = rh.aws_lambda_fn(fn=summer, name="summer_to_share")
         lambda_func.save()
-        lambda_func.share(users=[user], notify_users=True, access_type="write")
+        lambda_func.share(users=[user], notify_users=True, access_level="write")
         shared_func = lambda_func.rns_address
-    reloaded_func = rh.lambda_function(name=shared_func)
+    reloaded_func = rh.aws_lambda_fn(name=shared_func)
     assert reloaded_func(1, 3) == "4"
     lambda_func.delete()
