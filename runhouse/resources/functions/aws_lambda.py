@@ -267,6 +267,7 @@ class LambdaFunction(Function):
     @classmethod
     def _paths_to_code_from_fn_pointers(cls, fn_pointers):
         """creates path to code from fn_pointers"""
+        # TODO [SB]: need to refactor
         if "." in fn_pointers[1]:
             root_dir = rns_client.locate_working_dir()
             file_path = fn_pointers[1].replace(".", "/") + ".py"
