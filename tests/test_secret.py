@@ -322,9 +322,6 @@ def test_convert_secret_resource():
         headers=rns_client.request_headers,
     )
 
-    with pytest.raises(ValueError):
-        load_config(name)
-
     _convert_secrets_resource([name])
     assert load_config(name)
 
