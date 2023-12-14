@@ -326,8 +326,11 @@ class Resource:
         global_visibility: Optional[ResourceVisibility] = None,
         notify_users: bool = True,
         headers: Optional[Dict] = None,
+        access_type: Union[ResourceAccess, str] = None,  # deprecated
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
-        """Grant access to the resource for the list of users (or a single user). If a user has a Runhouse account they
+        """share(users: str | List[str], access_level: ResourceAccess | str = ResourceAccess.READ, notify_users: bool = True, headers: Dict | None = None)
+
+        Grant access to the resource for the list of users (or a single user). If a user has a Runhouse account they
         will receive an email notifying them of their new access. If the user does not have a Runhouse account they will
         also receive instructions on creating one, after which they will be able to have access to the Resource.
 
@@ -351,13 +354,13 @@ class Resource:
 
         Example:
             >>> added_users, new_users = my_resource.share(users=["username1", "user2@gmail.com"], access_level='write')
-        """
+        """  # noqa: E501
         if self.name is None:
             raise ValueError("Resource must have a name in order to share")
 
         if hasattr(self, "system") and self.system in ["ssh", "sftp"]:
             logger.warning(
-                "Sharing a resource located on a cluster is not recommended. For persistence, we suggest"
+                "Sharing a resource located on a cluster is not recommended. For persistence, we suggest "
                 "saving to a cloud storage system (ex: `s3` or `gs`). You can copy your cluster based "
                 f"{self.RESOURCE_TYPE} to your desired storage provider using the `.to()` method. "
                 f"For example: `{self.RESOURCE_TYPE}.to(system='rh-cpu')`"
@@ -376,6 +379,13 @@ class Resource:
                     f"located on a cluster or a remote system. You can use the `.to()` method to do so. "
                     f"For example: `{self.name}.to(system='s3')`"
                 )
+
+        if access_type:
+            logger.warning(
+                "``access_type`` argument is deprecated and will be removed in a future release. "
+                "Please use ``access_level`` instead."
+            )
+            access_level = access_type
 
         if isinstance(access_level, str):
             access_level = ResourceAccess(access_level)
