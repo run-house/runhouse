@@ -77,3 +77,81 @@ jobs:
           TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
           TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
         run: pytest -v --level local -k "TestCluster"
+
+  resource-tests-logged-out-level-local:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Setup Runhouse
+        uses: ./.github/workflows/setup_runhouse
+
+      - name: pytest -v --level local -k "TestResource"
+        env:
+          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+        run: pytest -v --level local -k "TestResource"
+
+  resource-tests-logged-in-level-local:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Setup Runhouse
+        uses: ./.github/workflows/setup_runhouse
+
+      - name: Setup ~/.rh/config.yaml
+        uses: ./.github/workflows/setup_rh_config
+        with:
+          username: ${{ secrets.TEST_USERNAME }}
+          token: ${{ secrets.TEST_TOKEN }}
+
+      - name: pytest -v --level local -k "TestResource"
+        env:
+          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+        run: pytest -v --level local -k "TestResource"
+
+  function-tests-logged-in-level-local:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Setup Runhouse
+        uses: ./.github/workflows/setup_runhouse
+
+      - name: Setup ~/.rh/config.yaml
+        uses: ./.github/workflows/setup_rh_config
+        with:
+          username: ${{ secrets.TEST_USERNAME }}
+          token: ${{ secrets.TEST_TOKEN }}
+
+      - name: pytest -v --level local -k "TestFunction"
+        env:
+          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+        run: pytest -v --level local -k "TestFunction"
+
+  function-tests-logged-in-level-local:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Setup Runhouse
+        uses: ./.github/workflows/setup_runhouse
+
+      - name: Setup ~/.rh/config.yaml
+        uses: ./.github/workflows/setup_rh_config
+        with:
+          username: ${{ secrets.TEST_USERNAME }}
+          token: ${{ secrets.TEST_TOKEN }}
+
+      - name: pytest -v --level local -k "TestFunction"
+        env:
+          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+        run: pytest -v --level local -k "TestFunction"
