@@ -49,8 +49,8 @@ class GCPSecret(ProviderSecret):
         if isinstance(path, File):
             if not path.exists_in_system():
                 return {}
-            contents = path.fetch(mode="r")
-            config = json.laods(contents)
+            contents = path.fetch(mode="r", deserialize=False)
+            config = json.loads(contents)
         elif path and os.path.exists(os.path.expanduser(path)):
             with open(os.path.expanduser(path), "r") as config_file:
                 config = json.load(config_file)

@@ -44,7 +44,7 @@ class LambdaSecret(ProviderSecret):
         lines = None
         if isinstance(path, File):
             if path.exists_in_system():
-                lines = path.fetch(mode="r").split("\n")
+                lines = path.fetch(mode="r", deserialize=False).split("\n")
         elif path and os.path.exists(os.path.expanduser(path)):
             with open(os.path.expanduser(path), "r") as f:
                 lines = f.readlines()

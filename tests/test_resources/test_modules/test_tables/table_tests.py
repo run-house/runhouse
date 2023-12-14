@@ -951,7 +951,7 @@ def test_sharing_table(pandas_table):
 
     my_table.share(
         users=["donny@run.house", "josh@run.house"],
-        access_type="write",
+        access_level="write",
         notify_users=False,
     )
 

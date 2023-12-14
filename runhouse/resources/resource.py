@@ -31,7 +31,7 @@ class Resource:
         name: Optional[str] = None,
         dryrun: bool = False,
         provenance=None,
-        access_type: Optional[ResourceAccess] = ResourceAccess.WRITE,
+        access_level: Optional[ResourceAccess] = ResourceAccess.WRITE,
         global_visibility: Optional[ResourceVisibility] = ResourceVisibility.PRIVATE,
         **kwargs,
     ):
@@ -74,7 +74,7 @@ class Resource:
             if isinstance(provenance, Dict)
             else provenance
         )
-        self.access_type = access_type
+        self.access_level = access_level
         self.global_visibility = global_visibility
 
     # TODO add a utility to allow a parameter to be specified as "default" and then use the default value
@@ -322,7 +322,7 @@ class Resource:
     def share(
         self,
         users: Union[str, List[str]],
-        access_type: Union[ResourceAccess, str] = ResourceAccess.READ,
+        access_level: Union[ResourceAccess, str] = ResourceAccess.READ,
         global_visibility: Optional[ResourceVisibility] = None,
         notify_users: bool = True,
         headers: Optional[Dict] = None,
@@ -336,7 +336,7 @@ class Resource:
 
         Args:
             users (list or str): list of user emails and / or runhouse account usernames (or a single user).
-            access_type (:obj:`ResourceAccess`, optional): access type to provide for the resource.
+            access_level (:obj:`ResourceAccess`, optional): access level to provide for the resource.
             notify_users (bool): Send email notification to users who have been given access. Defaults to `False`.
             headers (Optional[Dict]): Request headers to provide for the request to RNS. Contains the user's auth token.
                 Example: ``{"Authorization": f"Bearer {token}"}``
@@ -350,7 +350,7 @@ class Resource:
                 users who do not have Runhouse accounts.
 
         Example:
-            >>> added_users, new_users = my_resource.share(users=["username1", "user2@gmail.com"], access_type='write')
+            >>> added_users, new_users = my_resource.share(users=["username1", "user2@gmail.com"], access_level='write')
         """
         if self.name is None:
             raise ValueError("Resource must have a name in order to share")
@@ -377,8 +377,8 @@ class Resource:
                     f"For example: `{self.name}.to(system='s3')`"
                 )
 
-        if isinstance(access_type, str):
-            access_type = ResourceAccess(access_type)
+        if isinstance(access_level, str):
+            access_level = ResourceAccess(access_level)
 
         if global_visibility is not None:
             self.global_visibility = global_visibility
@@ -390,7 +390,7 @@ class Resource:
         added_users, new_users = rns_client.grant_resource_access(
             rns_address=self.rns_address,
             user_emails=users,
-            access_type=access_type,
+            access_level=access_level,
             notify_users=notify_users,
             headers=headers,
         )

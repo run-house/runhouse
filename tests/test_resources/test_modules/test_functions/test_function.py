@@ -329,7 +329,7 @@ class TestFunction:
 
         my_function.share(
             users=["donny@run.house", "josh@run.house"],
-            access_type="read",
+            access_level="read",
             notify_users=False,
         )
         assert True

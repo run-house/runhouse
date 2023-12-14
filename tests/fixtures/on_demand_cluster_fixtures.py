@@ -2,12 +2,7 @@ import pytest
 
 import runhouse as rh
 
-from ....conftest import init_args
-
-######## Constants ########
-
-
-######## Fixtures ########
+from tests.conftest import init_args
 
 
 @pytest.fixture(scope="session")
@@ -67,14 +62,16 @@ def a10g_gpu_cluster():
 
 @pytest.fixture(scope="session")
 def ondemand_https_cluster_with_auth():
-    c = rh.ondemand_cluster(
-        name="rh-cpu-https",
-        instance_type="CPU:2+",
-        den_auth=True,
-        server_connection_type="tls",
-        open_ports=[443],
-    )
+    args = {
+        "name": "rh-cpu-https",
+        "instance_type": "CPU:2+",
+        "den_auth": True,
+        "server_connection_type": "tls",
+        "open_ports": [443],
+    }
+    c = rh.ondemand_cluster(**args)
     c.up_if_not()
+    init_args[id(c)] = args
 
     c.install_packages(["pytest"])
     return c

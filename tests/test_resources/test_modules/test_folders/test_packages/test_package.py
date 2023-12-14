@@ -43,7 +43,7 @@ def test_share_package(ondemand_cpu_cluster, local_package):
 
     local_package.share(
         users=["josh@run.house", "donny@run.house"],
-        access_type="write",
+        access_level="write",
         notify_users=False,
     )
 
@@ -64,7 +64,7 @@ def test_share_git_package():
 
     git_package.share(
         users=["donny@run.house", "josh@run.house"],
-        access_type="read",
+        access_level="read",
         notify_users=False,
     )
     assert rh.exists(name="shared_git_package")

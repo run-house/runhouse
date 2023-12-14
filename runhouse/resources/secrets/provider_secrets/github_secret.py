@@ -55,7 +55,7 @@ class GitHubSecret(ProviderSecret):
         if isinstance(path, File):
             if not path.exists_in_system():
                 return {}
-            config = yaml.safe_load(path.fetch(mode="r"))
+            config = yaml.safe_load(path.fetch(mode="r", deserialize=False))
         elif path and os.path.exists(os.path.expanduser(path)):
             with open(os.path.expanduser(path), "r") as stream:
                 config = yaml.safe_load(stream)

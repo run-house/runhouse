@@ -184,24 +184,24 @@ def _login_upload_secrets(interactive: bool, headers: Optional[Dict] = None):
             secret.save(save_values=True)
 
 
-def _convert_secrets_resource(names: List[str] = None, headers: Optional[str] = None):
+def _convert_secrets_resource(names: List[str] = None, headers: Optional[Dict] = None):
     # Convert vault-only secrets to a resource to maintain backwards compatibility,
     # following secrets resource revamp
     from runhouse import provider_secret, Secret
     from runhouse.resources.secrets.utils import _load_vault_secrets
 
-    secrets = names or Secret.vault_secrets(
-        headers=headers or rns_client.request_headers
-    )
+    headers = headers or rns_client.request_headers
+
+    secrets = names or Secret.vault_secrets(headers=headers)
     for name in secrets:
         try:
             resource_uri = rns_client.resource_uri(name)
             resp = requests.get(
                 f"{rns_client.api_server_url}/resource/{resource_uri}",
-                headers=headers or rns_client.request_headers,
+                headers=headers,
             )
             if resp.status_code != 200:
-                values = _load_vault_secrets(name)
+                values = _load_vault_secrets(name, headers=headers)
                 secret = provider_secret(name, values=values)
                 secret.save()
 

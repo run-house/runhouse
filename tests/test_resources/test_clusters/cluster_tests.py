@@ -41,7 +41,7 @@ def test_cluster_config(ondemand_cpu_cluster):
 def test_cluster_sharing(ondemand_cpu_cluster):
     ondemand_cpu_cluster.share(
         users=["donny@run.house", "josh@run.house"],
-        access_type="write",
+        access_level="write",
         notify_users=False,
     )
     assert True
