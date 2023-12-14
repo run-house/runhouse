@@ -9,7 +9,7 @@ Quick Start Guide
 
 This tutorials walks through Runhouse setup (installation, hardware
 setup, and optional login) and goes through an example that demonstrates
-how to user Runhouse to bridge the gap between local and remote compute,
+how to use Runhouse to bridge the gap between local and remote compute,
 and create Resources that can be saved, reused, and shared.
 
 Installation
