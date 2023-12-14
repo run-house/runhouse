@@ -267,7 +267,8 @@ class LambdaFunction(Function):
     @classmethod
     def _paths_to_code_from_fn_pointers(cls, fn_pointers):
         """creates path to code from fn_pointers"""
-        root_dir = rns_client.locate_working_dir()
+        # root_dir = rns_client.locate_working_dir()
+        root_dir = Path(fn_pointers[0]).absolute()
         file_path = fn_pointers[1].replace(".", "/") + ".py"
         paths_to_code = [os.path.join(root_dir, file_path)]
         return paths_to_code
