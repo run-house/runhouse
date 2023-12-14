@@ -634,12 +634,10 @@ class HTTPServer:
         otlp_credentials = None
         try:
             otlp_credentials = OtlpParameters(
-                backend_url="local_collector:4317",
-                username="",
-                password="",
+                url="local_collector:4317",
             )
             # otlp_credentials = OtlpParameters(
-            #     backend_url=configs.get("otlp_endpoint_url"),
+            #     url=configs.get("otlp_endpoint_url"),
             #     username=configs.get("otlp_username"),
             #     password=configs.get("otlp_password")
             # )
@@ -653,13 +651,13 @@ class HTTPServer:
                 + f"otlp_password: {configs.get('otlp_password')}) \n"
             )
 
-        logger.info(f"Sending telemetry to backend {otlp_credentials.backend_url}")
+        logger.info(f"Sending telemetry to {otlp_credentials.url}")
 
         # Set the tracer provider and the exporter
         trace.set_tracer_provider(TracerProvider())
-        print("Setting OTLP exporter to " + otlp_credentials.backend_url)
+        print("Setting OTLP exporter endpoint to " + otlp_credentials.url)
         otlp_exporter = OTLPSpanExporter(
-            endpoint=otlp_credentials.backend_url,
+            endpoint=otlp_credentials.url,
             insecure=True,
             # credentials={
             #     "username": otlp_credentials.username,
@@ -672,9 +670,7 @@ class HTTPServer:
             BatchSpanProcessor(otlp_exporter)
         )
 
-        logger.info(
-            f"Successfully added telemetry exporter {otlp_credentials.backend_url}"
-        )
+        logger.info(f"Successfully added telemetry exporter {otlp_credentials.url}")
 
         # Instrument the app object
         FastAPIInstrumentor.instrument_app(app)
