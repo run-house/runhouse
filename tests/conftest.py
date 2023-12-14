@@ -95,7 +95,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--ignore-filters",
         action="store_true",
-        default=True,
+        default=False,
         help="Don't filter tests by marks.",
     )
 
