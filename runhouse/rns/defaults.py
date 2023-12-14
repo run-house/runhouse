@@ -31,6 +31,7 @@ class Defaults:
         "use_rns": False,
         "api_server_url": "https://api.run.house",
         "dashboard_url": "https://run.house",
+        "telemetry_collector_url": "https://TBD",
     }
 
     def __init__(self):
