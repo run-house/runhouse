@@ -142,8 +142,8 @@ class Secret(Resource):
 
         secrets = {}
 
-        # locally configured non-ssh provider secrets
-        for provider in _str_to_provider_class.keys():
+        names = names or _str_to_provider_class.keys()
+        for provider in names:
             if provider == "ssh":
                 continue
             try:
@@ -153,17 +153,18 @@ class Secret(Resource):
                 continue
 
         # locally configured ssh secrets
-        default_ssh_folder = "~/.ssh"
-        ssh_files = os.listdir(os.path.expanduser(default_ssh_folder))
-        for file in ssh_files:
-            if file != "sky-key" and f"{file}.pub" in ssh_files:
-                name = f"ssh-{file}"
-                secret = provider_secret(
-                    provider="ssh",
-                    name=name,
-                    path=os.path.join(default_ssh_folder, file),
-                )
-                secrets[name] = secret
+        if "ssh" in names:
+            default_ssh_folder = "~/.ssh"
+            ssh_files = os.listdir(os.path.expanduser(default_ssh_folder))
+            for file in ssh_files:
+                if file != "sky-key" and f"{file}.pub" in ssh_files:
+                    name = f"ssh-{file}"
+                    secret = provider_secret(
+                        provider="ssh",
+                        name=name,
+                        path=os.path.join(default_ssh_folder, file),
+                    )
+                    secrets[name] = secret
 
         return secrets
 
