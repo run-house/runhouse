@@ -69,22 +69,21 @@ class Function(Module):
         self,
         system: Union[str, Cluster] = None,
         env: Union[List[str], Env] = [],
-        # Variables below are deprecated
-        reqs: Optional[List[str]] = None,
-        setup_cmds: Optional[List[str]] = [],
+        reqs: Optional[List[str]] = None,  # deprecated
+        setup_cmds: Optional[List[str]] = [],  # deprecated
         force_install: bool = False,
     ):
-        """
+        """to(system: str | Cluster | None = None, env: List[str] | Env = [], force_install: bool = False)
+
         Set up a Function and Env on the given system.
-        If the funciton is sent to AWS, the system should be ``aws_lambda``
+        If the function is sent to AWS, the system should be ``aws_lambda``
         See the args of the factory method :func:`function` for more information.
 
         Example:
             >>> rh.function(fn=local_fn).to(gpu_cluster)
             >>> rh.function(fn=local_fn).to(system=gpu_cluster, env=my_conda_env)
             >>> rh.function(fn=local_fn).to(system='aws_lambda')  # will deploy the rh.function to AWS as a Lambda.
-        """
-
+        """  # noqa: E501
         if setup_cmds:
             warnings.warn(
                 "``setup_cmds`` argument has been deprecated. "
