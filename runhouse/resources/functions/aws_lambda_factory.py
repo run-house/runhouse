@@ -79,7 +79,7 @@ def aws_lambda_fn(
 
         .. note::
             When creating a Lambda function for the first time (not reloading it), the following arguments are
-            mandatory: paths_to_code and handler_function_name OR a callable function.
+            mandatory: ``paths_to_code`` and ``handler_function_name`` OR a callable function.
 
     Examples:
         >>> import runhouse as rh
