@@ -41,7 +41,7 @@ Lambda Function Class
    path(s) to Python file(s) (containing the code) and a handler function name . Arguments such as runtime, Lambda name,
    timeout and memory size are accepted by the factory method as well, but they are not mandatory and have default values.
 #. Create rh.function instance, and than send it over to AWS Lambdas. For example:
-   :code:`rh.function(summer).to(system=aws_lambda)`
+   :code:`rh.function(summer).to(system="aws_lambda")`
 
 .. autoclass:: runhouse.LambdaFunction
    :members:
