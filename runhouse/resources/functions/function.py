@@ -78,13 +78,15 @@ class Function(Module):
     ):
         """
         Set up a Function and Env on the given system.
-
+        If the funciton is sent to AWS, the system should be ``aws_lambda``
         See the args of the factory method :func:`function` for more information.
 
         Example:
             >>> rh.function(fn=local_fn).to(gpu_cluster)
             >>> rh.function(fn=local_fn).to(system=gpu_cluster, env=my_conda_env)
+            >>> rh.function(fn=local_fn).to(system='aws_lambda')  # will deploy the rh.function to AWS as a Lambda.
         """
+
         if setup_cmds:
             warnings.warn(
                 "``setup_cmds`` argument has been deprecated. "
@@ -102,6 +104,13 @@ class Function(Module):
         else:
             env = env or self.env or Env(name=Env.DEFAULT_NAME)
             env = _get_env_from(env)
+
+        if isinstance(system, str) and system.lower() == "lambda_function":
+            from runhouse.resources.functions.aws_lambda import aws_lambda_fn
+
+            return aws_lambda_fn(
+                fn=self._get_obj_from_pointers(*self.fn_pointers), env=env
+            )
 
         if self.dryrun or not (system or self.system):
             # don't move the function to a system
@@ -263,7 +272,7 @@ class Function(Module):
             if sync_package_on_close:
                 if sync_package_on_close == "./":
                     sync_package_on_close = globals.rns_client.locate_working_dir()
-                from .folders import folder
+                from ..folders import folder
 
                 folder(system=self.system, path=sync_package_on_close).to("here")
             if not persist:
@@ -412,10 +421,10 @@ def function(
             "``reqs`` argument has been deprecated. Please use ``env`` instead."
         )
         env = Env(
-            reqs=reqs, setup_cmds=setup_cmds, working_dir="./", name=Env.DEFAULT_NAME
+            reqs=reqs, setup_cmds=setup_cmds, working_dir="../", name=Env.DEFAULT_NAME
         )
     elif not isinstance(env, Env):
-        env = _get_env_from(env) or Env(working_dir="./", name=Env.DEFAULT_NAME)
+        env = _get_env_from(env) or Env(working_dir="../", name=Env.DEFAULT_NAME)
 
     fn_pointers = None
     if callable(fn):
