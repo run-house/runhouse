@@ -43,8 +43,8 @@ app = FastAPI()
 
 class OtlpParameters(BaseModel):
     backend_url: str
-    username: str
-    password: str
+    username: Optional[str] = None
+    password: Optional[str] = None
 
 
 def validate_cluster_access(func):
