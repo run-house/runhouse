@@ -1,0 +1,27 @@
+name: Setup Runhouse
+
+description: Reusable steps for setting up Runhouse
+
+runs:
+  using: composite
+  steps:
+    - name: Setup python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Set up required artifacts for local tests
+      shell: bash
+      run: |
+        ssh-keygen -b 2048 -t rsa -f ~/.ssh/sky-key -q -N ""
+        echo "password" > $GITHUB_WORKSPACE/../docker_user_passwd
+
+    - name: Install runhouse from source code
+      shell: bash
+      run: |
+        pip install -e $GITHUB_WORKSPACE
+
+    - name: Install python packages & dependencies
+      shell: bash
+      run:
+        pip install pytest httpx pytest_asyncio docker

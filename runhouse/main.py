@@ -107,6 +107,7 @@ def _start_server(
     force_reinstall=False,
     use_nginx=False,
     certs_address=None,
+    use_local_telemetry=False,
 ):
     from runhouse.resources.hardware.cluster import Cluster
 
@@ -124,6 +125,7 @@ def _start_server(
         force_reinstall=force_reinstall,
         use_nginx=use_nginx,
         certs_address=certs_address,
+        use_local_telemetry=use_local_telemetry,
     )
 
     try:
@@ -193,6 +195,9 @@ def start(
         None,
         help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS",
     ),
+    use_local_telemetry: bool = typer.Option(
+        False, help="Whether to use local telemetry"
+    ),
 ):
     """Start the HTTP or HTTPS server on the cluster."""
     _start_server(
@@ -206,6 +211,7 @@ def start(
         den_auth=use_den_auth,
         use_nginx=use_nginx,
         certs_address=certs_address,
+        use_local_telemetry=use_local_telemetry,
     )
 
 
@@ -251,6 +257,10 @@ def restart(
         None,
         help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS",
     ),
+    use_local_telemetry: bool = typer.Option(
+        False,
+        help="Whether to use local telemetry",
+    ),
 ):
     """Restart the HTTP server on the cluster."""
     if name:
@@ -272,6 +282,7 @@ def restart(
         force_reinstall=force_reinstall,
         use_nginx=use_nginx,
         certs_address=certs_address,
+        use_local_telemetry=use_local_telemetry,
     )
 
 

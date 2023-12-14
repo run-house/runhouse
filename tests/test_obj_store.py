@@ -8,17 +8,8 @@ import pytest
 
 import runhouse as rh
 
-from tests.conftest import (
-    byo_cpu,
-    local_docker_cluster_passwd,
-    local_docker_cluster_public_key,
-    ondemand_cpu_cluster,
-    ondemand_https_cluster_with_auth,
-    password_cluster,
-)
-
 from tests.test_resources.test_modules.test_functions.test_function import (
-    multiproc_torch_sum,
+    multiproc_np_sum,
 )
 
 TEMP_FILE = "my_file.txt"
@@ -26,27 +17,27 @@ TEMP_FOLDER = "~/runhouse-tests"
 
 logger = logging.getLogger(__name__)
 
-UNIT = {"cluster": [local_docker_cluster_public_key]}
-LOCAL = {"cluster": [local_docker_cluster_passwd, local_docker_cluster_public_key]}
-MINIMAL = {"cluster": [ondemand_cpu_cluster]}
+UNIT = {"cluster": ["local_docker_cluster_public_key"]}
+LOCAL = {"cluster": ["local_docker_cluster_passwd", "local_docker_cluster_public_key"]}
+MINIMAL = {"cluster": ["ondemand_cpu_cluster"]}
 THOROUGH = {
     "cluster": [
-        local_docker_cluster_passwd,
-        local_docker_cluster_public_key,
-        ondemand_cpu_cluster,
-        ondemand_https_cluster_with_auth,
-        password_cluster,
-        byo_cpu,
+        "local_docker_cluster_passwd",
+        "local_docker_cluster_public_key",
+        "ondemand_cpu_cluster",
+        "ondemand_https_cluster_with_auth",
+        "password_cluster",
+        "byo_cpu",
     ]
 }
 MAXIMAL = {
     "cluster": [
-        local_docker_cluster_passwd,
-        local_docker_cluster_public_key,
-        ondemand_cpu_cluster,
-        ondemand_https_cluster_with_auth,
-        password_cluster,
-        byo_cpu,
+        "local_docker_cluster_passwd",
+        "local_docker_cluster_public_key",
+        "ondemand_cpu_cluster",
+        "ondemand_https_cluster_with_auth",
+        "password_cluster",
+        "byo_cpu",
     ]
 }
 
@@ -182,7 +173,7 @@ def serialization_helper_2():
     return tensor.device()  # Should succeed if array hasn't been serialized
 
 
-@unittest.skip
+@pytest.mark.skip
 @pytest.mark.clustertest
 @pytest.mark.gputest
 def test_pinning_to_gpu(k80_gpu_cluster):
@@ -222,9 +213,7 @@ def test_pinning_in_memory(cluster):
 
 @pytest.mark.clustertest
 def test_multiprocessing_streaming(cluster):
-    re_fn = rh.function(
-        multiproc_torch_sum, system=cluster, env=["./", "torch==1.12.1"]
-    )
+    re_fn = rh.function(multiproc_np_sum, system=cluster, env=["numpy"])
     summands = list(zip(range(5), range(4, 9)))
     res = re_fn(summands)
     assert res == [4, 6, 8, 10, 12]

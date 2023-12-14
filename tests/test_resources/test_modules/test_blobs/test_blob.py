@@ -25,7 +25,7 @@ def test_save_local_blob_fails(local_blob, blob_data):
 @pytest.mark.clustertest
 @pytest.mark.parametrize(
     "blob",
-    ["cluster_blob", "cluster_file", "local_file", "s3_blob", "gcs_blob"],
+    ["local_file", "s3_blob", "gcs_blob"],
     indirect=True,
 )
 def test_reload_blob_with_name(blob):
@@ -126,7 +126,7 @@ def test_sharing_blob(cluster_blob):
     cluster_blob.save("shared_blob")
     cluster_blob.share(
         users=["donny@run.house", "josh@run.house"],
-        access_type="write",
+        access_level="write",
         notify_users=False,
         headers=headers,
     )

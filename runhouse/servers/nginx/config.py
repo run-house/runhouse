@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 class NginxConfig:
     BASE_CONFIG_PATH = "/etc/nginx/sites-available/fastapi"
+    RH_SERVER_PORT = 32300
 
     # Helpful commands:
     # sudo systemctl restart nginx
@@ -19,20 +20,25 @@ class NginxConfig:
     def __init__(
         self,
         address: str,
-        rh_server_port: int,
-        http_port: int = None,
-        https_port: int = None,
+        rh_server_port: int = None,
         ssl_cert_path: str = None,
         ssl_key_path: str = None,
+        use_https=False,
         force_reinstall=False,
     ):
-        self._use_https = https_port is not None
-        self.http_port = http_port
-        self.https_port = https_port
-        self.rh_server_port = rh_server_port
+        self.use_https = use_https
+        self.rh_server_port = rh_server_port or self.RH_SERVER_PORT
 
         self.ssl_cert_path = ssl_cert_path
         self.ssl_key_path = ssl_key_path
+
+        if self.use_https:
+            if self.ssl_cert_path is None or not Path(self.ssl_cert_path).exists():
+                raise FileNotFoundError("SSL cert file not found")
+
+            if self.ssl_key_path is None or not Path(self.ssl_key_path).exists():
+                raise FileNotFoundError("SSL key file not found")
+
         self.force_reinstall = force_reinstall
 
         # To expose the server to the internet, set address to the public IP, otherwise leave it as localhost
@@ -56,8 +62,14 @@ class NginxConfig:
             raise RuntimeError("Failed to configure Nginx")
 
     def reload(self):
+        # If running locally (e.g. in a docker container) systemctl may not be available
+        reload_cmd = (
+            "sudo service nginx start && sudo nginx -s reload"
+            if self.address in ["localhost", "127.0.0.1", "0.0.0.0"]
+            else "sudo systemctl reload nginx"
+        )
         result = subprocess.run(
-            "sudo systemctl reload nginx",
+            reload_cmd,
             shell=True,
             check=True,
             capture_output=True,
@@ -102,7 +114,7 @@ class NginxConfig:
         )
 
         replace_dict = {
-            "app_port": self.http_port,
+            "app_port": 80,
             "proxy_pass": f"http://127.0.0.1:{self.rh_server_port}/",
             "server_name": self.address,
         }
@@ -132,7 +144,7 @@ class NginxConfig:
         )
 
         replace_dict = {
-            "app_port": self.https_port,
+            "app_port": 443,
             "proxy_pass": f"http://127.0.0.1:{self.rh_server_port}/",
             "server_name": self.address,
             "ssl_cert_path": self.ssl_cert_path,
@@ -146,7 +158,7 @@ class NginxConfig:
         if Path(self.BASE_CONFIG_PATH).exists():
             return
 
-        if self._use_https:
+        if self.use_https:
             subprocess.run(
                 f"sudo chmod 600 {self.ssl_cert_path} && "
                 f"sudo chmod 600 {self.ssl_key_path}",
@@ -165,13 +177,15 @@ class NginxConfig:
         )
         try:
             template = (
-                self._https_template() if self._use_https else self._http_template()
+                self._https_template() if self.use_https else self._http_template()
             )
             with open(self.BASE_CONFIG_PATH, "w") as f:
                 f.write(template)
 
         except Exception as e:
-            raise RuntimeError(f"Error configuring new Nginx template: {e}")
+            raise RuntimeError(
+                f"Error configuring new Nginx template with https set to: {self.use_https}: {e}"
+            )
 
     def _is_configured(self) -> bool:
         if not Path(self.BASE_CONFIG_PATH).exists():
@@ -199,7 +213,7 @@ class NginxConfig:
 
         # Allow incoming traffic to the default port (HTTPS or HTTP)
         # e.g. 'Nginx HTTPS': predefined profile that allows traffic for the Nginx web server on port 443
-        ufw_rule = "Nginx HTTPS" if self._use_https else "Nginx HTTP"
+        ufw_rule = "Nginx HTTPS" if self.use_https else "Nginx HTTP"
         logger.info(f"Allowing incoming traffic using rule: `{ufw_rule}`")
         result = subprocess.run(
             f"sudo ufw allow '{ufw_rule}'",

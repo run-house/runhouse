@@ -4,7 +4,9 @@ import os
 import pkgutil
 import shutil
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
+
+import dotenv
 
 import requests
 
@@ -109,11 +111,11 @@ class RNSClient:
         # 4. User's cwd
 
         for search_target in [
-            "rh",
             ".git",
-            "requirements.txt",
             "setup.py",
             "pyproject.toml",
+            "rh",
+            "requirements.txt",
         ]:
             dir_with_target = cls.find_parent_with_file(cwd, search_target)
             if dir_with_target is not None:
@@ -123,7 +125,7 @@ class RNSClient:
 
     @property
     def default_folder(self):
-        folder = self._configs.get("default_folder", None)
+        folder = self._configs.get("default_folder")
         if folder in [None, "~"] and self._configs.get("username"):
             folder = "/" + self._configs.get("username")
             self._configs.set("default_folder", folder)
@@ -192,6 +194,37 @@ class RNSClient:
         payload["data"] = data
         return payload
 
+    def load_account_from_env(self) -> Dict[str, str]:
+        dotenv.load_dotenv()
+
+        test_token = os.getenv("TEST_TOKEN")
+        test_username = os.getenv("TEST_USERNAME")
+        if not (test_token and test_username):
+            return None
+
+        # Hack to avoid actually writing down these values, in case the user stops mid-test and we don't reach the
+        # finally block
+        self._configs.defaults_cache["token"] = test_token
+        self._configs.defaults_cache["username"] = test_username
+        self._configs.defaults_cache["default_folder"] = f"/{test_username}"
+
+        # The client caches the folder that is used as the current folder variable, we clear this so it loads the new
+        # folder when we switch accounts
+        self._current_folder = None
+
+        return {
+            "token": self._configs.defaults_cache["token"],
+            "username": self._configs.defaults_cache["username"],
+            "default_folder": self._configs.defaults_cache["default_folder"],
+        }
+
+    def load_account_from_file(self) -> None:
+        # Setting this to None causes it to be loaded from file upon next access
+        self._configs.defaults_cache = None
+
+        # Same as above, for this to correctly load the account/folder from the new cache, it needs to be unset
+        self._current_folder = None
+
     # Run Stack
     # ---------------------
 
@@ -226,7 +259,7 @@ class RNSClient:
         self,
         rns_address: str,
         user_emails: list,
-        access_type: ResourceAccess,
+        access_level: ResourceAccess,
         notify_users: bool,
         headers: Optional[dict] = None,
     ):
@@ -234,7 +267,7 @@ class RNSClient:
         headers = headers or self.request_headers
         access_payload = {
             "users": user_emails,
-            "access_type": access_type,
+            "access_level": access_level,
             "notify_users": notify_users,
         }
         uri = "resource/" + resource_uri
@@ -274,9 +307,9 @@ class RNSClient:
         if rns_address.startswith("/"):
             resource_uri = self.resource_uri(name)
             logger.info(f"Attempting to load config for {rns_address} from RNS.")
-            uri = "resource/" + resource_uri
             resp = requests.get(
-                f"{self.api_server_url}/{uri}", headers=self.request_headers
+                f"{self.api_server_url}/resource/{resource_uri}",
+                headers=self.request_headers,
             )
             if resp.status_code != 200:
                 logger.info(f"No config found in RNS: {load_resp_content(resp)}")
@@ -292,7 +325,7 @@ class RNSClient:
 
     def _load_config_from_local(self, rns_address=None, path=None) -> Optional[dict]:
         """Load config from local file"""
-        # TODO should we handle remote filessytems, or throw an error if system != 'file'?
+        # TODO should we handle remote filesystems, or throw an error if system != 'file'?
         if not path:
             path = self.locate(rns_address, resolve_path=False)
             if not path:
@@ -331,10 +364,8 @@ class RNSClient:
                 f"Resource {rns_address} already exists and overwrite is False."
             )
 
-        config["name"] = rns_address
-
         if rns_address is None:
-            return
+            raise ValueError("A resource must have a name to be saved.")
 
         if rns_address[0] in ["~", "^"]:
             self._save_config_to_local(config, rns_address)
@@ -443,7 +474,7 @@ class RNSClient:
         if path == ".":
             return self.current_folder
         if path.startswith("./"):
-            return self.current_folder + "/" + path[2:]
+            return self.current_folder + "/" + path[len("./") :]
         # if path == '~':
         #     return '/rh'
         # if path.startswith('~/'):
@@ -452,7 +483,7 @@ class RNSClient:
         if path == "@":
             return self.default_folder
         if path.startswith("@/"):
-            return self.default_folder + "/" + path[2:]
+            return self.default_folder + "/" + path[len("@/") :]
         # if path == '^':
         #     return self.RH_BUILTINS_FOLDER
         # if path.startswith('^'):

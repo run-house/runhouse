@@ -210,6 +210,8 @@ class Folder(Resource):
             }
             ret_config = self._data_config.copy()
             ret_config.update(config_creds)
+            if creds and self.system.ssh_port:
+                ret_config["port"] = self.system.ssh_port
             return ret_config
         return self._data_config
 
@@ -429,6 +431,8 @@ class Folder(Resource):
         )
         self.fsspec_fs.mkdirs(folder_path, exist_ok=True)
 
+        return self
+
     def mount(self, path: Optional[str] = None, tmp: bool = False) -> str:
         """Mount the folder locally.
 
@@ -513,7 +517,6 @@ class Folder(Resource):
                     f"Error syncing folder to destination cluster ({dest_cluster.name}). "
                     f"Make sure the source cluster ({self.system.name}) has the necessary provider keys "
                     f"if applicable. "
-                    f"For example: `rh.Secrets.to({self.system.name}, providers=['aws'])`"
                 )
         else:
             local_folder = self._cluster_to_local(self.system, self.path)

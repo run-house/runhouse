@@ -7,10 +7,14 @@ This can be either an :ref:`on-demand cluster <OnDemandCluster Class>` (requires
 
 A cluster is assigned a name, through which it can be accessed and reused later on.
 
-Cluster Factory Method
-~~~~~~~~~~~~~~~~~~~~~~
+Cluster Factory Methods
+~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autofunction:: runhouse.cluster
+
+.. autofunction:: runhouse.ondemand_cluster
+
+.. autofunction:: runhouse.sagemaker_cluster
 
 Cluster Class
 ~~~~~~~~~~~~~
@@ -138,11 +142,11 @@ instructions on creating and configuring an ARN Role.
 AWS CLI V2
 ^^^^^^^^^^
 
-Runhouse requires the AWS CLI V2 to be installed on your local machine.
+The SageMaker SDK uses AWS CLI V2, which must be installed on your local machine. Doing so requires one of two steps:
 
-- `Uninstall <https://docs.aws.amazon.com/cli/latest/userguide/cliv2-migration-instructions.html#cliv2-migration-instructions-migrate>`_ AWS CLI V1
+- `Migrate from V1 to V2 <https://docs.aws.amazon.com/cli/latest/userguide/cliv2-migration-instructions.html#cliv2-migration-instructions-migrate>`_
 
-- `Install <https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html>`_ AWS CLI V2
+- `Install V2 <https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html>`_
 
 
 To confirm the installation succeeded, run ``aws --version`` in the command line. You should see something like:
@@ -170,18 +174,12 @@ To configure your SageMaker IAM role with the AWS Systems Manager, please
 refer to `these instructions <https://github.com/aws-samples/sagemaker-ssh-helper/blob/main/IAM_SSM_Setup.md>`_.
 
 
-SageMaker Factory Method
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autofunction:: runhouse.sagemaker_cluster
-
-
 Cluster Authentication & Verification
-====================================
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Runhouse provides a couple of options to manage the connection to the Runhouse API server running on a cluster.
 
 Server Connection
-~~~~~~~~~~~~~~~~~
+-----------------
 
 The below options can be specified with the ``server_connection_type`` parameter
 when :ref:`initializing a cluster <Cluster Factory Method>`. By default the Runhouse API server will
@@ -209,7 +207,7 @@ be started on the cluster on port :code:`32300`.
     to the public internet.
 
 Server Authentication
-~~~~~~~~~~~~~~~~~~~~~
+---------------------
 
 If desired, Runhouse provides out-of-the-box authentication via users' Runhouse token (generated when
 :ref:`logging in <Login/Logout>`) and set locally at: :code:`~/.rh/config.yaml`). This is crucial if the cluster
@@ -224,7 +222,7 @@ automatically, so your users do not need to worry about it after logging into Ru
 
 
 TLS Certificates
-----------------
+^^^^^^^^^^^^^^^^
 Enabling TLS and `Runhouse Den Dashboard <https://www.run.house/dashboard>`_ Auth for the API server makes it incredibly
 fast and easy to stand up a microservice with standard token authentication, allowing you to easily share Runhouse
 resources with collaborators, teams, customers, etc.
@@ -256,7 +254,7 @@ Let's illustrate this with a simple example:
 
     # Give read access to the function to another user - this will allow them to call this service remotely
     # and view the function metadata in Runhouse Den
-    remote_func.share("user1@gmail.com", access_type="read")
+    remote_func.share("user1@gmail.com", access_level="read")
 
     # Users can then call the function from any environment
     res = remote_func([1,2,3])
@@ -282,7 +280,7 @@ the :code:`np_array` function.
     the :ref:`Compute Guide <Compute: Clusters, Functions, Packages, & Envs>`.
 
 Nginx
------
+^^^^^
 Runhouse gives you the option of using `Nginx <https://www.nginx.com/>`_ as a reverse proxy for the Runhouse API
 server, which is a FastAPI app launched with `Uvicorn <https://www.uvicorn.org/>`_. Using Nginx provides you with a
 safer and more conventional approach running the FastAPI app on a higher, non-privileged port (such as 32300, the

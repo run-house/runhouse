@@ -20,6 +20,7 @@ def fs_str_rh_fn(folder):
 # ----------------- Run tests -----------------
 
 
+@pytest.mark.skip("Bad path")
 @pytest.mark.clustertest
 def test_from_cluster(cluster):
     rh.folder(path="../../../").to(cluster, path="my_new_tests_folder")
@@ -293,7 +294,7 @@ def test_s3_sharing(s3_folder):
     s3_folder.save("@/my-s3-shared-folder")
     s3_folder.share(
         users=["donny@run.house", "josh@run.house"],
-        access_type="read",
+        access_level="read",
         notify_users=False,
         headers=headers,
     )

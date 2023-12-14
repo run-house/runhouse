@@ -10,6 +10,7 @@ from typing import Optional
 
 import ray
 import requests
+import yaml
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -18,7 +19,7 @@ from pydantic import BaseModel, ValidationError
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 from runhouse.globals import configs, env_servlets, rns_client
-from runhouse.resources.hardware.utils import _load_cluster_config
+from runhouse.resources.hardware.utils import _load_cluster_config, CLUSTER_CONFIG_PATH
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.auth import hash_token, verify_cluster_access
@@ -46,16 +47,13 @@ class OtlpParameters(BaseModel):
     password: str
 
 
-global den_auth
-
-
 def validate_cluster_access(func):
     """If using Den auth, validate the user's Runhouse token and access to the cluster before continuing."""
 
     @wraps(func)
     async def wrapper(*args, **kwargs):
         request: Request = kwargs.get("request")
-        use_den_auth: bool = den_auth
+        use_den_auth: bool = HTTPServer.get_den_auth()
         is_coro = inspect.iscoroutinefunction(func)
 
         if not use_den_auth:
@@ -75,8 +73,8 @@ def validate_cluster_access(func):
         cluster_uri = load_current_cluster()
         if cluster_uri is None:
             logger.error(
-                "Failed to load cluster RNS address. Make sure cluster config YAML has been saved "
-                "on the cluster in path: ~/.rh/cluster_config.yaml"
+                f"Failed to load cluster RNS address. Make sure cluster config YAML has been saved "
+                f"on the cluster in path: {CLUSTER_CONFIG_PATH}"
             )
             raise HTTPException(
                 status_code=404,
@@ -89,7 +87,7 @@ def validate_cluster_access(func):
             # Must have cluster access for all the non func calls
             # Note: for func calls will be handling the auth in the object store
             raise HTTPException(
-                status_code=404,
+                status_code=403,
                 detail="Cluster access is required for API",
             )
 
@@ -110,6 +108,7 @@ class HTTPServer:
     DEFAULT_HTTPS_PORT = 443
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
     memory_exporter = None
+    _den_auth = False
 
     def __init__(
         self, conda_env=None, enable_local_span_collection=None, *args, **kwargs
@@ -142,7 +141,6 @@ class HTTPServer:
             @app.get("/spans")
             @validate_cluster_access
             def get_spans(request: Request):
-                print("Calling get_spans")
                 return {
                     "spans": [
                         span.to_json()
@@ -180,6 +178,14 @@ class HTTPServer:
         obj_store.set_name("server")
 
         HTTPServer.register_activity()
+
+    @classmethod
+    def get_den_auth(cls):
+        return cls._den_auth
+
+    @classmethod
+    def enable_den_auth(cls):
+        cls._den_auth = True
 
     @staticmethod
     def register_activity():
@@ -220,7 +226,10 @@ class HTTPServer:
             if not ray.is_initialized():
                 raise Exception("Ray is not initialized, restart the server.")
             logger.info("Server is up.")
-            return
+
+            import runhouse
+
+            return {"rh_version": runhouse.__version__}
         except Exception as e:
             logger.exception(e)
             HTTPServer.register_activity()
@@ -349,7 +358,7 @@ class HTTPServer:
         # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
-            # This translates the json dict into an object that we can can access with dot notation, e.g. message.key
+            # This translates the json dict into an object that we can access with dot notation, e.g. message.key
             message = argparse.Namespace(**message) if message else None
             method = None if method == "None" else method
             # If this is a "get" request to just return the module, do not stream logs or save by default
@@ -539,7 +548,7 @@ class HTTPServer:
     @validate_cluster_access
     def rename_object(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
-            "rename_object", [message], env=message.env
+            "rename_object", [message], env=message.env, lookup_env_for_name=message.key
         )
 
     @staticmethod
@@ -569,14 +578,6 @@ class HTTPServer:
                 output_type=OutputType.RESULT, data=pickle_b64(obj_store.keys())
             )
         return HTTPServer.call_in_env_servlet("get_keys", [], env=env)
-
-    @staticmethod
-    @app.post("/secrets")
-    @validate_cluster_access
-    def add_secrets(request: Request, message: Message):
-        return HTTPServer.call_in_env_servlet(
-            "add_secrets", [message], env=message.env, create=True
-        )
 
     @staticmethod
     @app.post("/call/{module}/{method}")
@@ -701,9 +702,8 @@ class HTTPServer:
     @staticmethod
     def _cluster_sky_report():
         try:
-            from runhouse import Secrets
-
-            sky_ray_data = Secrets.read_yaml_file(HTTPServer.SKY_YAML)
+            with open(HTTPServer.SKY_YAML, "r") as stream:
+                sky_ray_data = yaml.safe_load(stream)
         except FileNotFoundError:
             # For non on-demand clusters we won't have sky data
             return {}
@@ -770,10 +770,9 @@ if __name__ == "__main__":
         "--conda-env", type=str, default=None, help="Conda env to run server in"
     )
     parser.add_argument(
-        "--enable-local-span-collection",
-        type=bool,
-        default=None,
-        help="Enable local span collection",
+        "--use-local-telemetry",
+        action="store_true",  # if providing --use-local-telemetry will be set to True
+        help="Enable local telemetry",
     )
     parser.add_argument(
         "--use-https",
@@ -823,7 +822,9 @@ if __name__ == "__main__":
     use_https = parse_args.use_https
     restart_proxy = parse_args.restart_proxy
     use_nginx = parse_args.use_nginx
-    should_enable_local_span_collection = parse_args.enable_local_span_collection
+    use_local_telemetry = parse_args.use_local_telemetry
+
+    # Update globally inside the module based on the args passed in or the cluster config
     den_auth = parse_args.use_den_auth or cluster_config.get("den_auth")
 
     ips = cluster_config.get("ips", [])
@@ -838,8 +839,12 @@ if __name__ == "__main__":
 
     HTTPServer(
         conda_env=conda_name,
-        enable_local_span_collection=should_enable_local_span_collection,
+        enable_local_span_collection=use_local_telemetry,
     )
+
+    if den_auth:
+        # Update den auth if enabled - keep as a class attribute to be referenced by the validator decorator
+        HTTPServer.enable_den_auth()
 
     # Custom certs should already be on the cluster if their file paths are provided
     if parsed_ssl_keyfile and not Path(parsed_ssl_keyfile).exists():
@@ -867,7 +872,7 @@ if __name__ == "__main__":
             if https_port != default_https_port:
                 # if using a custom HTTPS port must provide private key file and certs explicitly
                 raise FileNotFoundError(
-                    f"Could not find SSL private key and cert files on the cluster, which are required when specifying"
+                    f"Could not find SSL private key and cert files on the cluster, which are required when specifying "
                     f"a custom port ({https_port}). Please specify the paths using the --ssl-certfile and "
                     f"--ssl-keyfile flags."
                 )
@@ -895,10 +900,9 @@ if __name__ == "__main__":
         nc = NginxConfig(
             address=address,
             rh_server_port=rh_server_port,
-            http_port=http_port,
-            https_port=https_port,
             ssl_key_path=ssl_keyfile,
             ssl_cert_path=ssl_certfile,
+            use_https=use_https,
             force_reinstall=restart_proxy,
         )
         nc.configure()
@@ -911,7 +915,9 @@ if __name__ == "__main__":
 
     host = host or rh_server_host
     logger.info(
-        f"Launching Runhouse API server with den_auth={den_auth} on host: {host} and port: {rh_server_port}"
+        f"Launching Runhouse API server with den_auth={den_auth} and "
+        + f"use_local_telemetry={use_local_telemetry} "
+        + f"on host: {host} and port: {rh_server_port}"
     )
 
     # Only launch uvicorn with certs if HTTPS is enabled and not using Nginx

@@ -1,4 +1,7 @@
 import logging
+from typing import Dict, List, Optional
+
+import requests
 
 import typer
 
@@ -39,8 +42,6 @@ def login(
     Returns:
         Token if ``ret_token`` is set to True, otherwise nothing.
     """
-    from runhouse import Secrets
-
     all_options_set = token and not any(
         arg is None
         for arg in (download_config, upload_config, download_secrets, upload_secrets)
@@ -102,7 +103,7 @@ def login(
         upload_secrets = (
             upload_secrets
             if upload_secrets is not None
-            else typer.confirm("Upload your enabled cloud provider secrets to Vault?")
+            else typer.confirm("Upload your local enabled provider secrets to Vault?")
         )
 
     if token:
@@ -126,15 +127,87 @@ def login(
         configs.set("username", defaults["username"])
         configs.set("default_folder", defaults["default_folder"])
 
+    _convert_secrets_resource()
+
     if download_secrets:
-        Secrets.download_into_env()
+        _login_download_secrets()
 
     if upload_secrets:
-        Secrets.extract_and_upload(interactive=interactive)
+        _login_upload_secrets(interactive=interactive)
 
     logger.info("Successfully logged into Runhouse.")
     if ret_token:
         return token
+
+
+def _login_download_secrets(headers: Optional[str] = None):
+    from runhouse import Secret
+
+    secrets = Secret.vault_secrets(headers=headers or rns_client.request_headers)
+    for name in secrets:
+        try:
+            secret = Secret.from_name(name)
+
+            download_path = secret.path or secret._DEFAULT_CREDENTIALS_PATH
+            if download_path:
+                logger.info(f"Loading down secrets for {name} into {download_path}")
+                secret.write()
+        except ValueError:
+            logger.warning(f"Was not able to load down secrets for {name}.")
+
+
+def _login_upload_secrets(interactive: bool, headers: Optional[Dict] = None):
+    from runhouse import Secret
+
+    local_secrets = Secret.local_secrets()
+    provider_secrets = Secret.extract_provider_secrets()
+    local_secrets.update(provider_secrets)
+    names = list(local_secrets.keys())
+
+    for name in names:
+        resource_uri = rns_client.resource_uri(name)
+        resp = requests.get(
+            f"{rns_client.api_server_url}/resource/{resource_uri}",
+            headers=headers or rns_client.request_headers,
+        )
+        if resp.status_code == 200:
+            local_secrets.pop(name, None)
+            continue
+        if interactive is not False:
+            upload_secrets = typer.confirm(f"Upload secrets for {name}?")
+            if not upload_secrets:
+                local_secrets.pop(name, None)
+
+    if local_secrets:
+        logger.info(f"Uploading secrets for {list(local_secrets)} to Vault.")
+        for _, secret in local_secrets.items():
+            secret.save(save_values=True)
+
+
+def _convert_secrets_resource(names: List[str] = None, headers: Optional[Dict] = None):
+    # Convert vault-only secrets to a resource to maintain backwards compatibility,
+    # following secrets resource revamp
+    from runhouse import provider_secret, Secret
+    from runhouse.resources.secrets.utils import _load_vault_secrets
+
+    headers = headers or rns_client.request_headers
+
+    secrets = names or Secret.vault_secrets(headers=headers)
+    for name in secrets:
+        try:
+            resource_uri = rns_client.resource_uri(name)
+            resp = requests.get(
+                f"{rns_client.api_server_url}/resource/{resource_uri}",
+                headers=headers,
+            )
+            if resp.status_code != 200:
+                values = _load_vault_secrets(name, headers=headers)
+                secret = provider_secret(name, values=values)
+                secret.save()
+
+        except AttributeError:
+            logger.warning(f"Was not able to load down secrets for {name}.")
+            continue
 
 
 def logout(
@@ -154,14 +227,22 @@ def logout(
     Returns:
         None
     """
-    from runhouse import Secrets
+    from runhouse.resources.secrets import Secret
+    from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
 
     interactive_session: bool = (
         interactive if interactive is not None else is_interactive()
     )
 
-    for (provider_name, _) in configs.get("secrets", {}).items():
-        if provider_name == "ssh":
+    local_secret_names = list(configs.get("secrets", {}).keys())
+    for name in local_secret_names:
+        try:
+            secret = Secret.from_name(name)
+        except ValueError:
+            configs.delete_provider(name)
+            continue
+
+        if isinstance(secret, SSHSecret):
             logger.info(
                 "Automatic deletion for local SSH credentials file is not supported. "
                 "Please manually delete it if you would like to remove it"
@@ -170,13 +251,19 @@ def logout(
 
         if interactive_session:
             delete_loaded_secrets = typer.confirm(
-                f"Delete credentials file for {provider_name}?"
+                f"Delete credentials file for {name}?"
             )
 
-        if delete_loaded_secrets:
-            Secrets.delete_from_local_env(providers=[provider_name])
-        else:
-            configs.delete(provider_name)
+        if secret.in_vault() or secret.is_local():
+            if delete_loaded_secrets:
+                secret.delete(contents=True)
+            else:
+                secret.delete()
+                configs.delete_provider(name)
+
+    local_secrets = Secret.local_secrets()
+    for _, secret in local_secrets.items():
+        secret.delete()
 
     # Delete token and username/default folder from rh config file
     configs.delete(key="token")

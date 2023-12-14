@@ -8,6 +8,7 @@ opentelemetry-instrumentation
 opentelemetry-instrumentation-fastapi
 opentelemetry-instrumentation-requests
 opentelemetry-sdk
+pexpect
 pyarrow
 pyopenssl>=21.1.0
 rich

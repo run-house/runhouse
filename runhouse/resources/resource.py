@@ -36,14 +36,15 @@ logger = logging.getLogger(__name__)
 
 
 class Resource:
-    RESOURCE_TYPE = None
+    RESOURCE_TYPE = "resource"
 
     def __init__(
         self,
         name: Optional[str] = None,
-        dryrun: bool = None,
+        dryrun: bool = False,
         provenance=None,
-        telemetry: Optional[List[TelemetryEntry]] = None,
+        access_level: Optional[ResourceAccess] = ResourceAccess.WRITE,
+        global_visibility: Optional[ResourceVisibility] = ResourceVisibility.PRIVATE,
         **kwargs,
     ):
         """
@@ -68,7 +69,7 @@ class Resource:
         if name is not None:
             # TODO validate that name complies with a simple regex
             if name.startswith("/builtins/"):
-                name = name[10:]
+                name = name[len("/builtins/") :]
             if name[0] == "^" and name != "^":
                 name = name[1:]
             self._name, self._rns_folder = rns_client.split_rns_name_and_path(
@@ -85,8 +86,8 @@ class Resource:
             if isinstance(provenance, Dict)
             else provenance
         )
-        # self.telemetry_collectors =
-        # self.telemetry_backends =
+        self.access_level = access_level
+        self.global_visibility = global_visibility
 
     # TODO add a utility to allow a parameter to be specified as "default" and then use the default value
 
@@ -177,15 +178,8 @@ class Resource:
         rns_client.add_downstream_resource(name or self.name)
 
         self._save_sub_resources()
-        # TODO deal with logic of saving anonymous folder for the first time after naming, i.e.
-        # Path(tempfile.gettempdir()).relative_to(self.path) ...
         if name:
-            if "/" in name[1:] or self._rns_folder is None:
-                self._name, self._rns_folder = split_rns_name_and_path(
-                    resolve_rns_path(name)
-                )
-            else:
-                self._name = name
+            self.name = name
 
         # TODO handle self.access == 'read' instead of this weird overwrite argument
         save(self, overwrite=overwrite)
@@ -268,16 +262,19 @@ class Resource:
 
     @staticmethod
     def from_config(config, dryrun=False):
+        resource_type = config.pop("resource_type")
+        dryrun = config.pop("dryrun", False) or dryrun
+
+        if resource_type == "resource":
+            return Resource(**config, dryrun=dryrun)
+
         resource_class = getattr(
-            sys.modules["runhouse"], config.pop("resource_type").capitalize(), None
+            sys.modules["runhouse"], resource_type.capitalize(), None
         )
         if not resource_class:
-            raise TypeError(
-                f"Could not find module associated with {config['resource_type']}"
-            )
+            raise TypeError(f"Could not find module associated with {resource_type}")
         config = resource_class._check_for_child_configs(config)
 
-        dryrun = config.pop("dryrun", False) or dryrun
         loaded = resource_class.from_config(config=config, dryrun=dryrun)
         if loaded.name:
             rns_client.add_upstream_resource(loaded.name)
@@ -292,6 +289,14 @@ class Resource:
     def history(self, num_entries: int = None) -> List[Dict]:
         """Return the history of the resource, including specific config fields (e.g. blob path) and which runs
         have overwritten it."""
+        if not self.rns_address:
+            raise ValueError("Resource must have a name in order to have a history")
+
+        if self.rns_address[:2] == "~/":
+            raise ValueError(
+                "Resource must be saved to Den (not local) in order to have a history"
+            )
+
         resource_uri = rns_client.resource_uri(self.rns_address)
         base_uri = f"{rns_client.api_server_url}/resource/history/{resource_uri}"
         uri = f"{base_uri}?num_entries={num_entries}" if num_entries else base_uri
@@ -329,7 +334,8 @@ class Resource:
     def share(
         self,
         users: Union[str, List[str]],
-        access_type: Union[ResourceAccess, str] = ResourceAccess.READ,
+        access_level: Union[ResourceAccess, str] = ResourceAccess.READ,
+        global_visibility: Optional[ResourceVisibility] = None,
         notify_users: bool = True,
         headers: Optional[Dict] = None,
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
@@ -342,7 +348,7 @@ class Resource:
 
         Args:
             users (list or str): list of user emails and / or runhouse account usernames (or a single user).
-            access_type (:obj:`ResourceAccess`, optional): access type to provide for the resource.
+            access_level (:obj:`ResourceAccess`, optional): access level to provide for the resource.
             notify_users (bool): Send email notification to users who have been given access. Defaults to `False`.
             headers (Optional[Dict]): Request headers to provide for the request to RNS. Contains the user's auth token.
                 Example: ``{"Authorization": f"Bearer {token}"}``
@@ -356,7 +362,7 @@ class Resource:
                 users who do not have Runhouse accounts.
 
         Example:
-            >>> added_users, new_users = my_resource.share(users=["username1", "user2@gmail.com"], access_type='write')
+            >>> added_users, new_users = my_resource.share(users=["username1", "user2@gmail.com"], access_level='write')
         """
         if self.name is None:
             raise ValueError("Resource must have a name in order to share")
@@ -383,11 +389,12 @@ class Resource:
                     f"For example: `{self.name}.to(system='s3')`"
                 )
 
-        if isinstance(access_type, str):
-            access_type = ResourceAccess(access_type)
+        if isinstance(access_level, str):
+            access_level = ResourceAccess(access_level)
 
-        if not rns_client.exists(self.rns_address):
-            self.save(name=rns_client.local_to_remote_address(self.rns_address))
+        if global_visibility is not None:
+            self.global_visibility = global_visibility
+        self.save()
 
         if isinstance(users, str):
             users = [users]
@@ -395,7 +402,7 @@ class Resource:
         added_users, new_users = rns_client.grant_resource_access(
             rns_address=self.rns_address,
             user_emails=users,
-            access_type=access_type,
+            access_level=access_level,
             notify_users=notify_users,
             headers=headers,
         )

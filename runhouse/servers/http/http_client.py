@@ -87,8 +87,14 @@ class HTTPClient:
             if req_type == "delete"
             else requests.post
         )
+        # Note: For localhost (e.g. docker) do not add trailing slash (will lead to connection errors)
         endpoint = endpoint.strip("/")
-        endpoint = (endpoint + "/") if "?" not in endpoint else endpoint
+        if (
+            self.host not in ["localhost", "127.0.0.1", "0.0.0.0"]
+            and "?" not in endpoint
+        ):
+            endpoint += "/"
+
         response = req_fn(
             self._formatted_url(endpoint),
             json={
@@ -112,11 +118,25 @@ class HTTPClient:
         return handle_response(resp_json, output_type, err_str)
 
     def check_server(self):
-        requests.get(
+        resp = requests.get(
             self._formatted_url("check"),
             timeout=self.CHECK_TIMEOUT_SEC,
             verify=self.verify,
         )
+
+        if resp.status_code != 200:
+            raise ValueError(
+                f"Error checking server: {resp.content.decode()}. Is the server running?"
+            )
+
+        rh_version = resp.json().get("rh_version", None)
+        import runhouse
+
+        if rh_version and not runhouse.__version__ == rh_version:
+            logger.warning(
+                f"Server was started with Runhouse version ({rh_version}), "
+                f"but local Runhouse version is ({runhouse.__version__})"
+            )
 
     def get_certificate(self):
         cert: bytes = self.request(
@@ -246,11 +266,14 @@ class HTTPClient:
         if env and not isinstance(env, str):
             env = _get_env_from(env)
             env = env.name or env.env_name
+        config = resource.config_for_rns
+        if config["resource_type"] == "secret":
+            config["values"] = resource.values
         return self.request(
             "resource",
             req_type="post",
             # TODO wire up dryrun properly
-            data=pickle_b64((resource.config_for_rns, state, resource.dryrun)),
+            data=pickle_b64((config, state, resource.dryrun)),
             env=env,
             err_str=f"Error putting resource {resource.name or type(resource)}",
         )
@@ -260,6 +283,7 @@ class HTTPClient:
             "object",
             req_type="put",
             data=pickle_b64((old_key, new_key)),
+            key=old_key,
             err_str=f"Error renaming object {old_key}",
         )
 
@@ -287,12 +311,3 @@ class HTTPClient:
             env = _get_env_from(env)
             env = env.name
         return self.request(f"keys/?env={env}" if env else "keys", req_type="get")
-
-    def add_secrets(self, secrets):
-        failed_providers = self.request(
-            "secrets",
-            req_type="post",
-            data=pickle_b64(secrets),
-            err_str="Error sending secrets",
-        )
-        return failed_providers
