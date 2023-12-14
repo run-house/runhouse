@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import requests
-from pydantic import BaseModel
 
 from runhouse.globals import obj_store, rns_client
 from runhouse.rns.top_level_rns_fns import (
@@ -14,23 +13,12 @@ from runhouse.rns.top_level_rns_fns import (
     save,
     split_rns_name_and_path,
 )
-from runhouse.rns.utils.api import load_resp_content, read_resp_data, ResourceAccess
-
-
-class TelemetryBackend(BaseModel):
-    address: str
-    username: str
-    password: str
-
-
-class TelemetryCollector(BaseModel):
-    address: str
-
-
-class TelemetryEntry(BaseModel):
-    backend: Optional[TelemetryBackend]
-    collector: Optional[str]
-
+from runhouse.rns.utils.api import (
+    load_resp_content,
+    read_resp_data,
+    ResourceAccess,
+    ResourceVisibility,
+)
 
 logger = logging.getLogger(__name__)
 
