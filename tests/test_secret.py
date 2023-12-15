@@ -116,6 +116,23 @@ def test_sharing_for_resource_and_secrets_apis(test_account):
 
 
 @pytest.mark.rnstest
+def test_revoke_secret(test_account):
+    username_to_share = rh.configs.defaults_cache["username"]
+    secret_name = "openai"
+
+    # Revoke access
+    with test_account:
+        vault_secret = rh.secret(name=secret_name)
+        rns_address = vault_secret.rns_address
+
+        vault_secret.revoke(username_to_share)
+
+    with pytest.raises(Exception):
+        # Should no longer be able to reload the resource
+        rh.secret(name=rns_address)
+
+
+@pytest.mark.rnstest
 def test_sharing_for_resource_and_builtin_secret_apis(test_account):
     username_to_share = rh.configs.defaults_cache["username"]
     secret_name = "aws_secret"
