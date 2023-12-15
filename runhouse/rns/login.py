@@ -81,24 +81,27 @@ def login(
             )
             token = getpass("Token: ")
 
+        if not configs.CONFIG_PATH.exists():
+            upload_config = False
+
         download_config = (
             download_config
             if download_config is not None
             else typer.confirm(
-                "Download config from Runhouse to your local .rh folder?"
+                "Download your Runhouse config to your local .rh folder?"
             )
         )
         download_secrets = (
             download_secrets
             if download_secrets is not None
             else typer.confirm(
-                "Download secrets from Vault to your local Runhouse config?"
+                "Download secrets from Vault to your local Runhouse environment?"
             )
         )
         upload_config = (
             upload_config
             if upload_config is not None
-            else typer.confirm("Upload your local config to Runhouse?")
+            else typer.confirm("Upload your local .rh config to Runhouse?")
         )
         upload_secrets = (
             upload_secrets
@@ -113,10 +116,11 @@ def login(
         configs.download_and_save_defaults()
         # We need to fresh the RNSClient to use the newly loaded configs
         rns_client.refresh_defaults()
-    elif upload_config:
+    if upload_config:
         configs.load_defaults_from_file()
         configs.upload_defaults(defaults=configs.defaults_cache)
-    else:
+
+    if not (download_config or upload_config):
         # If we are not downloading or uploading config, we still want to make sure the token is valid
         # and also download the username and default folder
         try:
@@ -127,11 +131,9 @@ def login(
         configs.set("username", defaults["username"])
         configs.set("default_folder", defaults["default_folder"])
 
-    _convert_secrets_resource()
-
     if download_secrets:
+        _convert_secrets_resource()
         _login_download_secrets()
-
     if upload_secrets:
         _login_upload_secrets(interactive=interactive)
 
@@ -188,7 +190,10 @@ def _convert_secrets_resource(names: List[str] = None, headers: Optional[Dict] =
     # Convert vault-only secrets to a resource to maintain backwards compatibility,
     # following secrets resource revamp
     from runhouse import provider_secret, Secret
-    from runhouse.resources.secrets.utils import _load_vault_secrets
+    from runhouse.resources.secrets.utils import (
+        _delete_vault_secrets,
+        _load_vault_secrets,
+    )
 
     headers = headers or rns_client.request_headers
 
@@ -204,8 +209,8 @@ def _convert_secrets_resource(names: List[str] = None, headers: Optional[Dict] =
                 values = _load_vault_secrets(name, headers=headers)
                 secret = provider_secret(name, values=values)
                 secret.save()
-
-        except AttributeError:
+                _delete_vault_secrets(name=name, headers=headers)
+        except (AttributeError, Exception):
             logger.warning(f"Was not able to load down secrets for {name}.")
             continue
 
