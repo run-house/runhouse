@@ -126,13 +126,13 @@ def aws_lambda_fn(
         original_env = copy.deepcopy(env)
         if isinstance(original_env, dict) and "env_vars" in original_env.keys():
             env = _get_env_from(env["reqs"]) or Env(
-                working_dir="../functions/", name=Env.DEFAULT_NAME
+                working_dir="./", name=Env.DEFAULT_NAME
             )
         elif isinstance(original_env, str):
             env = _get_env_from(env)
         else:
             env = _get_env_from(env) or Env(
-                working_dir="../functions/", name=Env.DEFAULT_NAME
+                working_dir="./", name=Env.DEFAULT_NAME
             )
 
     elif env is None:
