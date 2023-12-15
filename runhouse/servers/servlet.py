@@ -54,6 +54,7 @@ class EnvServlet:
         self.register_activity()
         try:
             resource_config, state, dryrun = b64_unpickle(message.data)
+            state = state or {}
             # Resolve any sub-resources which are string references to resources already sent to this cluster.
             # We need to pop the resource's own name so it doesn't get resolved if it's already present in the
             # obj_store.

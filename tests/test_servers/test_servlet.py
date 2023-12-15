@@ -11,6 +11,7 @@ from runhouse.servers.http.http_utils import b64_unpickle, Message, pickle_b64
 from tests.test_servers.conftest import summer
 
 
+@pytest.mark.usefixtures("setup_cluster_config")
 class TestServlet:
     @pytest.mark.level("unit")
     def test_put_resource(self, base_servlet, blob_data):
@@ -22,7 +23,6 @@ class TestServlet:
             state = {}
             message = Message(
                 data=pickle_b64((resource.config_for_rns, state, resource.dryrun)),
-                env="base_env",
             )
             resp = HTTPServer.call_servlet_method(
                 base_servlet, "put_resource", [message]

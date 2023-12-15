@@ -106,9 +106,11 @@ class ObjStore:
 
         return True
 
-    def keys(self):
+    def keys(self, return_envs=False):
         # Return keys across the cluster, not only in this process
-        return self.call_kv_method(self._env_for_key, "keys")
+        return self.call_kv_method(
+            self._env_for_key, "items" if return_envs else "keys"
+        )
 
     def get_env(self, key):
         return self.call_kv_method(self._env_for_key, "get", key, None)
@@ -224,7 +226,10 @@ class ObjStore:
             self.pop_env(k, None)
 
     def pop(self, key: str, default: Optional[Any] = None):
-        return self.call_kv_method(self._kv_store, "pop", key, default)
+        res = self.call_kv_method(self._kv_store, "pop", key, default)
+        if res:
+            self.pop_env(key, None)
+        return res
 
     def clear_env(self):
         self.call_kv_method(self._env_for_key, "clear")
