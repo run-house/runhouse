@@ -90,7 +90,7 @@ def relative_ssh_path(file_path: str):
 class ResourceAccess(str, Enum):
     WRITE = "write"
     READ = "read"
-    PROXY = "proxy"
+    DENIED = "denied"
 
 
 class ResourceVisibility(str, Enum):
