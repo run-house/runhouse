@@ -1,4 +1,3 @@
-import copy
 import importlib.util
 import inspect
 import logging
@@ -6,7 +5,7 @@ import warnings
 from pathlib import Path
 from typing import Callable, Optional
 
-from runhouse.resources.envs import _get_env_from, Env
+from runhouse.resources.envs import Env
 from runhouse.resources.functions.aws_lambda import LambdaFunction
 from runhouse.resources.functions.function import Function
 
@@ -118,32 +117,11 @@ def aws_lambda_fn(
 
     if not (fn or (handler_function_name and paths_to_code)):
         raise RuntimeError(
-            "Please provide a callable function OR path to handler function and its name "
+            "Please provide a callable function OR use from_handler_file method"
             + "in order to create a Lambda function."
         )
     # Env setup.
-    if env is not None and not isinstance(env, Env):
-        original_env = copy.deepcopy(env)
-        if isinstance(original_env, dict) and "env_vars" in original_env.keys():
-            env = _get_env_from(env["reqs"]) or Env(
-                working_dir="../functions/", name=Env.DEFAULT_NAME
-            )
-        elif isinstance(original_env, str):
-            env = _get_env_from(env)
-        else:
-            env = _get_env_from(env) or Env(
-                working_dir="../functions/", name=Env.DEFAULT_NAME
-            )
-
-    elif env is None:
-        env = Env(
-            reqs=[],
-            env_vars={"HOME": LambdaFunction.HOME_DIR},
-            name=Env.DEFAULT_NAME,
-        )
-
-    if isinstance(env, Env) and "HOME" not in env.env_vars.keys():
-        env.env_vars["HOME"] = LambdaFunction.HOME_DIR
+    env = LambdaFunction.validate_and_create_env(env)
 
     # extract function pointers, path to code and arg names from callable function.
     if isinstance(fn, Callable):

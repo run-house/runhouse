@@ -150,9 +150,59 @@ class LambdaFunction(Function):
             raise ValueError(f"Could not find a Lambda called {name}.")
         return cls.from_config(config)
 
+    @classmethod
+    def from_handler_file(
+        cls,
+        file_paths: list[str],
+        handler_name: str,
+        args_names: Optional[list[str]] = None,
+        name: Optional[str] = None,
+        env: Optional[dict or list[str] or Env] = None,
+        timeout: Optional[int] = None,
+        memory_size: Optional[int] = None,
+        tmp_size: Optional[int] = None,
+        retention_time: Optional[int] = None,
+        dryrun: bool = False,
+    ):
+        pass
+
     # --------------------------------------
     # Private helping methods
     # --------------------------------------
+
+    # Arguments validation and arguments creation methods
+    @classmethod
+    def validate_and_create_env(cls, env):
+        """
+        validates the passed env argument, and creates a Runhouse env instance if needed.
+        :param env: the env argument passed by the user.
+        :return: a Runhouse env object.
+        """
+        if env is not None and not isinstance(env, Env):
+            original_env = copy.deepcopy(env)
+            if isinstance(original_env, dict) and "env_vars" in original_env.keys():
+                env = _get_env_from(env["reqs"]) or Env(
+                    working_dir="../", name=Env.DEFAULT_NAME
+                )
+            elif isinstance(original_env, str):
+                env = _get_env_from(env)
+            else:
+                env = _get_env_from(env) or Env(
+                    working_dir="../", name=Env.DEFAULT_NAME
+                )
+
+        if env is None:
+            env = Env(
+                reqs=[],
+                env_vars={"HOME": cls.HOME_DIR},
+                name=Env.DEFAULT_NAME,
+                working_dir="../",
+            )
+
+        if isinstance(env, Env) and "HOME" not in env.env_vars.keys():
+            env.env_vars["HOME"] = cls.HOME_DIR
+
+        return env
 
     def _lambda_exist(self, name):
         """Checks if a Lambda with the name given during init is already exists in AWS"""
