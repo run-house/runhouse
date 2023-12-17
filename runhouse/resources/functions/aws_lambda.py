@@ -274,11 +274,12 @@ class LambdaFunction(Function):
             paths_to_code = [os.path.join(root_dir, file_path)]
         else:
             file_path = fn_pointers[1].replace(".", "/") + ".py"
-            dir_path = fn_pointers[0].split("/")[1:]
-            dir_path = [f"/{p}" for p in dir_path]
-            dir_path = "".join(dir_path)[1:]
-            dir_path = Path(dir_path).absolute()
-            file_path = f"{dir_path}/{file_path}"
+            file_path = Path(fn_pointers[0] + "/" + file_path).absolute()
+            # dir_path = fn_pointers[0].split("/")[1:]
+            # dir_path = [f"/{p}" for p in dir_path]
+            # dir_path = "".join(dir_path)[1:]
+            # dir_path = Path(dir_path).absolute()
+            # file_path = f"{dir_path}/{file_path}"
             paths_to_code = [file_path]
         return paths_to_code
 
