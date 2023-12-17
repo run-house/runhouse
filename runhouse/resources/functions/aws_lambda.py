@@ -204,6 +204,20 @@ class LambdaFunction(Function):
 
         return env
 
+    @classmethod
+    def extract_args_from_file(cls, paths_to_code, handler_function_name):
+        file_path = paths_to_code[0]
+        spec = importlib.util.spec_from_file_location(file_path, file_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        # Extract the function and its arguments
+        func = getattr(module, handler_function_name, None)
+        args_names = inspect.getfullargspec(func).args
+        warnings.warn(
+            f"Arguments names were not provided. Extracted the following args names: {args_names}."
+        )
+        return args_names
+
     def _lambda_exist(self, name):
         """Checks if a Lambda with the name given during init is already exists in AWS"""
         try:

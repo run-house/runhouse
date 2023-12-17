@@ -1,4 +1,3 @@
-import importlib.util
 import inspect
 import logging
 import warnings
@@ -115,7 +114,7 @@ def aws_lambda_fn(
         # Try reloading existing function
         return LambdaFunction.from_name(name=name)
 
-    if not (fn or (handler_function_name and paths_to_code)):
+    if not fn or not isinstance(fn, Callable):
         raise RuntimeError(
             "Please provide a callable function OR use from_handler_file method"
             + "in order to create a Lambda function."
@@ -124,45 +123,26 @@ def aws_lambda_fn(
     env = LambdaFunction.validate_and_create_env(env)
 
     # extract function pointers, path to code and arg names from callable function.
-    if isinstance(fn, Callable):
-        handler_function_name = fn.__name__
-        fn_pointers = Function._extract_pointers(
-            fn, reqs=[] if env is None else env.reqs
+    handler_function_name = fn.__name__
+    fn_pointers = Function._extract_pointers(fn, reqs=[] if env is None else env.reqs)
+    paths_to_code = LambdaFunction._paths_to_code_from_fn_pointers(fn_pointers)
+    args_names = [param.name for param in inspect.signature(fn).parameters.values()]
+    if name is None:
+        name = fn.__name__
+
+    # ------- arguments validation -------
+    if isinstance(env, str) and "requirements.txt" in env:
+        paths_to_code.append(Path(env).absolute())
+    if args_names is None:
+        # extracting the arguments names of the handler function.
+        args_names = LambdaFunction.extract_args_from_file(
+            paths_to_code, handler_function_name
         )
-        paths_to_code = LambdaFunction._paths_to_code_from_fn_pointers(fn_pointers)
-        args_names = [param.name for param in inspect.signature(fn).parameters.values()]
-        if name is None:
-            name = fn.__name__
+    if name is None:
+        name = handler_function_name.replace(".", "_")
 
-    else:
+    # TODO: extract to a seperate method
 
-        # ------- arguments validation -------
-        if paths_to_code is None or len(paths_to_code) == 0:
-            raise RuntimeError("Please provide a path to the lambda handler file.")
-        if isinstance(env, str) and "requirements.txt" in env:
-            paths_to_code.append(Path(env).absolute())
-        if handler_function_name is None or len(handler_function_name) == 0:
-            raise RuntimeError(
-                "Please provide the name of the function that should be executed by the lambda."
-            )
-        if args_names is None:
-            # extracting the arguments names of the handler function.
-            file_path = paths_to_code[0]
-            func_name = handler_function_name
-            spec = importlib.util.spec_from_file_location(file_path, file_path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            # Extract the function and its arguments
-            func = getattr(module, func_name, None)
-            args_names = inspect.getfullargspec(func).args
-            warnings.warn(
-                f"Arguments names were not provided. Extracted the following args names: {args_names}."
-            )
-        if name is None:
-            name = handler_function_name.replace(".", "_")
-        fn_pointers = None
-
-    # ------- More arguments validation -------
     if runtime is None or runtime not in SUPPORTED_RUNTIMES:
         warnings.warn(
             f"{runtime} is not a supported by AWS Lambda. Setting runtime to python3.9."
