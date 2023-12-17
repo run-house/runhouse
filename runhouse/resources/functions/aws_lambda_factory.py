@@ -143,7 +143,6 @@ def aws_lambda_fn(
 
     if isinstance(env, Env) and "HOME" not in env.env_vars.keys():
         env.env_vars["HOME"] = LambdaFunction.HOME_DIR
-    env.working_dir = "../"
     # extract function pointers, path to code and arg names from callable function.
     if isinstance(fn, Callable):
         handler_function_name = fn.__name__
