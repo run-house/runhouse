@@ -135,10 +135,7 @@ def aws_lambda_fn(
 
     elif env is None:
         env = Env(
-            reqs=[],
-            env_vars={"HOME": LambdaFunction.HOME_DIR},
-            name=Env.DEFAULT_NAME,
-            working_dir=".../",
+            reqs=[], env_vars={"HOME": LambdaFunction.HOME_DIR}, name=Env.DEFAULT_NAME
         )
 
     if isinstance(env, Env) and "HOME" not in env.env_vars.keys():
