@@ -9,7 +9,6 @@ from typing import Callable, Optional
 from runhouse.resources.envs import _get_env_from, Env
 from runhouse.resources.functions.aws_lambda import LambdaFunction
 from runhouse.resources.functions.function import Function
-from runhouse.resources.module import Module
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +149,7 @@ def aws_lambda_fn(
         fn_pointers = Function._extract_pointers(
             fn, reqs=[] if env is None else env.reqs
         )
-        paths_to_code = [Module._extract_module_path(fn)]
+        paths_to_code = [Function._extract_module_path(fn)]
         args_names = [param.name for param in inspect.signature(fn).parameters.values()]
         if name is None:
             name = fn.__name__
