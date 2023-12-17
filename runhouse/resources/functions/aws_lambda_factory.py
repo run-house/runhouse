@@ -8,7 +8,7 @@ from typing import Callable, Optional
 
 from runhouse.resources.envs import _get_env_from, Env
 from runhouse.resources.functions.aws_lambda import LambdaFunction
-from runhouse.resources.functions.function import Function
+from runhouse.resources.module import Module
 
 logger = logging.getLogger(__name__)
 
@@ -146,9 +146,7 @@ def aws_lambda_fn(
     # extract function pointers, path to code and arg names from callable function.
     if isinstance(fn, Callable):
         handler_function_name = fn.__name__
-        fn_pointers = Function._extract_pointers(
-            fn, reqs=[] if env is None else env.reqs
-        )
+        fn_pointers = Module._extract_pointers(fn, reqs=[] if env is None else env.reqs)
         paths_to_code = LambdaFunction._paths_to_code_from_fn_pointers(fn_pointers)
         args_names = [param.name for param in inspect.signature(fn).parameters.values()]
         if name is None:
