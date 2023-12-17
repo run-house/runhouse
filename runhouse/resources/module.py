@@ -827,6 +827,19 @@ class Module(Resource):
         return super().save(overwrite=overwrite)
 
     @staticmethod
+    def _extract_module_path(raw_cls_or_fn: Union[Type, Callable]):
+        py_module = inspect.getmodule(raw_cls_or_fn)
+
+        # Need to resolve in case just filename is given
+        module_path = (
+            str(Path(inspect.getfile(py_module)).resolve())
+            if hasattr(py_module, "__file__")
+            else None
+        )
+
+        return module_path
+
+    @staticmethod
     def _extract_pointers(raw_cls_or_fn: Union[Type, Callable], reqs: List[str]):
         """Get the path to the module, module name, and function name to be able to import it on the server"""
         if not (isinstance(raw_cls_or_fn, type) or isinstance(raw_cls_or_fn, Callable)):
@@ -837,11 +850,7 @@ class Module(Resource):
         py_module = inspect.getmodule(raw_cls_or_fn)
 
         # Need to resolve in case just filename is given
-        module_path = (
-            str(Path(inspect.getfile(py_module)).resolve())
-            if hasattr(py_module, "__file__")
-            else None
-        )
+        module_path = Module._extract_module_path(raw_cls_or_fn)
 
         # TODO better way of detecting if in a notebook or interactive Python env
         if not module_path or module_path.endswith("ipynb"):
