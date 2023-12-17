@@ -274,7 +274,7 @@ class LambdaFunction(Function):
             paths_to_code = [os.path.join(root_dir, file_path)]
         else:
             file_path = fn_pointers[1].replace(".", "/") + ".py"
-            file_path = fn_pointers[0] + file_path
+            file_path = f"{fn_pointers[0]}/{file_path}"
             paths_to_code = [file_path]
         return paths_to_code
 
