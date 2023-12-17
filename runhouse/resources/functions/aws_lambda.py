@@ -3,6 +3,7 @@ import contextlib
 import json
 import logging
 import os
+import pathlib
 import time
 import zipfile
 from pathlib import Path
@@ -275,7 +276,7 @@ class LambdaFunction(Function):
         else:
             file_path = fn_pointers[1].replace(".", "/") + ".py"
             file_path = f"{fn_pointers[0]}/{file_path}"
-            file_path = Path(file_path).absolute()
+            file_path = pathlib.PosixPath(f"~/{file_path}").expanduser()
             paths_to_code = [file_path]
         return paths_to_code
 
