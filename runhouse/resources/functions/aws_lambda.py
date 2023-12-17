@@ -273,13 +273,10 @@ class LambdaFunction(Function):
             file_path = fn_pointers[1].replace(".", "/") + ".py"
             paths_to_code = [os.path.join(root_dir, file_path)]
         else:
-            # file_path = fn_pointers[1].replace(".", "/") + ".py"
-            # file_path = f"{fn_pointers[0]}/{file_path}"
-            # file_path = Path(file_path).absolute()
-            # paths_to_code = [file_path]
-            root_dir = rns_client.locate_working_dir()
             file_path = fn_pointers[1].replace(".", "/") + ".py"
-            paths_to_code = [os.path.join(root_dir, file_path)]
+            dir_path = Path(fn_pointers[0]).absolute()
+            file_path = f"{dir_path}/{file_path}"
+            paths_to_code = [file_path]
         return paths_to_code
 
     def _update_lambda_config(self, env_vars):
