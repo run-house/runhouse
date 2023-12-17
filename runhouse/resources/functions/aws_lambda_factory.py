@@ -131,7 +131,7 @@ def aws_lambda_fn(
         elif isinstance(original_env, str):
             env = _get_env_from(env)
         else:
-            env = _get_env_from(env) or Env(working_dir="./", name=Env.DEFAULT_NAME)
+            env = _get_env_from(env) or Env(working_dir="../", name=Env.DEFAULT_NAME)
 
     elif env is None:
         env = Env(
