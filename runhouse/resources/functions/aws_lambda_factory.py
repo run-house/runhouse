@@ -120,6 +120,7 @@ def aws_lambda_fn(
             + "in order to create a Lambda function."
         )
     # Env setup.
+
     env = LambdaFunction.validate_and_create_env(env)
 
     # extract function pointers, path to code and arg names from callable function.
@@ -133,11 +134,7 @@ def aws_lambda_fn(
     # ------- arguments validation -------
     if isinstance(env, str) and "requirements.txt" in env:
         paths_to_code.append(Path(env).absolute())
-    if args_names is None:
-        # extracting the arguments names of the handler function.
-        args_names = LambdaFunction.extract_args_from_file(
-            paths_to_code, handler_function_name
-        )
+
     if name is None:
         name = handler_function_name.replace(".", "_")
 
