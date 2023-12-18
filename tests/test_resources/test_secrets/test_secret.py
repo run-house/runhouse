@@ -119,7 +119,7 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
         for (key, val) in env_vars.items():
             assert get_remote_val(val) == secret.values[key]
 
-    @pytest.mark.level("unit")
+    @pytest.mark.level("local")
     def test_sharing(self, test_secret):
         username_to_share = rh.configs.get("username")
 
@@ -139,7 +139,7 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
         reloaded_secret = rh.secret(name=rns_address)
         assert reloaded_secret.values == test_secret.values
 
-    @pytest.mark.level("unit")
+    @pytest.mark.level("local")
     def test_sharing_public_secret(self, test_secret):
         # Create & share
         with test_account():
@@ -160,7 +160,7 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
         # NOTE: currently not loading the values for public secret resources (i.e. reloaded_secret.values will be empty)
         assert reloaded_secret
 
-    @pytest.mark.level("unit")
+    @pytest.mark.level("local")
     def test_revoke_secret(self, test_secret):
         username_to_share = rh.configs.get("username")
 
