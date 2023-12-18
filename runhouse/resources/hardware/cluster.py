@@ -176,6 +176,45 @@ class Cluster(Resource):
 
         return config
 
+    def endpoint(self, external=False):
+        """Endpoint for the cluster's RPC server. If external is True, will only return the external url,
+        and will return None otherwise (e.g. if a tunnel is required). If external is False, will either return
+        the external url if it exists, or will set up the connection (based on connection_type) and return
+        the internal url (including the local connected port rather than the sever port). If cluster is not up,
+        returns None.
+        """
+        if not self.is_up():
+            return None
+
+        if self.server_connection_type in [
+            ServerConnectionType.NONE,
+            ServerConnectionType.TLS,
+        ]:
+            url_base = (
+                "https"
+                if self.server_connection_type == ServerConnectionType.TLS
+                else "http"
+            )
+            return f"{url_base}://{self.address}:{self.server_port}"
+
+        if external:
+            return None
+
+        if self.server_connection_type in [
+            ServerConnectionType.SSH,
+            ServerConnectionType.AWS_SSM,
+        ]:
+            self.check_server()
+            return f"http://{self.LOCALHOST}:{self.client_port}"
+
+    def _client(self, restart_server=True):
+        if self.on_this_cluster():
+            return None
+            # return obj_store  # TODO next PR
+        if not self.client:
+            self.check_server(restart_server=restart_server)
+        return self.client
+
     @property
     def server_address(self):
         """Address to use in the requests made to the cluster. If creating an SSH tunnel with the cluster,
@@ -436,6 +475,7 @@ class Cluster(Resource):
                 auth=auth,
                 cert_path=cert_path,
                 use_https=use_https,
+                system=self,
             )
         else:
             self.client = HTTPClient(
@@ -443,6 +483,7 @@ class Cluster(Resource):
                 port=self.client_port,
                 cert_path=cert_path,
                 use_https=use_https,
+                system=self,
             )
 
     def check_server(self, restart_server=True):

@@ -12,7 +12,6 @@ from tests.test_servers.conftest import summer
 from tests.utils import test_account
 
 
-@pytest.mark.usefixtures("setup_cluster_config")
 class TestServlet:
     @pytest.mark.level("unit")
     def test_put_resource(self, base_servlet, blob_data):
