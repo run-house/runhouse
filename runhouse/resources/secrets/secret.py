@@ -11,7 +11,7 @@ import requests
 from runhouse.globals import configs, rns_client
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.resource import Resource
-from runhouse.resources.secrets.utils import load_config
+from runhouse.resources.secrets.utils import _delete_vault_secrets, load_config
 from runhouse.rns.utils.api import load_resp_content, read_resp_data
 from runhouse.rns.utils.names import _generate_default_name
 
@@ -186,6 +186,7 @@ class Secret(Resource):
         if "values" in config:
             # don't save values into Den config
             del config["values"]
+
         headers = headers or rns_client.request_headers
 
         # Save metadata to Den
@@ -256,14 +257,7 @@ class Secret(Resource):
 
         # Delete secrets in Vault
         resource_uri = rns_client.resource_uri(self.rns_address)
-        resp = requests.delete(
-            f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{resource_uri}",
-            headers=headers,
-        )
-        if resp.status_code != 200:
-            logger.error(
-                f"Failed to delete secrets from Vault: {load_resp_content(resp)}"
-            )
+        _delete_vault_secrets(resource_uri, self.USER_ENDPOINT, headers=headers)
 
         # Delete RNS data for resource
         resp = requests.delete(

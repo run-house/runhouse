@@ -871,7 +871,7 @@ class Cluster(Resource):
 
     def ssh_creds(self):
         """Retrieve SSH credentials."""
-        return self._ssh_creds
+        return self._ssh_creds or {}
 
     def _rsync(
         self,

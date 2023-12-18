@@ -13,6 +13,8 @@ from runhouse.globals import rns_client
 from runhouse.resources.hardware.utils import CLUSTER_CONFIG_PATH
 from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 
+from tests.utils import test_account
+
 INVALID_HEADERS = {"Authorization": "Bearer InvalidToken"}
 
 # Helper used for testing rh.Function
@@ -242,8 +244,8 @@ class TestHTTPServerDockerDenAuthOnly:
         assert response.status_code == 200
 
     @pytest.mark.level("local")
-    def test_no_access_to_cluster(self, http_client, test_account):
-        with test_account:
+    def test_no_access_to_cluster(self, http_client):
+        with test_account():
             response = http_client.get("/keys", headers=rns_client.request_headers)
 
             assert response.status_code == 403
@@ -335,46 +337,6 @@ class TestHTTPServerDockerDenAuthOnly:
 
 
 @pytest.fixture(scope="function")
-def setup_cluster_config(test_account):
-    # Create a temporary directory that simulates the user's home directory
-    home_dir = Path("~/.rh").expanduser()
-    home_dir.mkdir(exist_ok=True)
-
-    cluster_config_path = home_dir / "cluster_config.json"
-    rns_address = "/kitchen_tester/local_cluster"
-
-    cluster_config = {
-        "name": rns_address,
-        "resource_type": "cluster",
-        "resource_subtype": "Cluster",
-        "server_port": 32300,
-        "den_auth": True,
-        "server_connection_type": "ssh",
-        "ips": ["localhost"],
-    }
-    try:
-        c = rh.Cluster.from_name(rns_address)
-    except ValueError:
-        c = None
-
-    try:
-        if not c:
-            current_username = rh.configs.get("username")
-            with test_account:
-                c = rh.cluster(name="local_cluster", den_auth=True).save()
-                c.share(current_username, access_level="write", notify_users=False)
-
-        with open(cluster_config_path, "w") as file:
-            json.dump(cluster_config, file)
-
-        yield
-
-    finally:
-        if cluster_config_path.exists():
-            cluster_config_path.unlink()
-
-
-@pytest.fixture(scope="function")
 def client(request):
     return request.getfixturevalue(request.param)
 
@@ -383,7 +345,7 @@ def client(request):
 @pytest.mark.usefixtures("setup_cluster_config")
 class TestHTTPServerNoDocker:
     """
-    Directly analagous to the Docker equivalent above, but with a fully
+    Directly analogous to the Docker equivalent above, but with a fully
     local server instead of Docker.
 
     TODO (RB+JL): This class should really be
@@ -446,9 +408,7 @@ class TestHTTPServerNoDocker:
 
             state = None
             data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
-            response = client.post(
-                "/resource", json={"data": data}, headers=rns_client.request_headers
-            )
+            response = client.post("/resource", json={"data": data})
             assert response.status_code == 200
 
     @pytest.mark.level("unit")
@@ -457,7 +417,6 @@ class TestHTTPServerNoDocker:
         response = client.post(
             "/object",
             json={"data": pickle_b64(test_list), "key": "key1"},
-            headers=rns_client.request_headers,
         )
         assert response.status_code == 200
 
@@ -466,17 +425,15 @@ class TestHTTPServerNoDocker:
         old_key = "key1"
         new_key = "key2"
         data = pickle_b64((old_key, new_key))
-        response = client.put(
-            "/object", json={"data": data}, headers=rns_client.request_headers
-        )
+        response = client.put("/object", json={"data": data})
         assert response.status_code == 200
 
-        response = client.get("/keys", headers=rns_client.request_headers)
+        response = client.get("/keys")
         assert new_key in b64_unpickle(response.json().get("data"))
 
     @pytest.mark.level("unit")
     def test_get_keys(self, client):
-        response = client.get("/keys", headers=rns_client.request_headers)
+        response = client.get("/keys")
         assert response.status_code == 200
         assert "key2" in b64_unpickle(response.json().get("data"))
 
@@ -489,11 +446,10 @@ class TestHTTPServerNoDocker:
             "delete",
             url="/object",
             json={"data": data},
-            headers=rns_client.request_headers,
         )
         assert response.status_code == 200
 
-        response = client.get("/keys", headers=rns_client.request_headers)
+        response = client.get("/keys")
         assert key not in b64_unpickle(response.json().get("data"))
 
     # TODO [JL]: Test call_module_method and async_call with local and not just Docker.
@@ -503,7 +459,7 @@ class TestHTTPServerNoDocker:
 @pytest.mark.usefixtures("setup_cluster_config")
 class TestHTTPServerNoDockerDenAuthOnly:
     """
-    Directly analagous to the Docker equivalent above, but with a fully
+    Directly analogous to the Docker equivalent above, but with a fully
     local server instead of Docker.
 
     TODO (RB+JL): This class should really be
@@ -520,9 +476,7 @@ class TestHTTPServerNoDockerDenAuthOnly:
         # Use the expanded paths in the command
         try:
             subprocess.run(["mv", source_path, destination_path])
-            response = local_client_with_den_auth.get(
-                "/keys", headers=rns_client.request_headers
-            )
+            response = local_client_with_den_auth.get("/keys")
 
             assert response.status_code == 404
             assert "Failed to load current cluster" in response.text
@@ -530,14 +484,14 @@ class TestHTTPServerNoDockerDenAuthOnly:
             subprocess.run(["mv", destination_path, source_path])
 
         # Assert that things work once again
-        response = local_client_with_den_auth.get(
-            "/keys", headers=rns_client.request_headers
-        )
+        response = local_client_with_den_auth.get("/keys")
         assert response.status_code == 200
 
     @pytest.mark.level("unit")
     def test_request_with_no_token(self, local_client_with_den_auth):
-        response = local_client_with_den_auth.get("/keys")  # No headers are passed
+        response = local_client_with_den_auth.get(
+            "/keys", headers={"Authorization": ""}
+        )  # No headers are passed
         assert response.status_code == 404
 
         assert "No token found in request auth headers" in response.text

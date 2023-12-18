@@ -2,6 +2,7 @@ import logging
 
 import pprint
 import sys
+import warnings
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -86,6 +87,7 @@ class Resource:
             "resource_type": self.RESOURCE_TYPE,
             "resource_subtype": self.__class__.__name__,
             "provenance": self.provenance.config_for_rns if self.provenance else None,
+            "visibility": self.global_visibility,
         }
         return config
 
@@ -321,46 +323,56 @@ class Resource:
     # TODO [DG] Implement proper sharing of subresources (with an overload of some kind)
     def share(
         self,
-        users: Union[str, List[str]],
+        users: Union[str, List[str]] = None,
         access_level: Union[ResourceAccess, str] = ResourceAccess.READ,
-        global_visibility: Optional[ResourceVisibility] = None,
+        global_visibility: Optional[Union[ResourceVisibility, str]] = None,
         notify_users: bool = True,
         headers: Optional[Dict] = None,
-        access_type: Union[ResourceAccess, str] = None,  # deprecated
+        # Deprecated
+        access_type: Union[ResourceAccess, str] = None,
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
-        """share(users: str | List[str], access_level: ResourceAccess | str = ResourceAccess.READ, notify_users: bool = True, headers: Dict | None = None)
-
-        Grant access to the resource for the list of users (or a single user). If a user has a Runhouse account they
+        """Grant access to the resource for a list of users (or a single user). If a user has a Runhouse account they
         will receive an email notifying them of their new access. If the user does not have a Runhouse account they will
-        also receive instructions on creating one, after which they will be able to have access to the Resource.
+        also receive instructions on creating one, after which they will be able to have access to the Resource. If
+        ``global_visibility`` is set to ``public``, users will not be notified.
 
         .. note::
-            You can only grant resource access to other users if you have Write / Read privileges for the Resource.
+            You can only grant access to other users if you have write access to the resource.
 
         Args:
-            users (list or str): list of user emails and / or runhouse account usernames (or a single user).
-            access_level (:obj:`ResourceAccess`, optional): access level to provide for the resource.
-            notify_users (bool): Send email notification to users who have been given access. Defaults to `False`.
-            headers (Optional[Dict]): Request headers to provide for the request to RNS. Contains the user's auth token.
+            users (Union[str, list], optional): Single user or list of user emails and / or runhouse account usernames.
+                If none are provided and ``global_visibility`` is set to ``public``, resource will be made publicly
+                available to all users. Defaults to ``read``.
+            access_level (:obj:`ResourceAccess`, optional): Access level to provide for the resource.
+            global_visibility (:obj:`ResourceVisibility`, optional): Type of visibility to provide for the shared
+                resource. Defaults to ``private``.
+            notify_users (bool, optional): Whether to send an email notification to users who have been given access.
+                Note: This is relevant for resources which are not ``shareable``. Defaults to ``True``.
+            headers (dict, optional): Request headers to provide for the request to RNS. Contains the user's auth token.
                 Example: ``{"Authorization": f"Bearer {token}"}``
 
         Returns:
             Tuple(Dict, Dict):
 
             `added_users`:
-                users who already have an account and have been granted access to the resource.
+                users who already have a Runhouse account and have been granted access to the resource.
             `new_users`:
-                users who do not have Runhouse accounts.
+                users who do not have Runhouse accounts and received notifications via their emails.
 
         Example:
-            >>> added_users, new_users = my_resource.share(users=["username1", "user2@gmail.com"], access_level='write')
-        """  # noqa: E501
+            >>> # Write access to the resource for these specific users.
+            >>> # Visibility will be set to private (users can search for and view resource in Den dashboard)
+            >>> my_resource.share(users=["username1", "user2@gmail.com"], access_level='write')
+
+            >>> # Make resource public, with read access to the resource for all users
+            >>> my_resource.share(global_visibility='public')
+        """
         if self.name is None:
             raise ValueError("Resource must have a name in order to share")
 
         if hasattr(self, "system") and self.system in ["ssh", "sftp"]:
             logger.warning(
-                "Sharing a resource located on a cluster is not recommended. For persistence, we suggest "
+                "Sharing a resource located on a cluster is not recommended. For persistence, we suggest"
                 "saving to a cloud storage system (ex: `s3` or `gs`). You can copy your cluster based "
                 f"{self.RESOURCE_TYPE} to your desired storage provider using the `.to()` method. "
                 f"For example: `{self.RESOURCE_TYPE}.to(system='rh-cpu')`"
@@ -380,18 +392,19 @@ class Resource:
                     f"For example: `{self.name}.to(system='s3')`"
                 )
 
-        if access_type:
-            logger.warning(
-                "``access_type`` argument is deprecated and will be removed in a future release. "
-                "Please use ``access_level`` instead."
-            )
+        if access_type is not None:
+            warnings.warn("`access_type` is deprecated, please use `access_level`")
             access_level = access_type
 
         if isinstance(access_level, str):
             access_level = ResourceAccess(access_level)
 
         if global_visibility is not None:
+            # Update the resource in Den with this global visibility value
             self.global_visibility = global_visibility
+
+            logger.info(f"Updating resource with visibility: {self.global_visibility}")
+
         self.save()
 
         if isinstance(users, str):

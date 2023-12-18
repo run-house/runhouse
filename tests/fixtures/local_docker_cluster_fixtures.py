@@ -11,6 +11,7 @@ import runhouse as rh
 import yaml
 
 from tests.conftest import init_args
+from tests.utils import test_account
 
 SSH_USER = "rh-docker-user"
 BASE_LOCAL_SSH_PORT = 32320
@@ -512,12 +513,12 @@ def local_docker_cluster_with_nginx_https(request):
 
 
 @pytest.fixture(scope="function")
-def local_test_account_cluster_public_key(request, test_account):
+def local_test_account_cluster_public_key(request):
     """
     This fixture is not parameterized for every test; it is a separate cluster started with a test account
     (username: kitchen_tester) in order to test sharing resources with other users.
     """
-    with test_account:
+    with test_account():
 
         local_ssh_port = BASE_LOCAL_SSH_PORT + 5
         local_cluster, cleanup = set_up_local_cluster(
@@ -545,9 +546,9 @@ def local_test_account_cluster_public_key(request, test_account):
 
 
 @pytest.fixture(scope="session")
-def shared_cluster(test_account, local_test_account_cluster_public_key):
+def shared_cluster(local_test_account_cluster_public_key):
     username_to_share = rh.configs.get("username")
-    with test_account:
+    with test_account():
         # Share the cluster with the test account
         local_test_account_cluster_public_key.share(
             username_to_share, access_level="read"

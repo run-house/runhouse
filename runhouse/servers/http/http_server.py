@@ -174,6 +174,10 @@ class HTTPServer:
     def enable_den_auth(cls):
         cls._den_auth = True
 
+    @classmethod
+    def disable_den_auth(cls):
+        cls._den_auth = False
+
     @staticmethod
     def register_activity():
         set_last_active_time_to_now()

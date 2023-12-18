@@ -24,9 +24,11 @@ def test_from_runhouse_func():
     my_rh_lambda.delete()
 
 
-def test_share_lambda(test_account):
+def test_share_lambda():
     user = rh.configs.get("username")
-    with test_account:
+    from tests.utils import test_account
+
+    with test_account():
         lambda_func = rh.aws_lambda_fn(fn=summer, name="summer_to_share")
         lambda_func.save()
         lambda_func.share(users=[user], notify_users=True, access_level="write")
