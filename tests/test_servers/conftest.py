@@ -55,7 +55,6 @@ async def async_http_client():
         yield client
 
 
-# TODO [JL] create some sort of mock cluster that doesn't require a docker container?
 @pytest.fixture(scope="session")
 def local_cluster():
     c = rh.cluster(
