@@ -8,6 +8,11 @@ logger = logging.getLogger(__name__)
 
 
 class SkySecret(SSHSecret):
+    """
+    .. note::
+            To create a SkySecret, please use the factory method :func:`provider_secret` with ``provider="sky"``.
+    """
+
     _PROVIDER = "sky"
     _DEFAULT_KEY = "sky-key"
 

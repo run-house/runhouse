@@ -12,6 +12,11 @@ from runhouse.resources.secrets.utils import _check_file_for_mismatches
 
 
 class AWSSecret(ProviderSecret):
+    """
+    .. note::
+            To create an AWSSecret, please use the factory method :func:`provider_secret` with ``provider="aws"``.
+    """
+
     _PROVIDER = "aws"
     _DEFAULT_CREDENTIALS_PATH = "~/.aws/credentials"
     _DEFAULT_ENV_VARS = {

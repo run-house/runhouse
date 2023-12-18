@@ -29,7 +29,10 @@ class ProviderSecret(Secret):
         **kwargs,
     ):
         """
-        Provider Secret class.
+        Provider Secret class. Built-in provider classes contain default path and/or environment variable mappings,
+        based on it's expected usage.
+
+        Currently supported built-in providers: aws, azure, gcp, github, huggingface, lambda, ssh, sky.
 
         .. note::
             To create a ProviderSecret, please use the factory method :func:`provider_secret`.

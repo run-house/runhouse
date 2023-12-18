@@ -12,6 +12,11 @@ from runhouse.resources.secrets.utils import _check_file_for_mismatches
 
 
 class GCPSecret(ProviderSecret):
+    """
+    .. note::
+            To create a GCPSecret, please use the factory method :func:`provider_secret` with ``provider="gcp"``.
+    """
+
     _PROVIDER = "gcp"
     _DEFAULT_CREDENTIALS_PATH = "~/.config/gcloud/application_default_credentials.json"
     _DEFAULT_ENV_VARS = {

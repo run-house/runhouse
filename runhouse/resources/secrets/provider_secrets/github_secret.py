@@ -12,6 +12,11 @@ from runhouse.resources.secrets.utils import _check_file_for_mismatches
 
 
 class GitHubSecret(ProviderSecret):
+    """
+    .. note::
+            To create a GitHubSecret, please use the factory method :func:`provider_secret` with ``provider="github"``.
+    """
+
     # values format: {"oauth_token": oath_token}
     _PROVIDER = "github"
     _DEFAULT_CREDENTIALS_PATH = "~/.config/gh/hosts.yml"

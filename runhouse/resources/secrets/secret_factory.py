@@ -68,8 +68,8 @@ def provider_secret(
 
     Example:
         >>> aws_secret = rh.provider_secret("aws")
+        >>> gcp_secret = rh.provider("gcp", path="~/.gcp/credentials")
         >>> lamdba_secret = rh.provider_secret("lambda", values={"api_key": "xxxxx"})
-        >>>
     """
     if not provider:
         if not name:
