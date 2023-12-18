@@ -409,7 +409,7 @@ class TestHTTPServerNoDocker:
             state = None
             data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
             response = client.post(
-                "/resource", json={"data": data}, headers=rns_client.request_headers
+                "/resource", json={"data": data}
             )
             assert response.status_code == 200
 
@@ -419,7 +419,6 @@ class TestHTTPServerNoDocker:
         response = client.post(
             "/object",
             json={"data": pickle_b64(test_list), "key": "key1"},
-            headers=rns_client.request_headers,
         )
         assert response.status_code == 200
 
@@ -429,16 +428,16 @@ class TestHTTPServerNoDocker:
         new_key = "key2"
         data = pickle_b64((old_key, new_key))
         response = client.put(
-            "/object", json={"data": data}, headers=rns_client.request_headers
+            "/object", json={"data": data}
         )
         assert response.status_code == 200
 
-        response = client.get("/keys", headers=rns_client.request_headers)
+        response = client.get("/keys")
         assert new_key in b64_unpickle(response.json().get("data"))
 
     @pytest.mark.level("unit")
     def test_get_keys(self, client):
-        response = client.get("/keys", headers=rns_client.request_headers)
+        response = client.get("/keys")
         assert response.status_code == 200
         assert "key2" in b64_unpickle(response.json().get("data"))
 
@@ -451,11 +450,10 @@ class TestHTTPServerNoDocker:
             "delete",
             url="/object",
             json={"data": data},
-            headers=rns_client.request_headers,
         )
         assert response.status_code == 200
 
-        response = client.get("/keys", headers=rns_client.request_headers)
+        response = client.get("/keys")
         assert key not in b64_unpickle(response.json().get("data"))
 
     # TODO [JL]: Test call_module_method and async_call with local and not just Docker.
@@ -483,7 +481,7 @@ class TestHTTPServerNoDockerDenAuthOnly:
         try:
             subprocess.run(["mv", source_path, destination_path])
             response = local_client_with_den_auth.get(
-                "/keys", headers=rns_client.request_headers
+                "/keys"
             )
 
             assert response.status_code == 404
@@ -493,13 +491,13 @@ class TestHTTPServerNoDockerDenAuthOnly:
 
         # Assert that things work once again
         response = local_client_with_den_auth.get(
-            "/keys", headers=rns_client.request_headers
+            "/keys"
         )
         assert response.status_code == 200
 
     @pytest.mark.level("unit")
     def test_request_with_no_token(self, local_client_with_den_auth):
-        response = local_client_with_den_auth.get("/keys")  # No headers are passed
+        response = local_client_with_den_auth.get("/keys", headers={"Authorization": ""})  # No headers are passed
         assert response.status_code == 404
 
         assert "No token found in request auth headers" in response.text

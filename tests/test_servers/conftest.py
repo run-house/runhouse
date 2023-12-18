@@ -8,6 +8,7 @@ import pytest_asyncio
 
 import runhouse as rh
 
+from runhouse.globals import rns_client
 from runhouse.servers.http.http_server import app, HTTPServer
 from runhouse.servers.obj_store import ObjStore
 
@@ -82,6 +83,8 @@ def local_client_with_den_auth():
     HTTPServer()
     HTTPServer.enable_den_auth()
     client = TestClient(app)
+    with test_account():
+        client.headers = rns_client.request_headers
 
     yield client
 
@@ -127,7 +130,7 @@ def setup_cluster_config():
         "resource_type": "cluster",
         "resource_subtype": "Cluster",
         "server_port": 32300,
-        "den_auth": False,
+        "den_auth": True,
         "server_connection_type": "ssh",
         "ips": ["localhost"],
     }
