@@ -74,7 +74,7 @@ class TestResource:
             assert resource.name is None
             return
 
-        # Test savng and then loading from name
+        # Test saving and then loading from name
         resource.save()
         loaded_resource = resource.__class__.from_name(resource.rns_address)
         assert loaded_resource.config_for_rns == resource.config_for_rns

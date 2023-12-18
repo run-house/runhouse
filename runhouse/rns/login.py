@@ -192,30 +192,31 @@ def _convert_secrets_resource(names: List[str] = None, headers: Optional[Dict] =
     # Convert vault-only secrets to a resource to maintain backwards compatibility,
     # following secrets resource revamp
     from runhouse import provider_secret, Secret
-    from runhouse.resources.secrets.utils import (
-        _delete_vault_secrets,
-        _load_vault_secrets,
-    )
+    from runhouse.resources.secrets.utils import _load_vault_secret
 
     headers = headers or rns_client.request_headers
 
     secrets = names or Secret.vault_secrets(headers=headers)
+
     for name in secrets:
+        # TODO: check here to make sure that it exists in vault otherwise doesn't really make sense
         try:
             resource_uri = rns_client.resource_uri(name)
             resp = requests.get(
                 f"{rns_client.api_server_url}/resource/{resource_uri}",
                 headers=headers,
             )
-            if resp.status_code != 200:
-                values = _load_vault_secrets(name, headers=headers)
-                secret = provider_secret(name, values=values)
-                secret.save()
-                _delete_vault_secrets(name=name, headers=headers)
-        except (AttributeError, Exception) as e:
-            logger.warning(
-                f"Encountered {e}. Was not able to load down secrets for {name}."
-            )
+            if resp.status_code != 200:  # not associated with a resource
+                try:
+                    # check if it was previously saved by just the name
+                    values = _load_vault_secret(name, headers=headers)
+                    secret = provider_secret(name, values=values)
+                    secret.save()
+                except Exception:
+                    continue
+
+        except AttributeError:
+            logger.warning(f"Was not able to load down secrets for {name}.")
             continue
 
 
@@ -263,7 +264,7 @@ def logout(
                 f"Delete credentials file for {name}?"
             )
 
-        if secret.in_vault() or secret.is_local():
+        if secret.in_vault() or secret.in_local():
             if delete_loaded_secrets:
                 secret.delete(contents=True)
             else:
