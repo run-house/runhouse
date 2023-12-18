@@ -408,9 +408,7 @@ class TestHTTPServerNoDocker:
 
             state = None
             data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
-            response = client.post(
-                "/resource", json={"data": data}
-            )
+            response = client.post("/resource", json={"data": data})
             assert response.status_code == 200
 
     @pytest.mark.level("unit")
@@ -427,9 +425,7 @@ class TestHTTPServerNoDocker:
         old_key = "key1"
         new_key = "key2"
         data = pickle_b64((old_key, new_key))
-        response = client.put(
-            "/object", json={"data": data}
-        )
+        response = client.put("/object", json={"data": data})
         assert response.status_code == 200
 
         response = client.get("/keys")
@@ -480,9 +476,7 @@ class TestHTTPServerNoDockerDenAuthOnly:
         # Use the expanded paths in the command
         try:
             subprocess.run(["mv", source_path, destination_path])
-            response = local_client_with_den_auth.get(
-                "/keys"
-            )
+            response = local_client_with_den_auth.get("/keys")
 
             assert response.status_code == 404
             assert "Failed to load current cluster" in response.text
@@ -490,14 +484,14 @@ class TestHTTPServerNoDockerDenAuthOnly:
             subprocess.run(["mv", destination_path, source_path])
 
         # Assert that things work once again
-        response = local_client_with_den_auth.get(
-            "/keys"
-        )
+        response = local_client_with_den_auth.get("/keys")
         assert response.status_code == 200
 
     @pytest.mark.level("unit")
     def test_request_with_no_token(self, local_client_with_den_auth):
-        response = local_client_with_den_auth.get("/keys", headers={"Authorization": ""})  # No headers are passed
+        response = local_client_with_den_auth.get(
+            "/keys", headers={"Authorization": ""}
+        )  # No headers are passed
         assert response.status_code == 404
 
         assert "No token found in request auth headers" in response.text
