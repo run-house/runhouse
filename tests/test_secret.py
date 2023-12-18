@@ -10,6 +10,8 @@ from runhouse.resources.blobs import file
 from runhouse.resources.secrets.utils import load_config
 from runhouse.rns.utils.api import read_resp_data
 
+from tests.utils import test_account
+
 test_secret_values = {"secret_key": "secret_val"}
 
 
@@ -93,12 +95,12 @@ def test_resource_and_secrets_apis_for_builtin_provider():
 
 
 @pytest.mark.rnstest
-def test_sharing_for_resource_and_secrets_apis(test_account):
+def test_sharing_for_resource_and_secrets_apis():
     username_to_share = rh.configs.defaults_cache["username"]
     secret_name = "openai"
 
     # Create & share
-    with test_account:
+    with test_account():
         test_headers = rns_client.request_headers
         vault_secret = rh.secret(name=secret_name, values=test_secret_values)
         vault_secret.save(headers=test_headers)
@@ -116,12 +118,12 @@ def test_sharing_for_resource_and_secrets_apis(test_account):
 
 
 @pytest.mark.rnstest
-def test_revoke_secret(test_account):
+def test_revoke_secret():
     username_to_share = rh.configs.defaults_cache["username"]
     secret_name = "openai"
 
     # Revoke access
-    with test_account:
+    with test_account():
         vault_secret = rh.secret(name=secret_name)
         rns_address = vault_secret.rns_address
 
@@ -133,13 +135,13 @@ def test_revoke_secret(test_account):
 
 
 @pytest.mark.rnstest
-def test_sharing_for_resource_and_builtin_secret_apis(test_account):
+def test_sharing_for_resource_and_builtin_secret_apis():
     username_to_share = rh.configs.defaults_cache["username"]
     secret_name = "aws_secret"
     provider = "aws"
 
     # Create & share
-    with test_account:
+    with test_account():
         headers = rns_client.request_headers
 
         vault_secret = rh.provider_secret(provider=provider, name=secret_name)

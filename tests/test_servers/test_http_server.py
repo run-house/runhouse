@@ -13,6 +13,8 @@ from runhouse.globals import rns_client
 from runhouse.resources.hardware.utils import CLUSTER_CONFIG_PATH
 from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 
+from tests.utils import test_account
+
 INVALID_HEADERS = {"Authorization": "Bearer InvalidToken"}
 
 # Helper used for testing rh.Function
@@ -242,8 +244,8 @@ class TestHTTPServerDockerDenAuthOnly:
         assert response.status_code == 200
 
     @pytest.mark.level("local")
-    def test_no_access_to_cluster(self, http_client, test_account):
-        with test_account:
+    def test_no_access_to_cluster(self, http_client):
+        with test_account():
             response = http_client.get("/keys", headers=rns_client.request_headers)
 
             assert response.status_code == 403
@@ -343,7 +345,7 @@ def client(request):
 @pytest.mark.usefixtures("setup_cluster_config")
 class TestHTTPServerNoDocker:
     """
-    Directly analagous to the Docker equivalent above, but with a fully
+    Directly analogous to the Docker equivalent above, but with a fully
     local server instead of Docker.
 
     TODO (RB+JL): This class should really be
@@ -463,7 +465,7 @@ class TestHTTPServerNoDocker:
 @pytest.mark.usefixtures("setup_cluster_config")
 class TestHTTPServerNoDockerDenAuthOnly:
     """
-    Directly analagous to the Docker equivalent above, but with a fully
+    Directly analogous to the Docker equivalent above, but with a fully
     local server instead of Docker.
 
     TODO (RB+JL): This class should really be

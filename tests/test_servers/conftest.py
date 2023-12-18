@@ -11,6 +11,8 @@ import runhouse as rh
 from runhouse.servers.http.http_server import app, HTTPServer
 from runhouse.servers.obj_store import ObjStore
 
+from tests.utils import test_account
+
 # Note: API Server will run on local docker container
 BASE_URL = "http://localhost:32300"
 
@@ -109,8 +111,8 @@ def obj_store(request):
     yield base_obj_store
 
 
-@pytest.fixture(scope="function")
-def setup_cluster_config(test_account):
+@pytest.fixture(scope="class")
+def setup_cluster_config():
     # Create a temporary directory that simulates the user's home directory
     home_dir = Path("~/.rh").expanduser()
     home_dir.mkdir(exist_ok=True)
@@ -135,7 +137,7 @@ def setup_cluster_config(test_account):
     try:
         if not c:
             current_username = rh.configs.get("username")
-            with test_account:
+            with test_account():
                 c = rh.cluster(name="local_cluster", den_auth=True).save()
                 c.share(current_username, access_level="write", notify_users=False)
 
