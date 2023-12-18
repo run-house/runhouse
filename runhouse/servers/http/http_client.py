@@ -3,7 +3,7 @@ import logging
 import time
 import warnings
 from pathlib import Path
-from typing import Dict, Union
+from typing import Any, Dict, Union
 
 import requests
 
@@ -27,7 +27,13 @@ class HTTPClient:
     CHECK_TIMEOUT_SEC = 10
 
     def __init__(
-        self, host: str, port: int, auth=None, cert_path=None, use_https=False
+        self,
+        host: str,
+        port: int,
+        auth=None,
+        cert_path=None,
+        use_https=False,
+        system=None,
     ):
         self.host = host
         self.port = port
@@ -35,6 +41,7 @@ class HTTPClient:
         self.cert_path = cert_path
         self.use_https = use_https
         self.verify = self._use_cert_verification()
+        self.system = system
 
     def _use_cert_verification(self):
         if not self.use_https:
@@ -58,6 +65,16 @@ class HTTPClient:
             return False
 
         return True
+
+    @staticmethod
+    def from_endpoint(endpoint: str, auth=None, cert_path=None):
+        protocol, uri = endpoint.split("://")
+        host, port_and_route = uri.split(":", 1)
+        port, _ = port_and_route.split("/", 1)
+        use_https = protocol == "https"
+        client = HTTPClient(host, int(port), auth, cert_path, use_https=False)
+        client.use_https = use_https
+        return client
 
     def _formatted_url(self, endpoint: str):
         prefix = "https" if self.use_https else "http"
@@ -149,7 +166,33 @@ class HTTPClient:
         with open(self.cert_path, "wb") as file:
             file.write(cert)
 
-    def call_module_method(
+    def call(
+        self,
+        module_name,
+        method_name,
+        *args,
+        stream_logs=True,
+        run_name=None,
+        remote=False,
+        run_async=False,
+        save=False,
+        **kwargs,
+    ):
+        """wrapper to temporarily support cluster's call signature"""
+        return self.call_module_method(
+            module_name,
+            method_name,
+            stream_logs=stream_logs,
+            run_name=run_name,
+            remote=remote,
+            run_async=run_async,
+            save=save,
+            args=args,
+            kwargs=kwargs,
+            system=self.system,
+        )
+
+    def call_module_method(  # TODO rename call_module_method to call
         self,
         module_name,
         method_name,
@@ -275,6 +318,28 @@ class HTTPClient:
             env=env,
             err_str=f"Error putting resource {resource.name or type(resource)}",
         )
+
+    def get(
+        self, key: str, default: Any = None, remote=False, stream_logs: bool = False
+    ):
+        """Provides compatibility with cluster's get."""
+        try:
+            res = self.call_module_method(
+                key,
+                None,
+                remote=remote,
+                stream_logs=stream_logs,
+                system=self,
+            )
+        except KeyError as e:
+            if default == KeyError:
+                raise e
+            return default
+        return res
+
+    def rename(self, old_key: str, new_key: str):
+        """Provides compatibility with cluster's rename."""
+        return self.rename_object(old_key, new_key)
 
     def rename_object(self, old_key, new_key):
         self.request(

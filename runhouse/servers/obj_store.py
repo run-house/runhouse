@@ -38,6 +38,7 @@ class ObjStore:
         cuda_visible_devices = list(range(int(num_gpus)))
         os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
         self._kv_store = Kvstore()
+        self._kv_store.system = None  # sometimes this gets set to _current_cluster, which can only create problems
         self._env_for_key = (
             ray.remote(Kvstore)
             .options(
@@ -46,7 +47,9 @@ class ObjStore:
                 lifetime="detached",
                 namespace="runhouse",
             )
-            .remote()
+            .remote(
+                system="here"
+            )  # Same here, we don't want to use the _current_cluster system
         )
         self._auth_cache = (
             ray.remote(AuthCache)
