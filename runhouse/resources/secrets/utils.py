@@ -56,6 +56,20 @@ def _load_vault_secrets(
     return config
 
 
+def _delete_vault_secrets(
+    resource_uri: str,
+    endpoint: str = USER_ENDPOINT,
+    headers: Optional[Dict] = None,
+):
+    headers = headers or rns_client.request_headers
+    resp = requests.delete(
+        f"{rns_client.api_server_url}/{endpoint}/{resource_uri}",
+        headers=headers,
+    )
+    if resp.status_code != 200:
+        logger.error(f"Failed to delete secrets from Vault: {load_resp_content(resp)}")
+
+
 def _load_local_config(name):
     if name.startswith("~") or name.startswith("^"):
         name = name[2:]
