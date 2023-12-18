@@ -85,6 +85,8 @@ def local_client_with_den_auth():
 
     yield client
 
+    HTTPServer.disable_den_auth()
+
 
 @pytest.fixture(scope="session")
 def base_servlet():
@@ -125,7 +127,7 @@ def setup_cluster_config():
         "resource_type": "cluster",
         "resource_subtype": "Cluster",
         "server_port": 32300,
-        "den_auth": True,
+        "den_auth": False,
         "server_connection_type": "ssh",
         "ips": ["localhost"],
     }
