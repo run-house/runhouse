@@ -138,18 +138,18 @@ def aws_lambda_fn(
             reqs=[],
             env_vars={"HOME": LambdaFunction.HOME_DIR},
             name=Env.DEFAULT_NAME,
+            working_dir="./",
         )
 
     if isinstance(env, Env) and "HOME" not in env.env_vars.keys():
         env.env_vars["HOME"] = LambdaFunction.HOME_DIR
-
     # extract function pointers, path to code and arg names from callable function.
     if isinstance(fn, Callable):
         handler_function_name = fn.__name__
         fn_pointers = Function._extract_pointers(
             fn, reqs=[] if env is None else env.reqs
         )
-        paths_to_code = LambdaFunction._paths_to_code_from_fn_pointers(fn_pointers)
+        paths_to_code = [Function._extract_module_path(fn)]
         args_names = [param.name for param in inspect.signature(fn).parameters.values()]
         if name is None:
             name = fn.__name__

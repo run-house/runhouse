@@ -405,3 +405,29 @@ class Resource:
             headers=headers,
         )
         return added_users, new_users
+
+    def revoke(
+        self, users: Union[str, List[str]] = None, headers: Optional[Dict] = None
+    ):
+        """Revoke access to the resource.
+
+        Args:
+            users (Union[str, str], optional): list of user emails and / or runhouse account usernames
+                (or a single user). If no users are specified will revoke access for all users.
+            headers (Optional[Dict]): Request headers to provide for the request to RNS. Contains the user's auth token.
+                Example: ``{"Authorization": f"Bearer {token}"}``
+        """
+        if isinstance(users, str):
+            users = [users]
+
+        request_uri = rns_client.resource_uri(self.rns_address)
+        resp = requests.put(
+            f"{rns_client.api_server_url}/resource/{request_uri}/users/access",
+            json={"users": users, "access_level": ResourceAccess.DENIED},
+            headers=headers or rns_client.request_headers,
+        )
+
+        if resp.status_code != 200:
+            raise Exception(
+                f"Failed to revoke access for resource: {load_resp_content(resp)}"
+            )

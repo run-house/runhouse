@@ -25,6 +25,7 @@ from runhouse.resources.queues import Queue
 from runhouse.resources.resource import Resource
 from runhouse.resources.secrets import provider_secret, ProviderSecret, Secret, secret
 from runhouse.resources.tables import Table, table
+from runhouse.rns.secrets import Secrets  # Deprecated
 
 from runhouse.rns.top_level_rns_fns import (
     current_folder,

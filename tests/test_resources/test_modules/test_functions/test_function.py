@@ -342,6 +342,17 @@ class TestFunction:
         res = my_function(1, 2)
         assert res == 3
 
+    @pytest.mark.rnstest
+    @pytest.mark.level("local")
+    def test_revoke_function_access(self, cluster):
+        my_function = rh.function(fn=summer).to(cluster).save(REMOTE_FUNC_NAME)
+
+        my_function.revoke(users=["donny@run.house", "josh@run.house"])
+
+        with pytest.raises(Exception):
+            my_function = rh.function(name=REMOTE_FUNC_NAME)
+            my_function(1, 2)
+
     @pytest.mark.clustertest
     @pytest.mark.rnstest
     @pytest.mark.level("thorough")
