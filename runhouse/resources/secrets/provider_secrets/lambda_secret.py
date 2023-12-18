@@ -11,6 +11,11 @@ from runhouse.resources.secrets.utils import _check_file_for_mismatches
 
 
 class LambdaSecret(ProviderSecret):
+    """
+    .. note::
+            To create a LambdaSecret, please use the factory method :func:`provider_secret` with ``provider="lambda"``.
+    """
+
     # values format: {"api_key": api_key}
     _DEFAULT_CREDENTIALS_PATH = "~/.lambda_cloud/lambda_keys"
     _PROVIDER = "lambda"

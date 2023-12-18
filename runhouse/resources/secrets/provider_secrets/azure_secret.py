@@ -12,6 +12,11 @@ from runhouse.resources.secrets.utils import _check_file_for_mismatches
 
 
 class AzureSecret(ProviderSecret):
+    """
+    .. note::
+            To create an AzureSecret, please use the factory method :func:`provider_secret` with ``provider="azure"``.
+    """
+
     # values format: {"subscription_id": subscription_id}
     _PROVIDER = "azure"
     _DEFAULT_CREDENTIALS_PATH = "~/.azure/clouds.config"

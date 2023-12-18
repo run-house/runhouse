@@ -15,6 +15,11 @@ logger = logging.getLogger(__name__)
 
 
 class SSHSecret(ProviderSecret):
+    """
+    .. note::
+            To create a SSHSecret, please use the factory method :func:`provider_secret` with ``provider="ssh"``.
+    """
+
     _DEFAULT_CREDENTIALS_PATH = "~/.ssh"
     _PROVIDER = "ssh"
     _DEFAULT_KEY = "id_rsa"

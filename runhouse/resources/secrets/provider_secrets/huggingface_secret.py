@@ -10,6 +10,12 @@ from runhouse.resources.secrets.utils import _check_file_for_mismatches
 
 
 class HuggingFaceSecret(ProviderSecret):
+    """
+    .. note::
+            To create a HuggingFaceSecret, please use the factory method :func:`provider_secret` with
+            ``provider="huggingface"``.
+    """
+
     # values format: {"token": hf_token}
     _DEFAULT_CREDENTIALS_PATH = "~/.cache/huggingface/token"
     _PROVIDER = "huggingface"
