@@ -254,13 +254,13 @@ from tests.test_resources.test_secrets.conftest import (
     aws_secret,  # noqa: F401
     azure_secret,  # noqa: F401
     custom_provider_secret,  # noqa: F401
-    custom_secret,  # noqa: F401
     gcp_secret,  # noqa: F401
     github_secret,  # noqa: F401
     huggingface_secret,  # noqa: F401
     lambda_secret,  # noqa: F401
     sky_secret,  # noqa: F401
     ssh_secret,  # noqa: F401
+    test_secret,  # noqa: F401
 )
 
 

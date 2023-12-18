@@ -235,7 +235,7 @@ class Secret(Resource):
 
     def delete(self, headers: Optional[Dict] = None):
         """Delete the secret config from Den and from Vault/local."""
-        if not (self.in_vault() or self.is_local()):
+        if not (self.in_vault() or self.in_local()):
             logger.warning(
                 "Can not delete a secret that has not been saved down to Vault or local."
             )
@@ -295,7 +295,7 @@ class Secret(Resource):
 
         return new_secret
 
-    def is_local(self):
+    def in_local(self):
         """Whether the secret config is stored locally (as opposed to Vault)."""
         path = os.path.expanduser(f"~/.rh/secrets/{self.name}.json")
         if os.path.exists(os.path.expanduser(path)):

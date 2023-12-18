@@ -39,7 +39,7 @@ def secret(request):
 
 
 @pytest.fixture(scope="function")
-def custom_secret():
+def test_secret():
     args = {"name": "custom_secret", "values": base_secret_values}
     custom_secret = rh.secret(**args)
     init_args[id(custom_secret)] = args

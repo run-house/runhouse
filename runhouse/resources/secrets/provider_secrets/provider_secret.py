@@ -170,8 +170,13 @@ class ProviderSecret(Secret):
             )
 
         if env or self.env_vars:
-            env_vars = {self.env_vars[key]: self.values[key] for key in self.values}
-            system.call(env, "_write_env_vars", env_vars)
+            env_key = env.name if isinstance(env, Env) else (env or "base_env")
+            if not system.get(env_key):
+                env = env if isinstance(env, Env) else Env(name=env_key)
+                env_key = system.put_resource(env)
+            env_vars = self.env_vars or self._DEFAULT_ENV_VARS
+            env_vars = {env_vars[k]: self.values[k] for k in self.values}
+            system.call(env_key, "_set_env_vars", env_vars)
         return new_secret
 
     def _file_to(

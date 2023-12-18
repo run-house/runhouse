@@ -8,9 +8,9 @@ import runhouse as rh
 
 from runhouse.globals import rns_client
 
-from runhouse.resources.secrets.utils import load_config
-
 import tests.test_resources.test_resource
+
+from tests.utils import test_account
 
 _provider_path_map = {
     "aws": "credentials",
@@ -46,12 +46,18 @@ def assert_delete_local(secret, contents: bool = False):
         assert not os.path.exists(os.path.expanduser(secret.path))
 
 
+def _get_env_var_value(env_var):
+    import os
+
+    return os.environ[env_var]
+
+
 class TestSecret(tests.test_resources.test_resource.TestResource):
     MAP_FIXTURES = {"resource": "secret"}
 
-    UNIT = {"secret": ["custom_secret"] + provider_secrets}
+    UNIT = {"secret": ["test_secret"] + provider_secrets}
     LOCAL = {
-        "secret": ["custom_secret"] + provider_secrets,
+        "secret": ["test_secret"] + provider_secrets,
         "cluster": [
             "local_docker_cluster_public_key_logged_in",
             "local_docker_cluster_public_key_logged_out",
@@ -59,7 +65,7 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
     }
     MINIMAL = {
         "secret": [
-            "custom_secret",
+            "test_secret",
             "aws_secret",
             "ssh_secret",
             "custom_provider_secret",
@@ -67,11 +73,11 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
         "cluster": ["static_cpu_cluster"],
     }
     THOROUGH = {
-        "secret": ["custom_secret"] + provider_secrets,
+        "secret": ["test_secret"] + provider_secrets,
         "cluster": ["static_cpu_cluster"],
     }
     MAXIMAL = {
-        "secret": ["custom_secret"] + provider_secrets,
+        "secret": ["test_secret"] + provider_secrets,
         "cluster": ["static_cpu_cluster", "password_cluster"],
     }
 
@@ -80,7 +86,7 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
         assert isinstance(secret, rh.Secret)
 
     @pytest.mark.level("local")
-    def test_provider_secret_to_cluster(self, secret, cluster):
+    def test_provider_secret_to_cluster_path(self, secret, cluster):
         if not isinstance(secret, rh.ProviderSecret):
             return
 
@@ -96,22 +102,78 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
         assert_delete_local(secret, contents=delete_contents)
 
     @pytest.mark.level("local")
-    def test_sharing(self, secret, test_account):
-        username_to_share = rh.configs.defaults_cache["username"]
+    def test_provider_secret_to_cluster_env(self, secret, cluster):
+        if not isinstance(secret, rh.ProviderSecret):
+            return
+
+        env_vars = secret._DEFAULT_ENV_VARS
+        if not env_vars:
+            return
+
+        env = rh.env()
+        get_remote_val = rh.function(_get_env_var_value, name="get_env_vars").to(
+            cluster, env=env
+        )
+        secret.to(cluster, env=env)
+
+        for (key, val) in env_vars.items():
+            assert get_remote_val(val) == secret.values[key]
+
+    @pytest.mark.level("unit")
+    def test_sharing(self, test_secret):
+        username_to_share = rh.configs.get("username")
 
         # Create & share
-        with test_account:
+        with test_account():
+            vault_secret = rh.secret(name=test_secret.name, values=test_secret.values)
             test_headers = rns_client.request_headers
-            secret.save(headers=test_headers)
+            vault_secret.save(headers=test_headers)
 
-            rns_address = secret.rns_address
+            rns_address = vault_secret.rns_address
 
             # Share the resource (incl. access to the secrets in Vault)
-            secret.share(username_to_share, access_type="write")
+            vault_secret.share(username_to_share, access_type="write")
+            del vault_secret
 
         # By default we can re-load shared secrets
         reloaded_secret = rh.secret(name=rns_address)
-        assert reloaded_secret.values == secret.values
+        assert reloaded_secret.values == test_secret.values
+
+    @pytest.mark.level("unit")
+    def test_sharing_public_secret(self, test_secret):
+        # Create & share
+        with test_account():
+            test_headers = rns_client.request_headers
+            vault_secret = rh.secret(name=test_secret.name, values=test_secret.values)
+            vault_secret.save(headers=test_headers)
+
+            rns_address = vault_secret.rns_address
+
+            # Make the resource available to all users, without explicitly sharing with any users
+            vault_secret.share(global_visibility="public")
+
+            del vault_secret
+
+        # By default we can re-load the public resource
+        reloaded_secret = rh.secret(name=rns_address)
+
+        # NOTE: currently not loading the values for public secret resources (i.e. reloaded_secret.values will be empty)
+        assert reloaded_secret
+
+    @pytest.mark.level("unit")
+    def test_revoke_secret(self, test_secret):
+        username_to_share = rh.configs.get("username")
+
+        # Revoke access
+        with test_account():
+            secret = rh.secret(name=test_secret.name, values=test_secret.values)
+            rns_address = test_secret.rns_address
+
+            secret.revoke(username_to_share)
+
+        with pytest.raises(Exception):
+            # Should no longer be able to reload the resource
+            rh.secret(name=rns_address)
 
     @pytest.mark.level("local")
     def test_sync_secrets(self, secret, cluster):
@@ -129,20 +191,22 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
         remote_file.rm()
 
     @pytest.mark.level("unit")
-    def test_convert_secret_resource(self, secret):
+    def test_convert_secret_resource(self, test_secret):
         from runhouse.rns.login import _convert_secrets_resource
 
-        name = secret.name
-        values = secret.values
+        name = test_secret.name
+        values = test_secret.values
+
+        # original format that secrets were saved into vault
         requests.put(
             f"{rns_client.api_server_url}/{rh.Secret.USER_ENDPOINT}/{name}",
             data=json.dumps(values),
             headers=rns_client.request_headers,
         )
 
-        _convert_secrets_resource([name])
-        assert load_config(name)
+        _convert_secrets_resource([name], headers=rns_client.request_headers)
+        assert rh.secret(name=name)
 
-        rh.Secret.from_name(name).delete()
-        with pytest.raises(ValueError):
-            load_config(name)
+        rh.secret(name=name).delete()
+        with pytest.raises(Exception):
+            rh.secret(name=name)
