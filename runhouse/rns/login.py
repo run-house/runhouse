@@ -154,8 +154,10 @@ def _login_download_secrets(headers: Optional[str] = None):
             if download_path:
                 logger.info(f"Loading down secrets for {name} into {download_path}")
                 secret.write()
-        except ValueError:
-            logger.warning(f"Was not able to load down secrets for {name}.")
+        except ValueError as e:
+            logger.warning(
+                f"Encountered {e}. Was not able to load down secrets for {name}."
+            )
 
 
 def _login_upload_secrets(interactive: bool, headers: Optional[Dict] = None):
@@ -210,8 +212,10 @@ def _convert_secrets_resource(names: List[str] = None, headers: Optional[Dict] =
                 secret = provider_secret(name, values=values)
                 secret.save()
                 _delete_vault_secrets(name=name, headers=headers)
-        except (AttributeError, Exception):
-            logger.warning(f"Was not able to load down secrets for {name}.")
+        except (AttributeError, Exception) as e:
+            logger.warning(
+                f"Encountered {e}. Was not able to load down secrets for {name}."
+            )
             continue
 
 
