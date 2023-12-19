@@ -104,10 +104,10 @@ class ProviderSecret(Secret):
 
     def write(
         self,
-        file: bool = False,
-        env: bool = False,
         path: Union[str, File] = None,
         env_vars: Dict = None,
+        file: bool = False,
+        env: bool = False,
         overwrite: bool = False,
     ):
         if not self.values:
@@ -213,7 +213,7 @@ class ProviderSecret(Secret):
                 os.makedirs(os.path.dirname(full_path), exist_ok=True)
                 with open(full_path, "w") as f:
                     json.dump(values, f, indent=4)
-                self._add_to_rh_config(full_path)
+                self._add_to_rh_config(path)
 
         new_secret._values = None
         new_secret.path = path

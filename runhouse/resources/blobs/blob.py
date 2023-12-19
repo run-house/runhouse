@@ -2,7 +2,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-from runhouse.resources.envs import _get_env_from, Env
+from runhouse.resources.envs.env import Env
+from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Cluster
 
 from runhouse.resources.module import Module

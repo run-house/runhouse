@@ -28,7 +28,6 @@ class LambdaSecret(ProviderSecret):
         self, path: Union[str, File], values: Dict = None, overwrite: bool = False
     ):
         new_secret = copy.deepcopy(self)
-        path = os.path.expanduser(path) if not isinstance(path, File) else path
         if not _check_file_for_mismatches(
             path, self._from_path(path), values, overwrite
         ):
@@ -36,8 +35,9 @@ class LambdaSecret(ProviderSecret):
             if isinstance(path, File):
                 path.write(data, serialize=False, mode="w")
             else:
-                Path(path).parent.mkdir(parents=True, exist_ok=True)
-                with open(path, "w+") as f:
+                full_path = os.path.expanduser(path)
+                Path(full_path).parent.mkdir(parents=True, exist_ok=True)
+                with open(full_path, "w+") as f:
                     f.write(data)
                 new_secret._add_to_rh_config(path)
 
