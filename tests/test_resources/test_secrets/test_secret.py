@@ -96,6 +96,13 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
         assert isinstance(secret, rh.Secret)
 
     @pytest.mark.level("local")
+    def test_provider_secret_to_cluster_values(self, secret, cluster):
+        remote_secret = secret.to(cluster)
+        assert cluster.get(remote_secret.name)
+        assert cluster.get(remote_secret.name).values
+        cluster.delete(remote_secret.name)
+
+    @pytest.mark.level("local")
     def test_provider_secret_to_cluster_path(self, secret, cluster):
         if not isinstance(secret, rh.ProviderSecret):
             return

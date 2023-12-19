@@ -129,7 +129,7 @@ class ProviderSecret(Secret):
         system: Union[str, Cluster],
         path: Union[str, File] = None,
         env: Union[str, Env] = None,
-        values: bool = True,
+        values: bool = None,
         name: Optional[str] = None,
     ):
         """Return a copy of the secret on a system.
@@ -141,7 +141,9 @@ class ProviderSecret(Secret):
                 will not be written down on the cluster.
             env (str or Env, optional): Env to send the secret to. This will save down the secrets
                 as env vars in the env.
-            values (bool, optional): Whether to save down the values in the resource config. (Default: True)
+            values (bool, optional): Whether to save down the values in the resource config. By default,
+                save down values if the secret is not being written down to a file or environment variable.
+                Otherwise, values are not written down. (Default: None)
             name (str, ooptional): Name to assign the resource on the cluster.
 
         Example:
@@ -164,8 +166,13 @@ class ProviderSecret(Secret):
 
         new_secret = copy.deepcopy(self)
         new_secret.name = name or self.name or self.provider
-        if values and not new_secret._values:
+
+        if values:
             new_secret._values = self.values
+        elif values is None and not (path or env or self.env_vars):
+            new_secret._values = self.values
+        elif values is False:
+            new_secret._values = None
 
         key = system.put_resource(new_secret)
         if path:
