@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Dict, List, Optional
 
 import requests
@@ -149,11 +150,11 @@ def _login_download_secrets(headers: Optional[str] = None):
     for name in secrets:
         try:
             secret = Secret.from_name(name)
-
-            download_path = secret.path or secret._DEFAULT_CREDENTIALS_PATH
-            if download_path:
-                logger.info(f"Loading down secrets for {name} into {download_path}")
-                secret.write()
+            if hasattr(secret, "path"):
+                download_path = secret.path or secret._DEFAULT_CREDENTIALS_PATH
+                if download_path:
+                    logger.info(f"Loading down secrets for {name} into {download_path}")
+                    secret.write()
         except ValueError as e:
             logger.warning(
                 f"Encountered {e}. Was not able to load down secrets for {name}."
@@ -244,32 +245,32 @@ def logout(
         interactive if interactive is not None else is_interactive()
     )
 
-    local_secret_names = list(configs.get("secrets", {}).keys())
-    for name in local_secret_names:
+    config_secrets = list(configs.get("secrets", {}).items())
+    for (name, path) in config_secrets:
         try:
             secret = Secret.from_name(name)
-        except ValueError:
-            configs.delete_provider(name)
-            continue
 
-        if isinstance(secret, SSHSecret):
-            logger.info(
-                "Automatic deletion for local SSH credentials file is not supported. "
-                "Please manually delete it if you would like to remove it"
-            )
-            continue
+            if isinstance(secret, SSHSecret):
+                logger.info(
+                    "Automatic deletion for local SSH credentials file is not supported. "
+                    "Please manually delete it if you would like to remove it"
+                )
+                configs.delete_provider(name)
+                continue
+        except ValueError:
+            pass
 
         if interactive_session:
             delete_loaded_secrets = typer.confirm(
-                f"Delete credentials file for {name}?"
+                f"Delete credentials file {path} for {name}?"
             )
 
-        if secret.in_vault() or secret.in_local():
-            if delete_loaded_secrets:
-                secret.delete(contents=True)
-            else:
-                secret.delete()
-                configs.delete_provider(name)
+        if delete_loaded_secrets:
+            path = os.path.expanduser(path)
+            if os.path.exists(path):
+                os.remove(path)
+
+        configs.delete_provider(name)
 
     local_secrets = Secret.local_secrets()
     for _, secret in local_secrets.items():
