@@ -17,8 +17,9 @@ class HuggingFaceSecret(ProviderSecret):
     """
 
     # values format: {"token": hf_token}
-    _DEFAULT_CREDENTIALS_PATH = "~/.cache/huggingface/token"
     _PROVIDER = "huggingface"
+    _DEFAULT_CREDENTIALS_PATH = "~/.cache/huggingface/token"
+    _DEFAULT_ENV_VARS = {"token": "HF_TOKEN"}
 
     @staticmethod
     def from_config(config: dict, dryrun: bool = False):

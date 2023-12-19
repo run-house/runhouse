@@ -251,16 +251,22 @@ from tests.test_resources.test_modules.test_tables.conftest import (
 )
 
 from tests.test_resources.test_secrets.conftest import (
+    anthropic_secret,  # noqa: F401
     aws_secret,  # noqa: F401
     azure_secret,  # noqa: F401
+    cohere_secret,  # noqa: F401
     custom_provider_secret,  # noqa: F401
     gcp_secret,  # noqa: F401
     github_secret,  # noqa: F401
     huggingface_secret,  # noqa: F401
     lambda_secret,  # noqa: F401
+    langchain_secret,  # noqa: F401
+    openai_secret,  # noqa: F401
+    pinecone_secret,  # noqa: F401
     sky_secret,  # noqa: F401
     ssh_secret,  # noqa: F401
     test_secret,  # noqa: F401
+    wandb_secret,  # noqa: F401
 )
 
 

@@ -36,6 +36,15 @@ provider_secrets = [
     "custom_provider_secret",
 ]
 
+api_secrets = [
+    "anthropic_secret",
+    "cohere_secret",
+    "langchain_secret",
+    "openai_secret",
+    "pinecone_secret",
+    "wandb_secret",
+]
+
 
 def assert_delete_local(secret, contents: bool = False):
     secret.delete(contents=contents) if contents else secret.delete()
@@ -55,9 +64,9 @@ def _get_env_var_value(env_var):
 class TestSecret(tests.test_resources.test_resource.TestResource):
     MAP_FIXTURES = {"resource": "secret"}
 
-    UNIT = {"secret": ["test_secret"] + provider_secrets}
+    UNIT = {"secret": ["test_secret"] + provider_secrets + api_secrets}
     LOCAL = {
-        "secret": ["test_secret"] + provider_secrets,
+        "secret": ["test_secret"] + provider_secrets + api_secrets,
         "cluster": [
             "local_docker_cluster_public_key_logged_in",
             "local_docker_cluster_public_key_logged_out",
@@ -68,6 +77,7 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
             "test_secret",
             "aws_secret",
             "ssh_secret",
+            "openai_secret",
             "custom_provider_secret",
         ],
         "cluster": ["static_cpu_cluster"],
@@ -88,6 +98,9 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     def test_provider_secret_to_cluster_path(self, secret, cluster):
         if not isinstance(secret, rh.ProviderSecret):
+            return
+
+        if secret.name not in _provider_path_map.keys():
             return
 
         test_path = os.path.join("~/.rh/tests", _provider_path_map[secret.provider])
@@ -179,16 +192,21 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
     def test_sync_secrets(self, secret, cluster):
         if not isinstance(secret, rh.ProviderSecret):
             return
-        test_path = _provider_path_map[secret.provider]
-        secret = secret.write(path=test_path)
-        cluster.sync_secrets([secret])
 
-        remote_file = rh.file(path=secret.path, system=cluster)
-        assert remote_file.exists_in_system()
-        assert secret._from_path(remote_file) == secret.values
+        if secret.provider in _provider_path_map.keys():
+            test_path = _provider_path_map[secret.provider]
+            secret = secret.write(path=test_path)
+            cluster.sync_secrets([secret])
 
-        assert_delete_local(secret, contents=True)
-        remote_file.rm()
+            remote_file = rh.file(path=secret.path, system=cluster)
+            assert remote_file.exists_in_system()
+            assert secret._from_path(remote_file) == secret.values
+
+            assert_delete_local(secret, contents=True)
+            remote_file.rm()
+        else:
+            cluster.sync_secrets([secret])
+            assert cluster.get(secret.name)
 
     @pytest.mark.level("unit")
     def test_convert_secret_resource(self, test_secret):

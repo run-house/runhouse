@@ -15,6 +15,12 @@ provider_secret_values = {
     "huggingface": {"token": "test_token"},
     "ssh": {"public_key": "test_public_key", "private_key": "test_private_key"},
     "sky": {"public_key": "test_public_key", "private_key": "test_private_key"},
+    "anthropic": {"api_key": "test_anthropic_api_key"},
+    "cohere": {"api_key": "test_cohere_api_key"},
+    "langchain": {"api_key": "test_langchain_api_key"},
+    "openai": {"api_key": "test_openai_api_key"},
+    "pinecone": {"api_key": "test_pinecone_api_key"},
+    "wandb": {"api_key": "test_wandb_api_key"},
     "custom_provider": base_secret_values,
 }
 
@@ -84,6 +90,36 @@ def ssh_secret():
 @pytest.fixture(scope="function")
 def sky_secret():
     return _provider_secret("sky")
+
+
+@pytest.fixture(scope="function")
+def anthropic_secret():
+    return _provider_secret("anthropic")
+
+
+@pytest.fixture(scope="function")
+def cohere_secret():
+    return _provider_secret("cohere")
+
+
+@pytest.fixture(scope="function")
+def langchain_secret():
+    return _provider_secret("langchain")
+
+
+@pytest.fixture(scope="function")
+def openai_secret():
+    return _provider_secret("openai")
+
+
+@pytest.fixture(scope="function")
+def pinecone_secret():
+    return _provider_secret("pinecone")
+
+
+@pytest.fixture(scope="function")
+def wandb_secret():
+    return _provider_secret("wandb")
 
 
 @pytest.fixture(scope="function")

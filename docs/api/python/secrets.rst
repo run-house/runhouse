@@ -42,7 +42,7 @@ AWSSecret Class
    .. autoattribute:: _DEFAULT_ENV_VARS
 
 AzureSecret Class
----------------
+-----------------
 .. autoclass:: runhouse.resources.secrets.provider_secrets.azure_secret.AzureSecret
    :show-inheritance:
 
@@ -60,7 +60,7 @@ GCPSecret Class
    .. autoattribute:: _DEFAULT_ENV_VARS
 
 GitHubSecret Class
----------------
+------------------
 .. autoclass:: runhouse.resources.secrets.provider_secrets.github_secret.GitHubSecret
    :show-inheritance:
 
@@ -68,7 +68,7 @@ GitHubSecret Class
    .. autoattribute:: _DEFAULT_CREDENTIALS_PATH
 
 HuggingFaceSecret Class
----------------
+-----------------------
 .. autoclass:: runhouse.resources.secrets.provider_secrets.huggingface_secret.HuggingFaceSecret
    :show-inheritance:
 
@@ -77,7 +77,7 @@ HuggingFaceSecret Class
 
 
 LambdaSecret Class
----------------
+------------------
 .. autoclass:: runhouse.resources.secrets.provider_secrets.lambda_secret.LambdaSecret
    :show-inheritance:
 
@@ -103,3 +103,51 @@ SkySecret Class
    .. autoattribute:: _PROVIDER
    .. autoattribute:: _DEFAULT_CREDENTIALS_PATH
    .. autoattribute:: _DEFAULT_KEY
+
+AnthropicSecret Class
+---------------------
+.. autoclass:: runhouse.resources.secrets.provider_secrets.anthropic_secret.AnthropicSecret
+   :show-inheritance:
+
+   .. autoattribute:: _PROVIDER
+   .. autoattribute:: _DEFAULT_ENV_VARS
+
+CohereSecret Class
+------------------
+.. autoclass:: runhouse.resources.secrets.provider_secrets.cohere_secret.CohereSecret
+   :show-inheritance:
+
+   .. autoattribute:: _PROVIDER
+   .. autoattribute:: _DEFAULT_ENV_VARS
+
+LangChainSecret Class
+---------------------
+.. autoclass:: runhouse.resources.secrets.provider_secrets.langchain_secret.LangChainSecret
+   :show-inheritance:
+
+   .. autoattribute:: _PROVIDER
+   .. autoattribute:: _DEFAULT_ENV_VARS
+
+OpenAISecret Class
+------------------
+.. autoclass:: runhouse.resources.secrets.provider_secrets.openai_secret.OpenAISecret
+   :show-inheritance:
+
+   .. autoattribute:: _PROVIDER
+   .. autoattribute:: _DEFAULT_ENV_VARS
+
+PineconeSecret Class
+--------------------
+.. autoclass:: runhouse.resources.secrets.provider_secrets.pinecone_secret.PineconeSecret
+   :show-inheritance:
+
+   .. autoattribute:: _PROVIDER
+   .. autoattribute:: _DEFAULT_ENV_VARS
+
+WandBSecret Class
+------------------
+.. autoclass:: runhouse.resources.secrets.provider_secrets.wandb_secret.WandBSecret
+   :show-inheritance:
+
+   .. autoattribute:: _PROVIDER
+   .. autoattribute:: _DEFAULT_ENV_VARS
