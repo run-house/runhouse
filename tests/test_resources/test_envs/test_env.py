@@ -208,9 +208,11 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         api_key_secret = rh.provider_secret(
             "openai", values={"api_key": "test_openai_key"}
         )
-        named_secret = rh.provider_secret(
-            "huggingface", values={"token": "test_hf_token"}
-        ).write(path="~/hf_token")
+        named_secret = (
+            rh.provider_secret("huggingface", values={"token": "test_hf_token"})
+            .write(path="~/hf_token")
+            .save()
+        )
         secrets = [path_secret, api_key_secret, named_secret.provider]
 
         env.secrets = secrets
@@ -227,3 +229,5 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
                 env_vars = secret.env_vars or secret._DEFAULT_ENV_VARS
                 for _, var in env_vars.items():
                     assert get_env_var_cpu(var)
+
+        named_secret.delete()

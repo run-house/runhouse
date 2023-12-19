@@ -83,7 +83,7 @@ class ProviderSecret(Secret):
         self, name: str = None, save_values: bool = True, headers: Optional[Dict] = None
     ):
         name = name or self.name or self.provider
-        super().save(name=name, save_values=save_values, headers=headers)
+        return super().save(name=name, save_values=save_values, headers=headers)
 
     def delete(self, headers: Optional[Dict] = None, contents: bool = False):
         """Delete the secret config from Den and from Vault/local. Optionally also delete contents of secret file
@@ -190,13 +190,10 @@ class ProviderSecret(Secret):
         path: Union[str, File] = None,
         values: Any = None,
     ):
-        if self.path:
-            if isinstance(path, File):
-                path = path.path
-            remote_file = file(path=self.path).to(system, path=path)
-        else:
-            system.call(key, "_write_to_file", path=path, values=values)
-            remote_file = file(path=path, system=system)
+        if isinstance(path, File):
+            path = path.path
+        system.call(key, "_write_to_file", path=path, values=values)
+        remote_file = file(path=path, system=system)
         return remote_file
 
     def _write_to_file(
