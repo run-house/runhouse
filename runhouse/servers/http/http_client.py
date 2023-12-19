@@ -267,8 +267,6 @@ class HTTPClient:
             env = _get_env_from(env)
             env = env.name or env.env_name
         config = resource.config_for_rns
-        if config["resource_type"] == "secret":
-            config["values"] = resource.values
         return self.request(
             "resource",
             req_type="post",
