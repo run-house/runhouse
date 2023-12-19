@@ -370,6 +370,11 @@ class Resource:
         if self.name is None:
             raise ValueError("Resource must have a name in order to share")
 
+        if users is None and global_visibility is None:
+            raise ValueError(
+                "Must specify `global_visibility` for the resource if no users are provided."
+            )
+
         if hasattr(self, "system") and self.system in ["ssh", "sftp"]:
             logger.warning(
                 "Sharing a resource located on a cluster is not recommended. For persistence, we suggest"
