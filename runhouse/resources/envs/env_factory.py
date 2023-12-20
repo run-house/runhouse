@@ -4,7 +4,6 @@ from typing import Dict, List, Optional, Union
 
 from runhouse.resources.packages import Package
 
-# from runhouse.resources.secrets.secret import Secret
 from .conda_env import CondaEnv
 
 from .env import Env

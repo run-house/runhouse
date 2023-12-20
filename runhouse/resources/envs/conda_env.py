@@ -9,8 +9,6 @@ from runhouse.globals import obj_store
 
 from runhouse.resources.packages import Package
 
-# from runhouse.resources.secrets.secret import Secret
-
 from .env import Env
 from .utils import _install_conda
 

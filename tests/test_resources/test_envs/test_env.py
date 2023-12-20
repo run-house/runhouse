@@ -219,12 +219,18 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         get_env_var_cpu = rh.function(_get_env_var_value).to(
             system=cluster, env=env, force_install=True
         )
-        env = env.to(cluster)
 
-        for secret in env.secrets:
+        for secret in secrets:
+            name = (
+                secret if isinstance(secret, str) else (secret.name or secret.provider)
+            )
+            assert cluster.get(name)
+
+            if isinstance(secret, str):
+                secret = rh.Secret.from_name(secret)
+
             if secret.path:
-                assert secret.path.system == cluster
-                assert secret.path.exists_in_system()
+                assert rh.file(path=secret.path, system=cluster).exists_in_system()
             else:
                 env_vars = secret.env_vars or secret._DEFAULT_ENV_VARS
                 for _, var in env_vars.items():

@@ -228,18 +228,17 @@ class ProviderSecret(Secret):
         return new_secret
 
     def _from_env(self, env_vars: Dict = None):
+        env_vars = env_vars or self.env_vars
         if not env_vars:
             return {}
 
         values = {}
-        keys = self.env_vars.keys() if self.env_vars else {}
-        env_vars = env_vars or self.env_vars or {key: key for key in keys}
 
-        if not keys:
-            return {}
-
-        for key in keys:
-            values[key] = os.environ[env_vars[key]]
+        for key in env_vars.keys():
+            try:
+                values[key] = os.environ[env_vars[key]]
+            except KeyError:
+                return {}
         return values
 
     def _from_path(self, path: Union[str, File] = None):
