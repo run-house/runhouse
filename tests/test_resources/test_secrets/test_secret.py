@@ -170,7 +170,7 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
             rns_address = vault_secret.rns_address
 
             # Make the resource available to all users, without explicitly sharing with any users
-            vault_secret.share(global_visibility="public")
+            vault_secret.share(visibility="public")
 
             del vault_secret
 

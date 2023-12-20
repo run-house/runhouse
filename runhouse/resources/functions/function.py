@@ -50,13 +50,13 @@ class Function(Module):
         config.pop("resource_subtype", None)
         return Function(**config, dryrun=dryrun)
 
-    def share(self, *args, global_visibility=None, **kwargs):
-        if global_visibility and not global_visibility == self.visibility:
-            self.visibility = global_visibility
+    def share(self, *args, visibility=None, **kwargs):
+        if visibility and not visibility == self.visibility:
+            self.visibility = visibility
             super().remote.visibility = (
-                global_visibility  # do this to avoid hitting Function's .remote
+                visibility  # do this to avoid hitting Function's .remote
             )
-        super().share(*args, **kwargs, global_visibility=global_visibility)
+        super().share(*args, **kwargs, visibility=visibility)
 
     def to(
         self,

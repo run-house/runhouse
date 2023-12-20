@@ -115,13 +115,13 @@ Here are some examples for how that could look when sharing a function:
 
     # Share a function with a particular user, giving them write access to the resource and private visibility
     # The function will be visible to the user in their Den dashboard
-    my_func.share("user_a@gmail.com", access_level="write", global_visibility="private")
+    my_func.share("user_a@gmail.com", access_level="write", visibility="private")
 
     # Make this function available to all users, who will be given read access to that resource
-    my_func.share(global_visibility="public")
+    my_func.share(visibility="public")
 
     # Share the function with a list of users, giving them read only access to the resource and unlisted visibility,
     # The function will not be visible by default in these users' Den dashboards, and will only appear
     # if searched by name
     my_func.share(["user_a@gmail.com", "rh_username_2"],
-                  global_visibility="unlisted")
+                  visibility="unlisted")
