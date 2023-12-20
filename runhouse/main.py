@@ -37,11 +37,11 @@ def login(
             upload_config=True,
             download_secrets=True,
             upload_secrets=True,
-            from_app=True,
+            from_cli=True,
         )
         if yes
         else runhouse.rns.login.login(
-            token=token, interactive=True, ret_token=True, from_app=True
+            token=token, interactive=True, ret_token=True, from_cli=True
         )
     )
 

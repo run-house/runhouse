@@ -25,7 +25,7 @@ def login(
     upload_secrets: bool = None,
     ret_token: bool = False,
     interactive: bool = None,
-    from_app: bool = False,
+    from_cli: bool = False,
 ):
     """Login to Runhouse. Validates token provided, with options to upload or download stored secrets or config between
     local environment and Runhouse / Vault.
@@ -135,7 +135,7 @@ def login(
 
     if download_secrets:
         _convert_secrets_resource()
-        _login_download_secrets(from_app=from_app)
+        _login_download_secrets(from_cli=from_cli)
     if upload_secrets:
         _login_upload_secrets(interactive=interactive)
 
@@ -144,7 +144,7 @@ def login(
         return token
 
 
-def _login_download_secrets(headers: Optional[str] = None, from_app=False):
+def _login_download_secrets(headers: Optional[str] = None, from_cli=False):
     from runhouse import Secret
 
     secrets = Secret.vault_secrets(headers=headers or rns_client.request_headers)
@@ -164,7 +164,7 @@ def _login_download_secrets(headers: Optional[str] = None, from_app=False):
                 logger.info(
                     f"Writing down env secrets for {name} into {env_vars.values()}"
                 )
-                if not from_app:
+                if not from_cli:
                     secret.write(env=True)
                 else:
                     for key, val in secret.values.items():
@@ -176,7 +176,7 @@ def _login_download_secrets(headers: Optional[str] = None, from_app=False):
                 f"Encountered {e}. Was not able to load down secrets for {name}."
             )
 
-    if from_app and env_secrets:
+    if from_cli and env_secrets:
         folder = os.path.expanduser("~/.rh/secrets")
         os.makedirs(folder, exist_ok=True)
         with open(f"{folder}/login.env", "w") as f:
