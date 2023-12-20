@@ -1,4 +1,5 @@
 import runhouse as rh
+from runhouse.globals import rns_client
 
 
 def summer(a, b):
@@ -14,14 +15,15 @@ def test_create_func():
     aws_func.save()
     res = aws_func(1, 3)
     assert int(res) == 4
-    aws_func.delete_from_den()
+    aws_func.teardown()
+    rns_client.delete_configs(aws_func)
 
 
 def test_from_runhouse_func():
     my_rh_lambda = rh.function(multiplier).to(system="Lambda_Function")
     res = my_rh_lambda(3, 5)
     assert res == "15"
-    my_rh_lambda.delete()
+    my_rh_lambda.teardown()
 
 
 def test_share_lambda():
@@ -35,4 +37,5 @@ def test_share_lambda():
         shared_func = lambda_func.rns_address
     reloaded_func = rh.aws_lambda_fn(name=shared_func)
     assert reloaded_func(1, 3) == "4"
-    lambda_func.delete_from_den()
+    rns_client.delete_configs(lambda_func)
+    lambda_func.teardown()

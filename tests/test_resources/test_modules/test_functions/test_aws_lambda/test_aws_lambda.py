@@ -7,6 +7,7 @@ import boto3
 import pytest
 
 import runhouse as rh
+from runhouse.globals import rns_client
 
 from .test_helpers.lambda_tests.basic_handler_layer import arr_handler
 
@@ -31,7 +32,9 @@ def basic_function():
     try:
         yield my_lambda
     finally:
-        my_lambda.delete()
+        my_lambda.teardown()
+        if rns_client.exists(my_lambda.rns_address):
+            rns_client.delete_configs(my_lambda)
 
 
 @pytest.fixture(scope="session")
@@ -44,8 +47,9 @@ def numpy_function():
         env={"reqs": ["numpy", "pandas"], "env_vars": None},
     ).save()
     yield my_lambda
-
-    my_lambda.delete()
+    my_lambda.teardown()
+    if rns_client.exists(my_lambda.rns_address):
+        rns_client.delete_configs(my_lambda)
 
 
 def test_create_and_run_no_layers(basic_function):
@@ -96,9 +100,18 @@ def test_bad_runtime_to_factory():
     assert wrong_runtime_1.runtime == "python3.9"
     assert wrong_runtime_2.runtime == "python3.9"
     assert wrong_runtime_3.runtime == "python3.9"
-    assert wrong_runtime_1.delete() is True
-    assert wrong_runtime_2.delete() is True
-    assert wrong_runtime_3.delete() is True
+
+    assert wrong_runtime_1.teardown() is True
+    if rns_client.exists(wrong_runtime_1.rns_address):
+        rns_client.delete_configs(wrong_runtime_1)
+
+    assert wrong_runtime_2.teardown() is True
+    if rns_client.exists(wrong_runtime_2.rns_address):
+        rns_client.delete_configs(wrong_runtime_1)
+
+    assert wrong_runtime_3.teardown() is True
+    if rns_client.exists(wrong_runtime_3.rns_address):
+        rns_client.delete_configs(wrong_runtime_3)
 
 
 def test_func_no_args():
@@ -110,7 +123,7 @@ def test_func_no_args():
     )
     assert my_lambda() == '"no args lambda"'
     assert my_lambda.name == "test_lambda_no_args"
-    assert my_lambda.delete() is True
+    assert my_lambda.teardown() is True
 
 
 def test_create_and_run_generate_name():
@@ -121,8 +134,8 @@ def test_create_and_run_generate_name():
     reload_func = rh.aws_lambda_fn(name="lambda_sum")
     res2 = reload_func(12, 7)
     assert res2 == "19"
-    assert my_lambda.delete() is True
-    assert reload_func.delete() is True
+    assert my_lambda.teardown() is True
+    assert reload_func.teardown() is True
 
 
 def test_create_and_run_layers_dict(numpy_function):
@@ -148,7 +161,7 @@ def test_create_and_run_layers_env():
     )
     res = my_lambda([1, 2, 3], [2, 5, 6])
     assert res == "19"
-    assert my_lambda.delete() is True
+    assert my_lambda.teardown() is True
 
 
 def test_create_and_run_layers_list():
@@ -161,7 +174,7 @@ def test_create_and_run_layers_list():
     )
     res = my_lambda([1, 2, 3], [4, 7, 9])
     assert res == "26"
-    assert my_lambda.delete() is True
+    assert my_lambda.teardown() is True
 
 
 def test_layers_increase_timeout_and_memory():
@@ -182,7 +195,7 @@ def test_layers_increase_timeout_and_memory():
     assert lambda_config["Configuration"]["MemorySize"] == 1024
     assert lambda_config["Configuration"]["EphemeralStorage"]["Size"] == 3072
     assert lambda_config["Configuration"]["FunctionName"] == my_lambda.name
-    assert my_lambda.delete() is True
+    assert my_lambda.teardown() is True
 
 
 def test_create_and_run_layers_txt():
@@ -195,7 +208,7 @@ def test_create_and_run_layers_txt():
     )
     res = my_lambda([1, 2, 3], [1, 2, 3])
     assert res == "12"
-    assert my_lambda.delete() is True
+    assert my_lambda.teardown() is True
 
 
 def test_update_lambda_one_file():
@@ -241,7 +254,7 @@ def test_mult_files_each():
     assert res2 == "3.2"
     assert res3 == "22.5"
     assert res4 == "7.5"
-    assert my_lambda_calc_1.delete() is True
+    assert my_lambda_calc_1.teardown() is True
 
 
 def test_few_python_files_chain():
@@ -275,7 +288,7 @@ def test_few_python_files_chain():
     assert res2 == "17"
     assert res3 == "20"
     assert res4 == "20"
-    assert my_lambda_calc_2.delete() is True
+    assert my_lambda_calc_2.teardown() is True
 
 
 def test_args(basic_function):
@@ -317,7 +330,7 @@ def test_create_from_config():
     assert res1 == "3"
     assert res2 == "20"
     assert res3 == "31"
-    assert config_lambda.delete() is True
+    assert config_lambda.teardown() is True
 
 
 def test_delete_lambda():
@@ -335,7 +348,7 @@ def test_delete_lambda():
     lambda_role = f"{lambda_name}_Role"
     lambda_log_group = f"/aws/lambda/{lambda_name}"
 
-    del_res = lambda_to_delete.delete_from_den()
+    del_res = lambda_to_delete.teardown()
     assert del_res is True
 
     functions_in_aws = [
@@ -358,6 +371,9 @@ def test_delete_lambda():
         for log_group in logs_client.describe_log_groups()["logGroups"]
     ]
     assert lambda_log_group not in logs_groups_in_aws
+
+    if rns_client.exists(lambda_to_delete.rns_address):
+        rns_client.delete_configs(lambda_to_delete)
 
 
 if __name__ == "__main__":

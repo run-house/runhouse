@@ -794,7 +794,7 @@ class LambdaFunction(Function):
     # --------------------------------------
     # Lambda Function delete methods
     # --------------------------------------
-    def delete(self):
+    def teardown(self):
         """Deletes a Lambda function instance from AWS. All relevant AWS resources
         (role, log group) are deleted as well.
 
@@ -803,7 +803,7 @@ class LambdaFunction(Function):
             >>>     return a * b
             >>> multiply_lambda = rh.aws_lambda_fn(fn=multiply, name="lambdas_mult_func")
             >>> mult_res = multiply_lambda(4, 5)  # returns "20".
-            >>> multiply_lambda.delete()  # returns true if succeeded, raises an exception otherwise.
+            >>> multiply_lambda.teardown()  # returns true if succeeded, raises an exception otherwise.
 
         """
         try:
@@ -833,23 +833,6 @@ class LambdaFunction(Function):
             raise RuntimeError(
                 f"Could nor delete an AWS resource, got {aws_exception.response['Error']['Message']}"
             )
-
-    def delete_from_den(self):
-        """Deletes a Lambda function instance from DEN (if saved) and from AWS. All relevant AWS resources
-        (role, log group) are deleted as well.
-
-        Example:
-            >>> def multiply(a, b):
-            >>>     return a * b
-            >>> multiply_lambda = rh.aws_lambda_fn(fn=multiply, name="lambdas_mult_func")
-            >>> mult_res = multiply_lambda(4, 5)  # returns "20".
-            >>> multiply_lambda.delete_from_den()  # returns true if succeeded, raises an exception otherwise.
-
-        """
-        # delete from rns (if exists)
-        if rns_client.exists(self.rns_address):
-            rns_client.delete_configs(self)
-        return self.delete()
 
     # --------------------------------------
     # Properties setup
