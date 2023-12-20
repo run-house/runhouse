@@ -14,4 +14,9 @@ API Tutorials
 .. toctree::
    :maxdepth: 1
 
-   tutorials/api/accessibility
+   tutorials/api/secrets
+
+.. toctree::
+   :maxdepth: 1
+
+   tutorials/api/resources
