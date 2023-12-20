@@ -14,6 +14,7 @@ from runhouse.resources.envs import _get_env_from, Env
 from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Cluster
 from runhouse.resources.packages import Package
 from runhouse.resources.resource import Resource
+from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.rns.utils.names import _generate_default_name
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,7 @@ class Module(Resource):
         self,
         pointers: Optional[Tuple] = None,
         signature: Optional[dict] = None,
+        endpoint: Optional[str] = None,
         name: Optional[str] = None,
         system: Union[Cluster] = None,
         env: Optional[Env] = None,
@@ -149,6 +151,8 @@ class Module(Resource):
             new_module.system = config.pop("system", None)
             new_module.env = config.pop("env", None)
             new_module.name = config.pop("name", None)
+            new_module.access_level = config.pop("access_level", ResourceAccess.WRITE)
+            new_module.visibility = config.pop("visibility", ResourceVisibility.PRIVATE)
             new_module._pointers = config.pop("pointers", None)
             new_module._signature = config.pop("signature", None)
             new_module.dryrun = config.pop("dryrun", False)
