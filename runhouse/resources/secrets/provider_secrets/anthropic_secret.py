@@ -9,7 +9,7 @@ class AnthropicSecret(ApiKeySecret):
     """
 
     _PROVIDER = "anthropic"
-    _DEFAULT_ENV_VARS = {"api_key": "ANTHRHOPIC_API_KEY"}
+    _DEFAULT_ENV_VARS = {"api_key": "ANTHROPIC_API_KEY"}
 
     @staticmethod
     def from_config(config: dict, dryrun: bool = False):
