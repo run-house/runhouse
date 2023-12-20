@@ -333,7 +333,7 @@ class Resource:
         self,
         users: Union[str, List[str]] = None,
         access_level: Union[ResourceAccess, str] = ResourceAccess.READ,
-        global_visibility: Optional[Union[ResourceVisibility, str]] = None,
+        visibility: Optional[Union[ResourceVisibility, str]] = None,
         notify_users: bool = True,
         headers: Optional[Dict] = None,
         # Deprecated
@@ -352,7 +352,7 @@ class Resource:
                 If none are provided and ``visibility`` is set to ``public``, resource will be made publicly
                 available to all users. Defaults to ``read``.
             access_level (:obj:`ResourceAccess`, optional): Access level to provide for the resource.
-            global_visibility (:obj:`ResourceVisibility`, optional): Type of visibility to provide for the shared
+            visibility (:obj:`ResourceVisibility`, optional): Type of visibility to provide for the shared
                 resource. Defaults to ``private``.
             notify_users (bool, optional): Whether to send an email notification to users who have been given access.
                 Note: This is relevant for resources which are not ``shareable``. Defaults to ``True``.
@@ -378,9 +378,9 @@ class Resource:
         if self.name is None:
             raise ValueError("Resource must have a name in order to share")
 
-        if users is None and global_visibility is None:
+        if users is None and visibility is None:
             raise ValueError(
-                "Must specify `global_visibility` for the resource if no users are provided."
+                "Must specify `visibility` for the resource if no users are provided."
             )
 
         if hasattr(self, "system") and self.system in ["ssh", "sftp"]:
@@ -412,9 +412,9 @@ class Resource:
         if isinstance(access_level, str):
             access_level = ResourceAccess(access_level)
 
-        if global_visibility is not None:
+        if visibility is not None:
             # Update the resource in Den with this global visibility value
-            self.visibility = global_visibility
+            self.visibility = visibility
 
             logger.info(f"Updating resource with visibility: {self.visibility}")
 
