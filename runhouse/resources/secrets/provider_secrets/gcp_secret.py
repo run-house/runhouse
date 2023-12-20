@@ -32,7 +32,6 @@ class GCPSecret(ProviderSecret):
         self, path: Union[str, File], values: Dict = None, overwrite: bool = False
     ):
         new_secret = copy.deepcopy(self)
-        path = os.path.expanduser(path) if not isinstance(path, File) else path
         if not _check_file_for_mismatches(
             path, self._from_path(path), values, overwrite
         ):

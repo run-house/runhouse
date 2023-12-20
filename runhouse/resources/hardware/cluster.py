@@ -347,10 +347,12 @@ class Cluster(Resource):
         return self.get(run_name, remote=True).provenance
 
     # TODO This should accept an env (for env var secrets and docker envs).
-    def add_secrets(self, provider_secrets: List[str or "Secret"]):
+    def add_secrets(
+        self, provider_secrets: List[str or "Secret"], env: Union[str, "Env"] = None
+    ):
         """Copy secrets from current environment onto the cluster"""
         self.check_server()
-        self.sync_secrets(provider_secrets)
+        self.sync_secrets(provider_secrets, env=env)
 
     def put(self, key: str, obj: Any, env=None):
         """Put the given object on the cluster's object store at the given key."""
@@ -1171,7 +1173,11 @@ class Cluster(Resource):
 
         return return_codes
 
-    def sync_secrets(self, providers: Optional[List[str or "Secret"]] = None):
+    def sync_secrets(
+        self,
+        providers: Optional[List[str or "Secret"]] = None,
+        env: Union[str, "Env"] = None,
+    ):
         """Send secrets for the given providers.
 
         Args:
@@ -1183,6 +1189,11 @@ class Cluster(Resource):
         """
         self.check_server()
         from runhouse.resources.secrets import Secret
+
+        if isinstance(env, str):
+            from runhouse.resources.envs import Env
+
+            env = Env.from_name(env)
 
         secrets = []
         if providers:
@@ -1197,7 +1208,7 @@ class Cluster(Resource):
             secrets = secrets.values()
 
         for secret in secrets:
-            secret.to(self)
+            secret.to(self, env=env)
 
     def ipython(self):
         # TODO tunnel into python interpreter in cluster

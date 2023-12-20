@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from runhouse.resources.packages import Package
+
 from .conda_env import CondaEnv
 
 from .env import Env
@@ -17,6 +18,7 @@ def env(
     setup_cmds: List[str] = None,
     env_vars: Union[Dict, str] = {},
     working_dir: Optional[Union[str, Path]] = "./",
+    secrets: Optional[Union[str, "Secret"]] = [],
     dryrun: bool = False,
 ):
     """Builds an instance of :class:`Env`.
@@ -51,7 +53,7 @@ def env(
         >>> conda_env = rh.env(conda_env="local-conda-env-name")     # from a existing local conda env
         >>> conda_env = rh.env(conda_env="conda_env.yaml", reqs=["pip:/accelerate"])   # with additional reqs
     """
-    if name and not any([reqs, conda_env, setup_cmds, env_vars]):
+    if name and not any([reqs, conda_env, setup_cmds, env_vars, secrets]):
         return Env.from_name(name, dryrun)
 
     reqs = _process_reqs(reqs or [])
@@ -64,6 +66,7 @@ def env(
             setup_cmds=setup_cmds,
             env_vars=env_vars,
             working_dir=working_dir,
+            secrets=secrets,
             name=name or conda_yaml["name"],
             dryrun=dryrun,
         )
@@ -73,6 +76,7 @@ def env(
         setup_cmds=setup_cmds,
         env_vars=env_vars,
         working_dir=working_dir,
+        secrets=secrets,
         name=name or Env.DEFAULT_NAME,
         dryrun=dryrun,
     )
@@ -86,6 +90,7 @@ def conda_env(
     setup_cmds: List[str] = None,
     env_vars: Optional[Dict] = {},
     working_dir: Optional[Union[str, Path]] = "./",
+    secrets: List[Union[str, "Secret"]] = [],
     dryrun: bool = False,
 ):
     """Builds an instance of :class:`CondaEnv`.
@@ -124,5 +129,6 @@ def conda_env(
         setup_cmds=setup_cmds,
         env_vars=env_vars,
         working_dir=working_dir,
+        secrets=secrets,
         dryrun=dryrun,
     )

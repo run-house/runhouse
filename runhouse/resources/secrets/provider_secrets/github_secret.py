@@ -29,7 +29,6 @@ class GitHubSecret(ProviderSecret):
         self, path: Union[str, File], values: Dict = None, overwrite: bool = False
     ):
         new_secret = copy.deepcopy(self)
-        path = os.path.expanduser(path) if not isinstance(path, File) else path
         if not _check_file_for_mismatches(
             path, self._from_path(path), values, overwrite
         ):
@@ -41,13 +40,14 @@ class GitHubSecret(ProviderSecret):
                 data = yaml.dump(config, default_flow_style=False)
                 path.write(data, serialize=False, mode="w")
             else:
-                if Path(path).exists():
-                    with open(path, "r") as stream:
+                full_path = os.path.expanduser(path)
+                if Path(full_path).exists():
+                    with open(full_path, "r") as stream:
                         config = yaml.safe_load(stream)
                 config["github.com"] = values
 
-                Path(path).parent.mkdir(parents=True, exist_ok=True)
-                with open(path, "w") as yaml_file:
+                Path(full_path).parent.mkdir(parents=True, exist_ok=True)
+                with open(full_path, "w") as yaml_file:
                     yaml.dump(config, yaml_file, default_flow_style=False)
                 new_secret._add_to_rh_config(path)
 

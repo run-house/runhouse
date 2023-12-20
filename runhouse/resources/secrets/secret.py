@@ -75,16 +75,18 @@ class Secret(Resource):
         """Load existing Secret via its name."""
         try:
             config = load_config(name, cls.USER_ENDPOINT)
-            return cls.from_config(config=config, dryrun=dryrun)
+            if config:
+                return cls.from_config(config=config, dryrun=dryrun)
         except ValueError:
-            if name in cls.builtin_providers(as_str=True):
-                from runhouse.resources.secrets.provider_secrets.providers import (
-                    _get_provider_class,
-                )
+            pass
+        if name in cls.builtin_providers(as_str=True):
+            from runhouse.resources.secrets.provider_secrets.providers import (
+                _get_provider_class,
+            )
 
-                provider_class = _get_provider_class(name)
-                return provider_class(provider=name, dryrun=dryrun)
-            raise ValueError(f"Could not locate secret {name}")
+            provider_class = _get_provider_class(name)
+            return provider_class(provider=name, dryrun=dryrun)
+        raise ValueError(f"Could not locate secret {name}")
 
     @classmethod
     def builtin_providers(cls, as_str: bool = False) -> list:

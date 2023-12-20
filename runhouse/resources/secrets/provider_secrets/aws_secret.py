@@ -33,9 +33,8 @@ class AWSSecret(ProviderSecret):
     ):
         new_secret = copy.deepcopy(self)
 
-        full_path = os.path.expanduser(path) if not isinstance(path, File) else path
         if not _check_file_for_mismatches(
-            full_path, self._from_path(full_path), values, overwrite
+            path, self._from_path(path), values, overwrite
         ):
 
             parser = configparser.ConfigParser()
@@ -60,10 +59,11 @@ class AWSSecret(ProviderSecret):
                     data = ss.read()
                 path.write(data, serialize=False, mode="w")
             else:
+                full_path = os.path.expanduser(path)
                 Path(full_path).parent.mkdir(parents=True, exist_ok=True)
                 with open(full_path, "w+") as f:
                     parser.write(f)
-                new_secret._add_to_rh_config(full_path)
+                new_secret._add_to_rh_config(path)
 
         new_secret._values = None
         new_secret.path = path
