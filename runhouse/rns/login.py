@@ -25,6 +25,7 @@ def login(
     upload_secrets: bool = None,
     ret_token: bool = False,
     interactive: bool = None,
+    from_app: bool = False,
 ):
     """Login to Runhouse. Validates token provided, with options to upload or download stored secrets or config between
     local environment and Runhouse / Vault.
@@ -134,7 +135,7 @@ def login(
 
     if download_secrets:
         _convert_secrets_resource()
-        _login_download_secrets()
+        _login_download_secrets(from_app=from_app)
     if upload_secrets:
         _login_upload_secrets(interactive=interactive)
 
@@ -143,10 +144,11 @@ def login(
         return token
 
 
-def _login_download_secrets(headers: Optional[str] = None):
+def _login_download_secrets(headers: Optional[str] = None, from_app=False):
     from runhouse import Secret
 
     secrets = Secret.vault_secrets(headers=headers or rns_client.request_headers)
+    env_secrets = {}
     for name in secrets:
         try:
             secret = Secret.from_name(name)
@@ -162,11 +164,28 @@ def _login_download_secrets(headers: Optional[str] = None):
                 logger.info(
                     f"Writing down env secrets for {name} into {env_vars.values()}"
                 )
-                secret.write(env=True)
+                if not from_app:
+                    secret.write(env=True)
+                else:
+                    for key, val in secret.values.items():
+                        if key in env_vars:
+                            env_secrets.update({env_vars[key]: val})
+
         except ValueError as e:
             logger.warning(
                 f"Encountered {e}. Was not able to load down secrets for {name}."
             )
+
+    if from_app and env_secrets:
+        folder = os.path.expanduser("~/.rh/secrets")
+        os.makedirs(folder, exist_ok=True)
+        with open(f"{folder}/login.env", "w") as f:
+            for key, val in env_secrets.items():
+                f.write(f"{key}={val}\n")
+        logger.info(
+            "Env var secrets written down into ~/.rh/secrets/login.env. "
+            "Please run `source ~/.rh/secrets/login.env` to set the environment variables."
+        )
 
 
 def _login_upload_secrets(interactive: bool, headers: Optional[Dict] = None):
