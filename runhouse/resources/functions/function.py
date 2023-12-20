@@ -50,20 +50,13 @@ class Function(Module):
         config.pop("resource_subtype", None)
         return Function(**config, dryrun=dryrun)
 
-    @classmethod
-    def _check_for_child_configs(cls, config):
-        """Overload by child resources to load any resources they hold internally."""
-        # TODO: Replace with _get_cluster_from?
-        system = config["system"]
-        if isinstance(system, str):
-            config["system"] = globals.rns_client.load_config(name=system)
-            logging.info(f"Loaded system config {config} from RNS.")
-            # if the system is set to a cluster
-            if not config["system"]:
-                raise Exception(f"No cluster config saved for {system}")
-
-        config["env"] = _get_env_from(config["env"])
-        return config
+    def share(self, *args, global_visibility=None, **kwargs):
+        if global_visibility and not global_visibility == self.visibility:
+            self.visibility = global_visibility
+            super().remote.visibility = (
+                global_visibility  # do this to avoid hitting Function's .remote
+            )
+        super().share(*args, **kwargs, global_visibility=global_visibility)
 
     def to(
         self,

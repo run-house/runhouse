@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 
 
 class Message(BaseModel):
-    data: str = None
+    data: Any = None
+    serialization: str = None
     env: str = None
     key: Optional[str] = None
     stream_logs: Optional[bool] = True

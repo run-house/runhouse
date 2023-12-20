@@ -7,7 +7,7 @@ import threading
 import time
 import traceback
 from pathlib import Path
-from typing import List, Union
+from typing import List, Optional, Union
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
@@ -18,6 +18,7 @@ from runhouse.resources.module import Module
 from runhouse.resources.provenance import run, RunStatus
 from runhouse.resources.queues import Queue
 from runhouse.resources.resource import Resource
+from runhouse.rns.utils.api import ResourceVisibility
 
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.http_utils import (
@@ -111,6 +112,7 @@ class EnvServlet:
         message: Message,
         token_hash: str,
         den_auth: bool,
+        serialization: Optional[str] = None,
     ):
         self.register_activity()
         result_resource = None
@@ -121,11 +123,6 @@ class EnvServlet:
                 f"Message received from client to call method {method_name} on module {module_name} at {time.time()}"
             )
 
-            self.thread_ids[
-                message.key
-            ] = threading.get_ident()  # Save thread ID for this message
-            # Remove output types from previous runs
-            self.output_types.pop(message.key, None)
             result_resource = Queue(name=message.key, persist=persist)
             result_resource.provenance = run(
                 name=message.key,
@@ -134,21 +131,39 @@ class EnvServlet:
             )
             result_resource.provenance.__enter__()
 
+            module = obj_store.get(module_name, default=KeyError)
+            if den_auth:
+                if not isinstance(module, Resource):
+                    raise ValueError(
+                        f"Module {module_name} is not a Resource and therefore cannot be authenticated"
+                    )
+                if module.visibility not in [
+                    ResourceVisibility.UNLISTED,
+                    ResourceVisibility.PUBLIC,
+                    "unlisted",
+                    "public",
+                ]:
+                    resource_uri = (
+                        module.rns_address if hasattr(module, "rns_address") else None
+                    )
+                    if not resource_uri:
+                        raise ValueError(
+                            f"Module {module_name} does not have an RNS address and therefore cannot be authenticated"
+                        )
+                    if not obj_store.has_resource_access(token_hash, resource_uri):
+                        raise PermissionError(
+                            f"No read or write access to requested resource {resource_uri}"
+                        )
+
+            self.thread_ids[
+                message.key
+            ] = threading.get_ident()  # Save thread ID for this message
+            # Remove output types from previous runs
+            self.output_types.pop(message.key, None)
+
             # Save now so status and initial streamed results are available globally
             if message.save:
                 result_resource.save()
-
-            args, kwargs = b64_unpickle(message.data) if message.data else ([], {})
-            # Resolve any resources which need to be resolved
-            args = [
-                arg.fetch() if (isinstance(arg, Module) and arg._resolve) else arg
-                for arg in args
-            ]
-            kwargs = {
-                k: v.fetch() if (isinstance(v, Module) and v._resolve) else v
-                for k, v in kwargs.items()
-            }
-            module = obj_store.get(module_name, default=KeyError)
 
             # If method_name is None, return the module itself as this is a "get" request
             try:
@@ -167,21 +182,30 @@ class EnvServlet:
                 )
                 callable_method = True
 
-                if den_auth:
-                    resource_uri = (
-                        module.rns_address if hasattr(module, "rns_address") else None
-                    )
-                    if not obj_store.has_resource_access(token_hash, resource_uri):
-                        raise PermissionError(
-                            f"No read or write access to requested resource {resource_uri}"
-                        )
-
             else:
                 # Method is a property, return the value
                 logger.info(
                     f"{self.env_name} servlet: Getting property {method_name} on module {module_name}"
                 )
                 callable_method = False
+
+            # FastAPI automatically deserializes json
+            args, kwargs = (
+                b64_unpickle(message.data)
+                if message.data and not serialization
+                else ([], message.data)
+                if serialization == "json"
+                else ([], {})
+            )
+            # Resolve any resources which need to be resolved
+            args = [
+                arg.fetch() if (isinstance(arg, Module) and arg._resolve) else arg
+                for arg in args
+            ]
+            kwargs = {
+                k: v.fetch() if (isinstance(v, Module) and v._resolve) else v
+                for k, v in kwargs.items()
+            }
 
             if not callable_method and kwargs and "new_value" in kwargs:
                 # If new_value was passed, that means we're setting a property
@@ -262,7 +286,9 @@ class EnvServlet:
                         # we can return the result to the user immediately
                         result_resource.provenance.__exit__(None, None, None)
                         return Response(
-                            data=pickle_b64(result),
+                            data=pickle_b64(result)
+                            if not serialization == "json"
+                            else result,
                             output_type=OutputType.RESULT,
                         )
                     # Put the result in the queue so we can retrieve it once
@@ -288,7 +314,15 @@ class EnvServlet:
                 type(e), e, traceback.format_exc()
             )  # TODO use format_tb instead?
 
-    def get(self, key, remote=False, stream=False, timeout=None, _intra_cluster=False):
+    def get(
+        self,
+        key,
+        remote=False,
+        stream=False,
+        timeout=None,
+        serialization=None,
+        _intra_cluster=False,
+    ):
         """Get an object from the servlet's object store.
 
         Args:
@@ -354,8 +388,12 @@ class EnvServlet:
 
                     if ret_obj.provenance.status == RunStatus.ERROR:
                         return Response(
-                            error=pickle_b64(ret_obj.provenance.error),
-                            traceback=pickle_b64(ret_obj.provenance.traceback),
+                            error=pickle_b64(ret_obj.provenance.error)
+                            if not serialization == "json"
+                            else str(ret_obj.provenance.error),
+                            traceback=pickle_b64(ret_obj.provenance.traceback)
+                            if not serialization == "json"
+                            else str(ret_obj.provenance.traceback),
                             output_type=OutputType.EXCEPTION,
                         )
 
@@ -367,7 +405,7 @@ class EnvServlet:
                 # provenance.status would be RunStatus.ERROR, and we want to continue retrieving results until the
                 # queue is empty, and then will return the exception and traceback in the empty case above.
                 return Response(
-                    data=pickle_b64(res),
+                    data=pickle_b64(res) if not serialization == "json" else res,
                     output_type=self.output_types[key],
                 )
 
@@ -385,8 +423,12 @@ class EnvServlet:
 
                 if ret_obj.provenance and ret_obj.provenance.status == RunStatus.ERROR:
                     return Response(
-                        error=pickle_b64(ret_obj.provenance.error),
-                        traceback=pickle_b64(ret_obj.provenance.traceback),
+                        error=pickle_b64(ret_obj.provenance.error)
+                        if not serialization == "json"
+                        else str(ret_obj.provenance.error),
+                        traceback=pickle_b64(ret_obj.provenance.traceback)
+                        if not serialization == "json"
+                        else str(ret_obj.provenance.traceback),
                         output_type=OutputType.EXCEPTION,
                     )
 
@@ -402,8 +444,12 @@ class EnvServlet:
             if isinstance(ret_obj, Resource) and ret_obj.provenance:
                 if ret_obj.provenance.status == RunStatus.ERROR:
                     return Response(
-                        error=pickle_b64(ret_obj.provenance.error),
-                        traceback=pickle_b64(ret_obj.provenance.traceback),
+                        error=pickle_b64(ret_obj.provenance.error)
+                        if not serialization == "json"
+                        else str(ret_obj.provenance.error),
+                        traceback=pickle_b64(ret_obj.provenance.traceback)
+                        if not serialization == "json"
+                        else str(ret_obj.provenance.traceback),
                         output_type=OutputType.EXCEPTION,
                     )
                 # Includes the case where the user called a method with remote or save, where even if the original
@@ -412,7 +458,9 @@ class EnvServlet:
                 # so it'll still be returned unwrapped.
                 if ret_obj.provenance.status == RunStatus.COMPLETED:
                     return Response(
-                        data=pickle_b64(ret_obj),
+                        data=pickle_b64(ret_obj)
+                        if not serialization == "json"
+                        else ret_obj,
                         output_type=OutputType.RESULT,
                     )
 
@@ -425,7 +473,7 @@ class EnvServlet:
                 # created immediately), the ret_obj wouldn't be found in the obj_store.
 
             return Response(
-                data=pickle_b64(ret_obj),
+                data=pickle_b64(ret_obj) if not serialization == "json" else ret_obj,
                 output_type=OutputType.RESULT,
             )
         except Exception as e:
@@ -433,8 +481,10 @@ class EnvServlet:
                 raise e
 
             return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
+                error=pickle_b64(e) if not serialization == "json" else str(e),
+                traceback=pickle_b64(traceback.format_exc())
+                if not serialization == "json"
+                else str(traceback.format_exc()),
                 output_type=OutputType.EXCEPTION,
             )
 

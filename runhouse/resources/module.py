@@ -883,6 +883,14 @@ class Module(Resource):
                         self.system.put_resource(self)
         return super().save(overwrite=overwrite)
 
+    def share(self, *args, global_visibility=None, **kwargs):
+        if global_visibility and not global_visibility == self.visibility:
+            self.visibility = global_visibility
+            self.remote.visibility = (
+                global_visibility  # Sets the visibility on the remote resource
+            )
+        super().share(*args, **kwargs, global_visibility=global_visibility)
+
     @staticmethod
     def _extract_module_path(raw_cls_or_fn: Union[Type, Callable]):
         py_module = inspect.getmodule(raw_cls_or_fn)
