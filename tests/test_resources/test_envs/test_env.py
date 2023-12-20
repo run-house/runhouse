@@ -43,8 +43,14 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         ]
     }
     LOCAL = {
-        "env": ["base_env", "base_conda_env", "conda_env_from_dict"],
-        # TODO: add local clusters once conda docker container is set up
+        "env": ["base_env"],
+        "cluster": [
+            "local_docker_cluster_public_key_logged_in",
+            "local_docker_cluster_public_key_logged_out",
+            "local_docker_cluster_passwd",
+        ]
+        # TODO: extend envs to "base_conda_env", "conda_env_from_dict"],
+        # and add local clusters once conda docker container is set up
     }
     MINIMAL = {
         "env": ["base_env", "base_conda_env"],
@@ -200,7 +206,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
 
         _uninstall_env(env, cluster)
 
-    @pytest.mark.level("minimal")
+    @pytest.mark.level("local")
     def test_secrets_env(self, env, cluster):
         path_secret = rh.provider_secret(
             "lambda", values={"api_key": "test_api_key"}
