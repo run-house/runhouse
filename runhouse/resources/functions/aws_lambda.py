@@ -378,8 +378,8 @@ class LambdaFunction(Function):
     def _lambda_exist(self, name):
         """Checks if a Lambda with the name given during init is already exists in AWS"""
         try:
-            self.lambda_client.get_function(FunctionName=name)
-            return True
+            aws_lambda = self.lambda_client.get_function(FunctionName=name)
+            return aws_lambda
         except self.lambda_client.exceptions.ResourceNotFoundException:
             return False
 
@@ -664,16 +664,15 @@ class LambdaFunction(Function):
             self.env.env_vars if isinstance(self.env, Env) else {"HOME": self.HOME_DIR}
         )
 
-        # if function exist - will update it. Else, a new one will be created.
-        if self._lambda_exist(self.name):
-            # updating the configuration with the initial configuration.
-            # TODO [SB]: in the next phase, enable the user to change the config of the Lambda.
-            # lambda_config = self._update_lambda_config(env_vars)
-            lambda_config = self.lambda_client.get_function(FunctionName=self.name)
-
-        else:
+        # if function exist - return its aws config. Else, a new one will be created.
+        lambda_config = self._lambda_exist(self.name)
+        if not lambda_config:
             # creating a new Lambda function, since it's not existing in the AWS account which is configured locally.
             lambda_config = self._create_new_lambda(env_vars)
+
+        # TODO [SB]: in the next phase, enable the user to change the config of the Lambda.
+        # updating the configuration with the initial configuration.
+        # lambda_config = self._update_lambda_config(env_vars)
 
         self.aws_lambda_config = lambda_config
         Path(rh_handler_wrapper).absolute().unlink()

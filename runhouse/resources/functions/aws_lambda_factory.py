@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Dict, List, Optional, Union
 
 from runhouse.resources.envs import Env
 from runhouse.resources.functions.aws_lambda import LambdaFunction
@@ -9,13 +9,6 @@ from runhouse.resources.functions.function import Function
 logger = logging.getLogger(__name__)
 
 CRED_PATH = f"{Path.home()}/.aws/credentials"
-SUPPORTED_RUNTIMES = [
-    "python3.7",
-    "python3.8",
-    "python3.9",
-    "python3.10",
-    "python3.11",
-]
 DEFAULT_PY_VERSION = "python3.9"
 LOG_GROUP_PREFIX = "/aws/lambda/"
 
@@ -23,7 +16,7 @@ LOG_GROUP_PREFIX = "/aws/lambda/"
 def aws_lambda_fn(
     fn: Optional[Callable] = None,
     name: Optional[str] = None,
-    env: Optional[dict or list[str] or Env] = None,
+    env: Optional[Union[Dict, List[str], Env]] = None,
     runtime: Optional[str] = None,
     timeout: Optional[int] = None,
     memory_size: Optional[int] = None,
