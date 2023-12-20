@@ -584,7 +584,8 @@ class HTTPServer:
         # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
-            kwargs = request.query_params
+            kwargs = dict(request.query_params)
+            kwargs.pop("serialization", None)
             method = None if method == "None" else method
             message = Message(stream_logs=True, data=kwargs)
             env = HTTPServer.lookup_env_for_name(module)
@@ -660,7 +661,8 @@ class HTTPServer:
     ):
         kwargs = args.get("kwargs", {})
         args = args.get("args", [])
-        query_params = request.query_params
+        query_params = dict(request.query_params)
+        query_params.pop("serialization", None)
         if query_params:
             kwargs.update(query_params)
         token = get_token_from_request(request)

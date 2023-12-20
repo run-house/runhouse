@@ -11,6 +11,8 @@ import requests
 
 import runhouse as rh
 
+from tests.utils import test_account
+
 REMOTE_FUNC_NAME = "@/remote_function"
 
 logger = logging.getLogger(__name__)
@@ -323,35 +325,26 @@ class TestFunction:
 
     @pytest.mark.rnstest
     @pytest.mark.level("local")
-    def test_share_function(self, cluster):
+    def test_share_and_revoke_function(self, cluster):
         # TODO: refactor in order to test the function.share() method.
         my_function = rh.function(fn=summer).to(cluster).save(REMOTE_FUNC_NAME)
 
         my_function.share(
-            users=["donny@run.house", "josh@run.house"],
+            users=["info@run.house"],
             access_level="read",
             notify_users=False,
         )
-        assert True
+        with test_account():
+            my_function = rh.function(name=my_function.rns_address)
+            res = my_function(1, 2)
+            assert res == 3
 
-    @pytest.mark.rnstest
-    @pytest.mark.level("local")
-    def test_load_shared_function(self):
-        # TODO: refactor in order to test the function.__call__() method.
-        my_function = rh.function(name=REMOTE_FUNC_NAME)
-        res = my_function(1, 2)
-        assert res == 3
-
-    @pytest.mark.rnstest
-    @pytest.mark.level("local")
-    def test_revoke_function_access(self, cluster):
-        my_function = rh.function(fn=summer).to(cluster).save(REMOTE_FUNC_NAME)
-
-        my_function.revoke(users=["donny@run.house", "josh@run.house"])
+        my_function.revoke(users=["info@run.house"])
 
         with pytest.raises(Exception):
-            my_function = rh.function(name=REMOTE_FUNC_NAME)
-            my_function(1, 2)
+            with test_account():
+                my_function = rh.function(name=my_function.rns_address)
+                my_function(1, 2)
 
     @pytest.mark.clustertest
     @pytest.mark.rnstest

@@ -889,7 +889,7 @@ class Module(Resource):
             self.remote.visibility = (
                 visibility  # Sets the visibility on the remote resource
             )
-        super().share(*args, **kwargs, visibility=visibility)
+        return super().share(*args, **kwargs, visibility=visibility)
 
     @staticmethod
     def _extract_module_path(raw_cls_or_fn: Union[Type, Callable]):
