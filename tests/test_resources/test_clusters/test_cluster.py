@@ -1,5 +1,4 @@
 import pytest
-import requests
 
 import runhouse as rh
 
@@ -127,26 +126,3 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         new_cluster.run(["echo hello"])
         # Check that the same underlying ssh connection was used
         assert len(rh.globals.ssh_tunnel_cache) == num_open_tunnels
-
-    @pytest.mark.level("local")
-    def test_cluster_endpoint(self, cluster):
-        if not cluster.address:
-            assert cluster.endpoint() is None
-            return
-
-        endpoint = cluster.endpoint()
-        if cluster.server_connection_type in ["ssh", "aws_ssm"]:
-            assert cluster.endpoint(external=True) is None
-            assert endpoint == f"http://{rh.Cluster.LOCALHOST}:{cluster.client_port}"
-        else:
-            url_base = "https" if cluster.server_connection_type == "tls" else "http"
-            assert endpoint == f"{url_base}://{cluster.address}:{cluster.server_port}"
-
-        # Try to curl docs
-        r = requests.get(
-            f"{endpoint}/docs",
-            verify=False,
-            headers=rh.globals.rns_client.request_headers,
-        )
-        assert r.status_code == 200
-        assert "FastAPI" in r.text

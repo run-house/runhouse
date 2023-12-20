@@ -33,7 +33,7 @@ class Resource:
         dryrun: bool = False,
         provenance=None,
         access_level: Optional[ResourceAccess] = ResourceAccess.WRITE,
-        visibility: Optional[ResourceVisibility] = ResourceVisibility.PRIVATE,
+        global_visibility: Optional[ResourceVisibility] = ResourceVisibility.PRIVATE,
         **kwargs,
     ):
         """
@@ -76,7 +76,7 @@ class Resource:
             else provenance
         )
         self.access_level = access_level
-        self._visibility = visibility
+        self.global_visibility = global_visibility
 
     # TODO add a utility to allow a parameter to be specified as "default" and then use the default value
 
@@ -87,7 +87,7 @@ class Resource:
             "resource_type": self.RESOURCE_TYPE,
             "resource_subtype": self.__class__.__name__,
             "provenance": self.provenance.config_for_rns if self.provenance else None,
-            "visibility": self.visibility,
+            "visibility": self.global_visibility,
         }
         return config
 
@@ -129,14 +129,6 @@ class Resource:
             self._name, self._rns_folder = split_rns_name_and_path(
                 resolve_rns_path(name)
             )
-
-    @property
-    def visibility(self):
-        return self._visibility
-
-    @visibility.setter
-    def visibility(self, visibility):
-        self._visibility = visibility
 
     @rns_address.setter
     def rns_address(self, new_address):
@@ -342,14 +334,14 @@ class Resource:
         """Grant access to the resource for a list of users (or a single user). If a user has a Runhouse account they
         will receive an email notifying them of their new access. If the user does not have a Runhouse account they will
         also receive instructions on creating one, after which they will be able to have access to the Resource. If
-        ``visibility`` is set to ``public``, users will not be notified.
+        ``global_visibility`` is set to ``public``, users will not be notified.
 
         .. note::
             You can only grant access to other users if you have write access to the resource.
 
         Args:
             users (Union[str, list], optional): Single user or list of user emails and / or runhouse account usernames.
-                If none are provided and ``visibility`` is set to ``public``, resource will be made publicly
+                If none are provided and ``global_visibility`` is set to ``public``, resource will be made publicly
                 available to all users. Defaults to ``read``.
             access_level (:obj:`ResourceAccess`, optional): Access level to provide for the resource.
             global_visibility (:obj:`ResourceVisibility`, optional): Type of visibility to provide for the shared
@@ -373,7 +365,7 @@ class Resource:
             >>> my_resource.share(users=["username1", "user2@gmail.com"], access_level='write')
 
             >>> # Make resource public, with read access to the resource for all users
-            >>> my_resource.share(visibility='public')
+            >>> my_resource.share(global_visibility='public')
         """
         if self.name is None:
             raise ValueError("Resource must have a name in order to share")
@@ -409,9 +401,9 @@ class Resource:
 
         if global_visibility is not None:
             # Update the resource in Den with this global visibility value
-            self.visibility = global_visibility
+            self.global_visibility = global_visibility
 
-            logger.info(f"Updating resource with visibility: {self.visibility}")
+            logger.info(f"Updating resource with visibility: {self.global_visibility}")
 
         self.save()
 

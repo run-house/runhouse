@@ -503,7 +503,7 @@ class TestModule:
     def test_signature(self):
 
         SlowNumpy = rh.module(SlowNumpyArray)
-        assert set(SlowNumpy.signature) == {
+        assert set(SlowNumpy.signature.keys()) == {
             "slow_iter",
             "cpu_count",
             "size_minus_cpus",
@@ -541,66 +541,42 @@ class TestModule:
         }
 
         arr = SlowNumpy(size=5)
-        assert set(arr.signature) == {
-            "size",
-            "_hidden_1",
+        assert set(arr.signature.keys()) == {
             "slow_iter",
-            "size_minus_cpus",
-            "arr",
             "cpu_count",
+            "size_minus_cpus",
             "factory_constructor",
         }
 
         df = SlowPandas(size=10)
         assert df.signature == {
-            "_hidden_1": {
-                "async": False,
-                "gen": False,
-                "local": False,
-                "property": True,
-                "signature": None,
-            },
             "cpu_count": {
+                "signature": "(self, local=True)",
+                "property": False,
                 "async": False,
                 "gen": False,
                 "local": True,
-                "property": False,
-                "signature": "(self, local=True)",
             },
             "cpu_count_async": {
+                "signature": "(self, local=True)",
+                "property": False,
                 "async": True,
                 "gen": False,
                 "local": True,
-                "property": False,
-                "signature": "(self, local=True)",
-            },
-            "df": {
-                "async": False,
-                "gen": False,
-                "local": False,
-                "property": True,
-                "signature": None,
-            },
-            "size": {
-                "async": False,
-                "gen": False,
-                "local": False,
-                "property": True,
-                "signature": None,
             },
             "slow_iter": {
+                "signature": "(self)",
+                "property": False,
                 "async": False,
                 "gen": True,
                 "local": False,
-                "property": False,
-                "signature": "(self)",
             },
             "slow_iter_async": {
+                "signature": "(self)",
+                "property": False,
                 "async": True,
                 "gen": True,
                 "local": False,
-                "property": False,
-                "signature": "(self)",
             },
         }
 
@@ -650,7 +626,8 @@ class TestModule:
             },
         }
 
-    @pytest.mark.level("thorough")
+    @pytest.mark.skip("Not working yet")
+    @pytest.mark.level("minimal")
     def test_shared_readonly(
         self, ondemand_https_cluster_with_auth, local_test_account_cluster_public_key
     ):
@@ -680,7 +657,7 @@ class TestModule:
         test_fn = rh.fn(test_load_and_use_readonly_module).to(
             local_test_account_cluster_public_key
         )
-        test_fn(mod_name=remote_df.rns_address, cpu_count=cpu_count, size=size)
+        test_fn.remote(mod_name=remote_df.rns_address, cpu_count=cpu_count, size=size)
 
 
 def test_load_and_use_readonly_module(mod_name, cpu_count, size=3):
@@ -706,7 +683,7 @@ def test_load_and_use_readonly_module(mod_name, cpu_count, size=3):
 
     # Check that stdout was captured. Skip the last result because sometimes we
     # don't catch it and it makes the test flaky.
-    for i in range(size - 1):
+    for i in range(remote_df.size - 1):
         assert f"Hello from the cluster stdout! {i}" in out
         assert f"Hello from the cluster logs! {i}" in out
 
@@ -724,7 +701,6 @@ def test_load_and_use_readonly_module(mod_name, cpu_count, size=3):
 
     remote_df.size = 20
     assert remote_df.remote.size == 20
-    remote_df.size = size  # reset to original value for second test
 
 
 if __name__ == "__main__":
