@@ -56,7 +56,7 @@ class Function(Module):
             super().remote.visibility = (
                 visibility  # do this to avoid hitting Function's .remote
             )
-        super().share(*args, **kwargs, visibility=visibility)
+        return super().share(*args, **kwargs, visibility=visibility)
 
     def to(
         self,
