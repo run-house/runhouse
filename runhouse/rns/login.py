@@ -150,11 +150,19 @@ def _login_download_secrets(headers: Optional[str] = None):
     for name in secrets:
         try:
             secret = Secret.from_name(name)
-            if hasattr(secret, "path"):
-                download_path = secret.path or secret._DEFAULT_CREDENTIALS_PATH
-                if download_path:
-                    logger.info(f"Loading down secrets for {name} into {download_path}")
-                    secret.write()
+            if not (hasattr(secret, "path") or hasattr(secret, "env_vars")):
+                continue
+
+            download_path = secret.path or secret._DEFAULT_CREDENTIALS_PATH
+            if download_path and not secret.env_vars:
+                logger.info(f"Loading down secrets for {name} into {download_path}")
+                secret.write(path=download_path)
+            else:
+                env_vars = secret.env_vars or secret._DEFAULT_ENV_VARS
+                logger.info(
+                    f"Writing down env secrets for {name} into {env_vars.values()}"
+                )
+                secret.write(env=True)
         except ValueError as e:
             logger.warning(
                 f"Encountered {e}. Was not able to load down secrets for {name}."
@@ -246,7 +254,7 @@ def logout(
     )
 
     config_secrets = list(configs.get("secrets", {}).items())
-    for (name, path) in config_secrets:
+    for (name, value) in config_secrets:
         try:
             secret = Secret.from_name(name)
 
@@ -262,13 +270,17 @@ def logout(
 
         if interactive_session:
             delete_loaded_secrets = typer.confirm(
-                f"Delete credentials file {path} for {name}?"
+                f"Delete credentials in {value} for {name}?"
             )
 
         if delete_loaded_secrets:
-            path = os.path.expanduser(path)
-            if os.path.exists(path):
-                os.remove(path)
+            if isinstance(value, str):
+                path = os.path.expanduser(value)
+                if os.path.exists(path):
+                    os.remove(path)
+            else:  # list of env variables set
+                for key in value:
+                    del os.environ[key]
 
         configs.delete_provider(name)
 

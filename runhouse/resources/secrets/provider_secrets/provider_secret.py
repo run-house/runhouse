@@ -218,9 +218,14 @@ class ProviderSecret(Secret):
 
     def _write_to_env(self, env_vars: Dict, values: Any, overwrite: bool):
         existing_keys = dict(os.environ).keys()
+        added_keys = []
         for key in env_vars.keys():
             if env_vars[key] not in existing_keys or overwrite:
                 os.environ[env_vars[key]] = values[key]
+                added_keys.append(env_vars[key])
+
+        if added_keys:
+            self._add_to_rh_config(added_keys)
 
         new_secret = copy.deepcopy(self)
         new_secret._values = None
@@ -263,7 +268,7 @@ class ProviderSecret(Secret):
                     return contents
         return {}
 
-    def _add_to_rh_config(self, path):
+    def _add_to_rh_config(self, val):
         if not self.name:
             self.name = self.provider
-        configs.set_nested(key="secrets", value={self.name: path})
+        configs.set_nested(key="secrets", value={self.name: val})
