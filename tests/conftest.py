@@ -59,7 +59,7 @@ class TestLevels(str, enum.Enum):
     MAXIMAL = "maximal"
 
 
-DEFAULT_LEVEL = TestLevels.LOCAL
+DEFAULT_LEVEL = TestLevels.UNIT
 
 TEST_LEVEL_HIERARCHY = {
     TestLevels.UNIT: 0,
@@ -86,7 +86,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--detached",
         action="store_true",
-        default=True,
+        default=False,
         help="Whether to run container in detached mode",
     )
     parser.addoption(
