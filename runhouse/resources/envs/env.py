@@ -14,7 +14,6 @@ from runhouse.resources.resource import Resource
 
 from .utils import _env_vars_from_file
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -29,7 +28,6 @@ class Env(Resource):
         setup_cmds: List[str] = None,
         env_vars: Union[Dict, str] = {},
         working_dir: Optional[Union[str, Path]] = None,
-        secrets: Optional[Union[str, "Secret"]] = [],
         dryrun: bool = True,
         **kwargs,  # We have this here to ignore extra arguments when calling from_config
     ):
@@ -44,7 +42,6 @@ class Env(Resource):
         self.setup_cmds = setup_cmds
         self.env_vars = env_vars
         self.working_dir = working_dir
-        self.secrets = secrets
 
     @property
     def env_name(self):
@@ -121,19 +118,6 @@ class Env(Resource):
             return new_reqs[:-1], new_reqs[-1]
         return new_reqs, None
 
-    def _secrets_to(self, system: Union[str, Cluster]):
-        from runhouse.resources.secrets import Secret
-
-        new_secrets = []
-        for secret in self.secrets:
-            if isinstance(secret, str):
-                secret = Secret.from_name(secret)
-            if hasattr(secret, "path") and secret.path:
-                new_secrets.append(secret.to(system=system))
-            else:
-                new_secrets.append(secret.to(system=system, env=self))
-        return new_secrets
-
     def install(self, force=False):
         """Locally install packages and run setup commands."""
         # Hash the config_for_rns to check if we need to install
@@ -198,7 +182,6 @@ class Env(Resource):
         new_env = copy.deepcopy(self)
         # new_env.name = new_env.name or "base"
         new_env.reqs, new_env.working_dir = self._reqs_to(system, path, mount)
-        new_env.secrets = self._secrets_to(system)
 
         if isinstance(system, Cluster):
             key = system.put_resource(new_env)

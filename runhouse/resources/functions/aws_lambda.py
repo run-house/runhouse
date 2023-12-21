@@ -104,23 +104,27 @@ class LambdaFunction(Function):
             paths_to_code, handler_function_name
         )
 
+        cfg = botocore.config.Config(
+            retries={"max_attempts": 0}, read_timeout=900, connect_timeout=900
+        )
+
         # will be used for reloading shared functions from other regions.
         function_arn = (
             kwargs.get("function_arn") if "function_arn" in kwargs.keys() else None
         )
         if function_arn:
             region = function_arn.split(":")[3]
-            self.lambda_client = boto3.client("lambda", region_name=region)
+            self.lambda_client = boto3.client("lambda", config=cfg, region_name=region)
             self.logs_client = boto3.client("logs", region_name=region)
         else:
 
             if Path(CRED_PATH).is_file():
-                self.lambda_client = boto3.client("lambda")
+                self.lambda_client = boto3.client("lambda", config=cfg)
                 self.logs_client = boto3.client("logs")
 
             else:
                 self.lambda_client = boto3.client(
-                    "lambda", region_name=self.DEFAULT_REGION
+                    "lambda", config=cfg, region_name=self.DEFAULT_REGION
                 )
                 self.logs_client = boto3.client("logs", region_name=self.DEFAULT_REGION)
         self.iam_client = boto3.client("iam")
@@ -305,8 +309,17 @@ class LambdaFunction(Function):
         cls, paths_to_code, env, runtime, timeout, memory_size, tmp_size, retention_time
     ):
 
-        if isinstance(env, str) and "requirements.txt" in env:
-            paths_to_code.append(Path(env).absolute())
+        if (
+            "./" in env.reqs
+            and env.reqs[0] != "./"
+            and env.reqs[0].split("/")[0] != env.reqs[0]
+        ):
+            reqs = env.reqs
+            path_to_txt = str(
+                Path(reqs[0].split(":")[1] + "requirements.txt").absolute()
+            )
+            paths_to_code.append(path_to_txt)
+            env.reqs = [path_to_txt] + env.reqs[1:]
 
         if runtime is None or runtime not in LambdaFunction.SUPPORTED_RUNTIMES:
             warnings.warn(
@@ -433,32 +446,18 @@ class LambdaFunction(Function):
         f.write("def lambda_handler(event, context):\n")
         f.write(f"\tif not os.path.isdir('{self.HOME_DIR}'):\n")
         f.write(f"\t\tos.mkdir('{self.HOME_DIR}')\n")
-
-        # adding code for installing python libraries
-        if isinstance(self.env, str):
-            f.write(
-                "\tsubprocess.call(['pip', 'install', '-r', 'requirements.txt',"
-                + " '--ignore-installed', '-t', '{self.HOME_DIR}/'])\n"
-                f"\tif not os.path.isdir('{self.HOME_DIR}/runhouse'):\n"
-                f"\t\tsubprocess.call(['pip', 'install', 'runhouse', '-t', '{self.HOME_DIR}/'])\n"
-                f"\tsys.path.insert(1, '{self.HOME_DIR}/')\n\n"
-            )
-        else:
-            reqs = self.env.reqs
-            if "runhouse" not in reqs:
-                reqs.append("runhouse")
-            if "./" in reqs:
-                reqs.remove("./")
-            for req in reqs:
-                f.write(
-                    f"\tif not os.path.isdir('{self.HOME_DIR}/{req}'):\n"
-                    f"\t\tsubprocess.call(['pip', 'install', '{req}', '-t', '{self.HOME_DIR}/'])\n"
-                )
-            if reqs is not None and len(reqs) > 0:
-                f.write(f"\tsys.path.insert(1, '{self.HOME_DIR}/')\n\n")
-
         f.write(
-            "\timport runhouse\n"
+            f"\tif not os.path.isdir('{self.HOME_DIR}/runhouse'):\n"
+            f"\t\tsubprocess.call(['pip', 'install', 'runhouse', '-t', '{self.HOME_DIR}/'])\n"
+            f"\tsys.path.insert(1, '{self.HOME_DIR}/')\n\n"
+        )
+
+        # installing env in lambdas env.
+        f.write(
+            "\timport runhouse as rh\n"
+            "\tenv = rh.Env.from_config(event['lambda_env'])\n"
+            "\tenv.install()\n"
+            "\tevent.pop('lambda_env')\n"
             f"\tfrom {handler_name} import {self.handler_function_name}\n"
             f"\treturn {self.handler_function_name}(**event)"
         )
@@ -727,6 +726,8 @@ class LambdaFunction(Function):
 
         if len(args) > 0 and self.args_names is not None:
             payload_invoke = {self.args_names[i]: args[i] for i in range(len(args))}
+        payload_invoke["lambda_env"] = self.env.config_for_rns
+
         invoke_res = self.lambda_client.invoke(
             FunctionName=self.name,
             Payload=json.dumps({**payload_invoke, **kwargs}),
@@ -803,7 +804,7 @@ class LambdaFunction(Function):
             >>>     return a * b
             >>> multiply_lambda = rh.aws_lambda_fn(fn=multiply, name="lambdas_mult_func")
             >>> mult_res = multiply_lambda(4, 5)  # returns "20".
-            >>> multiply_lambda.teardown()  # returns true if succeeded, raises an exception otherwise.
+            >>> multiply_lambda.delete()  # returns true if succeeded, raises an exception otherwise.
 
         """
         try:
