@@ -7,8 +7,6 @@ ARG RUNHOUSE_VERSION
 
 WORKDIR /app
 
-COPY . .
-
 # Create the password file directory
 RUN mkdir -p /app/ssh
 
@@ -17,9 +15,6 @@ RUN apt-get update --allow-insecure-repositories && \
     apt-get install -y --no-install-recommends gcc python3-dev openssh-server rsync supervisor screen curl sudo ufw git && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-# Check if the password file exists, if not throw an error
-RUN if [ ! -f "$DOCKER_USER_PASSWORD_FILE" ]; then echo "Error: Password file ${DOCKER_USER_PASSWORD_FILE} does not exist. Please create it and make sure it contains a password to be used for ssh access into the Docker container." && exit 1; fi
 
 # Copy the password file into the image
 COPY $DOCKER_USER_PASSWORD_FILE /app/ssh/docker_user_password_file

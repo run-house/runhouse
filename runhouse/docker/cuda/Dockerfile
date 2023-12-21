@@ -5,8 +5,6 @@ ARG DOCKER_USER_PASSWORD_FILE
 
 WORKDIR /app
 
-COPY . .
-
 # Create the password file
 RUN mkdir -p /app/ssh
 

@@ -3,6 +3,7 @@ import logging
 import pprint
 import sys
 import warnings
+from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -87,8 +88,13 @@ class Resource:
             "resource_type": self.RESOURCE_TYPE,
             "resource_subtype": self.__class__.__name__,
             "provenance": self.provenance.config_for_rns if self.provenance else None,
-            "visibility": self.visibility,
         }
+        self.save_attrs_to_config(
+            config,
+            [
+                "visibility",  # Handles Enum to string conversion
+            ],
+        )
         return config
 
     def _resource_string_for_subconfig(self, resource):
@@ -317,6 +323,8 @@ class Resource:
         for attr in attrs:
             val = self.__getattribute__(attr)
             if val is not None:
+                if isinstance(val, Enum):
+                    val = val.value
                 config[attr] = val
 
     def is_local(self):

@@ -128,7 +128,7 @@ class Env(Resource):
         for secret in self.secrets:
             if isinstance(secret, str):
                 secret = Secret.from_name(secret)
-            if secret.path:
+            if hasattr(secret, "path") and secret.path:
                 new_secrets.append(secret.to(system=system))
             else:
                 new_secrets.append(secret.to(system=system, env=self))
