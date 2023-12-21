@@ -284,10 +284,7 @@ class LambdaFunction(Function):
 
         if isinstance(env, Env) and "HOME" not in env.env_vars.keys():
             env.env_vars["HOME"] = cls.HOME_DIR
-        new_reqs = []
-        for req in env.reqs:
-            new_req = req + f" -t {cls.HOME_DIR}/"
-            new_reqs.append(new_req)
+        new_reqs = [req + f" -t {cls.HOME_DIR}/" for req in env.reqs]
         env.reqs = new_reqs
 
         return env
