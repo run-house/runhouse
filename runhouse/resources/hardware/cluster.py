@@ -361,10 +361,10 @@ class Cluster(Resource):
             return obj_store.put(key, obj, env=env)
         return self.client.put_object(key, obj, env=env)
 
-    def put_resource(self, resource: Resource, state=None, dryrun=False):
+    def put_resource(self, resource: Resource, state=None, dryrun=False, env=None):
         """Put the given resource on the cluster's object store. Returns the key (important if name is not set)."""
         self.check_server()
-        env = (
+        env = env or (
             resource.env
             if hasattr(resource, "env")
             else resource.name or resource.env_name

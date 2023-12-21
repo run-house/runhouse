@@ -32,7 +32,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         "cluster": [
             "local_docker_cluster_public_key_logged_in",
             "local_docker_cluster_public_key_logged_out",
-            "local_docker_cluster_telemetry_public_key",
             "local_docker_cluster_passwd",
         ]
     }
@@ -123,6 +122,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         num_open_tunnels = len(rh.globals.ssh_tunnel_cache)
 
         # Create a new cluster object for the same remote cluster
+        cluster.save()
         new_cluster = rh.cluster(cluster.name)
         new_cluster.run(["echo hello"])
         # Check that the same underlying ssh connection was used

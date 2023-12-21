@@ -68,6 +68,9 @@ class Secret(Resource):
 
             provider_class = _get_provider_class(config["provider"])
             return provider_class.from_config(config, dryrun=dryrun)
+        subtype = config.get("resource_subtype", None)
+        if subtype and subtype != "Secret":
+            return Resource.from_config(**config, dryrun=dryrun)
         return Secret(**config, dryrun=dryrun)
 
     @classmethod
@@ -275,6 +278,7 @@ class Secret(Resource):
         self,
         system: Union[str, Cluster],
         name: Optional[str] = None,
+        env: Optional["Env"] = None,
     ):
         """Return a copy of the secret on a system.
 
@@ -293,7 +297,7 @@ class Secret(Resource):
         if system.on_this_cluster():
             new_secret.pin()
         else:
-            system.put_resource(new_secret)
+            system.put_resource(new_secret, env=env)
 
         return new_secret
 

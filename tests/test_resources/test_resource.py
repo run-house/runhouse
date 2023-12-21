@@ -1,16 +1,19 @@
+import json
 import unittest
 
 import pytest
 import runhouse as rh
 
 from tests.conftest import init_args
+from tests.utils import test_account
 
 
-def load_shared_resource_config(original_resource):
-    loaded_resource = original_resource.__class__.from_name(
-        original_resource.rns_address, dryrun=True
-    )
-    return loaded_resource.config_for_rns
+def load_shared_resource_config(resource_class_name, address):
+    resource_class = getattr(rh, resource_class_name)
+    loaded_resource = resource_class.from_name(address, dryrun=True)
+    config = loaded_resource.config_for_rns
+    config.pop("live_state", None)  # Too many little differences, leads to flaky tests
+    return config
     # TODO allow resource subclass tests to extend set of properties to test
 
 
@@ -79,21 +82,31 @@ class TestResource:
         loaded_resource = resource.__class__.from_name(resource.rns_address)
         assert loaded_resource.config_for_rns == resource.config_for_rns
 
+        # Changing the name doesn't work for OnDemandCluster, because the name won't match the local sky db
+        if isinstance(resource, rh.OnDemandCluster):
+            return
+
         # Test saving under new name
         original_name = resource.rns_address
-        alt_name = resource.rns_address + "_alt"
-        resource.save(alt_name)
-        loaded_resource = resource.__class__.from_name(alt_name)
-        assert loaded_resource.config_for_rns == resource.config_for_rns
-        loaded_resource.delete_configs()
+        try:
+            alt_name = resource.rns_address + "-alt"
+            resource.save(alt_name)
+            loaded_resource = resource.__class__.from_name(alt_name)
+            assert loaded_resource.config_for_rns == resource.config_for_rns
+            loaded_resource.delete_configs()
 
-        # Test that original resource is still available
-        resource = resource.__class__.from_name(original_name)
-        assert resource.rns_address != loaded_resource.rns_address
+            # Test that original resource is still available
+            reloaded_resource = resource.__class__.from_name(original_name)
+            assert reloaded_resource.rns_address != loaded_resource.rns_address
 
-        resource.save(original_name)
-        resource.delete_configs()
-        assert not rh.exists(resource.rns_address)
+        finally:
+            resource.save(original_name)
+            resource.delete_configs()
+            assert not rh.exists(resource.rns_address)
+            assert not rh.exists(loaded_resource.rns_address)
+
+        # Final check to make sure we didn't mess anything up for subsequent tests
+        assert resource.rns_address == original_name
 
     @pytest.mark.level("unit")
     def test_history(self, resource):
@@ -107,11 +120,14 @@ class TestResource:
         assert isinstance(history, list)
         assert isinstance(history[0], dict)
         assert "timestamp" in history[0]
-        assert "creator" in history[0]
+        assert "owner" in history[0]
         assert "data" in history[0]
         # Not all config_for_rns values are saved inside data field
+        config = json.loads(
+            json.dumps(resource.config_for_rns)
+        )  # To deal with tuples and non-json types
         for k, v in history[0]["data"].items():
-            assert resource.config_for_rns[k] == v
+            assert config[k] == v
         resource.delete_configs()
 
     @pytest.mark.level("local")
@@ -130,20 +146,42 @@ class TestResource:
                 resource.rns_address
             )
 
-        # Test saving, then share with test user
-        resource.save()
-
         resource.share(
             users=["info@run.house"],
             access_level="read",
             notify_users=False,
         )
 
+        # First try loading in same process/filesystem because it's more debuggable, but not as thorough
+        resource_class_name = resource.__class__.__name__
+        config = resource.config_for_rns
+        config.pop(
+            "live_state", None
+        )  # For ondemand_cluster: too many little differences, leads to flaky tests
+
+        with test_account():
+            assert (
+                load_shared_resource_config(resource_class_name, resource.rns_address)
+                == config
+            )
+
         load_shared_resource_config_cluster = rh.function(
-            load_shared_resource_config,
+            load_shared_resource_config
+        ).to(
             system=local_test_account_cluster_public_key,
+            env=rh.env(
+                working_dir=None,
+                # Sync sky key so loading ondemand_cluster from config works
+                # Also need aws secret to load availability zones
+                secrets=["ssh-sky-key", "aws"],
+            ),
         )
-        assert load_shared_resource_config_cluster(resource) == resource.config_for_rns
+        assert (
+            load_shared_resource_config_cluster(
+                resource_class_name, resource.rns_address
+            )
+            == config
+        )
 
     # TODO API to run this on local_docker_slim when level == "local"
     @pytest.mark.skip

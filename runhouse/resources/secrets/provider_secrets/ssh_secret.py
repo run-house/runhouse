@@ -130,6 +130,7 @@ class SSHSecret(ProviderSecret):
             )
             remote_priv_file = file(path=self.path).to(system, path=path)
             file(path=pub_key_path).to(system, path=pub_key_path)
+            system.run([f"chmod 600 {path}"])
         else:
             system.call(key, "_write_to_file", path=path, values=values)
             remote_priv_file = file(path=path, system=system)
