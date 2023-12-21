@@ -804,7 +804,7 @@ class LambdaFunction(Function):
             >>>     return a * b
             >>> multiply_lambda = rh.aws_lambda_fn(fn=multiply, name="lambdas_mult_func")
             >>> mult_res = multiply_lambda(4, 5)  # returns "20".
-            >>> multiply_lambda.delete()  # returns true if succeeded, raises an exception otherwise.
+            >>> multiply_lambda.teardown()  # returns true if succeeded, raises an exception otherwise.
 
         """
         try:
