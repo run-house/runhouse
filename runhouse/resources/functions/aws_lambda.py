@@ -284,6 +284,11 @@ class LambdaFunction(Function):
 
         if isinstance(env, Env) and "HOME" not in env.env_vars.keys():
             env.env_vars["HOME"] = cls.HOME_DIR
+        new_reqs = []
+        for req in env.reqs:
+            new_req = req + f" -t {cls.HOME_DIR}/"
+            new_reqs.append(new_req)
+        env.reqs = new_reqs
 
         return env
 
@@ -312,7 +317,7 @@ class LambdaFunction(Function):
         if (
             "./" in env.reqs
             and env.reqs[0] != "./"
-            and env.reqs[0].split("/")[0] != env.reqs[0]
+            and env.reqs[0].split("/")[0].split()[0] != env.reqs[0].split()[0]
         ):
             reqs = env.reqs
             path_to_txt = str(
