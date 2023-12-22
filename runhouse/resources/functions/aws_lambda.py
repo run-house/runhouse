@@ -735,7 +735,8 @@ class LambdaFunction(Function):
             Payload=json.dumps({**payload_invoke, **kwargs}),
             LogType="Tail",
         )
-        return_value = invoke_res["Payload"].read().decode("utf-8")
+        return_value = invoke_res["Payload"].read()
+        return_value = return_value.decode("utf-8")
 
         try:
             logger.error(invoke_res["FunctionError"])
