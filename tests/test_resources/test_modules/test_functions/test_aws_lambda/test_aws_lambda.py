@@ -7,6 +7,7 @@ import boto3
 import pytest
 
 import runhouse as rh
+from runhouse.globals import rns_client
 
 from .test_helpers.lambda_tests.basic_handler_layer import arr_handler
 
@@ -25,14 +26,15 @@ def basic_function():
     my_lambda = rh.aws_lambda_fn(
         fn=lambda_sum,
         runtime="python3.9",
-        args_names=["arg1", "arg2"],
         name="test_lambda_create_and_run",
     )
     my_lambda.save()
     try:
         yield my_lambda
     finally:
-        my_lambda.delete()
+        my_lambda.teardown()
+        if rns_client.exists(my_lambda.rns_address):
+            rns_client.delete_configs(my_lambda)
 
 
 @pytest.fixture(scope="session")
@@ -41,13 +43,13 @@ def numpy_function():
     my_lambda = rh.aws_lambda_fn(
         fn=arr_handler,
         runtime="python3.9",
-        args_names=["arr1", "arr2"],
         name=name,
         env={"reqs": ["numpy", "pandas"], "env_vars": None},
     ).save()
     yield my_lambda
-
-    my_lambda.delete()
+    my_lambda.teardown()
+    if rns_client.exists(my_lambda.rns_address):
+        rns_client.delete_configs(my_lambda)
 
 
 def test_create_and_run_no_layers(basic_function):
@@ -79,151 +81,37 @@ def test_crate_no_arguments():
     with pytest.raises(RuntimeError) as no_args:
         rh.aws_lambda_fn()
     assert str(no_args.value) == (
-        "Please provide a callable function OR path to handler function and its name"
-        + " in order to create a Lambda function."
-    )
-
-
-def test_bad_handler_path_to_factory():
-    name = "test_lambda_bad_handler_path_to_factory"
-    with pytest.raises(RuntimeError) as no_handler_path:
-        rh.aws_lambda_fn(
-            handler_function_name="lambda_sum",
-            runtime="python3.9",
-            args_names=["arg1", "arg2"],
-            name=name,
-        )
-    assert (
-        str(no_handler_path.value)
-        == "Please provide a callable function OR path to handler function "
-        + "and its name in order to create a Lambda function."
-    )
-
-    with pytest.raises(RuntimeError) as handler_path_none:
-        rh.aws_lambda_fn(
-            paths_to_code=None,
-            handler_function_name="lambda_sum",
-            runtime="python3.9",
-            args_names=["arg1", "arg2"],
-            name=name,
-        )
-    assert (
-        str(handler_path_none.value)
-        == "Please provide a callable function OR path to handler function "
-        + "and its name in order to create a Lambda function."
-    )
-
-    with pytest.raises(RuntimeError) as handler_path_empty:
-        rh.aws_lambda_fn(
-            paths_to_code=[],
-            handler_function_name="lambda_sum",
-            runtime="python3.9",
-            args_names=["arg1", "arg2"],
-            name=name,
-        )
-    assert (
-        str(handler_path_empty.value)
-        == "Please provide a callable function OR path to handler function "
-        + "and its name in order to create a Lambda function."
-    )
-
-
-def test_bad_handler_func_name_to_factory():
-    name = "test_lambda_bad_handler_func_name_to_factory"
-    handler_path = [f"{TEST_RESOURCES}/basic_test_handler.py"]
-    with pytest.raises(RuntimeError) as no_func_name:
-        rh.aws_lambda_fn(
-            paths_to_code=handler_path,
-            runtime="python3.9",
-            args_names=["arg1", "arg2"],
-            name=name,
-        )
-    assert (
-        str(no_func_name.value)
-        == "Please provide a callable function OR path to handler function "
-        + "and its name in order to create a Lambda function."
-    )
-
-    with pytest.raises(RuntimeError) as func_name_none:
-        rh.aws_lambda_fn(
-            paths_to_code=handler_path,
-            handler_function_name=None,
-            runtime="python3.9",
-            args_names=["arg1", "arg2"],
-            name=name,
-        )
-    assert (
-        str(func_name_none.value)
-        == "Please provide a callable function OR path to handler function "
-        + "and its name in order to create a Lambda function."
-    )
-
-    with pytest.raises(RuntimeError) as empty_name:
-        rh.aws_lambda_fn(
-            paths_to_code=handler_path,
-            handler_function_name="",
-            runtime="python3.9",
-            args_names=["arg1", "arg2"],
-            name=name,
-        )
-    assert (
-        str(empty_name.value)
-        == "Please provide a callable function OR path to handler function "
-        + "and its name in order to create a Lambda function."
+        "Please provide a callable function OR use from_handler_file method"
+        + "in order to create a Lambda function."
     )
 
 
 def test_bad_runtime_to_factory():
     name = "test_wrong_runtime"
 
-    wrong_runtime_1 = rh.aws_lambda_fn(
-        fn=lambda_sum,
-        runtime=None,
-        args_names=["arg1", "arg2"],
-        name=f"{name}_1",
-    )
+    wrong_runtime_1 = rh.aws_lambda_fn(fn=lambda_sum, runtime=None, name=f"{name}_1")
 
-    wrong_runtime_2 = rh.aws_lambda_fn(
-        fn=lambda_sum,
-        args_names=["arg1", "arg2"],
-        name=f"{name}_2",
-    )
+    wrong_runtime_2 = rh.aws_lambda_fn(fn=lambda_sum, name=f"{name}_2")
 
     wrong_runtime_3 = rh.aws_lambda_fn(
-        fn=lambda_sum,
-        runtime="python3.91",
-        args_names=["arg1", "arg2"],
-        name=f"{name}_3",
+        fn=lambda_sum, runtime="python3.91", name=f"{name}_3"
     )
 
     assert wrong_runtime_1.runtime == "python3.9"
     assert wrong_runtime_2.runtime == "python3.9"
     assert wrong_runtime_3.runtime == "python3.9"
-    assert wrong_runtime_1.delete() is True
-    assert wrong_runtime_2.delete() is True
-    assert wrong_runtime_3.delete() is True
 
+    assert wrong_runtime_1.teardown() is True
+    if rns_client.exists(wrong_runtime_1.rns_address):
+        rns_client.delete_configs(wrong_runtime_1)
 
-def test_no_args_names_to_factory():
-    name = "test_lambda_no_args_names_to_factory"
-    no_args1 = rh.aws_lambda_fn(
-        fn=lambda_sum,
-        runtime="python3.9",
-        args_names=None,
-        name=name + "_1",
-    )
-    assert no_args1(8, 11) == "19"
+    assert wrong_runtime_2.teardown() is True
+    if rns_client.exists(wrong_runtime_2.rns_address):
+        rns_client.delete_configs(wrong_runtime_1)
 
-    no_args2 = rh.aws_lambda_fn(
-        fn=lambda_sum,
-        runtime="python3.9",
-        name=name + "_2",
-    )
-
-    assert no_args2(12, 33) == "45"
-
-    assert no_args1.delete() is True
-    assert no_args2.delete() is True
+    assert wrong_runtime_3.teardown() is True
+    if rns_client.exists(wrong_runtime_3.rns_address):
+        rns_client.delete_configs(wrong_runtime_3)
 
 
 def test_func_no_args():
@@ -231,28 +119,23 @@ def test_func_no_args():
     my_lambda = rh.aws_lambda_fn(
         fn=lambda_no_args,
         runtime="python3.9",
-        args_names=[],
         name=name,
     )
     assert my_lambda() == '"no args lambda"'
     assert my_lambda.name == "test_lambda_no_args"
-    assert my_lambda.delete() is True
+    assert my_lambda.teardown() is True
 
 
 def test_create_and_run_generate_name():
-    my_lambda = rh.aws_lambda_fn(
-        fn=lambda_sum,
-        runtime="python3.9",
-        args_names=["arg1", "arg2"],
-    )
+    my_lambda = rh.aws_lambda_fn(fn=lambda_sum, runtime="python3.9")
     res = my_lambda(3, 4)
     assert res == "7"
     my_lambda.save()
     reload_func = rh.aws_lambda_fn(name="lambda_sum")
     res2 = reload_func(12, 7)
     assert res2 == "19"
-    assert my_lambda.delete() is True
-    assert reload_func.delete() is True
+    assert my_lambda.teardown() is True
+    assert reload_func.teardown() is True
 
 
 def test_create_and_run_layers_dict(numpy_function):
@@ -273,13 +156,12 @@ def test_create_and_run_layers_env():
     my_lambda = rh.aws_lambda_fn(
         fn=arr_handler,
         runtime="python3.9",
-        args_names=["arr1", "arr2"],
         name=name,
         env=my_env,
     )
     res = my_lambda([1, 2, 3], [2, 5, 6])
     assert res == "19"
-    assert my_lambda.delete() is True
+    assert my_lambda.teardown() is True
 
 
 def test_create_and_run_layers_list():
@@ -287,13 +169,12 @@ def test_create_and_run_layers_list():
     my_lambda = rh.aws_lambda_fn(
         fn=arr_handler,
         runtime="python3.9",
-        args_names=["arr1", "arr2"],
         name=name,
         env=["numpy"],
     )
     res = my_lambda([1, 2, 3], [4, 7, 9])
     assert res == "26"
-    assert my_lambda.delete() is True
+    assert my_lambda.teardown() is True
 
 
 def test_layers_increase_timeout_and_memory():
@@ -301,7 +182,6 @@ def test_layers_increase_timeout_and_memory():
     my_lambda = rh.aws_lambda_fn(
         fn=arr_handler,
         runtime="python3.9",
-        args_names=["arr1", "arr2"],
         name=name,
         env=["numpy"],
         timeout=3,
@@ -315,61 +195,7 @@ def test_layers_increase_timeout_and_memory():
     assert lambda_config["Configuration"]["MemorySize"] == 1024
     assert lambda_config["Configuration"]["EphemeralStorage"]["Size"] == 3072
     assert lambda_config["Configuration"]["FunctionName"] == my_lambda.name
-    assert my_lambda.delete() is True
-
-
-@pytest.mark.skip(
-    "Not sure it is necessary now we are installing libs during runtime. "
-)
-def test_different_runtimes_and_layers():
-    handler_path = [f"{TEST_RESOURCES}/basic_handler_layer.py"]
-    name = "test_lambda_numpy"
-    my_lambda_37 = rh.aws_lambda_fn(
-        fn=arr_handler,
-        runtime="python3.7",
-        args_names=["arr1", "arr2"],
-        name=name + "_37",
-        env={"reqs": ["numpy"], "env_vars": None},
-    )
-    res37 = my_lambda_37([1, 2, 3], [2, 5, 6])
-    assert res37 == "19"
-    assert my_lambda_37.delete() is True
-
-    my_lambda_38 = rh.aws_lambda_fn(
-        paths_to_code=handler_path,
-        handler_function_name="lambda_handler",
-        runtime="python3.8",
-        args_names=["arr1", "arr2"],
-        name=name + "_38",
-        env={"reqs": ["numpy"], "env_vars": None},
-    )
-    res38 = my_lambda_38([1, 2, 3], [12, 5, 9])
-    assert res38 == "32"
-    assert my_lambda_38.delete() is True
-
-    my_lambda_310 = rh.aws_lambda_fn(
-        paths_to_code=handler_path,
-        handler_function_name="lambda_handler",
-        runtime="python3.10",
-        args_names=["arr1", "arr2"],
-        name=name + "_310",
-        env={"reqs": ["numpy"], "env_vars": None},
-    )
-    res310 = my_lambda_310([-2, 5, 1], [12, 5, 9])
-    assert res310 == "30"
-    assert my_lambda_310.delete() is True
-
-    my_lambda_311 = rh.aws_lambda_fn(
-        paths_to_code=handler_path,
-        handler_function_name="lambda_handler",
-        runtime="python3.11",
-        args_names=["arr1", "arr2"],
-        name=name + "_311",
-        env={"reqs": ["numpy"], "env_vars": None},
-    )
-    res311 = my_lambda_311([-2, 5, 1], [8, 7, 6])
-    assert res311 == "25"
-    assert my_lambda_311.delete() is True
+    assert my_lambda.teardown() is True
 
 
 def test_create_and_run_layers_txt():
@@ -377,23 +203,17 @@ def test_create_and_run_layers_txt():
     my_lambda = rh.aws_lambda_fn(
         fn=arr_handler,
         runtime="python3.9",
-        args_names=["arr1", "arr2"],
         name=name,
         env=[f"reqs:{TEST_RESOURCES}/"],
     )
     res = my_lambda([1, 2, 3], [1, 2, 3])
     assert res == "12"
-    assert my_lambda.delete() is True
+    assert my_lambda.teardown() is True
 
 
 def test_update_lambda_one_file():
     name = "test_lambda_create_and_run"
-    my_lambda = rh.aws_lambda_fn(
-        fn=lambda_sum,
-        runtime="python3.9",
-        args_names=["arg1", "arg2"],
-        name=name,
-    )
+    my_lambda = rh.aws_lambda_fn(fn=lambda_sum, runtime="python3.9", name=name)
     res = my_lambda(6, 4)
     assert res == "10"
     reload_func = rh.aws_lambda_fn(name=name)
@@ -410,6 +230,7 @@ def test_mult_files_each():
         func_a()
         func_b()
         func_c()
+    Also tests the From_handler_file method.
     """
     prefix = "call_files_separately"
     folder_path = f"{TEST_RESOURCES}/{prefix}"
@@ -418,11 +239,10 @@ def test_mult_files_each():
     handler_paths.sort()
     handler_paths = [f"{folder_path}/{p}" for p in handler_paths]
     name = "test_lambda_multiple_files_s"
-    my_lambda_calc_1 = rh.aws_lambda_fn(
+    my_lambda_calc_1 = rh.LambdaFunction.from_handler_file(
         paths_to_code=handler_paths,
         handler_function_name="my_calc",
         runtime="python3.9",
-        args_names=["arg1", "arg2"],
         name=name,
         env={"reqs": ["numpy"], "env_vars": None},
     )
@@ -434,7 +254,7 @@ def test_mult_files_each():
     assert res2 == "3.2"
     assert res3 == "22.5"
     assert res4 == "7.5"
-    assert my_lambda_calc_1.delete() is True
+    assert my_lambda_calc_1.teardown() is True
 
 
 def test_few_python_files_chain():
@@ -445,6 +265,7 @@ def test_few_python_files_chain():
     def handler_func:
         func_c()
     where func_c() calls func_b() which calls func_a().
+    Also tests the From_handler_file method.
     """
     prefix = "call_files_chain"
     folder_path = f"{TEST_RESOURCES}/{prefix}"
@@ -453,11 +274,10 @@ def test_few_python_files_chain():
     handler_paths.sort()
     handler_paths = [f"{folder_path}/{p}" for p in handler_paths]
     name = "test_lambda_multiple_files_c"
-    my_lambda_calc_2 = rh.aws_lambda_fn(
+    my_lambda_calc_2 = rh.LambdaFunction.from_handler_file(
         paths_to_code=handler_paths,
         handler_function_name="special_calc",
         runtime="python3.9",
-        args_names=["arg1", "arg2"],
         name=name,
     )
     res1 = my_lambda_calc_2(2, 3)
@@ -468,7 +288,7 @@ def test_few_python_files_chain():
     assert res2 == "17"
     assert res3 == "20"
     assert res4 == "20"
-    assert my_lambda_calc_2.delete() is True
+    assert my_lambda_calc_2.teardown() is True
 
 
 def test_args(basic_function):
@@ -510,7 +330,7 @@ def test_create_from_config():
     assert res1 == "3"
     assert res2 == "20"
     assert res3 == "31"
-    assert config_lambda.delete() is True
+    assert config_lambda.teardown() is True
 
 
 def test_delete_lambda():
@@ -518,12 +338,7 @@ def test_delete_lambda():
     iam_client = boto3.client("iam")
     logs_client = boto3.client("logs")
     name = "test_lambda_to_delete"
-    lambda_to_delete = rh.aws_lambda_fn(
-        fn=lambda_sum,
-        runtime="python3.9",
-        args_names=["arg1", "arg2"],
-        name=name,
-    )
+    lambda_to_delete = rh.aws_lambda_fn(fn=lambda_sum, runtime="python3.9", name=name)
 
     lambda_to_delete.save()
     assert lambda_to_delete(5, 11) == "16"
@@ -533,7 +348,7 @@ def test_delete_lambda():
     lambda_role = f"{lambda_name}_Role"
     lambda_log_group = f"/aws/lambda/{lambda_name}"
 
-    del_res = lambda_to_delete.delete_from_den()
+    del_res = lambda_to_delete.teardown()
     assert del_res is True
 
     functions_in_aws = [
@@ -556,6 +371,9 @@ def test_delete_lambda():
         for log_group in logs_client.describe_log_groups()["logGroups"]
     ]
     assert lambda_log_group not in logs_groups_in_aws
+
+    if rns_client.exists(lambda_to_delete.rns_address):
+        rns_client.delete_configs(lambda_to_delete)
 
 
 if __name__ == "__main__":

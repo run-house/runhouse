@@ -56,7 +56,9 @@ def validate_cluster_access(func):
         use_den_auth: bool = HTTPServer.get_den_auth()
         is_coro = inspect.iscoroutinefunction(func)
 
-        if not use_den_auth:
+        func_call: bool = func.__name__ in ["call_module_method", "call", "get_call"]
+        if not use_den_auth or func_call:
+            # If this is a func call, we'll handle the auth in the object store
             if is_coro:
                 return await func(*args, **kwargs)
 
@@ -81,9 +83,8 @@ def validate_cluster_access(func):
                 detail="Failed to load current cluster. Make sure cluster config YAML exists on the cluster.",
             )
 
-        func_call: bool = func.__name__ in ["call_module_method", "call"]
         cluster_access = verify_cluster_access(cluster_uri, token)
-        if not cluster_access and not func_call:
+        if not cluster_access:
             # Must have cluster access for all the non func calls
             # Note: for func calls will be handling the auth in the object store
             raise HTTPException(
@@ -186,6 +187,10 @@ class HTTPServer:
     @classmethod
     def enable_den_auth(cls):
         cls._den_auth = True
+
+    @classmethod
+    def disable_den_auth(cls):
+        cls._den_auth = False
 
     @staticmethod
     def register_activity():
@@ -351,10 +356,10 @@ class HTTPServer:
     @app.post("/{module}/{method}")
     @validate_cluster_access
     def call_module_method(
-        request: Request, module, method=None, message: dict = Body(...)
+        request: Request, module, method=None, message: dict = Body(default=None)
     ):
         token = get_token_from_request(request)
-        token_hash = hash_token(token) if den_auth else None
+        token_hash = hash_token(token) if den_auth and token else None
         # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
@@ -452,7 +457,9 @@ class HTTPServer:
         return open_files
 
     @staticmethod
-    def _get_results_and_logs_generator(key, env, stream_logs, remote=False, pop=False):
+    def _get_results_and_logs_generator(
+        key, env, stream_logs, remote=False, pop=False, serialization=None
+    ):
         from runhouse.globals import obj_store
 
         open_logfiles = []
@@ -468,7 +475,7 @@ class HTTPServer:
                 if not obj_ref:
                     obj_ref = HTTPServer.call_in_env_servlet(
                         "get",
-                        [key, remote, True],
+                        [key, remote, True, None, serialization],
                         env=env,
                         block=False,
                     )
@@ -482,6 +489,7 @@ class HTTPServer:
                         raise ray.exceptions.GetTimeoutError
                     if not ret_val.output_type == OutputType.RESULT_STREAM:
                         waiting_for_results = False
+                    ret_val = ret_val.data if serialization == "json" else ret_val
                     ret_resp = json.dumps(jsonable_encoder(ret_val))
                     yield ret_resp + "\n"
                 except ray.exceptions.GetTimeoutError:
@@ -506,9 +514,13 @@ class HTTPServer:
                         #     ret_lines.append(f"Process {i}:")
                         ret_lines += file_lines
                 if ret_lines:
-                    lines_resp = Response(
-                        data=ret_lines,
-                        output_type=OutputType.STDOUT,
+                    lines_resp = (
+                        Response(
+                            data=ret_lines,
+                            output_type=OutputType.STDOUT,
+                        )
+                        if not serialization == "json"
+                        else ret_lines
                     )
                     logger.debug(f"Yielding logs for key {key}")
                     yield json.dumps(jsonable_encoder(lines_resp)) + "\n"
@@ -518,8 +530,10 @@ class HTTPServer:
             yield json.dumps(
                 jsonable_encoder(
                     Response(
-                        error=pickle_b64(e),
-                        traceback=pickle_b64(traceback.format_exc()),
+                        error=pickle_b64(e) if not serialization == "json" else str(e),
+                        traceback=pickle_b64(traceback.format_exc())
+                        if not serialization == "json"
+                        else str(traceback.format_exc()),
                         output_type=OutputType.EXCEPTION,
                     )
                 )
@@ -580,19 +594,101 @@ class HTTPServer:
         return HTTPServer.call_in_env_servlet("get_keys", [], env=env)
 
     @staticmethod
+    @app.get("/{module}/{method}")
+    @validate_cluster_access
+    def get_call(request: Request, module, method=None, serialization="json"):
+        token = get_token_from_request(request)
+        token_hash = hash_token(token) if den_auth and token else None
+        # Stream the logs and result (e.g. if it's a generator)
+        HTTPServer.register_activity()
+        try:
+            kwargs = dict(request.query_params)
+            kwargs.pop("serialization", None)
+            method = None if method == "None" else method
+            message = Message(stream_logs=True, data=kwargs)
+            env = HTTPServer.lookup_env_for_name(module)
+            persist = message.run_async or message.remote or message.save or not method
+            if method:
+                # TODO fix the way we generate runkeys, it's ugly
+                message.key = message.key or _generate_default_name(
+                    prefix=module if method == "__call__" else f"{module}_{method}",
+                    precision="ms",  # Higher precision because we see collisions within the same second
+                )
+                # If certain conditions are met, we can return a response immediately
+                fast_resp = not persist and not message.stream_logs
+
+                # Unless we're returning a fast response, we discard this obj_ref
+                obj_ref = HTTPServer.call_in_env_servlet(
+                    "call_module_method",
+                    [module, method, message, token_hash, den_auth, serialization],
+                    env=env,
+                    create=True,
+                    block=False,
+                )
+
+                if fast_resp:
+                    res = ray.get(obj_ref)
+                    logger.info(f"Returning fast response for {message.key}")
+                    return res
+
+            else:
+                message.key = module
+                # If this is a "get" call, don't wait for the result, it's either there or not.
+                from runhouse.globals import obj_store
+
+                if not obj_store.contains(message.key):
+                    return Response(output_type=OutputType.NOT_FOUND, data=message.key)
+
+            if message.run_async:
+                return (
+                    Response(
+                        data=pickle_b64(message.key),
+                        output_type=OutputType.RESULT,
+                    )
+                    if not serialization == "json"
+                    else message.key
+                )
+
+            return StreamingResponse(
+                HTTPServer._get_results_and_logs_generator(
+                    message.key,
+                    env=env,
+                    stream_logs=message.stream_logs,
+                    remote=message.remote,
+                    pop=not persist,
+                    serialization=serialization,
+                ),
+                media_type="application/json",
+            )
+        except Exception as e:
+            logger.exception(e)
+            HTTPServer.register_activity()
+            return Response(
+                error=pickle_b64(e) if not serialization == "json" else str(e),
+                traceback=pickle_b64(traceback.format_exc())
+                if not serialization == "json"
+                else str(traceback.format_exc()),
+                output_type=OutputType.EXCEPTION,
+            )
+
+    @staticmethod
     @app.post("/call/{module}/{method}")
     @validate_cluster_access
     async def call(
         request: Request,
         module,
         method=None,
-        args: dict = Body(),
+        args: dict = Body(default={}),
         serialization="json",
     ):
         kwargs = args.get("kwargs", {})
         args = args.get("args", [])
+        query_params = dict(request.query_params)
+        query_params.pop("serialization", None)
+        if query_params:
+            kwargs.update(query_params)
         token = get_token_from_request(request)
-        token_hash = hash_token(token) if den_auth else None
+        token_hash = hash_token(token) if den_auth and token else None
         resp = HTTPServer.call_in_env_servlet(
             "call",
             [module, method, args, kwargs, serialization, token_hash, den_auth],

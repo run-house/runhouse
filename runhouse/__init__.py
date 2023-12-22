@@ -3,8 +3,8 @@ from runhouse.resources.envs import conda_env, CondaEnv, env, Env
 from runhouse.resources.folders import Folder, folder, GCSFolder, S3Folder
 from runhouse.resources.functions.aws_lambda import LambdaFunction
 from runhouse.resources.functions.aws_lambda_factory import aws_lambda_fn
-from runhouse.resources.functions.funciton_factory import function
 from runhouse.resources.functions.function import Function
+from runhouse.resources.functions.function_factory import function
 from runhouse.resources.hardware import (
     _current_cluster,
     cluster,
@@ -25,6 +25,7 @@ from runhouse.resources.queues import Queue
 from runhouse.resources.resource import Resource
 from runhouse.resources.secrets import provider_secret, ProviderSecret, Secret, secret
 from runhouse.resources.tables import Table, table
+from runhouse.rns.secrets import Secrets  # Deprecated
 
 from runhouse.rns.top_level_rns_fns import (
     current_folder,
@@ -56,4 +57,4 @@ if _current_cluster():
     ray.init(ignore_reinit_error=True)
     obj_store.set_name("base")
 
-__version__ = "0.0.14"
+__version__ = "0.0.15"

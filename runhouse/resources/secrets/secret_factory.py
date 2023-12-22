@@ -68,8 +68,8 @@ def provider_secret(
 
     Example:
         >>> aws_secret = rh.provider_secret("aws")
+        >>> gcp_secret = rh.provider("gcp", path="~/.gcp/credentials")
         >>> lamdba_secret = rh.provider_secret("lambda", values={"api_key": "xxxxx"})
-        >>>
     """
     if not provider:
         if not name:
@@ -78,8 +78,11 @@ def provider_secret(
             return Secret.from_name(name)
 
     elif not any([values, path, env_vars]):
-        secret_class = _get_provider_class(provider)
-        return secret_class(name=name, provider=provider, dryrun=dryrun)
+        if provider in Secret.builtin_providers(as_str=True):
+            secret_class = _get_provider_class(provider)
+            return secret_class(name=name, provider=provider, dryrun=dryrun)
+        else:
+            return ProviderSecret.from_name(name or provider)
 
     elif sum([bool(x) for x in [values, path, env_vars]]) == 1:
         secret_class = _get_provider_class(provider)

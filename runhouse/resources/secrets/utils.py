@@ -16,7 +16,6 @@ USER_ENDPOINT = "user/secret"
 
 def load_config(name: str, endpoint: str = USER_ENDPOINT):
     rns_address = rns_client.resolve_rns_path(name)
-
     if rns_address.startswith("/"):
         # Load via Resource API
         rns_config = rns_client.load_config(name=name)
@@ -25,14 +24,14 @@ def load_config(name: str, endpoint: str = USER_ENDPOINT):
 
         # Load via Secrets API
         resource_uri = rns_client.resource_uri(name)
-        secret_values = _load_vault_secrets(resource_uri, endpoint)
+        secret_values = _load_vault_secret(resource_uri, endpoint)
         return {**rns_config, **{"values": secret_values}}
 
     # Load from local config
     return _load_local_config(name)
 
 
-def _load_vault_secrets(
+def _load_vault_secret(
     resource_uri: str,
     endpoint: str = USER_ENDPOINT,
     headers: Optional[Dict] = None,
@@ -54,6 +53,20 @@ def _load_vault_secrets(
     if config.get("data", None):
         return config["data"]["values"]
     return config
+
+
+def _delete_vault_secrets(
+    resource_uri: str,
+    endpoint: str = USER_ENDPOINT,
+    headers: Optional[Dict] = None,
+):
+    headers = headers or rns_client.request_headers
+    resp = requests.delete(
+        f"{rns_client.api_server_url}/{endpoint}/{resource_uri}",
+        headers=headers,
+    )
+    if resp.status_code != 200:
+        logger.error(f"Failed to delete secrets from Vault: {load_resp_content(resp)}")
 
 
 def _load_local_config(name):

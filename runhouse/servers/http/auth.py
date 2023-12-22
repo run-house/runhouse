@@ -42,8 +42,11 @@ class AuthCache:
             return
 
         resp_data = json.loads(resp.content)
+        # Support access_level and access_type for BC
         all_resources: dict = {
-            resource["name"]: resource["access_type"] for resource in resp_data["data"]
+            resource["name"]: resource.get("access_level")
+            or resource.get("access_type")
+            for resource in resp_data["data"]
         }
         # Update server cache with a user's resources and access type
         cls.CACHE[hash_token(token)] = all_resources

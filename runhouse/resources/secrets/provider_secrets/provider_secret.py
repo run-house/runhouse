@@ -29,7 +29,11 @@ class ProviderSecret(Secret):
         **kwargs,
     ):
         """
-        Provider Secret class.
+        Provider Secret class. Built-in provider classes contain default path and/or environment variable mappings,
+        based on it's expected usage.
+
+        Currently supported built-in providers:
+        anthropic, aws, azure, gcp, github, huggingface, lambda, langchain, openai, pinecone, ssh, sky, wandb.
 
         .. note::
             To create a ProviderSecret, please use the factory method :func:`provider_secret`.
@@ -79,7 +83,7 @@ class ProviderSecret(Secret):
         self, name: str = None, save_values: bool = True, headers: Optional[Dict] = None
     ):
         name = name or self.name or self.provider
-        super().save(name=name, save_values=save_values, headers=headers)
+        return super().save(name=name, save_values=save_values, headers=headers)
 
     def delete(self, headers: Optional[Dict] = None, contents: bool = False):
         """Delete the secret config from Den and from Vault/local. Optionally also delete contents of secret file
@@ -100,10 +104,10 @@ class ProviderSecret(Secret):
 
     def write(
         self,
-        file: bool = False,
-        env: bool = False,
         path: Union[str, File] = None,
         env_vars: Dict = None,
+        file: bool = False,
+        env: bool = False,
         overwrite: bool = False,
     ):
         if not self.values:
@@ -125,7 +129,7 @@ class ProviderSecret(Secret):
         system: Union[str, Cluster],
         path: Union[str, File] = None,
         env: Union[str, Env] = None,
-        values: bool = True,
+        values: bool = None,
         name: Optional[str] = None,
     ):
         """Return a copy of the secret on a system.
@@ -137,7 +141,9 @@ class ProviderSecret(Secret):
                 will not be written down on the cluster.
             env (str or Env, optional): Env to send the secret to. This will save down the secrets
                 as env vars in the env.
-            values (bool, optional): Whether to save down the values in the resource config. (Default: True)
+            values (bool, optional): Whether to save down the values in the resource config. By default,
+                save down values if the secret is not being written down to a file or environment variable.
+                Otherwise, values are not written down. (Default: None)
             name (str, ooptional): Name to assign the resource on the cluster.
 
         Example:
@@ -160,8 +166,13 @@ class ProviderSecret(Secret):
 
         new_secret = copy.deepcopy(self)
         new_secret.name = name or self.name or self.provider
-        if values and not new_secret._values:
+
+        if values:
             new_secret._values = self.values
+        elif values is None and not (path or env or self.env_vars):
+            new_secret._values = self.values
+        elif values is False:
+            new_secret._values = None
 
         key = system.put_resource(new_secret)
         if path:
@@ -170,8 +181,13 @@ class ProviderSecret(Secret):
             )
 
         if env or self.env_vars:
-            env_vars = {self.env_vars[key]: self.values[key] for key in self.values}
-            system.call(env, "_write_env_vars", env_vars)
+            env_key = env.name if isinstance(env, Env) else (env or "base_env")
+            if not system.get(env_key):
+                env = env if isinstance(env, Env) else Env(name=env_key)
+                env_key = system.put_resource(env)
+            env_vars = self.env_vars or self._DEFAULT_ENV_VARS
+            env_vars = {env_vars[k]: self.values[k] for k in self.values}
+            system.call(env_key, "_set_env_vars", env_vars)
         return new_secret
 
     def _file_to(
@@ -181,13 +197,10 @@ class ProviderSecret(Secret):
         path: Union[str, File] = None,
         values: Any = None,
     ):
-        if self.path:
-            if isinstance(path, File):
-                path = path.path
-            remote_file = file(path=self.path).to(system, path=path)
-        else:
-            system.call(key, "_write_to_file", path=path, values=values)
-            remote_file = file(path=path, system=system)
+        if isinstance(path, File):
+            path = path.path
+        system.call(key, "_write_to_file", path=path, values=values)
+        remote_file = file(path=path, system=system)
         return remote_file
 
     def _write_to_file(
@@ -204,7 +217,7 @@ class ProviderSecret(Secret):
                 os.makedirs(os.path.dirname(full_path), exist_ok=True)
                 with open(full_path, "w") as f:
                     json.dump(values, f, indent=4)
-                self._add_to_rh_config(full_path)
+                self._add_to_rh_config(path)
 
         new_secret._values = None
         new_secret.path = path
@@ -212,9 +225,14 @@ class ProviderSecret(Secret):
 
     def _write_to_env(self, env_vars: Dict, values: Any, overwrite: bool):
         existing_keys = dict(os.environ).keys()
+        added_keys = []
         for key in env_vars.keys():
             if env_vars[key] not in existing_keys or overwrite:
                 os.environ[env_vars[key]] = values[key]
+                added_keys.append(env_vars[key])
+
+        if added_keys:
+            self._add_to_rh_config(added_keys)
 
         new_secret = copy.deepcopy(self)
         new_secret._values = None
@@ -222,18 +240,17 @@ class ProviderSecret(Secret):
         return new_secret
 
     def _from_env(self, env_vars: Dict = None):
+        env_vars = env_vars or self.env_vars
         if not env_vars:
             return {}
 
         values = {}
-        keys = self.env_vars.keys() if self.env_vars else {}
-        env_vars = env_vars or self.env_vars or {key: key for key in keys}
 
-        if not keys:
-            return {}
-
-        for key in keys:
-            values[key] = os.environ[env_vars[key]]
+        for key in env_vars.keys():
+            try:
+                values[key] = os.environ[env_vars[key]]
+            except KeyError:
+                return {}
         return values
 
     def _from_path(self, path: Union[str, File] = None):
@@ -258,7 +275,7 @@ class ProviderSecret(Secret):
                     return contents
         return {}
 
-    def _add_to_rh_config(self, path):
+    def _add_to_rh_config(self, val):
         if not self.name:
             self.name = self.provider
-        configs.set_nested(key="secrets", value={self.name: path})
+        configs.set_nested(key="secrets", value={self.name: val})

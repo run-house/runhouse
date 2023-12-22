@@ -1,9 +1,6 @@
-import contextlib
 import enum
 
 import pytest
-
-from runhouse.globals import rns_client
 
 """
 HOW TO USE FIXTURES IN RUNHOUSE TESTS
@@ -149,23 +146,6 @@ init_args = {}
 ############## HELPERS ##############
 
 
-@pytest.fixture(scope="function")
-@contextlib.contextmanager
-def test_account():
-    """Used for the purposes of testing resource sharing among different accounts.
-    When inside the context manager, use the test account credentials before reverting back to the original
-    account when exiting."""
-
-    try:
-        account = rns_client.load_account_from_env()
-        if account is None:
-            pytest.skip("`TEST_TOKEN` or `TEST_USERNAME` not set, skipping test.")
-        yield account
-
-    finally:
-        rns_client.load_account_from_file()
-
-
 # ----------------- Clusters -----------------
 
 from tests.fixtures.local_docker_cluster_fixtures import (
@@ -268,6 +248,25 @@ from tests.test_resources.test_modules.test_tables.conftest import (
     pandas_table,  # noqa: F401
     ray_table,  # noqa: F401
     table,  # noqa: F401
+)
+
+from tests.test_resources.test_secrets.conftest import (
+    anthropic_secret,  # noqa: F401
+    aws_secret,  # noqa: F401
+    azure_secret,  # noqa: F401
+    cohere_secret,  # noqa: F401
+    custom_provider_secret,  # noqa: F401
+    gcp_secret,  # noqa: F401
+    github_secret,  # noqa: F401
+    huggingface_secret,  # noqa: F401
+    lambda_secret,  # noqa: F401
+    langchain_secret,  # noqa: F401
+    openai_secret,  # noqa: F401
+    pinecone_secret,  # noqa: F401
+    sky_secret,  # noqa: F401
+    ssh_secret,  # noqa: F401
+    test_secret,  # noqa: F401
+    wandb_secret,  # noqa: F401
 )
 
 

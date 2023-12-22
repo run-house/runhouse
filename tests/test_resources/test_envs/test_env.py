@@ -43,8 +43,14 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         ]
     }
     LOCAL = {
-        "env": ["base_env", "base_conda_env", "conda_env_from_dict"],
-        # TODO: add local clusters once conda docker container is set up
+        "env": ["base_env"],
+        "cluster": [
+            "local_docker_cluster_public_key_logged_in",
+            "local_docker_cluster_public_key_logged_out",
+            "local_docker_cluster_passwd",
+        ]
+        # TODO: extend envs to "base_conda_env", "conda_env_from_dict"],
+        # and add local clusters once conda docker container is set up
     }
     MINIMAL = {
         "env": ["base_env", "base_conda_env"],
@@ -199,3 +205,41 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         assert working_dir.name not in cluster.run(["ls"])[0][1]
 
         _uninstall_env(env, cluster)
+
+    @pytest.mark.level("local")
+    def test_secrets_env(self, env, cluster):
+        path_secret = rh.provider_secret(
+            "lambda", values={"api_key": "test_api_key"}
+        ).write(path="~/lambda_keys")
+        api_key_secret = rh.provider_secret(
+            "openai", values={"api_key": "test_openai_key"}
+        )
+        named_secret = (
+            rh.provider_secret("huggingface", values={"token": "test_hf_token"})
+            .write(path="~/hf_token")
+            .save()
+        )
+        secrets = [path_secret, api_key_secret, named_secret.provider]
+
+        env.secrets = secrets
+        get_env_var_cpu = rh.function(_get_env_var_value).to(
+            system=cluster, env=env, force_install=True
+        )
+
+        for secret in secrets:
+            name = (
+                secret if isinstance(secret, str) else (secret.name or secret.provider)
+            )
+            assert cluster.get(name)
+
+            if isinstance(secret, str):
+                secret = rh.Secret.from_name(secret)
+
+            if secret.path:
+                assert rh.file(path=secret.path, system=cluster).exists_in_system()
+            else:
+                env_vars = secret.env_vars or secret._DEFAULT_ENV_VARS
+                for _, var in env_vars.items():
+                    assert get_env_var_cpu(var)
+
+        named_secret.delete()

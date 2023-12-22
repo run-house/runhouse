@@ -8,6 +8,8 @@ import requests
 import runhouse as rh
 from runhouse.globals import rns_client
 
+from tests.utils import test_account
+
 
 def call_func_with_curl(ip_address, func_name, token, *args):
     cmd = f"""curl -k -X POST "https://{ip_address}/call/{func_name}/call?serialization=None" -d '{{"args": {list(args)}}}' -H "Content-Type: application/json" -H "Authorization: Bearer {token}" """  # noqa
@@ -118,15 +120,13 @@ def test_use_shared_function_apis(shared_cluster, shared_function):
 
 
 @pytest.mark.clustertest
-def test_running_func_with_cluster_read_access(
-    test_account, shared_cluster, shared_function
-):
+def test_running_func_with_cluster_read_access(shared_cluster, shared_function):
     """Check that a user with read only access to the cluster cannot call a function on that cluster if they do not
     explicitly have access to the function."""
     current_username = rh.configs.get("username")
     current_token = rh.configs.get("token")
 
-    with test_account:
+    with test_account():
         # Delete user access to the function
         resource_uri = rns_client.resource_uri(shared_function.rns_address)
 
@@ -152,9 +152,7 @@ def test_running_func_with_cluster_read_access(
 
 
 @pytest.mark.clustertest
-def test_running_func_with_cluster_write_access(
-    shared_cluster, shared_function, test_account
-):
+def test_running_func_with_cluster_write_access(shared_cluster, shared_function):
     """Check that a user with write access to a cluster can call a function on that cluster, even without having
     explicit access to the function."""
     current_username = rh.configs.get("username")
@@ -162,7 +160,7 @@ def test_running_func_with_cluster_write_access(
 
     cluster_uri = rns_client.resource_uri(shared_cluster.rns_address)
 
-    with test_account:
+    with test_account():
         # Give user write access to cluster from test account
         resp = requests.put(
             f"{rns_client.api_server_url}/resource/{cluster_uri}/users/access",
@@ -200,15 +198,13 @@ def test_running_func_with_cluster_write_access(
 
 
 @pytest.mark.clustertest
-def test_running_func_with_no_cluster_access(
-    shared_cluster, shared_function, test_account
-):
+def test_running_func_with_no_cluster_access(shared_cluster, shared_function):
     """Check that a user with no access to the cluster can still call a function on that cluster if they were
     given explicit access to the function."""
     current_username = rh.configs.get("username")
     current_token = rh.configs.get("token")
 
-    with test_account:
+    with test_account():
         # Delete user access to cluster using the test account
         cluster_uri = rns_client.resource_uri(shared_cluster.rns_address)
         resp = requests.delete(

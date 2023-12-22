@@ -38,6 +38,7 @@ class ObjStore:
         cuda_visible_devices = list(range(int(num_gpus)))
         os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
         self._kv_store = Kvstore()
+        self._kv_store.system = None  # sometimes this gets set to _current_cluster, which can only create problems
         self._env_for_key = (
             ray.remote(Kvstore)
             .options(
@@ -46,7 +47,9 @@ class ObjStore:
                 lifetime="detached",
                 namespace="runhouse",
             )
-            .remote()
+            .remote(
+                system="here"
+            )  # Same here, we don't want to use the _current_cluster system
         )
         self._auth_cache = (
             ray.remote(AuthCache)
@@ -106,9 +109,11 @@ class ObjStore:
 
         return True
 
-    def keys(self):
+    def keys(self, return_envs=False):
         # Return keys across the cluster, not only in this process
-        return self.call_kv_method(self._env_for_key, "keys")
+        return self.call_kv_method(
+            self._env_for_key, "items" if return_envs else "keys"
+        )
 
     def get_env(self, key):
         return self.call_kv_method(self._env_for_key, "get", key, None)
@@ -224,7 +229,10 @@ class ObjStore:
             self.pop_env(k, None)
 
     def pop(self, key: str, default: Optional[Any] = None):
-        return self.call_kv_method(self._kv_store, "pop", key, default)
+        res = self.call_kv_method(self._kv_store, "pop", key, default)
+        if res:
+            self.pop_env(key, None)
+        return res
 
     def clear_env(self):
         self.call_kv_method(self._env_for_key, "clear")

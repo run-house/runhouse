@@ -15,6 +15,11 @@ logger = logging.getLogger(__name__)
 
 
 class SSHSecret(ProviderSecret):
+    """
+    .. note::
+            To create a SSHSecret, please use the factory method :func:`provider_secret` with ``provider="ssh"``.
+    """
+
     _DEFAULT_CREDENTIALS_PATH = "~/.ssh"
     _PROVIDER = "ssh"
     _DEFAULT_KEY = "id_rsa"
@@ -125,6 +130,7 @@ class SSHSecret(ProviderSecret):
             )
             remote_priv_file = file(path=self.path).to(system, path=path)
             file(path=pub_key_path).to(system, path=pub_key_path)
+            system.run([f"chmod 600 {path}"])
         else:
             system.call(key, "_write_to_file", path=path, values=values)
             remote_priv_file = file(path=path, system=system)

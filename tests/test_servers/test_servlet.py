@@ -9,6 +9,7 @@ from runhouse.servers.http.http_server import HTTPServer
 from runhouse.servers.http.http_utils import b64_unpickle, Message, pickle_b64
 
 from tests.test_servers.conftest import summer
+from tests.utils import test_account
 
 
 class TestServlet:
@@ -22,7 +23,6 @@ class TestServlet:
             state = {}
             message = Message(
                 data=pickle_b64((resource.config_for_rns, state, resource.dryrun)),
-                env="base_env",
             )
             resp = HTTPServer.call_servlet_method(
                 base_servlet, "put_resource", [message]
@@ -147,9 +147,7 @@ class TestServlet:
 
     @pytest.mark.skip("Not implemented yet.")
     @pytest.mark.level("unit")
-    def test_call(
-        self, base_servlet, test_account, local_docker_cluster_public_key_logged_in
-    ):
+    def test_call(self, base_servlet, local_docker_cluster_public_key_logged_in):
         token_hash = None
         den_auth = False
         remote_func = rh.function(
@@ -179,10 +177,11 @@ class TestServlet:
 
     @pytest.mark.skip("Not implemented yet.")
     @pytest.mark.level("unit")
-    def test_call_with_den_auth(self, base_servlet, test_account):
-        token_hash = hash_token(test_account["token"])
-        den_auth = True
-        remote_func = rh.function(summer).save()
+    def test_call_with_den_auth(self, base_servlet):
+        with test_account() as test_account_dict:
+            token_hash = hash_token(test_account_dict["token"])
+            den_auth = True
+            remote_func = rh.function(summer).save()
 
         method_name = "call"
         module_name = remote_func.name
@@ -208,10 +207,11 @@ class TestServlet:
 
     @pytest.mark.skip("Not implemented yet.")
     @pytest.mark.level("unit")
-    def test_call_module_method_(self, base_servlet, test_account):
-        token_hash = None
-        den_auth = False
-        remote_func = rh.function(summer).save()
+    def test_call_module_method_(self, base_servlet):
+        with test_account():
+            token_hash = None
+            den_auth = False
+            remote_func = rh.function(summer).save()
 
         method_name = "call"
         module_name = remote_func.name
@@ -229,10 +229,11 @@ class TestServlet:
 
     @pytest.mark.skip("Not implemented yet.")
     @pytest.mark.level("unit")
-    def test_call_module_method_with_den_auth(self, base_servlet, test_account):
-        token_hash = hash_token(test_account["token"])
-        den_auth = True
-        remote_func = rh.function(summer).save()
+    def test_call_module_method_with_den_auth(self, base_servlet):
+        with test_account() as test_account_dict:
+            token_hash = hash_token(test_account_dict["token"])
+            den_auth = True
+            remote_func = rh.function(summer).save()
 
         method_name = "call"
         module_name = remote_func.name

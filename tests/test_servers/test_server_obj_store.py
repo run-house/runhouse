@@ -3,6 +3,7 @@ import pytest
 from runhouse.servers.http.auth import hash_token, update_cache_for_user
 
 from tests.test_servers.conftest import BASE_ENV_ACTOR_NAME, CACHE_ENV_ACTOR_NAME
+from tests.utils import test_account
 
 
 @pytest.mark.parametrize("obj_store", [BASE_ENV_ACTOR_NAME], indirect=True)
@@ -194,8 +195,8 @@ class TestAuthCacheObjStore:
     """Start object store in a local auth cache servlet"""
 
     @pytest.mark.level("unit")
-    def test_save_resources_to_obj_store_cache(self, obj_store, test_account):
-        with test_account as test_account_dict:
+    def test_save_resources_to_obj_store_cache(self, obj_store):
+        with test_account() as test_account_dict:
             token = test_account_dict["token"]
             hashed_token = hash_token(token)
 
@@ -216,8 +217,8 @@ class TestAuthCacheObjStore:
         assert not resources
 
     @pytest.mark.level("unit")
-    def test_no_resource_access_for_invalid_token(self, obj_store, test_account):
-        with test_account as test_account_dict:
+    def test_no_resource_access_for_invalid_token(self, obj_store):
+        with test_account() as test_account_dict:
             token = "abc"
             resource_uri = f"/{test_account_dict['username']}/summer"
             access_level = obj_store.resource_access_level(

@@ -11,7 +11,7 @@ import requests
 from runhouse.globals import configs, rns_client
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.resource import Resource
-from runhouse.resources.secrets.utils import load_config
+from runhouse.resources.secrets.utils import _delete_vault_secrets, load_config
 from runhouse.rns.utils.api import load_resp_content, read_resp_data
 from runhouse.rns.utils.names import _generate_default_name
 
@@ -68,6 +68,9 @@ class Secret(Resource):
 
             provider_class = _get_provider_class(config["provider"])
             return provider_class.from_config(config, dryrun=dryrun)
+        subtype = config.get("resource_subtype", None)
+        if subtype and subtype != "Secret":
+            return Resource.from_config(**config, dryrun=dryrun)
         return Secret(**config, dryrun=dryrun)
 
     @classmethod
@@ -75,16 +78,18 @@ class Secret(Resource):
         """Load existing Secret via its name."""
         try:
             config = load_config(name, cls.USER_ENDPOINT)
-            return cls.from_config(config=config, dryrun=dryrun)
+            if config:
+                return cls.from_config(config=config, dryrun=dryrun)
         except ValueError:
-            if name in cls.builtin_providers(as_str=True):
-                from runhouse.resources.secrets.provider_secrets.providers import (
-                    _get_provider_class,
-                )
+            pass
+        if name in cls.builtin_providers(as_str=True):
+            from runhouse.resources.secrets.provider_secrets.providers import (
+                _get_provider_class,
+            )
 
-                provider_class = _get_provider_class(name)
-                return provider_class(provider=name, dryrun=dryrun)
-            raise ValueError(f"Could not locate secret {name}")
+            provider_class = _get_provider_class(name)
+            return provider_class(provider=name, dryrun=dryrun)
+        raise ValueError(f"Could not locate secret {name}")
 
     @classmethod
     def builtin_providers(cls, as_str: bool = False) -> list:
@@ -142,8 +147,8 @@ class Secret(Resource):
 
         secrets = {}
 
-        # locally configured non-ssh provider secrets
-        for provider in _str_to_provider_class.keys():
+        names = names or _str_to_provider_class.keys()
+        for provider in names:
             if provider == "ssh":
                 continue
             try:
@@ -153,17 +158,18 @@ class Secret(Resource):
                 continue
 
         # locally configured ssh secrets
-        default_ssh_folder = "~/.ssh"
-        ssh_files = os.listdir(os.path.expanduser(default_ssh_folder))
-        for file in ssh_files:
-            if file != "sky-key" and f"{file}.pub" in ssh_files:
-                name = f"ssh-{file}"
-                secret = provider_secret(
-                    provider="ssh",
-                    name=name,
-                    path=os.path.join(default_ssh_folder, file),
-                )
-                secrets[name] = secret
+        if "ssh" in names:
+            default_ssh_folder = "~/.ssh"
+            ssh_files = os.listdir(os.path.expanduser(default_ssh_folder))
+            for file in ssh_files:
+                if file != "sky-key" and f"{file}.pub" in ssh_files:
+                    name = f"ssh-{file}"
+                    secret = provider_secret(
+                        provider="ssh",
+                        name=name,
+                        path=os.path.join(default_ssh_folder, file),
+                    )
+                    secrets[name] = secret
 
         return secrets
 
@@ -185,6 +191,7 @@ class Secret(Resource):
         if "values" in config:
             # don't save values into Den config
             del config["values"]
+
         headers = headers or rns_client.request_headers
 
         # Save metadata to Den
@@ -233,7 +240,7 @@ class Secret(Resource):
 
     def delete(self, headers: Optional[Dict] = None):
         """Delete the secret config from Den and from Vault/local."""
-        if not (self.in_vault() or self.is_local()):
+        if not (self.in_vault() or self.in_local()):
             logger.warning(
                 "Can not delete a secret that has not been saved down to Vault or local."
             )
@@ -255,14 +262,7 @@ class Secret(Resource):
 
         # Delete secrets in Vault
         resource_uri = rns_client.resource_uri(self.rns_address)
-        resp = requests.delete(
-            f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{resource_uri}",
-            headers=headers,
-        )
-        if resp.status_code != 200:
-            logger.error(
-                f"Failed to delete secrets from Vault: {load_resp_content(resp)}"
-            )
+        _delete_vault_secrets(resource_uri, self.USER_ENDPOINT, headers=headers)
 
         # Delete RNS data for resource
         resp = requests.delete(
@@ -278,6 +278,7 @@ class Secret(Resource):
         self,
         system: Union[str, Cluster],
         name: Optional[str] = None,
+        env: Optional["Env"] = None,
     ):
         """Return a copy of the secret on a system.
 
@@ -296,11 +297,11 @@ class Secret(Resource):
         if system.on_this_cluster():
             new_secret.pin()
         else:
-            system.put_resource(new_secret)
+            system.put_resource(new_secret, env=env)
 
         return new_secret
 
-    def is_local(self):
+    def in_local(self):
         """Whether the secret config is stored locally (as opposed to Vault)."""
         path = os.path.expanduser(f"~/.rh/secrets/{self.name}.json")
         if os.path.exists(os.path.expanduser(path)):

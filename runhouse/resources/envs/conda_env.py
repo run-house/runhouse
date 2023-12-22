@@ -27,6 +27,7 @@ class CondaEnv(Env):
         setup_cmds: List[str] = None,
         env_vars: Optional[Dict] = {},
         working_dir: Optional[Union[str, Path]] = "./",
+        secrets: List[Union[str, "Secret"]] = [],
         dryrun: bool = True,
         **kwargs,  # We have this here to ignore extra arguments when calling from_config
     ):
@@ -44,6 +45,7 @@ class CondaEnv(Env):
             setup_cmds=setup_cmds,
             env_vars=env_vars,
             working_dir=working_dir,
+            secrets=secrets,
             dryrun=dryrun,
         )
 

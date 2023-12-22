@@ -50,41 +50,33 @@ class Function(Module):
         config.pop("resource_subtype", None)
         return Function(**config, dryrun=dryrun)
 
-    @classmethod
-    def _check_for_child_configs(cls, config):
-        """Overload by child resources to load any resources they hold internally."""
-        # TODO: Replace with _get_cluster_from?
-        system = config["system"]
-        if isinstance(system, str):
-            config["system"] = globals.rns_client.load_config(name=system)
-            logging.info(f"Loaded system config {config} from RNS.")
-            # if the system is set to a cluster
-            if not config["system"]:
-                raise Exception(f"No cluster config saved for {system}")
-
-        config["env"] = _get_env_from(config["env"])
-        return config
+    def share(self, *args, visibility=None, **kwargs):
+        if visibility and not visibility == self.visibility:
+            self.visibility = visibility
+            super().remote.visibility = (
+                visibility  # do this to avoid hitting Function's .remote
+            )
+        return super().share(*args, **kwargs, visibility=visibility)
 
     def to(
         self,
         system: Union[str, Cluster] = None,
         env: Union[List[str], Env] = [],
-        # Variables below are deprecated
-        reqs: Optional[List[str]] = None,
-        setup_cmds: Optional[List[str]] = [],
+        reqs: Optional[List[str]] = None,  # deprecated
+        setup_cmds: Optional[List[str]] = [],  # deprecated
         force_install: bool = False,
     ):
-        """
+        """to(system: str | Cluster | None = None, env: List[str] | Env = [], force_install: bool = False)
+
         Set up a Function and Env on the given system.
-        If the funciton is sent to AWS, the system should be ``aws_lambda``
+        If the function is sent to AWS, the system should be ``aws_lambda``
         See the args of the factory method :func:`function` for more information.
 
         Example:
             >>> rh.function(fn=local_fn).to(gpu_cluster)
             >>> rh.function(fn=local_fn).to(system=gpu_cluster, env=my_conda_env)
             >>> rh.function(fn=local_fn).to(system='aws_lambda')  # will deploy the rh.function to AWS as a Lambda.
-        """
-
+        """  # noqa: E501
         if setup_cmds:
             warnings.warn(
                 "``setup_cmds`` argument has been deprecated. "

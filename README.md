@@ -104,6 +104,7 @@ if something changes.
 my_env = rh.env(name="my_env",
                 reqs=["torch", "diffusers", "~/code/my_other_repo"],
                 setup_cmds=["source activate ~/.bash_rc"],
+                secrets=["huggingface"],
                 env_vars={"TOKEN": "1234"},
                 workdir="./")  # Current git root
 my_env = my_env.to(gpu)  # Called implicitly if passed to Function.to, like above
@@ -183,7 +184,7 @@ Please reach out (first name at run.house) to contribute or share feedback!
   - Amazon Web Services (AWS)
     - EC2 - **Supported**
     - SageMaker - **Supported**
-    - Lambda - **In Progress**
+    - Lambda - **Alpha**
   - Google Cloud Platform (GCP) - **Supported**
   - Microsoft Azure - **Supported**
   - Lambda Labs - **Supported**

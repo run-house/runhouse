@@ -12,6 +12,11 @@ from runhouse.resources.secrets.utils import _check_file_for_mismatches
 
 
 class GCPSecret(ProviderSecret):
+    """
+    .. note::
+            To create a GCPSecret, please use the factory method :func:`provider_secret` with ``provider="gcp"``.
+    """
+
     _PROVIDER = "gcp"
     _DEFAULT_CREDENTIALS_PATH = "~/.config/gcloud/application_default_credentials.json"
     _DEFAULT_ENV_VARS = {
@@ -27,7 +32,6 @@ class GCPSecret(ProviderSecret):
         self, path: Union[str, File], values: Dict = None, overwrite: bool = False
     ):
         new_secret = copy.deepcopy(self)
-        path = os.path.expanduser(path) if not isinstance(path, File) else path
         if not _check_file_for_mismatches(
             path, self._from_path(path), values, overwrite
         ):

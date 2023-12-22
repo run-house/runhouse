@@ -24,8 +24,13 @@ logger = logging.getLogger(__name__)
 class RNSClient:
     """Manage a particular resource with the runhouse database"""
 
-    CORE_RNS_FIELDS = ["name", "resource_type", "folder", "users", "groups"]
-    # RH_BUILTINS_FOLDER = '/builtins'
+    CORE_RNS_FIELDS = [
+        "name",
+        "resource_type",
+        "visibility",
+        "folder",
+        "users",
+    ]
     DEFAULT_FS = "file"
 
     def __init__(self, configs) -> None:
@@ -257,8 +262,9 @@ class RNSClient:
 
     def grant_resource_access(
         self,
+        *,
         rns_address: str,
-        user_emails: list,
+        user_emails: list = None,
         access_level: ResourceAccess,
         notify_users: bool,
         headers: Optional[dict] = None,

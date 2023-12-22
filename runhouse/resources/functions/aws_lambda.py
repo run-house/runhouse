@@ -1,9 +1,12 @@
 import base64
 import contextlib
+import copy
+import importlib
+import inspect
 import json
 import logging
-import os
 import time
+import warnings
 import zipfile
 from pathlib import Path
 from typing import Any, List, Optional
@@ -12,7 +15,7 @@ import boto3
 import botocore.exceptions
 
 from runhouse.globals import rns_client
-from runhouse.resources.envs import Env
+from runhouse.resources.envs import _get_env_from, Env
 
 from runhouse.resources.functions.function import Function
 
@@ -44,13 +47,20 @@ class LambdaFunction(Function):
     DEFAULT_MEMORY_SIZE = 1024  # MB
     DEFAULT_TMP_SIZE = 3072  # MB, meaning 3G
     HOME_DIR = "/tmp/home"
+    SUPPORTED_RUNTIMES = [
+        "python3.7",
+        "python3.8",
+        "python3.9",
+        "python3.10",
+        "python3.11",
+    ]
+    DEFAULT_PY_VERSION = "python3.9"
 
     def __init__(
         self,
         paths_to_code: list[str],
         handler_function_name: str,
         runtime: str,
-        args_names: list[str],
         fn_pointers: tuple,
         name: str,
         env: Env,
@@ -82,7 +92,6 @@ class LambdaFunction(Function):
 
         self.local_path_to_code = paths_to_code
         self.handler_function_name = handler_function_name
-        self.args_names = args_names
         self.runtime = runtime
         self.timeout = timeout
         self.memory_size = memory_size
@@ -91,6 +100,9 @@ class LambdaFunction(Function):
             None  # Lambda config and role arn from aws will be saved here
         )
         self.retention_time = retention_time
+        self.args_names = LambdaFunction.extract_args_from_file(
+            paths_to_code, handler_function_name
+        )
 
         # will be used for reloading shared functions from other regions.
         function_arn = (
@@ -150,15 +162,224 @@ class LambdaFunction(Function):
             raise ValueError(f"Could not find a Lambda called {name}.")
         return cls.from_config(config)
 
+    @classmethod
+    def from_handler_file(
+        cls,
+        paths_to_code: list[str],
+        handler_function_name: str,
+        name: Optional[str] = None,
+        env: Optional[dict or list[str] or Env] = None,
+        runtime: Optional[str] = None,
+        timeout: Optional[int] = None,
+        memory_size: Optional[int] = None,
+        tmp_size: Optional[int] = None,
+        retention_time: Optional[int] = None,
+        dryrun: bool = False,
+    ):
+        """
+        creates an AWS Lambda function from a python file.
+
+        paths_to_code: (Optional[list[str]]): List of the FULL paths to the python code file(s) that should be sent to
+            AWS Lambda. First path in the list should be the path to the handler file which contains the main
+            (handler) function. If ``fn`` is provided, this argument is ignored.
+        handler_function_name: (Optional[str]): The name of the function in the handler file that will be executed
+            by the Lambda. If ``fn`` is provided, this argument is ignored.
+        runtime: (Optional[str]): The coding language of the function. Should be one of the following:
+            python3.7, python3.8, python3.9, python3.10, python3.11. (Default: ``python3.9``)
+        name (Optional[str]): Name of the Lambda Function to create or retrieve.
+            This can be either from a local config or from the RNS.
+        env (Optional[Dict or List[str] or Env]): Specifies the requirements that will be installed, and the environment
+            vars that should be attached to the Lambda. Accepts three possible types:\n
+            1. A dict which should contain the following keys:\n
+               a. reqs: a list of the python libraries, to be installed by the Lambda, or just a ``requirements.txt``
+                  string.\n
+               b. env_vars: dictionary containing the env_vars that will be a part of the lambda configuration.\n
+            2. A list of strings, containing all the required python packages.\n
+            3. An instance of Runhouse Env class.\n
+            By default, ``runhouse`` package will be installed, and env_vars will include ``{HOME: /tmp/home}``.
+        timeout: Optional[int]: The maximum amount of time (in seconds) during which the Lambda will run in AWS
+            without timing-out. (Default: ``900``, Min: ``3``, Max: ``900``)
+        memory_size: Optional[int], The amount of memory (in MB) to be allocated to the Lambda.
+             (Default: ``1024``, Min: ``128``, Max: ``10240``)
+        tmp_size: Optional[int], This size of the /tmp folder in the aws lambda file system.
+             (Default: ``3072``, Min: ``512``, Max: ``10240``).
+        retention_time: Optional[int] The time (in days) the Lambda execution logs will be saved in AWS
+            cloudwatch. After that, they will be deleted. (Default: ``30`` days)
+        dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
+            (Default: ``False``).
+
+        Returns:
+            LambdaFunction: The resulting AWS Lambda Function object.
+        """
+
+        if name is None:
+            name = handler_function_name.replace(".", "_")
+
+        env = LambdaFunction.validate_and_create_env(env)
+        (
+            paths_to_code,
+            env,
+            runtime,
+            timeout,
+            memory_size,
+            tmp_size,
+            retention_time,
+        ) = LambdaFunction.arguments_validation(
+            paths_to_code, env, runtime, timeout, memory_size, tmp_size, retention_time
+        )
+
+        new_function = LambdaFunction(
+            fn_pointers=None,
+            paths_to_code=paths_to_code,
+            handler_function_name=handler_function_name,
+            runtime=runtime,
+            name=name,
+            env=env,
+            dryrun=dryrun,
+            timeout=timeout,
+            memory_size=memory_size,
+            tmp_size=tmp_size,
+            retention_time=retention_time,
+        )
+
+        if dryrun:
+            return new_function
+
+        return new_function.deploy()
+
     # --------------------------------------
     # Private helping methods
     # --------------------------------------
 
+    # Arguments validation and arguments creation methods
+    @classmethod
+    def validate_and_create_env(cls, env):
+        """
+        validates the passed env argument, and creates a Runhouse env instance if needed.
+        :param env: the env argument passed by the user.
+        :return: a Runhouse env object.
+        """
+        if env is not None and not isinstance(env, Env):
+            original_env = copy.deepcopy(env)
+            if isinstance(original_env, dict) and "env_vars" in original_env.keys():
+                env = _get_env_from(env["reqs"]) or Env(
+                    working_dir="./", name=Env.DEFAULT_NAME
+                )
+            elif isinstance(original_env, str):
+                env = _get_env_from(env)
+            else:
+                env = _get_env_from(env) or Env(working_dir="./", name=Env.DEFAULT_NAME)
+
+        if env is None:
+            env = Env(
+                reqs=[],
+                env_vars={"HOME": cls.HOME_DIR},
+                name=Env.DEFAULT_NAME,
+                working_dir="./",
+            )
+
+        if isinstance(env, Env) and "HOME" not in env.env_vars.keys():
+            env.env_vars["HOME"] = cls.HOME_DIR
+
+        return env
+
+    @classmethod
+    def extract_args_from_file(cls, paths_to_code, handler_function_name):
+        file_path = paths_to_code[0]
+        name = file_path.split("/")[-1].split(".")[0]
+
+        spec = importlib.util.spec_from_file_location(name, file_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        # Extract the function and its arguments
+        func = getattr(module, handler_function_name, None)
+        args_names = inspect.getfullargspec(func).args
+        warnings.warn(
+            f"Arguments names were not provided. Extracted the following args names: {args_names}."
+        )
+        return args_names
+
+    @classmethod
+    def arguments_validation(
+        cls, paths_to_code, env, runtime, timeout, memory_size, tmp_size, retention_time
+    ):
+
+        if isinstance(env, str) and "requirements.txt" in env:
+            paths_to_code.append(Path(env).absolute())
+
+        if runtime is None or runtime not in LambdaFunction.SUPPORTED_RUNTIMES:
+            warnings.warn(
+                f"{runtime} is not a supported by AWS Lambda. Setting runtime to python3.9."
+            )
+            runtime = LambdaFunction.DEFAULT_PY_VERSION
+
+        if timeout is None:
+            warnings.warn("Timeout set to 15 min.")
+            timeout = LambdaFunction.DEFAULT_TIMEOUT
+        else:
+            if (env.reqs is not None or len(env.reqs) > 0) and timeout < 600:
+                warnings.warn(
+                    "Increasing the timeout to 600 sec, in order to enable the packages setup."
+                )
+                timeout = 600
+            if timeout > 900:
+                timeout = 900
+                warnings.warn(
+                    "Timeout can not be more then 900 sec, setting to 900 sec."
+                )
+            if timeout < 3:
+                timeout = 3
+                warnings.warn("Timeout can not be less then 3 sec, setting to 3 sec.")
+        if memory_size is None:
+            warnings.warn("Memory size set to 1024 MB.")
+            memory_size = LambdaFunction.DEFAULT_MEMORY_SIZE
+        else:
+            if (
+                env.reqs is not None or len(env.reqs) > 0
+            ) and memory_size < LambdaFunction.DEFAULT_MEMORY_SIZE:
+                warnings.warn(
+                    "Increasing the memory size to 1GB, in order to enable the packages setup."
+                )
+                memory_size = LambdaFunction.DEFAULT_MEMORY_SIZE
+            if memory_size < 128:
+                memory_size = 128
+                warnings.warn(
+                    "Memory size can not be less then 128 MB, setting to 128 MB."
+                )
+            if memory_size > 10240:
+                memory_size = 10240
+                warnings.warn(
+                    "Memory size can not be more then 10240 MB, setting to 10240 MB."
+                )
+        if tmp_size is None or tmp_size < LambdaFunction.DEFAULT_TMP_SIZE:
+            warnings.warn(
+                "Setting /tmp size to 3GB, in order to enable the packages setup."
+            )
+            tmp_size = LambdaFunction.DEFAULT_TMP_SIZE
+        elif tmp_size > 10240:
+            tmp_size = 10240
+            warnings.warn(
+                "/tmp size can not be more then 10240 MB, setting to 10240 MB."
+            )
+        if retention_time is None:
+            retention_time = LambdaFunction.DEFAULT_RETENTION
+
+        return (
+            paths_to_code,
+            env,
+            runtime,
+            timeout,
+            memory_size,
+            tmp_size,
+            retention_time,
+        )
+
     def _lambda_exist(self, name):
         """Checks if a Lambda with the name given during init is already exists in AWS"""
         try:
-            self.lambda_client.get_function(FunctionName=name)
-            return True
+            aws_lambda = self.lambda_client.get_function(FunctionName=name)
+            return aws_lambda
         except self.lambda_client.exceptions.ResourceNotFoundException:
             return False
 
@@ -263,14 +484,6 @@ class LambdaFunction(Function):
         ]
 
         return supported_libs
-
-    @classmethod
-    def _paths_to_code_from_fn_pointers(cls, fn_pointers):
-        """creates path to code from fn_pointers"""
-        root_dir = rns_client.locate_working_dir()
-        file_path = fn_pointers[1].replace(".", "/") + ".py"
-        paths_to_code = [os.path.join(root_dir, file_path)]
-        return paths_to_code
 
     def _update_lambda_config(self, env_vars):
         """Updates existing Lambda in AWS (config) that was provided in the init."""
@@ -451,16 +664,15 @@ class LambdaFunction(Function):
             self.env.env_vars if isinstance(self.env, Env) else {"HOME": self.HOME_DIR}
         )
 
-        # if function exist - will update it. Else, a new one will be created.
-        if self._lambda_exist(self.name):
-            # updating the configuration with the initial configuration.
-            # TODO [SB]: in the next phase, enable the user to change the config of the Lambda.
-            # lambda_config = self._update_lambda_config(env_vars)
-            lambda_config = self.lambda_client.get_function(FunctionName=self.name)
-
-        else:
+        # if function exist - return its aws config. Else, a new one will be created.
+        lambda_config = self._lambda_exist(self.name)
+        if not lambda_config:
             # creating a new Lambda function, since it's not existing in the AWS account which is configured locally.
             lambda_config = self._create_new_lambda(env_vars)
+
+        # TODO [SB]: in the next phase, enable the user to change the config of the Lambda.
+        # updating the configuration with the initial configuration.
+        # lambda_config = self._update_lambda_config(env_vars)
 
         self.aws_lambda_config = lambda_config
         Path(rh_handler_wrapper).absolute().unlink()
@@ -582,7 +794,7 @@ class LambdaFunction(Function):
     # --------------------------------------
     # Lambda Function delete methods
     # --------------------------------------
-    def delete(self):
+    def teardown(self):
         """Deletes a Lambda function instance from AWS. All relevant AWS resources
         (role, log group) are deleted as well.
 
@@ -591,7 +803,7 @@ class LambdaFunction(Function):
             >>>     return a * b
             >>> multiply_lambda = rh.aws_lambda_fn(fn=multiply, name="lambdas_mult_func")
             >>> mult_res = multiply_lambda(4, 5)  # returns "20".
-            >>> multiply_lambda.delete()  # returns true if succeeded, raises an exception otherwise.
+            >>> multiply_lambda.teardown()  # returns true if succeeded, raises an exception otherwise.
 
         """
         try:
@@ -621,23 +833,6 @@ class LambdaFunction(Function):
             raise RuntimeError(
                 f"Could nor delete an AWS resource, got {aws_exception.response['Error']['Message']}"
             )
-
-    def delete_from_den(self):
-        """Deletes a Lambda function instance from DEN (if saved) and from AWS. All relevant AWS resources
-        (role, log group) are deleted as well.
-
-        Example:
-            >>> def multiply(a, b):
-            >>>     return a * b
-            >>> multiply_lambda = rh.aws_lambda_fn(fn=multiply, name="lambdas_mult_func")
-            >>> mult_res = multiply_lambda(4, 5)  # returns "20".
-            >>> multiply_lambda.delete_from_den()  # returns true if succeeded, raises an exception otherwise.
-
-        """
-        # delete from rns (if exists)
-        if rns_client.exists(self.rns_address):
-            rns_client.delete_configs(self)
-        return self.delete()
 
     # --------------------------------------
     # Properties setup

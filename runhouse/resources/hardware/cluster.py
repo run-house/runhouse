@@ -176,6 +176,45 @@ class Cluster(Resource):
 
         return config
 
+    def endpoint(self, external=False):
+        """Endpoint for the cluster's RPC server. If external is True, will only return the external url,
+        and will return None otherwise (e.g. if a tunnel is required). If external is False, will either return
+        the external url if it exists, or will set up the connection (based on connection_type) and return
+        the internal url (including the local connected port rather than the sever port). If cluster is not up,
+        returns None.
+        """
+        if not self.is_up():
+            return None
+
+        if self.server_connection_type in [
+            ServerConnectionType.NONE,
+            ServerConnectionType.TLS,
+        ]:
+            url_base = (
+                "https"
+                if self.server_connection_type == ServerConnectionType.TLS
+                else "http"
+            )
+            return f"{url_base}://{self.address}:{self.server_port}"
+
+        if external:
+            return None
+
+        if self.server_connection_type in [
+            ServerConnectionType.SSH,
+            ServerConnectionType.AWS_SSM,
+        ]:
+            self.check_server()
+            return f"http://{self.LOCALHOST}:{self.client_port}"
+
+    def _client(self, restart_server=True):
+        if self.on_this_cluster():
+            return None
+            # return obj_store  # TODO next PR
+        if not self.client:
+            self.check_server(restart_server=restart_server)
+        return self.client
+
     @property
     def server_address(self):
         """Address to use in the requests made to the cluster. If creating an SSH tunnel with the cluster,
@@ -308,10 +347,12 @@ class Cluster(Resource):
         return self.get(run_name, remote=True).provenance
 
     # TODO This should accept an env (for env var secrets and docker envs).
-    def add_secrets(self, provider_secrets: List[str or "Secret"]):
+    def add_secrets(
+        self, provider_secrets: List[str or "Secret"], env: Union[str, "Env"] = None
+    ):
         """Copy secrets from current environment onto the cluster"""
         self.check_server()
-        self.sync_secrets(provider_secrets)
+        self.sync_secrets(provider_secrets, env=env)
 
     def put(self, key: str, obj: Any, env=None):
         """Put the given object on the cluster's object store at the given key."""
@@ -320,10 +361,10 @@ class Cluster(Resource):
             return obj_store.put(key, obj, env=env)
         return self.client.put_object(key, obj, env=env)
 
-    def put_resource(self, resource: Resource, state=None, dryrun=False):
+    def put_resource(self, resource: Resource, state=None, dryrun=False, env=None):
         """Put the given resource on the cluster's object store. Returns the key (important if name is not set)."""
         self.check_server()
-        env = (
+        env = env or (
             resource.env
             if hasattr(resource, "env")
             else resource.name or resource.env_name
@@ -436,6 +477,7 @@ class Cluster(Resource):
                 auth=auth,
                 cert_path=cert_path,
                 use_https=use_https,
+                system=self,
             )
         else:
             self.client = HTTPClient(
@@ -443,6 +485,7 @@ class Cluster(Resource):
                 port=self.client_port,
                 cert_path=cert_path,
                 use_https=use_https,
+                system=self,
             )
 
     def check_server(self, restart_server=True):
@@ -608,7 +651,7 @@ class Cluster(Resource):
         den_auth,
         ssl_keyfile,
         ssl_certfile,
-        force_reinstall,
+        restart_proxy,
         use_nginx,
         certs_address,
         use_local_telemetry,
@@ -631,10 +674,10 @@ class Cluster(Resource):
             logger.info("Starting server with Den auth.")
             flags.append(den_auth_flag)
 
-        force_reinstall_flag = " --force-reinstall" if force_reinstall else ""
-        if force_reinstall_flag:
+        restart_proxy_flag = " --restart-proxy" if restart_proxy else ""
+        if restart_proxy_flag:
             logger.info("Reinstalling Nginx and server configs.")
-            flags.append(force_reinstall_flag)
+            flags.append(restart_proxy_flag)
 
         use_nginx_flag = " --use-nginx" if use_nginx else ""
         if use_nginx_flag:
@@ -871,7 +914,7 @@ class Cluster(Resource):
 
     def ssh_creds(self):
         """Retrieve SSH credentials."""
-        return self._ssh_creds
+        return self._ssh_creds or {}
 
     def _rsync(
         self,
@@ -1130,7 +1173,11 @@ class Cluster(Resource):
 
         return return_codes
 
-    def sync_secrets(self, providers: Optional[List[str or "Secret"]] = None):
+    def sync_secrets(
+        self,
+        providers: Optional[List[str or "Secret"]] = None,
+        env: Union[str, "Env"] = None,
+    ):
         """Send secrets for the given providers.
 
         Args:
@@ -1142,6 +1189,11 @@ class Cluster(Resource):
         """
         self.check_server()
         from runhouse.resources.secrets import Secret
+
+        if isinstance(env, str):
+            from runhouse.resources.envs import Env
+
+            env = Env.from_name(env)
 
         secrets = []
         if providers:
@@ -1156,7 +1208,7 @@ class Cluster(Resource):
             secrets = secrets.values()
 
         for secret in secrets:
-            secret.to(self)
+            secret.to(self, env=env)
 
     def ipython(self):
         # TODO tunnel into python interpreter in cluster

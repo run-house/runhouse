@@ -20,11 +20,12 @@ def function(
     dryrun: bool = False,
     load_secrets: bool = False,
     serialize_notebook_fn: bool = False,
-    # args below are deprecated
-    reqs: Optional[List[str]] = None,
-    setup_cmds: Optional[List[str]] = None,
+    reqs: Optional[List[str]] = None,  # deprecated
+    setup_cmds: Optional[List[str]] = None,  # deprecated
 ):
-    """Builds an instance of :class:`Function`.
+    """runhouse.function(fn: str | Callable | None = None, name: str | None = None, system: str | Cluster | None = None, env: str | List[str] | Env | None = None, dryrun: bool = False, load_secrets: bool = False, serialize_notebook_fn: bool = False)
+
+    Builds an instance of :class:`Function`.
 
     Args:
         fn (Optional[str or Callable]): The function to execute on the remote system when the function is called.
@@ -58,7 +59,7 @@ def function(
 
         >>> # Load function from above
         >>> reloaded_function = rh.function(name="my_func")
-    """
+    """  # noqa: E501
     if name and not any([fn, system, env]):
         # Try reloading existing function
         return Function.from_name(name, dryrun)
@@ -73,10 +74,10 @@ def function(
             "``reqs`` argument has been deprecated. Please use ``env`` instead."
         )
         env = Env(
-            reqs=reqs, setup_cmds=setup_cmds, working_dir="../", name=Env.DEFAULT_NAME
+            reqs=reqs, setup_cmds=setup_cmds, working_dir="./", name=Env.DEFAULT_NAME
         )
     elif not isinstance(env, Env):
-        env = _get_env_from(env) or Env(working_dir="../", name=Env.DEFAULT_NAME)
+        env = _get_env_from(env) or Env(working_dir="./", name=Env.DEFAULT_NAME)
 
     fn_pointers = None
     if callable(fn):
