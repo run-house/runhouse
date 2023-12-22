@@ -651,7 +651,7 @@ class Cluster(Resource):
         den_auth,
         ssl_keyfile,
         ssl_certfile,
-        force_reinstall,
+        restart_proxy,
         use_nginx,
         certs_address,
         use_local_telemetry,
@@ -674,10 +674,10 @@ class Cluster(Resource):
             logger.info("Starting server with Den auth.")
             flags.append(den_auth_flag)
 
-        force_reinstall_flag = " --force-reinstall" if force_reinstall else ""
-        if force_reinstall_flag:
+        restart_proxy_flag = " --restart-proxy" if restart_proxy else ""
+        if restart_proxy_flag:
             logger.info("Reinstalling Nginx and server configs.")
-            flags.append(force_reinstall_flag)
+            flags.append(restart_proxy_flag)
 
         use_nginx_flag = " --use-nginx" if use_nginx else ""
         if use_nginx_flag:

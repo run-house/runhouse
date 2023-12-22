@@ -104,10 +104,8 @@ class NginxConfig:
             server_name {server_name};
 
             location / {{
+                proxy_buffering off;
                 proxy_pass {proxy_pass};
-                proxy_buffer_size 128k;
-                proxy_buffers 4 256k;
-                proxy_busy_buffers_size 256k;
             }}
         }}
         """
@@ -134,10 +132,8 @@ class NginxConfig:
             ssl_certificate_key {ssl_key_path};
 
             location / {{
+                proxy_buffering off;
                 proxy_pass {proxy_pass};
-                proxy_buffer_size 128k;
-                proxy_buffers 4 256k;
-                proxy_busy_buffers_size 256k;
             }}
         }}
         """
