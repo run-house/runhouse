@@ -623,7 +623,7 @@ class HTTPServer:
         #     return
 
         from opentelemetry import trace
-        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
             OTLPSpanExporter,
         )
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -657,8 +657,7 @@ class HTTPServer:
         trace.set_tracer_provider(TracerProvider())
         print("Setting OTLP exporter endpoint to " + otlp_credentials.address)
         otlp_exporter = OTLPSpanExporter(
-            endpoint=otlp_credentials.address,
-            insecure=True,
+            endpoint=otlp_credentials.address + "/v1/traces",
             # credentials={
             #     "username": otlp_credentials.username,
             #     "password": otlp_credentials.password,
