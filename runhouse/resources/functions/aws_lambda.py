@@ -180,10 +180,10 @@ class LambdaFunction(Function):
         creates an AWS Lambda function from a python file.
 
         paths_to_code: (Optional[list[str]]): List of the FULL paths to the python code file(s) that should be sent to
-            AWS Lambda. First path in the list should be the path to the handler file which contains the main
-            (handler) function. If ``fn`` is provided, this argument is ignored.
+                      AWS Lambda. First path in the list should be the path to the handler file which contains the main
+                      handler) function.
         handler_function_name: (Optional[str]): The name of the function in the handler file that will be executed
-            by the Lambda. If ``fn`` is provided, this argument is ignored.
+                      by the Lambda.
         runtime: (Optional[str]): The coding language of the function. Should be one of the following:
             python3.7, python3.8, python3.9, python3.10, python3.11. (Default: ``python3.9``)
         name (Optional[str]): Name of the Lambda Function to create or retrieve.
@@ -210,6 +210,21 @@ class LambdaFunction(Function):
 
         Returns:
             LambdaFunction: The resulting AWS Lambda Function object.
+
+        Example:
+            >>> # handler_file.py
+            >>> def summer(a, b):
+            >>>    return a + b
+
+            >>> # your 'main' python file, where you are using runhouse
+            >>> summer_lambda = rh.LambdaFunction.from_handler_file(
+            >>>                     paths_to_code=['/full/path/to/handler_file.py'],
+            >>>                     handler_function_name = 'summer',
+            >>>                     runtime = 'python3.9',
+            >>>                     name="my_func").save()
+
+            >>> # invoking the function
+            >>> summer_res = summer_lambda(5, 8)  # returns "13". (It returns str type because of AWS API)
         """
 
         if name is None:
@@ -256,8 +271,6 @@ class LambdaFunction(Function):
     def validate_and_create_env(cls, env):
         """
         validates the passed env argument, and creates a Runhouse env instance if needed.
-        :param env: the env argument passed by the user.
-        :return: a Runhouse env object.
         """
         if env is not None and not isinstance(env, Env):
             original_env = copy.deepcopy(env)

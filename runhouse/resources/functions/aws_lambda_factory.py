@@ -56,35 +56,21 @@ def aws_lambda_fn(
         LambdaFunction: The resulting AWS Lambda Function object.
 
         .. note::
-            When creating a Lambda function for the first time (not reloading it), the following arguments are
-            mandatory: ``paths_to_code`` and ``handler_function_name`` OR a callable function.
+            When creating a Lambda function for the first time (not reloading it), a callable function is a mandatory
+            argument.
 
     Examples:
         >>> import runhouse as rh
-
-        >>> # handler_file.py
-        >>> def summer(a, b):
-        >>>    return a + b
-
-        >>> # your 'main' python file, where you are using runhouse
-        >>> summer_lambda = rh.aws_lambda_fn(
-        >>>                     paths_to_code=['/full/path/to/handler_file.py'],
-        >>>                     handler_function_name = 'summer',
-        >>>                     runtime = 'python3.9',
-        >>>                     name="my_func").save()
-
-        >>> # invoking the function
-        >>> summer_res = summer_lambda(5, 8)  # returns "13". (It returns str type because of AWS API)
-
-        >>> # Load function from above
-        >>> reloaded_function = rh.aws_lambda_fn(name="my_func")
-        >>> reloaded_function_res = reloaded_function(3, 4)  # returns "7".
 
         >>> # Pass in a callable function  when creating a Lambda
         >>> def multiply(a, b):
         >>>     return a * b
         >>> multiply_lambda = rh.aws_lambda_fn(fn=multiply, name="lambdas_mult_func")
         >>> mult_res = multiply_lambda(4, 5)  # returns "20".
+
+        >>> # Load function from above
+        >>> reloaded_function = rh.aws_lambda_fn(name="lambdas_mult_func")
+        >>> reloaded_function_res = reloaded_function(3, 4)  # returns "12".
 
     """
     # TODO: [SB] in the next phase, maybe add the option to create func from git.
