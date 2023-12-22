@@ -476,6 +476,7 @@ class HTTPServer:
                         raise ray.exceptions.GetTimeoutError
                     if not ret_val.output_type == OutputType.RESULT_STREAM:
                         waiting_for_results = False
+                    ret_val = ret_val.data if serialization == "json" else ret_val
                     ret_resp = json.dumps(jsonable_encoder(ret_val))
                     yield ret_resp + "\n"
                 except ray.exceptions.GetTimeoutError:
@@ -500,9 +501,13 @@ class HTTPServer:
                         #     ret_lines.append(f"Process {i}:")
                         ret_lines += file_lines
                 if ret_lines:
-                    lines_resp = Response(
-                        data=ret_lines,
-                        output_type=OutputType.STDOUT,
+                    lines_resp = (
+                        Response(
+                            data=ret_lines,
+                            output_type=OutputType.STDOUT,
+                        )
+                        if not serialization == "json"
+                        else ret_lines
                     )
                     logger.debug(f"Yielding logs for key {key}")
                     yield json.dumps(jsonable_encoder(lines_resp)) + "\n"
@@ -622,11 +627,13 @@ class HTTPServer:
                     return Response(output_type=OutputType.NOT_FOUND, data=message.key)
 
             if message.run_async:
-                return Response(
-                    data=pickle_b64(message.key)
+                return (
+                    Response(
+                        data=pickle_b64(message.key),
+                        output_type=OutputType.RESULT,
+                    )
                     if not serialization == "json"
-                    else message.key,
-                    output_type=OutputType.RESULT,
+                    else message.key
                 )
 
             return StreamingResponse(
@@ -644,8 +651,10 @@ class HTTPServer:
             logger.exception(e)
             HTTPServer.register_activity()
             return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
+                error=pickle_b64(e) if not serialization == "json" else str(e),
+                traceback=pickle_b64(traceback.format_exc())
+                if not serialization == "json"
+                else str(traceback.format_exc()),
                 output_type=OutputType.EXCEPTION,
             )
 
