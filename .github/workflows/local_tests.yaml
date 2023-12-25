@@ -114,7 +114,7 @@ jobs:
           TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
         run: pytest -v --level local -k "TestResource"
 
-  function-tests-logged-in-level-local:
+  function-tests-logged-out-level-local:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository code
@@ -122,12 +122,6 @@ jobs:
 
       - name: Setup Runhouse
         uses: ./.github/workflows/setup_runhouse
-
-      - name: Setup ~/.rh/config.yaml
-        uses: ./.github/workflows/setup_rh_config
-        with:
-          username: ${{ secrets.TEST_USERNAME }}
-          token: ${{ secrets.TEST_TOKEN }}
 
       - name: pytest -v --level local -k "TestFunction"
         env:
