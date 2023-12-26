@@ -359,6 +359,19 @@ class HTTPClient:
             err_str=f"Error renaming object {old_key}",
         )
 
+    def set_settings(self, new_settings: Dict[str, Any]):
+        res = requests.post(
+            self._formatted_url("settings"),
+            json=new_settings,
+            headers=rns_client.request_headers,
+            verify=self.verify,
+        )
+        if res.status_code != 200:
+            raise ValueError(
+                f"Error switching to new settings: {new_settings} on server: {res.content.decode()}"
+            )
+        return res
+
     def delete(self, keys=None, env=None):
         return self.request(
             "object",

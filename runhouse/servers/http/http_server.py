@@ -31,6 +31,7 @@ from runhouse.servers.http.http_utils import (
     OutputType,
     pickle_b64,
     Response,
+    ServerSettings,
 )
 from runhouse.servers.nginx.config import NginxConfig
 from runhouse.servers.servlet import EnvServlet
@@ -46,11 +47,11 @@ def validate_cluster_access(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         request: Request = kwargs.get("request")
-        use_den_auth: bool = HTTPServer.get_den_auth()
+        den_auth_enabled: bool = HTTPServer.get_den_auth()
         is_coro = inspect.iscoroutinefunction(func)
 
         func_call: bool = func.__name__ in ["call_module_method", "call", "get_call"]
-        if not use_den_auth or func_call:
+        if not den_auth_enabled or func_call:
             # If this is a func call, we'll handle the auth in the object store
             if is_coro:
                 return await func(*args, **kwargs)
@@ -310,6 +311,17 @@ class HTTPServer:
         return None
 
     @staticmethod
+    @app.post("/settings")
+    @validate_cluster_access
+    def update_settings(request: Request, message: ServerSettings) -> Response:
+        if message.den_auth:
+            HTTPServer.enable_den_auth()
+        elif message.den_auth is not None and not message.den_auth:
+            HTTPServer.disable_den_auth()
+
+        return Response(output_type=OutputType.SUCCESS)
+
+    @staticmethod
     @app.post("/resource")
     @validate_cluster_access
     def put_resource(request: Request, message: Message):
@@ -346,7 +358,8 @@ class HTTPServer:
         request: Request, module, method=None, message: dict = Body(default=None)
     ):
         token = get_token_from_request(request)
-        token_hash = hash_token(token) if den_auth and token else None
+        den_auth_enabled = HTTPServer.get_den_auth()
+        token_hash = hash_token(token) if den_auth_enabled and token else None
         # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
@@ -371,7 +384,7 @@ class HTTPServer:
                 # Unless we're returning a fast response, we discard this obj_ref
                 obj_ref = HTTPServer.call_in_env_servlet(
                     "call_module_method",
-                    [module, method, message, token_hash, den_auth],
+                    [module, method, message, token_hash, den_auth_enabled],
                     env=env,
                     create=True,
                     block=False,
@@ -585,7 +598,8 @@ class HTTPServer:
     @validate_cluster_access
     def get_call(request: Request, module, method=None, serialization="json"):
         token = get_token_from_request(request)
-        token_hash = hash_token(token) if den_auth and token else None
+        den_auth_enabled = HTTPServer.get_den_auth()
+        token_hash = hash_token(token) if den_auth_enabled and token else None
         # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
@@ -607,7 +621,14 @@ class HTTPServer:
                 # Unless we're returning a fast response, we discard this obj_ref
                 obj_ref = HTTPServer.call_in_env_servlet(
                     "call_module_method",
-                    [module, method, message, token_hash, den_auth, serialization],
+                    [
+                        module,
+                        method,
+                        message,
+                        token_hash,
+                        den_auth_enabled,
+                        serialization,
+                    ],
                     env=env,
                     create=True,
                     block=False,
@@ -672,13 +693,14 @@ class HTTPServer:
         args = args.get("args", [])
         query_params = dict(request.query_params)
         query_params.pop("serialization", None)
+        den_auth_enabled = HTTPServer.get_den_auth()
         if query_params:
             kwargs.update(query_params)
         token = get_token_from_request(request)
-        token_hash = hash_token(token) if den_auth and token else None
+        token_hash = hash_token(token) if den_auth_enabled and token else None
         resp = HTTPServer.call_in_env_servlet(
             "call",
-            [module, method, args, kwargs, serialization, token_hash, den_auth],
+            [module, method, args, kwargs, serialization, token_hash, den_auth_enabled],
             create=True,
             lookup_env_for_name=module,
         )
