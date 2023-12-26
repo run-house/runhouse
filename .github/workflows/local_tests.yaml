@@ -6,6 +6,9 @@ on:
   pull_request:
 
 jobs:
+  # TODO: THESE ARE ONLY SEPARATE JOBS BECAUSE THERE ARE
+  # DEVELOPMENT INCONSISTENCIES WHEN RUNNING ALL THE LOCAL
+  # TESTS TOGETHER.
   server-tests-logged-out-level-local:
     runs-on: ubuntu-latest
     steps:
@@ -33,8 +36,8 @@ jobs:
       - name: Setup ~/.rh/config.yaml
         uses: ./.github/workflows/setup_rh_config
         with:
-          username: ${{ secrets.TEST_USERNAME }}
-          token: ${{ secrets.TEST_TOKEN }}
+          username: ${{ secrets.CI_ACCOUNT_USERNAME }}
+          token: ${{ secrets.CI_ACCOUNT_TOKEN }}
 
       - name: pytest -v --level local tests/test_servers/
         env:
@@ -69,8 +72,8 @@ jobs:
       - name: Setup ~/.rh/config.yaml
         uses: ./.github/workflows/setup_rh_config
         with:
-          username: ${{ secrets.TEST_USERNAME }}
-          token: ${{ secrets.TEST_TOKEN }}
+          username: ${{ secrets.CI_ACCOUNT_USERNAME }}
+          token: ${{ secrets.CI_ACCOUNT_TOKEN }}
 
       - name: pytest -v --level local -k "TestCluster"
         env:
@@ -105,8 +108,8 @@ jobs:
       - name: Setup ~/.rh/config.yaml
         uses: ./.github/workflows/setup_rh_config
         with:
-          username: ${{ secrets.TEST_USERNAME }}
-          token: ${{ secrets.TEST_TOKEN }}
+          username: ${{ secrets.CI_ACCOUNT_USERNAME }}
+          token: ${{ secrets.CI_ACCOUNT_TOKEN }}
 
       - name: pytest -v --level local -k "TestResource"
         env:
@@ -141,8 +144,8 @@ jobs:
       - name: Setup ~/.rh/config.yaml
         uses: ./.github/workflows/setup_rh_config
         with:
-          username: ${{ secrets.TEST_USERNAME }}
-          token: ${{ secrets.TEST_TOKEN }}
+          username: ${{ secrets.CI_ACCOUNT_USERNAME }}
+          token: ${{ secrets.CI_ACCOUNT_TOKEN }}
 
       - name: pytest -v --level local -k "TestFunction"
         env:
