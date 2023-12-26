@@ -68,8 +68,7 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
     LOCAL = {
         "secret": ["test_secret"] + provider_secrets + api_secrets,
         "cluster": [
-            "local_docker_cluster_public_key_logged_in",
-            "local_docker_cluster_public_key_logged_out",
+            "local_docker_cluster_pk_ssh_no_auth",
         ],
     }
     MINIMAL = {
@@ -88,7 +87,12 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
     }
     MAXIMAL = {
         "secret": ["test_secret"] + provider_secrets,
-        "cluster": ["static_cpu_cluster", "password_cluster"],
+        "cluster": [
+            "static_cpu_cluster",
+            "password_cluster",
+            "local_docker_cluster_pk_ssh_no_auth",
+            "local_docker_cluster_pwd_ssh_no_auth",
+        ],
     }
 
     @pytest.mark.level("unit")

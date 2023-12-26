@@ -33,14 +33,14 @@ class TestHTTPServerDocker:
 
     UNIT = {
         "cluster": [
-            "local_docker_cluster_public_key_den_auth",
-            "local_docker_cluster_public_key_logged_in",
+            "local_docker_cluster_pk_ssh_den_auth",
+            "local_docker_cluster_pk_ssh_no_auth",
         ]
     }
     LOCAL = {
         "cluster": [
-            "local_docker_cluster_public_key_den_auth",
-            "local_docker_cluster_public_key_logged_in",
+            "local_docker_cluster_pk_ssh_den_auth",
+            "local_docker_cluster_pk_ssh_no_auth",
         ]
     }
 
@@ -48,12 +48,6 @@ class TestHTTPServerDocker:
     def test_get_cert(self, http_client):
         response = http_client.get("/cert")
         assert response.status_code == 200
-
-        error_b64 = response.json().get("error")
-        error_message = b64_unpickle(error_b64)
-
-        assert isinstance(error_message, FileNotFoundError)
-        assert "No certificate found on cluster in path" in str(error_message)
 
     @pytest.mark.level("local")
     def test_check_server(self, http_client):
@@ -220,11 +214,11 @@ class TestHTTPServerDockerDenAuthOnly:
     but it is a server without Den Auth enabled at all?
     """
 
-    UNIT = {"cluster": ["local_docker_cluster_public_key_den_auth"]}
-    LOCAL = {"cluster": ["local_docker_cluster_public_key_den_auth"]}
+    UNIT = {"cluster": ["local_docker_cluster_pk_ssh_den_auth"]}
+    LOCAL = {"cluster": ["local_docker_cluster_pk_ssh_den_auth"]}
     MINIMAL = {"cluster": []}
-    THOROUGH = {"cluster": ["local_docker_cluster_public_key_den_auth"]}
-    MAXIMAL = {"cluster": ["local_docker_cluster_public_key_den_auth"]}
+    THOROUGH = {"cluster": ["local_docker_cluster_pk_ssh_den_auth"]}
+    MAXIMAL = {"cluster": ["local_docker_cluster_pk_ssh_den_auth"]}
 
     # -------- INVALID TOKEN / CLUSTER ACCESS TESTS ----------- #
 

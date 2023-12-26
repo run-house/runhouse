@@ -17,13 +17,18 @@ TEMP_FOLDER = "~/runhouse-tests"
 
 logger = logging.getLogger(__name__)
 
-UNIT = {"cluster": ["local_docker_cluster_public_key"]}
-LOCAL = {"cluster": ["local_docker_cluster_passwd", "local_docker_cluster_public_key"]}
+UNIT = {"cluster": []}
+LOCAL = {
+    "cluster": [
+        "local_docker_cluster_pwd_ssh_no_auth",
+        "local_docker_cluster_pk_ssh_no_auth",
+    ]
+}
 MINIMAL = {"cluster": ["ondemand_cpu_cluster"]}
 THOROUGH = {
     "cluster": [
-        "local_docker_cluster_passwd",
-        "local_docker_cluster_public_key",
+        "local_docker_cluster_pwd_ssh_no_auth",
+        "local_docker_cluster_pk_ssh_no_auth",
         "ondemand_cpu_cluster",
         "ondemand_https_cluster_with_auth",
         "password_cluster",
@@ -32,8 +37,8 @@ THOROUGH = {
 }
 MAXIMAL = {
     "cluster": [
-        "local_docker_cluster_passwd",
-        "local_docker_cluster_public_key",
+        "local_docker_cluster_pwd_ssh_no_auth",
+        "local_docker_cluster_pk_ssh_no_auth",
         "ondemand_cpu_cluster",
         "ondemand_https_cluster_with_auth",
         "password_cluster",

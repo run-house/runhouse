@@ -147,12 +147,10 @@ class TestServlet:
 
     @pytest.mark.skip("Not implemented yet.")
     @pytest.mark.level("unit")
-    def test_call(self, base_servlet, local_docker_cluster_public_key_logged_in):
+    def test_call(self, base_servlet, local_docker_cluster_pk_ssh_no_auth):
         token_hash = None
         den_auth = False
-        remote_func = rh.function(
-            summer, system=local_docker_cluster_public_key_logged_in
-        )
+        remote_func = rh.function(summer, system=local_docker_cluster_pk_ssh_no_auth)
 
         method_name = "call"
         module_name = remote_func.name

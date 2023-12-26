@@ -35,7 +35,7 @@ pytest -s -v --level "unit" tests/test_resources/test_resource.py::TestResource:
 
 To run tests across multiple suites but only including a specific fixture, you can do:
 ```bash
-pytest -s -v --level "local" -k "local_docker_cluster_public_key" tests
+pytest -s -v --level "local" -k "local_docker_cluster_pk_ssh_no_auth" tests
 ```
 Make sure the fixture(s) of interest are included in the level you're running at, or they won't natch with any tests.
 You can also exclude fixtures with "-m" and a tilde, e.g. "-m ~local_docker_cluster_public_key".

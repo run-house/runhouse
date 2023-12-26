@@ -131,7 +131,9 @@ class TestResource:
         resource.delete_configs()
 
     @pytest.mark.level("local")
-    def test_sharing(self, resource, local_test_account_cluster_public_key):
+    def test_sharing(
+        self, resource, local_docker_cluster_pk_ssh_test_account_logged_in
+    ):
         if resource.name is None:
             with pytest.raises(ValueError):
                 resource.save()
@@ -168,7 +170,7 @@ class TestResource:
         load_shared_resource_config_cluster = rh.function(
             load_shared_resource_config
         ).to(
-            system=local_test_account_cluster_public_key,
+            system=local_docker_cluster_pk_ssh_test_account_logged_in,
             env=rh.env(
                 working_dir=None,
                 # Sync sky key so loading ondemand_cluster from config works
