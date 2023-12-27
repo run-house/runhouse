@@ -173,7 +173,7 @@ class TestResource:
                 working_dir=None,
                 # Sync sky key so loading ondemand_cluster from config works
                 # Also need aws secret to load availability zones
-                secrets=["ssh-sky-key", "aws"],
+                secrets=["sky", "aws"],
             ),
         )
         assert (

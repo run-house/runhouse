@@ -512,7 +512,7 @@ def local_docker_cluster_with_nginx_https(request):
     cleanup()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def local_test_account_cluster_public_key(request):
     """
     This fixture is not parameterized for every test; it is a separate cluster started with a test account
