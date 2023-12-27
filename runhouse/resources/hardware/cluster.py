@@ -1259,7 +1259,27 @@ class Cluster(Resource):
 
     def download_cert(self):
         """Download certificate from the cluster (Note: user must have access to the cluster)"""
+        self.check_server()
         self.client.get_certificate()
         logger.info(
             f"Latest TLS certificate for {self.name} saved to local path: {self.cert_config.cert_path}"
         )
+
+    def enable_den_auth(self):
+        """Enable Den auth on the cluster."""
+        self.check_server()
+        if self.on_this_cluster():
+            raise ValueError("Cannot toggle Den Auth live on the cluster.")
+        else:
+            self.den_auth = True
+            self.client.set_settings({"den_auth": True})
+        return self
+
+    def disable_den_auth(self):
+        self.check_server()
+        if self.on_this_cluster():
+            raise ValueError("Cannot toggle Den Auth live on the cluster.")
+        else:
+            self.den_auth = False
+            self.client.set_settings({"den_auth": False})
+        return self
