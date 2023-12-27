@@ -14,7 +14,6 @@ import yaml
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import ValidationError
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
@@ -115,13 +114,20 @@ class HTTPServer:
             from opentelemetry import trace
             from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
             from opentelemetry.instrumentation.requests import RequestsInstrumentor
+            from opentelemetry.sdk.resources import Resource
             from opentelemetry.sdk.trace import TracerProvider
             from opentelemetry.sdk.trace.export import SimpleSpanProcessor
             from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
                 InMemorySpanExporter,
             )
 
-            trace.set_tracer_provider(TracerProvider())
+            trace.set_tracer_provider(
+                TracerProvider(
+                    resource=Resource.create(
+                        {"service.name": "runhouse-in-memory-service"}
+                    )
+                )
+            )
             self.memory_exporter = InMemorySpanExporter()
             trace.get_tracer_provider().add_span_processor(
                 SimpleSpanProcessor(self.memory_exporter)
@@ -709,8 +715,6 @@ class HTTPServer:
     @staticmethod
     def _collect_telemetry_stats():
         """Collect telemetry stats and send them to the backend specified by the user"""
-        # if configs.get("disable_data_collection") is True:
-        #     return
 
         from opentelemetry import trace
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
@@ -718,42 +722,23 @@ class HTTPServer:
         )
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
         from opentelemetry.instrumentation.requests import RequestsInstrumentor
+        from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-        telemetry_collector_address = None
-        try:
-            telemetry_collector_address = configs.get("telemetry_collector_address")
-            print("telemetry_collector_address: " + telemetry_collector_address)
-            # otlp_credentials = OtlpParameters(
-            #     url=configs.get("telemetry_collector_address"),
-            # )
-            # otlp_credentials = OtlpParameters(
-            #     url=configs.get("otlp_endpoint_url"),
-            #     username=configs.get("otlp_username"),
-            #     password=configs.get("otlp_password")
-            # )
-        except ValidationError as e:
-            logger.error(
-                f"(Failed to init an OpenTelemetry exporter: {e}. Please check your that .rh config "
-                + "file or your env parameters contain values for otlp_endpoint_url, otlp_username "
-                + "and otlp_password. Current values: \n"
-                + f"otlp_endpoint_url: {configs.get('otlp_endpoint_url')} \n"
-                + f"otlp_username: {configs.get('otlp_username')} \n"
-                + f"otlp_password: {configs.get('otlp_password')}) \n"
-            )
+        telemetry_collector_address = configs.get("telemetry_collector_address")
 
         logger.info(f"Sending telemetry to {telemetry_collector_address}")
 
         # Set the tracer provider and the exporter
-        trace.set_tracer_provider(TracerProvider())
+        trace.set_tracer_provider(
+            TracerProvider(
+                resource=Resource.create({"service.name": "runhouse-service"})
+            )
+        )
         print("Setting OTLP exporter endpoint to " + telemetry_collector_address)
         otlp_exporter = OTLPSpanExporter(
             endpoint=telemetry_collector_address + "/v1/traces",
-            # credentials={
-            #     "username": otlp_credentials.username,
-            #     "password": otlp_credentials.password,
-            # },
         )
 
         # Add the exporter to the tracer provider
