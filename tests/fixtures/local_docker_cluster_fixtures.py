@@ -459,12 +459,17 @@ def local_docker_cluster_pk_tls_den_auth(
     from 443 to 32300, and we set the cluster parameters to use the correct ports to communicate
     with the server, in case they had been changed.
     """
+    local_docker_cluster_pk_tls_exposed.enable_den_auth()
+    local_docker_cluster_pk_tls_exposed.server_connection_type = "tls"
+    local_docker_cluster_pk_tls_exposed.server_port = 443
+    local_docker_cluster_pk_tls_exposed.client_port = LOCAL_HTTPS_SERVER_PORT + 1
+    local_docker_cluster_pk_tls_exposed.client = None
     return local_docker_cluster_pk_tls_exposed
 
 
 @pytest.fixture(scope="function")
 def local_docker_cluster_pk_ssh_den_auth(
-    local_docker_cluster_pk_ssh,
+    local_docker_cluster_pk_tls_exposed,
 ):
     """This is our other key use case -- SSH without any Den Auth.
 
@@ -472,13 +477,19 @@ def local_docker_cluster_pk_ssh_den_auth(
     the cluster using the base SSH credentials already present on the machine. We send a request
     to disable den auth server side
     """
-    local_docker_cluster_pk_ssh.enable_den_auth()
-    return local_docker_cluster_pk_ssh
+    local_docker_cluster_pk_tls_exposed.enable_den_auth()
+    local_docker_cluster_pk_tls_exposed.server_connection_type = "ssh"
+    local_docker_cluster_pk_tls_exposed.server_port = (
+        local_docker_cluster_pk_tls_exposed.DEFAULT_SERVER_PORT
+    )
+    local_docker_cluster_pk_tls_exposed.client_port = None
+    local_docker_cluster_pk_tls_exposed.client = None
+    return local_docker_cluster_pk_tls_exposed
 
 
 @pytest.fixture(scope="function")
 def local_docker_cluster_pk_ssh_no_auth(
-    local_docker_cluster_pk_ssh,
+    local_docker_cluster_pk_tls_exposed,
 ):
     """This is our other key use case -- SSH without any Den Auth.
 
@@ -486,8 +497,14 @@ def local_docker_cluster_pk_ssh_no_auth(
     the cluster using the base SSH credentials already present on the machine. We send a request
     to disable den auth server side
     """
-    local_docker_cluster_pk_ssh.disable_den_auth()
-    return local_docker_cluster_pk_ssh
+    local_docker_cluster_pk_tls_exposed.disable_den_auth()
+    local_docker_cluster_pk_tls_exposed.server_connection_type = "ssh"
+    local_docker_cluster_pk_tls_exposed.server_port = (
+        local_docker_cluster_pk_tls_exposed.DEFAULT_SERVER_PORT
+    )
+    local_docker_cluster_pk_tls_exposed.client_port = None
+    local_docker_cluster_pk_tls_exposed.client = None
+    return local_docker_cluster_pk_tls_exposed
 
 
 @pytest.fixture(scope="session")
