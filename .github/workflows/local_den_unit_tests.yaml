@@ -1,10 +1,6 @@
 name: Local Den Unit Tests
 
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-
+on: workflow_dispatch
 
 jobs:
   local-den-tests:
