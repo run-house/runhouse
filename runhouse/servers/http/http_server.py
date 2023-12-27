@@ -714,7 +714,7 @@ class HTTPServer:
 
     @staticmethod
     def _collect_telemetry_stats():
-        """Collect telemetry stats and send them to the backend specified by the user"""
+        """Collect telemetry stats and send them to the Runhouse hosted OpenTelemetry collector"""
 
         from opentelemetry import trace
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
@@ -728,7 +728,7 @@ class HTTPServer:
 
         telemetry_collector_address = configs.get("telemetry_collector_address")
 
-        logger.info(f"Sending telemetry to {telemetry_collector_address}")
+        logger.info(f"Preparing to send telemetry to {telemetry_collector_address}")
 
         # Set the tracer provider and the exporter
         trace.set_tracer_provider(
@@ -736,7 +736,6 @@ class HTTPServer:
                 resource=Resource.create({"service.name": "runhouse-service"})
             )
         )
-        print("Setting OTLP exporter endpoint to " + telemetry_collector_address)
         otlp_exporter = OTLPSpanExporter(
             endpoint=telemetry_collector_address + "/v1/traces",
         )
