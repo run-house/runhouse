@@ -33,13 +33,13 @@ class TestHTTPServerDocker:
 
     UNIT = {
         "cluster": [
-            "local_docker_cluster_pk_ssh_den_auth",
+            "local_docker_cluster_pk_tls_den_auth",
             "local_docker_cluster_pk_ssh_no_auth",
         ]
     }
     LOCAL = {
         "cluster": [
-            "local_docker_cluster_pk_ssh_den_auth",
+            "local_docker_cluster_pk_tls_den_auth",
             "local_docker_cluster_pk_ssh_no_auth",
         ]
     }
@@ -214,11 +214,11 @@ class TestHTTPServerDockerDenAuthOnly:
     but it is a server without Den Auth enabled at all?
     """
 
-    UNIT = {"cluster": ["local_docker_cluster_pk_ssh_den_auth"]}
-    LOCAL = {"cluster": ["local_docker_cluster_pk_ssh_den_auth"]}
+    UNIT = {"cluster": ["local_docker_cluster_pk_tls_den_auth"]}
+    LOCAL = {"cluster": ["local_docker_cluster_pk_tls_den_auth"]}
     MINIMAL = {"cluster": []}
-    THOROUGH = {"cluster": ["local_docker_cluster_pk_ssh_den_auth"]}
-    MAXIMAL = {"cluster": ["local_docker_cluster_pk_ssh_den_auth"]}
+    THOROUGH = {"cluster": ["local_docker_cluster_pk_tls_den_auth"]}
+    MAXIMAL = {"cluster": ["local_docker_cluster_pk_tls_den_auth"]}
 
     # -------- INVALID TOKEN / CLUSTER ACCESS TESTS ----------- #
 

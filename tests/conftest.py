@@ -281,14 +281,14 @@ default_fixtures[TestLevels.UNIT] = {
 default_fixtures[TestLevels.LOCAL] = {
     "cluster": [
         "local_docker_cluster_pk_ssh_no_auth",
-        "local_docker_cluster_pk_ssh_den_auth",
+        "local_docker_cluster_pk_tls_den_auth",
     ]
 }
 default_fixtures[TestLevels.MINIMAL] = {"cluster": ["ondemand_cpu_cluster"]}
 default_fixtures[TestLevels.THOROUGH] = {
     "cluster": [
         "local_docker_cluster_pk_ssh_no_auth",
-        "local_docker_cluster_pk_ssh_den_auth",
+        "local_docker_cluster_pk_tls_den_auth",
         "local_docker_cluster_pwd_ssh_no_auth",
         "ondemand_cpu_cluster",
         "ondemand_https_cluster_with_auth",
@@ -299,7 +299,7 @@ default_fixtures[TestLevels.THOROUGH] = {
 default_fixtures[TestLevels.MAXIMAL] = {
     "cluster": [
         "local_docker_cluster_pk_ssh_no_auth",
-        "local_docker_cluster_pk_ssh_den_auth",
+        "local_docker_cluster_pk_tls_den_auth",
         "local_docker_cluster_pwd_ssh_no_auth",
         "local_docker_cluster_pk_ssh_telemetry",
         "ondemand_cpu_cluster",

@@ -31,7 +31,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     LOCAL = {
         "cluster": [
             "local_docker_cluster_pk_ssh_no_auth",
-            "local_docker_cluster_pk_ssh_den_auth",
+            "local_docker_cluster_pk_tls_den_auth",
             "local_docker_cluster_pwd_ssh_no_auth",
         ]
     }
@@ -40,7 +40,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     MAXIMAL = {
         "cluster": [
             "local_docker_cluster_pk_ssh_no_auth",
-            "local_docker_cluster_pk_ssh_den_auth",
+            "local_docker_cluster_pk_tls_den_auth",
             "local_docker_cluster_pwd_ssh_no_auth",
             "local_docker_cluster_pk_ssh_telemetry",
             "static_cpu_cluster",

@@ -466,11 +466,11 @@ def local_docker_cluster_pk_tls_den_auth(
 def local_docker_cluster_pk_ssh_den_auth(
     local_docker_cluster_pk_ssh,
 ):
-    """This is our other key use case -- SSH with any Den Auth.
+    """This is our other key use case -- SSH without any Den Auth.
 
     We use the base fixture, and ignore the nginx/https setup, instead just communicating with
     the cluster using the base SSH credentials already present on the machine. We send a request
-    to enable den auth server side.
+    to disable den auth server side
     """
     local_docker_cluster_pk_ssh.enable_den_auth()
     return local_docker_cluster_pk_ssh
@@ -484,7 +484,7 @@ def local_docker_cluster_pk_ssh_no_auth(
 
     We use the base fixture, and ignore the nginx/https setup, instead just communicating with
     the cluster using the base SSH credentials already present on the machine. We send a request
-    to disable den auth server side.
+    to disable den auth server side
     """
     local_docker_cluster_pk_ssh.disable_den_auth()
     return local_docker_cluster_pk_ssh
