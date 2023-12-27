@@ -14,7 +14,7 @@ import yaml
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
@@ -39,12 +39,6 @@ from runhouse.servers.servlet import EnvServlet
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
-
-
-class OtlpParameters(BaseModel):
-    address: str
-    username: Optional[str] = None
-    password: Optional[str] = None
 
 
 def validate_cluster_access(func):
@@ -727,11 +721,13 @@ class HTTPServer:
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-        otlp_credentials = None
+        telemetry_collector_address = None
         try:
-            otlp_credentials = OtlpParameters(
-                url=configs.get("telemetry_collector_address"),
-            )
+            telemetry_collector_address = configs.get("telemetry_collector_address")
+            print("telemetry_collector_address: " + telemetry_collector_address)
+            # otlp_credentials = OtlpParameters(
+            #     url=configs.get("telemetry_collector_address"),
+            # )
             # otlp_credentials = OtlpParameters(
             #     url=configs.get("otlp_endpoint_url"),
             #     username=configs.get("otlp_username"),
@@ -747,13 +743,13 @@ class HTTPServer:
                 + f"otlp_password: {configs.get('otlp_password')}) \n"
             )
 
-        logger.info(f"Sending telemetry to {otlp_credentials.address}")
+        logger.info(f"Sending telemetry to {telemetry_collector_address}")
 
         # Set the tracer provider and the exporter
         trace.set_tracer_provider(TracerProvider())
-        print("Setting OTLP exporter endpoint to " + otlp_credentials.address)
+        print("Setting OTLP exporter endpoint to " + telemetry_collector_address)
         otlp_exporter = OTLPSpanExporter(
-            endpoint=otlp_credentials.address + "/v1/traces",
+            endpoint=telemetry_collector_address + "/v1/traces",
             # credentials={
             #     "username": otlp_credentials.username,
             #     "password": otlp_credentials.password,
@@ -765,7 +761,9 @@ class HTTPServer:
             BatchSpanProcessor(otlp_exporter)
         )
 
-        logger.info(f"Successfully added telemetry exporter {otlp_credentials.address}")
+        logger.info(
+            f"Successfully added telemetry exporter {telemetry_collector_address}"
+        )
 
         # Instrument the app object
         FastAPIInstrumentor.instrument_app(app)
