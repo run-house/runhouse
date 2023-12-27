@@ -652,7 +652,9 @@ class TestModule:
 
     @pytest.mark.level("thorough")
     def test_shared_readonly(
-        self, ondemand_https_cluster_with_auth, local_test_account_cluster_public_key
+        self,
+        ondemand_https_cluster_with_auth,
+        local_docker_cluster_pk_ssh_test_account_logged_in,
     ):
         if ondemand_https_cluster_with_auth.address == "localhost":
             pytest.skip("Skipping sharing test on local cluster")
@@ -678,7 +680,7 @@ class TestModule:
             )[0][1]
         )
         test_fn = rh.fn(test_load_and_use_readonly_module).to(
-            local_test_account_cluster_public_key
+            local_docker_cluster_pk_ssh_test_account_logged_in
         )
         test_fn(mod_name=remote_df.rns_address, cpu_count=cpu_count, size=size)
 

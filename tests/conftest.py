@@ -28,10 +28,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     UNIT = {"cluster": ["named_cluster"]}
     LOCAL = {
         "cluster": [
-            "local_docker_cluster_public_key_logged_in",
-            "local_docker_cluster_public_key_logged_out",
-            "local_docker_cluster_telemetry_public_key",
-            "local_docker_cluster_passwd",
+            "local_docker_cluster_pk_ssh_no_auth",
+            "local_docker_cluster_pk_ssh_den_auth",
+            "local_docker_cluster_pk_ssh_telemetry",
+            "local_docker_cluster_pwd_ssh_no_auth",
         ]
     }
     MINIMAL = {"cluster": ["static_cpu_cluster"]}
@@ -152,15 +152,15 @@ from tests.fixtures.local_docker_cluster_fixtures import (
     build_and_run_image,  # noqa: F401
     byo_cpu,  # noqa: F401
     cluster,  # noqa: F401
-    local_docker_cluster_passwd,  # noqa: F401
-    local_docker_cluster_public_key,  # noqa: F401
-    local_docker_cluster_public_key_den_auth,  # noqa: F401
-    local_docker_cluster_public_key_logged_in,  # noqa: F401
-    local_docker_cluster_public_key_logged_out,  # noqa: F401
-    local_docker_cluster_telemetry_public_key,  # noqa: F401
-    local_docker_cluster_with_nginx_http,  # noqa: F401
-    local_docker_cluster_with_nginx_https,  # noqa: F401
-    local_test_account_cluster_public_key,  # noqa: F401
+    local_docker_cluster_pk_http_exposed,  # noqa: F401
+    local_docker_cluster_pk_ssh,  # noqa: F401
+    local_docker_cluster_pk_ssh_den_auth,  # noqa: F401
+    local_docker_cluster_pk_ssh_no_auth,  # noqa: F401
+    local_docker_cluster_pk_ssh_telemetry,  # noqa: F401
+    local_docker_cluster_pk_ssh_test_account_logged_in,  # noqa: F401
+    local_docker_cluster_pk_tls_den_auth,  # noqa: F401
+    local_docker_cluster_pk_tls_exposed,  # noqa: F401
+    local_docker_cluster_pwd_ssh_no_auth,  # noqa: F401
     named_cluster,  # noqa: F401
     password_cluster,  # noqa: F401
     shared_cluster,  # noqa: F401
@@ -280,17 +280,16 @@ default_fixtures[TestLevels.UNIT] = {
 }
 default_fixtures[TestLevels.LOCAL] = {
     "cluster": [
-        "local_docker_cluster_public_key_logged_in",
-        "local_docker_cluster_public_key_logged_out",
-        "local_docker_cluster_passwd",
+        "local_docker_cluster_pk_ssh_no_auth",
+        "local_docker_cluster_pk_ssh_den_auth",
     ]
 }
 default_fixtures[TestLevels.MINIMAL] = {"cluster": ["ondemand_cpu_cluster"]}
 default_fixtures[TestLevels.THOROUGH] = {
     "cluster": [
-        "local_docker_cluster_passwd",
-        "local_docker_cluster_public_key_logged_in",
-        "local_docker_cluster_public_key_logged_out",
+        "local_docker_cluster_pk_ssh_no_auth",
+        "local_docker_cluster_pk_ssh_den_auth",
+        "local_docker_cluster_pwd_ssh_no_auth",
         "ondemand_cpu_cluster",
         "ondemand_https_cluster_with_auth",
         "password_cluster",
@@ -299,10 +298,10 @@ default_fixtures[TestLevels.THOROUGH] = {
 }
 default_fixtures[TestLevels.MAXIMAL] = {
     "cluster": [
-        "local_docker_cluster_passwd",
-        "local_docker_cluster_public_key_logged_in",
-        "local_docker_cluster_public_key_logged_out",
-        "local_docker_cluster_telemetry_public_key",
+        "local_docker_cluster_pk_ssh_no_auth",
+        "local_docker_cluster_pk_ssh_den_auth",
+        "local_docker_cluster_pwd_ssh_no_auth",
+        "local_docker_cluster_pk_ssh_telemetry",
         "ondemand_cpu_cluster",
         "ondemand_https_cluster_with_auth",
         "password_cluster",

@@ -413,32 +413,32 @@ class TestNginxServerLocally:
 
     UNIT = {
         "cluster": [
-            "local_docker_cluster_with_nginx_http",
-            "local_docker_cluster_with_nginx_https",
+            "local_docker_cluster_pk_http_exposed",
+            "local_docker_cluster_pk_tls_den_auth",
         ]
     }
     LOCAL = {
         "cluster": [
-            "local_docker_cluster_with_nginx_http",
-            "local_docker_cluster_with_nginx_https",
+            "local_docker_cluster_pk_http_exposed",
+            "local_docker_cluster_pk_tls_den_auth",
         ]
     }
     MINIMAL = {
         "cluster": [
-            "local_docker_cluster_with_nginx_http",
-            "local_docker_cluster_with_nginx_https",
+            "local_docker_cluster_pk_http_exposed",
+            "local_docker_cluster_pk_tls_den_auth",
         ]
     }
     THOROUGH = {
         "cluster": [
-            "local_docker_cluster_with_nginx_http",
-            "local_docker_cluster_with_nginx_https",
+            "local_docker_cluster_pk_http_exposed",
+            "local_docker_cluster_pk_tls_den_auth",
         ]
     }
     MAXIMAL = {
         "cluster": [
-            "local_docker_cluster_with_nginx_http",
-            "local_docker_cluster_with_nginx_https",
+            "local_docker_cluster_pk_http_exposed",
+            "local_docker_cluster_pk_tls_den_auth",
         ]
     }
 

@@ -30,19 +30,19 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     UNIT = {"cluster": ["named_cluster"]}
     LOCAL = {
         "cluster": [
-            "local_docker_cluster_public_key_logged_in",
-            "local_docker_cluster_public_key_logged_out",
-            "local_docker_cluster_passwd",
+            "local_docker_cluster_pk_ssh_no_auth",
+            "local_docker_cluster_pk_ssh_den_auth",
+            "local_docker_cluster_pwd_ssh_no_auth",
         ]
     }
     MINIMAL = {"cluster": ["static_cpu_cluster"]}
     THOROUGH = {"cluster": ["static_cpu_cluster", "password_cluster"]}
     MAXIMAL = {
         "cluster": [
-            "local_docker_cluster_public_key_logged_in",
-            "local_docker_cluster_public_key_logged_out",
-            "local_docker_cluster_telemetry_public_key",
-            "local_docker_cluster_passwd",
+            "local_docker_cluster_pk_ssh_no_auth",
+            "local_docker_cluster_pk_ssh_den_auth",
+            "local_docker_cluster_pwd_ssh_no_auth",
+            "local_docker_cluster_pk_ssh_telemetry",
             "static_cpu_cluster",
             "password_cluster",
         ]
@@ -64,20 +64,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         if "server_host" in args:
             assert cluster.server_host == args["server_host"]
         else:
-            # TODO: Test default behavior
-            pass
-
-        if "server_port" in args:
-            assert cluster.server_port == args["server_port"]
-        else:
-            # TODO: Test default behavior
-            pass
-
-        if "server_connection_type" in args:
-            assert cluster.server_connection_type == args["server_connection_type"]
-        else:
-            # TODO: Test default behavior
-            assert cluster.server_connection_type == "ssh"
+            assert cluster.server_host is None
 
         if "ssl_keyfile" in args:
             assert cluster.cert_config.key_path == args["ssl_keyfile"]
@@ -85,32 +72,14 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         if "ssl_certfile" in args:
             assert cluster.cert_config.cert_path == args["ssl_certfile"]
 
-        if "den_auth" in args:
-            assert cluster.den_auth == args["den_auth"]
-        else:
-            # TODO: Test default behavior
-            pass
-
     @pytest.mark.level("local")
-    def test_logged_in_local_cluster(self, local_docker_cluster_public_key_logged_in):
+    def test_local_docker_cluster_fixture_is_logged_out(
+        self, local_docker_cluster_pk_ssh_no_auth
+    ):
         save_resource_and_return_config_cluster = rh.function(
             save_resource_and_return_config,
             name="save_resource_and_return_config_cluster",
-            system=local_docker_cluster_public_key_logged_in,
-        )
-        saved_config_on_cluster = save_resource_and_return_config_cluster()
-        # This cluster was created using our own logged in Runhouse config. Make sure that the simple resource
-        # created on the cluster starts with /default_folder, e.g. /rohinb2/<resource>s
-        assert saved_config_on_cluster["name"].startswith(
-            rh.configs.defaults_cache["default_folder"]
-        )
-
-    @pytest.mark.level("local")
-    def test_logged_out_local_cluster(self, local_docker_cluster_public_key_logged_out):
-        save_resource_and_return_config_cluster = rh.function(
-            save_resource_and_return_config,
-            name="save_resource_and_return_config_cluster",
-            system=local_docker_cluster_public_key_logged_out,
+            system=local_docker_cluster_pk_ssh_no_auth,
         )
         saved_config_on_cluster = save_resource_and_return_config_cluster()
         # This cluster was created without any logged in Runhouse config. Make sure that the simple resource
