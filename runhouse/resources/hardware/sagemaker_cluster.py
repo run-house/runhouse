@@ -67,7 +67,7 @@ class SageMakerCluster(Cluster):
         ssh_key_path: str = None,
         instance_id: str = None,
         instance_type: str = None,
-        instance_count: int = None,
+        num_instances: int = None,
         image_uri: str = None,
         autostop_mins: int = None,
         connection_wait_time: int = None,
@@ -105,7 +105,7 @@ class SageMakerCluster(Cluster):
         )
         self._connection_wait_time = connection_wait_time
         self._instance_type = instance_type
-        self._instance_count = instance_count
+        self._num_instances = num_instances
         self._ssh_key_path = ssh_key_path
 
         # SSHEstimatorWrapper to facilitate the SSH connection to the cluster
@@ -164,7 +164,7 @@ class SageMakerCluster(Cluster):
                 "ssh_key_path": self.ssh_key_path,
                 "job_name": self.job_name,
                 "instance_type": self.instance_type,
-                "instance_count": self.instance_count,
+                "num_instances": self.num_instances,
                 "image_uri": self.image_uri,
                 "autostop_mins": self.autostop_mins,
                 "connection_wait_time": self.connection_wait_time,
@@ -225,17 +225,17 @@ class SageMakerCluster(Cluster):
         self._ssh_key_path = ssh_key_path
 
     @property
-    def instance_count(self):
-        if self._instance_count:
-            return self._instance_count
+    def num_instances(self):
+        if self._num_instances:
+            return self._num_instances
         elif self.estimator:
             return self.estimator.instance_count
         else:
             return 1
 
-    @instance_count.setter
-    def instance_count(self, instance_count):
-        self._instance_count = instance_count
+    @num_instances.setter
+    def num_instances(self, num_instances):
+        self._num_instances = num_instances
 
     @property
     def connection_wait_time(self):
@@ -702,7 +702,7 @@ class SageMakerCluster(Cluster):
         else:
             # No estimator provided, use the Runhouse custom estimator (using PyTorch by default)
             estimator_dict = {
-                "instance_count": self.instance_count,
+                "instance_count": self.num_instances,
                 "role": self.role,
                 "image_uri": self.image_uri,
                 "framework_version": "2.0.1",
@@ -720,7 +720,7 @@ class SageMakerCluster(Cluster):
         self.estimator = self._create_launch_estimator()
 
         logger.info(
-            f"Launching a new SageMaker cluster (instance count={self.instance_count}) on instance "
+            f"Launching a new SageMaker cluster (num instances={self.num_instances}) on instance "
             f"type: {self.instance_type}"
         )
 
