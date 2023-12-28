@@ -7,6 +7,8 @@ from typing import Any, Dict, Union
 
 import requests
 
+from opentelemetry import trace
+
 from runhouse.globals import rns_client
 
 from runhouse.resources.envs.utils import _get_env_from
@@ -15,6 +17,7 @@ from runhouse.resources.resource import Resource
 from runhouse.servers.http.http_utils import handle_response, OutputType, pickle_b64
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer("http_client")
 
 
 class HTTPClient:
@@ -192,6 +195,7 @@ class HTTPClient:
             system=self.system,
         )
 
+    @tracer.start_as_current_span("call_module_method")
     def call_module_method(  # TODO rename call_module_method to call
         self,
         module_name,

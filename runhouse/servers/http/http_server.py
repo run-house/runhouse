@@ -14,6 +14,7 @@ import yaml
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
+from opentelemetry import trace
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
@@ -35,7 +36,6 @@ from runhouse.servers.http.http_utils import (
 )
 from runhouse.servers.nginx.config import NginxConfig
 from runhouse.servers.servlet import EnvServlet
-from opentelemetry import trace
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer("http_server")
@@ -369,7 +369,7 @@ class HTTPServer:
     @staticmethod
     @app.post("/{module}/{method}")
     @validate_cluster_access
-    @@tracer.start_as_current_span("call_module_method")
+    @tracer.start_as_current_span("call_module_method")
     def call_module_method(
         request: Request, module, method=None, message: dict = Body(default=None)
     ):
