@@ -9,7 +9,7 @@ import requests
 
 from opentelemetry import trace
 
-from runhouse.globals import rns_client
+from runhouse.globals import rns_client, tracer
 
 from runhouse.resources.envs.utils import _get_env_from
 
@@ -22,7 +22,6 @@ from runhouse.servers.http.http_utils import (
 )
 
 logger = logging.getLogger(__name__)
-tracer = trace.get_tracer("http_client")
 
 
 class HTTPClient:

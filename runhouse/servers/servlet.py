@@ -13,7 +13,7 @@ from opentelemetry import trace
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-from runhouse.globals import obj_store
+from runhouse.globals import obj_store, tracer
 
 from runhouse.resources.blobs import blob, Blob
 from runhouse.resources.module import Module
@@ -33,7 +33,6 @@ from runhouse.servers.http.http_utils import (
 )
 
 logger = logging.getLogger(__name__)
-tracer = trace.get_tracer("servlet")
 
 
 class EnvServlet:

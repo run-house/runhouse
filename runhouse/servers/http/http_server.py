@@ -18,7 +18,7 @@ from opentelemetry import trace
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-from runhouse.globals import configs, env_servlets, rns_client
+from runhouse.globals import configs, env_servlets, rns_client, tracer
 from runhouse.resources.hardware.utils import _load_cluster_config, CLUSTER_CONFIG_PATH
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
@@ -39,7 +39,6 @@ from runhouse.servers.nginx.config import NginxConfig
 from runhouse.servers.servlet import EnvServlet
 
 logger = logging.getLogger(__name__)
-tracer = trace.get_tracer("http_server")
 
 app = FastAPI()
 
@@ -774,6 +773,9 @@ class HTTPServer:
         trace.get_tracer_provider().add_span_processor(
             BatchSpanProcessor(otlp_exporter)
         )
+
+        global tracer
+        tracer = trace.get_tracer("runhouse-tracer")
 
         logger.info(
             f"Successfully added telemetry exporter {telemetry_collector_address}"
