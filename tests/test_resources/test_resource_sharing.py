@@ -2,7 +2,6 @@ import json
 import subprocess
 import unittest
 
-import pytest
 import requests
 
 import runhouse as rh
@@ -51,7 +50,6 @@ def call_cluster_methods(cluster, test_env, valid_token):
                 assert "Error calling" in str(e)
 
 
-@pytest.mark.clustertest
 def test_cluster_sharing(shared_cluster, shared_function):
     current_token = rh.configs.get("token")
     # Run commands on cluster with current token
@@ -71,7 +69,6 @@ def test_cluster_sharing(shared_cluster, shared_function):
     assert reloaded_func(1, 2) == 3
 
 
-@pytest.mark.clustertest
 def test_use_shared_cluster_apis(shared_cluster, shared_function, test_env):
     # Should be able to use the shared cluster APIs if given access
     current_token = rh.configs.get("token")
@@ -93,7 +90,6 @@ def test_use_shared_cluster_apis(shared_cluster, shared_function, test_env):
     rh.configs.set("token", current_token)
 
 
-@pytest.mark.clustertest
 def test_use_shared_function_apis(shared_cluster, shared_function):
     current_token = rh.configs.get("token")
 
@@ -119,7 +115,6 @@ def test_use_shared_function_apis(shared_cluster, shared_function):
     assert "3" in res.stdout
 
 
-@pytest.mark.clustertest
 def test_running_func_with_cluster_read_access(shared_cluster, shared_function):
     """Check that a user with read only access to the cluster cannot call a function on that cluster if they do not
     explicitly have access to the function."""
@@ -151,7 +146,6 @@ def test_running_func_with_cluster_read_access(shared_cluster, shared_function):
         assert "No read or write access to requested resource" in str(e)
 
 
-@pytest.mark.clustertest
 def test_running_func_with_cluster_write_access(shared_cluster, shared_function):
     """Check that a user with write access to a cluster can call a function on that cluster, even without having
     explicit access to the function."""
@@ -197,7 +191,6 @@ def test_running_func_with_cluster_write_access(shared_cluster, shared_function)
     assert shared_function(1, 2) == 3
 
 
-@pytest.mark.clustertest
 def test_running_func_with_no_cluster_access(shared_cluster, shared_function):
     """Check that a user with no access to the cluster can still call a function on that cluster if they were
     given explicit access to the function."""

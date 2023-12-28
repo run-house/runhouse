@@ -144,7 +144,6 @@ class TestFunction:
         assert res == [4, 6, 8]
 
     @pytest.mark.skip("Does not work properly following Module refactor.")
-    @pytest.mark.clustertest
     @pytest.mark.level("local")
     def test_maps(self, cluster):
         pid_fn = rh.function(getpid, system=cluster)
@@ -346,7 +345,6 @@ class TestFunction:
                 my_function = rh.function(name=my_function.rns_address)
                 my_function(1, 2)
 
-    @pytest.mark.clustertest
     @pytest.mark.rnstest
     @pytest.mark.level("thorough")
     def test_load_function_in_new_cluster(
@@ -369,7 +367,6 @@ class TestFunction:
 
         remote_sum.delete_configs()
 
-    @pytest.mark.clustertest
     @pytest.mark.level("thorough")
     def test_nested_diff_clusters(self, ondemand_cpu_cluster, static_cpu_cluster):
         summer_cpu = rh.function(summer).to(ondemand_cpu_cluster)
@@ -390,7 +387,6 @@ class TestFunction:
         res = call_function_cpu(summer_cpu, **kwargs)
         assert res == 6
 
-    @pytest.mark.clustertest
     @pytest.mark.level("local")
     def test_http_url(self, cluster):
         # TODO convert into something like function.request_args() and/or function.curl_command()
