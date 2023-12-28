@@ -12,6 +12,7 @@ from runhouse.servers.http import HTTPClient
 from runhouse.servers.http.http_utils import pickle_b64
 
 
+@pytest.mark.servertest
 class TestHTTPClient:
     @pytest.fixture(autouse=True)
     def init_fixtures(self):

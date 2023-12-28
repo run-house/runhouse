@@ -11,6 +11,7 @@ from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 from runhouse.servers.nginx.config import NginxConfig
 
 
+@pytest.mark.servertest
 class TestNginxConfiguration:
     @pytest.fixture(autouse=True)
     def init_fixtures(self):
@@ -409,6 +410,7 @@ class TestNginxConfiguration:
         assert https_template == expected_https_template
 
 
+@pytest.mark.servertest
 class TestNginxServerLocally:
 
     UNIT = {

@@ -45,7 +45,7 @@ jobs:
           TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
         run: pytest -v --level local tests/test_servers/
 
-  cluster-tests-logged-out-level-local:
+  most-tests-logged-out-level-local:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository code
@@ -54,49 +54,13 @@ jobs:
       - name: Setup Runhouse
         uses: ./.github/workflows/setup_runhouse
 
-      - name: pytest -v --level local -k "TestCluster"
+      - name: pytest -v --level local -k "not servertest and not secrettest"
         env:
           TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
           TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
-        run: pytest -v --level local -k "TestCluster"
+        run: pytest -v --level local -k "not servertest and not secrettest"
 
-  cluster-tests-logged-in-level-local:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v3
-
-      - name: Setup Runhouse
-        uses: ./.github/workflows/setup_runhouse
-
-      - name: Setup ~/.rh/config.yaml
-        uses: ./.github/workflows/setup_rh_config
-        with:
-          username: ${{ secrets.CI_ACCOUNT_USERNAME }}
-          token: ${{ secrets.CI_ACCOUNT_TOKEN }}
-
-      - name: pytest -v --level local -k "TestCluster"
-        env:
-          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
-          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
-        run: pytest -v --level local -k "TestCluster"
-
-  resource-tests-logged-out-level-local:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v3
-
-      - name: Setup Runhouse
-        uses: ./.github/workflows/setup_runhouse
-
-      - name: pytest -v --level local -k "TestResource"
-        env:
-          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
-          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
-        run: pytest -v --level local -k "TestResource"
-
-  resource-tests-logged-in-level-local:
+  most-tests-logged-in-level-local:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository code
@@ -111,13 +75,13 @@ jobs:
           username: ${{ secrets.CI_ACCOUNT_USERNAME }}
           token: ${{ secrets.CI_ACCOUNT_TOKEN }}
 
-      - name: pytest -v --level local -k "TestResource"
+      - name: pytest -v --level local -k "not servertest and not secrettest"
         env:
           TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
           TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
-        run: pytest -v --level local -k "TestResource"
+        run: pytest -v --level local -k "not servertest and not secrettest"
 
-  function-tests-logged-out-level-local:
+  secret-tests-logged-out-level-local:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository code
@@ -126,13 +90,13 @@ jobs:
       - name: Setup Runhouse
         uses: ./.github/workflows/setup_runhouse
 
-      - name: pytest -v --level local -k "TestFunction"
+      - name: pytest -v --level local -k "secrettest"
         env:
           TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
           TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
-        run: pytest -v --level local -k "TestFunction"
+        run: pytest -v --level local -k "secrettest"
 
-  function-tests-logged-in-level-local:
+  secret-tests-logged-in-level-local:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository code
@@ -147,8 +111,8 @@ jobs:
           username: ${{ secrets.CI_ACCOUNT_USERNAME }}
           token: ${{ secrets.CI_ACCOUNT_TOKEN }}
 
-      - name: pytest -v --level local -k "TestFunction"
+      - name: pytest -v --level local -k "secrettest"
         env:
           TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
           TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
-        run: pytest -v --level local -k "TestFunction"
+        run: pytest -v --level local -k "secrettest"

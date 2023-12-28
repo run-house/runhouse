@@ -22,6 +22,7 @@ def summer(a, b):
     return a + b
 
 
+@pytest.mark.servertest
 @pytest.mark.den_auth
 @pytest.mark.usefixtures("cluster")
 class TestHTTPServerDocker:
@@ -204,6 +205,7 @@ class TestHTTPServerDocker:
         assert json.loads(response.text) == "3"
 
 
+@pytest.mark.servertest
 @pytest.mark.den_auth
 @pytest.mark.usefixtures("cluster")
 class TestHTTPServerDockerDenAuthOnly:
@@ -335,6 +337,7 @@ def client(request):
     return request.getfixturevalue(request.param)
 
 
+@pytest.mark.servertest
 @pytest.mark.den_auth
 @pytest.mark.usefixtures("setup_cluster_config")
 class TestHTTPServerNoDocker:
@@ -449,6 +452,7 @@ class TestHTTPServerNoDocker:
     # TODO [JL]: Test call_module_method and async_call with local and not just Docker.
 
 
+@pytest.mark.servertest
 @pytest.mark.den_auth
 @pytest.mark.usefixtures("setup_cluster_config")
 class TestHTTPServerNoDockerDenAuthOnly:
