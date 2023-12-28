@@ -106,18 +106,3 @@ def handle_response(response_data, output_type, err_str):
     elif output_type == OutputType.STDERR:
         res = response_data["data"]
         print(res, file=sys.stderr)
-
-
-def telemetry_rewrite_span_name(current_span, http_target):
-    parts = list(filter(None, http_target.split("/")))
-
-    if len(parts) >= 2:
-        module_name = parts[0]  # The first part is the module name
-        method_name = parts[1]  # The second part is the method name
-    else:
-        # Default or error handling for unexpected format
-        module_name = "module"
-        method_name = "method"
-
-    new_name = f"POST /{module_name}/{method_name}"
-    current_span.update_name(new_name)

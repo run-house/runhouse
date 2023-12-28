@@ -7,19 +7,12 @@ from typing import Any, Dict, Union
 
 import requests
 
-from opentelemetry import trace
-
-from runhouse.globals import rns_client, tracer
+from runhouse.globals import rns_client
 
 from runhouse.resources.envs.utils import _get_env_from
 
 from runhouse.resources.resource import Resource
-from runhouse.servers.http.http_utils import (
-    handle_response,
-    OutputType,
-    pickle_b64,
-    telemetry_rewrite_span_name,
-)
+from runhouse.servers.http.http_utils import handle_response, OutputType, pickle_b64
 
 logger = logging.getLogger(__name__)
 
@@ -199,7 +192,6 @@ class HTTPClient:
             system=self.system,
         )
 
-    @tracer.start_as_current_span("call_module_method")
     def call_module_method(  # TODO rename call_module_method to call
         self,
         module_name,
@@ -217,10 +209,6 @@ class HTTPClient:
         """
         Client function to call the rpc for call_module_method
         """
-        current_span = trace.get_current_span()
-        http_target = current_span.attributes.get("http.target", "")
-        telemetry_rewrite_span_name(current_span, http_target)
-
         # Measure the time it takes to send the message
         start = time.time()
         logger.info(

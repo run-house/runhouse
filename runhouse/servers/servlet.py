@@ -9,11 +9,9 @@ import traceback
 from pathlib import Path
 from typing import List, Optional, Union
 
-from opentelemetry import trace
-
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-from runhouse.globals import obj_store, tracer
+from runhouse.globals import obj_store
 
 from runhouse.resources.blobs import blob, Blob
 from runhouse.resources.module import Module
@@ -29,7 +27,6 @@ from runhouse.servers.http.http_utils import (
     OutputType,
     pickle_b64,
     Response,
-    telemetry_rewrite_span_name,
 )
 
 logger = logging.getLogger(__name__)
@@ -108,7 +105,6 @@ class EnvServlet:
                 output_type=OutputType.EXCEPTION,
             )
 
-    @tracer.start_as_current_span("call_module_method")
     def call_module_method(
         self,
         module_name,
@@ -118,10 +114,6 @@ class EnvServlet:
         den_auth: bool,
         serialization: Optional[str] = None,
     ):
-        current_span = trace.get_current_span()
-        http_target = current_span.attributes.get("http.target", "")
-        telemetry_rewrite_span_name(current_span, http_target)
-
         self.register_activity()
         result_resource = None
 
