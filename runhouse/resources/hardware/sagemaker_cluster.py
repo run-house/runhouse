@@ -16,7 +16,7 @@ import threading
 import time
 import warnings
 from pathlib import Path
-from typing import Dict, Tuple, Union
+from typing import Dict, Union
 
 try:
     import boto3
@@ -493,13 +493,13 @@ class SageMakerCluster(Cluster):
     # -------------------------------------------------------
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0, retry=True
-    ) -> Tuple[SSHTunnelForwarder, int]:
-        tunnel, connected_port = get_open_tunnel(self.address, self.ssh_port)
-        if connected_port == local_port:
+    ) -> SSHTunnelForwarder:
+        tunnel = get_open_tunnel(self.address, self.ssh_port)
+        if tunnel and tunnel.local_bind_port == local_port:
             logger.info(
                 f"SSH tunnel on ports {local_port, remote_port} already created with the cluster"
             )
-            return tunnel, local_port
+            return tunnel
 
         try:
             remote_bind_addresses = ("127.0.0.1", local_port)
@@ -540,7 +540,7 @@ class SageMakerCluster(Cluster):
                 local_port, remote_port, num_ports_to_try, retry=False
             )
 
-        return ssh_tunnel, local_port
+        return ssh_tunnel
 
     def ssh(self, interactive: bool = True):
         """SSH into the cluster.

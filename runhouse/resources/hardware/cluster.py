@@ -20,18 +20,17 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import requests.exceptions
 import sshtunnel
-
-from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
+from sshtunnel import SSHTunnelForwarder
 
 from runhouse.globals import obj_store, rns_client
 from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware.utils import (
     _current_cluster,
-    cache_open_tunnel,
     CLUSTER_CONFIG_PATH,
-    get_open_tunnel,
+    LOCALHOST,
     ServerConnectionType,
     SkySSHRunner,
+    ssh_tunnel,
     SshMode,
 )
 from runhouse.resources.resource import Resource
@@ -49,7 +48,6 @@ class Cluster(Resource):
     DEFAULT_HTTP_PORT = 80
     DEFAULT_HTTPS_PORT = 443
     DEFAULT_SSH_PORT = 22
-    LOCALHOST = "127.0.0.1"
     LOCAL_HOSTS = ["localhost", LOCALHOST]
 
     SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
@@ -166,7 +164,7 @@ class Cluster(Resource):
             ],
         )
         if self.is_up():
-            config["ssh_creds"] = self.ssh_creds()
+            config["ssh_creds"] = self.ssh_creds
 
         if self._use_custom_cert:
             config["ssl_certfile"] = self.cert_config.cert_path
@@ -205,7 +203,7 @@ class Cluster(Resource):
             ServerConnectionType.AWS_SSM,
         ]:
             self.check_server()
-            return f"http://{self.LOCALHOST}:{self.client_port}"
+            return f"http://{LOCALHOST}:{self.client_port}"
 
     def _client(self, restart_server=True):
         if self.on_this_cluster():
@@ -219,8 +217,8 @@ class Cluster(Resource):
     def server_address(self):
         """Address to use in the requests made to the cluster. If creating an SSH tunnel with the cluster,
         ths will be set to localhost, otherwise will use the cluster's public IP address."""
-        if self.server_host in [self.LOCALHOST, "localhost"]:
-            return self.LOCALHOST
+        if self.server_host in [LOCALHOST, "localhost"]:
+            return LOCALHOST
         return self.address
 
     def is_up(self) -> bool:
@@ -434,57 +432,52 @@ class Cluster(Resource):
 
         if self._rpc_tunnel and force_reconnect:
             self._rpc_tunnel.close()
+            self._rpc_tunnel = None
 
-        self._rpc_tunnel, connected_port = get_open_tunnel(self.address, self.ssh_port)
-
-        if (
-            self.server_connection_type
-            not in [ServerConnectionType.NONE, ServerConnectionType.TLS]
-            and self._rpc_tunnel is None
-        ):
-            # Case 3: server connection requires SSH tunnel, but we don't have one up yet
-            self._rpc_tunnel, connected_port = self.ssh_tunnel(
-                local_port=self.server_port,
-                remote_port=self.server_port,
-                num_ports_to_try=10,
-            )
-
-            cache_open_tunnel(
-                self.address, self.ssh_port, self._rpc_tunnel, connected_port
-            )
-
-            if self._rpc_tunnel:
-                logger.info(
-                    f"Connecting to server via SSH, port forwarding via port {connected_port}."
-                )
-
-        self.client_port = connected_port or self.client_port or self.server_port
-        use_https = self._use_https
-        cert_path = self.cert_config.cert_path if use_https else None
-
-        # Connecting to localhost because it's tunneled into the server at the specified port.
-        creds = self.ssh_creds()
         if self.server_connection_type in [
             ServerConnectionType.SSH,
             ServerConnectionType.AWS_SSM,
         ]:
-            ssh_user = creds.get("ssh_user")
-            password = creds.get("password")
+            # Case 1: Server connection requires SSH tunnel, but we don't have one up yet
+            self._rpc_tunnel = self.ssh_tunnel(
+                local_port=self.server_port,
+                remote_port=self.server_port,
+                num_ports_to_try=10,
+            )
+            self.client_port = self._rpc_tunnel.local_bind_port
+
+            ssh_user = self.ssh_creds.get("ssh_user")
+            password = self.ssh_creds.get("password")
             auth = (ssh_user, password) if ssh_user and password else None
+
+            # Connecting to localhost because it's tunneled into the server at the specified port.
+            # As long as the tunnel was initialized,
+            # self.client_port has been set to the correct port
             self.client = HTTPClient(
-                host=self.LOCALHOST,
+                host=LOCALHOST,
                 port=self.client_port,
                 auth=auth,
-                cert_path=cert_path,
-                use_https=use_https,
                 system=self,
             )
+
         else:
+            # Case 2: We're making a direct connection to the server, either via HTTP or HTTPS
+            if self.server_connection_type not in [
+                ServerConnectionType.NONE,
+                ServerConnectionType.TLS,
+            ]:
+                raise ValueError(
+                    f"Unknown server connection type {self.server_connection_type}."
+                )
+
+            cert_path = self.cert_config.cert_path if self._use_https else None
+            self.client_port = self.client_port or self.server_port
+
             self.client = HTTPClient(
                 host=self.server_address,
                 port=self.client_port,
                 cert_path=cert_path,
-                use_https=use_https,
+                use_https=self._use_https,
                 system=self,
             )
 
@@ -544,73 +537,19 @@ class Cluster(Resource):
 
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
-    ) -> Tuple[SSHTunnelForwarder, int]:
-        # Debugging cmds (mac):
-        # netstat -vanp tcp | grep 32300
-        # lsof -i :32300
-        # kill -9 <pid>
-        tunnel, port = get_open_tunnel(self.address, self.ssh_port)
-        if tunnel is not None:
-            if port == local_port and tunnel.remote_bind_address[1] == (
-                remote_port or local_port
-            ):
-                logger.info(
-                    f"SSH tunnel on ports {local_port, remote_port} already created with the cluster."
-                )
-                return tunnel, local_port
-
-        creds: dict = self.ssh_creds()
-        connected = False
-        ssh_tunnel = None
-        while not connected:
-            try:
-                if local_port > local_port + num_ports_to_try:
-                    raise Exception(
-                        f"Failed to create SSH tunnel after {num_ports_to_try} attempts"
-                    )
-
-                if creds.get("ssh_proxy_command"):
-                    # Start a tunnel using self.run in a thread, instead of ssh_tunnel
-                    ssh_credentials = copy.copy(self.ssh_creds())
-                    host = ssh_credentials.pop("ssh_host", self.address)
-                    runner = SkySSHRunner(host, **ssh_credentials, port=self.ssh_port)
-                    runner.tunnel(local_port, remote_port)
-                    ssh_tunnel = runner  # Just to keep the object in memory
-                else:
-                    ssh_tunnel = SSHTunnelForwarder(
-                        self.address,
-                        ssh_username=creds.get("ssh_user"),
-                        ssh_pkey=creds.get("ssh_private_key"),
-                        ssh_password=creds.get("password"),
-                        ssh_port=self.ssh_port,
-                        local_bind_address=("", local_port),
-                        remote_bind_address=(
-                            self.LOCALHOST,
-                            remote_port or local_port,
-                        ),
-                        set_keepalive=1,
-                        # mute_exceptions=True,
-                    )
-                    ssh_tunnel.start()
-                connected = True
-            except HandlerSSHTunnelForwarderError:
-                # try connecting with a different port - most likely the issue is the port is already taken
-                local_port += 1
-                num_ports_to_try -= 1
-                pass
-
-        return ssh_tunnel, local_port
+    ) -> SSHTunnelForwarder:
+        return ssh_tunnel(
+            address=self.address,
+            ssh_creds=self.ssh_creds,
+            local_port=local_port,
+            ssh_port=self.ssh_port,
+            remote_port=remote_port,
+            num_ports_to_try=num_ports_to_try,
+        )
 
     @property
     def _use_https(self) -> bool:
-        """Use HTTPS if server connection type is set to ``tls``"""
-        connection_type = self.server_connection_type
-        tls_conn = ServerConnectionType.TLS.value
-
-        if isinstance(connection_type, str):
-            return connection_type == tls_conn
-
-        return connection_type.value == tls_conn
+        return self.server_connection_type == ServerConnectionType.TLS
 
     @property
     def _use_nginx(self) -> bool:
@@ -912,6 +851,7 @@ class Cluster(Resource):
 
     # ----------------- SSH Methods ----------------- #
 
+    @property
     def ssh_creds(self):
         """Retrieve SSH credentials."""
         return self._ssh_creds or {}
@@ -937,7 +877,7 @@ class Cluster(Resource):
             source = source + "/" if not source.endswith("/") else source
             dest = dest + "/" if not dest.endswith("/") else dest
 
-        ssh_credentials = copy.copy(self.ssh_creds()) or {}
+        ssh_credentials = copy.copy(self.ssh_creds) or {}
         ssh_credentials.pop("ssh_host", self.address)
         pwd = ssh_credentials.pop("password", None)
 
@@ -1003,7 +943,7 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("rh-cpu").ssh()
         """
-        creds = self.ssh_creds()
+        creds = self.ssh_creds
 
         if creds.get("ssh_private_key"):
             cmd = (
@@ -1078,7 +1018,7 @@ class Cluster(Resource):
     ):
         return_codes = []
 
-        ssh_credentials = copy.copy(self.ssh_creds())
+        ssh_credentials = copy.copy(self.ssh_creds)
         host = ssh_credentials.pop("ssh_host", self.address)
         pwd = ssh_credentials.pop("password", None)
 
@@ -1157,7 +1097,7 @@ class Cluster(Resource):
         command_str = "; ".join(commands)
         command_str_repr = (
             repr(repr(command_str))[2:-2]
-            if self.ssh_creds().get("password")
+            if self.ssh_creds.get("password")
             else command_str
         )
         formatted_command = f'{cmd_prefix} "{command_str_repr}"'
@@ -1225,7 +1165,12 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("test-cluster").notebook()
         """
-        tunnel, port_fwd = self.ssh_tunnel(local_port=port_forward, num_ports_to_try=10)
+        tunnel = self.ssh_tunnel(
+            local_port=port_forward,
+            num_ports_to_try=10,
+        )
+        port_fwd = tunnel.local_bind_port
+
         try:
             install_cmd = "pip install jupyterlab"
             jupyter_cmd = f"jupyter lab --port {port_fwd} --no-browser"
