@@ -61,6 +61,7 @@ def _get_env_var_value(env_var):
     return os.environ[env_var]
 
 
+@pytest.mark.secrettest
 class TestSecret(tests.test_resources.test_resource.TestResource):
     MAP_FIXTURES = {"resource": "secret"}
 
