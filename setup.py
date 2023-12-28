@@ -65,6 +65,12 @@ install_requires = [
     "python-dotenv",
     "fastapi",
     "fsspec<=2023.5.0",
+    "opentelemetry-api",
+    "opentelemetry-exporter-otlp-proto-http",
+    "opentelemetry-instrumentation",
+    "opentelemetry-instrumentation-fastapi",
+    "opentelemetry-instrumentation-requests",
+    "opentelemetry-sdk",
     "pexpect",
     "pyarrow",
     "pyOpenSSL>=21.1.0",
@@ -99,13 +105,6 @@ extras_require = {
         "sagemaker==2.135.0",  # SkyPilot depends on PyYAML<=5.3.1, which is incompatible with sagemaker>=2.135.0
         "paramiko>=3.2.0",
         "boto3>=1.26.131,<2.0",
-    ],
-    "opentelemetry": [
-        "opentelemetry-api",
-        "opentelemetry-instrumentation",
-        "opentelemetry-instrumentation-fastapi",
-        "opentelemetry-instrumentation-requests",
-        "opentelemetry-sdk",
     ],
 }
 

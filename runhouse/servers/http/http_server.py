@@ -115,13 +115,20 @@ class HTTPServer:
             from opentelemetry import trace
             from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
             from opentelemetry.instrumentation.requests import RequestsInstrumentor
+            from opentelemetry.sdk.resources import Resource
             from opentelemetry.sdk.trace import TracerProvider
             from opentelemetry.sdk.trace.export import SimpleSpanProcessor
             from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
                 InMemorySpanExporter,
             )
 
-            trace.set_tracer_provider(TracerProvider())
+            trace.set_tracer_provider(
+                TracerProvider(
+                    resource=Resource.create(
+                        {"service.name": "runhouse-in-memory-service"}
+                    )
+                )
+            )
             self.memory_exporter = InMemorySpanExporter()
             trace.get_tracer_provider().add_span_processor(
                 SimpleSpanProcessor(self.memory_exporter)
@@ -155,6 +162,12 @@ class HTTPServer:
             self._collect_cluster_stats()
         except Exception as e:
             logger.error(f"Failed to collect cluster stats: {str(e)}")
+
+        try:
+            # Collect telemetry stats for the cluster
+            self._collect_telemetry_stats()
+        except Exception as e:
+            logger.error(f"Failed to collect cluster telemetry stats: {str(e)}")
 
         base_env = self.get_env_servlet(
             env_name="base",
@@ -720,6 +733,49 @@ class HTTPServer:
             {**cluster_data, **sky_data},
             labels={"username": configs.get("username"), "environment": "prod"},
         )
+
+    @staticmethod
+    def _collect_telemetry_stats():
+        """Collect telemetry stats and send them to the Runhouse hosted OpenTelemetry collector"""
+
+        from opentelemetry import trace
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+            OTLPSpanExporter,
+        )
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        from opentelemetry.instrumentation.requests import RequestsInstrumentor
+        from opentelemetry.sdk.resources import Resource
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+        telemetry_collector_address = configs.get("telemetry_collector_address")
+
+        logger.info(f"Preparing to send telemetry to {telemetry_collector_address}")
+
+        # Set the tracer provider and the exporter
+        trace.set_tracer_provider(
+            TracerProvider(
+                resource=Resource.create({"service.name": "runhouse-service"})
+            )
+        )
+        otlp_exporter = OTLPSpanExporter(
+            endpoint=telemetry_collector_address + "/v1/traces",
+        )
+
+        # Add the exporter to the tracer provider
+        trace.get_tracer_provider().add_span_processor(
+            BatchSpanProcessor(otlp_exporter)
+        )
+
+        logger.info(
+            f"Successfully added telemetry exporter {telemetry_collector_address}"
+        )
+
+        # Instrument the app object
+        FastAPIInstrumentor.instrument_app(app)
+
+        # Instrument the requests library
+        RequestsInstrumentor().instrument()
 
     @staticmethod
     def _cluster_status_report():

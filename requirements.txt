@@ -2,6 +2,7 @@ cryptography
 fastapi
 fsspec<=2023.5.0
 opentelemetry-api
+opentelemetry-exporter-otlp-proto-http
 opentelemetry-instrumentation
 opentelemetry-instrumentation-fastapi
 opentelemetry-instrumentation-requests
