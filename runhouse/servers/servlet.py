@@ -119,9 +119,9 @@ class EnvServlet:
         den_auth: bool,
         serialization: Optional[str] = None,
     ):
-        telemetry_rewrite_span_name(
-            trace.get_current_span(), current_span.attributes.get("http.target", "")
-        )
+        current_span = trace.get_current_span()
+        http_target = current_span.attributes.get("http.target", "")
+        telemetry_rewrite_span_name(current_span, http_target)
 
         self.register_activity()
         result_resource = None
