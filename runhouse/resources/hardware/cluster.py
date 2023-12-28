@@ -772,6 +772,8 @@ class Cluster(Resource):
             self.client.use_https = https_flag
             self.client.cert_path = self.cert_config.cert_path
 
+        # Send the ssh restart command to each of the workers
+        
         return status_codes
 
     @contextlib.contextmanager
