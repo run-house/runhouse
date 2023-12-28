@@ -4,8 +4,7 @@ import pytest
 import requests
 
 
-@pytest.mark.dockertest
-@pytest.mark.telemetrytest
+@pytest.mark.level("local")
 def test_public_key_cluster_has_telemetry(local_docker_cluster_pk_ssh_telemetry):
     cluster = local_docker_cluster_pk_ssh_telemetry
     cluster.check_server()

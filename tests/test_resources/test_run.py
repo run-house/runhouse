@@ -41,7 +41,6 @@ def submitted_async_run(summer_func):  # noqa: F811
 # ------------------------- FUNCTION RUN ----------------------------------
 
 
-@pytest.mark.clustertest
 @pytest.mark.runstest
 def test_read_prov_info(summer_func):
     """Reads the stdout for the Run."""
@@ -56,7 +55,6 @@ def test_read_prov_info(summer_func):
     assert remote_res.provenance.status == rh.RunStatus.COMPLETED
 
 
-@pytest.mark.clustertest
 @pytest.mark.runstest
 def test_get_or_call_from_cache(summer_func):
     """Cached version of synchronous run - if already completed return the result, otherwise run and wait for
@@ -77,7 +75,6 @@ def test_get_or_call_from_cache(summer_func):
         summer_func.get_or_call(run_name, a=10, b=10, c=10, load=False)
 
 
-@pytest.mark.clustertest
 @pytest.mark.runstest
 def test_invalid_fn_sync_run(summer_func, ondemand_cpu_cluster):
     """Test error handling for invalid function Run. The function expects to receive integers but
@@ -121,7 +118,6 @@ def test_get_fn_status_updates(ondemand_cpu_cluster, slow_func):
 
 
 @unittest.skip("Not implemented yet.")
-@pytest.mark.clustertest
 @pytest.mark.runstest
 def test_get_or_call_latest(summer_func):
     """Cached version of synchronous run - if already completed return the result, otherwise run and wait for
@@ -177,7 +173,6 @@ def test_get_or_run_no_cache(summer_func):
 
 
 @unittest.skip("Not implemented yet.")
-@pytest.mark.clustertest
 @pytest.mark.runstest
 def test_get_or_run_latest(summer_func):
     """Execute function async on the cluster. If a run already exists, do not re-run. Returns a Run object."""
@@ -209,7 +204,6 @@ def test_save_fn_run_to_rns(ondemand_cpu_cluster, submitted_run):
     assert rh.exists(loaded_run.name, resource_type=rh.Run.RESOURCE_TYPE)
 
 
-@pytest.mark.clustertest
 @pytest.mark.runstest
 def test_create_anon_run_on_cluster(summer_func):
     """Create a new Run without giving it an explicit name."""
@@ -219,7 +213,6 @@ def test_create_anon_run_on_cluster(summer_func):
 
 
 @unittest.skip("Not yet implemented.")
-@pytest.mark.clustertest
 @pytest.mark.runstest
 def test_latest_fn_run(summer_func):
     run_output = summer_func.get_or_call(run_str="latest")
@@ -273,7 +266,6 @@ def test_delete_fn_run_from_rns(submitted_run):
 # ------------------------- CLI RUN ------------ ----------------------
 
 
-@pytest.mark.clustertest
 @pytest.mark.runstest
 def test_create_cli_python_command_run(ondemand_cpu_cluster):
     # Run python commands on the specified system. Save the run results to the .rh/logs/<run_name> folder of the system.
@@ -294,7 +286,6 @@ def test_create_cli_python_command_run(ondemand_cpu_cluster):
     assert "File path" in return_codes[0][1].strip()
 
 
-@pytest.mark.clustertest
 @pytest.mark.runstest
 def test_create_cli_command_run(ondemand_cpu_cluster):
     """Run CLI command on the specified system.
@@ -353,7 +344,6 @@ def test_read_cli_command_stdout_from_cluster(ondemand_cpu_cluster):
     assert cli_stdout == "Python 3.10.6"
 
 
-@pytest.mark.clustertest
 @pytest.mark.runstest
 def test_delete_cli_run_from_local_filesystem():
     """Delete the config where it was initially saved (in the local ``rh`` folder of the working directory)"""
@@ -464,7 +454,6 @@ def test_delete_ctx_run_from_rns():
     assert not rh.exists(name=loaded_run.name, resource_type=rh.Run.RESOURCE_TYPE)
 
 
-@pytest.mark.clustertest
 @pytest.mark.runstest
 def test_delete_ctx_run_from_local_filesystem():
     # Load from local file system
