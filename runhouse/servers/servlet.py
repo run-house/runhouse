@@ -9,6 +9,8 @@ import traceback
 from pathlib import Path
 from typing import List, Optional, Union
 
+from opentelemetry import trace
+
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 from runhouse.globals import obj_store
@@ -30,6 +32,7 @@ from runhouse.servers.http.http_utils import (
 )
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer("servlet")
 
 
 class EnvServlet:
@@ -105,6 +108,7 @@ class EnvServlet:
                 output_type=OutputType.EXCEPTION,
             )
 
+    @tracer.start_as_current_span("call_module_method")
     def call_module_method(
         self,
         module_name,
