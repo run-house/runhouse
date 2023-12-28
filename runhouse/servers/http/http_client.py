@@ -14,7 +14,12 @@ from runhouse.globals import rns_client
 from runhouse.resources.envs.utils import _get_env_from
 
 from runhouse.resources.resource import Resource
-from runhouse.servers.http.http_utils import handle_response, OutputType, pickle_b64
+from runhouse.servers.http.http_utils import (
+    handle_response,
+    OutputType,
+    pickle_b64,
+    telemetry_rewrite_span_name,
+)
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer("http_client")
@@ -213,6 +218,10 @@ class HTTPClient:
         """
         Client function to call the rpc for call_module_method
         """
+        current_span = trace.get_current_span()
+        http_target = current_span.attributes.get("http.target", "")
+        telemetry_rewrite_span_name(current_span, http_target)
+
         # Measure the time it takes to send the message
         start = time.time()
         logger.info(

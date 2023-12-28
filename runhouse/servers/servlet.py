@@ -29,6 +29,7 @@ from runhouse.servers.http.http_utils import (
     OutputType,
     pickle_b64,
     Response,
+    telemetry_rewrite_span_name,
 )
 
 logger = logging.getLogger(__name__)
@@ -118,6 +119,10 @@ class EnvServlet:
         den_auth: bool,
         serialization: Optional[str] = None,
     ):
+        telemetry_rewrite_span_name(
+            trace.get_current_span(), current_span.attributes.get("http.target", "")
+        )
+
         self.register_activity()
         result_resource = None
 

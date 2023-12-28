@@ -33,6 +33,7 @@ from runhouse.servers.http.http_utils import (
     pickle_b64,
     Response,
     ServerSettings,
+    telemetry_rewrite_span_name,
 )
 from runhouse.servers.nginx.config import NginxConfig
 from runhouse.servers.servlet import EnvServlet
@@ -373,6 +374,10 @@ class HTTPServer:
     def call_module_method(
         request: Request, module, method=None, message: dict = Body(default=None)
     ):
+        current_span = trace.get_current_span()
+        http_target = current_span.attributes.get("http.target", "")
+        telemetry_rewrite_span_name(current_span, http_target)
+
         token = get_token_from_request(request)
         den_auth_enabled = HTTPServer.get_den_auth()
         token_hash = hash_token(token) if den_auth_enabled and token else None
