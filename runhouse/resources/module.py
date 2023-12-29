@@ -858,9 +858,9 @@ class Module(Resource):
             and isinstance(self.system, Cluster)
             and self.system.on_this_cluster()
         ):
-            obj_store.rename(old_key=old_name, new_key=self.name)
+            obj_store.rename(old_key=old_name, new_key=self.rns_address)
         elif self._client():
-            self._client().rename(old_key=old_name, new_key=self.name)
+            self._client().rename(old_key=old_name, new_key=self.rns_address)
 
     def save(
         self,
