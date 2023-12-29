@@ -8,7 +8,7 @@ import pytest
 import runhouse as rh
 from runhouse.globals import rns_client
 
-from runhouse.servers.http import HTTPClient
+from runhouse.servers.http.http_client import HTTPClient
 from runhouse.servers.http.http_utils import pickle_b64
 
 
@@ -38,7 +38,7 @@ class TestHTTPClient:
         )
 
     @pytest.mark.level("unit")
-    @patch("runhouse.servers.http.HTTPClient.request")
+    @patch("runhouse.servers.http.http_client.HTTPClient.request")
     @patch("pathlib.Path.mkdir")  # Mock the mkdir method
     @patch("builtins.open", new_callable=mock_open, read_data="certificate_content")
     def test_get_certificate(self, mock_file_open, mock_mkdir, mock_request):
@@ -265,7 +265,7 @@ class TestHTTPClient:
         assert f"key {missing_key} not found" in str(context)
 
     @pytest.mark.level("unit")
-    @patch("runhouse.servers.http.HTTPClient.request")
+    @patch("runhouse.servers.http.http_client.HTTPClient.request")
     def test_put_object(self, mock_request):
         key = "my_list"
         value = list(range(5, 50, 2)) + ["a string"]
@@ -286,7 +286,7 @@ class TestHTTPClient:
         assert actual_data == expected_data
 
     @pytest.mark.level("unit")
-    @patch("runhouse.servers.http.HTTPClient.request")
+    @patch("runhouse.servers.http.http_client.HTTPClient.request")
     def test_get_keys(self, mock_request):
         self.client.keys()
         mock_request.assert_called_with("keys", req_type="get")
@@ -298,7 +298,7 @@ class TestHTTPClient:
         mock_request.assert_called_with(f"keys/?env={test_env}", req_type="get")
 
     @pytest.mark.level("unit")
-    @patch("runhouse.servers.http.HTTPClient.request")
+    @patch("runhouse.servers.http.http_client.HTTPClient.request")
     def test_delete(self, mock_request):
         keys = ["key1", "key2"]
         expected_data = pickle_b64(keys)

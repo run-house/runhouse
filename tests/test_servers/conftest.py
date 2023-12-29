@@ -36,7 +36,7 @@ def get_ray_servlet(env_name):
         namespace="runhouse",
     )
 
-    servlet = HTTPServer.get_env_servlet(
+    servlet = rh.globals.obj_store.get_env_servlet(
         env_name=env_name,
         create=True,
         runtime_env=None,

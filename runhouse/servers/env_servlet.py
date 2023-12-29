@@ -33,9 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 class EnvServlet:
-    MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     LOGGING_WAIT_TIME = 1.0
-    SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
     LOGS_DIR = ".rh/logs"
     RH_LOGFILE_PATH = Path.home() / LOGS_DIR
 

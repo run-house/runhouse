@@ -11,6 +11,7 @@ from rich.console import Console
 import runhouse.rns.login
 
 from runhouse import __version__, cluster, configs
+from runhouse.servers.utils import SERVER_LOGFILE, _start_server_cmds
 
 # create an explicit Typer application
 app = typer.Typer(add_completion=False)
@@ -112,9 +113,7 @@ def _start_server(
     certs_address=None,
     use_local_telemetry=False,
 ):
-    from runhouse.resources.hardware.cluster import Cluster
-
-    cmds = Cluster._start_server_cmds(
+    cmds = _start_server_cmds(
         restart=restart,
         restart_ray=restart_ray,
         screen=screen,
@@ -134,8 +133,8 @@ def _start_server(
     try:
         # Open and read the lines of the server logfile so we only print the most recent lines after starting
         f = None
-        if screen and Path(Cluster.SERVER_LOGFILE).exists():
-            f = open(Cluster.SERVER_LOGFILE, "r")
+        if screen and Path(SERVER_LOGFILE).exists():
+            f = open(SERVER_LOGFILE, "r")
             f.readlines()  # Discard these, they're from the previous times the server was started
 
         # We do these one by one so it's more obvious where the error is if there is one
@@ -150,9 +149,9 @@ def _start_server(
         server_started_str = "Uvicorn running on"
         # Read and print the server logs until the
         if screen:
-            while not Path(Cluster.SERVER_LOGFILE).exists():
+            while not Path(SERVER_LOGFILE).exists():
                 time.sleep(1)
-            f = f or open(Cluster.SERVER_LOGFILE, "r")
+            f = f or open(SERVER_LOGFILE, "r")
             start_time = time.time()
             # Wait for input for 60 seconds max (for nginx to download and set up)
             while time.time() - start_time < 60:

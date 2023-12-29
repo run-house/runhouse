@@ -16,7 +16,7 @@ from runhouse.resources.packages import Package
 from runhouse.resources.resource import Resource
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.rns.utils.names import _generate_default_name
-from runhouse.servers.http import HTTPClient
+from runhouse.servers.http.http_client import HTTPClient
 
 logger = logging.getLogger(__name__)
 

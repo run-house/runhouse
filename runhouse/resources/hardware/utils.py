@@ -26,6 +26,8 @@ from sky.utils.command_runner import (
 
 from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
+from runhouse.servers.utils import LOCALHOST
+
 logger = logging.getLogger(__name__)
 
 # NOTE: Global
@@ -33,7 +35,6 @@ ssh_tunnel_cache = {}
 
 RESERVED_SYSTEM_NAMES = ["file", "s3", "gs", "azure", "here", "ssh", "sftp"]
 CLUSTER_CONFIG_PATH = "~/.rh/cluster_config.json"
-LOCALHOST = "127.0.0.1"
 
 # Get rid of the constant "Found credentials in shared credentials file: ~/.aws/credentials" message
 try:
@@ -573,3 +574,6 @@ def ssh_tunnel(
     # ssh_tunnel should certainlly be non-None at this point.
     cache_open_tunnel(address, ssh_port, ssh_tunnel)
     return ssh_tunnel
+
+
+CLI_RESTART_CMD = "runhouse restart"

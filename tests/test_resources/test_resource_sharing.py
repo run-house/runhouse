@@ -24,9 +24,9 @@ def call_func_with_curl(ip_address, func_name, token, *args):
 
 def update_cluster_auth_cache(cluster, token):
     """Refresh cache on cluster for current user to reflect any Den updates made in the test."""
-    refresh_cmd = f"update_cache_for_user('{token}')"
+    refresh_cmd = f"obj_store.add_user('{token}')"
     cluster.run_python(
-        ["from runhouse.servers.http.auth import update_cache_for_user", refresh_cmd]
+        ["from runhouse.globals import obj_store", refresh_cmd]
     )
 
 

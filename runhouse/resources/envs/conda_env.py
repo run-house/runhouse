@@ -5,8 +5,6 @@ from pathlib import Path
 
 from typing import Dict, List, Optional, Union
 
-from runhouse.globals import obj_store
-
 from runhouse.resources.packages import Package
 
 from .env import Env
@@ -114,6 +112,9 @@ class CondaEnv(Env):
         # Remove the name because auto-generated names will be different, but the installed components are the same
         env_config.pop("name")
         install_hash = hash(str(env_config))
+
+        from runhouse.globals import obj_store
+
         # Check the existing hash
         if local_env_exists and install_hash in obj_store.installed_envs and not force:
             logger.info("Env already installed, skipping")

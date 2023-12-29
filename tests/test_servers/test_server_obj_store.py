@@ -1,6 +1,6 @@
 import pytest
 
-from runhouse.servers.http.auth import hash_token, update_cache_for_user
+from runhouse.servers.http.auth import hash_token
 
 from tests.test_servers.conftest import BASE_ENV_ACTOR_NAME, CACHE_ENV_ACTOR_NAME
 from tests.utils import test_account
@@ -203,7 +203,7 @@ class TestAuthCacheObjStore:
             hashed_token = hash_token(token)
 
             # Add test account resources to the local cache
-            update_cache_for_user(token)
+            obj_store.add_user(token)
             resources = obj_store.user_resources(hashed_token)
             assert resources
 

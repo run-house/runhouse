@@ -17,13 +17,13 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-from runhouse.globals import configs, env_servlets, rns_client
+from runhouse.globals import configs, rns_client
 from runhouse.resources.hardware.utils import _load_cluster_config, CLUSTER_CONFIG_PATH
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
+from runhouse.servers.env_servlet import EnvServlet
 from runhouse.servers.http.auth import (
     hash_token,
-    update_cache_for_user,
     verify_cluster_access,
 )
 from runhouse.servers.http.certs import TLSCertConfig
@@ -38,7 +38,6 @@ from runhouse.servers.http.http_utils import (
     ServerSettings,
 )
 from runhouse.servers.nginx.config import NginxConfig
-from runhouse.servers.servlet import EnvServlet
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +49,8 @@ def validate_cluster_access(func):
 
     @wraps(func)
     async def wrapper(*args, **kwargs):
+        from runhouse.globals import obj_store
+
         request: Request = kwargs.get("request")
         den_auth_enabled: bool = HTTPServer.get_den_auth()
         is_coro = inspect.iscoroutinefunction(func)
@@ -58,7 +59,7 @@ def validate_cluster_access(func):
         token = get_token_from_request(request)
 
         if func_call and token:
-            update_cache_for_user(token, refresh_cache=False)
+            obj_store.add_user(token, refresh_cache=False)
 
         if not den_auth_enabled or func_call:
             # If this is a func call, we'll handle the auth in the object store
@@ -103,7 +104,6 @@ def validate_cluster_access(func):
 
 
 class HTTPServer:
-    MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     LOGGING_WAIT_TIME = 1
     DEFAULT_SERVER_HOST = "0.0.0.0"
     DEFAULT_SERVER_PORT = 32300
@@ -177,14 +177,7 @@ class HTTPServer:
         except Exception as e:
             logger.error(f"Failed to collect cluster telemetry stats: {str(e)}")
 
-        base_env = self.get_env_servlet(
-            env_name="base",
-            create=True,
-            runtime_env=runtime_env,
-        )
-        env_servlets["base"] = base_env
         from runhouse.globals import obj_store
-
         obj_store.set_name("server")
 
         HTTPServer.register_activity()
@@ -260,32 +253,6 @@ class HTTPServer:
             )
 
     @staticmethod
-    def get_env_servlet(env_name, create=False, runtime_env=None):
-        if env_name in env_servlets.keys():
-            return env_servlets[env_name]
-
-        if create:
-            new_env = (
-                ray.remote(EnvServlet)
-                .options(
-                    name=env_name,
-                    get_if_exists=True,
-                    runtime_env=runtime_env,
-                    lifetime="detached",
-                    namespace="runhouse",
-                    max_concurrency=1000,
-                )
-                .remote(env_name=env_name)
-            )
-            env_servlets[env_name] = new_env
-            return new_env
-
-        else:
-            raise Exception(
-                f"Environment {env_name} does not exist. Please send it to the cluster first."
-            )
-
-    @staticmethod
     def call_servlet_method(servlet, method, args, block=True):
         if isinstance(servlet, ray.actor.ActorHandle):
             obj_ref = getattr(servlet, method).remote(*args)
@@ -307,9 +274,10 @@ class HTTPServer:
     ):
         HTTPServer.register_activity()
         try:
+            from runhouse.globals import obj_store
             if lookup_env_for_name:
-                env = env or HTTPServer.lookup_env_for_name(lookup_env_for_name)
-            servlet = HTTPServer.get_env_servlet(env or "base", create=create)
+                env = env or obj_store.get_env(lookup_env_for_name)
+            servlet = obj_store.get_env_servlet(env or "base", create=create)
             # If servlet is a RayActor, call with .remote
             return HTTPServer.call_servlet_method(servlet, method, args, block=block)
         except Exception as e:
@@ -320,22 +288,6 @@ class HTTPServer:
                 traceback=pickle_b64(traceback.format_exc()),
                 output_type=OutputType.EXCEPTION,
             )
-
-    @staticmethod
-    def lookup_env_for_name(name, check_rns=False):
-        from runhouse.globals import obj_store
-
-        env = obj_store.get_env(name)
-        if env:
-            return env
-
-        # Load the resource config from rns and see if it has an "env" field
-        if check_rns:
-            resource_config = rns_client.load_config(name)
-            if resource_config and "env" in resource_config:
-                return resource_config["env"]
-
-        return None
 
     @staticmethod
     @app.post("/settings")
@@ -353,7 +305,9 @@ class HTTPServer:
     @validate_cluster_access
     def put_resource(request: Request, message: Message):
         # if resource is env and not yet a servlet, construct env servlet
-        if message.env and message.env not in env_servlets.keys():
+        from runhouse.globals import obj_store
+
+        if message.env and message.env not in obj_store.list_envs():
             resource = b64_unpickle(message.data)[0]
             if resource["resource_type"] == "env":
                 runtime_env = (
@@ -362,13 +316,11 @@ class HTTPServer:
                     else {}
                 )
 
-                new_env = HTTPServer.get_env_servlet(
+                obj_store.get_env_servlet(
                     env_name=message.env,
                     create=True,
                     runtime_env=runtime_env,
                 )
-
-                env_servlets[message.env] = new_env
 
         return HTTPServer.call_in_env_servlet(
             "put_resource",
@@ -384,6 +336,8 @@ class HTTPServer:
     def call_module_method(
         request: Request, module, method=None, message: dict = Body(default=None)
     ):
+        from runhouse.globals import obj_store
+
         token = get_token_from_request(request)
         den_auth_enabled = HTTPServer.get_den_auth()
         token_hash = hash_token(token) if den_auth_enabled and token else None
@@ -397,7 +351,7 @@ class HTTPServer:
             message = message or (
                 Message(stream_logs=False, key=module) if not method else Message()
             )
-            env = message.env or HTTPServer.lookup_env_for_name(module)
+            env = message.env or obj_store.get_env(module)
             persist = message.run_async or message.remote or message.save or not method
             if method:
                 # TODO fix the way we generate runkeys, it's ugly
@@ -624,6 +578,8 @@ class HTTPServer:
     @app.get("/{module}/{method}")
     @validate_cluster_access
     def get_call(request: Request, module, method=None, serialization="json"):
+        from runhouse.globals import obj_store
+
         token = get_token_from_request(request)
         den_auth_enabled = HTTPServer.get_den_auth()
         token_hash = hash_token(token) if den_auth_enabled and token else None
@@ -634,7 +590,7 @@ class HTTPServer:
             kwargs.pop("serialization", None)
             method = None if method == "None" else method
             message = Message(stream_logs=True, data=kwargs)
-            env = HTTPServer.lookup_env_for_name(module)
+            env = obj_store.get_env(module)
             persist = message.run_async or message.remote or message.save or not method
             if method:
                 # TODO fix the way we generate runkeys, it's ugly

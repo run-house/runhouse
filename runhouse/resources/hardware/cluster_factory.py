@@ -5,8 +5,8 @@ from typing import Dict, List, Optional, Union
 
 from runhouse.resources.hardware.utils import (
     RESERVED_SYSTEM_NAMES,
-    ServerConnectionType,
-)
+    ServerConnectionType, )
+from ...servers.utils import DEFAULT_SERVER_PORT, DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT, LOCAL_HOSTS
 from runhouse.rns.utils.api import relative_ssh_path
 
 from .cluster import Cluster
@@ -112,11 +112,11 @@ def cluster(
 
     if server_port is None:
         if server_connection_type == ServerConnectionType.TLS:
-            server_port = Cluster.DEFAULT_HTTPS_PORT
+            server_port = DEFAULT_HTTPS_PORT
         elif server_connection_type == ServerConnectionType.NONE:
-            server_port = Cluster.DEFAULT_HTTP_PORT
+            server_port = DEFAULT_HTTP_PORT
         else:
-            server_port = Cluster.DEFAULT_SERVER_PORT
+            server_port = DEFAULT_SERVER_PORT
 
     if name in RESERVED_SYSTEM_NAMES:
         raise ValueError(
@@ -286,15 +286,15 @@ def ondemand_cluster(
 
     if server_port is None:
         if server_connection_type == ServerConnectionType.TLS:
-            server_port = Cluster.DEFAULT_HTTPS_PORT
+            server_port = DEFAULT_HTTPS_PORT
         elif server_connection_type == ServerConnectionType.NONE:
-            server_port = Cluster.DEFAULT_HTTP_PORT
+            server_port = DEFAULT_HTTP_PORT
         else:
-            server_port = Cluster.DEFAULT_SERVER_PORT
+            server_port = DEFAULT_SERVER_PORT
 
     if (
         server_connection_type in [ServerConnectionType.TLS, ServerConnectionType.NONE]
-        and server_host in Cluster.LOCAL_HOSTS
+        and server_host in LOCAL_HOSTS
     ):
         warnings.warn(
             f"Server connection type set to {server_connection_type}, with server host set to {server_host}. "
@@ -339,8 +339,8 @@ def ondemand_cluster(
             else:
                 warnings.warn(
                     f"No open ports specified. Make sure the relevant port is open. "
-                    f"HTTPS default: {Cluster.DEFAULT_HTTPS_PORT} and HTTP "
-                    f"default: {Cluster.DEFAULT_HTTP_PORT}."
+                    f"HTTPS default: {DEFAULT_HTTPS_PORT} and HTTP "
+                    f"default: {DEFAULT_HTTP_PORT}."
                 )
 
     if name:
@@ -524,7 +524,7 @@ def sagemaker_cluster(
         )
     server_connection_type = ServerConnectionType.AWS_SSM.value
 
-    if server_host and server_host not in Cluster.LOCAL_HOSTS:
+    if server_host and server_host not in LOCAL_HOSTS:
         raise ValueError(
             "SageMaker Cluster currently requires a server host of `localhost` or `127.0.0.1`"
         )

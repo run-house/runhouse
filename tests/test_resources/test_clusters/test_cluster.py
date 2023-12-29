@@ -3,7 +3,8 @@ import requests
 
 import runhouse as rh
 
-from runhouse.resources.hardware.utils import LOCALHOST, ssh_tunnel_cache
+from runhouse.resources.hardware.utils import ssh_tunnel_cache
+from runhouse.servers.utils import LOCALHOST
 
 import tests.test_resources.test_resource
 from tests.conftest import init_args

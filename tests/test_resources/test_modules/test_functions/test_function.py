@@ -10,7 +10,8 @@ import ray.exceptions
 import requests
 
 import runhouse as rh
-from runhouse.resources.hardware.utils import LOCALHOST, ServerConnectionType
+from runhouse.resources.hardware.utils import ServerConnectionType
+from runhouse.servers.utils import LOCALHOST
 
 from tests.utils import test_account
 
@@ -147,21 +148,27 @@ class TestFunction:
     @pytest.mark.skip("Does not work properly following Module refactor.")
     @pytest.mark.level("local")
     def test_maps(self, cluster):
-        pid_fn = rh.function(getpid, system=cluster)
+        pid_fn = rh.function(getpid).to(cluster)
+        mapped_pid_fn = rh.functionals.mapper(pid_fn, replicas=10)
         num_pids = [1] * 10
-        pids = pid_fn.map(num_pids)
+
+        # Here the mapper is calling each function replica locally because we haven't sent it to the cluster,
+        # though each function is still running remotely
+        pids = mapped_pid_fn.map(num_pids)
         assert len(set(pids)) > 1
         assert all(pid > 0 for pid in pids)
 
-        pids = pid_fn.repeat(num_repeats=10)
+        # Test sending the mapper to the cluster now, so both the mapper and the function replicas are running remotely
+        mapped_pid_fn.to(cluster)
+        pids = mapped_pid_fn.repeat(num_repeats=10)
         assert len(set(pids)) > 1
         assert all(pid > 0 for pid in pids)
 
-        pids = [pid_fn.enqueue() for _ in range(10)]
+        pids = [mapped_pid_fn() for _ in range(10)]
         assert len(pids) == 10
         assert all(pid > 0 for pid in pids)
 
-        re_fn = rh.function(summer, system=cluster)
+        re_fn = rh.functionals.mapper(summer, replicas=10).to(system=cluster)
         summands = list(zip(range(5), range(4, 9)))
         res = re_fn.starmap(summands)
         assert res == [4, 6, 8, 10, 12]
@@ -393,21 +400,13 @@ class TestFunction:
         # TODO convert into something like function.request_args() and/or function.curl_command()
         remote_sum = rh.function(summer).to(cluster).save("@/remote_function")
         ssh_creds = cluster.ssh_creds
-        addr = (
-            "http://" + LOCALHOST
-            if cluster.server_connection_type
-            in [ServerConnectionType.SSH, ServerConnectionType.AWS_SSM]
-            else "https://" + cluster.address
-            if cluster.server_connection_type == ServerConnectionType.TLS
-            else "http://" + cluster.address
-        )
         auth = (
             (ssh_creds.get("ssh_user"), ssh_creds.get("password"))
             if ssh_creds.get("password")
             else None
         )
         sum1 = requests.post(
-            url=f"{addr}:{cluster.client_port}/call/{remote_sum.name}/call",
+            url=f"{cluster.endpoint(external=False)}/call/{remote_sum.name}/call",
             json={"args": [1, 2]},
             headers=rh.configs.request_headers if cluster.den_auth else None,
             auth=auth,
@@ -415,7 +414,7 @@ class TestFunction:
         ).json()
         assert int(sum1) == 3
         sum2 = requests.post(
-            url=f"{addr}:{cluster.client_port}/call/{remote_sum.name}/call",
+            url=f"{cluster.endpoint(external=False)}/call/{remote_sum.name}/call",
             json={"kwargs": {"a": 1, "b": 2}},
             headers=rh.configs.request_headers if cluster.den_auth else None,
             auth=auth,
