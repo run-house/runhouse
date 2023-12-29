@@ -109,6 +109,9 @@ class ObjStore:
 
         return True
 
+    def clear_auth_cache(self, token_hash: str = None):
+        ray.get(self._auth_cache.clear_cache.remote(token_hash))
+
     def keys(self, return_envs=False):
         # Return keys across the cluster, not only in this process
         return self.call_kv_method(
@@ -141,6 +144,14 @@ class ObjStore:
         self.put_env(key, self.servlet_name)
 
     def rename(self, old_key, new_key, default=None):
+        # We also need to rename the resource itself
+        obj = self.get(old_key, default=default)
+        if obj is not None and hasattr(obj, "rns_address"):
+            # Note - we set the obj.name here so the new_key is correctly turned into an rns_address, whether its
+            # a full address or just a name. Then, the new_key is set to just the name so its store properly in the
+            # kv store.
+            obj.name = new_key  # new_key can be an rns_address! e.g. if called by Module.rename
+            new_key = obj.name  # new_key is now just the name
         # By passing default, we don't throw an error if the key is not found
         self.call_kv_method(self._kv_store, "rename_key", old_key, new_key, default)
         self.call_kv_method(self._env_for_key, "rename_key", old_key, new_key, default)
