@@ -26,9 +26,10 @@ from sky.utils.command_runner import (
 
 from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
-from runhouse.globals import ssh_tunnel_cache
-
 logger = logging.getLogger(__name__)
+
+# NOTE: Global
+ssh_tunnel_cache = {}
 
 RESERVED_SYSTEM_NAMES = ["file", "s3", "gs", "azure", "here", "ssh", "sftp"]
 CLUSTER_CONFIG_PATH = "~/.rh/cluster_config.json"

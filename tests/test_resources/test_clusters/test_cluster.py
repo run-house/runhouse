@@ -3,7 +3,7 @@ import requests
 
 import runhouse as rh
 
-from runhouse.resources.hardware.utils import LOCALHOST
+from runhouse.resources.hardware.utils import LOCALHOST, ssh_tunnel_cache
 
 import tests.test_resources.test_resource
 from tests.conftest import init_args
@@ -90,14 +90,14 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     def test_cluster_recreate(self, cluster):
-        num_open_tunnels = len(rh.globals.ssh_tunnel_cache)
+        num_open_tunnels = len(ssh_tunnel_cache)
 
         # Create a new cluster object for the same remote cluster
         cluster.save()
         new_cluster = rh.cluster(cluster.name)
         new_cluster.run(["echo hello"])
         # Check that the same underlying ssh connection was used
-        assert len(rh.globals.ssh_tunnel_cache) == num_open_tunnels
+        assert len(ssh_tunnel_cache) == num_open_tunnels
 
     @pytest.mark.level("local")
     def test_cluster_endpoint(self, cluster):

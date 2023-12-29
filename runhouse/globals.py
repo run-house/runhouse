@@ -15,8 +15,6 @@ logger = logging.getLogger(__name__)
 
 configs = Defaults()
 
-ssh_tunnel_cache = {}
-
 rns_client = RNSClient(configs=configs)
 
 # Note: this initalizes a dummy global object. The obj_store must
