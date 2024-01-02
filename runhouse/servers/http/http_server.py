@@ -17,8 +17,9 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
+from runhouse.constants import CLUSTER_CONFIG_PATH
 from runhouse.globals import configs, env_servlets, rns_client
-from runhouse.resources.hardware.utils import _load_cluster_config, CLUSTER_CONFIG_PATH
+from runhouse.resources.hardware.utils import _load_cluster_config
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.auth import (
