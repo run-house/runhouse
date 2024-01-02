@@ -17,17 +17,13 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-from runhouse.constants import CLUSTER_CONFIG_PATH
-from runhouse.globals import configs, env_servlets, rns_client
+from runhouse.constants import CLUSTER_CONFIG_PATH, RH_LOGFILE_PATH
+from runhouse.globals import configs, env_servlets, obj_store, rns_client
 from runhouse.resources.hardware.utils import _load_cluster_config
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.env_servlet import EnvServlet
-from runhouse.servers.http.auth import (
-    hash_token,
-    update_cache_for_user,
-    verify_cluster_access,
-)
+from runhouse.servers.http.auth import hash_token, verify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
     b64_unpickle,
@@ -59,7 +55,7 @@ def validate_cluster_access(func):
         token = get_token_from_request(request)
 
         if func_call and token:
-            update_cache_for_user(token, refresh_cache=False)
+            obj_store.add_user_to_auth_cache(token, refresh_cache=False)
 
         if not den_auth_enabled or func_call:
             # If this is a func call, we'll handle the auth in the object store
@@ -104,7 +100,6 @@ def validate_cluster_access(func):
 
 
 class HTTPServer:
-    MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     LOGGING_WAIT_TIME = 1
     DEFAULT_SERVER_HOST = "0.0.0.0"
     DEFAULT_SERVER_PORT = 32300
@@ -183,10 +178,10 @@ class HTTPServer:
             create=True,
             runtime_env=runtime_env,
         )
-        env_servlets["base"] = base_env
-        from runhouse.globals import obj_store
 
-        obj_store.set_name("server")
+        env_servlets["base"] = base_env
+
+        obj_store.initialize("server")
 
         HTTPServer.register_activity()
 
@@ -326,7 +321,7 @@ class HTTPServer:
     def lookup_env_for_name(name, check_rns=False):
         from runhouse.globals import obj_store
 
-        env = obj_store.get_env(name)
+        env = obj_store.get_env_servlet_name_for_key(name)
         if env:
             return env
 
@@ -460,7 +455,7 @@ class HTTPServer:
     def _get_logfiles(log_key, log_type=None):
         if not log_key:
             return None
-        key_logs_path = Path(EnvServlet.RH_LOGFILE_PATH) / log_key
+        key_logs_path = Path(RH_LOGFILE_PATH) / log_key
         if key_logs_path.exists():
             # Logs are like: `.rh/logs/key/key.[out|err]`
             glob_pattern = (
