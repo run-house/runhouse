@@ -130,7 +130,7 @@ class TestHTTPServerDocker:
                 "remote": False,
                 "run_async": False,
             },
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(remote_func.rns_address),
         )
         assert response.status_code == 200
 

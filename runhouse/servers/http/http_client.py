@@ -227,7 +227,7 @@ class HTTPClient:
                 "run_async": run_async,
             },
             stream=not run_async,
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(base_dir),
             verify=self.verify,
         )
         if res.status_code != 200:
