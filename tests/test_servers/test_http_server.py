@@ -131,7 +131,7 @@ class TestHTTPServerDocker:
                 "stream_logs": True,
                 "serialization": "pickle",
             },
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(remote_func.rns_address),
         )
         assert response.status_code == 200
 
