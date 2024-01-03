@@ -155,6 +155,28 @@ To confirm the installation succeeded, run ``aws --version`` in the command line
 
     aws-cli/2.13.8 Python/3.11.4 Darwin/21.3.0 source/arm64 prompt/off
 
+If you are still seeing the V1 version, first try uninstalling V1 in case it is still present
+(e.g. ``pip uninstall awscli``).
+
+You may also need to add the V2 executable to the PATH of your python environment. For example, if you are using conda,
+it’s possible the conda env will try using its own version of the AWS CLI located at a different
+path (e.g. ``/opt/homebrew/anaconda3/bin/aws``), while the system wide installation of AWS CLI is located somewhere
+else (e.g. ``/opt/homebrew/bin/aws``).
+
+To find the global AWS CLI path:
+
+.. code-block:: cli
+
+    which aws
+
+To ensure that the global AWS CLI version is used within your python environment, you’ll need to adjust the
+PATH environment variable so that it prioritizes the global AWS CLI path.
+
+.. code-block:: cli
+
+    export PATH=/opt/homebrew/bin:$PATH
+
+
 SSM Setup
 ^^^^^^^^^
 The AWS Systems Manager service is used to create SSH tunnels with the SageMaker cluster.
