@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 
 import runhouse as rh
+from runhouse.constants import CLUSTER_CONFIG_PATH
 
 from runhouse.globals import rns_client
-from runhouse.resources.hardware.utils import CLUSTER_CONFIG_PATH
 from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 
 from tests.utils import test_account

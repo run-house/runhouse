@@ -3,10 +3,8 @@ import warnings
 
 from typing import Dict, List, Optional, Union
 
-from runhouse.resources.hardware.utils import (
-    RESERVED_SYSTEM_NAMES,
-    ServerConnectionType,
-)
+from runhouse.constants import RESERVED_SYSTEM_NAMES
+from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import relative_ssh_path
 
 from .cluster import Cluster

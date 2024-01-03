@@ -22,12 +22,11 @@ import requests.exceptions
 import sshtunnel
 from sshtunnel import SSHTunnelForwarder
 
+from runhouse.constants import CLUSTER_CONFIG_PATH, LOCALHOST
 from runhouse.globals import obj_store, rns_client
 from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware.utils import (
     _current_cluster,
-    CLUSTER_CONFIG_PATH,
-    LOCALHOST,
     ServerConnectionType,
     SkySSHRunner,
     ssh_tunnel,
