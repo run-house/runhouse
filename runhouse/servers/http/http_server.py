@@ -33,6 +33,8 @@ from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
     CallParams,
     DeleteObjectParams,
+    auth_headers_from_request,
+    b64_unpickle,
     get_token_from_request,
     handle_exception_response,
     OutputType,
@@ -67,6 +69,10 @@ def validate_cluster_access(func):
 
         func_call: bool = func.__name__ in ["post_call", "get_call"]
         token = get_token_from_request(request)
+
+        _validate_request_token(
+            token, bearer_token=auth_headers_from_request(request)
+        )
 
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
         token_hash = hash_token(token) if den_auth_enabled and token else None
@@ -108,6 +114,29 @@ def validate_cluster_access(func):
         return res
 
     return wrapper
+
+
+def _validate_request_token(token: str, bearer_token: str):
+    """Checks whether the cluster token is valid if provided with one. If a regular Runhouse token is provided,
+    it will be validated by the object store."""
+    if token is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No token found in request auth headers. "
+            "Expected in format: {'Authorization': 'Bearer <token>'}",
+        )
+
+    # If a hashed cluster token is provided, validate it
+    if "+" in token:
+        resp = requests.post(
+            f"{rns_client.api_server_url}/auth/cluster",
+            headers={"Authorization": bearer_token},
+        )
+
+        if resp.status_code != 200:
+            raise HTTPException(
+                status_code=resp.status_code, detail=load_resp_content(resp)
+            )
 
 
 class HTTPServer:

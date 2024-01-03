@@ -64,6 +64,7 @@ class HTTPClient:
         self,
         host: str,
         port: int,
+        resource_address: str,
         auth=None,
         cert_path=None,
         use_https=False,
@@ -74,6 +75,7 @@ class HTTPClient:
         self.auth = auth
         self.cert_path = cert_path
         self.use_https = use_https
+        self.resource_address = resource_address
         self.system = system
 
         self.client = requests.Session()
@@ -119,7 +121,7 @@ class HTTPClient:
         return False
 
     @staticmethod
-    def from_endpoint(endpoint: str, auth=None, cert_path=None):
+    def from_endpoint(endpoint: str, resource_address: str, auth=None, cert_path=None):
         protocol, uri = endpoint.split("://")
         if protocol not in ["http", "https"]:
             raise ValueError(f"Invalid protocol: {protocol}")
@@ -131,7 +133,12 @@ class HTTPClient:
             host, _ = uri.split("/", 1)
         use_https = protocol == "https"
         client = HTTPClient(
-            host, int(port) if port else None, auth, cert_path, use_https=False
+            host,
+            port=int(port) if port else None,
+            auth=auth,
+            cert_path=cert_path,
+            resource_address=resource_address,
+            use_https=False
         )
         client.use_https = use_https
         return client
@@ -144,6 +151,7 @@ class HTTPClient:
         self,
         endpoint,
         req_type="post",
+        resource_address=None,
         data=None,
         env=None,
         stream_logs=True,
@@ -153,6 +161,7 @@ class HTTPClient:
         timeout=None,
         headers: Union[Dict, None] = None,
     ):
+        headers = rns_client.request_headers(resource_address, headers)
         json_dict = {
             "data": data,
             "env": env,
@@ -268,6 +277,7 @@ class HTTPClient:
         method_name: str,
         data: Any = None,
         serialization: Optional[str] = None,
+        resource_address=None,
         run_name: Optional[str] = None,
         stream_logs: bool = True,
         remote: bool = False,
@@ -280,6 +290,7 @@ class HTTPClient:
             method_name,
             data=data,
             serialization=serialization,
+            resource_address=resource_address or self.resource_address,
             run_name=run_name,
             stream_logs=stream_logs,
             remote=remote,
@@ -294,6 +305,7 @@ class HTTPClient:
         method_name: str,
         data: Any = None,
         serialization: Optional[str] = None,
+        resource_address=None,
         run_name: Optional[str] = None,
         stream_logs: bool = True,
         remote: bool = False,
@@ -323,7 +335,7 @@ class HTTPClient:
                 run_async=run_async,
             ).dict(),
             stream=not run_async,
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(resource_address),
             auth=self.auth,
             verify=self.verify,
         )
@@ -400,9 +412,12 @@ class HTTPClient:
         self, resource, env_name: Optional[str] = None, state=None, dryrun=False
     ):
         config = resource.config_for_rns
+        # base dir for this particular resource on the cluster
+        resource_address = rns_client.base_folder(config.get("name"))
         return self.request_json(
             "resource",
             req_type="post",
+            resource_address=resource_address,
             # TODO wire up dryrun properly
             json_dict=PutResourceParams(
                 serialized_data=serialize_data([config, state, dryrun], "pickle"),
@@ -459,7 +474,7 @@ class HTTPClient:
         res = retry_with_exponential_backoff(session.post)(
             self._formatted_url("settings"),
             json=new_settings,
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(self.resource_address),
             auth=self.auth,
             verify=self.verify,
         )
