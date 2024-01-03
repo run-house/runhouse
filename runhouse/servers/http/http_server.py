@@ -330,7 +330,6 @@ class HTTPServer:
                 precision="ms",  # Higher precision because we see collisions within the same second
                 sep="@",
             )
-
             # Call async so we can loop to collect logs until the result is ready
 
             fut = asyncio.create_task(
