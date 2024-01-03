@@ -59,6 +59,7 @@ class Defaults:
 
     @property
     def request_headers(self):
+        """Base request headers used to make requests to Runhouse Den."""
         return {"Authorization": f"Bearer {self.get('token')}"}
 
     def upload_defaults(

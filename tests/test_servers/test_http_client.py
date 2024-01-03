@@ -145,7 +145,7 @@ class TestHTTPClient:
             "remote": False,
             "run_async": False,
         }
-        expected_headers = rns_client.request_headers
+        expected_headers = rns_client.request_headers()
         expected_verify = self.client.verify
 
         mock_post.assert_called_once_with(
@@ -189,7 +189,7 @@ class TestHTTPClient:
             "run_async": False,
         }
         expected_url = f"http://localhost:32300/{module_name}/{method_name}"
-        expected_headers = rns_client.request_headers
+        expected_headers = rns_client.request_headers()
         expected_verify = False
 
         mock_post.assert_called_with(

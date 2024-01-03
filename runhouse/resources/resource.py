@@ -305,7 +305,7 @@ class Resource:
         base_uri = f"{rns_client.api_server_url}/resource/history/{resource_uri}"
         uri = f"{base_uri}?num_entries={num_entries}" if num_entries else base_uri
 
-        resp = requests.get(uri, headers=rns_client.request_headers)
+        resp = requests.get(uri, headers=rns_client.request_headers())
         if resp.status_code != 200:
             logger.warning(f"No resource history found: {load_resp_content(resp)}")
             return []
@@ -458,7 +458,7 @@ class Resource:
         resp = requests.put(
             f"{rns_client.api_server_url}/resource/{request_uri}/users/access",
             json={"users": users, "access_level": ResourceAccess.DENIED},
-            headers=headers or rns_client.request_headers,
+            headers=headers or rns_client.request_headers(),
         )
 
         if resp.status_code != 200:

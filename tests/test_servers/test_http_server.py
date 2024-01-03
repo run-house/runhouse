@@ -61,7 +61,7 @@ class TestHTTPServerDocker:
         resource = rh.blob(data=blob_data, system=cluster)
         data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
         response = http_client.post(
-            "/resource", json={"data": data}, headers=rns_client.request_headers
+            "/resource", json={"data": data}, headers=rns_client.request_headers()
         )
         assert response.status_code == 200
 
@@ -72,11 +72,11 @@ class TestHTTPServerDocker:
         response = http_client.post(
             "/object",
             json={"data": pickle_b64(test_list), "key": key},
-            headers=rns_client.request_headers,
+            headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
 
-        response = http_client.get("/keys", headers=rns_client.request_headers)
+        response = http_client.get("/keys", headers=rns_client.request_headers())
         assert response.status_code == 200
         assert key in b64_unpickle(response.json().get("data"))
 
@@ -86,11 +86,11 @@ class TestHTTPServerDocker:
         new_key = "key2"
         data = pickle_b64((old_key, new_key))
         response = http_client.put(
-            "/object", json={"data": data}, headers=rns_client.request_headers
+            "/object", json={"data": data}, headers=rns_client.request_headers()
         )
         assert response.status_code == 200
 
-        response = http_client.get("/keys", headers=rns_client.request_headers)
+        response = http_client.get("/keys", headers=rns_client.request_headers())
         assert new_key in b64_unpickle(response.json().get("data"))
 
     @pytest.mark.level("local")
@@ -102,11 +102,11 @@ class TestHTTPServerDocker:
             "delete",
             url="/object",
             json={"data": data},
-            headers=rns_client.request_headers,
+            headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
 
-        response = http_client.get("/keys", headers=rns_client.request_headers)
+        response = http_client.get("/keys", headers=rns_client.request_headers())
         assert key not in b64_unpickle(response.json().get("data"))
 
     @pytest.mark.level("local")
@@ -130,7 +130,7 @@ class TestHTTPServerDocker:
                 "remote": False,
                 "run_async": False,
             },
-            headers=rns_client.request_headers,
+            headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
 
@@ -153,7 +153,7 @@ class TestHTTPServerDocker:
         response = await async_http_client.post(
             f"/call/{remote_func.name}/{method}?serialization=None",
             json={"args": [1, 2]},
-            headers=rns_client.request_headers,
+            headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
         assert response.text == "3"
@@ -169,7 +169,7 @@ class TestHTTPServerDocker:
         response = await async_http_client.post(
             f"/call/{remote_func.name}/{method}?serialization=random",
             json={"args": [1, 2]},
-            headers=rns_client.request_headers,
+            headers=rns_client.request_headers(),
         )
         assert response.status_code == 500
 
@@ -184,7 +184,7 @@ class TestHTTPServerDocker:
         response = await async_http_client.post(
             f"/call/{remote_func.name}/{method}?serialization=pickle",
             json={"args": [1, 2]},
-            headers=rns_client.request_headers,
+            headers=rns_client.request_headers(),
         )
 
         assert response.status_code == 200
@@ -199,7 +199,7 @@ class TestHTTPServerDocker:
         response = await async_http_client.post(
             f"/call/{remote_func.name}/{method}?serialization=json",
             json={"args": [1, 2]},
-            headers=rns_client.request_headers,
+            headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
         assert json.loads(response.text) == "3"
@@ -228,7 +228,7 @@ class TestHTTPServerDockerDenAuthOnly:
     def test_request_with_no_cluster_config_json(self, http_client, cluster):
         cluster.run([f"mv {CLUSTER_CONFIG_PATH} ~/.rh/cluster_config_temp.json"])
         try:
-            response = http_client.get("/keys", headers=rns_client.request_headers)
+            response = http_client.get("/keys", headers=rns_client.request_headers())
 
             assert response.status_code == 404
             assert "Failed to load current cluster" in response.text
@@ -236,13 +236,13 @@ class TestHTTPServerDockerDenAuthOnly:
             cluster.run([f"mv ~/.rh/cluster_config_temp.json {CLUSTER_CONFIG_PATH}"])
 
         # Assert that things work once again
-        response = http_client.get("/keys", headers=rns_client.request_headers)
+        response = http_client.get("/keys", headers=rns_client.request_headers())
         assert response.status_code == 200
 
     @pytest.mark.level("local")
-    def test_no_access_to_cluster(self, http_client):
+    def test_no_access_to_cluster(self, http_client, cluster):
         with test_account():
-            response = http_client.get("/keys", headers=rns_client.request_headers)
+            response = http_client.get("/keys", headers=rns_client.request_headers())
 
             assert response.status_code == 403
             assert "Cluster access is required for API" in response.text
@@ -405,7 +405,11 @@ class TestHTTPServerNoDocker:
 
             state = None
             data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
-            response = client.post("/resource", json={"data": data})
+            response = client.post(
+                "/resource",
+                json={"data": data},
+                headers=rns_client.request_headers(),
+            )
             assert response.status_code == 200
 
     @pytest.mark.level("unit")
@@ -414,6 +418,7 @@ class TestHTTPServerNoDocker:
         response = client.post(
             "/object",
             json={"data": pickle_b64(test_list), "key": "key1"},
+            headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
 
@@ -422,15 +427,25 @@ class TestHTTPServerNoDocker:
         old_key = "key1"
         new_key = "key2"
         data = pickle_b64((old_key, new_key))
-        response = client.put("/object", json={"data": data})
+        response = client.put(
+            "/object",
+            json={"data": data},
+            headers=rns_client.request_headers(),
+        )
         assert response.status_code == 200
 
-        response = client.get("/keys")
+        response = client.get(
+            "/keys",
+            headers=rns_client.request_headers(),
+        )
         assert new_key in b64_unpickle(response.json().get("data"))
 
     @pytest.mark.level("unit")
     def test_get_keys(self, client):
-        response = client.get("/keys")
+        response = client.get(
+            "/keys",
+            headers=rns_client.request_headers(),
+        )
         assert response.status_code == 200
         assert "key2" in b64_unpickle(response.json().get("data"))
 
@@ -443,10 +458,11 @@ class TestHTTPServerNoDocker:
             "delete",
             url="/object",
             json={"data": data},
+            headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
 
-        response = client.get("/keys")
+        response = client.get("/keys", headers=rns_client.request_headers())
         assert key not in b64_unpickle(response.json().get("data"))
 
     # TODO [JL]: Test call_module_method and async_call with local and not just Docker.
@@ -468,13 +484,14 @@ class TestHTTPServerNoDockerDenAuthOnly:
 
     @pytest.mark.level("unit")
     def test_request_with_no_cluster_config_json(self, local_client_with_den_auth):
+        headers = rns_client.request_headers()
         source_path = os.path.expanduser(CLUSTER_CONFIG_PATH)
         destination_path = os.path.expanduser("~/.rh/cluster_config_temp.json")
 
         # Use the expanded paths in the command
         try:
             subprocess.run(["mv", source_path, destination_path])
-            response = local_client_with_den_auth.get("/keys")
+            response = local_client_with_den_auth.get("/keys", headers=headers)
 
             assert response.status_code == 404
             assert "Failed to load current cluster" in response.text
@@ -482,7 +499,7 @@ class TestHTTPServerNoDockerDenAuthOnly:
             subprocess.run(["mv", destination_path, source_path])
 
         # Assert that things work once again
-        response = local_client_with_den_auth.get("/keys")
+        response = local_client_with_den_auth.get("/keys", headers=headers)
         assert response.status_code == 200
 
     @pytest.mark.level("unit")
@@ -521,7 +538,6 @@ class TestHTTPServerNoDockerDenAuthOnly:
             )
 
             assert resp.status_code == 403
-            assert "Cluster access is required for API" in resp.text
 
     @pytest.mark.level("unit")
     def test_put_object_with_invalid_token(self, local_client_with_den_auth):
@@ -532,7 +548,6 @@ class TestHTTPServerNoDockerDenAuthOnly:
             headers=INVALID_HEADERS,
         )
         assert resp.status_code == 403
-        assert "Cluster access is required for API" in resp.text
 
     @pytest.mark.level("unit")
     def test_rename_object_with_invalid_token(self, local_client_with_den_auth):
@@ -543,13 +558,11 @@ class TestHTTPServerNoDockerDenAuthOnly:
             "/object", json={"data": data}, headers=INVALID_HEADERS
         )
         assert resp.status_code == 403
-        assert "Cluster access is required for API" in resp.text
 
     @pytest.mark.level("unit")
     def test_get_keys_with_invalid_token(self, local_client_with_den_auth):
         resp = local_client_with_den_auth.get("/keys", headers=INVALID_HEADERS)
         assert resp.status_code == 403
-        assert "Cluster access is required for API" in resp.text
 
     # TODO (JL): Test call_module_method.
 

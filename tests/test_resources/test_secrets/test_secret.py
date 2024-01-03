@@ -166,7 +166,7 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
     def test_sharing_public_secret(self, test_secret):
         # Create & share
         with test_account():
-            test_headers = rns_client.request_headers
+            test_headers = rns_client.request_headers()
             vault_secret = rh.secret(name=test_secret.name, values=test_secret.values)
             vault_secret.save(headers=test_headers)
 
@@ -214,10 +214,10 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
         requests.put(
             f"{rns_client.api_server_url}/{rh.Secret.USER_ENDPOINT}/{name}",
             data=json.dumps(values),
-            headers=rns_client.request_headers,
+            headers=rns_client.request_headers(),
         )
 
-        _convert_secrets_resource([name], headers=rns_client.request_headers)
+        _convert_secrets_resource([name], headers=rns_client.request_headers())
         assert rh.secret(name=name)
 
         rh.secret(name=name).delete()
