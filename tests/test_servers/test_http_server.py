@@ -64,12 +64,12 @@ class TestHTTPServerDocker:
         response = http_client.post(
             "/resource",
             json=PutResourceParams(serialized_data=data, serialization="pickle").dict(),
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(cluster.rns_address),
         )
         assert response.status_code == 200
 
     @pytest.mark.level("local")
-    def test_put_object_and_get_keys(self, http_client):
+    def test_put_object_and_get_keys(self, http_client, cluster):
         key = "key1"
         test_list = list(range(5, 50, 2)) + ["a string"]
         response = http_client.post(
@@ -79,40 +79,42 @@ class TestHTTPServerDocker:
                 serialized_data=serialize_data(test_list, "pickle"),
                 serialization="pickle",
             ).dict(),
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(cluster.rns_address),
         )
         assert response.status_code == 200
 
-        response = http_client.get("/keys", headers=rns_client.request_headers())
+        response = http_client.get(
+            "/keys", headers=rns_client.request_headers(cluster.rns_address)
+        )
         assert response.status_code == 200
         assert key in response.json().get("data")
 
     @pytest.mark.level("local")
-    def test_rename_object(self, http_client):
+    def test_rename_object(self, http_client, cluster):
         old_key = "key1"
         new_key = "key2"
         response = http_client.post(
             "/rename",
             json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(cluster.rns_address),
         )
         assert response.status_code == 200
 
-        response = http_client.get("/keys", headers=rns_client.request_headers())
+        response = http_client.get("/keys", headers=rns_client.request_headers(cluster.rns_address))
         assert new_key in response.json().get("data")
 
     @pytest.mark.level("local")
-    def test_delete_obj(self, http_client):
+    def test_delete_obj(self, http_client, cluster):
         # https://www.python-httpx.org/compatibility/#request-body-on-http-methods
         key = "key2"
         response = http_client.post(
             url="/delete_object",
             json=DeleteObjectParams(keys=[key]).dict(),
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(cluster.rns_address),
         )
         assert response.status_code == 200
 
-        response = http_client.get("/keys", headers=rns_client.request_headers())
+        response = http_client.get("/keys", headers=rns_client.request_headers(cluster.rns_address))
         assert key not in response.json().get("data")
 
     # TODO test get_call, refactor into proper fixtures

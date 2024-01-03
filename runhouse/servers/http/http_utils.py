@@ -172,8 +172,12 @@ def handle_exception_response(
 
 
 def get_token_from_request(request):
-    auth_headers = request.headers.get("Authorization", "")
+    auth_headers = auth_headers_from_request(request)
     return auth_headers.split("Bearer ")[-1] if auth_headers else None
+
+
+def auth_headers_from_request(request):
+    return request.headers.get("Authorization", "")
 
 
 def load_current_cluster_rns_address():
