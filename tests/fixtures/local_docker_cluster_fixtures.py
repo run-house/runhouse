@@ -668,7 +668,7 @@ def shared_cluster(local_docker_cluster_pk_ssh_test_account_logged_in):
     with test_account():
         # Share the cluster with the test account
         local_docker_cluster_pk_ssh_test_account_logged_in.share(
-            username_to_share, access_level="read"
+            username_to_share, notify_users=False, access_level="read"
         )
 
     return local_docker_cluster_pk_ssh_test_account_logged_in
