@@ -133,23 +133,17 @@ class EnvServlet:
 
             module = obj_store.get(module_name, default=KeyError)
             if den_auth:
-                if not isinstance(module, Resource):
-                    raise ValueError(
-                        f"Module {module_name} is not a Resource and therefore cannot be authenticated"
-                    )
-                if module.visibility not in [
+                if not isinstance(module, Resource) or module.visibility not in [
                     ResourceVisibility.UNLISTED,
                     ResourceVisibility.PUBLIC,
                     "unlisted",
                     "public",
                 ]:
+                    # Setting to None in the case of non-resource or no rns_address will force auth to only
+                    # succeed if the user has WRITE or READ access to the cluster
                     resource_uri = (
                         module.rns_address if hasattr(module, "rns_address") else None
                     )
-                    if not resource_uri:
-                        raise ValueError(
-                            f"Module {module_name} does not have an RNS address and therefore cannot be authenticated"
-                        )
                     if not obj_store.has_resource_access(token_hash, resource_uri):
                         raise PermissionError(
                             f"No read or write access to requested resource {resource_uri}"
@@ -621,13 +615,19 @@ class EnvServlet:
         self.register_activity()
         module = obj_store.get(module_name, default=KeyError)
         if den_auth:
-            resource_uri = (
-                module.rns_address if hasattr(module, "rns_address") else None
-            )
-            if not obj_store.has_resource_access(token_hash, resource_uri):
-                raise PermissionError(
-                    f"No read or write access to requested resource {resource_uri}"
+            if not isinstance(module, Resource) or module.visibility not in [
+                ResourceVisibility.UNLISTED,
+                ResourceVisibility.PUBLIC,
+                "unlisted",
+                "public",
+            ]:
+                resource_uri = (
+                    module.rns_address if hasattr(module, "rns_address") else None
                 )
+                if not obj_store.has_resource_access(token_hash, resource_uri):
+                    raise PermissionError(
+                        f"No read or write access to requested resource {resource_uri}"
+                    )
 
         if method:
             fn = getattr(module, method)

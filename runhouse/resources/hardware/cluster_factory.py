@@ -3,10 +3,8 @@ import warnings
 
 from typing import Dict, List, Optional, Union
 
-from runhouse.resources.hardware.utils import (
-    RESERVED_SYSTEM_NAMES,
-    ServerConnectionType,
-)
+from runhouse.constants import RESERVED_SYSTEM_NAMES
+from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import relative_ssh_path
 
 from .cluster import Cluster
@@ -510,7 +508,7 @@ def sagemaker_cluster(
     ):
         raise RuntimeError(
             "SageMaker SDK requires AWS CLI v2. You may also need to run `pip uninstall awscli` to ensure the right "
-            "version is being used. For more info: https://www.run.house/docs/api/python/cluster#id2"
+            "version is being used. For more info: https://www.run.house/docs/api/python/cluster#id9"
         )
 
     ssh_key_path = relative_ssh_path(ssh_key_path) if ssh_key_path else None

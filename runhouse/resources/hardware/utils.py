@@ -26,13 +26,11 @@ from sky.utils.command_runner import (
 
 from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
+from runhouse.constants import CLUSTER_CONFIG_PATH, LOCALHOST, RESERVED_SYSTEM_NAMES
 from runhouse.globals import ssh_tunnel_cache
 
 logger = logging.getLogger(__name__)
 
-RESERVED_SYSTEM_NAMES = ["file", "s3", "gs", "azure", "here", "ssh", "sftp"]
-CLUSTER_CONFIG_PATH = "~/.rh/cluster_config.json"
-LOCALHOST = "127.0.0.1"
 
 # Get rid of the constant "Found credentials in shared credentials file: ~/.aws/credentials" message
 try:

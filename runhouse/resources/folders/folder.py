@@ -12,13 +12,9 @@ import fsspec
 
 import sshfs
 
+from runhouse.constants import RESERVED_SYSTEM_NAMES
 from runhouse.globals import rns_client
-from runhouse.resources.hardware import (
-    _current_cluster,
-    _get_cluster_from,
-    Cluster,
-    RESERVED_SYSTEM_NAMES,
-)
+from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Cluster
 from runhouse.resources.resource import Resource
 from runhouse.rns.top_level_rns_fns import exists
 from runhouse.rns.utils.api import generate_uuid

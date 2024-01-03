@@ -17,11 +17,17 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
+from runhouse.constants import CLUSTER_CONFIG_PATH
 from runhouse.globals import configs, env_servlets, rns_client
-from runhouse.resources.hardware.utils import _load_cluster_config, CLUSTER_CONFIG_PATH
+from runhouse.resources.hardware.utils import _load_cluster_config
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
-from runhouse.servers.http.auth import hash_token, verify_cluster_access
+from runhouse.servers.env_servlet import EnvServlet
+from runhouse.servers.http.auth import (
+    hash_token,
+    update_cache_for_user,
+    verify_cluster_access,
+)
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
     b64_unpickle,
@@ -34,7 +40,6 @@ from runhouse.servers.http.http_utils import (
     ServerSettings,
 )
 from runhouse.servers.nginx.config import NginxConfig
-from runhouse.servers.servlet import EnvServlet
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +56,11 @@ def validate_cluster_access(func):
         is_coro = inspect.iscoroutinefunction(func)
 
         func_call: bool = func.__name__ in ["call_module_method", "call", "get_call"]
+        token = get_token_from_request(request)
+
+        if func_call and token:
+            update_cache_for_user(token, refresh_cache=False)
+
         if not den_auth_enabled or func_call:
             # If this is a func call, we'll handle the auth in the object store
             if is_coro:
@@ -58,7 +68,6 @@ def validate_cluster_access(func):
 
             return func(*args, **kwargs)
 
-        token = get_token_from_request(request)
         if token is None:
             raise HTTPException(
                 status_code=404,
@@ -187,11 +196,17 @@ class HTTPServer:
 
     @classmethod
     def enable_den_auth(cls):
+        from runhouse.globals import obj_store
+
         cls._den_auth = True
+        obj_store.clear_auth_cache()
 
     @classmethod
     def disable_den_auth(cls):
+        from runhouse.globals import obj_store
+
         cls._den_auth = False
+        obj_store.clear_auth_cache()
 
     @staticmethod
     def register_activity():

@@ -29,8 +29,11 @@ class AuthCache:
         return resources.get(resource_uri)
 
     @classmethod
-    def add_user(cls, token):
+    def add_user(cls, token, refresh_cache=True):
         """Refresh the server cache with the latest resources and access levels for a particular user"""
+        if not refresh_cache and hash_token(token) in cls.CACHE:
+            return
+
         resp = requests.get(
             f"{rns_client.api_server_url}/resource",
             headers={"Authorization": f"Bearer {token}"},
@@ -50,6 +53,13 @@ class AuthCache:
         }
         # Update server cache with a user's resources and access type
         cls.CACHE[hash_token(token)] = all_resources
+
+    def clear_cache(self, token_hash: str = None):
+        """Clear the server cache for a particular user's token"""
+        if token_hash is None:
+            self.CACHE = {}
+        else:
+            self.CACHE.pop(token_hash, None)
 
 
 def verify_cluster_access(
@@ -86,6 +96,6 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def update_cache_for_user(token):
+def update_cache_for_user(token, refresh_cache=True):
     auth_cache_actor = ray.get_actor("auth_cache", namespace="runhouse")
-    ray.get(auth_cache_actor.add_user.remote(token))
+    ray.get(auth_cache_actor.add_user.remote(token, refresh_cache))
