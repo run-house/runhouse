@@ -35,8 +35,8 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         ]
     }
     MINIMAL = {"cluster": ["static_cpu_cluster"]}
-    THOROUGH = {"cluster": ["static_cpu_cluster", "password_cluster"]}
-    MAXIMAL = {"cluster": ["static_cpu_cluster", "password_cluster"]}
+    THOROUGH = {"cluster": ["static_cpu_cluster", "password_cluster", "multinode_cpu_cluster"]}
+    MAXIMAL = {"cluster": ["static_cpu_cluster", "password_cluster", "multinode_cpu_cluster"]}
 
 Some key things to avoid:
 - Avoid ever importing from any conftest.py file. This can cause erratic
@@ -169,6 +169,7 @@ from tests.fixtures.local_docker_cluster_fixtures import (
 from tests.fixtures.on_demand_cluster_fixtures import (
     a10g_gpu_cluster,  # noqa: F401
     k80_gpu_cluster,  # noqa: F401
+    multinode_cpu_cluster,  # noqa: F401
     on_demand_cluster,  # noqa: F401
     ondemand_cluster,  # noqa: F401
     ondemand_cpu_cluster,  # noqa: F401
@@ -293,6 +294,7 @@ default_fixtures[TestLevels.THOROUGH] = {
         "ondemand_cpu_cluster",
         "ondemand_https_cluster_with_auth",
         "password_cluster",
+        "multinode_cpu_cluster",
         "static_cpu_cluster",
     ]
 }
@@ -305,6 +307,7 @@ default_fixtures[TestLevels.MAXIMAL] = {
         "ondemand_cpu_cluster",
         "ondemand_https_cluster_with_auth",
         "password_cluster",
+        "multinode_cpu_cluster",
         "static_cpu_cluster",
     ]
 }

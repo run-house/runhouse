@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 class OnDemandCluster(Cluster):
     RESOURCE_TYPE = "cluster"
     RECONNECT_TIMEOUT = 5
+    DEFAULT_KEYFILE = "~/.ssh/sky-key"
 
     def __init__(
         self,
@@ -473,10 +474,21 @@ class OnDemandCluster(Cluster):
 
         return self._ssh_creds
 
-    def ssh(self):
-        """SSH into the cluster.
+    def ssh(self, node: str = None):
+        """SSH into the cluster. If no node is specified, will SSH onto the head node.
 
         Example:
             >>> rh.ondemand_cluster("rh-cpu").ssh()
+            >>> rh.ondemand_cluster("rh-cpu", node="3.89.174.234").ssh()
         """
-        subprocess.run(["ssh", f"{self.name}"])
+        if node is None:
+            # SSH onto head node - can provide the name as specified in the local ~/.ssh/config
+            subprocess.run(["ssh", f"{self.name}"])
+        else:
+            # If SSHing onto a specific node, which requires the default sky public key for verification
+            sky_key = Path(self.DEFAULT_KEYFILE).expanduser()
+
+            if not sky_key.exists():
+                raise FileNotFoundError(f"Expected default sky key in path: {sky_key}")
+
+            subprocess.run(["ssh", "-i", str(sky_key), f"ubuntu@{node}"])

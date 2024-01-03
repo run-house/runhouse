@@ -84,13 +84,14 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
     }
     THOROUGH = {
         "secret": ["test_secret"] + provider_secrets,
-        "cluster": ["static_cpu_cluster"],
+        "cluster": ["static_cpu_cluster", "multinode_cpu_cluster"],
     }
     MAXIMAL = {
         "secret": ["test_secret"] + provider_secrets,
         "cluster": [
             "static_cpu_cluster",
             "password_cluster",
+            "multinode_cpu_cluster",
             "local_docker_cluster_pk_ssh_no_auth",
             "local_docker_cluster_pwd_ssh_no_auth",
         ],
