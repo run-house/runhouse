@@ -164,7 +164,7 @@ class TestResource:
         )
 
         # First try loading in same process/filesystem because it's more debuggable, but not as thorough
-        resource_class_name = resource.__class__.__name__
+        resource_class_name = resource.config_for_rns["resource_type"].capitalize()
         config = resource.config_for_rns
         config.pop(
             "live_state", None
