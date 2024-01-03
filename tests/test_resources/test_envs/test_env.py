@@ -45,7 +45,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
     LOCAL = {
         "env": ["base_env"],
         "cluster": [
-            "local_docker_cluster_pk_ssh_no_auth",
+            "docker_cluster_pk_ssh_no_auth",
         ]
         # TODO: extend envs to "base_conda_env", "conda_env_from_dict"],
         # and add local clusters once conda docker container is set up
@@ -61,8 +61,8 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
             "static_cpu_cluster",
             "password_cluster",
             "multinode_cpu_cluster",
-            "local_docker_cluster_pk_ssh_no_auth",
-            "local_docker_cluster_pwd_ssh_no_auth",
+            "docker_cluster_pk_ssh_no_auth",
+            "docker_cluster_pwd_ssh_no_auth",
         ],
     }
     MAXIMAL = {

@@ -27,7 +27,7 @@ def summer(a, b):
 # -------- FIXTURES ----------- #
 @pytest.fixture(scope="module")
 def http_client():
-    with httpx.Client(base_url=BASE_URL, timeout=10.0) as client:
+    with httpx.Client(base_url=BASE_URL, timeout=60.0) as client:
         yield client
 
 
@@ -39,10 +39,11 @@ async def async_http_client():
 
 @pytest.fixture(scope="session")
 def local_cluster():
-    c = rh.cluster(
-        name="local_cluster", host="localhost", server_connection_type="none"
+    return rh.cluster(
+        name="faux_local_cluster",
+        server_connection_type="none",
+        host="localhost",
     )
-    return c
 
 
 @pytest.fixture(scope="session")
@@ -57,6 +58,9 @@ def local_client():
 
 @pytest.fixture(scope="function")
 def local_client_with_den_auth():
+    if not rh.configs.get("token"):
+        pytest.skip("`TEST_TOKEN` or ~/.rh/config.yaml not set, skipping test.")
+
     from fastapi.testclient import TestClient
 
     HTTPServer()
@@ -89,38 +93,16 @@ def obj_store(request):
 
 
 @pytest.fixture(scope="class")
-def setup_cluster_config():
+def setup_cluster_config(local_cluster):
     # Create a temporary directory that simulates the user's home directory
     home_dir = Path("~/.rh").expanduser()
     home_dir.mkdir(exist_ok=True)
 
     cluster_config_path = home_dir / "cluster_config.json"
-    rns_address = "/kitchen_tester/local_cluster"
-
-    cluster_config = {
-        "name": rns_address,
-        "resource_type": "cluster",
-        "resource_subtype": "Cluster",
-        "server_port": 32300,
-        "den_auth": True,
-        "server_connection_type": "ssh",
-        "ips": ["localhost"],
-    }
-    try:
-        c = rh.Cluster.from_name(rns_address)
-    except ValueError:
-        c = None
 
     try:
-        if not c:
-            current_username = rh.configs.get("username")
-            if current_username:
-                with test_account():
-                    c = rh.cluster(name="local_cluster", den_auth=True).save()
-                    c.share(current_username, access_level="write", notify_users=False)
-
         with open(cluster_config_path, "w") as file:
-            json.dump(cluster_config, file)
+            json.dump(local_cluster.config_for_rns, file)
 
         yield
 

@@ -32,9 +32,9 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     UNIT = {"cluster": ["named_cluster"]}
     LOCAL = {
         "cluster": [
-            "local_docker_cluster_pk_ssh_no_auth",
-            "local_docker_cluster_pk_ssh_den_auth",
-            "local_docker_cluster_pwd_ssh_no_auth",
+            "docker_cluster_pk_ssh_no_auth",
+            "docker_cluster_pk_ssh_den_auth",
+            "docker_cluster_pwd_ssh_no_auth",
         ]
     }
     MINIMAL = {"cluster": ["static_cpu_cluster"]}
@@ -43,10 +43,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     }
     MAXIMAL = {
         "cluster": [
-            "local_docker_cluster_pk_ssh_no_auth",
-            "local_docker_cluster_pk_ssh_den_auth",
-            "local_docker_cluster_pwd_ssh_no_auth",
-            "local_docker_cluster_pk_ssh_telemetry",
+            "docker_cluster_pk_ssh_no_auth",
+            "docker_cluster_pk_ssh_den_auth",
+            "docker_cluster_pwd_ssh_no_auth",
+            "docker_cluster_pk_ssh_telemetry",
             "static_cpu_cluster",
             "password_cluster",
             "multinode_cpu_cluster",
@@ -78,13 +78,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert cluster.cert_config.cert_path == args["ssl_certfile"]
 
     @pytest.mark.level("local")
-    def test_local_docker_cluster_fixture_is_logged_out(
-        self, local_docker_cluster_pk_ssh_no_auth
-    ):
+    def test_docker_cluster_fixture_is_logged_out(self, docker_cluster_pk_ssh_no_auth):
         save_resource_and_return_config_cluster = rh.function(
             save_resource_and_return_config,
             name="save_resource_and_return_config_cluster",
-            system=local_docker_cluster_pk_ssh_no_auth,
+            system=docker_cluster_pk_ssh_no_auth,
         )
         saved_config_on_cluster = save_resource_and_return_config_cluster()
         # This cluster was created without any logged in Runhouse config. Make sure that the simple resource

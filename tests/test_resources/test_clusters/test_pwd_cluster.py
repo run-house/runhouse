@@ -1,7 +1,7 @@
 import logging
 import unittest
 
-from tests.conftest import local_docker_cluster_pwd_ssh_no_auth, password_cluster
+from tests.conftest import docker_cluster_pwd_ssh_no_auth, password_cluster
 from tests.test_obj_store import (
     test_cancel_run,  # noqa: F401
     test_get_from_cluster,  # noqa: F401
@@ -17,9 +17,9 @@ from tests.test_obj_store import (
 
 logger = logging.getLogger(__name__)
 
-UNIT = {"cluster": [local_docker_cluster_pwd_ssh_no_auth]}
-LOCAL = {"cluster": [local_docker_cluster_pwd_ssh_no_auth]}
-MINIMAL = {"cluster": [password_cluster, local_docker_cluster_pwd_ssh_no_auth]}
+UNIT = {"cluster": [docker_cluster_pwd_ssh_no_auth]}
+LOCAL = {"cluster": [docker_cluster_pwd_ssh_no_auth]}
+MINIMAL = {"cluster": [password_cluster, docker_cluster_pwd_ssh_no_auth]}
 
 
 if __name__ == "__main__":
