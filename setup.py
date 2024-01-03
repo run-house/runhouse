@@ -89,10 +89,9 @@ install_requires = [
 extras_require = {
     "aws": [
         # https://github.com/aio-libs/aiobotocore/issues/983
-        # If you don't want to use these exact versions of awscli, boto3, botocore, or aibotocore, you can
-        # install runhouse without the aws extras, then install your desired versions of awscli and boto3
-        "awscli==1.25.60",
-        "boto3==1.24.59",
+        # If you don't want to use these exact versions, you can install runhouse without the aws extras, then
+        # install your desired versions of awscli and boto3
+        "awscli",
         "pycryptodome==3.12.0",
         "fsspec==2023.1.0",
     ],
@@ -102,9 +101,8 @@ extras_require = {
     "sagemaker": [
         # https://github.com/aws-samples/sagemaker-ssh-helper
         "sagemaker_ssh_helper",
-        "sagemaker==2.135.0",  # SkyPilot depends on PyYAML<=5.3.1, which is incompatible with sagemaker>=2.135.0
+        "sagemaker",
         "paramiko>=3.2.0",
-        "boto3>=1.26.131,<2.0",
     ],
 }
 
