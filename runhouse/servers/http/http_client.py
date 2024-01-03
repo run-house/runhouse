@@ -30,10 +30,10 @@ class HTTPClient:
         self,
         host: str,
         port: int,
+        resource_address: str,
         auth=None,
         cert_path=None,
         use_https=False,
-        system=None,
     ):
         self.host = host
         self.port = port
@@ -41,7 +41,7 @@ class HTTPClient:
         self.cert_path = cert_path
         self.use_https = use_https
         self.verify = self._use_cert_verification()
-        self.system = system
+        self.resource_address = resource_address
 
     def _use_cert_verification(self):
         if not self.use_https:
@@ -67,12 +67,19 @@ class HTTPClient:
         return True
 
     @staticmethod
-    def from_endpoint(endpoint: str, auth=None, cert_path=None):
+    def from_endpoint(endpoint: str, resource_address: str, auth=None, cert_path=None):
         protocol, uri = endpoint.split("://")
         host, port_and_route = uri.split(":", 1)
         port, _ = port_and_route.split("/", 1)
         use_https = protocol == "https"
-        client = HTTPClient(host, int(port), auth, cert_path, use_https=False)
+        client = HTTPClient(
+            host=host,
+            port=int(port),
+            resource_address=resource_address,
+            auth=auth,
+            cert_path=cert_path,
+            use_https=False,
+        )
         client.use_https = use_https
         return client
 
@@ -84,6 +91,7 @@ class HTTPClient:
         self,
         endpoint,
         req_type="post",
+        resource_address=None,
         data=None,
         env=None,
         stream_logs=True,
@@ -93,8 +101,7 @@ class HTTPClient:
         timeout=None,
         headers: Union[Dict, None] = None,
     ):
-        # Support use case where we explicitly do not want to provide headers (e.g. requesting a cert)
-        headers = rns_client.request_headers() if headers != {} else headers
+        headers = rns_client.request_headers(resource_address, headers)
         req_fn = (
             requests.get
             if req_type == "get"
@@ -171,6 +178,7 @@ class HTTPClient:
         module_name,
         method_name,
         *args,
+        resource_address=None,
         stream_logs=True,
         run_name=None,
         remote=False,
@@ -183,19 +191,20 @@ class HTTPClient:
             module_name,
             method_name,
             stream_logs=stream_logs,
+            resource_address=resource_address or self.resource_address,
             run_name=run_name,
             remote=remote,
             run_async=run_async,
             save=save,
             args=args,
             kwargs=kwargs,
-            system=self.system,
         )
 
     def call_module_method(  # TODO rename call_module_method to call
         self,
         module_name,
         method_name,
+        resource_address=None,
         env=None,
         stream_logs=True,
         save=False,
@@ -227,7 +236,7 @@ class HTTPClient:
                 "run_async": run_async,
             },
             stream=not run_async,
-            headers=rns_client.request_headers(base_dir),
+            headers=rns_client.request_headers(resource_address),
             verify=self.verify,
         )
         if res.status_code != 200:
@@ -318,10 +327,16 @@ class HTTPClient:
         if env and not isinstance(env, str):
             env = _get_env_from(env)
             env = env.name or env.env_name
+
         config = resource.config_for_rns
+
+        # base dir for this particular resource on the cluster
+        resource_address = rns_client.base_folder(config.get("name"))
+
         return self.request(
             "resource",
             req_type="post",
+            resource_address=resource_address,
             # TODO wire up dryrun properly
             data=pickle_b64((config, state, resource.dryrun)),
             env=env,
@@ -337,6 +352,7 @@ class HTTPClient:
                 key,
                 None,
                 remote=remote,
+                resource_address=self.resource_address,
                 stream_logs=stream_logs,
                 system=self,
             )
@@ -363,7 +379,7 @@ class HTTPClient:
         res = requests.post(
             self._formatted_url("settings"),
             json=new_settings,
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(self.resource_address),
             verify=self.verify,
         )
         if res.status_code != 200:

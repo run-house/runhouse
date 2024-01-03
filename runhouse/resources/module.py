@@ -293,7 +293,9 @@ class Module(Resource):
             and self._endpoint
             and isinstance(self._endpoint, str)
         ):
-            return HTTPClient.from_endpoint(self._endpoint)
+            return HTTPClient.from_endpoint(
+                self._endpoint, resource_address=self.rns_address
+            )
         return None
 
     def _remote_init(self, *args, **kwargs):
@@ -588,6 +590,7 @@ class Module(Resource):
         return self._client().call(
             module_name=self._name,
             method_name=key,
+            resource_address=self.rns_address,
             new_value=value,
             stream_logs=False,
         )

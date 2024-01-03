@@ -96,5 +96,10 @@ def verify_cluster_access(
 
 
 def hash_token(token: str) -> str:
-    """Hash the user's token to avoid storing them in plain text on the cluster."""
+    """Hash the user's Runhouse token to avoid storing them in plain text on the cluster. If the token received
+    is the hashed cluster token, do nothing."""
+    if "+" in token:
+        # If receiving a cluster token it will already be hashed
+        return token
+
     return hashlib.sha256(token.encode()).hexdigest()

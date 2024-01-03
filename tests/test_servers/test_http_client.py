@@ -18,7 +18,9 @@ class TestHTTPClient:
     def init_fixtures(self):
         args = dict(name="local-cluster", host="localhost", server_host="0.0.0.0")
         self.local_cluster = rh.cluster(**args)
-        self.client = HTTPClient("localhost", HTTPClient.DEFAULT_PORT)
+        self.client = HTTPClient(
+            "localhost", HTTPClient.DEFAULT_PORT, resource_address=self.local_cluster
+        )
 
     @pytest.mark.level("unit")
     @patch("requests.get")
@@ -72,6 +74,7 @@ class TestHTTPClient:
         client = HTTPClient(
             "localhost",
             HTTPClient.DEFAULT_PORT,
+            resource_address=self.local_cluster,
             use_https=True,
             cert_path="/valid/path",
         )
@@ -86,6 +89,7 @@ class TestHTTPClient:
         client = HTTPClient(
             "localhost",
             HTTPClient.DEFAULT_PORT,
+            resource_address=self.local_cluster,
             use_https=True,
             cert_path="/self-signed/path",
         )
@@ -96,6 +100,7 @@ class TestHTTPClient:
         client = HTTPClient(
             "localhost",
             HTTPClient.DEFAULT_PORT,
+            resource_address=self.local_cluster,
             use_https=True,
             cert_path="/invalid/path",
         )
@@ -124,7 +129,9 @@ class TestHTTPClient:
         # Call the method under test
         method_name = "install"
         module_name = "base_env"
-        result_generator = self.client.call_module_method(module_name, method_name)
+        result_generator = self.client.call_module_method(
+            module_name, method_name, resource_address=self.local_cluster.rns_address
+        )
 
         # Iterate through the generator and collect results
         results = []
@@ -145,7 +152,9 @@ class TestHTTPClient:
             "remote": False,
             "run_async": False,
         }
-        expected_headers = rns_client.request_headers()
+        expected_headers = rns_client.request_headers(
+            resource_address=self.local_cluster.rns_address
+        )
         expected_verify = self.client.verify
 
         mock_post.assert_called_once_with(
@@ -175,7 +184,11 @@ class TestHTTPClient:
         method_name = "install"
 
         self.client.call_module_method(
-            module_name, method_name, args=args, kwargs=kwargs
+            module_name,
+            method_name,
+            resource_address=self.local_cluster.rns_address,
+            args=args,
+            kwargs=kwargs,
         )
 
         # Assert that the post request was called with the correct data
@@ -202,18 +215,20 @@ class TestHTTPClient:
 
     @pytest.mark.level("unit")
     @patch("requests.post")
-    def test_call_module_method_error_handling(self, mock_post):
+    def test_call_module_method_error_handling(self, mock_post, local_cluster):
         mock_response = Mock()
         mock_response.status_code = 500
         mock_response.content = b"Internal Server Error"
         mock_post.return_value = mock_response
 
         with pytest.raises(ValueError):
-            self.client.call_module_method("module", "method")
+            self.client.call_module_method(
+                "module", "method", resource_address=local_cluster.rns_address
+            )
 
     @pytest.mark.level("unit")
     @patch("requests.post")
-    def test_call_module_method_stream_logs(self, mock_post):
+    def test_call_module_method_stream_logs(self, mock_post, local_cluster):
         # Setup the mock response with a log in the stream
         response_sequence = [
             json.dumps(
@@ -226,13 +241,15 @@ class TestHTTPClient:
         mock_post.return_value = mock_response
 
         # Call the method under test
-        res = self.client.call_module_method("base_env", "install")
+        res = self.client.call_module_method(
+            "base_env", "install", resource_address=local_cluster.rns_address
+        )
         assert inspect.isgenerator(res)
         assert next(res) == "Log message"
 
     @pytest.mark.level("unit")
     @patch("requests.post")
-    def test_call_module_method_config(self, mock_post):
+    def test_call_module_method_config(self, mock_post, local_cluster):
         test_data = self.local_cluster.config_for_rns
         mock_response = Mock()
         mock_response.status_code = 200
@@ -243,12 +260,14 @@ class TestHTTPClient:
         )
         mock_post.return_value = mock_response
 
-        cluster = self.client.call_module_method("base_env", "install")
+        cluster = self.client.call_module_method(
+            "base_env", "install", resource_address=local_cluster.rns_address
+        )
         assert cluster.config_for_rns == test_data
 
     @pytest.mark.level("unit")
     @patch("requests.post")
-    def test_call_module_method_not_found_error(self, mock_post):
+    def test_call_module_method_not_found_error(self, mock_post, local_cluster):
         mock_response = Mock()
         mock_response.status_code = 200
         missing_key = "missing_key"
@@ -260,7 +279,11 @@ class TestHTTPClient:
         mock_post.return_value = mock_response
 
         with pytest.raises(KeyError) as context:
-            next(self.client.call_module_method("module", "method"))
+            next(
+                self.client.call_module_method(
+                    "module", "method", resource_address=local_cluster.rns_address
+                )
+            )
 
         assert f"key {missing_key} not found" in str(context)
 

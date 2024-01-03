@@ -20,12 +20,13 @@ from sky.skylet.autostop_lib import set_last_active_time_to_now
 from runhouse.constants import CLUSTER_CONFIG_PATH, RH_LOGFILE_PATH
 from runhouse.globals import configs, env_servlets, obj_store, rns_client
 from runhouse.resources.hardware.utils import _load_cluster_config
-from runhouse.rns.utils.api import resolve_absolute_path
+from runhouse.rns.utils.api import load_resp_content, resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.env_servlet import EnvServlet
 from runhouse.servers.http.auth import hash_token, verify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
+    auth_headers_from_request,
     b64_unpickle,
     get_token_from_request,
     load_current_cluster,
@@ -52,10 +53,16 @@ def validate_cluster_access(func):
         is_coro = inspect.iscoroutinefunction(func)
 
         func_call: bool = func.__name__ in ["call_module_method", "call", "get_call"]
-        token = get_token_from_request(request)
 
-        if func_call and token:
-            obj_store.add_user_to_auth_cache(token, refresh_cache=False)
+        # Request token can either be the default Runhouse token or the cluster subtoken
+        request_token = get_token_from_request(request)
+
+        _validate_request_token(
+            request_token, bearer_token=auth_headers_from_request(request)
+        )
+
+        if func_call and request_token:
+            obj_store.add_user_to_auth_cache(request_token, refresh_cache=False)
 
         if not den_auth_enabled or func_call:
             # If this is a func call, we'll handle the auth in the object store
@@ -63,13 +70,6 @@ def validate_cluster_access(func):
                 return await func(*args, **kwargs)
 
             return func(*args, **kwargs)
-
-        if token is None:
-            raise HTTPException(
-                status_code=404,
-                detail="No token found in request auth headers. Expected in "
-                f"format: {json.dumps({'Authorization': 'Bearer <token>'})}",
-            )
 
         cluster_uri = load_current_cluster()
         if cluster_uri is None:
@@ -82,7 +82,7 @@ def validate_cluster_access(func):
                 detail="Failed to load current cluster. Make sure cluster config YAML exists on the cluster.",
             )
 
-        cluster_access = verify_cluster_access(cluster_uri, token)
+        cluster_access = verify_cluster_access(cluster_uri, request_token)
         if not cluster_access:
             # Must have cluster access for all the non func calls
             # Note: for func calls will be handling the auth in the object store
@@ -97,6 +97,29 @@ def validate_cluster_access(func):
         return func(*args, **kwargs)
 
     return wrapper
+
+
+def _validate_request_token(token: str, bearer_token: str):
+    """Checks whether the cluster token is valid if provided with one. If a regular Runhouse token is provided,
+    it will be validated by the object store."""
+    if token is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No token found in request auth headers. "
+            "Expected in format: {'Authorization': 'Bearer <token>'}",
+        )
+
+    # If a hashed cluster token is provided, validate it
+    if "+" in token:
+        resp = requests.post(
+            f"{rns_client.api_server_url}/auth/cluster",
+            headers={"Authorization": bearer_token},
+        )
+
+        if resp.status_code != 200:
+            raise HTTPException(
+                status_code=resp.status_code, detail=load_resp_content(resp)
+            )
 
 
 class HTTPServer:

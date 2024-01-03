@@ -17,6 +17,7 @@ from tests.utils import friend_account
 
 INVALID_HEADERS = {"Authorization": "Bearer InvalidToken"}
 
+
 # Helper used for testing rh.Function
 def summer(a, b):
     return a + b
@@ -61,40 +62,48 @@ class TestHTTPServerDocker:
         resource = rh.blob(data=blob_data, system=cluster)
         data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
         response = http_client.post(
-            "/resource", json={"data": data}, headers=rns_client.request_headers()
+            "/resource",
+            json={"data": data},
+            headers=rns_client.request_headers(cluster.rns_address),
         )
         assert response.status_code == 200
 
     @pytest.mark.level("local")
-    def test_put_object_and_get_keys(self, http_client):
+    def test_put_object_and_get_keys(self, http_client, cluster):
         key = "key1"
         test_list = list(range(5, 50, 2)) + ["a string"]
         response = http_client.post(
             "/object",
             json={"data": pickle_b64(test_list), "key": key},
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(cluster.rns_address),
         )
         assert response.status_code == 200
 
-        response = http_client.get("/keys", headers=rns_client.request_headers())
+        response = http_client.get(
+            "/keys", headers=rns_client.request_headers(cluster.rns_address)
+        )
         assert response.status_code == 200
         assert key in b64_unpickle(response.json().get("data"))
 
     @pytest.mark.level("local")
-    def test_rename_object(self, http_client):
+    def test_rename_object(self, http_client, cluster):
         old_key = "key1"
         new_key = "key2"
         data = pickle_b64((old_key, new_key))
         response = http_client.put(
-            "/object", json={"data": data}, headers=rns_client.request_headers()
+            "/object",
+            json={"data": data},
+            headers=rns_client.request_headers(cluster.rns_address),
         )
         assert response.status_code == 200
 
-        response = http_client.get("/keys", headers=rns_client.request_headers())
+        response = http_client.get(
+            "/keys", headers=rns_client.request_headers(cluster.rns_address)
+        )
         assert new_key in b64_unpickle(response.json().get("data"))
 
     @pytest.mark.level("local")
-    def test_delete_obj(self, http_client):
+    def test_delete_obj(self, http_client, cluster):
         # https://www.python-httpx.org/compatibility/#request-body-on-http-methods
         key = "key2"
         data = pickle_b64([key])
@@ -102,11 +111,13 @@ class TestHTTPServerDocker:
             "delete",
             url="/object",
             json={"data": data},
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(cluster.rns_address),
         )
         assert response.status_code == 200
 
-        response = http_client.get("/keys", headers=rns_client.request_headers())
+        response = http_client.get(
+            "/keys", headers=rns_client.request_headers(cluster.rns_address)
+        )
         assert key not in b64_unpickle(response.json().get("data"))
 
     @pytest.mark.level("local")
@@ -369,6 +380,8 @@ class TestHTTPServerNoDocker:
     MINIMAL = {"client": ["local_client", "local_client_with_den_auth"]}
     THOROUGH = {"client": ["local_client", "local_client_with_den_auth"]}
     MAXIMAL = {"client": ["local_client", "local_client_with_den_auth"]}
+
+    # NOTE: we don't pass in "resource_address" here since the user is the owner of the cluster
 
     @pytest.mark.level("unit")
     def test_get_cert(self, client):

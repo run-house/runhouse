@@ -345,6 +345,7 @@ class Cluster(Resource):
             res = self.client.call_module_method(
                 key,
                 None,
+                resource_address=self.rns_address,
                 remote=remote,
                 stream_logs=stream_logs,
                 system=self,
@@ -473,7 +474,7 @@ class Cluster(Resource):
                 host=LOCALHOST,
                 port=self.client_port,
                 auth=auth,
-                system=self,
+                resource_address=self.rns_address,
             )
 
         else:
@@ -494,7 +495,7 @@ class Cluster(Resource):
                 port=self.client_port,
                 cert_path=cert_path,
                 use_https=self._use_https,
-                system=self,
+                resource_address=self.rns_address,
             )
 
     def check_server(self, restart_server=True):
@@ -830,6 +831,7 @@ class Cluster(Resource):
         return self.client.call_module_method(
             module_name,
             method_name,
+            resource_address=self.rns_address,
             stream_logs=stream_logs,
             run_name=run_name,
             remote=remote,
