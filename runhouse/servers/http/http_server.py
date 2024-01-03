@@ -22,6 +22,7 @@ from runhouse.globals import configs, env_servlets, rns_client
 from runhouse.resources.hardware.utils import _load_cluster_config
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
+from runhouse.servers.env_servlet import EnvServlet
 from runhouse.servers.http.auth import (
     hash_token,
     update_cache_for_user,
@@ -39,7 +40,6 @@ from runhouse.servers.http.http_utils import (
     ServerSettings,
 )
 from runhouse.servers.nginx.config import NginxConfig
-from runhouse.servers.servlet import EnvServlet
 
 logger = logging.getLogger(__name__)
 
