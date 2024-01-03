@@ -178,12 +178,12 @@ class HTTPServer:
         except Exception as e:
             logger.error(f"Failed to collect cluster telemetry stats: {str(e)}")
 
-        base_env = self.get_env_servlet(
+        base_env_servlet = self.get_env_servlet(
             env_name="base",
             create=True,
             runtime_env=runtime_env,
         )
-        env_servlets["base"] = base_env
+        env_servlets["base"] = base_env_servlet
         from runhouse.globals import obj_store
 
         obj_store.set_name("server")
@@ -261,7 +261,7 @@ class HTTPServer:
             )
 
     @staticmethod
-    def get_env_servlet(env_name, create=False, runtime_env=None):
+    def get_env_servlet(env_name: str, create=False, runtime_env=None):
         if env_name in env_servlets.keys():
             return env_servlets[env_name]
 
@@ -301,7 +301,7 @@ class HTTPServer:
     def call_in_env_servlet(
         method,
         args=None,
-        env=None,
+        env_name: Optional[str] = None,
         create=False,
         lookup_env_for_name=None,
         block=True,
@@ -309,8 +309,10 @@ class HTTPServer:
         HTTPServer.register_activity()
         try:
             if lookup_env_for_name:
-                env = env or HTTPServer.lookup_env_for_name(lookup_env_for_name)
-            servlet = HTTPServer.get_env_servlet(env or "base", create=create)
+                env_name = env_name or HTTPServer.lookup_env_for_name(
+                    lookup_env_for_name
+                )
+            servlet = HTTPServer.get_env_servlet(env_name or "base", create=create)
             # If servlet is a RayActor, call with .remote
             return HTTPServer.call_servlet_method(servlet, method, args, block=block)
         except Exception as e:
@@ -323,12 +325,12 @@ class HTTPServer:
             )
 
     @staticmethod
-    def lookup_env_for_name(name, check_rns=False):
+    def lookup_env_for_name(name, check_rns=False) -> str:
         from runhouse.globals import obj_store
 
-        env = obj_store.get_env(name)
-        if env:
-            return env
+        env_name = obj_store.get_env(name)
+        if env_name:
+            return env_name
 
         # Load the resource config from rns and see if it has an "env" field
         if check_rns:
@@ -354,7 +356,7 @@ class HTTPServer:
     @validate_cluster_access
     def put_resource(request: Request, message: Message):
         # if resource is env and not yet a servlet, construct env servlet
-        if message.env and message.env not in env_servlets.keys():
+        if message.env_name and message.env_name not in env_servlets.keys():
             resource = b64_unpickle(message.data)[0]
             if resource["resource_type"] == "env":
                 runtime_env = (
@@ -363,18 +365,18 @@ class HTTPServer:
                     else {}
                 )
 
-                new_env = HTTPServer.get_env_servlet(
-                    env_name=message.env,
+                new_env_servlet = HTTPServer.get_env_servlet(
+                    env_name=message.env_name,
                     create=True,
                     runtime_env=runtime_env,
                 )
 
-                env_servlets[message.env] = new_env
+                env_servlets[message.env_name] = new_env_servlet
 
         return HTTPServer.call_in_env_servlet(
             "put_resource",
             [message],
-            env=message.env,
+            env_name=message.env_name,
             create=True,
             lookup_env_for_name=message.key,
         )
@@ -398,7 +400,7 @@ class HTTPServer:
             message = message or (
                 Message(stream_logs=False, key=module) if not method else Message()
             )
-            env = message.env or HTTPServer.lookup_env_for_name(module)
+            env_name = message.env_name or HTTPServer.lookup_env_for_name(module)
             persist = message.run_async or message.remote or message.save or not method
             if method:
                 # TODO fix the way we generate runkeys, it's ugly
@@ -413,7 +415,7 @@ class HTTPServer:
                 obj_ref = HTTPServer.call_in_env_servlet(
                     "call_module_method",
                     [module, method, message, token_hash, den_auth_enabled],
-                    env=env,
+                    env_name=env_name,
                     create=True,
                     block=False,
                 )
@@ -440,7 +442,7 @@ class HTTPServer:
             return StreamingResponse(
                 HTTPServer._get_results_and_logs_generator(
                     message.key,
-                    env=env,
+                    env_name=env_name,
                     stream_logs=message.stream_logs,
                     remote=message.remote,
                     pop=not persist,
@@ -486,7 +488,12 @@ class HTTPServer:
 
     @staticmethod
     def _get_results_and_logs_generator(
-        key, env, stream_logs, remote=False, pop=False, serialization=None
+        key,
+        env_name: Optional[str],
+        stream_logs,
+        remote=False,
+        pop=False,
+        serialization=None,
     ):
         from runhouse.globals import obj_store
 
@@ -504,7 +511,7 @@ class HTTPServer:
                     obj_ref = HTTPServer.call_in_env_servlet(
                         "get",
                         [key, remote, True, None, serialization],
-                        env=env,
+                        env_name=env_name,
                         block=False,
                     )
                 try:
@@ -575,14 +582,19 @@ class HTTPServer:
             logger.debug(f"Deleting {key}")
             if pop:
                 obj_store.delete(key)
-                HTTPServer.call_in_env_servlet("delete_obj", [[key], True], env=env)
+                HTTPServer.call_in_env_servlet(
+                    "delete_obj", [[key], True], env_name=env_name
+                )
 
     @staticmethod
     @app.post("/object")
     @validate_cluster_access
     def put_object(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
-            "put_object", [message.key, message.data], env=message.env, create=True
+            "put_object",
+            [message.key, message.data],
+            env_name=message.env_name,
+            create=True,
         )
 
     @staticmethod
@@ -590,7 +602,10 @@ class HTTPServer:
     @validate_cluster_access
     def rename_object(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
-            "rename_object", [message], env=message.env, lookup_env_for_name=message.key
+            "rename_object",
+            [message],
+            env_name=message.env_name,
+            lookup_env_for_name=message.key,
         )
 
     @staticmethod
@@ -598,7 +613,10 @@ class HTTPServer:
     @validate_cluster_access
     def delete_obj(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
-            "delete_obj", [message], env=message.env, lookup_env_for_name=message.key
+            "delete_obj",
+            [message],
+            env_name=message.env_name,
+            lookup_env_for_name=message.key,
         )
 
     @staticmethod
@@ -606,20 +624,23 @@ class HTTPServer:
     @validate_cluster_access
     def cancel_run(request: Request, message: Message):
         return HTTPServer.call_in_env_servlet(
-            "cancel_run", [message], env=message.env, lookup_env_for_name=message.key
+            "cancel_run",
+            [message],
+            env_name=message.env_name,
+            lookup_env_for_name=message.key,
         )
 
     @staticmethod
     @app.get("/keys")
     @validate_cluster_access
-    def get_keys(request: Request, env: Optional[str] = None):
+    def get_keys(request: Request, env_name: Optional[str] = None):
         from runhouse.globals import obj_store
 
-        if not env:
+        if not env_name:
             return Response(
                 output_type=OutputType.RESULT, data=pickle_b64(obj_store.keys())
             )
-        return HTTPServer.call_in_env_servlet("get_keys", [], env=env)
+        return HTTPServer.call_in_env_servlet("get_keys", [], env_name=env_name)
 
     @staticmethod
     @app.get("/{module}/{method}")
@@ -635,7 +656,7 @@ class HTTPServer:
             kwargs.pop("serialization", None)
             method = None if method == "None" else method
             message = Message(stream_logs=True, data=kwargs)
-            env = HTTPServer.lookup_env_for_name(module)
+            env_name = HTTPServer.lookup_env_for_name(module)
             persist = message.run_async or message.remote or message.save or not method
             if method:
                 # TODO fix the way we generate runkeys, it's ugly
@@ -657,7 +678,7 @@ class HTTPServer:
                         den_auth_enabled,
                         serialization,
                     ],
-                    env=env,
+                    env_name=env_name,
                     create=True,
                     block=False,
                 )
@@ -688,7 +709,7 @@ class HTTPServer:
             return StreamingResponse(
                 HTTPServer._get_results_and_logs_generator(
                     message.key,
-                    env=env,
+                    env_name=env_name,
                     stream_logs=message.stream_logs,
                     remote=message.remote,
                     pop=not persist,

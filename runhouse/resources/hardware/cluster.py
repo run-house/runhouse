@@ -351,12 +351,12 @@ class Cluster(Resource):
         self.check_server()
         self.sync_secrets(provider_secrets, env=env)
 
-    def put(self, key: str, obj: Any, env=None):
+    def put(self, key: str, obj: Any, env: Optional[str] = None):
         """Put the given object on the cluster's object store at the given key."""
         self.check_server()
         if self.on_this_cluster():
             return obj_store.put(key, obj, env=env)
-        return self.client.put_object(key, obj, env=env)
+        return self.client.put_object(key, obj, env_name=env)
 
     def put_resource(self, resource: Resource, state=None, dryrun=False, env=None):
         """Put the given resource on the cluster's object store. Returns the key (important if name is not set)."""
@@ -368,6 +368,10 @@ class Cluster(Resource):
             if resource.RESOURCE_TYPE == "env"
             else None
         )
+
+        if not isinstance(env, str):
+            env = env.name
+
         if self.on_this_cluster():
             return obj_store.put(key=resource.name, value=resource, env=env)
         return self.client.put_resource(
@@ -381,12 +385,12 @@ class Cluster(Resource):
             return obj_store.rename(old_key, new_key)
         return self.client.rename_object(old_key, new_key)
 
-    def keys(self, env=None):
+    def keys(self, env: Optional[str] = None):
         """List all keys in the cluster's object store."""
         self.check_server()
         if self.on_this_cluster():
             return obj_store.keys()
-        res = self.client.keys(env=env)
+        res = self.client.keys(env_name=env)
         return res
 
     def cancel(self, key: str, force=False):

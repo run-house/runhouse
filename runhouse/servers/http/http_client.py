@@ -3,7 +3,7 @@ import logging
 import time
 import warnings
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Dict, Optional, Union
 
 import requests
 
@@ -85,7 +85,7 @@ class HTTPClient:
         endpoint,
         req_type="post",
         data=None,
-        env=None,
+        env_name: Optional[str] = None,
         stream_logs=True,
         save=False,
         key=None,
@@ -116,7 +116,7 @@ class HTTPClient:
             self._formatted_url(endpoint),
             json={
                 "data": data,
-                "env": env,
+                "env_name": env_name,
                 "stream_logs": stream_logs,
                 "save": save,
                 "key": key,
@@ -196,7 +196,7 @@ class HTTPClient:
         self,
         module_name,
         method_name,
-        env=None,
+        env_name: Optional[str] = None,
         stream_logs=True,
         save=False,
         run_name=None,
@@ -219,7 +219,7 @@ class HTTPClient:
             self._formatted_url(f"{module_name}/{method_name}"),
             json={
                 "data": pickle_b64([args, kwargs]),
-                "env": env,
+                "env_name": env_name,
                 "stream_logs": stream_logs,
                 "save": save,
                 "key": run_name,
@@ -304,27 +304,32 @@ class HTTPClient:
         logging.info(log_str)
         return non_generator_result
 
-    def put_object(self, key, value, env=None):
+    def put_object(self, key, value, env_name: Optional[str] = None):
         self.request(
             "object",
             req_type="post",
             data=pickle_b64(value),
             key=key,
-            env=env,
+            env_name=env_name,
             err_str=f"Error putting object {key}",
         )
 
-    def put_resource(self, resource, env=None, state=None, dryrun=False):
+    def put_resource(self, resource, env: Any = None, state=None, dryrun=False):
+
+        # Could receive not a string
         if env and not isinstance(env, str):
             env = _get_env_from(env)
-            env = env.name or env.env_name
+            env_name = env.name or env.env_name
+        else:
+            env_name = env
+
         config = resource.config_for_rns
         return self.request(
             "resource",
             req_type="post",
             # TODO wire up dryrun properly
             data=pickle_b64((config, state, resource.dryrun)),
-            env=env,
+            env_name=env_name,
             err_str=f"Error putting resource {resource.name or type(resource)}",
         )
 
@@ -372,12 +377,12 @@ class HTTPClient:
             )
         return res
 
-    def delete(self, keys=None, env=None):
+    def delete(self, keys=None, env_name: Optional[str] = None):
         return self.request(
             "object",
             req_type="delete",
             data=pickle_b64((keys or [])),
-            env=env,
+            env_name=env_name,
             err_str=f"Error deleting keys {keys}",
         )
 
@@ -391,8 +396,13 @@ class HTTPClient:
             err_str=f"Error cancelling runs {key}",
         )
 
-    def keys(self, env=None):
-        if env is not None and not isinstance(env, str):
+    def keys(self, env: Any = None):
+
+        if env and not isinstance(env, str):
             env = _get_env_from(env)
-            env = env.name
-        return self.request(f"keys/?env={env}" if env else "keys", req_type="get")
+            env_name = env.name
+        else:
+            env_name = env
+        return self.request(
+            f"keys/?env_name={env_name}" if env else "keys", req_type="get"
+        )
