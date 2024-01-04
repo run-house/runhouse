@@ -141,21 +141,30 @@ def _start_server(
         for i, cmd in enumerate(cmds):
 
             last_cmd = i == len(cmds) - 1
-
-            # need to clean up this execution logic
             if last_cmd:
                 try:
-                    # consider cleaning up this command to parameterize it more
-                    new_str = f"nohup {sys.executable} -m runhouse.servers.http.http_server >> /home/sky/.rh/server.log 2>&1 &"
-                    console.print(f"Executing `{new_str}`")
-                    output = subprocess.run(new_str, shell=True, check=True)
-                    if output.returncode != 0:
-                        reg_output = subprocess.run(shlex.split(cmd), text=True)
-                        if reg_output.returncode != 0:
+                    screen_check_cmd = "command -v screen"
+                    screen_available = subprocess.run(screen_check_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).returncode == 0
+
+                    if screen_available:
+                        console.print(f"Executing `{cmd}`")
+                        result = subprocess.run(shlex.split(cmd), text=True)
+                        # We don't want to raise an error if the server kill fails, as it may simply not be running
+                        if result.returncode != 0 and "pkill" not in cmd:
                             console.print(f"Error while executing `{cmd}`")
                             raise typer.Exit(1)
-                        return
-                    return
+                        
+                        break
+                    else:
+                        nohup_cmd = f"nohup {sys.executable} -m runhouse.servers.http.http_server >> /home/sky/.rh/server.log 2>&1 &"
+                        console.print(f"Executing with nohup because screen is not available: `{nohup_cmd}`")
+                        output = subprocess.run(nohup_cmd, shell=True, check=True)
+                        if output.returncode != 0:
+                            console.print(f"Error while executing `{cmd}`")
+                            raise typer.Exit(1)
+                        
+                        break
+       
                 except subprocess.CalledProcessError as e:
                     print(f"Error: {e}")
 

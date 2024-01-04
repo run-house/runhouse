@@ -1,5 +1,7 @@
 import subprocess
 import warnings
+import os
+import logging
 
 from typing import Dict, List, Optional, Union
 
@@ -13,6 +15,8 @@ from .cluster import Cluster
 from .kubernetes_cluster import KubernetesCluster
 from .on_demand_cluster import OnDemandCluster
 from .sagemaker_cluster import SageMakerCluster
+
+logger = logging.getLogger(__name__)
 
 
 # Cluster factory method
@@ -406,7 +410,7 @@ def ondemand_cluster(
 def kubernetes_cluster(
     name: str,
     instance_type: Optional[str] = None,
-    namespace: str = "default",
+    namespace: str = None,
     kube_config_path: str = None,
     context: str = None,
 ) -> KubernetesCluster:
@@ -447,6 +451,68 @@ def kubernetes_cluster(
             f"Cluster name {name} is a reserved name. Please use a different name which is not one of "
             f"{RESERVED_SYSTEM_NAMES}."
         )
+    
+    if context is not None and namespace is not None:
+            warnings.warn(
+                "You passed both a context and a namespace. Ensure your namespace matches the one in your context.",
+                UserWarning,
+            )
+            
+    if (
+        namespace is not None
+    ):  # check if user passed a user-defined namespace
+        cmd = f"kubectl config set-context --current --namespace={namespace}"
+        try:
+            process = subprocess.run(
+                cmd,
+                shell=True,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            logger.info(process.stdout)
+            logger.info(f"Kubernetes namespace set to {namespace}")
+
+        except subprocess.CalledProcessError as e:
+            logger.info(f"Error: {e}")
+
+    if (
+        kube_config_path is not None
+    ):  # check if user passed a user-defined kube_config_path
+        kube_config_dir = os.path.expanduser("~/.kube")
+        kube_config_path_rl = os.path.join(kube_config_dir, "config")
+
+        if not os.path.exists(
+            kube_config_dir
+        ):  # check if ~/.kube directory exists on local machine
+            try:
+                os.makedirs(
+                    kube_config_dir
+                )  # create ~/.kube directory if it doesn't exist
+                logger.info(f"Created directory: {kube_config_dir}")
+            except OSError as e:
+                logger.info(f"Error creating directory: {e}")
+
+        if os.path.exists(kube_config_path_rl):
+            raise Exception("A kubeconfig file already exists in ~/.kube directory. Aborting.")
+
+        try:
+            cmd = f"cp {self.kube_config_path} {kube_config_path_rl}"  # copy user-defined kube_config to ~/.kube/config
+            subprocess.run(cmd, shell=True, check=True)
+            logger.info(
+                f"Copied kubeconfig to: {kube_config_path}"
+            )  
+        except subprocess.CalledProcessError as e:
+            logger.info(f"Error copying kubeconfig: {e}")
+
+    if context is not None:  # check if user passed a user-defined context
+        try:
+            cmd = f"kubectl config use-context {context}"  # set user-defined context as current context
+            subprocess.run(cmd, shell=True, check=True)
+            logger.info(f"Kubernetes context has been set to: {context}")
+        except subprocess.CalledProcessError as e:
+            logger.info(f"Error setting context: {e}")
 
     return KubernetesCluster(
         name=name,
