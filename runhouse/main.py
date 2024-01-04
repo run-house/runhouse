@@ -107,7 +107,7 @@ def _start_server(
     den_auth=False,
     ssl_keyfile=None,
     ssl_certfile=None,
-    force_reinstall=False,
+    restart_proxy=False,
     use_nginx=False,
     certs_address=None,
     use_local_telemetry=False,
@@ -125,7 +125,7 @@ def _start_server(
         den_auth=den_auth,
         ssl_keyfile=ssl_keyfile,
         ssl_certfile=ssl_certfile,
-        force_reinstall=force_reinstall,
+        restart_proxy=restart_proxy,
         use_nginx=use_nginx,
         certs_address=certs_address,
         use_local_telemetry=use_local_telemetry,
@@ -248,7 +248,7 @@ def restart(
     ssl_certfile: Optional[str] = typer.Option(
         None, help="Path to custom SSL cert file to use for enabling HTTPS"
     ),
-    force_reinstall: bool = typer.Option(
+    restart_proxy: bool = typer.Option(
         False, help="Whether to reinstall Nginx and other server configs on the cluster"
     ),
     use_nginx: bool = typer.Option(
@@ -282,7 +282,7 @@ def restart(
         den_auth=use_den_auth,
         ssl_keyfile=ssl_keyfile,
         ssl_certfile=ssl_certfile,
-        force_reinstall=force_reinstall,
+        restart_proxy=restart_proxy,
         use_nginx=use_nginx,
         certs_address=certs_address,
         use_local_telemetry=use_local_telemetry,

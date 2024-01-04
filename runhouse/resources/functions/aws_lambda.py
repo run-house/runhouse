@@ -177,35 +177,43 @@ class LambdaFunction(Function):
         dryrun: bool = False,
     ):
         """
-        creates an AWS Lambda function from a python file.
-        paths_to_code: (Optional[list[str]]): List of the FULL paths to the python code file(s) that should be sent to
-                      AWS Lambda. First path in the list should be the path to the handler file which contains the main
-                      handler) function.
-        handler_function_name: (Optional[str]): The name of the function in the handler file that will be executed
-                      by the Lambda.
-        runtime: (Optional[str]): The coding language of the function. Should be one of the following:
-            python3.7, python3.8, python3.9, python3.10, python3.11. (Default: ``python3.9``)
-        name (Optional[str]): Name of the Lambda Function to create or retrieve.
-            This can be either from a local config or from the RNS.
-        env (Optional[Dict or List[str] or Env]): Specifies the requirements that will be installed, and the environment
-            vars that should be attached to the Lambda. Accepts three possible types:\n
-            1. A dict which should contain the following keys:\n
-               a. reqs: a list of the python libraries, to be installed by the Lambda, or just a ``requirements.txt``
-                  string.\n
-               b. env_vars: dictionary containing the env_vars that will be a part of the lambda configuration.\n
-            2. A list of strings, containing all the required python packages.\n
-            3. An instance of Runhouse Env class.\n
-            By default, ``runhouse`` package will be installed, and env_vars will include ``{HOME: /tmp/home}``.
-        timeout: Optional[int]: The maximum amount of time (in seconds) during which the Lambda will run in AWS
-            without timing-out. (Default: ``900``, Min: ``3``, Max: ``900``)
-        memory_size: Optional[int], The amount of memory (in MB) to be allocated to the Lambda.
-             (Default: ``1024``, Min: ``128``, Max: ``10240``)
-        tmp_size: Optional[int], This size of the /tmp folder in the aws lambda file system.
-             (Default: ``3072``, Min: ``512``, Max: ``10240``).
-        retention_time: Optional[int] The time (in days) the Lambda execution logs will be saved in AWS
-            cloudwatch. After that, they will be deleted. (Default: ``30`` days)
-        dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
-            (Default: ``False``).
+        Creates an AWS Lambda function from a Python file.
+
+        Args:
+            paths_to_code: (Optional[List[str]]): List of the FULL paths to the Python code file(s) that should be
+                sent to AWS Lambda. First path in the list should be the path to the handler file which contains
+                the main (handler) function. If ``fn`` is provided, this argument is ignored.
+            handler_function_name: (Optional[str]): The name of the function in the handler file that will be executed
+                by the Lambda. If ``fn`` is provided, this argument is ignored.
+            runtime: (Optional[str]): The coding language of the function. Should be one of the following:
+                python3.7, python3.8, python3.9, python3.10, python3.11. (Default: ``python3.9``)
+            name (Optional[str]): Name of the Lambda Function to create or retrieve.
+                This can be either from a local config or from the RNS.
+            env (Optional[Dict or List[str] or Env]): Specifies the requirements that will be installed, and the
+                environment vars that should be attached to the Lambda. Accepts three possible types:
+
+                1. A dict which should contain the following keys:
+
+                    reqs: a list of the python libraries, to be installed by the Lambda, or just a ``requirements.txt``
+                    string.
+
+                    env_vars: dictionary containing the env_vars that will be a part of the lambda configuration.
+
+                2. A list of strings, containing all the required python packages.
+
+                3. An instance of Runhouse Env class. By default, ``runhouse`` package will be installed, and env_vars
+                   will include ``{HOME: /tmp/home}``.
+
+            timeout: Optional[int]: The maximum amount of time (in seconds) during which the Lambda will run in AWS
+                without timing-out. (Default: ``900``, Min: ``3``, Max: ``900``)
+            memory_size: Optional[int], The amount of memory (in MB) to be allocated to the Lambda.
+                (Default: ``1024``, Min: ``128``, Max: ``10240``)
+            tmp_size: Optional[int], This size of the /tmp folder in the aws lambda file system.
+                (Default: ``3072``, Min: ``512``, Max: ``10240``).
+            retention_time: Optional[int] The time (in days) the Lambda execution logs will be saved in AWS
+                cloudwatch. After that, they will be deleted. (Default: ``30`` days)
+            dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
+                (Default: ``False``).
 
         Returns:
             LambdaFunction: The resulting AWS Lambda Function object.
@@ -267,9 +275,15 @@ class LambdaFunction(Function):
 
     # Arguments validation and arguments creation methods
     @classmethod
-    def validate_and_create_env(cls, env):
+    def validate_and_create_env(cls, env: Optional[Env] = None):
         """
-        validates the passed env argument, and creates a Runhouse env instance if needed.
+        Validates the passed env argument, and creates a Runhouse env instance if needed.
+
+        Args:
+            env (Optional[Env]): The environment to validate and create.
+
+        Returns:
+            Env: a Runhouse env object
         """
         if env is not None and not isinstance(env, Env):
             original_env = copy.deepcopy(env)

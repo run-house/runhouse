@@ -22,7 +22,6 @@ def test_save_local_blob_fails(local_blob, blob_data):
 @pytest.mark.rnstest
 @pytest.mark.awstest
 @pytest.mark.gcptest
-@pytest.mark.clustertest
 @pytest.mark.parametrize(
     "blob",
     ["local_file", "s3_blob", "gcs_blob"],
@@ -53,7 +52,6 @@ def test_reload_blob_with_name(blob):
 @pytest.mark.rnstest
 @pytest.mark.awstest
 @pytest.mark.gcptest
-@pytest.mark.clustertest
 @pytest.mark.parametrize(
     "blob", ["local_file", "s3_blob", "gcs_blob", "cluster_file"], indirect=True
 )
@@ -67,7 +65,6 @@ def test_reload_file_with_path(blob):
     assert not reloaded_blob.exists_in_system()
 
 
-@pytest.mark.clustertest
 @pytest.mark.parametrize("file", ["local_file", "cluster_file"], indirect=True)
 def test_file_to_blob(file, cluster):
     local_blob = file.to("here")
@@ -86,7 +83,6 @@ def test_file_to_blob(file, cluster):
 @pytest.mark.rnstest
 @pytest.mark.awstest
 @pytest.mark.gcptest
-@pytest.mark.clustertest
 @pytest.mark.parametrize(
     "blob", ["local_blob", "cluster_blob", "local_file"], indirect=True
 )
@@ -111,7 +107,6 @@ def test_blob_to_file(blob, folder):
 
 @pytest.mark.awstest
 @pytest.mark.rnstest
-@pytest.mark.clustertest
 def test_sharing_blob(cluster_blob):
     token = os.getenv("TEST_TOKEN") or configs.get("token")
     headers = {"Authorization": f"Bearer {token}"}
@@ -135,7 +130,6 @@ def test_sharing_blob(cluster_blob):
 
 
 @pytest.mark.rnstest
-@pytest.mark.clustertest
 def test_load_shared_blob(local_blob):
     my_blob = rh.blob(name="@/shared_blob")
     assert my_blob.exists_in_system()

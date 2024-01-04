@@ -3,10 +3,8 @@ import warnings
 
 from typing import Dict, List, Optional, Union
 
-from runhouse.resources.hardware.utils import (
-    RESERVED_SYSTEM_NAMES,
-    ServerConnectionType,
-)
+from runhouse.constants import RESERVED_SYSTEM_NAMES
+from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import relative_ssh_path
 
 from .cluster import Cluster
@@ -145,7 +143,7 @@ def cluster(
             "estimator",
             "instance_type",
             "connection_wait_time",
-            "instance_count",
+            "num_instances",
         ]
     ):
         warnings.warn(
@@ -410,7 +408,7 @@ def sagemaker_cluster(
     ssh_key_path: str = None,
     instance_id: str = None,
     instance_type: str = None,
-    instance_count: int = None,
+    num_instances: int = None,
     image_uri: str = None,
     autostop_mins: int = None,
     connection_wait_time: int = None,
@@ -447,7 +445,7 @@ def sagemaker_cluster(
         instance_type (str, optional): Type of AWS instance to use for the cluster. More info on supported
             instance options `here <https://aws.amazon.com/sagemaker/pricing/instance-types>`_.
             (Default: ``ml.m5.large``.)
-        instance_count (int, optional): Number of instances to use for the cluster.
+        num_instances (int, optional): Number of instances to use for the cluster.
             (Default: ``1``.)
         image_uri (str, optional): Image to use for the cluster instead of using the default SageMaker image which
             will be based on the framework_version and py_version. Can be an ECR url or dockerhub image and tag.
@@ -510,7 +508,7 @@ def sagemaker_cluster(
     ):
         raise RuntimeError(
             "SageMaker SDK requires AWS CLI v2. You may also need to run `pip uninstall awscli` to ensure the right "
-            "version is being used. For more info: https://www.run.house/docs/api/python/cluster#id2"
+            "version is being used. For more info: https://www.run.house/docs/api/python/cluster#id9"
         )
 
     ssh_key_path = relative_ssh_path(ssh_key_path) if ssh_key_path else None
@@ -539,7 +537,7 @@ def sagemaker_cluster(
             estimator=estimator,
             instance_type=instance_type,
             job_name=job_name,
-            instance_count=instance_count,
+            num_instances=num_instances,
             server_host=server_host,
             server_port=server_port,
             server_connection_type=server_connection_type,
@@ -571,7 +569,7 @@ def sagemaker_cluster(
         job_name=job_name,
         instance_id=instance_id,
         instance_type=instance_type,
-        instance_count=instance_count,
+        num_instances=num_instances,
         image_uri=image_uri,
         autostop_mins=autostop_mins,
         connection_wait_time=connection_wait_time,

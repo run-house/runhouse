@@ -65,7 +65,6 @@ class SSHSecret(ProviderSecret):
 
         priv_key_path = Path(os.path.expanduser(priv_key_path))
         pub_key_path = Path(f"{os.path.expanduser(priv_key_path)}.pub")
-        values = self.values
 
         if priv_key_path.exists() and pub_key_path.exists():
             if values == self._from_path(path):

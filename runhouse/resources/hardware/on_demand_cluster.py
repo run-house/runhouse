@@ -129,7 +129,7 @@ class OnDemandCluster(Cluster):
         if config["handle"]:
             # with open(config["handle"].cluster_yaml, mode="r") as f:
             #     config["ray_config"] = yaml.safe_load(f)
-            config["public_key"] = self.ssh_creds()["ssh_private_key"] + ".pub"
+            config["public_key"] = self.ssh_creds["ssh_private_key"] + ".pub"
             config["handle"] = {
                 "cluster_name": config["handle"].cluster_name,
                 "cluster_name_on_cloud": config["handle"].cluster_name_on_cloud,
@@ -148,7 +148,7 @@ class OnDemandCluster(Cluster):
             }
             config["handle"]["launched_resources"].pop("spot_recovery", None)
 
-            config["ssh_creds"] = self.ssh_creds()
+            config["ssh_creds"] = self.ssh_creds
         return config
 
     def _copy_sky_yaml_from_cluster(self, abs_yaml_path: str):
@@ -437,11 +437,12 @@ class OnDemandCluster(Cluster):
         except FileNotFoundError:
             raise Exception(f"File with ssh key not found in: {path_to_file}")
 
+    @property
     def ssh_creds(self):
         """Retrieve SSH creds for the cluster.
 
         Example:
-            >>> credentials = rh.ondemand_cluster("rh-cpu").ssh_creds()
+            >>> credentials = rh.ondemand_cluster("rh-cpu").ssh_creds
         """
         if self._ssh_creds:
             return self._ssh_creds

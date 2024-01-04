@@ -61,6 +61,7 @@ def _get_env_var_value(env_var):
     return os.environ[env_var]
 
 
+@pytest.mark.secrettest
 class TestSecret(tests.test_resources.test_resource.TestResource):
     MAP_FIXTURES = {"resource": "secret"}
 
@@ -68,8 +69,7 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
     LOCAL = {
         "secret": ["test_secret"] + provider_secrets + api_secrets,
         "cluster": [
-            "local_docker_cluster_public_key_logged_in",
-            "local_docker_cluster_public_key_logged_out",
+            "local_docker_cluster_pk_ssh_no_auth",
         ],
     }
     MINIMAL = {
@@ -88,7 +88,12 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
     }
     MAXIMAL = {
         "secret": ["test_secret"] + provider_secrets,
-        "cluster": ["static_cpu_cluster", "password_cluster"],
+        "cluster": [
+            "static_cpu_cluster",
+            "password_cluster",
+            "local_docker_cluster_pk_ssh_no_auth",
+            "local_docker_cluster_pwd_ssh_no_auth",
+        ],
     }
 
     @pytest.mark.level("unit")
@@ -140,24 +145,22 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
             assert get_remote_val(val) == secret.values[key]
 
     @pytest.mark.level("local")
-    def test_sharing(self, test_secret):
-        username_to_share = rh.configs.get("username")
+    def test_share_and_revoke_secret(self, test_secret):
+        vault_secret = test_secret.save(f"{test_secret.name}_shared")
+        vault_secret.share(
+            users=["info@run.house"],
+            access_level="read",
+            notify_users=False,
+        )
 
-        # Create & share
         with test_account():
-            vault_secret = rh.secret(name=test_secret.name, values=test_secret.values)
-            test_headers = rns_client.request_headers
-            vault_secret.save(headers=test_headers)
+            reloaded_secret = rh.secret(name=vault_secret.rns_address)
+            assert reloaded_secret.values == test_secret.values
 
-            rns_address = vault_secret.rns_address
-
-            # Share the resource (incl. access to the secrets in Vault)
-            vault_secret.share(username_to_share, access_type="write")
-            del vault_secret
-
-        # By default we can re-load shared secrets
-        reloaded_secret = rh.secret(name=rns_address)
-        assert reloaded_secret.values == test_secret.values
+        vault_secret.revoke(users=["info@run.house"])
+        with pytest.raises(Exception):
+            with test_account():
+                rh.secret(name=vault_secret.rns_address)
 
     @pytest.mark.level("local")
     def test_sharing_public_secret(self, test_secret):
@@ -179,21 +182,6 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
 
         # NOTE: currently not loading the values for public secret resources (i.e. reloaded_secret.values will be empty)
         assert reloaded_secret
-
-    @pytest.mark.level("local")
-    def test_revoke_secret(self, test_secret):
-        username_to_share = rh.configs.get("username")
-
-        # Revoke access
-        with test_account():
-            secret = rh.secret(name=test_secret.name, values=test_secret.values)
-            rns_address = test_secret.rns_address
-
-            secret.revoke(username_to_share)
-
-        with pytest.raises(Exception):
-            # Should no longer be able to reload the resource
-            rh.secret(name=rns_address)
 
     @pytest.mark.level("local")
     def test_sync_secrets(self, secret, cluster):

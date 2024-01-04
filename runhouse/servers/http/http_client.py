@@ -240,7 +240,16 @@ class HTTPClient:
         # maybe a stream of results), so we need to separate these out.
         non_generator_result = None
         res_iter = res.iter_lines(chunk_size=None)
-        for responses_json in res_iter:
+        # We need to manually iterate through res_iter so we can try/except to bypass a ChunkedEncodingError bug
+        while True:
+            try:
+                responses_json = next(res_iter)
+            except requests.exceptions.ChunkedEncodingError:
+                # Some silly bug in urllib3, see https://github.com/psf/requests/issues/4248
+                continue
+            except StopIteration:
+                break
+
             resp = json.loads(responses_json)
             output_type = resp["output_type"]
             result = handle_response(resp, output_type, error_str)
@@ -349,6 +358,19 @@ class HTTPClient:
             key=old_key,
             err_str=f"Error renaming object {old_key}",
         )
+
+    def set_settings(self, new_settings: Dict[str, Any]):
+        res = requests.post(
+            self._formatted_url("settings"),
+            json=new_settings,
+            headers=rns_client.request_headers,
+            verify=self.verify,
+        )
+        if res.status_code != 200:
+            raise ValueError(
+                f"Error switching to new settings: {new_settings} on server: {res.content.decode()}"
+            )
+        return res
 
     def delete(self, keys=None, env=None):
         return self.request(

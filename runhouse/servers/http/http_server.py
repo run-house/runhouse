@@ -17,11 +17,17 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
+from runhouse.constants import CLUSTER_CONFIG_PATH
 from runhouse.globals import configs, env_servlets, rns_client
-from runhouse.resources.hardware.utils import _load_cluster_config, CLUSTER_CONFIG_PATH
+from runhouse.resources.hardware.utils import _load_cluster_config
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
-from runhouse.servers.http.auth import hash_token, verify_cluster_access
+from runhouse.servers.env_servlet import EnvServlet
+from runhouse.servers.http.auth import (
+    hash_token,
+    update_cache_for_user,
+    verify_cluster_access,
+)
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
     b64_unpickle,
@@ -31,9 +37,9 @@ from runhouse.servers.http.http_utils import (
     OutputType,
     pickle_b64,
     Response,
+    ServerSettings,
 )
 from runhouse.servers.nginx.config import NginxConfig
-from runhouse.servers.servlet import EnvServlet
 
 logger = logging.getLogger(__name__)
 
@@ -46,18 +52,22 @@ def validate_cluster_access(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         request: Request = kwargs.get("request")
-        use_den_auth: bool = HTTPServer.get_den_auth()
+        den_auth_enabled: bool = HTTPServer.get_den_auth()
         is_coro = inspect.iscoroutinefunction(func)
 
         func_call: bool = func.__name__ in ["call_module_method", "call", "get_call"]
-        if not use_den_auth or func_call:
+        token = get_token_from_request(request)
+
+        if func_call and token:
+            update_cache_for_user(token, refresh_cache=False)
+
+        if not den_auth_enabled or func_call:
             # If this is a func call, we'll handle the auth in the object store
             if is_coro:
                 return await func(*args, **kwargs)
 
             return func(*args, **kwargs)
 
-        token = get_token_from_request(request)
         if token is None:
             raise HTTPException(
                 status_code=404,
@@ -114,13 +124,20 @@ class HTTPServer:
             from opentelemetry import trace
             from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
             from opentelemetry.instrumentation.requests import RequestsInstrumentor
+            from opentelemetry.sdk.resources import Resource
             from opentelemetry.sdk.trace import TracerProvider
             from opentelemetry.sdk.trace.export import SimpleSpanProcessor
             from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
                 InMemorySpanExporter,
             )
 
-            trace.set_tracer_provider(TracerProvider())
+            trace.set_tracer_provider(
+                TracerProvider(
+                    resource=Resource.create(
+                        {"service.name": "runhouse-in-memory-service"}
+                    )
+                )
+            )
             self.memory_exporter = InMemorySpanExporter()
             trace.get_tracer_provider().add_span_processor(
                 SimpleSpanProcessor(self.memory_exporter)
@@ -155,6 +172,12 @@ class HTTPServer:
         except Exception as e:
             logger.error(f"Failed to collect cluster stats: {str(e)}")
 
+        try:
+            # Collect telemetry stats for the cluster
+            self._collect_telemetry_stats()
+        except Exception as e:
+            logger.error(f"Failed to collect cluster telemetry stats: {str(e)}")
+
         base_env = self.get_env_servlet(
             env_name="base",
             create=True,
@@ -173,11 +196,17 @@ class HTTPServer:
 
     @classmethod
     def enable_den_auth(cls):
+        from runhouse.globals import obj_store
+
         cls._den_auth = True
+        obj_store.clear_auth_cache()
 
     @classmethod
     def disable_den_auth(cls):
+        from runhouse.globals import obj_store
+
         cls._den_auth = False
+        obj_store.clear_auth_cache()
 
     @staticmethod
     def register_activity():
@@ -310,6 +339,17 @@ class HTTPServer:
         return None
 
     @staticmethod
+    @app.post("/settings")
+    @validate_cluster_access
+    def update_settings(request: Request, message: ServerSettings) -> Response:
+        if message.den_auth:
+            HTTPServer.enable_den_auth()
+        elif message.den_auth is not None and not message.den_auth:
+            HTTPServer.disable_den_auth()
+
+        return Response(output_type=OutputType.SUCCESS)
+
+    @staticmethod
     @app.post("/resource")
     @validate_cluster_access
     def put_resource(request: Request, message: Message):
@@ -346,7 +386,8 @@ class HTTPServer:
         request: Request, module, method=None, message: dict = Body(default=None)
     ):
         token = get_token_from_request(request)
-        token_hash = hash_token(token) if den_auth and token else None
+        den_auth_enabled = HTTPServer.get_den_auth()
+        token_hash = hash_token(token) if den_auth_enabled and token else None
         # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
@@ -371,7 +412,7 @@ class HTTPServer:
                 # Unless we're returning a fast response, we discard this obj_ref
                 obj_ref = HTTPServer.call_in_env_servlet(
                     "call_module_method",
-                    [module, method, message, token_hash, den_auth],
+                    [module, method, message, token_hash, den_auth_enabled],
                     env=env,
                     create=True,
                     block=False,
@@ -476,6 +517,7 @@ class HTTPServer:
                         raise ray.exceptions.GetTimeoutError
                     if not ret_val.output_type == OutputType.RESULT_STREAM:
                         waiting_for_results = False
+                    ret_val = ret_val.data if serialization == "json" else ret_val
                     ret_resp = json.dumps(jsonable_encoder(ret_val))
                     yield ret_resp + "\n"
                 except ray.exceptions.GetTimeoutError:
@@ -500,9 +542,13 @@ class HTTPServer:
                         #     ret_lines.append(f"Process {i}:")
                         ret_lines += file_lines
                 if ret_lines:
-                    lines_resp = Response(
-                        data=ret_lines,
-                        output_type=OutputType.STDOUT,
+                    lines_resp = (
+                        Response(
+                            data=ret_lines,
+                            output_type=OutputType.STDOUT,
+                        )
+                        if not serialization == "json"
+                        else ret_lines
                     )
                     logger.debug(f"Yielding logs for key {key}")
                     yield json.dumps(jsonable_encoder(lines_resp)) + "\n"
@@ -580,7 +626,8 @@ class HTTPServer:
     @validate_cluster_access
     def get_call(request: Request, module, method=None, serialization="json"):
         token = get_token_from_request(request)
-        token_hash = hash_token(token) if den_auth and token else None
+        den_auth_enabled = HTTPServer.get_den_auth()
+        token_hash = hash_token(token) if den_auth_enabled and token else None
         # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
@@ -602,7 +649,14 @@ class HTTPServer:
                 # Unless we're returning a fast response, we discard this obj_ref
                 obj_ref = HTTPServer.call_in_env_servlet(
                     "call_module_method",
-                    [module, method, message, token_hash, den_auth, serialization],
+                    [
+                        module,
+                        method,
+                        message,
+                        token_hash,
+                        den_auth_enabled,
+                        serialization,
+                    ],
                     env=env,
                     create=True,
                     block=False,
@@ -622,11 +676,13 @@ class HTTPServer:
                     return Response(output_type=OutputType.NOT_FOUND, data=message.key)
 
             if message.run_async:
-                return Response(
-                    data=pickle_b64(message.key)
+                return (
+                    Response(
+                        data=pickle_b64(message.key),
+                        output_type=OutputType.RESULT,
+                    )
                     if not serialization == "json"
-                    else message.key,
-                    output_type=OutputType.RESULT,
+                    else message.key
                 )
 
             return StreamingResponse(
@@ -644,8 +700,10 @@ class HTTPServer:
             logger.exception(e)
             HTTPServer.register_activity()
             return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
+                error=pickle_b64(e) if not serialization == "json" else str(e),
+                traceback=pickle_b64(traceback.format_exc())
+                if not serialization == "json"
+                else str(traceback.format_exc()),
                 output_type=OutputType.EXCEPTION,
             )
 
@@ -663,13 +721,14 @@ class HTTPServer:
         args = args.get("args", [])
         query_params = dict(request.query_params)
         query_params.pop("serialization", None)
+        den_auth_enabled = HTTPServer.get_den_auth()
         if query_params:
             kwargs.update(query_params)
         token = get_token_from_request(request)
-        token_hash = hash_token(token) if den_auth and token else None
+        token_hash = hash_token(token) if den_auth_enabled and token else None
         resp = HTTPServer.call_in_env_servlet(
             "call",
-            [module, method, args, kwargs, serialization, token_hash, den_auth],
+            [module, method, args, kwargs, serialization, token_hash, den_auth_enabled],
             create=True,
             lookup_env_for_name=module,
         )
@@ -689,6 +748,49 @@ class HTTPServer:
             {**cluster_data, **sky_data},
             labels={"username": configs.get("username"), "environment": "prod"},
         )
+
+    @staticmethod
+    def _collect_telemetry_stats():
+        """Collect telemetry stats and send them to the Runhouse hosted OpenTelemetry collector"""
+
+        from opentelemetry import trace
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+            OTLPSpanExporter,
+        )
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        from opentelemetry.instrumentation.requests import RequestsInstrumentor
+        from opentelemetry.sdk.resources import Resource
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+        telemetry_collector_address = configs.get("telemetry_collector_address")
+
+        logger.info(f"Preparing to send telemetry to {telemetry_collector_address}")
+
+        # Set the tracer provider and the exporter
+        trace.set_tracer_provider(
+            TracerProvider(
+                resource=Resource.create({"service.name": "runhouse-service"})
+            )
+        )
+        otlp_exporter = OTLPSpanExporter(
+            endpoint=telemetry_collector_address + "/v1/traces",
+        )
+
+        # Add the exporter to the tracer provider
+        trace.get_tracer_provider().add_span_processor(
+            BatchSpanProcessor(otlp_exporter)
+        )
+
+        logger.info(
+            f"Successfully added telemetry exporter {telemetry_collector_address}"
+        )
+
+        # Instrument the app object
+        FastAPIInstrumentor.instrument_app(app)
+
+        # Instrument the requests library
+        RequestsInstrumentor().instrument()
 
     @staticmethod
     def _cluster_status_report():

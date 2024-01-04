@@ -12,13 +12,9 @@ import fsspec
 
 import sshfs
 
+from runhouse.constants import RESERVED_SYSTEM_NAMES
 from runhouse.globals import rns_client
-from runhouse.resources.hardware import (
-    _current_cluster,
-    _get_cluster_from,
-    Cluster,
-    RESERVED_SYSTEM_NAMES,
-)
+from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Cluster
 from runhouse.resources.resource import Resource
 from runhouse.rns.top_level_rns_fns import exists
 from runhouse.rns.utils.api import generate_uuid
@@ -191,7 +187,7 @@ class Folder(Resource):
                     raise ValueError(
                         "Cluster must be started before copying data from it."
                     )
-            creds = self.system.ssh_creds()
+            creds = self.system.ssh_creds
 
             client_keys = (
                 [str(Path(creds["ssh_private_key"]).expanduser())]
@@ -496,9 +492,9 @@ class Folder(Resource):
     def _cluster_to_cluster(self, dest_cluster, dest_path):
         src_path = self.path
 
-        cluster_creds = self.system.ssh_creds()
+        cluster_creds = self.system.ssh_creds
 
-        if not cluster_creds.get("password") and not dest_cluster.ssh_creds().get(
+        if not cluster_creds.get("password") and not dest_cluster.ssh_creds.get(
             "password"
         ):
             creds_file = cluster_creds.get("ssh_private_key")

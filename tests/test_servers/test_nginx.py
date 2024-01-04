@@ -11,6 +11,7 @@ from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 from runhouse.servers.nginx.config import NginxConfig
 
 
+@pytest.mark.servertest
 class TestNginxConfiguration:
     @pytest.fixture(autouse=True)
     def init_fixtures(self):
@@ -332,10 +333,8 @@ class TestNginxConfiguration:
                 server_name {config.address};
 
                 location / {{
+                    proxy_buffering off;
                     proxy_pass http://127.0.0.1:{config.rh_server_port}/;
-                    proxy_buffer_size 128k;
-                    proxy_buffers 4 256k;
-                    proxy_busy_buffers_size 256k;
                 }}
             }}
             """
@@ -401,10 +400,8 @@ class TestNginxConfiguration:
                 ssl_certificate_key {config.ssl_key_path};
 
                 location / {{
+                    proxy_buffering off;
                     proxy_pass http://127.0.0.1:{config.rh_server_port}/;
-                    proxy_buffer_size 128k;
-                    proxy_buffers 4 256k;
-                    proxy_busy_buffers_size 256k;
                 }}
             }}
             """
@@ -413,36 +410,37 @@ class TestNginxConfiguration:
         assert https_template == expected_https_template
 
 
+@pytest.mark.servertest
 class TestNginxServerLocally:
 
     UNIT = {
         "cluster": [
-            "local_docker_cluster_with_nginx_http",
-            "local_docker_cluster_with_nginx_https",
+            "local_docker_cluster_pk_http_exposed",
+            "local_docker_cluster_pk_tls_den_auth",
         ]
     }
     LOCAL = {
         "cluster": [
-            "local_docker_cluster_with_nginx_http",
-            "local_docker_cluster_with_nginx_https",
+            "local_docker_cluster_pk_http_exposed",
+            "local_docker_cluster_pk_tls_den_auth",
         ]
     }
     MINIMAL = {
         "cluster": [
-            "local_docker_cluster_with_nginx_http",
-            "local_docker_cluster_with_nginx_https",
+            "local_docker_cluster_pk_http_exposed",
+            "local_docker_cluster_pk_tls_den_auth",
         ]
     }
     THOROUGH = {
         "cluster": [
-            "local_docker_cluster_with_nginx_http",
-            "local_docker_cluster_with_nginx_https",
+            "local_docker_cluster_pk_http_exposed",
+            "local_docker_cluster_pk_tls_den_auth",
         ]
     }
     MAXIMAL = {
         "cluster": [
-            "local_docker_cluster_with_nginx_http",
-            "local_docker_cluster_with_nginx_https",
+            "local_docker_cluster_pk_http_exposed",
+            "local_docker_cluster_pk_tls_den_auth",
         ]
     }
 

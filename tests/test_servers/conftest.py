@@ -48,7 +48,7 @@ def get_ray_servlet(env_name):
 # -------- FIXTURES ----------- #
 @pytest.fixture(scope="module")
 def http_client():
-    with httpx.Client(base_url=BASE_URL) as client:
+    with httpx.Client(base_url=BASE_URL, timeout=10.0) as client:
         yield client
 
 

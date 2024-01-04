@@ -1,3 +1,4 @@
+import copy
 import json
 import logging
 import os
@@ -23,14 +24,12 @@ from sky.utils.command_runner import (
     SshMode,
 )
 
-from sshtunnel import SSHTunnelForwarder
+from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
+from runhouse.constants import CLUSTER_CONFIG_PATH, LOCALHOST, RESERVED_SYSTEM_NAMES
 from runhouse.globals import ssh_tunnel_cache
 
 logger = logging.getLogger(__name__)
-
-RESERVED_SYSTEM_NAMES = ["file", "s3", "gs", "azure", "here", "ssh", "sftp"]
-CLUSTER_CONFIG_PATH = "~/.rh/cluster_config.json"
 
 
 # Get rid of the constant "Found credentials in shared credentials file: ~/.aws/credentials" message
@@ -44,9 +43,9 @@ except ImportError:
     pass
 
 # TODO: Move the following two functions into a networking module
-def get_open_tunnel(address: str, ssh_port: str):
+def get_open_tunnel(address: str, ssh_port: int) -> Optional[SSHTunnelForwarder]:
     if (address, ssh_port) in ssh_tunnel_cache:
-        ssh_tunnel, connected_port = ssh_tunnel_cache[(address, ssh_port)]
+        ssh_tunnel = ssh_tunnel_cache[(address, ssh_port)]
         if isinstance(ssh_tunnel, SSHTunnelForwarder):
             # Initializes tunnel_is_up dictionary
             ssh_tunnel.check_tunnels()
@@ -55,22 +54,21 @@ def get_open_tunnel(address: str, ssh_port: str):
                 ssh_tunnel.is_active
                 and ssh_tunnel.tunnel_is_up[ssh_tunnel.local_bind_address]
             ):
-                return ssh_tunnel, connected_port
+                return ssh_tunnel
 
             else:
                 # If the tunnel is no longer active or up, pop it from the global cache
                 ssh_tunnel_cache.pop((address, ssh_port))
 
-    return None, None
+    return None
 
 
 def cache_open_tunnel(
     address: str,
     ssh_port: str,
     ssh_tunnel: SSHTunnelForwarder,
-    connected_port: int,
 ):
-    ssh_tunnel_cache[(address, ssh_port)] = (ssh_tunnel, connected_port)
+    ssh_tunnel_cache[(address, ssh_port)] = ssh_tunnel
 
 
 class ServerConnectionType(str, Enum):
@@ -448,3 +446,127 @@ class SkySSHRunner(SSHCommandRunner):
         subprocess_utils.handle_returncode(
             returncode, command, error_msg, stderr=stderr, stream_logs=stream_logs
         )
+
+
+def get_remote_bind_address_from_tunnel(tunnel: SSHTunnelForwarder) -> Tuple[str, int]:
+    """Get the remote bind address from an SSHTunnelForwarder object.
+
+    Args:
+        tunnel (SSHTunnelForwarder): The tunnel object.
+
+    Returns:
+        Tuple[str, int]: The remote bind address.
+    """
+
+    if len(tunnel.tunnel_bindings) != 1:
+        raise Exception("Expected exactly one tunnel binding.")
+
+    return list(tunnel.tunnel_bindings.keys())[0]
+
+
+def ssh_tunnel(
+    address: str,
+    ssh_creds: Dict,
+    local_port: int,
+    ssh_port: int = 22,
+    remote_port: Optional[int] = None,
+    num_ports_to_try: int = 0,
+) -> SSHTunnelForwarder:
+    """Initialize an ssh tunnel from a remote server to localhost
+
+    Args:
+        address (str): The address of the server we are trying to port forward an address to our local machine with.
+        ssh_creds (Dict): A dictionary of ssh credentials used to connect to the remote server.
+        local_port (int): The port locally where we are attempting to bind the remote server address to.
+        ssh_port (int): The port on the machine where the ssh server is running.
+            This is generally port 22, but occasionally
+            we may forward a container's ssh port to a different port
+            on the actual machine itself (for example on a Docker VM). Defaults to 22.
+        remote_port (Optional[int], optional): The port of the remote server
+            we're attempting to port forward. Defaults to None.
+        num_ports_to_try (int, optional): The number of local ports to attempt to bind to,
+            starting at local_port and incrementing by 1 till we hit the max. Defaults to 0.
+
+    Returns:
+        SSHTunnelForwarder: The initialized tunnel.
+    """
+
+    # Debugging cmds (mac):
+    # netstat -vanp tcp | grep 32300
+    # lsof -i :32300
+    # kill -9 <pid>
+
+    # If remote_port isn't specified,
+    # assume that the first attempted local port is
+    # the same as the remote port on the server.
+    remote_port = remote_port or local_port
+
+    tunnel = get_open_tunnel(address, ssh_port)
+    if (
+        tunnel
+        and get_remote_bind_address_from_tunnel(tunnel)[0]
+        and get_remote_bind_address_from_tunnel(tunnel)[1] == remote_port
+    ):
+        logger.info(
+            f"SSH tunnel on to server's port {remote_port} "
+            f"via server's ssh port {ssh_port} already created with the cluster."
+        )
+        return tunnel
+
+    connected = False
+    ssh_tunnel = None
+    while not connected:
+        try:
+            if num_ports_to_try < 0:
+                raise Exception(
+                    f"Failed to create SSH tunnel after {num_ports_to_try} attempts"
+                )
+
+            if ssh_creds.get("ssh_proxy_command"):
+                # Start a tunnel using self.run in a thread, instead of ssh_tunnel
+                ssh_credentials = copy.copy(ssh_creds)
+
+                # Host could be a proxy specified in credentials or is the provided address
+                host = ssh_credentials.pop("ssh_host", address)
+
+                runner = SkySSHRunner(host, **ssh_credentials, port=ssh_port)
+                runner.tunnel(local_port, remote_port)
+                ssh_tunnel = runner  # Just to keep the object in memory
+            else:
+                logger.info(
+                    f"Attempting to bind "
+                    f"{LOCALHOST}:{remote_port} via ssh port {ssh_port} "
+                    f"on remote server {address} "
+                    f"to {LOCALHOST}:{local_port} on local machine."
+                )
+                ssh_tunnel = SSHTunnelForwarder(
+                    address,
+                    ssh_username=ssh_creds.get("ssh_user"),
+                    ssh_pkey=ssh_creds.get("ssh_private_key"),
+                    ssh_password=ssh_creds.get("password"),
+                    ssh_port=ssh_port,
+                    local_bind_address=("", local_port),
+                    # Binding to a service running on localhost:<remote_port> on the remote server
+                    remote_bind_address=(
+                        LOCALHOST,
+                        remote_port,
+                    ),
+                    set_keepalive=1,
+                    # mute_exceptions=True,
+                )
+                ssh_tunnel.start()
+            connected = True
+            logger.info(
+                f"Successfully bound "
+                f"{LOCALHOST}:{remote_port} via ssh port {ssh_port} "
+                f"on remote server {address} "
+                f"to {LOCALHOST}:{local_port} on local machine."
+            )
+        except HandlerSSHTunnelForwarderError:
+            # Try connecting with a different port - most likely the issue is the port is already taken
+            local_port += 1
+            num_ports_to_try -= 1
+
+    # ssh_tunnel should certainlly be non-None at this point.
+    cache_open_tunnel(address, ssh_port, ssh_tunnel)
+    return ssh_tunnel

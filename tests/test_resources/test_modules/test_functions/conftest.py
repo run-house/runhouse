@@ -66,6 +66,6 @@ def shared_function(shared_cluster):
         f = rh.function(summer).to(shared_cluster, env=["pytest"]).save()
 
         # Share the cluster & function with the current account
-        f.share(username_to_share, access_level="read")
+        f.share(username_to_share, access_level="read", notify_users=False)
 
     return f

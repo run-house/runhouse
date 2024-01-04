@@ -1,3 +1,4 @@
+import logging
 import pkgutil
 import shlex
 import time
@@ -108,7 +109,7 @@ def byo_cpu():
         .save()
     )
 
-    args = dict(name="different-cluster", ips=[c.address], ssh_creds=c.ssh_creds())
+    args = dict(name="different-cluster", ips=[c.address], ssh_creds=c.ssh_creds)
     c = rh.cluster(**args).save()
     init_args[id(c)] = args
 
@@ -156,7 +157,7 @@ def password_cluster():
 def build_and_run_image(
     image_name: str,
     container_name: str,
-    detached: bool,
+    reuse_existing_container: bool,
     dir_name: str,
     pwd_file=None,
     keypath=None,
@@ -183,70 +184,79 @@ def build_and_run_image(
             "name": container_name,
         },
     )
-    if len(containers) > 0 and detached:
-        print(f"Container {container_name} already running, skipping build and run.")
-    else:
-        # Check if image has already been built before re-building
-        images = client.images.list(filters={"reference": f"runhouse:{image_name}"})
-        if not images or force_rebuild:
-            # Build the SSH public key based Docker image
-            if keypath:
-                build_cmd = [
-                    "docker",
-                    "build",
-                    "--pull",
-                    "--rm",
-                    "-f",
-                    str(dockerfile_path),
-                    "--build-arg",
-                    f"RUNHOUSE_PATH={rh_path}"
-                    if rh_path
-                    else f"RUNHOUSE_VERSION={rh_version}",
-                    "--secret",
-                    f"id=ssh_key,src={keypath}.pub",
-                    "-t",
-                    f"runhouse:{image_name}",
-                    ".",
-                ]
-            elif pwd_file:
-                # Build a password file based Docker image
-                build_cmd = [
-                    "docker",
-                    "build",
-                    "--pull",
-                    "--rm",
-                    "-f",
-                    str(dockerfile_path),
-                    "--build-arg",
-                    f"DOCKER_USER_PASSWORD_FILE={pwd_file}",
-                    "--build-arg",
-                    f"RUNHOUSE_PATH={rh_path}"
-                    if rh_path
-                    else f"RUNHOUSE_VERSION={rh_version}",
-                    "-t",
-                    f"runhouse:{image_name}",
-                    ".",
-                ]
-            else:
-                raise ValueError("No keypath or password file path provided")
+    if len(containers) > 0:
+        if not reuse_existing_container:
+            raise ValueError(
+                f"Container {container_name} already running, but reuse_existing_container=False"
+            )
+        else:
+            logging.info(
+                f"Container {container_name} already running, skipping build and run."
+            )
+            return client
 
-            print(shlex.join(build_cmd))
-            run_shell_command(subprocess, build_cmd, cwd=str(rh_parent_path.parent))
+    # The container is not running, so we need to build and run it
+    # Check if image has already been built before re-building
+    images = client.images.list(filters={"reference": f"runhouse:{image_name}"})
+    if not images or force_rebuild:
+        # Build the SSH public key based Docker image
+        if keypath:
+            build_cmd = [
+                "docker",
+                "build",
+                "--pull",
+                "--rm",
+                "-f",
+                str(dockerfile_path),
+                "--build-arg",
+                f"RUNHOUSE_PATH={rh_path}"
+                if rh_path
+                else f"RUNHOUSE_VERSION={rh_version}",
+                "--secret",
+                f"id=ssh_key,src={keypath}.pub",
+                "-t",
+                f"runhouse:{image_name}",
+                ".",
+            ]
+        elif pwd_file:
+            # Build a password file based Docker image
+            build_cmd = [
+                "docker",
+                "build",
+                "--pull",
+                "--rm",
+                "-f",
+                str(dockerfile_path),
+                "--build-arg",
+                f"DOCKER_USER_PASSWORD_FILE={pwd_file}",
+                "--build-arg",
+                f"RUNHOUSE_PATH={rh_path}"
+                if rh_path
+                else f"RUNHOUSE_VERSION={rh_version}",
+                "-t",
+                f"runhouse:{image_name}",
+                ".",
+            ]
+        else:
+            raise ValueError("No keypath or password file path provided")
 
-        # Run the Docker image
-        port_fwds = (
-            "".join([f"-p {port_fwd} " for port_fwd in port_fwds]).strip().split(" ")
-        )
-        run_cmd = (
-            ["docker", "run", "--name", container_name, "-d", "--rm", "--shm-size=4gb"]
-            + port_fwds
-            + [f"runhouse:{image_name}"]
-        )
-        print(shlex.join(run_cmd))
-        res = popen_shell_command(subprocess, run_cmd, cwd=str(rh_parent_path.parent))
-        stdout, stderr = res.communicate()
-        if res.returncode != 0:
-            raise RuntimeError(f"Failed to run docker image {image_name}: {stderr}")
+        print(shlex.join(build_cmd))
+        run_shell_command(subprocess, build_cmd, cwd=str(rh_parent_path.parent))
+
+    # Run the Docker image
+    port_fwds = (
+        "".join([f"-p {port_fwd} " for port_fwd in port_fwds]).strip().split(" ")
+    )
+    run_cmd = (
+        ["docker", "run", "--name", container_name, "-d", "--rm", "--shm-size=4gb"]
+        + port_fwds
+        + [f"runhouse:{image_name}"]
+    )
+    print(shlex.join(run_cmd))
+    res = popen_shell_command(subprocess, run_cmd, cwd=str(rh_parent_path.parent))
+    stdout, stderr = res.communicate()
+    if res.returncode != 0:
+        raise RuntimeError(f"Failed to run docker image {image_name}: {stderr}")
 
     return client
 
@@ -292,11 +302,12 @@ def set_up_local_cluster(
     image_name: str,
     container_name: str,
     dir_name: str,
-    detached: bool,
+    reuse_existing_container: bool,
     force_rebuild: bool,
     port_fwds: List[str],
     local_ssh_port: int,
     additional_cluster_init_args: Dict[str, Any],
+    logged_in: bool = False,
     keypath: str = None,
     pwd_file: str = None,
 ):
@@ -304,7 +315,7 @@ def set_up_local_cluster(
         image_name=image_name,
         container_name=container_name,
         dir_name=dir_name,
-        detached=detached,
+        reuse_existing_container=reuse_existing_container,
         keypath=keypath,
         pwd_file=pwd_file,
         force_rebuild=force_rebuild,
@@ -315,7 +326,6 @@ def set_up_local_cluster(
         host="localhost",
         server_host="0.0.0.0",
         ssh_port=local_ssh_port,
-        server_connection_type="ssh",
         ssh_creds={
             "ssh_user": SSH_USER,
             "ssh_private_key": keypath,
@@ -334,253 +344,331 @@ def set_up_local_cluster(
         setup_cmds=[
             f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
             f"echo '{yaml.safe_dump(rh.configs.defaults_cache)}' > ~/.rh/config.yaml"
-        ],
+        ]
+        if logged_in
+        else False,
         name="base_env",
     ).to(rh_cluster)
 
     rh_cluster.save()
 
     def cleanup():
-        if not detached:
-            docker_client.containers.get(container_name).stop()
-            docker_client.containers.prune()
-            docker_client.images.prune()
+        docker_client.containers.get(container_name).stop()
+        docker_client.containers.prune()
+        docker_client.images.prune()
 
     return rh_cluster, cleanup
 
 
 @pytest.fixture(scope="session")
-def local_docker_cluster_public_key(request):
+def local_docker_cluster_pk_tls_exposed(request):
+    """This basic cluster fixture is set up with:
+    - Public key authentication
+    - Nginx set up on startup to forward Runhouse HTTP server to port 443
+    """
+
+    # From pytest config
+    detached = request.config.getoption("--detached")
+    force_rebuild = request.config.getoption("--force-rebuild")
+
+    # Ports to use on the Docker VM such that they don't conflict
     local_ssh_port = BASE_LOCAL_SSH_PORT + 1
+    local_client_port = LOCAL_HTTPS_SERVER_PORT + 1
+
     local_cluster, cleanup = set_up_local_cluster(
         image_name="keypair",
-        container_name="rh-slim-public-key",
+        container_name="rh-pk-tls-port-fwd",
         dir_name="public-key-auth",
         keypath=str(
             Path(
                 rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
             ).expanduser()
         ),
-        detached=request.config.getoption("--detached"),
-        force_rebuild=request.config.getoption("--force-rebuild"),
-        port_fwds=[f"{local_ssh_port}:22"],
+        reuse_existing_container=detached,
+        force_rebuild=force_rebuild,
+        port_fwds=[f"{local_ssh_port}:22", f"{local_client_port}:443"],
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
-            "name": "local_docker_cluster_public_key",
-            "den_auth": "den_auth" in request.keywords,
+            "name": "local_docker_cluster_pk_tls_exposed",
+            "server_connection_type": "tls",
+            "server_port": 443,
+            "client_port": local_client_port,
+            "den_auth": True,
         },
     )
+
     # Yield the cluster
     yield local_cluster
 
-    # Stop the Docker container
-    cleanup()
+    # If we are running in detached mode, leave the container running, else clean it up
+    if not detached:
+        cleanup()
+
+
+@pytest.fixture(scope="session")
+def local_docker_cluster_pk_ssh(request):
+    """This basic cluster fixture is set up with:
+    - Public key authentication
+    - Nginx set up on startup to forward Runhouse HTTP server to port 443
+    """
+
+    # From pytest config
+    detached = request.config.getoption("--detached")
+    force_rebuild = request.config.getoption("--force-rebuild")
+
+    # Ports to use on the Docker VM such that they don't conflict
+    local_ssh_port = BASE_LOCAL_SSH_PORT + 2
+
+    local_cluster, cleanup = set_up_local_cluster(
+        image_name="keypair",
+        container_name="rh-pk-ssh",
+        dir_name="public-key-auth",
+        keypath=str(
+            Path(
+                rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
+            ).expanduser()
+        ),
+        reuse_existing_container=detached,
+        force_rebuild=force_rebuild,
+        port_fwds=[f"{local_ssh_port}:22"],
+        local_ssh_port=local_ssh_port,
+        additional_cluster_init_args={
+            "name": "local_docker_cluster_pk_ssh",
+            "server_connection_type": "ssh",
+        },
+    )
+
+    # Yield the cluster
+    yield local_cluster
+
+    # If we are running in detached mode, leave the container running, else clean it up
+    if not detached:
+        cleanup()
 
 
 # These two clusters cannot be used in the same test together, they are are technically
-# the same image, but we switch the log in.
+# the same image, but we switch the cluster parameters.
+# These depend on the base fixture above and swap out the cluster parameters as needed.
+@pytest.fixture(scope="function")
+def local_docker_cluster_pk_tls_den_auth(
+    local_docker_cluster_pk_tls_exposed,
+):
+    """This is one of our key use cases -- TLS + Den Auth set up.
+
+    We use the base fixture, which already has nginx set up to port forward
+    from 443 to 32300, and we set the cluster parameters to use the correct ports to communicate
+    with the server, in case they had been changed.
+    """
+    return local_docker_cluster_pk_tls_exposed
 
 
 @pytest.fixture(scope="function")
-def local_docker_cluster_public_key_logged_out(local_docker_cluster_public_key):
-    local_docker_cluster_public_key.run(
-        ["rm ~/.rh/config.yaml"],
-    )
-    local_docker_cluster_public_key.restart_server(resync_rh=False)
-    return local_docker_cluster_public_key
+def local_docker_cluster_pk_ssh_den_auth(
+    local_docker_cluster_pk_ssh,
+):
+    """This is our other key use case -- SSH with any Den Auth.
+
+    We use the base fixture, and ignore the nginx/https setup, instead just communicating with
+    the cluster using the base SSH credentials already present on the machine. We send a request
+    to enable den auth server side.
+    """
+    local_docker_cluster_pk_ssh.enable_den_auth()
+    return local_docker_cluster_pk_ssh
 
 
 @pytest.fixture(scope="function")
-def local_docker_cluster_public_key_logged_in(local_docker_cluster_public_key):
-    local_docker_cluster_public_key.run(
-        [
-            f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
-            f'echo "{yaml.safe_dump(rh.configs.defaults_cache)}" > ~/.rh/config.yaml'
-        ],
-    )
-    local_docker_cluster_public_key.restart_server(resync_rh=False)
-    return local_docker_cluster_public_key
+def local_docker_cluster_pk_ssh_no_auth(
+    local_docker_cluster_pk_ssh,
+):
+    """This is our other key use case -- SSH without any Den Auth.
 
-
-@pytest.fixture(scope="function")
-def local_docker_cluster_public_key_den_auth(local_docker_cluster_public_key):
-    local_docker_cluster_public_key.run(
-        [
-            f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
-            f'echo "{yaml.safe_dump(rh.configs.defaults_cache)}" > ~/.rh/config.yaml'
-        ],
-    )
-    local_docker_cluster_public_key.den_auth = True
-    local_docker_cluster_public_key.restart_server(resync_rh=False)
-    return local_docker_cluster_public_key
+    We use the base fixture, and ignore the nginx/https setup, instead just communicating with
+    the cluster using the base SSH credentials already present on the machine. We send a request
+    to disable den auth server side.
+    """
+    local_docker_cluster_pk_ssh.disable_den_auth()
+    return local_docker_cluster_pk_ssh
 
 
 @pytest.fixture(scope="session")
-def local_docker_cluster_telemetry_public_key(request, detached=True):
-    local_ssh_port = BASE_LOCAL_SSH_PORT + 2
-    local_cluster, cleanup = set_up_local_cluster(
-        image_name="keypair-telemetry",
-        container_name="rh-slim-keypair-telemetry",
-        dir_name="public-key-auth",
-        keypath=str(
-            Path(
-                rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
-            ).expanduser()
-        ),
-        detached=request.config.getoption("--detached"),
-        force_rebuild=request.config.getoption("--force-rebuild"),
-        port_fwds=[f"{local_ssh_port}:22"],
-        local_ssh_port=local_ssh_port,
-        additional_cluster_init_args={
-            "name": "local_docker_cluster_telemetry_public_key",
-            "use_local_telemetry": True,
-            "den_auth": "den_auth" in request.keywords,
-        },
-    )
-    # Yield the cluster
-    yield local_cluster
+def local_docker_cluster_pk_http_exposed(request):
+    """This basic cluster fixture is set up with:
+    - Public key authentication
+    - Den auth enabled
+    - Nginx set up on startup to forward Runhouse HTTP Server to port 80
+    """
 
-    # Stop the Docker container
-    cleanup()
+    # From pytest config
+    detached = request.config.getoption("--detached")
+    force_rebuild = request.config.getoption("--force-rebuild")
 
-
-@pytest.fixture(scope="session")
-def local_docker_cluster_with_nginx_http(request):
+    # Ports to use on the Docker VM such that they don't conflict
     local_ssh_port = BASE_LOCAL_SSH_PORT + 3
-    client_port = LOCAL_HTTP_SERVER_PORT + 3
-    port_fwds = [f"{local_ssh_port}:22", f"{client_port}:80"]
+    local_client_port = LOCAL_HTTP_SERVER_PORT + 3
 
     local_cluster, cleanup = set_up_local_cluster(
         image_name="keypair",
-        container_name="rh-slim-http-nginx",
+        container_name="rh-pk-http-port-fwd",
         dir_name="public-key-auth",
         keypath=str(
             Path(
                 rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
             ).expanduser()
         ),
-        detached=request.config.getoption("--detached"),
-        force_rebuild=request.config.getoption("--force-rebuild"),
-        port_fwds=port_fwds,
+        reuse_existing_container=detached,
+        force_rebuild=force_rebuild,
+        port_fwds=[f"{local_ssh_port}:22", f"{local_client_port}:80"],
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
             "name": "local_docker_cluster_with_nginx",
             "server_connection_type": "none",
             "server_port": 80,
-            "client_port": client_port,
+            "client_port": local_client_port,
             "den_auth": True,
         },
     )
     # Yield the cluster
     yield local_cluster
 
-    # Stop the Docker container
-    cleanup()
+    # If we are running in detached mode, leave the container running, else clean it up
+    if not detached:
+        cleanup()
 
 
 @pytest.fixture(scope="session")
-def local_docker_cluster_with_nginx_https(request):
+def local_docker_cluster_pwd_ssh_no_auth(request):
+    """This basic cluster fixture is set up with:
+    - Password authentication
+    - No Den Auth
+    - No nginx/port forwarding set up
+    """
+
+    # From pytest config
+    detached = request.config.getoption("--detached")
+    force_rebuild = request.config.getoption("--force-rebuild")
+
+    # Ports to use on the Docker VM such that they don't conflict
     local_ssh_port = BASE_LOCAL_SSH_PORT + 4
-    client_port = LOCAL_HTTPS_SERVER_PORT + 3
-    port_fwds = [f"{local_ssh_port}:22", f"{client_port}:443"]
 
-    local_cluster, cleanup = set_up_local_cluster(
-        image_name="keypair",
-        container_name="rh-slim-https-nginx",
-        dir_name="public-key-auth",
-        keypath=str(
-            Path(
-                rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
-            ).expanduser()
-        ),
-        detached=request.config.getoption("--detached"),
-        force_rebuild=request.config.getoption("--force-rebuild"),
-        port_fwds=port_fwds,
-        local_ssh_port=local_ssh_port,
-        additional_cluster_init_args={
-            "name": "local_docker_cluster_with_nginx",
-            "server_connection_type": "tls",
-            "server_port": 443,
-            "client_port": client_port,
-            "den_auth": True,
-        },
-    )
-    # Yield the cluster
-    yield local_cluster
-
-    # Stop the Docker container
-    cleanup()
-
-
-@pytest.fixture(scope="function")
-def local_test_account_cluster_public_key(request):
-    """
-    This fixture is not parameterized for every test; it is a separate cluster started with a test account
-    (username: kitchen_tester) in order to test sharing resources with other users.
-    """
-    with test_account():
-
-        local_ssh_port = BASE_LOCAL_SSH_PORT + 5
-        local_cluster, cleanup = set_up_local_cluster(
-            image_name="keypair",
-            container_name="rh-slim-test-acct",
-            dir_name="public-key-auth",
-            keypath=str(
-                Path(
-                    rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
-                ).expanduser()
-            ),
-            detached=request.config.getoption("--detached"),
-            force_rebuild=request.config.getoption("--force-rebuild"),
-            port_fwds=[f"{local_ssh_port}:22"],
-            local_ssh_port=local_ssh_port,
-            additional_cluster_init_args={
-                "name": "local_test_account_cluster_public_key",
-                "den_auth": "den_auth" in request.keywords,
-            },
-        )
-
-    yield local_cluster
-
-    cleanup()
-
-
-@pytest.fixture(scope="session")
-def shared_cluster(local_test_account_cluster_public_key):
-    username_to_share = rh.configs.get("username")
-    with test_account():
-        # Share the cluster with the test account
-        local_test_account_cluster_public_key.share(
-            username_to_share, access_level="read"
-        )
-
-    return local_test_account_cluster_public_key
-
-
-@pytest.fixture(scope="session")
-def local_docker_cluster_passwd(request):
-    local_ssh_port = BASE_LOCAL_SSH_PORT + 6
     pwd_file = "docker_user_passwd"
     rh_parent_path = get_rh_parent_path()
     pwd = (rh_parent_path.parent / pwd_file).read_text().strip()
 
     local_cluster, cleanup = set_up_local_cluster(
         image_name="pwd",
-        container_name="rh-slim-password",
+        container_name="rh-pwd",
         dir_name="password-file-auth",
         pwd_file="docker_user_passwd",
-        detached=request.config.getoption("--detached"),
-        force_rebuild=request.config.getoption("--force-rebuild"),
+        reuse_existing_container=detached,
+        force_rebuild=force_rebuild,
         port_fwds=[f"{local_ssh_port}:22"],
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
-            "name": "local_docker_cluster_passwd",
-            "den_auth": "den_auth" in request.keywords,
+            "name": "local_docker_cluster_pwd_ssh_no_auth",
+            "server_connection_type": "ssh",
             "ssh_creds": {"ssh_user": SSH_USER, "password": pwd},
         },
     )
     # Yield the cluster
     yield local_cluster
 
-    # Stop the Docker container
-    cleanup()
+    # If we are running in detached mode, leave the container running, else clean it up
+    if not detached:
+        cleanup()
+
+
+@pytest.fixture(scope="session")
+def local_docker_cluster_pk_ssh_telemetry(request, detached=True):
+    """This basic cluster fixture is set up with:
+    - Public key authentication
+    - No Den Auth
+    - No nginx/port forwarding set up
+    - Telemetry enabled
+    """
+
+    # From pytest config
+    detached = request.config.getoption("--detached")
+    force_rebuild = request.config.getoption("--force-rebuild")
+
+    # Ports to use on the Docker VM such that they don't conflict
+    local_ssh_port = BASE_LOCAL_SSH_PORT + 5
+
+    local_cluster, cleanup = set_up_local_cluster(
+        image_name="keypair-telemetry",
+        container_name="rh-pk-telemetry",
+        dir_name="public-key-auth",
+        keypath=str(
+            Path(
+                rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
+            ).expanduser()
+        ),
+        reuse_existing_container=detached,
+        force_rebuild=force_rebuild,
+        port_fwds=[f"{local_ssh_port}:22"],
+        local_ssh_port=local_ssh_port,
+        additional_cluster_init_args={
+            "name": "local_docker_cluster_pk_ssh_telemetry",
+            "server_connection_type": "ssh",
+            "use_local_telemetry": True,
+        },
+    )
+    # Yield the cluster
+    yield local_cluster
+
+    # If we are running in detached mode, leave the container running, else clean it up
+    if not detached:
+        cleanup()
+
+
+@pytest.fixture(scope="session")
+def local_docker_cluster_pk_ssh_test_account_logged_in(request):
+    """
+    This fixture is not parameterized for every test; it is a separate cluster started with a test account
+    (username: kitchen_tester) in order to test sharing resources with other users.
+    """
+
+    # From pytest config
+    detached = request.config.getoption("--detached")
+    force_rebuild = request.config.getoption("--force-rebuild")
+    with test_account():
+
+        # Ports to use on the Docker VM such that they don't conflict
+        local_ssh_port = BASE_LOCAL_SSH_PORT + 6
+        local_cluster, cleanup = set_up_local_cluster(
+            image_name="keypair",
+            container_name="rh-pk-test-acct",
+            dir_name="public-key-auth",
+            keypath=str(
+                Path(
+                    rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
+                ).expanduser()
+            ),
+            reuse_existing_container=detached,
+            force_rebuild=force_rebuild,
+            port_fwds=[f"{local_ssh_port}:22"],
+            local_ssh_port=local_ssh_port,
+            additional_cluster_init_args={
+                "name": "local_docker_cluster_pk_ssh_test_account_logged_in",
+                "server_connection_type": "ssh",
+                "den_auth": "den_auth" in request.keywords,
+            },
+            logged_in=True,
+        )
+
+    yield local_cluster
+
+    # If we are running in detached mode, leave the container running, else clean it up
+    if not detached:
+        cleanup()
+
+
+@pytest.fixture(scope="session")
+def shared_cluster(local_docker_cluster_pk_ssh_test_account_logged_in):
+    username_to_share = rh.configs.get("username")
+    with test_account():
+        # Share the cluster with the test account
+        local_docker_cluster_pk_ssh_test_account_logged_in.share(
+            username_to_share, notify_users=False, access_level="read"
+        )
+
+    return local_docker_cluster_pk_ssh_test_account_logged_in

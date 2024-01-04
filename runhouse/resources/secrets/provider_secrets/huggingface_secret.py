@@ -32,7 +32,7 @@ class HuggingFaceSecret(ProviderSecret):
         if not _check_file_for_mismatches(
             path, self._from_path(path), values, overwrite
         ):
-            token = self.values["token"]
+            token = values["token"]
             if isinstance(path, File):
                 path.write(token, serialize=False, mode="w")
             else:

@@ -2,7 +2,7 @@ import codecs
 import logging
 import re
 import sys
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 from ray import cloudpickle as pickle
@@ -21,15 +21,19 @@ class Message(BaseModel):
     run_async: Optional[bool] = False
 
 
+class ServerSettings(BaseModel):
+    den_auth: Optional[bool] = None
+
+
 class Args(BaseModel):
     args: Optional[List[Any]]
     kwargs: Optional[Dict[str, Any]]
 
 
 class Response(BaseModel):
-    data: Union[None, str, List[str], Dict]
-    error: Optional[str]
-    traceback: Optional[str]
+    data: Any = None
+    error: Optional[str] = None
+    traceback: Optional[str] = None
     output_type: str
 
 

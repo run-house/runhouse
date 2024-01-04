@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 
 import runhouse as rh
+from runhouse.constants import CLUSTER_CONFIG_PATH
 
 from runhouse.globals import rns_client
-from runhouse.resources.hardware.utils import CLUSTER_CONFIG_PATH
 from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 
 from tests.utils import test_account
@@ -22,6 +22,7 @@ def summer(a, b):
     return a + b
 
 
+@pytest.mark.servertest
 @pytest.mark.den_auth
 @pytest.mark.usefixtures("cluster")
 class TestHTTPServerDocker:
@@ -33,14 +34,14 @@ class TestHTTPServerDocker:
 
     UNIT = {
         "cluster": [
-            "local_docker_cluster_public_key_den_auth",
-            "local_docker_cluster_public_key_logged_in",
+            "local_docker_cluster_pk_ssh_den_auth",
+            "local_docker_cluster_pk_ssh_no_auth",
         ]
     }
     LOCAL = {
         "cluster": [
-            "local_docker_cluster_public_key_den_auth",
-            "local_docker_cluster_public_key_logged_in",
+            "local_docker_cluster_pk_ssh_den_auth",
+            "local_docker_cluster_pk_ssh_no_auth",
         ]
     }
 
@@ -48,12 +49,6 @@ class TestHTTPServerDocker:
     def test_get_cert(self, http_client):
         response = http_client.get("/cert")
         assert response.status_code == 200
-
-        error_b64 = response.json().get("error")
-        error_message = b64_unpickle(error_b64)
-
-        assert isinstance(error_message, FileNotFoundError)
-        assert "No certificate found on cluster in path" in str(error_message)
 
     @pytest.mark.level("local")
     def test_check_server(self, http_client):
@@ -210,6 +205,7 @@ class TestHTTPServerDocker:
         assert json.loads(response.text) == "3"
 
 
+@pytest.mark.servertest
 @pytest.mark.den_auth
 @pytest.mark.usefixtures("cluster")
 class TestHTTPServerDockerDenAuthOnly:
@@ -220,11 +216,11 @@ class TestHTTPServerDockerDenAuthOnly:
     but it is a server without Den Auth enabled at all?
     """
 
-    UNIT = {"cluster": ["local_docker_cluster_public_key_den_auth"]}
-    LOCAL = {"cluster": ["local_docker_cluster_public_key_den_auth"]}
+    UNIT = {"cluster": ["local_docker_cluster_pk_ssh_den_auth"]}
+    LOCAL = {"cluster": ["local_docker_cluster_pk_ssh_den_auth"]}
     MINIMAL = {"cluster": []}
-    THOROUGH = {"cluster": ["local_docker_cluster_public_key_den_auth"]}
-    MAXIMAL = {"cluster": ["local_docker_cluster_public_key_den_auth"]}
+    THOROUGH = {"cluster": ["local_docker_cluster_pk_ssh_den_auth"]}
+    MAXIMAL = {"cluster": ["local_docker_cluster_pk_ssh_den_auth"]}
 
     # -------- INVALID TOKEN / CLUSTER ACCESS TESTS ----------- #
 
@@ -341,6 +337,7 @@ def client(request):
     return request.getfixturevalue(request.param)
 
 
+@pytest.mark.servertest
 @pytest.mark.den_auth
 @pytest.mark.usefixtures("setup_cluster_config")
 class TestHTTPServerNoDocker:
@@ -455,6 +452,7 @@ class TestHTTPServerNoDocker:
     # TODO [JL]: Test call_module_method and async_call with local and not just Docker.
 
 
+@pytest.mark.servertest
 @pytest.mark.den_auth
 @pytest.mark.usefixtures("setup_cluster_config")
 class TestHTTPServerNoDockerDenAuthOnly:

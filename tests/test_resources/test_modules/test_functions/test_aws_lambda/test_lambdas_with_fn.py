@@ -33,7 +33,7 @@ def test_share_lambda():
     with test_account():
         lambda_func = rh.aws_lambda_fn(fn=summer, name="summer_to_share")
         lambda_func.save()
-        lambda_func.share(users=[user], notify_users=True, access_level="write")
+        lambda_func.share(users=[user], notify_users=False, access_level="write")
         shared_func = lambda_func.rns_address
     reloaded_func = rh.aws_lambda_fn(name=shared_func)
     assert reloaded_func(1, 3) == "4"
