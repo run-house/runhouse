@@ -144,7 +144,10 @@ class ObjStore:
     ##############################################
     def get_cluster_config(self):
         # TODO: Potentially add caching here
-        return self.call_actor_method(self.cluster_servlet, "get_cluster_config")
+        if self.cluster_servlet is not None:
+            return self.call_actor_method(self.cluster_servlet, "get_cluster_config")
+        else:
+            return {}
 
     def set_cluster_config(self, config: Dict[str, Any]):
         return self.call_actor_method(
