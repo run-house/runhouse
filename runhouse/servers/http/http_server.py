@@ -303,7 +303,7 @@ class HTTPServer:
         HTTPServer.register_activity()
         try:
             if lookup_env_for_name:
-                env = env or HTTPServer.lookup_env_for_name(lookup_env_for_name)
+                env = env or obj_store.get_env_servlet_name_for_key(lookup_env_for_name)
             servlet = HTTPServer.get_env_servlet(env or "base", create=create)
             # If servlet is a RayActor, call with .remote
             return HTTPServer.call_servlet_method(servlet, method, args, block=block)
@@ -315,20 +315,6 @@ class HTTPServer:
                 traceback=pickle_b64(traceback.format_exc()),
                 output_type=OutputType.EXCEPTION,
             )
-
-    @staticmethod
-    def lookup_env_for_name(name, check_rns=False):
-        env = obj_store.get_env_servlet_name_for_key(name)
-        if env:
-            return env
-
-        # Load the resource config from rns and see if it has an "env" field
-        if check_rns:
-            resource_config = rns_client.load_config(name)
-            if resource_config and "env" in resource_config:
-                return resource_config["env"]
-
-        return None
 
     @staticmethod
     @app.post("/settings")
@@ -388,7 +374,7 @@ class HTTPServer:
             message = message or (
                 Message(stream_logs=False, key=module) if not method else Message()
             )
-            env = message.env or HTTPServer.lookup_env_for_name(module)
+            env = message.env or obj_store.get_env_servlet_name_for_key(module)
             persist = message.run_async or message.remote or message.save or not method
             if method:
                 # TODO fix the way we generate runkeys, it's ugly
@@ -620,7 +606,7 @@ class HTTPServer:
             kwargs.pop("serialization", None)
             method = None if method == "None" else method
             message = Message(stream_logs=True, data=kwargs)
-            env = HTTPServer.lookup_env_for_name(module)
+            env = obj_store.get_env_servlet_name_for_key(module)
             persist = message.run_async or message.remote or message.save or not method
             if method:
                 # TODO fix the way we generate runkeys, it's ugly
