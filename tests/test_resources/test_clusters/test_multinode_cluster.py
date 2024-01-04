@@ -3,18 +3,9 @@ from pathlib import Path
 
 import pytest
 
-import tests.test_resources.test_resource
 
-
-class TestMultiNodeCluster(tests.test_resources.test_resource.TestResource):
-    MAP_FIXTURES = {"resource": "cluster"}
-
-    UNIT = {"cluster": []}
-    LOCAL = {"cluster": []}
-    MINIMAL = {"cluster": []}
-    THOROUGH = {"cluster": ["multinode_cpu_cluster"]}
-    MAXIMAL = {"cluster": ["multinode_cpu_cluster"]}
-
+@pytest.mark.multinodetest
+class TestMultiNodeCluster:
     @pytest.mark.level("thorough")
     def test_rsync_and_ssh_onto_worker_node(self, multinode_cpu_cluster):
         worker_node = multinode_cpu_cluster.ips[-1]
