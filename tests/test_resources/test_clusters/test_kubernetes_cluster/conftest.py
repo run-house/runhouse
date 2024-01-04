@@ -9,12 +9,13 @@ from ....conftest import init_args
 
 ######## Fixtures ########
 
+
 @pytest.fixture(scope="session")
 def kubernetes_cpu_cluster():
     c = rh.kubernetes_cluster(
-              name="rh-cpu-k8s-test",
-              instance_type="1CPU--1GB",
-          )
+        name="rh-cpu-k8s-test",
+        instance_type="1CPU--1GB",
+    )
 
     c.up_if_not()
 

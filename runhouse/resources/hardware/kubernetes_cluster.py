@@ -43,10 +43,10 @@ class KubernetesCluster(OnDemandCluster):
 
         # TODO: extract namespace off context
         # Cases that need to be handled:
-        # 1. User passes context and no namespace. Namespace needs to be extracted from context and set to it. 
-        # 2. User passes namespace and no context. Namespace needs to be set with kubectl cmd (This should update the kubeconfig). Handled 
+        # 1. User passes context and no namespace. Namespace needs to be extracted from context and set to it.
+        # 2. User passes namespace and no context. Namespace needs to be set with kubectl cmd (This should update the kubeconfig). Handled
         # 3. User passes neither. Then, namespace needs to be extracted from current context
-        # 4. User passes both namespace and context. Warn user. 
+        # 4. User passes both namespace and context. Warn user.
 
         self.namespace = namespace
         self.kube_config_path = kube_config_path
@@ -102,7 +102,7 @@ class KubernetesCluster(OnDemandCluster):
             else:
                 logger.info("No matching pods found.")
         except subprocess.CalledProcessError as e:
-            logger.info(f"Error: {e}")
+            raise Exception(f"Error: {e}")
 
         cmd = f"kubectl exec -it {pod_name} -- /bin/bash"
         subprocess.run(cmd, shell=True, check=True)

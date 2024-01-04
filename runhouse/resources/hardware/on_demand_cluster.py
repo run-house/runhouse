@@ -336,26 +336,22 @@ class OnDemandCluster(Cluster):
             )
             task.set_resources(
                 sky.Resources(
-                    cloud=cloud_provider, # TODO: confirm if passing instance type in old way (without --) works when provider is k8s
-
+                    cloud=cloud_provider,  # TODO: confirm if passing instance type in old way (without --) works when provider is k8s
                     instance_type=self.instance_type
                     if self.instance_type
                     and ":" not in self.instance_type
                     and "--" in self.instance_type
                     else None,
-
                     accelerators=self.instance_type
                     if self.instance_type
                     and ":" in self.instance_type
                     and "CPU" not in self.instance_type
                     else None,
-
                     cpus=self.instance_type.rsplit(":", 1)[1]
                     if self.instance_type
                     and ":" in self.instance_type
                     and "CPU" in self.instance_type
                     else None,
-
                     memory=self.memory,
                     region=self.region or configs.get("default_region"),
                     disk_size=self.disk_size,

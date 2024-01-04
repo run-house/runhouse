@@ -144,7 +144,15 @@ def _start_server(
             if last_cmd:
                 try:
                     screen_check_cmd = "command -v screen"
-                    screen_available = subprocess.run(screen_check_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).returncode == 0
+                    screen_available = (
+                        subprocess.run(
+                            screen_check_cmd,
+                            shell=True,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                        ).returncode
+                        == 0
+                    )
 
                     if screen_available:
                         console.print(f"Executing `{cmd}`")
@@ -153,20 +161,22 @@ def _start_server(
                         if result.returncode != 0 and "pkill" not in cmd:
                             console.print(f"Error while executing `{cmd}`")
                             raise typer.Exit(1)
-                        
+
                         break
                     else:
                         nohup_cmd = f"nohup {sys.executable} -m runhouse.servers.http.http_server >> /home/sky/.rh/server.log 2>&1 &"
-                        console.print(f"Executing with nohup because screen is not available: `{nohup_cmd}`")
+                        console.print(
+                            f"Executing with nohup because screen is not available: `{nohup_cmd}`"
+                        )
                         output = subprocess.run(nohup_cmd, shell=True, check=True)
                         if output.returncode != 0:
                             console.print(f"Error while executing `{cmd}`")
                             raise typer.Exit(1)
-                        
+
                         break
-       
+
                 except subprocess.CalledProcessError as e:
-                    print(f"Error: {e}")
+                    console.print(f"Error: {e}")
 
             console.print(f"Executing `{cmd}`")
             result = subprocess.run(shlex.split(cmd), text=True)

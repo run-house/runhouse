@@ -1,7 +1,7 @@
+import logging
+import os
 import subprocess
 import warnings
-import os
-import logging
 
 from typing import Dict, List, Optional, Union
 
@@ -451,16 +451,14 @@ def kubernetes_cluster(
             f"Cluster name {name} is a reserved name. Please use a different name which is not one of "
             f"{RESERVED_SYSTEM_NAMES}."
         )
-    
+
     if context is not None and namespace is not None:
-            warnings.warn(
-                "You passed both a context and a namespace. Ensure your namespace matches the one in your context.",
-                UserWarning,
-            )
-            
-    if (
-        namespace is not None
-    ):  # check if user passed a user-defined namespace
+        warnings.warn(
+            "You passed both a context and a namespace. Ensure your namespace matches the one in your context.",
+            UserWarning,
+        )
+
+    if namespace is not None:  # check if user passed a user-defined namespace
         cmd = f"kubectl config set-context --current --namespace={namespace}"
         try:
             process = subprocess.run(
@@ -495,14 +493,14 @@ def kubernetes_cluster(
                 logger.info(f"Error creating directory: {e}")
 
         if os.path.exists(kube_config_path_rl):
-            raise Exception("A kubeconfig file already exists in ~/.kube directory. Aborting.")
+            raise Exception(
+                "A kubeconfig file already exists in ~/.kube directory. Aborting."
+            )
 
         try:
             cmd = f"cp {self.kube_config_path} {kube_config_path_rl}"  # copy user-defined kube_config to ~/.kube/config
             subprocess.run(cmd, shell=True, check=True)
-            logger.info(
-                f"Copied kubeconfig to: {kube_config_path}"
-            )  
+            logger.info(f"Copied kubeconfig to: {kube_config_path}")
         except subprocess.CalledProcessError as e:
             logger.info(f"Error copying kubeconfig: {e}")
 
