@@ -178,7 +178,6 @@ class LambdaFunction(Function):
     ):
         """
         creates an AWS Lambda function from a python file.
-
         paths_to_code: (Optional[list[str]]): List of the FULL paths to the python code file(s) that should be sent to
                       AWS Lambda. First path in the list should be the path to the handler file which contains the main
                       handler) function.
