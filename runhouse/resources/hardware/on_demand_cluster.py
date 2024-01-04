@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict
 
+import rich.errors
 import sky
 import yaml
 from sky.backends import backend_utils, CloudVmRayBackend
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 class OnDemandCluster(Cluster):
     RESOURCE_TYPE = "cluster"
     RECONNECT_TIMEOUT = 5
+    DEFAULT_KEYFILE = "~/.ssh/sky-key"
 
     def __init__(
         self,
@@ -257,7 +259,7 @@ class OnDemandCluster(Cluster):
         self._update_from_sky_status(dryrun=False)
         return self.address is not None
 
-    def status(self, refresh: bool = True):
+    def status(self, refresh: bool = True, retry: bool = True):
         """
         Get status of Sky cluster.
 
@@ -291,7 +293,16 @@ class OnDemandCluster(Cluster):
         if not sky.global_user_state.get_cluster_from_name(self.name):
             return None
 
-        state = sky.status(cluster_names=[self.name], refresh=refresh)
+        try:
+            state = sky.status(cluster_names=[self.name], refresh=refresh)
+        except rich.errors.LiveError as e:
+            # We can't have more than one Live display at once, so if we've already launched one (e.g. the first
+            # time we call status), we can retry without refreshing
+            if not retry:
+                raise e
+
+            return self.status(refresh=False, retry=False)
+
         # We still need to check if the cluster present in case the cluster went down and was removed from the DB
         if len(state) == 0:
             return None
@@ -299,10 +310,16 @@ class OnDemandCluster(Cluster):
 
     def _populate_connection_from_status_dict(self, cluster_dict: Dict[str, Any]):
         if cluster_dict and cluster_dict["status"].name in ["UP", "INIT"]:
-            self.address = cluster_dict["handle"].head_ip
-            yaml_path = cluster_dict["handle"].cluster_yaml
+            handle = cluster_dict["handle"]
+            self.address = handle.head_ip
+            yaml_path = handle.cluster_yaml
             if Path(yaml_path).exists():
                 self._ssh_creds = backend_utils.ssh_credential_from_yaml(yaml_path)
+
+            # Add worker IPs if multi-node cluster - keep the head node as the first IP
+            for ip in handle.cached_external_ips:
+                if ip not in self.ips:
+                    self.ips.append(ip)
         else:
             self.address = None
             self._ssh_creds = None
@@ -457,10 +474,21 @@ class OnDemandCluster(Cluster):
 
         return self._ssh_creds
 
-    def ssh(self):
-        """SSH into the cluster.
+    def ssh(self, node: str = None):
+        """SSH into the cluster. If no node is specified, will SSH onto the head node.
 
         Example:
             >>> rh.ondemand_cluster("rh-cpu").ssh()
+            >>> rh.ondemand_cluster("rh-cpu", node="3.89.174.234").ssh()
         """
-        subprocess.run(["ssh", f"{self.name}"])
+        if node is None:
+            # SSH onto head node - can provide the name as specified in the local ~/.ssh/config
+            subprocess.run(["ssh", f"{self.name}"])
+        else:
+            # If SSHing onto a specific node, which requires the default sky public key for verification
+            sky_key = Path(self.DEFAULT_KEYFILE).expanduser()
+
+            if not sky_key.exists():
+                raise FileNotFoundError(f"Expected default sky key in path: {sky_key}")
+
+            subprocess.run(["ssh", "-i", str(sky_key), f"ubuntu@{node}"])

@@ -17,5 +17,6 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             "a10g_gpu_cluster",
             "static_cpu_cluster",
             "password_cluster",
+            "multinode_cpu_cluster",
         ]
     }

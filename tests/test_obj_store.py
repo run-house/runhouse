@@ -32,6 +32,7 @@ THOROUGH = {
         "ondemand_cpu_cluster",
         "ondemand_https_cluster_with_auth",
         "password_cluster",
+        "multinode_cpu_cluster",
         "byo_cpu",
     ]
 }
@@ -42,6 +43,7 @@ MAXIMAL = {
         "ondemand_cpu_cluster",
         "ondemand_https_cluster_with_auth",
         "password_cluster",
+        "multinode_cpu_cluster",
         "byo_cpu",
     ]
 }

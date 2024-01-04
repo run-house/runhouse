@@ -606,6 +606,7 @@ class SageMakerCluster(Cluster):
         commands: list,
         cmd_prefix: str,
         stream_logs: bool,
+        node: str = None,
         port_forward: int = None,
         require_outputs: bool = True,
     ):
@@ -1221,7 +1222,7 @@ class SageMakerCluster(Cluster):
             rns_client.delete_configs(resource=self)
             logger.info(f"Deleted {self.name} from configs")
 
-    def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
+    def _sync_runhouse_to_cluster(self, node: str = None, _install_url=None, env=None):
         if not self.instance_id:
             raise ValueError(f"No instance ID set for cluster {self.name}. Is it up?")
 

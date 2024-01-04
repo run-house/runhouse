@@ -631,7 +631,6 @@ def local_docker_cluster_pk_ssh_test_account_logged_in(request):
     detached = request.config.getoption("--detached")
     force_rebuild = request.config.getoption("--force-rebuild")
     with test_account():
-
         # Ports to use on the Docker VM such that they don't conflict
         local_ssh_port = BASE_LOCAL_SSH_PORT + 6
         local_cluster, cleanup = set_up_local_cluster(
@@ -668,7 +667,7 @@ def shared_cluster(local_docker_cluster_pk_ssh_test_account_logged_in):
     with test_account():
         # Share the cluster with the test account
         local_docker_cluster_pk_ssh_test_account_logged_in.share(
-            username_to_share, access_level="read"
+            username_to_share, notify_users=False, access_level="read"
         )
 
     return local_docker_cluster_pk_ssh_test_account_logged_in

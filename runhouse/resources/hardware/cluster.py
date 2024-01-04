@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 import copy
 import json
@@ -10,6 +11,7 @@ import sys
 import threading
 import time
 import warnings
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -118,7 +120,7 @@ class Cluster(Resource):
         self.ips = self.ips or [None]
         self.ips[0] = addr
 
-    def save_config_to_cluster(self):
+    def save_config_to_cluster(self, node: str = None):
         config = self.config_for_rns
         if "live_state" in config.keys():
             # a bunch of setup commands that mess up dumping
@@ -128,7 +130,8 @@ class Cluster(Resource):
         self.run(
             [
                 f"mkdir -p ~/.rh; touch {CLUSTER_CONFIG_PATH}; echo '{json_config}' > {CLUSTER_CONFIG_PATH}"
-            ]
+            ],
+            node=node,
         )
 
     @staticmethod
@@ -253,11 +256,22 @@ class Cluster(Resource):
         )
         return self
 
-    def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
-        if not self.address:
-            raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
+    def _sync_to_nodes(self, _rh_install_url: str, node: str):
+        """Sync to all cluster nodes (head node + workers where relevant)"""
+        try:
+            # Assuming _sync_runhouse_to_cluster and save_config_to_cluster are process-safe
+            self._sync_runhouse_to_cluster(_install_url=_rh_install_url, node=node)
 
+            # TODO: Deprecate once config is stored via Ray
+            # Update the cluster config on the cluster
+            self.save_config_to_cluster(node=node)
+
+        except Exception as e:
+            raise e
+
+    def _sync_runhouse_to_cluster(self, node: str = None, _install_url=None, env=None):
         local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
+        node = node or self.address
 
         # Check if runhouse is installed from source and has setup.py
         if (
@@ -272,6 +286,7 @@ class Cluster(Resource):
             self._rsync(
                 source=str(local_rh_package_path),
                 dest=dest_path,
+                node=node,
                 up=True,
                 contents=True,
                 filter_options="- docs/",
@@ -291,7 +306,7 @@ class Cluster(Resource):
 
         install_cmd = f"{env._run_cmd} {rh_install_cmd}" if env else rh_install_cmd
 
-        status_codes = self.run([install_cmd], stream_logs=True)
+        status_codes = self.run([install_cmd], node=node, stream_logs=True)
 
         if status_codes[0][0] != 0:
             raise ValueError(f"Error installing runhouse on cluster <{self.name}>")
@@ -760,10 +775,9 @@ class Cluster(Resource):
         logger.info(f"Restarting Runhouse API server on {self.name}.")
 
         if resync_rh:
-            self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
-
-        # Update the cluster config on the cluster
-        self.save_config_to_cluster()
+            # Sync Runhouse & configs across all cluster nodes in parallel
+            self._sync_across_all_nodes(_rh_install_url)
+            logger.info("Finished syncing Runhouse to cluster nodes.")
 
         use_custom_cert = self._use_custom_cert
         if use_custom_cert:
@@ -906,6 +920,42 @@ class Cluster(Resource):
         if self._rpc_tunnel:
             self._rpc_tunnel.stop()
 
+    def _sync_across_all_nodes(self, _rh_install_url):
+        loop = asyncio.new_event_loop()
+
+        # Set the loop as the default for the current context
+        asyncio.set_event_loop(loop)
+
+        executor = ProcessPoolExecutor()
+
+        try:
+            tasks = [
+                loop.run_in_executor(
+                    executor, self._sync_to_nodes, _rh_install_url, node
+                )
+                for node in self.ips
+            ]
+            loop.run_until_complete(asyncio.gather(*tasks))
+
+        except Exception as e:
+            raise e
+
+        finally:
+            # Cancel all tasks running on the loop
+            for task in asyncio.all_tasks(loop):
+                task.cancel()
+
+            # Wait for all tasks to be cancelled
+            loop.run_until_complete(
+                asyncio.gather(*asyncio.all_tasks(loop), return_exceptions=True)
+            )
+
+            # Shutdown the executor
+            executor.shutdown(wait=True)
+
+            # Close the loop
+            loop.close()
+
     def __getstate__(self):
         """Delete non-serializable elements (e.g. thread locks) before pickling."""
         state = self.__dict__.copy()
@@ -925,6 +975,7 @@ class Cluster(Resource):
         source: str,
         dest: str,
         up: bool,
+        node: str = None,
         contents: bool = False,
         filter_options: str = None,
         stream_logs: bool = False,
@@ -936,16 +987,18 @@ class Cluster(Resource):
             Ending `source` with a slash will copy the contents of the directory into dest,
             while omitting it will copy the directory itself (adding a directory layer).
         """
+        # If no address provided explicitly use the head node address
+        node = node or self.address
         # FYI, could be useful: https://github.com/gchamon/sysrsync
         if contents:
             source = source + "/" if not source.endswith("/") else source
             dest = dest + "/" if not dest.endswith("/") else dest
 
         ssh_credentials = copy.copy(self.ssh_creds) or {}
-        ssh_credentials.pop("ssh_host", self.address)
+        ssh_credentials.pop("ssh_host", node)
         pwd = ssh_credentials.pop("password", None)
 
-        runner = SkySSHRunner(self.address, **ssh_credentials, port=self.ssh_port)
+        runner = SkySSHRunner(node, **ssh_credentials, port=self.ssh_port)
         if not pwd:
             if up:
                 runner.run(["mkdir", "-p", dest], stream_logs=False)
@@ -1034,6 +1087,7 @@ class Cluster(Resource):
         stream_logs: bool = True,
         port_forward: Union[None, int, Tuple[int, int]] = None,
         require_outputs: bool = True,
+        node: Optional[str] = None,
         run_name: Optional[str] = None,
     ) -> list:
         """Run a list of shell commands on the cluster. If `run_name` is provided, the commands will be
@@ -1041,8 +1095,9 @@ class Cluster(Resource):
 
         Example:
             >>> cpu.run(["pip install numpy"])
-            >>> cpu.run(["pip install numpy", env="my_conda_env"])
+            >>> cpu.run(["pip install numpy"], env="my_conda_env"])
             >>> cpu.run(["python script.py"], run_name="my_exp")
+            >>> cpu.run(["python script.py"], node="3.89.174.234")
         """
         # TODO [DG] suspend autostop while running
         from runhouse.resources.provenance import run
@@ -1058,13 +1113,23 @@ class Cluster(Resource):
         if not run_name:
             # If not creating a Run then just run the commands via SSH and return
             return self._run_commands_with_ssh(
-                commands, cmd_prefix, stream_logs, port_forward, require_outputs
+                commands,
+                cmd_prefix,
+                stream_logs,
+                node,
+                port_forward,
+                require_outputs,
             )
 
         # Create and save the Run locally
         with run(name=run_name, cmds=commands, overwrite=True) as r:
             return_codes = self._run_commands_with_ssh(
-                commands, cmd_prefix, stream_logs, port_forward, require_outputs
+                commands,
+                cmd_prefix,
+                stream_logs,
+                node,
+                port_forward,
+                require_outputs,
             )
 
         # Register the completed Run
@@ -1077,13 +1142,14 @@ class Cluster(Resource):
         commands: list,
         cmd_prefix: str,
         stream_logs: bool,
+        node: str = None,
         port_forward: int = None,
         require_outputs: bool = True,
     ):
         return_codes = []
 
         ssh_credentials = copy.copy(self.ssh_creds)
-        host = ssh_credentials.pop("ssh_host", self.address)
+        host = ssh_credentials.pop("ssh_host", node or self.address)
         pwd = ssh_credentials.pop("password", None)
 
         runner = SkySSHRunner(host, **ssh_credentials, port=self.ssh_port)
@@ -1138,19 +1204,23 @@ class Cluster(Resource):
         commands: List[str],
         env: Union["Env", str] = None,
         stream_logs: bool = True,
+        node: str = None,
         port_forward: Optional[int] = None,
         run_name: Optional[str] = None,
     ):
-        """Run a list of python commands on the cluster.
+        """Run a list of python commands on the cluster, or a specific cluster node if its IP is provided.
 
         Example:
             >>> cpu.run_python(['import numpy', 'print(numpy.__version__)'])
             >>> cpu.run_python(["print('hello')"])
+            >>> cpu.run_python(["print('hello')"], node="3.89.174.234")
 
         Note:
             Running Python commands with nested quotes can be finicky. If using nested quotes,
             try to wrap the outer quote with double quotes (") and the inner quotes with a single quote (').
         """
+        # If no node provided, assume the commands are to be run on the head node
+        node = node or self.address
         cmd_prefix = "python3 -c"
         if env:
             if isinstance(env, str):
@@ -1171,6 +1241,7 @@ class Cluster(Resource):
             [formatted_command],
             env=env,
             stream_logs=stream_logs,
+            node=node,
             port_forward=port_forward,
             run_name=run_name,
         )
