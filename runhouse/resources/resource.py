@@ -358,8 +358,9 @@ class Resource:
         Args:
             users (Union[str, list], optional): Single user or list of user emails and / or runhouse account usernames.
                 If none are provided and ``visibility`` is set to ``public``, resource will be made publicly
-                available to all users. Defaults to ``read``.
+                available to all users.
             access_level (:obj:`ResourceAccess`, optional): Access level to provide for the resource.
+                Defaults to ``read``.
             visibility (:obj:`ResourceVisibility`, optional): Type of visibility to provide for the shared
                 resource. Defaults to ``private``.
             notify_users (bool, optional): Whether to send an email notification to users who have been given access.
@@ -368,12 +369,14 @@ class Resource:
                 Example: ``{"Authorization": f"Bearer {token}"}``
 
         Returns:
-            Tuple(Dict, Dict):
+            Tuple(Dict, Dict, Set):
 
             `added_users`:
-                users who already have a Runhouse account and have been granted access to the resource.
+                Users who already have a Runhouse account and have been granted access to the resource.
             `new_users`:
-                users who do not have Runhouse accounts and received notifications via their emails.
+                Users who do not have Runhouse accounts and received notifications via their emails.
+            `valid_users`:
+                Set of valid usernames and emails from ``users`` parameter.
 
         Example:
             >>> # Write access to the resource for these specific users.
@@ -431,14 +434,14 @@ class Resource:
         if isinstance(users, str):
             users = [users]
 
-        added_users, new_users = rns_client.grant_resource_access(
+        added_users, new_users, valid_users = rns_client.grant_resource_access(
             rns_address=self.rns_address,
             user_emails=users,
             access_level=access_level,
             notify_users=notify_users,
             headers=headers,
         )
-        return added_users, new_users
+        return added_users, new_users, valid_users
 
     def revoke(
         self, users: Union[str, List[str]] = None, headers: Optional[Dict] = None
@@ -446,7 +449,7 @@ class Resource:
         """Revoke access to the resource.
 
         Args:
-            users (Union[str, str], optional): list of user emails and / or runhouse account usernames
+            users (Union[str, str], optional): List of user emails and / or runhouse account usernames
                 (or a single user). If no users are specified will revoke access for all users.
             headers (Optional[Dict]): Request headers to provide for the request to RNS. Contains the user's auth token.
                 Example: ``{"Authorization": f"Bearer {token}"}``
