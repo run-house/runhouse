@@ -3,37 +3,6 @@ import contextlib
 import pytest
 
 from runhouse.globals import rns_client
-from runhouse.servers.http.http_server import HTTPServer
-from runhouse.servers.obj_store import ObjStore
-
-
-def get_ray_servlet(env_name):
-    """Helper method for getting auth servlet and base env servlet"""
-    import ray
-
-    ray.init(
-        ignore_reinit_error=True,
-        runtime_env=None,
-        namespace="runhouse",
-    )
-
-    servlet = HTTPServer.get_env_servlet(
-        env_name=env_name,
-        create=True,
-        runtime_env=None,
-    )
-
-    return servlet
-
-
-def get_test_obj_store(env_servlet_name: str):
-    # Ensure servlet is running
-    _ = get_ray_servlet(env_servlet_name)
-
-    test_obj_store = ObjStore()
-    test_obj_store.initialize(env_servlet_name)
-
-    return test_obj_store
 
 
 @contextlib.contextmanager

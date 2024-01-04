@@ -68,7 +68,7 @@ def _local_conda_env():
     os.system(f"conda create -n {env_name} -y python==3.10.9")
     yield
 
-    os.system(f"conda env remove -n {env_name} -y")
+    os.system(f"conda env remove -n {env_name}")
 
 
 @pytest.fixture(scope="function")

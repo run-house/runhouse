@@ -240,21 +240,12 @@ class TestHTTPServerDockerDenAuthOnly:
         assert response.status_code == 200
 
     @pytest.mark.level("local")
-    def test_no_access_to_cluster(self, http_client, cluster):
-        try:
-            cluster.revoke(["info@run.house"])
-        except Exception:
-            pass  # Catch possible resource doesn't exist error
-        # refreshes auth cache in case testacct already had access
-        cluster.enable_den_auth()
-
+    def test_no_access_to_cluster(self, http_client):
         with test_account():
             response = http_client.get("/keys", headers=rns_client.request_headers)
 
             assert response.status_code == 403
             assert "Cluster access is required for API" in response.text
-
-        cluster.share(["info@run.house"])
 
     @pytest.mark.level("local")
     def test_request_with_no_token(self, http_client):
