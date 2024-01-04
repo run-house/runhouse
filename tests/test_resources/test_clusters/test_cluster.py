@@ -38,7 +38,9 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         ]
     }
     MINIMAL = {"cluster": ["static_cpu_cluster"]}
-    THOROUGH = {"cluster": ["static_cpu_cluster", "password_cluster"]}
+    THOROUGH = {
+        "cluster": ["static_cpu_cluster", "password_cluster", "multinode_cpu_cluster"]
+    }
     MAXIMAL = {
         "cluster": [
             "local_docker_cluster_pk_ssh_no_auth",
@@ -47,6 +49,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "local_docker_cluster_pk_ssh_telemetry",
             "static_cpu_cluster",
             "password_cluster",
+            "multinode_cpu_cluster",
         ]
     }
 
