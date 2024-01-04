@@ -7,7 +7,8 @@ from io import StringIO
 from pathlib import Path
 from typing import Any, List, Optional, Union
 
-from runhouse.globals import configs, obj_store, rns_client
+from runhouse.constants import LOGS_DIR
+from runhouse.globals import configs, rns_client
 from runhouse.resources.blobs import file
 
 # Need to alias so it doesn't conflict with the folder property
@@ -505,12 +506,12 @@ class Run(Resource):
     @staticmethod
     def _base_cluster_folder_path(name: str):
         """Path to the base folder for this Run on a cluster."""
-        return f"{obj_store.LOGS_DIR}/{name}"
+        return f"{LOGS_DIR}/{name}"
 
     @staticmethod
     def _base_local_folder_path(name: str):
         """Path to the base folder for this Run on a local system."""
-        return f"{obj_store.LOGS_DIR}/{name}"
+        return f"{LOGS_DIR}/{name}"
 
 
 class StreamTee(object):

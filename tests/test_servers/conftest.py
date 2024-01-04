@@ -111,7 +111,8 @@ def obj_store(request):
     # Ensure servlet is running
     _ = get_ray_servlet(actor_name)
 
-    base_obj_store.set_name(actor_name)
+    base_obj_store.initialize(actor_name, has_local_storage=False)
+    base_obj_store.clear()
 
     yield base_obj_store
 
