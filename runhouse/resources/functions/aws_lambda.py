@@ -795,8 +795,7 @@ class LambdaFunction(Function):
             >>>
             >>> # your 'main' python file, where you are using runhouse
             >>> summer_lambda = rh.aws_lambda_fn(
-            >>>                     paths_to_code=['/full/path/to/handler_file.py'],
-            >>>                     handler_function_name = 'summer',
+            >>>                     fn=my_summer,
             >>>                     runtime = 'python3.9',
             >>>                     name="my_func")
             >>> output = summer_lambda.map([1, 2], [1, 4], [2, 3])  # output = ["4", "9"]
