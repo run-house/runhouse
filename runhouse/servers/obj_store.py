@@ -48,7 +48,7 @@ class ObjStore:
         self._kv_store: Dict[Any, Any] = None
 
     def initialize(
-        self, servlet_name: Optional[str] = None, has_local_storage: bool = True
+        self, servlet_name: Optional[str] = None, has_local_storage: bool = False
     ):
         # The initialization of the obj_store needs to be in a separate method
         # so the HTTPServer actually initalizes the obj_store,
@@ -87,7 +87,7 @@ class ObjStore:
         #   the global KV store and other servlets.
         if not servlet_name and has_local_storage:
             raise ValueError(
-                "MUST provide a servlet name if the servlet has local storage."
+                "Must provide a servlet name if the servlet has local storage."
             )
 
         if (
@@ -259,9 +259,10 @@ class ObjStore:
     ##############################################
     # KV Store: Keys
     ##############################################
-    def _keys_for_env_servlet_name(self, env_servlet_name: str) -> List[Any]:
-        return self.call_actor_method(
-            self.get_env_servlet(env_servlet_name), "keys_local"
+    @staticmethod
+    def keys_for_env_servlet_name(env_servlet_name: str) -> List[Any]:
+        return ObjStore.call_actor_method(
+            ObjStore.get_env_servlet(env_servlet_name), "keys_local"
         )
 
     def keys_local(self) -> List[Any]:
@@ -281,9 +282,10 @@ class ObjStore:
     ##############################################
     # KV Store: Put
     ##############################################
-    def _put_for_env_servlet_name(self, env_servlet_name: str, key: Any, value: Any):
-        return self.call_actor_method(
-            self.get_env_servlet(env_servlet_name), "put_local", key, value
+    @staticmethod
+    def put_for_env_servlet_name(env_servlet_name: str, key: Any, value: Any):
+        return ObjStore.call_actor_method(
+            ObjStore.get_env_servlet(env_servlet_name), "put_local", key, value
         )
 
     def put_local(self, key: Any, value: Any):
@@ -308,23 +310,23 @@ class ObjStore:
             logger.warning("Key already exists in some env, overwriting.")
             self.pop(key)
 
-        # The key does not exist in any other env, so we can put it somewhere.
-        if self.has_local_storage and (env is None or env == self.servlet_name):
+        # If env is None, write to our own servlet, either via local or via global KV store
+        env = env or self.servlet_name
+        if self.has_local_storage and env == self.servlet_name:
             self.put_local(key, value)
-        elif env is None:
-            self._put_for_env_servlet_name(self.servlet_name, key, value)
         else:
-            self._put_for_env_servlet_name(env, key, value)
+            self.put_for_env_servlet_name(env, key, value)
 
     ##############################################
     # KV Store: Get
     ##############################################
-    def _get_from_env_servlet_name(
-        self, env_servlet_name: str, key: Any, default: Optional[Any] = None
+    @staticmethod
+    def get_from_env_servlet_name(
+        env_servlet_name: str, key: Any, default: Optional[Any] = None
     ):
         logger.info(f"Getting {key} from servlet {env_servlet_name}")
-        return self.call_actor_method(
-            self.get_env_servlet(env_servlet_name), "get_local", key, default
+        return ObjStore.call_actor_method(
+            ObjStore.get_env_servlet(env_servlet_name), "get_local", key, default
         )
 
     def get_local(self, key: Any, default: Optional[Any] = None):
@@ -370,7 +372,7 @@ class ObjStore:
             return default
 
         try:
-            return self._get_from_env_servlet_name(
+            return self.get_from_env_servlet_name(
                 env_servlet_name, key, default=KeyError
             )
         except KeyError:
@@ -388,9 +390,10 @@ class ObjStore:
     ##############################################
     # KV Store: Delete and Pop
     ##############################################
-    def _pop_from_env_servlet_name(self, env_servlet_name: str, key: Any, *args) -> Any:
-        return self.call_actor_method(
-            self.get_env_servlet(env_servlet_name), "pop_local", key, *args
+    @staticmethod
+    def pop_from_env_servlet_name(env_servlet_name: str, key: Any, *args) -> Any:
+        return ObjStore.call_actor_method(
+            ObjStore.get_env_servlet(env_servlet_name), "pop_local", key, *args
         )
 
     def pop_local(self, key: Any, *args) -> Any:
@@ -435,7 +438,7 @@ class ObjStore:
                 )
             else:
                 # The key was found in another env, so we need to pop it from there
-                return self._pop_from_env_servlet_name(env_servlet_name, key)
+                return self.pop_from_env_servlet_name(env_servlet_name, key)
         else:
             # Was not found in any env
             if args:
@@ -452,9 +455,10 @@ class ObjStore:
     ##############################################
     # KV Store: Clear
     ##############################################
-    def _clear_for_env_servlet_name(self, env_servlet_name: str):
-        return self.call_actor_method(
-            self.get_env_servlet(env_servlet_name), "clear_local"
+    @staticmethod
+    def clear_for_env_servlet_name(env_servlet_name: str):
+        return ObjStore.call_actor_method(
+            ObjStore.get_env_servlet(env_servlet_name), "clear_local"
         )
 
     def clear_local(self):
@@ -469,7 +473,7 @@ class ObjStore:
             if env_servlet_name == self.servlet_name and self.has_local_storage:
                 self.clear_local()
             else:
-                self._clear_for_env_servlet_name(env_servlet_name)
+                self.clear_for_env_servlet_name(env_servlet_name)
 
     ##############################################
     # KV Store: Rename

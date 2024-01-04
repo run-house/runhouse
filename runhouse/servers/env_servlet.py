@@ -37,7 +37,7 @@ class EnvServlet:
     def __init__(self, env_name: str, *args, **kwargs):
         self.env_name = env_name
 
-        obj_store.initialize(self.env_name)
+        obj_store.initialize(self.env_name, has_local_storage=True)
 
         self.output_types = {}
         self.thread_ids = {}

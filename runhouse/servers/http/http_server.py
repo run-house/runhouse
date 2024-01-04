@@ -181,7 +181,8 @@ class HTTPServer:
 
         env_servlets["base"] = base_env
 
-        obj_store.initialize("server")
+        # Puts without an env here will be sent to the base env.
+        obj_store.initialize("base")
 
         HTTPServer.register_activity()
 
