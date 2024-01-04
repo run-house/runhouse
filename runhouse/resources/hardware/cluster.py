@@ -51,6 +51,7 @@ class Cluster(Resource):
 
     SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
     CLI_RESTART_CMD = "runhouse restart"
+    RAY_RESTART_CMD = "runhouse restart"
     SERVER_START_CMD = f"{sys.executable} -m runhouse.servers.http.http_server"
     SERVER_STOP_CMD = f'pkill -f "{SERVER_START_CMD}"'
     # 2>&1 redirects stderr to stdout
@@ -681,6 +682,63 @@ class Cluster(Resource):
 
         return cmds
 
+    def start_ray(self):
+
+        master_ip = self._get_ip_from_host()
+
+        if self.resource_config["current_host"] == self.master_host:
+            # Head node
+            if ray.is_initialized():
+                logger.info("There is a Ray cluster already running. Shutting it down.")
+                ray.shutdown()
+                time.sleep(5)
+            output = subprocess.run(
+                [
+                    "ray",
+                    "start",
+                    "--head",
+                    "-vvv",
+                    "--port",
+                    self.ray_port,
+                    "--include-dashboard",
+                    "false",
+                ],
+                stdout=subprocess.PIPE,
+            )
+            logger.info(output.stdout.decode("utf-8"))
+            ray.init(address="auto", include_dashboard=False)
+            self._wait_for_workers()
+            logger.info("All workers present and accounted for")
+            logger.info(ray.cluster_resources())
+
+        else:
+            # Worker node
+            time.sleep(10)
+            output = subprocess.run(
+                [
+                    "ray",
+                    "start",
+                    f"--address={master_ip}:{self.ray_port}",
+                    "--redis-password",
+                    self.redis_pass,
+                    "--block",
+                ],
+                stdout=subprocess.PIPE,
+            )
+            logger.info(output.stdout.decode("utf-8"))
+            sys.exit(0)
+
+    def _wait_for_workers(self, timeout=60):
+
+        logger.info(f"Waiting {timeout} seconds for {self.n_hosts} nodes to join")
+
+        while len(ray.nodes()) < self.n_hosts:
+            logger.info(f"{len(ray.nodes())} nodes connected to cluster")
+            time.sleep(5)
+            timeout -= 5
+            if timeout == 0:
+                raise Exception("Max timeout for nodes to join exceeded")
+
     def restart_server(
         self,
         _rh_install_url: str = None,
@@ -772,7 +830,12 @@ class Cluster(Resource):
             self.client.cert_path = self.cert_config.cert_path
 
         # Send the ssh restart command to each of the workers
-        
+        if self.server_connection_type in [
+            ServerConnectionType.SSH,
+            ServerConnectionType.AWS_SSM,
+        ]:
+            self.run(commands=[self.RAY_RESTART_CMD])
+
         return status_codes
 
     @contextlib.contextmanager
