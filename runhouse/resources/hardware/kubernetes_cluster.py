@@ -52,6 +52,33 @@ class KubernetesCluster(OnDemandCluster):
         self.kube_config_path = kube_config_path
         self.context = context
 
+    @staticmethod
+    def from_config(config: dict, dryrun=False):
+        return KubernetesCluster(**config, dryrun=dryrun)
+
+    @property
+    def config_for_rns(self):
+        config = super().config_for_rns
+
+        # Also store the ssh keys for the cluster in RNS
+        config.update(
+            {
+                "instance_type": self.instance_type,
+                "num_instances": self.num_instances,
+                "provider": self.provider,
+                "autostop_mins": self.autostop_mins,
+                "open_ports": self.open_ports,
+                "use_spot": self.use_spot,
+                "image_id": self.image_id,
+                "region": self.region,
+                "live_state": self._get_sky_state(),
+                "namespace": self.namespace,
+                "kube_config_path": self.kube_config_path,
+                "context": self.context,
+            }
+        )
+        return config
+
     def ssh(self):
         """SSH into the cluster.
 
