@@ -1,6 +1,8 @@
 import logging
 from typing import Any, Dict, List, Optional, Set, Union
 
+from runhouse.resources.hardware import _load_cluster_config_from_file
+
 from runhouse.servers.http.auth import AuthCache
 
 logger = logging.getLogger(__name__)
@@ -11,6 +13,9 @@ class ClusterServlet:
         self, cluster_config: Optional[Dict[str, Any]] = None, *args, **kwargs
     ):
         self.cluster_config: Optional[Dict[str, Any]] = cluster_config
+        local_cluster_config = _load_cluster_config_from_file()
+        if local_cluster_config:
+            self.cluster_config = local_cluster_config
 
         self._initialized_env_servlet_names: Set[str] = set()
         self._key_to_env_servlet_name: Dict[Any, str] = {}

@@ -75,6 +75,10 @@ class ObjStore:
                 )
                 .remote()
             )
+
+            # Make sure ClusterServlet is fully initialized
+            ray.get(self.cluster_servlet.get_cluster_config.remote())
+
         except ConnectionError:
             # If ray.init fails, we're not on a cluster, so we don't need to do anything
             pass
@@ -144,7 +148,10 @@ class ObjStore:
     ##############################################
     def get_cluster_config(self):
         # TODO: Potentially add caching here
-        return self.call_actor_method(self.cluster_servlet, "get_cluster_config")
+        if self.cluster_servlet is not None:
+            return self.call_actor_method(self.cluster_servlet, "get_cluster_config")
+        else:
+            return {}
 
     def set_cluster_config(self, config: Dict[str, Any]):
         return self.call_actor_method(

@@ -6,7 +6,7 @@ from runhouse.resources.functions.aws_lambda_factory import aws_lambda_fn
 from runhouse.resources.functions.function import Function
 from runhouse.resources.functions.function_factory import function
 from runhouse.resources.hardware import (
-    _current_cluster,
+    _load_cluster_config_from_file,
     cluster,
     Cluster,
     ondemand_cluster,
@@ -27,17 +27,6 @@ from runhouse.resources.secrets import provider_secret, ProviderSecret, Secret, 
 from runhouse.resources.tables import Table, table
 from runhouse.rns.secrets import Secrets  # Deprecated
 
-from runhouse.rns.top_level_rns_fns import (
-    current_folder,
-    exists,
-    here,
-    ipython,
-    load,
-    locate,
-    set_folder,
-    unset_folder,
-)
-
 # Note these are global variables that are instantiated within globals.py:
 from .globals import configs, obj_store
 
@@ -51,10 +40,25 @@ fn = function
 
 # This allows us to natively interact with resources in the object store from a python interpreter on the cluster
 
-if _current_cluster():
+config = _load_cluster_config_from_file()
+
+# If we aren't on a cluster, we don't need to initialize the object store
+if config:
     import ray
 
     ray.init(ignore_reinit_error=True, namespace="runhouse")
     obj_store.initialize()
+
+# We need to import these after initializing the object store
+from runhouse.rns.top_level_rns_fns import (
+    current_folder,
+    exists,
+    here,
+    ipython,
+    load,
+    locate,
+    set_folder,
+    unset_folder,
+)
 
 __version__ = "0.0.15"
