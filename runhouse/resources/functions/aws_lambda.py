@@ -237,7 +237,7 @@ class LambdaFunction(Function):
         if name is None:
             name = handler_function_name.replace(".", "_")
 
-        env = LambdaFunction.validate_and_create_env(env)
+        env = LambdaFunction._validate_and_create_env(env)
         (
             paths_to_code,
             env,
@@ -275,7 +275,7 @@ class LambdaFunction(Function):
 
     # Arguments validation and arguments creation methods
     @classmethod
-    def validate_and_create_env(cls, env: Optional[Env] = None):
+    def _validate_and_create_env(cls, env: Optional[Env] = None):
         """
         Validates the passed env argument, and creates a Runhouse env instance if needed.
 

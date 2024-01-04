@@ -84,7 +84,7 @@ def aws_lambda_fn(
             + "in order to create a Lambda function."
         )
     # Env setup.
-    env = LambdaFunction.validate_and_create_env(env)
+    env = LambdaFunction._validate_and_create_env(env)
 
     # extract function pointers, path to code and arg names from callable function.
     handler_function_name = fn.__name__
