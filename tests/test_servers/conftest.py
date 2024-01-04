@@ -10,39 +10,18 @@ import runhouse as rh
 
 from runhouse.globals import rns_client
 from runhouse.servers.http.http_server import app, HTTPServer
-from runhouse.servers.obj_store import ObjStore
 
-from tests.utils import test_account
+from tests.utils import get_ray_servlet, get_test_obj_store, test_account
 
 # Note: API Server will run on local docker container
 BASE_URL = "http://localhost:32300"
 
 BASE_ENV_ACTOR_NAME = "base"
-CACHE_ENV_ACTOR_NAME = "auth_cache"
 
 
 # -------- HELPERS ----------- #
 def summer(a, b):
     return a + b
-
-
-def get_ray_servlet(env_name):
-    """Helper method for getting auth servlet and base env servlet"""
-    import ray
-
-    ray.init(
-        ignore_reinit_error=True,
-        runtime_env=None,
-        namespace="runhouse",
-    )
-
-    servlet = HTTPServer.get_env_servlet(
-        env_name=env_name,
-        create=True,
-        runtime_env=None,
-    )
-
-    return servlet
 
 
 # -------- FIXTURES ----------- #
@@ -96,24 +75,17 @@ def base_servlet():
     yield get_ray_servlet(BASE_ENV_ACTOR_NAME)
 
 
-@pytest.fixture(scope="session")
-def cache_servlet():
-    yield get_ray_servlet(CACHE_ENV_ACTOR_NAME)
-
-
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def obj_store(request):
-    base_obj_store = ObjStore()
 
     # Use the parameter to set the name of the servlet actor to use
-    actor_name = request.param
+    env_servlet_name = request.param
+    test_obj_store = get_test_obj_store(env_servlet_name)
 
-    # Ensure servlet is running
-    _ = get_ray_servlet(actor_name)
+    # Clears everything, not just what's in this env servlet
+    test_obj_store.clear()
 
-    base_obj_store.set_name(actor_name)
-
-    yield base_obj_store
+    yield test_obj_store
 
 
 @pytest.fixture(scope="class")
