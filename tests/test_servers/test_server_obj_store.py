@@ -2,8 +2,8 @@ import pytest
 
 from runhouse.servers.http.auth import hash_token
 
-from tests.test_servers.conftest import BASE_ENV_ACTOR_NAME, CACHE_ENV_ACTOR_NAME
-from tests.utils import test_account
+from tests.test_servers.conftest import BASE_ENV_ACTOR_NAME
+from tests.utils import get_test_obj_store, test_account
 
 
 @pytest.mark.servertest
@@ -22,12 +22,21 @@ class TestBaseEnvObjStore:
 
         key = "k1"
         obj_store.put(key, value)
+        assert obj_store.keys() == [key]
+
         res = obj_store.get(key)
         assert res == value
         assert obj_store.get_env_servlet_name_for_key(key) == obj_store.servlet_name
 
-        # Clean this up
+        obj_store.put(key, "overwrite_value")
+        assert obj_store.keys() == [key]
+
+        res = obj_store.get(key)
+        assert res == "overwrite_value"
+        assert obj_store.get_env_servlet_name_for_key(key) == obj_store.servlet_name
+
         obj_store.delete(key)
+        assert obj_store.keys() == []
         assert obj_store.get(key, default=None) is None
         assert obj_store.get_env_servlet_name_for_key(key) is None
 
@@ -75,10 +84,6 @@ class TestBaseEnvObjStore:
         res = obj_store.get_list(keys)
         assert res == ["v1", "v2", "v3"]
 
-        obj_store.delete(keys)
-        for k in keys:
-            assert obj_store.get(k, default=None) is None
-
     @pytest.mark.level("unit")
     def test_rename(self, obj_store):
         assert obj_store.keys() == []
@@ -96,9 +101,6 @@ class TestBaseEnvObjStore:
         assert obj_store.get_env_servlet_name_for_key(new_key) == obj_store.servlet_name
         assert obj_store.get_env_servlet_name_for_key(key) is None
 
-        obj_store.delete(new_key)
-        assert obj_store.get(new_key, default=None) is None
-
     @pytest.mark.level("unit")
     def test_clear(self, obj_store):
         assert obj_store.keys() == []
@@ -114,9 +116,208 @@ class TestBaseEnvObjStore:
         obj_store.clear()
         assert obj_store.keys() == []
 
+    @pytest.mark.level("unit")
+    def test_many_env_servlets(self, obj_store):
+        assert obj_store.keys() == []
+
+        other_obj_store = get_test_obj_store("other")
+        assert other_obj_store.keys() == []
+
+        obj_store.put("k1", "v1")
+        other_obj_store.put("k2", "v2")
+        other_obj_store.put("k3", "v3")
+
+        assert obj_store.keys() == ["k1", "k2", "k3"]
+        assert other_obj_store.keys() == ["k1", "k2", "k3"]
+
+        assert obj_store.get("k1") == "v1"
+        assert obj_store.get("k2") == "v2"
+        assert obj_store.get("k3") == "v3"
+        assert other_obj_store.get("k1") == "v1"
+        assert other_obj_store.get("k2") == "v2"
+        assert other_obj_store.get("k3") == "v3"
+
+        assert obj_store.get_env_servlet_name_for_key("k1") == obj_store.servlet_name
+        assert (
+            obj_store.get_env_servlet_name_for_key("k2") == other_obj_store.servlet_name
+        )
+        assert (
+            obj_store.get_env_servlet_name_for_key("k3") == other_obj_store.servlet_name
+        )
+        assert (
+            other_obj_store.get_env_servlet_name_for_key("k1") == obj_store.servlet_name
+        )
+        assert (
+            other_obj_store.get_env_servlet_name_for_key("k2")
+            == other_obj_store.servlet_name
+        )
+        assert (
+            other_obj_store.get_env_servlet_name_for_key("k3")
+            == other_obj_store.servlet_name
+        )
+
+        # Technically, "k1" is only present on the base env servlet,
+        # and "k2" and "k3" are only present on the other env servlet
+        # These methods are static, we can run them from either store
+        assert obj_store.keys_for_env_servlet_name(obj_store.servlet_name) == ["k1"]
+        assert obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k1") == "v1"
+        assert obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k2") is None
+        assert obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k3") is None
+
+        assert obj_store.keys_for_env_servlet_name(other_obj_store.servlet_name) == [
+            "k2",
+            "k3",
+        ]
+        assert (
+            obj_store.get_from_env_servlet_name(other_obj_store.servlet_name, "k1")
+            is None
+        )
+        assert (
+            obj_store.get_from_env_servlet_name(other_obj_store.servlet_name, "k2")
+            == "v2"
+        )
+        assert (
+            obj_store.get_from_env_servlet_name(other_obj_store.servlet_name, "k3")
+            == "v3"
+        )
+
+        # Overwriting "k2" from obj_store instead of other_obj_store
+        obj_store.put("k2", "changed")
+        assert obj_store.keys() == ["k1", "k3", "k2"]
+        assert obj_store.get("k2") == "changed"
+        assert other_obj_store.get("k2") == "changed"
+        assert obj_store.get_env_servlet_name_for_key("k2") == obj_store.servlet_name
+        assert (
+            other_obj_store.get_env_servlet_name_for_key("k2") == obj_store.servlet_name
+        )
+
+        assert obj_store.keys_for_env_servlet_name(obj_store.servlet_name) == [
+            "k1",
+            "k2",
+        ]
+        assert obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k1") == "v1"
+        assert (
+            obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k2")
+            == "changed"
+        )
+        assert obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k3") is None
+
+        assert obj_store.keys_for_env_servlet_name(other_obj_store.servlet_name) == [
+            "k3"
+        ]
+        assert (
+            obj_store.get_from_env_servlet_name(other_obj_store.servlet_name, "k1")
+            is None
+        )
+        assert (
+            obj_store.get_from_env_servlet_name(other_obj_store.servlet_name, "k2")
+            is None
+        )
+        assert (
+            obj_store.get_from_env_servlet_name(other_obj_store.servlet_name, "k3")
+            == "v3"
+        )
+
+        # Renaming "k2" to "key_changed" from other_obj_store
+        # Even though "k2" is technically on base object store.
+        other_obj_store.rename("k2", "key_changed")
+        assert obj_store.keys() == ["k1", "k3", "key_changed"]
+        assert obj_store.get("key_changed") == "changed"
+        assert other_obj_store.get("key_changed") == "changed"
+        assert (
+            obj_store.get_env_servlet_name_for_key("key_changed")
+            == obj_store.servlet_name
+        )
+        assert (
+            other_obj_store.get_env_servlet_name_for_key("key_changed")
+            == obj_store.servlet_name
+        )
+
+        assert obj_store.keys_for_env_servlet_name(obj_store.servlet_name) == [
+            "k1",
+            "key_changed",
+        ]
+        assert obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k1") == "v1"
+        assert (
+            obj_store.get_from_env_servlet_name(obj_store.servlet_name, "key_changed")
+            == "changed"
+        )
+        assert obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k3") is None
+
+        assert obj_store.keys_for_env_servlet_name(other_obj_store.servlet_name) == [
+            "k3"
+        ]
+        assert (
+            obj_store.get_from_env_servlet_name(other_obj_store.servlet_name, "k1")
+            is None
+        )
+        assert (
+            obj_store.get_from_env_servlet_name(
+                other_obj_store.servlet_name, "key_changed"
+            )
+            is None
+        )
+        assert (
+            obj_store.get_from_env_servlet_name(other_obj_store.servlet_name, "k3")
+            == "v3"
+        )
+
+        # Renaming "key_changed" to "k3"
+        obj_store.rename("key_changed", "k3")
+        assert obj_store.keys() == ["k1", "k3"]
+        assert obj_store.get("k3") == "changed"
+        assert other_obj_store.get("k3") == "changed"
+        assert obj_store.get_env_servlet_name_for_key("k3") == obj_store.servlet_name
+        assert (
+            other_obj_store.get_env_servlet_name_for_key("k3") == obj_store.servlet_name
+        )
+
+        assert obj_store.keys_for_env_servlet_name(obj_store.servlet_name) == [
+            "k1",
+            "k3",
+        ]
+        assert obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k1") == "v1"
+        assert (
+            obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k3")
+            == "changed"
+        )
+        assert (
+            obj_store.get_from_env_servlet_name(obj_store.servlet_name, "key_changed")
+            is None
+        )
+
+        assert obj_store.keys_for_env_servlet_name(other_obj_store.servlet_name) == []
+        assert (
+            obj_store.get_from_env_servlet_name(other_obj_store.servlet_name, "k1")
+            is None
+        )
+        assert (
+            obj_store.get_from_env_servlet_name(other_obj_store.servlet_name, "k3")
+            is None
+        )
+        assert (
+            obj_store.get_from_env_servlet_name(
+                other_obj_store.servlet_name, "key_changed"
+            )
+            is None
+        )
+
+        # Popping "k3" from other_obj_store
+        res = other_obj_store.pop("k3")
+        assert res == "changed"
+        assert obj_store.keys() == ["k1"]
+        assert obj_store.get("k3") is None
+        assert other_obj_store.get("k3") is None
+        assert obj_store.get_env_servlet_name_for_key("k3") is None
+        assert other_obj_store.get_env_servlet_name_for_key("k3") is None
+
+        assert obj_store.keys_for_env_servlet_name(obj_store.servlet_name) == ["k1"]
+        assert obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k1") == "v1"
+        assert obj_store.keys_for_env_servlet_name(other_obj_store.servlet_name) == []
+
 
 @pytest.mark.servertest
-@pytest.mark.parametrize("obj_store", [CACHE_ENV_ACTOR_NAME], indirect=True)
+@pytest.mark.parametrize("obj_store", [BASE_ENV_ACTOR_NAME], indirect=True)
 class TestAuthCacheObjStore:
     """Start object store in a local auth cache servlet"""
 
