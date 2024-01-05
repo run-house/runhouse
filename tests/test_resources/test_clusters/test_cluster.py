@@ -122,3 +122,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
         assert r.status_code == 200
         assert "FastAPI" in r.text
+
+    @pytest.mark.level("local")
+    def test_cluster_objects(self, cluster):
+        cluster.put("k1", "v1")
+        cluster.put("k2", "v2")
+        assert cluster.keys() == ["base_env", "k1", "k2"]
+        assert cluster.get("k1") == "v1"
+        assert cluster.get("k2") == "v2"
