@@ -851,9 +851,8 @@ class Cluster(Resource):
             master_host = self.address
             n_hosts = len(self.ips)
             for host in self.ips:
-                self._start_ray(host, master_host, n_hosts)
-            # self._wait_for_workers(n_hosts)
-            # logger.info("🎉 All workers present and accounted for 🎉")
+                self._start_ray(host, master_host, n_hosts, self.DEFAULT_RAY_PORT)
+
         return status_codes
 
     @contextlib.contextmanager
