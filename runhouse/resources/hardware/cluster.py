@@ -239,6 +239,8 @@ class Cluster(Resource):
             >>> rh.cluster("rh-cpu").up_if_not()
         """
         if not self.is_up():
+            # Don't store stale IPs
+            self.ips = None
             if not hasattr(self, "up"):
                 raise NotImplementedError(
                     f"Cluster <{self.name}> does not have an up method."
