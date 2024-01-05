@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 import ray
 
@@ -220,6 +220,14 @@ class ObjStore:
             self.cluster_servlet, "is_env_servlet_name_initialized", env_servlet_name
         )
 
+    def get_all_initialized_env_servlet_names(self) -> Set[str]:
+        return list(
+            self.call_actor_method(
+                self.cluster_servlet,
+                "get_all_initialized_env_servlet_names",
+            )
+        )
+
     def get_env_servlet_name_for_key(self, key: Any):
         return self.call_actor_method(
             self.cluster_servlet, "get_env_servlet_name_for_key", key
@@ -234,25 +242,6 @@ class ObjStore:
         return self.call_actor_method(
             self.cluster_servlet, "pop_env_servlet_name_for_key", key, *args
         )
-
-    def list_env_servlet_names(
-        self, return_keys=False
-    ) -> Union[set, Dict[Any, List[str]]]:
-        key_to_env_servlet_name_dict = self.call_actor_method(
-            self.cluster_servlet, "get_key_to_env_servlet_name_dict"
-        )
-        unique_envs = set(key_to_env_servlet_name_dict.values())
-        if not return_keys:
-            return unique_envs
-        # Return a dictionary with envs as keys and the list of keys in the given env as values
-        return {
-            unique_env: [
-                key
-                for key, env_for_key in key_to_env_servlet_name_dict.items()
-                if env_for_key == unique_env
-            ]
-            for unique_env in unique_envs
-        }
 
     ##############################################
     # KV Store: Keys
@@ -271,10 +260,8 @@ class ObjStore:
 
     def keys(self) -> List[Any]:
         # Return keys across the cluster, not only in this process
-        return list(
-            self.call_actor_method(
-                self.cluster_servlet, "get_key_to_env_servlet_name_dict"
-            ).keys()
+        return self.call_actor_method(
+            self.cluster_servlet, "get_key_to_env_servlet_name_dict_keys"
         )
 
     ##############################################
@@ -513,7 +500,7 @@ class ObjStore:
 
     def clear(self):
         logger.warning("Clearing all keys from all envs in the object store!")
-        for env_servlet_name in self.list_env_servlet_names():
+        for env_servlet_name in self.get_all_initialized_env_servlet_names():
             if env_servlet_name == self.servlet_name and self.has_local_storage:
                 self.clear_local()
             else:

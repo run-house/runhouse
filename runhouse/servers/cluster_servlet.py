@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 from runhouse.servers.http.auth import AuthCache
 
@@ -77,6 +77,12 @@ class ClusterServlet:
 
     def is_env_servlet_name_initialized(self, env_servlet_name: str) -> bool:
         return env_servlet_name in self._initialized_env_servlet_names
+
+    def get_all_initialized_env_servlet_names(self) -> Set[str]:
+        return self._initialized_env_servlet_names
+
+    def get_key_to_env_servlet_name_dict_keys(self) -> List[Any]:
+        return list(self._key_to_env_servlet_name.keys())
 
     def get_key_to_env_servlet_name_dict(self) -> Dict[Any, str]:
         return self._key_to_env_servlet_name
