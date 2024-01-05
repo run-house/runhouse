@@ -1,5 +1,4 @@
 import pkgutil
-import unittest
 from pathlib import Path
 
 import pytest
@@ -28,7 +27,3 @@ class TestMultiNodeCluster:
         assert status_codes[0][0] == 0
 
         assert "runhouse" in status_codes[0][1]
-
-
-if __name__ == "__main__":
-    unittest.main()
