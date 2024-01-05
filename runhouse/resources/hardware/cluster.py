@@ -721,7 +721,7 @@ class Cluster(Resource):
                     "start",
                     "--head",
                     "--port",
-                    "{self.DEFAULT_RAY_PORT}",
+                    f"{self.DEFAULT_RAY_PORT}",
                     "--include-dashboard",
                     "false",
                 ],
