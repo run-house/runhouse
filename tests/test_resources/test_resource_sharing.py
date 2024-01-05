@@ -24,8 +24,10 @@ def call_func_with_curl(ip_address, func_name, token, *args):
 
 def update_cluster_auth_cache(cluster, token):
     """Refresh cache on cluster for current user to reflect any Den updates made in the test."""
-    refresh_cmd = f"obj_store.add_user_to_auth_cache('{token}')"
-    cluster.run_python(["from runhouse.globals import obj_store", refresh_cmd])
+    refresh_cmd = f"update_cache_for_user('{token}')"
+    cluster.run_python(
+        ["from runhouse.servers.http.auth import update_cache_for_user", refresh_cmd]
+    )
 
 
 def call_cluster_methods(cluster, test_env, valid_token):
@@ -125,7 +127,7 @@ def test_running_func_with_cluster_read_access(shared_cluster, shared_function):
 
         resp = requests.delete(
             f"{rns_client.api_server_url}/resource/{resource_uri}/user/{current_username}",
-            headers=rns_client.request_headers,
+            headers=rns_client.request_headers(),
         )
         if resp.status_code != 200:
             assert False, f"Failed to delete user access to resource: {resp.text}"
@@ -163,7 +165,7 @@ def test_running_func_with_cluster_write_access(shared_cluster, shared_function)
                     "notify_users": False,
                 }
             ),
-            headers=rns_client.request_headers,
+            headers=rns_client.request_headers(),
         )
         if resp.status_code != 200:
             assert False, f"Failed to give write access to cluster: {resp.text}"
@@ -173,7 +175,7 @@ def test_running_func_with_cluster_write_access(shared_cluster, shared_function)
 
         resp = requests.delete(
             f"{rns_client.api_server_url}/resource/{resource_uri}/user/{current_username}",
-            headers=rns_client.request_headers,
+            headers=rns_client.request_headers(),
         )
         if resp.status_code != 200:
             assert False, f"Failed to delete user access to resource: {resp.text}"
@@ -200,7 +202,7 @@ def test_running_func_with_no_cluster_access(shared_cluster, shared_function):
         cluster_uri = rns_client.resource_uri(shared_cluster.rns_address)
         resp = requests.delete(
             f"{rns_client.api_server_url}/resource/{cluster_uri}/user/{current_username}",
-            headers=rns_client.request_headers,
+            headers=rns_client.request_headers(),
         )
         if resp.status_code != 200:
             assert False, f"Failed to delete user access to cluster: {resp.text}"

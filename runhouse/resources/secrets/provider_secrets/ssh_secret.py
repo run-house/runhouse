@@ -55,7 +55,7 @@ class SSHSecret(ProviderSecret):
         elif not self.name:
             self.name = f"ssh-{self.key}"
         super().save(
-            save_values=save_values, headers=headers or rns_client.request_headers
+            save_values=save_values, headers=headers or rns_client.request_headers()
         )
 
     def _write_to_file(

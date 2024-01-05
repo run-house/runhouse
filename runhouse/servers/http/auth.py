@@ -3,6 +3,7 @@ import json
 import logging
 from typing import Union
 
+import ray
 import requests
 
 from runhouse.globals import rns_client
@@ -13,22 +14,24 @@ logger = logging.getLogger(__name__)
 
 class AuthCache:
     # Maps a user's token to all the resources they have access to
-    def __init__(self):
-        self.cache = {}
+    CACHE = {}
 
-    def get_user_resources(self, token_hash: str) -> dict:
+    @classmethod
+    def get_user_resources(cls, token_hash: str) -> dict:
         """Get resources associated with a particular user's token"""
-        return self.cache.get(token_hash, {})
+        return cls.CACHE.get(token_hash, {})
 
+    @classmethod
     def lookup_access_level(
-        self, token_hash: str, resource_uri: str
+        cls, token_hash: str, resource_uri: str
     ) -> Union[str, None]:
-        resources: dict = self.get_user_resources(token_hash)
+        resources: dict = cls.get_user_resources(token_hash)
         return resources.get(resource_uri)
 
-    def add_user(self, token, refresh_cache=True):
+    @classmethod
+    def add_user(cls, token, refresh_cache=True):
         """Refresh the server cache with the latest resources and access levels for a particular user"""
-        if not refresh_cache and hash_token(token) in self.cache:
+        if not refresh_cache and hash_token(token) in cls.CACHE:
             return
 
         resp = requests.get(
@@ -49,14 +52,14 @@ class AuthCache:
             for resource in resp_data["data"]
         }
         # Update server cache with a user's resources and access type
-        self.cache[hash_token(token)] = all_resources
+        cls.CACHE[hash_token(token)] = all_resources
 
     def clear_cache(self, token_hash: str = None):
         """Clear the server cache for a particular user's token"""
         if token_hash is None:
-            self.cache = {}
+            self.CACHE = {}
         else:
-            self.cache.pop(token_hash, None)
+            self.CACHE.pop(token_hash, None)
 
 
 def verify_cluster_access(
@@ -77,7 +80,7 @@ def verify_cluster_access(
 
     if cluster_access_level is None:
         # Reload from cache and check again
-        obj_store.add_user_to_auth_cache(token)
+        update_cache_for_user(token)
 
         cached_resources: dict = obj_store.user_resources(token_hash)
         cluster_access_level = cached_resources.get(cluster_uri)
@@ -91,3 +94,8 @@ def verify_cluster_access(
 def hash_token(token: str) -> str:
     """Hash the user's token to avoid storing them in plain text on the cluster."""
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def update_cache_for_user(token, refresh_cache=True):
+    auth_cache_actor = ray.get_actor("auth_cache", namespace="runhouse")
+    ray.get(auth_cache_actor.add_user.remote(token, refresh_cache))

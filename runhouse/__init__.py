@@ -54,7 +54,7 @@ fn = function
 if _current_cluster():
     import ray
 
-    ray.init(ignore_reinit_error=True, namespace="runhouse")
-    obj_store.initialize()
+    ray.init(ignore_reinit_error=True)
+    obj_store.set_name("base")
 
 __version__ = "0.0.15"

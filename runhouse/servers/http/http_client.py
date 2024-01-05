@@ -94,7 +94,7 @@ class HTTPClient:
         headers: Union[Dict, None] = None,
     ):
         # Support use case where we explicitly do not want to provide headers (e.g. requesting a cert)
-        headers = rns_client.request_headers if headers != {} else headers
+        headers = rns_client.request_headers() if headers != {} else headers
         req_fn = (
             requests.get
             if req_type == "get"
@@ -227,7 +227,7 @@ class HTTPClient:
                 "run_async": run_async,
             },
             stream=not run_async,
-            headers=rns_client.request_headers,
+            headers=rns_client.request_headers(),
             verify=self.verify,
         )
         if res.status_code != 200:
@@ -363,7 +363,7 @@ class HTTPClient:
         res = requests.post(
             self._formatted_url("settings"),
             json=new_settings,
-            headers=rns_client.request_headers,
+            headers=rns_client.request_headers(),
             verify=self.verify,
         )
         if res.status_code != 200:

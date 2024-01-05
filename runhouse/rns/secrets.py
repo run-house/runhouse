@@ -40,7 +40,7 @@ class Secrets:
         resp = requests.put(
             f"{rns_client.api_server_url}/{cls.USER_ENDPOINT}",
             data=json.dumps(secrets),
-            headers=headers or rns_client.request_headers,
+            headers=headers or rns_client.request_headers(),
         )
         if resp.status_code != 200:
             raise Exception(
@@ -65,7 +65,7 @@ class Secrets:
         logger.info("Getting secrets from Vault.")
         resp = requests.get(
             f"{rns_client.api_server_url}/{cls.USER_ENDPOINT}",
-            headers=headers or rns_client.request_headers,
+            headers=headers or rns_client.request_headers(),
         )
         if resp.status_code != 200:
             raise Exception("Failed to download secrets from Vault")

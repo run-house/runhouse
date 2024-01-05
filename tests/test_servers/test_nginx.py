@@ -457,14 +457,14 @@ class TestNginxServerLocally:
         response = requests.post(
             f"{protocol}://{cluster.address}:{cluster.client_port}/object",
             json={"data": pickle_b64(test_list), "key": key},
-            headers=rns_client.request_headers,
+            headers=rns_client.request_headers(),
             verify=False,
         )
         assert response.status_code == 200
 
         response = requests.get(
             f"{protocol}://{cluster.address}:{cluster.client_port}/keys",
-            headers=rns_client.request_headers,
+            headers=rns_client.request_headers(),
             verify=False,
         )
 

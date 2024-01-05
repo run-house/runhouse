@@ -147,7 +147,7 @@ def login(
 def _login_download_secrets(headers: Optional[str] = None, from_cli=False):
     from runhouse import Secret
 
-    secrets = Secret.vault_secrets(headers=headers or rns_client.request_headers)
+    secrets = Secret.vault_secrets(headers=headers or rns_client.request_headers())
     env_secrets = {}
     for name in secrets:
         try:
@@ -200,7 +200,7 @@ def _login_upload_secrets(interactive: bool, headers: Optional[Dict] = None):
         resource_uri = rns_client.resource_uri(name)
         resp = requests.get(
             f"{rns_client.api_server_url}/resource/{resource_uri}",
-            headers=headers or rns_client.request_headers,
+            headers=headers or rns_client.request_headers(),
         )
         if resp.status_code == 200:
             local_secrets.pop(name, None)
@@ -222,7 +222,7 @@ def _convert_secrets_resource(names: List[str] = None, headers: Optional[Dict] =
     from runhouse import provider_secret, Secret
     from runhouse.resources.secrets.utils import _load_vault_secret
 
-    headers = headers or rns_client.request_headers
+    headers = headers or rns_client.request_headers()
 
     secrets = names or Secret.vault_secrets(headers=headers)
 

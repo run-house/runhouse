@@ -107,7 +107,7 @@ class Secret(Resource):
         """Get secret names that are stored in Vault"""
         resp = requests.get(
             f"{rns_client.api_server_url}/{cls.USER_ENDPOINT}",
-            headers=headers or rns_client.request_headers,
+            headers=headers or rns_client.request_headers(),
         )
 
         if resp.status_code not in [200, 404]:
@@ -192,7 +192,7 @@ class Secret(Resource):
             # don't save values into Den config
             del config["values"]
 
-        headers = headers or rns_client.request_headers
+        headers = headers or rns_client.request_headers()
 
         # Save metadata to Den
         if self.rns_address.startswith("/"):
@@ -258,7 +258,7 @@ class Secret(Resource):
             os.remove(config_path)
 
     def _delete_secret_configs(self, headers: Optional[Dict] = None):
-        headers = headers or rns_client.request_headers
+        headers = headers or rns_client.request_headers()
 
         # Delete secrets in Vault
         resource_uri = rns_client.resource_uri(self.rns_address)
@@ -315,7 +315,7 @@ class Secret(Resource):
         resource_uri = rns_client.resource_uri(self.rns_address)
         resp = requests.get(
             f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{resource_uri}",
-            headers=headers or rns_client.request_headers,
+            headers=headers or rns_client.request_headers(),
         )
         if resp.status_code != 200:
             return False
