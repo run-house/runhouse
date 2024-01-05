@@ -79,7 +79,11 @@ def ondemand_https_cluster_with_auth():
 
 @pytest.fixture(scope="session")
 def multinode_cpu_cluster():
-    args = {"name": "rh-cpu-multinode", "num_instances": 2, "instance_type": "CPU:2+"}
+    args = {
+        "name": "rh-cpu-multinode-777",
+        "num_instances": 2,
+        "instance_type": "CPU:2+",
+    }
     c = rh.ondemand_cluster(**args)
     init_args[id(c)] = args
 
@@ -87,5 +91,5 @@ def multinode_cpu_cluster():
 
     c.save()
 
-    c.install_packages(["pytest"])
+    c.install_packages(["pytest", "ray"])
     return c

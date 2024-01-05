@@ -51,7 +51,7 @@ class Cluster(Resource):
     DEFAULT_HTTP_PORT = 80
     DEFAULT_HTTPS_PORT = 443
     DEFAULT_SSH_PORT = 22
-    DEFAULT_RAY_PORT = 9339
+    DEFAULT_RAY_PORT = 9340
     LOCAL_HOSTS = ["localhost", LOCALHOST]
 
     SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
@@ -702,7 +702,7 @@ class Cluster(Resource):
 
         return cmds
 
-    def start_ray(self, host, master_host, n_hosts):
+    def _start_ray(self, host, master_host, n_hosts):
 
         # master_host = self.address
         # n_hosts = len(self.ips)
@@ -711,7 +711,7 @@ class Cluster(Resource):
             # Head node
             if ray.is_initialized():
                 logger.info(
-                    "There is a Ray cluster already running on the head node {master_host}. Shutting it down."
+                    f"There is a Ray cluster already running on the head node {master_host}. Shutting it down."
                 )
                 ray.shutdown()
                 time.sleep(10)
@@ -735,20 +735,16 @@ class Cluster(Resource):
 
         else:
             # Worker node
-            time.sleep(10)
-            output = subprocess.run(
-                [
-                    "ray",
-                    "start",
-                    f"--address={master_host}:{self.DEFAULT_RAY_PORT}",
-                    "--block",
+            self.run(
+                commands=[
+                    "sleep 10"
+                    f"ray start --address={master_host}:{self.DEFAULT_RAY_PORT} --block",
                 ],
-                stdout=subprocess.PIPE,
+                host=host,
             )
-            logger.info(output.stdout.decode("utf-8"))
 
     def _wait_for_workers(self, num_nodes, timeout=120):
-        logger.info(f"Waiting {timeout} seconds for {num_nodes} worker nodes to join")
+        logger.info(f"Waiting {timeout} seconds for {num_nodes} nodes to join")
 
         while len(ray.nodes()) < num_nodes:
             logger.info(f"{len(ray.nodes())} nodes connected to cluster")
@@ -860,7 +856,7 @@ class Cluster(Resource):
             master_host = self.address
             n_hosts = len(self.ips)
             for host in self.ips:
-                self.start_ray(host, master_host, n_hosts)
+                self._start_ray(host, master_host, n_hosts)
 
         return status_codes
 
