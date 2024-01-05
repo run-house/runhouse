@@ -51,7 +51,7 @@ class Cluster(Resource):
     DEFAULT_HTTP_PORT = 80
     DEFAULT_HTTPS_PORT = 443
     DEFAULT_SSH_PORT = 22
-    DEFAULT_RAY_PORT = 9340
+    DEFAULT_RAY_PORT = 9341
     LOCAL_HOSTS = ["localhost", LOCALHOST]
 
     SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
@@ -702,11 +702,7 @@ class Cluster(Resource):
 
         return cmds
 
-    def _start_ray(self, host, master_host, n_hosts):
-
-        # master_host = self.address
-        # n_hosts = len(self.ips)
-
+    def _start_ray(self, host, master_host, n_hosts, ray_port):
         if host == master_host:
             # Head node
             if ray.is_initialized():
@@ -721,7 +717,7 @@ class Cluster(Resource):
                     "start",
                     "--head",
                     "--port",
-                    f"{self.DEFAULT_RAY_PORT}",
+                    f"{ray_port}",
                     "--include-dashboard",
                     "false",
                 ],
@@ -737,10 +733,9 @@ class Cluster(Resource):
             # Worker node
             self.run(
                 commands=[
-                    "sleep 30",
-                    f"ray start --address={master_host}:{self.DEFAULT_RAY_PORT} --block",
+                    f"sleep 30 && ray start --address={master_host}:{ray_port} --block",
                 ],
-                host=host,
+                node=host,
             )
 
     def _wait_for_workers(self, num_nodes, timeout=120):
@@ -857,7 +852,8 @@ class Cluster(Resource):
             n_hosts = len(self.ips)
             for host in self.ips:
                 self._start_ray(host, master_host, n_hosts)
-
+            # self._wait_for_workers(n_hosts)
+            # logger.info("🎉 All workers present and accounted for 🎉")
         return status_codes
 
     @contextlib.contextmanager
