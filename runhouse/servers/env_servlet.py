@@ -477,9 +477,6 @@ class EnvServlet:
                 output_type=OutputType.EXCEPTION,
             )
 
-    def get_logfiles(self, key):
-        return obj_store.get_logfiles(key)
-
     def put_object(self, key, value, _intra_cluster=False):
         self.register_activity()
         # We may not want to deserialize the object here in case the object requires dependencies
@@ -604,17 +601,25 @@ class EnvServlet:
         self.register_activity()
         return obj_store.keys_local()
 
-    def get_local(self, key: Any, default: Optional[Any] = None):
-        self.register_activity()
-        return obj_store.get_local(key, default)
-
     def put_local(self, key: Any, value: Any):
         self.register_activity()
         return obj_store.put_local(key, value)
 
+    def get_local(self, key: Any, default: Optional[Any] = None):
+        self.register_activity()
+        return obj_store.get_local(key, default)
+
+    def contains_local(self, key: Any):
+        self.register_activity()
+        return obj_store.contains_local(key)
+
     def pop_local(self, key: Any, *args):
         self.register_activity()
         return obj_store.pop_local(key, *args)
+
+    def delete_local(self, key: Any):
+        self.register_activity()
+        return obj_store.delete_local(key)
 
     def clear_local(self):
         self.register_activity()

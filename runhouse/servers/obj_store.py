@@ -123,9 +123,7 @@ class ObjStore:
     @staticmethod
     def call_actor_method(actor: ray.actor.ActorHandle, method: str, *args, **kwargs):
         if actor is None:
-            raise ValueError(
-                "Actor not initialized, may be running inside process without a servlet."
-            )
+            raise ObjStoreError("Attempting to call an actor method on a None actor.")
         return ray.get(getattr(actor, method).remote(*args, **kwargs))
 
     @staticmethod
@@ -284,6 +282,7 @@ class ObjStore:
     ##############################################
     @staticmethod
     def put_for_env_servlet_name(env_servlet_name: str, key: Any, value: Any):
+        logger.info(f"Putting {key} and {value} into servlet {env_servlet_name}")
         return ObjStore.call_actor_method(
             ObjStore.get_env_servlet(env_servlet_name), "put_local", key, value
         )
@@ -380,15 +379,38 @@ class ObjStore:
                 f"Key was supposed to be in {env_servlet_name}, but it was not found there."
             )
 
-    def contains(self, key: Any):
-        try:
-            self.get(key, default=KeyError)
-        except KeyError:
+    ##############################################
+    # KV Store: Contains
+    ##############################################
+    @staticmethod
+    def contains_for_env_servlet_name(env_servlet_name: str, key: Any):
+        return ObjStore.call_actor_method(
+            ObjStore.get_env_servlet(env_servlet_name), "contains_local", key
+        )
+
+    def contains_local(self, key: Any):
+        if self.has_local_storage:
+            return key in self._kv_store
+        else:
             return False
-        return True
+
+    def contains(self, key: Any):
+        if self.contains_local(key):
+            return True
+
+        env_servlet_name = self.get_env_servlet_name_for_key(key)
+        if env_servlet_name == self.servlet_name and self.has_local_storage:
+            raise ObjStoreError(
+                "Key not found in kv store despite env servlet specifying that it is here."
+            )
+
+        if env_servlet_name is None:
+            return False
+
+        return self.contains_for_env_servlet_name(env_servlet_name, key)
 
     ##############################################
-    # KV Store: Delete and Pop
+    # KV Store: Pop
     ##############################################
     @staticmethod
     def pop_from_env_servlet_name(env_servlet_name: str, key: Any, *args) -> Any:
@@ -411,7 +433,7 @@ class ObjStore:
             # from the global env for key cache.
             env_name = self._pop_env_servlet_name_for_key(key, None)
             if env_name and env_name != self.servlet_name:
-                raise ValueError(
+                raise ObjStoreError(
                     "The key was popped from this env, but the global env for key cache says it's in another one."
                 )
 
@@ -433,7 +455,7 @@ class ObjStore:
         env_servlet_name = self.get_env_servlet_name_for_key(key)
         if env_servlet_name:
             if env_servlet_name == self.servlet_name and self.has_local_storage:
-                raise ValueError(
+                raise ObjStoreError(
                     "The key was not found in this env, but the global env for key cache says it's here."
                 )
             else:
@@ -446,11 +468,33 @@ class ObjStore:
             else:
                 raise key_err
 
+    ##############################################
+    # KV Store: Delete
+    ##############################################
+    @staticmethod
+    def delete_for_env_servlet_name(env_servlet_name: str, key: Any):
+        return ObjStore.call_actor_method(
+            ObjStore.get_env_servlet(env_servlet_name), "delete_local", key
+        )
+
+    def delete_local(self, key: Any):
+        self.pop_local(key)
+
     def delete(self, key: Union[Any, List[Any]]):
-        if isinstance(key, str):
-            key = [key]
-        for k in key:
-            self.pop(k, None)
+        keys_to_delete = [key] if isinstance(key, str) else key
+        for key_to_delete in keys_to_delete:
+            if self.contains_local(key_to_delete):
+                self.delete_local(key_to_delete)
+            else:
+                env_servlet_name = self.get_env_servlet_name_for_key(key_to_delete)
+                if env_servlet_name == self.servlet_name and self.has_local_storage:
+                    raise ObjStoreError(
+                        "Key not found in kv store despite env servlet specifying that it is here."
+                    )
+                if env_servlet_name is None:
+                    raise KeyError(f"Key {key} not found in any env.")
+
+                self.delete_for_env_servlet_name(env_servlet_name, key_to_delete)
 
     ##############################################
     # KV Store: Clear
