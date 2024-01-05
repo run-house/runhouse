@@ -51,6 +51,7 @@ class Cluster(Resource):
     DEFAULT_HTTP_PORT = 80
     DEFAULT_HTTPS_PORT = 443
     DEFAULT_SSH_PORT = 22
+    DEFAULT_RAY_PORT = 9339
     LOCAL_HOSTS = ["localhost", LOCALHOST]
 
     SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
@@ -720,7 +721,7 @@ class Cluster(Resource):
                     "start",
                     "--head",
                     "--port",
-                    self.ray_port,
+                    "{self.DEFAULT_RAY_PORT}",
                     "--include-dashboard",
                     "false",
                 ],
@@ -739,7 +740,7 @@ class Cluster(Resource):
                 [
                     "ray",
                     "start",
-                    f"--address={master_host}:{self.ray_port}",
+                    f"--address={master_host}:{self.DEFAULT_RAY_PORT}",
                     "--block",
                 ],
                 stdout=subprocess.PIPE,
