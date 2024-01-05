@@ -61,7 +61,7 @@ jobs:
       # TODO: pull the latest "prod" tag from ECR
       - name: Start Den container
         run: |
-          docker run -d -p 8000:80 --env-file env_file ${{ secrets.ECR_URL }}/runhouse-auth:prod-61370a76
+          docker run -d -p 8000:80 --env-file env_file ${{ secrets.ECR_URL }}/runhouse-auth:prod-61370a76 uvicorn app.main:app --proxy-headers --host 0.0.0.0 --port 80
 
       - name: Run unit tests
         env:
