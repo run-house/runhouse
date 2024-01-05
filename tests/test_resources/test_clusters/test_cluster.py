@@ -7,6 +7,7 @@ from runhouse.resources.hardware.utils import LOCALHOST
 
 import tests.test_resources.test_resource
 from tests.conftest import init_args
+from tests.utils import get_random_str
 
 """ TODO:
 1) In subclasses, test factory methods create same type as parent
@@ -122,3 +123,23 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
         assert r.status_code == 200
         assert "FastAPI" in r.text
+
+    @pytest.mark.level("local")
+    def test_cluster_objects(self, cluster):
+        k1 = get_random_str()
+        k2 = get_random_str()
+        cluster.put(k1, "v1")
+        cluster.put(k2, "v2")
+        assert k1 in cluster.keys()
+        assert k2 in cluster.keys()
+        assert cluster.get(k1) == "v1"
+        assert cluster.get(k2) == "v2"
+
+        # Make new env
+        rh.env(reqs=["numpy"], name="numpy_env").to(cluster)
+        assert "numpy_env" in cluster.keys()
+
+        k3 = get_random_str()
+        cluster.put(k3, "v3", env="numpy_env")
+        assert k3 in cluster.keys()
+        assert cluster.get(k3) == "v3"
