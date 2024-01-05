@@ -15,6 +15,8 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import ray
+
 from runhouse.servers.http.certs import TLSCertConfig
 
 # Filter out DeprecationWarnings
@@ -699,22 +701,24 @@ class Cluster(Resource):
 
         return cmds
 
-    def start_ray(self):
+    def start_ray(self, host, master_host, n_hosts):
 
-        master_ip = self._get_ip_from_host()
+        # master_host = self.address
+        # n_hosts = len(self.ips)
 
-        if self.resource_config["current_host"] == self.master_host:
+        if host == master_host:
             # Head node
             if ray.is_initialized():
-                logger.info("There is a Ray cluster already running. Shutting it down.")
+                logger.info(
+                    "There is a Ray cluster already running on the head node {master_host}. Shutting it down."
+                )
                 ray.shutdown()
-                time.sleep(5)
+                time.sleep(10)
             output = subprocess.run(
                 [
                     "ray",
                     "start",
                     "--head",
-                    "-vvv",
                     "--port",
                     self.ray_port,
                     "--include-dashboard",
@@ -724,8 +728,8 @@ class Cluster(Resource):
             )
             logger.info(output.stdout.decode("utf-8"))
             ray.init(address="auto", include_dashboard=False)
-            self._wait_for_workers()
-            logger.info("All workers present and accounted for")
+            self._wait_for_workers(n_hosts)
+            logger.info("🎉 All workers present and accounted for 🎉")
             logger.info(ray.cluster_resources())
 
         else:
@@ -735,21 +739,17 @@ class Cluster(Resource):
                 [
                     "ray",
                     "start",
-                    f"--address={master_ip}:{self.ray_port}",
-                    "--redis-password",
-                    self.redis_pass,
+                    f"--address={master_host}:{self.ray_port}",
                     "--block",
                 ],
                 stdout=subprocess.PIPE,
             )
             logger.info(output.stdout.decode("utf-8"))
-            sys.exit(0)
 
-    def _wait_for_workers(self, timeout=60):
+    def _wait_for_workers(self, num_nodes, timeout=120):
+        logger.info(f"Waiting {timeout} seconds for {num_nodes} worker nodes to join")
 
-        logger.info(f"Waiting {timeout} seconds for {self.n_hosts} nodes to join")
-
-        while len(ray.nodes()) < self.n_hosts:
+        while len(ray.nodes()) < num_nodes:
             logger.info(f"{len(ray.nodes())} nodes connected to cluster")
             time.sleep(5)
             timeout -= 5
@@ -851,6 +851,15 @@ class Cluster(Resource):
             ServerConnectionType.AWS_SSM,
         ]:
             self.run(commands=[self.RAY_RESTART_CMD])
+
+        if restart_ray:
+            # Restart Ray on the head node and each of the workers
+            # TODO: kill ray on all nodes first. Need to think more of the
+            # multiple multi-node clusters running on the same set of machines case.
+            master_host = self.address
+            n_hosts = len(self.ips)
+            for host in self.ips:
+                self.start_ray(host, master_host, n_hosts)
 
         return status_codes
 
