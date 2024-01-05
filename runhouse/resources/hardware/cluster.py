@@ -737,7 +737,7 @@ class Cluster(Resource):
             # Worker node
             self.run(
                 commands=[
-                    "sleep 10"
+                    "sleep 30",
                     f"ray start --address={master_host}:{self.DEFAULT_RAY_PORT} --block",
                 ],
                 host=host,
