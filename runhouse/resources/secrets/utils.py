@@ -37,7 +37,7 @@ def _load_vault_secret(
     headers: Optional[Dict] = None,
 ):
     """Load secrets data from Vault for a particular resource URI. By default we allow for reloading shared secrets."""
-    headers = headers or rns_client.request_headers
+    headers = headers or rns_client.request_headers()
     resp = requests.get(
         f"{rns_client.api_server_url}/{endpoint}/{resource_uri}?shared=true",
         headers=headers,
@@ -60,7 +60,7 @@ def _delete_vault_secrets(
     endpoint: str = USER_ENDPOINT,
     headers: Optional[Dict] = None,
 ):
-    headers = headers or rns_client.request_headers
+    headers = headers or rns_client.request_headers()
     resp = requests.delete(
         f"{rns_client.api_server_url}/{endpoint}/{resource_uri}",
         headers=headers,

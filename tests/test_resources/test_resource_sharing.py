@@ -127,7 +127,7 @@ def test_running_func_with_cluster_read_access(shared_cluster, shared_function):
 
         resp = requests.delete(
             f"{rns_client.api_server_url}/resource/{resource_uri}/user/{current_username}",
-            headers=rns_client.request_headers,
+            headers=rns_client.request_headers(),
         )
         if resp.status_code != 200:
             assert False, f"Failed to delete user access to resource: {resp.text}"
@@ -165,7 +165,7 @@ def test_running_func_with_cluster_write_access(shared_cluster, shared_function)
                     "notify_users": False,
                 }
             ),
-            headers=rns_client.request_headers,
+            headers=rns_client.request_headers(),
         )
         if resp.status_code != 200:
             assert False, f"Failed to give write access to cluster: {resp.text}"
@@ -175,7 +175,7 @@ def test_running_func_with_cluster_write_access(shared_cluster, shared_function)
 
         resp = requests.delete(
             f"{rns_client.api_server_url}/resource/{resource_uri}/user/{current_username}",
-            headers=rns_client.request_headers,
+            headers=rns_client.request_headers(),
         )
         if resp.status_code != 200:
             assert False, f"Failed to delete user access to resource: {resp.text}"
@@ -202,7 +202,7 @@ def test_running_func_with_no_cluster_access(shared_cluster, shared_function):
         cluster_uri = rns_client.resource_uri(shared_cluster.rns_address)
         resp = requests.delete(
             f"{rns_client.api_server_url}/resource/{cluster_uri}/user/{current_username}",
-            headers=rns_client.request_headers,
+            headers=rns_client.request_headers(),
         )
         if resp.status_code != 200:
             assert False, f"Failed to delete user access to cluster: {resp.text}"

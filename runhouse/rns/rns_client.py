@@ -184,7 +184,6 @@ class RNSClient:
     def remote_to_local_address(self, rns_address):
         return rns_address.replace(self.default_folder, "~")
 
-    @property
     def request_headers(self):
         return self._configs.request_headers
 
@@ -270,7 +269,7 @@ class RNSClient:
         headers: Optional[dict] = None,
     ):
         resource_uri = self.resource_uri(rns_address)
-        headers = headers or self.request_headers
+        headers = headers or self.request_headers()
         access_payload = {
             "users": user_emails,
             "access_level": access_level,
@@ -315,7 +314,7 @@ class RNSClient:
             logger.info(f"Attempting to load config for {rns_address} from RNS.")
             resp = requests.get(
                 f"{self.api_server_url}/resource/{resource_uri}",
-                headers=self.request_headers,
+                headers=self.request_headers(),
             )
             if resp.status_code != 200:
                 logger.info(f"No config found in RNS: {load_resp_content(resp)}")
@@ -401,7 +400,7 @@ class RNSClient:
         uri = f"resource/{resource_uri}"
 
         payload = self.resource_request_payload(config)
-        headers = self.request_headers
+        headers = self.request_headers()
         resp = requests.put(
             f"{self.api_server_url}/{uri}", data=json.dumps(payload), headers=headers
         )
@@ -452,7 +451,7 @@ class RNSClient:
             resource_uri = self.resource_uri(rns_address)
             uri = "resource/" + resource_uri
             resp = requests.delete(
-                f"{self.api_server_url}/{uri}", headers=self.request_headers
+                f"{self.api_server_url}/{uri}", headers=self.request_headers()
             )
             if resp.status_code != 200:
                 logger.error(f"Failed to delete_configs <{uri}>")

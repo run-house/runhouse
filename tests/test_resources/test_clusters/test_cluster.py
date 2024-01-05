@@ -120,7 +120,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         r = requests.get(
             f"{endpoint}/docs",
             verify=False,
-            headers=rh.globals.rns_client.request_headers,
+            headers=rh.globals.rns_client.request_headers(),
         )
         assert r.status_code == 200
         assert "FastAPI" in r.text

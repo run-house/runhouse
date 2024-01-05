@@ -84,7 +84,7 @@ def local_client_with_den_auth():
     HTTPServer.enable_den_auth()
     client = TestClient(app)
     with test_account():
-        client.headers = rns_client.request_headers
+        client.headers = rns_client.request_headers()
 
     yield client
 
