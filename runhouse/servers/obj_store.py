@@ -1,6 +1,5 @@
 import logging
 import os
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import ray
@@ -8,78 +7,170 @@ import ray
 logger = logging.getLogger(__name__)
 
 
-class ObjStore:
-    """Class to handle object storage for Runhouse. Object storage for a cluster is
-    stored in the Ray GCS, if available."""
+class ObjStoreError(Exception):
+    pass
 
-    # Note, if we turn this into a ray actor we could get it by a string on server restart, which
-    # would allow us to persist the store across server restarts. Unclear if this is desirable yet.
-    # https://docs.ray.io/en/latest/ray-core/package-ref.html#ray-get-actor
-    LOGS_DIR = ".rh/logs"
-    RH_LOGFILE_PATH = Path.home() / LOGS_DIR
+
+class NoLocalObjStoreError(ObjStoreError):
+    def __init__(self):
+        super().__init__("No local object store exists; cannot perform operation.")
+
+
+class ObjStore:
+    """Class to handle internal IPC and storage for Runhouse.
+
+    We interact with individual EnvServlets as well as the global ClusterServlet
+    via this class.
+
+    The point of this is that this information can
+    be accessed by any node in the cluster, as well as any
+    process on any node, via this class.
+
+    1. We store the state of the cluster in the ClusterServlet.
+    2. We store an auth cache in the ClusterServlet
+    3. We interact with a distributed KV store, which is the most in-depth of these use cases.
+
+        The KV store is used to store objects that are shared across the cluster. Each EnvServlet
+        will have its own ObjStore initialized with a servlet name. This means it will have a
+        local Python dictionary with its values. However, each ObjStore can also access the other env
+        servlets' KV stores, so we can get and put values across the cluster.
+
+        We maintain individual KV stores in each EnvServlet's memory so that we can access them in-memory
+        if functions within that Servlet make key/value requests.
+    """
 
     def __init__(self):
-        self.servlet_name = None
-        self._kv_store = None
-        self._env_for_key = None
+        self.servlet_name: Optional[str] = None
+        self.cluster_servlet: Optional[ray.actor.ActorHandle] = None
         self.imported_modules = {}
         self.installed_envs = {}
-        self._auth_cache = None
 
-    def set_name(self, servlet_name: str):
-        # This needs to be in a separate method so the HTTPServer actually
-        # initalizes the obj_store, and it doesn't get created and destroyed when
+        self._kv_store: Dict[Any, Any] = None
+
+    def initialize(
+        self, servlet_name: Optional[str] = None, has_local_storage: bool = False
+    ):
+        # The initialization of the obj_store needs to be in a separate method
+        # so the HTTPServer actually initalizes the obj_store,
+        # and it doesn't get created and destroyed when
         # nginx runs http_server.py as a module.
-        from runhouse.resources.kvstores import Kvstore
-        from runhouse.servers.http.auth import AuthCache
 
-        self.servlet_name = servlet_name or "base"
+        # ClusterServlet essentially functions as a global state/metadata store
+        # for all nodes connected to this Ray cluster.
+        try:
+            from runhouse.servers.cluster_servlet import ClusterServlet
+
+            ray.init(
+                ignore_reinit_error=True,
+                logging_level=logging.ERROR,
+                namespace="runhouse",
+            )
+            self.cluster_servlet = (
+                ray.remote(ClusterServlet)
+                .options(
+                    name="cluster_servlet",
+                    get_if_exists=True,
+                    lifetime="detached",
+                    namespace="runhouse",
+                )
+                .remote()
+            )
+        except ConnectionError:
+            # If ray.init fails, we're not on a cluster, so we don't need to do anything
+            pass
+
+        # There are 3 operating modes of the KV store:
+        # servlet_name is set, has_local_storage is True: This is an EnvServlet with a local KV store.
+        # servlet_name is set, has_local_storage is False: This is an ObjStore class that is not an EnvServlet,
+        #   but wants to proxy its writes to a running EnvServlet.
+        # servlet_name is unset, has_local_storage is False: This is an ObjStore class that by default only looks at
+        #   the global KV store and other servlets.
+        if not servlet_name and has_local_storage:
+            raise ValueError(
+                "Must provide a servlet name if the servlet has local storage."
+            )
+
+        if (
+            servlet_name
+            and not has_local_storage
+            and not self.get_env_servlet(servlet_name)
+        ):
+            raise ValueError(
+                f"ObjStore wants to proxy writes to {servlet_name}, but there is no servlet with that name running."
+            )
+
+        # There can only be one initialized EnvServlet with a given name AND with local storage.
+        if has_local_storage and servlet_name:
+            if self.is_env_servlet_name_initialized(servlet_name):
+                raise ValueError(
+                    f"There already exists an EnvServlet with name {servlet_name}."
+                )
+            else:
+                self.mark_env_servlet_name_as_initialized(servlet_name)
+
+        self.servlet_name = servlet_name
+        self.has_local_storage = has_local_storage
+        if self.has_local_storage:
+            self._kv_store = {}
+
         num_gpus = ray.cluster_resources().get("GPU", 0)
         cuda_visible_devices = list(range(int(num_gpus)))
         os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
-        self._kv_store = Kvstore()
-        self._kv_store.system = None  # sometimes this gets set to _current_cluster, which can only create problems
-        self._env_for_key = (
-            ray.remote(Kvstore)
-            .options(
-                name="env_for_key",
-                get_if_exists=True,
-                lifetime="detached",
-                namespace="runhouse",
-            )
-            .remote(
-                system="here"
-            )  # Same here, we don't want to use the _current_cluster system
-        )
-        self._auth_cache = (
-            ray.remote(AuthCache)
-            .options(
-                name="auth_cache",
-                get_if_exists=True,
-                lifetime="detached",
-                namespace="runhouse",
-            )
-            .remote()
-        )
+
+    ##############################################
+    # Generic helpers
+    ##############################################
+    @staticmethod
+    def call_actor_method(actor: ray.actor.ActorHandle, method: str, *args, **kwargs):
+        if actor is None:
+            raise ObjStoreError("Attempting to call an actor method on a None actor.")
+        return ray.get(getattr(actor, method).remote(*args, **kwargs))
 
     @staticmethod
-    def call_kv_method(store, method, *args, **kwargs):
-        if store is None:
-            raise ValueError(
-                "Object store not initialized, may be running inside process without a servlet."
-            )
-        if isinstance(store, ray.actor.ActorHandle):
-            return ray.get(getattr(store, method).remote(*args, **kwargs))
-        else:
-            return getattr(store, method)(*args, **kwargs)
+    def get_env_servlet(env_name: str):
+        from runhouse.globals import env_servlets
+
+        if env_name in env_servlets.keys():
+            return env_servlets[env_name]
+
+        actor = ray.get_actor(env_name, namespace="runhouse")
+        if actor is not None:
+            env_servlets[env_name] = actor
+            return actor
+        return None
+
+    ##############################################
+    # Cluster config state storage methods
+    ##############################################
+    def get_cluster_config(self):
+        # TODO: Potentially add caching here
+        return self.call_actor_method(self.cluster_servlet, "get_cluster_config")
+
+    def set_cluster_config(self, config: Dict[str, Any]):
+        return self.call_actor_method(
+            self.cluster_servlet, "set_cluster_config", config
+        )
+
+    ##############################################
+    # Auth cache internal functions
+    ##############################################
+    def add_user_to_auth_cache(self, token, refresh_cache=True):
+        return self.call_actor_method(
+            self.cluster_servlet, "add_user_to_auth_cache", token, refresh_cache
+        )
 
     def resource_access_level(self, token_hash: str, resource_uri: str):
-        return ray.get(
-            self._auth_cache.lookup_access_level.remote(token_hash, resource_uri)
+        return self.call_actor_method(
+            self.cluster_servlet,
+            "resource_access_level",
+            token_hash,
+            resource_uri,
         )
 
     def user_resources(self, token_hash: str):
-        return ray.get(self._auth_cache.get_user_resources.remote(token_hash))
+        return self.call_actor_method(
+            self.cluster_servlet, "user_resources", token_hash
+        )
 
     def has_resource_access(self, token_hash: str, resource_uri=None) -> bool:
         """Checks whether user has read or write access to a given module saved on the cluster."""
@@ -110,79 +201,155 @@ class ObjStore:
         return True
 
     def clear_auth_cache(self, token_hash: str = None):
-        ray.get(self._auth_cache.clear_cache.remote(token_hash))
-
-    def keys(self, return_envs=False):
-        # Return keys across the cluster, not only in this process
-        return self.call_kv_method(
-            self._env_for_key, "items" if return_envs else "keys"
+        return self.call_actor_method(
+            self.cluster_servlet, "clear_auth_cache", token_hash
         )
 
-    def get_env(self, key):
-        return self.call_kv_method(self._env_for_key, "get", key, None)
+    ##############################################
+    # Key to servlet where it is stored mapping
+    ##############################################
+    def mark_env_servlet_name_as_initialized(self, env_servlet_name: str):
+        return self.call_actor_method(
+            self.cluster_servlet,
+            "mark_env_servlet_name_as_initialized",
+            env_servlet_name,
+        )
 
-    def put_env(self, key, value):
-        return self.call_kv_method(self._env_for_key, "put", key, value)
+    def is_env_servlet_name_initialized(self, env_servlet_name: str) -> bool:
+        return self.call_actor_method(
+            self.cluster_servlet, "is_env_servlet_name_initialized", env_servlet_name
+        )
 
-    def put(self, key: str, value: Any, env=None):
-        # First check if it's in the Python kv store
-        if env and not self.servlet_name == env:
-            servlet = self.get_env_servlet(env)
-            if servlet is not None:
-                if isinstance(servlet, ray.actor.ActorHandle):
-                    ray.get(servlet.put.remote(key, value, _intra_cluster=True))
-                else:
-                    servlet.put(key, value, _intra_cluster=True)
+    def get_env_servlet_name_for_key(self, key: Any):
+        return self.call_actor_method(
+            self.cluster_servlet, "get_env_servlet_name_for_key", key
+        )
 
-        self.call_kv_method(self._kv_store, "put", key, value)
-        self.put_env(key, self.servlet_name)
+    def _put_env_servlet_name_for_key(self, key: Any, env_servlet_name: str):
+        return self.call_actor_method(
+            self.cluster_servlet, "put_env_servlet_name_for_key", key, env_servlet_name
+        )
 
-    def put_obj_ref(self, key, obj_ref):
-        # Need to wrap the obj_ref in a dict so ray doesn't dereference it
-        # FYI: https://docs.ray.io/en/latest/ray-core/objects.html#closure-capture-of-objects
-        self.call_kv_method(self._kv_store, "put", key + "_ref", [obj_ref])
-        self.put_env(key, self.servlet_name)
+    def _pop_env_servlet_name_for_key(self, key: Any, *args) -> str:
+        return self.call_actor_method(
+            self.cluster_servlet, "pop_env_servlet_name_for_key", key, *args
+        )
 
-    def rename(self, old_key, new_key, default=None):
-        # We also need to rename the resource itself
-        obj = self.get(old_key, default=default)
-        if obj is not None and hasattr(obj, "rns_address"):
-            # Note - we set the obj.name here so the new_key is correctly turned into an rns_address, whether its
-            # a full address or just a name. Then, the new_key is set to just the name so its store properly in the
-            # kv store.
-            obj.name = new_key  # new_key can be an rns_address! e.g. if called by Module.rename
-            new_key = obj.name  # new_key is now just the name
-        # By passing default, we don't throw an error if the key is not found
-        self.call_kv_method(self._kv_store, "rename_key", old_key, new_key, default)
-        self.call_kv_method(self._env_for_key, "rename_key", old_key, new_key, default)
+    def list_env_servlet_names(
+        self, return_keys=False
+    ) -> Union[set, Dict[Any, List[str]]]:
+        key_to_env_servlet_name_dict = self.call_actor_method(
+            self.cluster_servlet, "get_key_to_env_servlet_name_dict"
+        )
+        unique_envs = set(key_to_env_servlet_name_dict.values())
+        if not return_keys:
+            return unique_envs
+        # Return a dictionary with envs as keys and the list of keys in the given env as values
+        return {
+            unique_env: [
+                key
+                for key, env_for_key in key_to_env_servlet_name_dict.items()
+                if env_for_key == unique_env
+            ]
+            for unique_env in unique_envs
+        }
 
-    def get_obj_ref(self, key):
-        return self.call_kv_method(self._kv_store, "get", key + "_ref", [None])[0]
-
+    ##############################################
+    # KV Store: Keys
+    ##############################################
     @staticmethod
-    def get_env_servlet(env_name):
-        from runhouse.globals import env_servlets
+    def keys_for_env_servlet_name(env_servlet_name: str) -> List[Any]:
+        return ObjStore.call_actor_method(
+            ObjStore.get_env_servlet(env_servlet_name), "keys_local"
+        )
 
-        if env_name in env_servlets.keys():
-            return env_servlets[env_name]
+    def keys_local(self) -> List[Any]:
+        if self.has_local_storage:
+            return list(self._kv_store.keys())
+        else:
+            return []
 
-        actor = ray.get_actor(env_name, namespace="runhouse")
-        if actor is not None:
-            env_servlets[env_name] = actor
-            return actor
-        return None
+    def keys(self) -> List[Any]:
+        # Return keys across the cluster, not only in this process
+        return list(
+            self.call_actor_method(
+                self.cluster_servlet, "get_key_to_env_servlet_name_dict"
+            ).keys()
+        )
+
+    ##############################################
+    # KV Store: Put
+    ##############################################
+    @staticmethod
+    def put_for_env_servlet_name(env_servlet_name: str, key: Any, value: Any):
+        logger.info(f"Putting {key} and {value} into servlet {env_servlet_name}")
+        return ObjStore.call_actor_method(
+            ObjStore.get_env_servlet(env_servlet_name), "put_local", key, value
+        )
+
+    def put_local(self, key: Any, value: Any):
+        if self.has_local_storage:
+            self._kv_store[key] = value
+            self._put_env_servlet_name_for_key(key, self.servlet_name)
+        else:
+            raise NoLocalObjStoreError()
+
+    def put(self, key: Any, value: Any, env: str = None):
+        # Before replacing something else, check if this op will even be valid.
+        if env is None and not self.servlet_name:
+            raise NoLocalObjStoreError()
+
+        if env is not None and self.get_env_servlet(env) is None:
+            raise ObjStoreError(
+                f"Env {env} does not exist; cannot put key {key} there."
+            )
+
+        # If it does exist somewhere, no more!
+        if self.get(key, default=None) is not None:
+            logger.warning("Key already exists in some env, overwriting.")
+            self.pop(key)
+
+        # If env is None, write to our own servlet, either via local or via global KV store
+        env = env or self.servlet_name
+        if self.has_local_storage and env == self.servlet_name:
+            self.put_local(key, value)
+        else:
+            self.put_for_env_servlet_name(env, key, value)
+
+    ##############################################
+    # KV Store: Get
+    ##############################################
+    @staticmethod
+    def get_from_env_servlet_name(
+        env_servlet_name: str, key: Any, default: Optional[Any] = None
+    ):
+        logger.info(f"Getting {key} from servlet {env_servlet_name}")
+        return ObjStore.call_actor_method(
+            ObjStore.get_env_servlet(env_servlet_name), "get_local", key, default
+        )
+
+    def get_local(self, key: Any, default: Optional[Any] = None):
+        if self.has_local_storage:
+            try:
+                return self._kv_store[key]
+            except KeyError as e:
+                if default == KeyError:
+                    raise e
+                return default
+        else:
+            if default == KeyError:
+                raise KeyError(f"No local store exists; key {key} not found.")
+            return default
 
     def get(
         self,
-        key: str,
+        key: Any,
         default: Optional[Any] = None,
         check_other_envs: bool = True,
     ):
-        # TODO change this to look up which env the object lives in by default, with an opt out
         # First check if it's in the Python kv store
         try:
-            val = self.call_kv_method(self._kv_store, "get", key, KeyError)
-            return val
+            return self.get_local(key, default=KeyError)
         except KeyError as e:
             key_err = e
 
@@ -192,100 +359,195 @@ class ObjStore:
             return default
 
         # If not, check if it's in another env's servlet
-        servlet_name = self.get_env(key)
-        if servlet_name is None:
-            if default == KeyError:
-                raise key_err
-            return default
+        env_servlet_name = self.get_env_servlet_name_for_key(key)
+        if env_servlet_name == self.servlet_name and self.has_local_storage:
+            raise ValueError(
+                "Key not found in kv store despite env servlet specifying that it is here."
+            )
 
-        logger.info(f"Getting {key} from servlet {servlet_name}")
-        servlet = self.get_env_servlet(servlet_name)
-        if servlet is None:
+        if env_servlet_name is None:
             if default == KeyError:
                 raise key_err
             return default
 
         try:
-            if isinstance(servlet, ray.actor.ActorHandle):
-                return ray.get(servlet.get.remote(key, _intra_cluster=True))
+            return self.get_from_env_servlet_name(
+                env_servlet_name, key, default=KeyError
+            )
+        except KeyError:
+            raise ObjStoreError(
+                f"Key was supposed to be in {env_servlet_name}, but it was not found there."
+            )
+
+    ##############################################
+    # KV Store: Contains
+    ##############################################
+    @staticmethod
+    def contains_for_env_servlet_name(env_servlet_name: str, key: Any):
+        return ObjStore.call_actor_method(
+            ObjStore.get_env_servlet(env_servlet_name), "contains_local", key
+        )
+
+    def contains_local(self, key: Any):
+        if self.has_local_storage:
+            return key in self._kv_store
+        else:
+            return False
+
+    def contains(self, key: Any):
+        if self.contains_local(key):
+            return True
+
+        env_servlet_name = self.get_env_servlet_name_for_key(key)
+        if env_servlet_name == self.servlet_name and self.has_local_storage:
+            raise ObjStoreError(
+                "Key not found in kv store despite env servlet specifying that it is here."
+            )
+
+        if env_servlet_name is None:
+            return False
+
+        return self.contains_for_env_servlet_name(env_servlet_name, key)
+
+    ##############################################
+    # KV Store: Pop
+    ##############################################
+    @staticmethod
+    def pop_from_env_servlet_name(env_servlet_name: str, key: Any, *args) -> Any:
+        return ObjStore.call_actor_method(
+            ObjStore.get_env_servlet(env_servlet_name), "pop_local", key, *args
+        )
+
+    def pop_local(self, key: Any, *args) -> Any:
+        if self.has_local_storage:
+            try:
+                res = self._kv_store.pop(key)
+            except KeyError as key_err:
+                # Return the default if it was provided, else raise the error as expected
+                if args:
+                    return args[0]
+                else:
+                    raise key_err
+
+            # If the key was found in this env, we also need to pop it
+            # from the global env for key cache.
+            env_name = self._pop_env_servlet_name_for_key(key, None)
+            if env_name and env_name != self.servlet_name:
+                raise ObjStoreError(
+                    "The key was popped from this env, but the global env for key cache says it's in another one."
+                )
+
+            return res
+        else:
+            if args:
+                return args[0]
             else:
-                return servlet.get(key, _intra_cluster=True, timeout=None)
+                raise KeyError(f"No local store exists; key {key} not found.")
+
+    def pop(self, key: Any, *args) -> Any:
+        try:
+            return self.pop_local(key)
         except KeyError as e:
-            if default == KeyError:
-                raise e
+            key_err = e
 
-        return default
+        # The key was not found in this env
+        # So, we check the global key to env cache to see if it's elsewhere
+        env_servlet_name = self.get_env_servlet_name_for_key(key)
+        if env_servlet_name:
+            if env_servlet_name == self.servlet_name and self.has_local_storage:
+                raise ObjStoreError(
+                    "The key was not found in this env, but the global env for key cache says it's here."
+                )
+            else:
+                # The key was found in another env, so we need to pop it from there
+                return self.pop_from_env_servlet_name(env_servlet_name, key)
+        else:
+            # Was not found in any env
+            if args:
+                return args[0]
+            else:
+                raise key_err
 
+    ##############################################
+    # KV Store: Delete
+    ##############################################
+    @staticmethod
+    def delete_for_env_servlet_name(env_servlet_name: str, key: Any):
+        return ObjStore.call_actor_method(
+            ObjStore.get_env_servlet(env_servlet_name), "delete_local", key
+        )
+
+    def delete_local(self, key: Any):
+        self.pop_local(key)
+
+    def delete(self, key: Union[Any, List[Any]]):
+        keys_to_delete = [key] if isinstance(key, str) else key
+        for key_to_delete in keys_to_delete:
+            if self.contains_local(key_to_delete):
+                self.delete_local(key_to_delete)
+            else:
+                env_servlet_name = self.get_env_servlet_name_for_key(key_to_delete)
+                if env_servlet_name == self.servlet_name and self.has_local_storage:
+                    raise ObjStoreError(
+                        "Key not found in kv store despite env servlet specifying that it is here."
+                    )
+                if env_servlet_name is None:
+                    raise KeyError(f"Key {key} not found in any env.")
+
+                self.delete_for_env_servlet_name(env_servlet_name, key_to_delete)
+
+    ##############################################
+    # KV Store: Clear
+    ##############################################
+    @staticmethod
+    def clear_for_env_servlet_name(env_servlet_name: str):
+        return ObjStore.call_actor_method(
+            ObjStore.get_env_servlet(env_servlet_name), "clear_local"
+        )
+
+    def clear_local(self):
+        if self.has_local_storage:
+            for k in list(self._kv_store.keys()):
+                # Pop handles removing from global obj store vs local one
+                self.pop_local(k)
+
+    def clear(self):
+        logger.warning("Clearing all keys from all envs in the object store!")
+        for env_servlet_name in self.list_env_servlet_names():
+            if env_servlet_name == self.servlet_name and self.has_local_storage:
+                self.clear_local()
+            else:
+                self.clear_for_env_servlet_name(env_servlet_name)
+
+    ##############################################
+    # KV Store: Rename
+    ##############################################
+    def rename(self, old_key: Any, new_key: Any):
+        # We also need to rename the resource itself
+        env_servlet_name_containing_old_key = self.get_env_servlet_name_for_key(old_key)
+        obj = self.pop(old_key)
+        if obj is not None and hasattr(obj, "rns_address"):
+            # Note - we set the obj.name here so the new_key is correctly turned into an rns_address, whether its
+            # a full address or just a name. Then, the new_key is set to just the name so its store properly in the
+            # kv store.
+            obj.name = new_key  # new_key can be an rns_address! e.g. if called by Module.rename
+            new_key = obj.name  # new_key is now just the name
+
+        # By passing default, we don't throw an error if the key is not found
+        self.put(new_key, obj, env=env_servlet_name_containing_old_key)
+
+    ##############################################
+    # Get several keys for function initialization utiliies
+    ##############################################
     def get_list(self, keys: List[str], default: Optional[Any] = None):
         return [self.get(key, default=default or key) for key in keys]
 
-    def get_obj_refs_list(self, keys: List):
+    def get_obj_refs_list(self, keys: List[Any]):
         return [
             self.get(key, default=key) if isinstance(key, str) else key for key in keys
         ]
 
-    def get_obj_refs_dict(self, d: Dict):
+    def get_obj_refs_dict(self, d: Dict[Any, Any]):
         return {
             k: self.get(v, default=v) if isinstance(v, str) else v for k, v in d.items()
         }
-
-    def pop_env(self, key: str, default: Optional[Any] = None):
-        self.call_kv_method(self._env_for_key, "pop", key, default)
-
-    def delete(self, key: Union[str, List[str]]):
-        if isinstance(key, str):
-            key = [key]
-        for k in key:
-            self.pop(k, None)
-            self.pop_env(k, None)
-
-    def pop(self, key: str, default: Optional[Any] = None):
-        res = self.call_kv_method(self._kv_store, "pop", key, default)
-        if res:
-            self.pop_env(key, None)
-        return res
-
-    def clear_env(self):
-        self.call_kv_method(self._env_for_key, "clear")
-
-    def clear(self):
-        self.call_kv_method(self._kv_store, "clear")
-        self.clear_env()
-
-    def cancel(self, key: str, force: bool = False, recursive: bool = True):
-        # TODO wire up properly
-        obj_ref = self.get_obj_ref(key)
-        if not obj_ref:
-            raise ValueError(f"Object with key {key} not found in object store.")
-        else:
-            ray.cancel(obj_ref, force=force, recursive=recursive)
-
-    def cancel_all(self, force: bool = False, recursive: bool = True):
-        for key in self.keys():
-            self.cancel(key, force=force, recursive=recursive)
-
-    def contains(self, key: str):
-        return self.call_kv_method(self._env_for_key, "contains", key)
-
-    def get_logfiles(self, key: str, log_type=None):
-        # TODO remove
-        # Info on ray logfiles: https://docs.ray.io/en/releases-2.2.0/ray-observability/ray-logging.html#id1
-        if self.contains(key):
-            # Logs are like: `.rh/logs/key.[out|err]`
-            key_logs_path = Path(self.RH_LOGFILE_PATH) / key
-            glob_pattern = (
-                "*.out"
-                if log_type == "stdout"
-                else "*.err"
-                if log_type == "stderr"
-                else "*.[oe][ur][tr]"
-            )
-            return [str(f.absolute()) for f in key_logs_path.glob(glob_pattern)]
-        else:
-            return None
-
-    def __repr__(self):
-        return f"ObjStore({self.call_kv_method(self._kv_store, '__repr__')})"
-
-    def __str__(self):
-        return f"ObjStore({self.call_kv_method(self._kv_store, '__str__')})"

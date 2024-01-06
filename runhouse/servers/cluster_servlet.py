@@ -1,8 +1,6 @@
 import logging
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, Optional, Set, Union
 
-from runhouse.constants import RH_LOGFILE_PATH
 from runhouse.servers.http.auth import AuthCache
 
 logger = logging.getLogger(__name__)
@@ -99,20 +97,3 @@ class ClusterServlet:
 
     def clear_key_to_env_servlet_name_dict(self):
         self._key_to_env_servlet_name = {}
-
-    def get_logfiles(self, key: Any, log_type=None) -> List[str]:
-        # TODO remove
-        # Info on ray logfiles: https://docs.ray.io/en/releases-2.2.0/ray-observability/ray-logging.html#id1
-        if key in self._key_to_env_servlet_name:
-            # Logs are like: `.rh/logs/key.[out|err]`
-            key_logs_path = Path(RH_LOGFILE_PATH) / key
-            glob_pattern = (
-                "*.out"
-                if log_type == "stdout"
-                else "*.err"
-                if log_type == "stderr"
-                else "*.[oe][ur][tr]"
-            )
-            return [str(f.absolute()) for f in key_logs_path.glob(glob_pattern)]
-        else:
-            return None
