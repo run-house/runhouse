@@ -385,8 +385,6 @@ class SkySSHRunner(SSHCommandRunner):
             )
         command = " ".join(rsync_command)
 
-        command = command.replace("-o Port=True", "")
-
         # RH MODIFIED: return command instead of running it
         if return_cmd:
             return command
