@@ -10,3 +10,4 @@ Simply change the commented fields in main.tf and run the standard TF commands. 
 
 `terraform apply "eks_plan"` 
 
+You should also run `aws eks update-kubeconfig --region us-east-1 --name NAME_OF_EKS_CLUSTER` to update your kubeconfig. 
