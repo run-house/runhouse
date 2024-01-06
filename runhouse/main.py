@@ -139,47 +139,12 @@ def _start_server(
 
         # We do these one by one so it's more obvious where the error is if there is one
         for i, cmd in enumerate(cmds):
-
             last_cmd = i == len(cmds) - 1
-            if last_cmd:
-                try:
-                    screen_check_cmd = "command -v screen"
-                    screen_available = (
-                        subprocess.run(
-                            screen_check_cmd,
-                            shell=True,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                        ).returncode
-                        == 0
-                    )
-
-                    if screen_available:
-                        console.print(f"Executing `{cmd}`")
-                        result = subprocess.run(shlex.split(cmd), text=True)
-                        # We don't want to raise an error if the server kill fails, as it may simply not be running
-                        if result.returncode != 0 and "pkill" not in cmd:
-                            console.print(f"Error while executing `{cmd}`")
-                            raise typer.Exit(1)
-
-                        break
-                    else:
-                        nohup_cmd = f"nohup {sys.executable} -m runhouse.servers.http.http_server >> /home/sky/.rh/server.log 2>&1 &"
-                        console.print(
-                            f"Executing with nohup because screen is not available: `{nohup_cmd}`"
-                        )
-                        output = subprocess.run(nohup_cmd, shell=True, check=True)
-                        if output.returncode != 0:
-                            console.print(f"Error while executing `{cmd}`")
-                            raise typer.Exit(1)
-
-                        break
-
-                except subprocess.CalledProcessError as e:
-                    console.print(f"Error: {e}")
-
             console.print(f"Executing `{cmd}`")
-            result = subprocess.run(shlex.split(cmd), text=True)
+            if last_cmd: # last cmd is not being parsed correctly when ran with shlex.split
+                result = subprocess.run(cmd, shell=True, check=True)
+            else:
+                result = subprocess.run(shlex.split(cmd), text=True)
             # We don't want to raise an error if the server kill fails, as it may simply not be running
             if result.returncode != 0 and "pkill" not in cmd:
                 console.print(f"Error while executing `{cmd}`")
