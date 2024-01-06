@@ -185,9 +185,7 @@ from tests.fixtures.local_docker_cluster_fixtures import (
     shared_cluster,  # noqa: F401
     static_cpu_cluster,  # noqa: F401
 )
-from tests.test_resources.test_clusters.test_kubernetes_cluster.conftest import (
-    kubernetes_cpu_cluster,
-)
+
 from tests.test_resources.test_clusters.test_on_demand_cluster.conftest import (
     a10g_gpu_cluster,  # noqa: F401
     k80_gpu_cluster,  # noqa: F401
@@ -290,7 +288,7 @@ default_fixtures[TestLevels.LOCAL] = {
     ]
 }
 default_fixtures[TestLevels.MINIMAL] = {
-    "cluster": ["ondemand_cpu_cluster", "kubernetes_cpu_cluster"]
+    "cluster": ["ondemand_cpu_cluster"]
 }
 default_fixtures[TestLevels.THOROUGH] = {
     "cluster": [

@@ -42,6 +42,9 @@ class OnDemandCluster(Cluster):
         region=None,
         sky_state=None,
         live_state=None,
+        namespace: str = None,
+        kube_config_path: str = None,
+        context: str = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
@@ -81,6 +84,11 @@ class OnDemandCluster(Cluster):
         self.address = None
         self.client = None
 
+        # K8s related fields
+        self.namespace = namespace
+        self.kube_config_path = kube_config_path
+        self.context = context
+
         # TODO remove after 0.0.13
         self.live_state = sky_state or live_state
 
@@ -117,6 +125,16 @@ class OnDemandCluster(Cluster):
                 "live_state": self._get_sky_state(),
             }
         )
+
+        if self.provider == "kubernetes":
+            config.update(
+                {
+                    "namespace": self.namespace,
+                    "kube_config_path": self.kube_config_path,
+                    "context": self.context,
+                }
+            )
+
         return config
 
     def _get_sky_state(self):
@@ -337,21 +355,25 @@ class OnDemandCluster(Cluster):
             task.set_resources(
                 sky.Resources(
                     cloud=cloud_provider,  # TODO: confirm if passing instance type in old way (without --) works when provider is k8s
+
                     instance_type=self.instance_type
                     if self.instance_type
                     and ":" not in self.instance_type
                     and "--" in self.instance_type
                     else None,
+
                     accelerators=self.instance_type
                     if self.instance_type
                     and ":" in self.instance_type
                     and "CPU" not in self.instance_type
                     else None,
+
                     cpus=self.instance_type.rsplit(":", 1)[1]
                     if self.instance_type
                     and ":" in self.instance_type
                     and "CPU" in self.instance_type
                     else None,
+
                     memory=self.memory,
                     region=self.region or configs.get("default_region"),
                     disk_size=self.disk_size,
@@ -468,4 +490,23 @@ class OnDemandCluster(Cluster):
         Example:
             >>> rh.ondemand_cluster("rh-cpu").ssh()
         """
-        subprocess.run(["ssh", f"{self.name}"])
+        if self.provider == "kubernetes":
+            command = f"kubectl get pods | grep {self.name}"
+
+            try:
+
+                output = subprocess.check_output(command, shell=True, text=True)
+
+                lines = output.strip().split("\n")
+                if lines:
+                    pod_name = lines[0].split()[0]
+                else:
+                    logger.info("No matching pods found.")
+            except subprocess.CalledProcessError as e:
+                raise Exception(f"Error: {e}")
+
+            cmd = f"kubectl exec -it {pod_name} -- /bin/bash"
+            subprocess.run(cmd, shell=True, check=True)
+
+        else:
+            subprocess.run(["ssh", f"{self.name}"])
