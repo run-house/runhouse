@@ -7,7 +7,7 @@ opentelemetry-instrumentation-fastapi
 opentelemetry-instrumentation-requests
 opentelemetry-sdk
 pyarrow
-pyopenssl>=21.1.0
+pyopenssl>=23.3.0
 rich
 sentry-sdk
 skypilot==0.4.0
