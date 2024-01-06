@@ -173,13 +173,15 @@ class HTTPServer:
         except Exception as e:
             logger.error(f"Failed to collect cluster telemetry stats: {str(e)}")
 
-        base_env = self.get_env_servlet(
+        # We initialize a base env servlet where some things may run.
+        # TODO: We aren't sure _exactly_ where this is or isn't used.
+        # There are a few spots where we do `env_name or "base"`, and
+        # this allows that base env to be pre-initialized.
+        _ = self.get_env_servlet(
             env_name="base",
             create=True,
             runtime_env=runtime_env,
         )
-
-        env_servlets["base"] = base_env
 
         # Puts without an env here will be sent to the base env.
         obj_store.initialize("base")
@@ -192,15 +194,11 @@ class HTTPServer:
 
     @classmethod
     def enable_den_auth(cls):
-        from runhouse.globals import obj_store
-
         cls._den_auth = True
         obj_store.clear_auth_cache()
 
     @classmethod
     def disable_den_auth(cls):
-        from runhouse.globals import obj_store
-
         cls._den_auth = False
         obj_store.clear_auth_cache()
 
@@ -320,8 +318,6 @@ class HTTPServer:
 
     @staticmethod
     def lookup_env_for_name(name, check_rns=False):
-        from runhouse.globals import obj_store
-
         env = obj_store.get_env_servlet_name_for_key(name)
         if env:
             return env
@@ -359,13 +355,11 @@ class HTTPServer:
                     else {}
                 )
 
-                new_env = HTTPServer.get_env_servlet(
+                _ = HTTPServer.get_env_servlet(
                     env_name=message.env,
                     create=True,
                     runtime_env=runtime_env,
                 )
-
-                env_servlets[message.env] = new_env
 
         return HTTPServer.call_in_env_servlet(
             "put_resource",
@@ -421,9 +415,8 @@ class HTTPServer:
 
             else:
                 message.key = module
-                # If this is a "get" call, don't wait for the result, it's either there or not.
-                from runhouse.globals import obj_store
 
+                # If this is a "get" call, don't wait for the result, it's either there or not.
                 if not obj_store.contains(message.key):
                     return Response(output_type=OutputType.NOT_FOUND, data=message.key)
 
@@ -484,8 +477,6 @@ class HTTPServer:
     def _get_results_and_logs_generator(
         key, env, stream_logs, remote=False, pop=False, serialization=None
     ):
-        from runhouse.globals import obj_store
-
         open_logfiles = []
         waiting_for_results = True
 
@@ -609,8 +600,6 @@ class HTTPServer:
     @app.get("/keys")
     @validate_cluster_access
     def get_keys(request: Request, env: Optional[str] = None):
-        from runhouse.globals import obj_store
-
         if not env:
             return Response(
                 output_type=OutputType.RESULT, data=pickle_b64(obj_store.keys())
@@ -665,9 +654,8 @@ class HTTPServer:
 
             else:
                 message.key = module
-                # If this is a "get" call, don't wait for the result, it's either there or not.
-                from runhouse.globals import obj_store
 
+                # If this is a "get" call, don't wait for the result, it's either there or not.
                 if not obj_store.contains(message.key):
                     return Response(output_type=OutputType.NOT_FOUND, data=message.key)
 
