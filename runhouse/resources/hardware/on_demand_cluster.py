@@ -396,8 +396,6 @@ class OnDemandCluster(Cluster):
                 idle_minutes_to_autostop=self.autostop_mins,
                 down=True,
             )
-        # elif self.provider == "k8s":
-        #     raise NotImplementedError("Kubernetes Cluster provider not yet supported")
         else:
             raise ValueError(f"Cluster provider {self.provider} not supported.")
 

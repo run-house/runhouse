@@ -1,6 +1,5 @@
 import shlex
 import subprocess
-import sys
 import time
 import webbrowser
 from pathlib import Path
@@ -130,7 +129,6 @@ def _start_server(
     )
 
     try:
-
         # Open and read the lines of the server logfile so we only print the most recent lines after starting
         f = None
         if screen and Path(Cluster.SERVER_LOGFILE).exists():
