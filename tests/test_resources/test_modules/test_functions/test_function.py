@@ -409,7 +409,7 @@ class TestFunction:
         sum1 = requests.post(
             url=f"{addr}:{cluster.client_port}/call/{remote_sum.name}/call",
             json={"args": [1, 2]},
-            headers=rh.configs.request_headers() if cluster.den_auth else None,
+            headers=rh.configs.request_headers if cluster.den_auth else None,
             auth=auth,
             verify=False,
         ).json()
@@ -417,7 +417,7 @@ class TestFunction:
         sum2 = requests.post(
             url=f"{addr}:{cluster.client_port}/call/{remote_sum.name}/call",
             json={"kwargs": {"a": 1, "b": 2}},
-            headers=rh.configs.request_headers() if cluster.den_auth else None,
+            headers=rh.configs.request_headers if cluster.den_auth else None,
             auth=auth,
             verify=False,
         ).json()
