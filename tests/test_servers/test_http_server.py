@@ -13,7 +13,7 @@ from runhouse.constants import CLUSTER_CONFIG_PATH
 from runhouse.globals import rns_client
 from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 
-from tests.utils import test_account
+from tests.utils import friend_account
 
 INVALID_HEADERS = {"Authorization": "Bearer InvalidToken"}
 
@@ -247,7 +247,7 @@ class TestHTTPServerDockerDenAuthOnly:
 
         import requests
 
-        with test_account():  # Test accounts with Den auth are created under test_account
+        with friend_account():  # Test accounts with Den auth are created under test_account
             res = requests.get(
                 f"{rns_client.api_server_url}/resource",
                 headers=rns_client.request_headers(),

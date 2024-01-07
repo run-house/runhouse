@@ -11,7 +11,7 @@ import runhouse as rh
 from runhouse.globals import rns_client
 from runhouse.servers.http.http_server import app, HTTPServer
 
-from tests.utils import get_ray_servlet, get_test_obj_store, test_account
+from tests.utils import friend_account, get_ray_servlet, get_test_obj_store
 
 # Note: API Server will run on local docker container
 BASE_URL = "http://localhost:32300"
@@ -57,16 +57,13 @@ def local_client():
 
 
 @pytest.fixture(scope="function")
-def local_client_with_den_auth():
-    if not rh.configs.token:
-        pytest.skip("`TEST_TOKEN` or ~/.rh/config.yaml not set, skipping test.")
-
+def local_client_with_den_auth(logged_in_account):
     from fastapi.testclient import TestClient
 
     HTTPServer()
     HTTPServer.enable_den_auth()
     client = TestClient(app)
-    with test_account():
+    with friend_account():
         client.headers = rns_client.request_headers()
 
     yield client

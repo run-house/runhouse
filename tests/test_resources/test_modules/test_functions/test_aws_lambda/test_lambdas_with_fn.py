@@ -28,9 +28,9 @@ def test_from_runhouse_func():
 
 def test_share_lambda():
     user = rh.configs.username
-    from tests.utils import test_account
+    from tests.utils import friend_account
 
-    with test_account():
+    with friend_account():
         lambda_func = rh.aws_lambda_fn(fn=summer, name="summer_to_share")
         lambda_func.save()
         lambda_func.share(users=[user], notify_users=False, access_level="write")
