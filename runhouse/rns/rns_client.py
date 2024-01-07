@@ -130,17 +130,11 @@ class RNSClient:
 
     @property
     def default_folder(self):
-        folder = self._configs.get("default_folder")
-        if folder in [None, "~"] and self._configs.get("username"):
-            folder = "/" + self._configs.get("username")
-            self._configs.set("default_folder", folder)
-        return folder
+        return self._configs.default_folder
 
     @property
     def current_folder(self):
-        if not self._current_folder:
-            self._current_folder = self.default_folder
-        return self._current_folder
+        return self._current_folder if self._current_folder else self.default_folder
 
     @current_folder.setter
     def current_folder(self, value):
@@ -148,7 +142,7 @@ class RNSClient:
 
     @property
     def token(self):
-        return self._configs.get("token", None)
+        return self._configs.token
 
     @property
     def api_server_url(self):
@@ -198,28 +192,28 @@ class RNSClient:
         payload["data"] = data
         return payload
 
-    def load_account_from_env(self) -> Dict[str, str]:
+    def load_account_from_env(
+        self, token_env_var="RH_TOKEN", usr_env_var="RH_USERNAME"
+    ) -> Dict[str, str]:
         dotenv.load_dotenv()
 
-        test_token = os.getenv("TEST_TOKEN")
-        test_username = os.getenv("TEST_USERNAME")
+        test_token = os.getenv(token_env_var)
+        test_username = os.getenv(usr_env_var)
         if not (test_token and test_username):
             return None
 
-        # Hack to avoid actually writing down these values, in case the user stops mid-test and we don't reach the
-        # finally block
-        self._configs.defaults_cache["token"] = test_token
-        self._configs.defaults_cache["username"] = test_username
-        self._configs.defaults_cache["default_folder"] = f"/{test_username}"
+        self._configs.token = test_token
+        self._configs.username = test_username
+        self._configs.default_folder = f"/{test_username}"
 
         # The client caches the folder that is used as the current folder variable, we clear this so it loads the new
         # folder when we switch accounts
         self._current_folder = None
 
         return {
-            "token": self._configs.defaults_cache["token"],
-            "username": self._configs.defaults_cache["username"],
-            "default_folder": self._configs.defaults_cache["default_folder"],
+            "token": self._configs.token,
+            "username": self._configs.username,
+            "default_folder": self._configs.default_folder,
         }
 
     def load_account_from_file(self) -> None:

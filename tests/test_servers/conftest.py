@@ -58,7 +58,7 @@ def local_client():
 
 @pytest.fixture(scope="function")
 def local_client_with_den_auth():
-    if not rh.configs.get("token"):
+    if not rh.configs.token:
         pytest.skip("`TEST_TOKEN` or ~/.rh/config.yaml not set, skipping test.")
 
     from fastapi.testclient import TestClient

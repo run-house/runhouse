@@ -1,6 +1,7 @@
 import copy
 import json
 import logging
+import os
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -35,7 +36,61 @@ class Defaults:
     }
 
     def __init__(self):
+        self._token = None
+        self._username = None
+        self._default_folder = None
         self._defaults_cache = defaultdict(dict)
+
+    @property
+    def token(self):
+        # This is not to "cache" the token, but rather to allow us to manually override it in python
+        if self._token:
+            return self._token
+        if os.environ.get("RH_TOKEN"):
+            self._token = os.environ.get("RH_TOKEN")
+            return self._token
+        if "token" in self.defaults_cache:
+            self._token = self.defaults_cache["token"]
+            return self._token
+        return None
+
+    @token.setter
+    def token(self, value):
+        self._token = value
+
+    @property
+    def username(self):
+        # This is not to "cache" the username, but rather to allow us to manually override it in python
+        if self._username:
+            return self._username
+        if os.environ.get("RH_USERNAME"):
+            self._username = os.environ.get("RH_USERNAME")
+            return self._username
+        if "username" in self.defaults_cache:
+            self._username = self.defaults_cache["username"]
+            return self._username
+        return None
+
+    @username.setter
+    def username(self, value):
+        self._username = value
+
+    @property
+    def default_folder(self):
+        # This is not to "cache" the default_folder, but rather to allow us to manually override it in python
+        if self._default_folder:
+            return self._default_folder
+        if "default_folder" in self.defaults_cache:
+            self._default_folder = self.defaults_cache["default_folder"]
+            return self._default_folder
+        if self.username:
+            self._default_folder = "/" + self.username
+            return self._default_folder
+        return self.BASE_DEFAULTS["default_folder"]
+
+    @default_folder.setter
+    def default_folder(self, value):
+        self._default_folder = value
 
     @property
     def defaults_cache(self):
