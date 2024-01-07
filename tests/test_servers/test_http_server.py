@@ -215,6 +215,104 @@ class TestHTTPServerDocker:
         assert response.status_code == 200
         assert json.loads(response.text) == "3"
 
+    @pytest.mark.level("local")
+    def test_valid_cluster_token(self, http_client):
+        """User who created the cluster should be able to call cluster APIs with their default Den token
+        or with a cluster subtoken."""
+        response = http_client.get(
+            "/keys",
+            headers=rns_client.request_headers(),
+        )
+
+        assert response.status_code == 200
+
+        response = http_client.get(
+            "/keys",
+            headers=rns_client.request_headers(rns_client.username),
+        )
+
+        assert response.status_code == 200
+
+    @pytest.mark.level("local")
+    def test_invalid_cluster_token(self, http_client):
+        """Invalid cluster token should not be able to access the cluster APIs."""
+        resource_address = f"invalid_hash+{rns_client.username}+{rns_client.username}"
+        response = http_client.get(
+            "/keys",
+            headers={"Authorization": f"Bearer {resource_address}"},
+        )
+
+        assert response.status_code == 403
+
+    @pytest.mark.level("local")
+    def test_owner_access_with_invalid_token(self, http_client):
+        """The logged-in user always has full access to the cluster. So even with an invalid bearer token this
+        should work"""
+        resource_address = "invalid_resource_address"
+        response = http_client.get(
+            "/keys",
+            headers={"Authorization": f"Bearer {resource_address}"},
+        )
+
+        assert response.status_code == 403
+        assert "Cluster access is required for API" in response.text
+
+    @pytest.mark.level("local")
+    def test_call_shared_function_on_cluster(self, http_client, cluster):
+        """If a function is shared with a user, confirm that user can call the function on the cluster
+        but cannot access the cluster specific APIs with their cluster token."""
+        some_func = rh.function(summer, system=cluster)
+        some_func.share("info@run.house", access_level="write", notify_users=False)
+
+        with friend_account():
+            # test account user should not be able to use cluster specific APIs using the cluster subtoken
+            # (or Den token, since only the function was shared)
+            test_list = list(range(5, 50, 2)) + ["a string"]
+            response = http_client.post(
+                "/object",
+                json={"data": pickle_b64(test_list), "key": "key1"},
+                headers=rns_client.request_headers(cluster.rns_address),
+            )
+            assert response.status_code == 403
+
+            # test account user should be able to call the function that lives on the cluster
+            reloaded_func = rh.function(name=some_func.rns_address)
+            res = reloaded_func(1, 2)
+            assert res == 3
+
+    @pytest.mark.level("local")
+    def test_failure_to_request_other_resources_with_cluster_token(
+        self, http_client, test_secret
+    ):
+        # Create a secret resource with one user, and confirm another the test account user cannot access it, even
+        # if the test account provides the resource address of the secret when constructing the cluster token
+        vault_secret = rh.secret(name=test_secret.name, values=test_secret.values)
+        vault_secret.save(headers=rns_client.request_headers())
+        resource_address = vault_secret.rns_address
+        username = rns_client.username
+
+        with friend_account():
+            test_account_cluster_token = rns_client.request_headers(resource_address)
+            request_uri = rns_client.resource_uri(resource_address)
+            response = http_client.get(
+                f"/resource/{request_uri}",
+                headers=test_account_cluster_token,
+            )
+            assert response.status_code == 403
+
+            # Try re-constructing a cluster token as if the original user had requested it - this should also fail
+            # as the hash will not be validated
+            den_token, requesting_user = (
+                test_account_cluster_token["Authorization"].split(" ")[-1].split("+")
+            )
+            requesting_user = username
+            new_token = {"Authorization": f"Bearer {den_token}+{requesting_user}"}
+            response = http_client.get(
+                f"/resource/{request_uri}",
+                headers=new_token,
+            )
+            assert response.status_code == 403
+
 
 @pytest.mark.servertest
 @pytest.mark.den_auth
