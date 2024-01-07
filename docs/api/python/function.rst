@@ -37,9 +37,10 @@ Lambda Function Class
 
 | There are few core options to create an AWS Lambda using Runhouse:
 #. Pass a callable Python function to the factory method.
-#. Follow a typical Lambda creation flow (as if you are using AWS APIs). That includes passing to the constructor
-   path(s) to Python file(s) (containing the code) and a handler function name . Arguments such as runtime, Lambda name,
-   timeout and memory size are accepted by the factory method as well, but they are not mandatory and have default values.
+#. Follow a typical Lambda creation flow (as if you are using AWS APIs). That includes passing path(s) to Python files(s)
+   (containing the code) and a handler function name to the from_handler_file() method. Arguments such as runtime,
+   Lambda name, timeout and memory size are accepted by the from_handler_file() method as well, but they are not
+   mandatory and have default values.
 #. Create rh.function instance, and than send it over to AWS Lambdas. For example:
    :code:`rh.function(summer).to(system="aws_lambda")`
 

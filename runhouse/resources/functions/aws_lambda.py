@@ -217,12 +217,27 @@ class LambdaFunction(Function):
 
         Returns:
             LambdaFunction: The resulting AWS Lambda Function object.
+
+        Example:
+            >>> # handler_file.py
+            >>> def summer(a, b):
+            >>>    return a + b
+
+            >>> # your 'main' python file, where you are using runhouse
+            >>> summer_lambda = rh.LambdaFunction.from_handler_file(
+            >>>                     paths_to_code=['/full/path/to/handler_file.py'],
+            >>>                     handler_function_name = 'summer',
+            >>>                     runtime = 'python3.9',
+            >>>                     name="my_func").save()
+
+            >>> # invoking the function
+            >>> summer_res = summer_lambda(5, 8)  # returns "13". (It returns str type because of AWS API)
         """
 
         if name is None:
             name = handler_function_name.replace(".", "_")
 
-        env = LambdaFunction.validate_and_create_env(env)
+        env = LambdaFunction._validate_and_create_env(env)
         (
             paths_to_code,
             env,
@@ -260,7 +275,7 @@ class LambdaFunction(Function):
 
     # Arguments validation and arguments creation methods
     @classmethod
-    def validate_and_create_env(cls, env: Optional[Env] = None):
+    def _validate_and_create_env(cls, env: Optional[Env] = None):
         """
         Validates the passed env argument, and creates a Runhouse env instance if needed.
 
@@ -780,8 +795,7 @@ class LambdaFunction(Function):
             >>>
             >>> # your 'main' python file, where you are using runhouse
             >>> summer_lambda = rh.aws_lambda_fn(
-            >>>                     paths_to_code=['/full/path/to/handler_file.py'],
-            >>>                     handler_function_name = 'summer',
+            >>>                     fn=my_summer,
             >>>                     runtime = 'python3.9',
             >>>                     name="my_func")
             >>> output = summer_lambda.map([1, 2], [1, 4], [2, 3])  # output = ["4", "9"]
