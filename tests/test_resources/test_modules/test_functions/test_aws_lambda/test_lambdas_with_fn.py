@@ -27,7 +27,7 @@ def test_from_runhouse_func():
 
 
 def test_share_lambda():
-    user = rh.configs.get("username")
+    user = rh.configs.username
     from tests.utils import test_account
 
     with test_account():
