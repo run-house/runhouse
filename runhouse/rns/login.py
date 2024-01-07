@@ -112,6 +112,8 @@ def login(
         )
 
     if token:
+        # Note, this is to explicitly add it to the config file, as opposed to setting in python
+        # via configs.token = token
         configs.set("token", token)
 
     if download_config:
@@ -311,6 +313,15 @@ def logout(
     configs.delete(key="token")
     configs.delete(key="username")
     configs.delete(key="default_folder")
+
+    # Delete values in configs object
+    configs.token = None
+    configs.username = None
+    configs.default_folder = None
+
+    # Wipe env vars
+    os.environ.pop("RH_TOKEN", None)
+    os.environ.pop("RH_USERNAME", None)
 
     rh_config_path = configs.CONFIG_PATH
     if not delete_rh_config_file and interactive_session:

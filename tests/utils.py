@@ -43,7 +43,9 @@ def test_account():
     account when exiting."""
 
     try:
-        account = rns_client.load_account_from_env()
+        account = rns_client.load_account_from_env(
+            token_env_var="TEST_TOKEN", usr_env_var="TEST_USERNAME"
+        )
         if account is None:
             pytest.skip("`TEST_TOKEN` or `TEST_USERNAME` not set, skipping test.")
         yield account
