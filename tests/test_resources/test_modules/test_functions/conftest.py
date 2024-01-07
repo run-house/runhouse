@@ -60,7 +60,7 @@ def slow_func(ondemand_cpu_cluster):
 
 @pytest.fixture(scope="session")
 def shared_function(shared_cluster):
-    username_to_share = rh.configs.get("username")
+    username_to_share = rh.configs.username
     with test_account():
         # Create function on shared cluster with the same test account
         f = rh.function(summer).to(shared_cluster, env=["pytest"]).save()

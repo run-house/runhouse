@@ -663,7 +663,7 @@ def docker_cluster_pk_ssh_test_account_logged_in(request):
 
 @pytest.fixture(scope="session")
 def shared_cluster(docker_cluster_pk_ssh_test_account_logged_in):
-    username_to_share = rh.configs.get("username")
+    username_to_share = rh.configs.username
     with test_account():
         # Share the cluster with the test account
         docker_cluster_pk_ssh_test_account_logged_in.share(
