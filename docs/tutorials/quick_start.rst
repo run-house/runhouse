@@ -25,7 +25,7 @@ If using Runhouse with a cloud provider, you can additionally install
 cloud packages (e.g. the right versions of tools like boto, gsutil,
 etc.):
 
-::
+.. code:: shell
 
    $ pip install "runhouse[aws]"
    $ pip install "runhouse[gcp]"
