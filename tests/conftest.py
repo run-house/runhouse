@@ -152,8 +152,10 @@ def logged_in_account():
         pytest.skip("`RH_TOKEN` or ~/.rh/config.yaml not set, skipping test.")
 
     username = rh.globals.configs.username
-    if username and not username == "den_tester":
-        raise ValueError("This test requires the `den_tester` account to be logged in.")
+    if username == "kitchen_tester":
+        raise ValueError(
+            "The friend test account should not be active while running logged-in tests."
+        )
 
 
 # https://docs.pytest.org/en/6.2.x/fixture.html#conftest-py-sharing-fixtures-across-multiple-files
