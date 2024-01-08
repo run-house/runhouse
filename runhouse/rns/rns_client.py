@@ -69,7 +69,7 @@ class RNSClient:
         )
         use_rns = (
             ["rns"]
-            if self._configs.get("use_rns", self._configs.get("token", False))
+            if self._configs.get("use_rns", self._configs.token or False)
             else []
         )
 
@@ -193,9 +193,9 @@ class RNSClient:
         return payload
 
     def load_account_from_env(
-        self, token_env_var="RH_TOKEN", usr_env_var="RH_USERNAME"
+        self, token_env_var="RH_TOKEN", usr_env_var="RH_USERNAME", dotenv_path=None
     ) -> Dict[str, str]:
-        dotenv.load_dotenv()
+        dotenv.load_dotenv(dotenv_path=dotenv_path)
 
         test_token = os.getenv(token_env_var)
         test_username = os.getenv(usr_env_var)
@@ -219,6 +219,11 @@ class RNSClient:
     def load_account_from_file(self) -> None:
         # Setting this to None causes it to be loaded from file upon next access
         self._configs.defaults_cache = None
+
+        # Calling with .get explicitly loads from the config.yaml file
+        self._configs.token = self._configs.get("token", None)
+        self._configs.username = self._configs.get("username", None)
+        self._configs.default_folder = self._configs.get("default_folder", None)
 
         # Same as above, for this to correctly load the account/folder from the new cache, it needs to be unset
         self._current_folder = None

@@ -150,12 +150,12 @@ def test_cluster_with_den_auth(ondemand_https_cluster_with_auth, summer_func_wit
     from runhouse.globals import configs
 
     # Create an invalid token, confirm the server does not accept the request
-    orig_token = configs.get("token")
+    orig_token = configs.token
 
     # Request should return 200 using a valid token
     summer_func_with_auth(1, 2)
 
-    configs.set("token", "abcd123")
+    configs.token = "abcd123"
 
     try:
         # Request should raise an exception with an invalid token
@@ -163,7 +163,7 @@ def test_cluster_with_den_auth(ondemand_https_cluster_with_auth, summer_func_wit
     except ValueError as e:
         assert "Invalid or expired token" in str(e)
 
-    configs.set("token", orig_token)
+    configs.token = orig_token
 
 
 def test_start_server_with_custom_certs(

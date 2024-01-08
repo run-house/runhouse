@@ -1,4 +1,6 @@
 import contextlib
+import pkgutil
+from pathlib import Path
 
 import pytest
 
@@ -42,9 +44,16 @@ def test_account():
     When inside the context manager, use the test account credentials before reverting back to the original
     account when exiting."""
 
+    local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent.parent
+    dotenv_path = local_rh_package_path / ".env"
+    if not dotenv_path.exists():
+        dotenv_path = None  # Default to standard .env file search
+
     try:
         account = rns_client.load_account_from_env(
-            token_env_var="TEST_TOKEN", usr_env_var="TEST_USERNAME"
+            token_env_var="TEST_TOKEN",
+            usr_env_var="TEST_USERNAME",
+            dotenv_path=dotenv_path,
         )
         if account is None:
             pytest.skip("`TEST_TOKEN` or `TEST_USERNAME` not set, skipping test.")
