@@ -39,6 +39,7 @@ class LambdaFunction(Function):
         "s3:GetObject",
         "s3:ListBucket",
         "s3:PutObject",
+        "kms:Decrypt",
     ]
     MAX_WAIT_TIME = 60  # seconds, max time that can pass before we raise an exception that AWS update takes too long.
     DEFAULT_REGION = "us-east-1"
@@ -104,18 +105,23 @@ class LambdaFunction(Function):
             paths_to_code, handler_function_name
         )
 
+        # set-up in order to prevent read timeout during lambda invocations
+        config = botocore.config.Config(read_timeout=900, connect_timeout=900)
+
         # will be used for reloading shared functions from other regions.
         function_arn = (
             kwargs.get("function_arn") if "function_arn" in kwargs.keys() else None
         )
         if function_arn:
             region = function_arn.split(":")[3]
-            self.lambda_client = boto3.client("lambda", region_name=region)
+            self.lambda_client = boto3.client(
+                "lambda", region_name=region, config=config
+            )
             self.logs_client = boto3.client("logs", region_name=region)
         else:
 
             if Path(CRED_PATH).is_file():
-                self.lambda_client = boto3.client("lambda")
+                self.lambda_client = boto3.client("lambda", config=config)
                 self.logs_client = boto3.client("logs")
 
             else:
@@ -476,9 +482,15 @@ class LambdaFunction(Function):
             if "./" in reqs:
                 reqs.remove("./")
             for req in reqs:
+                req = req.split()
+                dir_name = req[0]
+                if len(req) > 1:
+                    req = "".join("'%s', " % str(s) for s in req)[:-1]
+                else:
+                    req = f"'{req[0]}',"
                 f.write(
-                    f"\tif not os.path.isdir('{self.HOME_DIR}/{req}'):\n"
-                    f"\t\tsubprocess.call(['pip', 'install', '{req}', '-t', '{self.HOME_DIR}/'])\n"
+                    f"\tif not os.path.isdir('{self.HOME_DIR}/{dir_name}'):\n"
+                    f"\t\tsubprocess.call(['pip', 'install', {req} '-t', '{self.HOME_DIR}/'])\n"
                 )
             if reqs is not None and len(reqs) > 0:
                 f.write(f"\tsys.path.insert(1, '{self.HOME_DIR}/')\n\n")
@@ -486,7 +498,10 @@ class LambdaFunction(Function):
         f.write(
             "\timport runhouse\n"
             f"\tfrom {handler_name} import {self.handler_function_name}\n"
-            f"\treturn {self.handler_function_name}(**event)"
+            "\treturn {\n"
+            "\t\t'status_code': 200,\n"
+            f"\t\t'body': {self.handler_function_name}(**event)\n"
+            "\t}"
         )
         f.close()
         return wrapper_path
