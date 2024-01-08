@@ -4,7 +4,7 @@ import os
 import pkgutil
 import shutil
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Set
 
 import dotenv
 
@@ -286,8 +286,9 @@ class RNSClient:
         resp_data: dict = read_resp_data(resp)
         added_users: dict = resp_data.get("added_users", {})
         new_users: dict = resp_data.get("new_users", {})
+        valid_users: Set = resp_data.get("valid_users", set())
 
-        return added_users, new_users
+        return added_users, new_users, valid_users
 
     def load_config(
         self,
