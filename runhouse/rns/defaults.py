@@ -40,9 +40,13 @@ class Defaults:
         self._username = None
         self._default_folder = None
         self._defaults_cache = defaultdict(dict)
+        self._simulate_logged_out = False
 
     @property
     def token(self):
+        if self._simulate_logged_out:
+            return None
+
         # This is not to "cache" the token, but rather to allow us to manually override it in python
         if self._token:
             return self._token
@@ -60,6 +64,9 @@ class Defaults:
 
     @property
     def username(self):
+        if self._simulate_logged_out:
+            return None
+
         # This is not to "cache" the username, but rather to allow us to manually override it in python
         if self._username:
             return self._username
@@ -77,6 +84,9 @@ class Defaults:
 
     @property
     def default_folder(self):
+        if self._simulate_logged_out:
+            return self.BASE_DEFAULTS["default_folder"]
+
         # This is not to "cache" the default_folder, but rather to allow us to manually override it in python
         if self._default_folder:
             return self._default_folder
@@ -94,6 +104,9 @@ class Defaults:
 
     @property
     def defaults_cache(self):
+        if self._simulate_logged_out:
+            return {}
+
         if not self._defaults_cache:
             self._defaults_cache = self.load_defaults_from_file()
         return self._defaults_cache
@@ -115,7 +128,7 @@ class Defaults:
     @property
     def request_headers(self):
         """Base request headers used to make requests to Runhouse Den."""
-        return {"Authorization": f"Bearer {self.token}"}
+        return {"Authorization": f"Bearer {self.token}"} if self.token else {}
 
     def upload_defaults(
         self,

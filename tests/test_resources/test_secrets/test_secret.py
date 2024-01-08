@@ -10,7 +10,7 @@ from runhouse.globals import rns_client
 
 import tests.test_resources.test_resource
 
-from tests.utils import test_account
+from tests.utils import friend_account
 
 _provider_path_map = {
     "aws": "credentials",
@@ -154,19 +154,19 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
             notify_users=False,
         )
 
-        with test_account():
+        with friend_account():
             reloaded_secret = rh.secret(name=vault_secret.rns_address)
             assert reloaded_secret.values == test_secret.values
 
         vault_secret.revoke(users=["info@run.house"])
         with pytest.raises(Exception):
-            with test_account():
+            with friend_account():
                 rh.secret(name=vault_secret.rns_address)
 
     @pytest.mark.level("local")
     def test_sharing_public_secret(self, test_secret):
         # Create & share
-        with test_account():
+        with friend_account():
             test_headers = rns_client.request_headers()
             vault_secret = rh.secret(name=test_secret.name, values=test_secret.values)
             vault_secret.save(headers=test_headers)

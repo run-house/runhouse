@@ -11,7 +11,7 @@ import pytest
 import runhouse as rh
 from runhouse import Package
 
-from tests.utils import test_account
+from tests.utils import friend_account
 
 logger = logging.getLogger(__name__)
 
@@ -654,7 +654,7 @@ class TestModule:
     def test_shared_readonly(
         self,
         ondemand_https_cluster_with_auth,
-        docker_cluster_pk_ssh_test_account_logged_in,
+        friend_account_logged_in_docker_cluster_pk_ssh,
     ):
         if ondemand_https_cluster_with_auth.address == "localhost":
             pytest.skip("Skipping sharing test on local cluster")
@@ -669,7 +669,7 @@ class TestModule:
             notify_users=False,
         )
 
-        with test_account():
+        with friend_account():
             test_load_and_use_readonly_module(
                 mod_name=remote_df.rns_address, cpu_count=2, size=size
             )
@@ -680,7 +680,7 @@ class TestModule:
             )[0][1]
         )
         test_fn = rh.fn(test_load_and_use_readonly_module).to(
-            docker_cluster_pk_ssh_test_account_logged_in
+            friend_account_logged_in_docker_cluster_pk_ssh
         )
         test_fn(mod_name=remote_df.rns_address, cpu_count=cpu_count, size=size)
 

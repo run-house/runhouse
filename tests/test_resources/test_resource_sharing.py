@@ -7,7 +7,7 @@ import requests
 import runhouse as rh
 from runhouse.globals import rns_client
 
-from tests.utils import test_account
+from tests.utils import friend_account
 
 
 def call_func_with_curl(ip_address, func_name, token, *args):
@@ -119,7 +119,7 @@ def test_running_func_with_cluster_read_access(shared_cluster, shared_function):
     current_username = rh.configs.username
     current_token = rh.configs.token
 
-    with test_account():
+    with friend_account():
         # Delete user access to the function
         resource_uri = rns_client.resource_uri(shared_function.rns_address)
 
@@ -152,7 +152,7 @@ def test_running_func_with_cluster_write_access(shared_cluster, shared_function)
 
     cluster_uri = rns_client.resource_uri(shared_cluster.rns_address)
 
-    with test_account():
+    with friend_account():
         # Give user write access to cluster from test account
         resp = requests.put(
             f"{rns_client.api_server_url}/resource/{cluster_uri}/users/access",
@@ -195,7 +195,7 @@ def test_running_func_with_no_cluster_access(shared_cluster, shared_function):
     current_username = rh.configs.username
     current_token = rh.configs.token
 
-    with test_account():
+    with friend_account():
         # Delete user access to cluster using the test account
         cluster_uri = rns_client.resource_uri(shared_cluster.rns_address)
         resp = requests.delete(

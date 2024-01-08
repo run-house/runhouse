@@ -2,6 +2,8 @@ import enum
 
 import pytest
 
+import runhouse as rh
+
 """
 HOW TO USE FIXTURES IN RUNHOUSE TESTS
 
@@ -141,6 +143,19 @@ def pytest_configure():
 init_args = {}
 
 
+@pytest.fixture(scope="function")
+def logged_in_account():
+    """Helper fixture for tests which require the logged-in test account. Throws an error if the wrong account
+    is logged-in for some reason, and skips the test if the logged in state is not available."""
+    token = rh.globals.configs.token
+    if not token:
+        pytest.skip("`RH_TOKEN` or ~/.rh/config.yaml not set, skipping test.")
+
+    username = rh.globals.configs.username
+    if username and not username == "den_tester":
+        raise ValueError("This test requires the `den_tester` account to be logged in.")
+
+
 # https://docs.pytest.org/en/6.2.x/fixture.html#conftest-py-sharing-fixtures-across-multiple-files
 
 ############## HELPERS ##############
@@ -157,10 +172,10 @@ from tests.fixtures.docker_cluster_fixtures import (
     docker_cluster_pk_ssh_den_auth,  # noqa: F401
     docker_cluster_pk_ssh_no_auth,  # noqa: F401
     docker_cluster_pk_ssh_telemetry,  # noqa: F401
-    docker_cluster_pk_ssh_test_account_logged_in,  # noqa: F401
     docker_cluster_pk_tls_den_auth,  # noqa: F401
     docker_cluster_pk_tls_exposed,  # noqa: F401
     docker_cluster_pwd_ssh_no_auth,  # noqa: F401
+    friend_account_logged_in_docker_cluster_pk_ssh,  # noqa: F401
     named_cluster,  # noqa: F401
     password_cluster,  # noqa: F401
     shared_cluster,  # noqa: F401

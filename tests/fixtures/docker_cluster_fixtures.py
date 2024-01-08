@@ -12,7 +12,7 @@ import runhouse as rh
 import yaml
 
 from tests.conftest import init_args
-from tests.utils import test_account
+from tests.utils import friend_account
 
 SSH_USER = "rh-docker-user"
 BASE_LOCAL_SSH_PORT = 32320
@@ -393,7 +393,7 @@ def docker_cluster_pk_tls_exposed(request):
             "server_connection_type": "tls",
             "server_port": 443,
             "client_port": local_client_port,
-            "den_auth": True,
+            "den_auth": False,
         },
     )
 
@@ -450,9 +450,7 @@ def docker_cluster_pk_ssh(request):
 # the same image, but we switch the cluster parameters.
 # These depend on the base fixture above and swap out the cluster parameters as needed.
 @pytest.fixture(scope="function")
-def docker_cluster_pk_tls_den_auth(
-    docker_cluster_pk_tls_exposed,
-):
+def docker_cluster_pk_tls_den_auth(docker_cluster_pk_tls_exposed, logged_in_account):
     """This is one of our key use cases -- TLS + Den Auth set up.
 
     We use the base fixture, which already has nginx set up to port forward
@@ -463,9 +461,7 @@ def docker_cluster_pk_tls_den_auth(
 
 
 @pytest.fixture(scope="function")
-def docker_cluster_pk_ssh_den_auth(
-    docker_cluster_pk_ssh,
-):
+def docker_cluster_pk_ssh_den_auth(docker_cluster_pk_ssh, logged_in_account):
     """This is our other key use case -- SSH with any Den Auth.
 
     We use the base fixture, and ignore the nginx/https setup, instead just communicating with
@@ -621,7 +617,7 @@ def docker_cluster_pk_ssh_telemetry(request, detached=True):
 
 
 @pytest.fixture(scope="session")
-def docker_cluster_pk_ssh_test_account_logged_in(request):
+def friend_account_logged_in_docker_cluster_pk_ssh(request):
     """
     This fixture is not parameterized for every test; it is a separate cluster started with a test account
     (username: kitchen_tester) in order to test sharing resources with other users.
@@ -630,7 +626,7 @@ def docker_cluster_pk_ssh_test_account_logged_in(request):
     # From pytest config
     detached = request.config.getoption("--detached")
     force_rebuild = request.config.getoption("--force-rebuild")
-    with test_account():
+    with friend_account():
         # Ports to use on the Docker VM such that they don't conflict
         local_ssh_port = BASE_LOCAL_SSH_PORT + 6
         local_cluster, cleanup = set_up_local_cluster(
@@ -647,7 +643,7 @@ def docker_cluster_pk_ssh_test_account_logged_in(request):
             port_fwds=[f"{local_ssh_port}:22"],
             local_ssh_port=local_ssh_port,
             additional_cluster_init_args={
-                "name": "docker_cluster_pk_ssh_test_account_logged_in",
+                "name": "friend_account_logged_in_docker_cluster_pk_ssh",
                 "server_connection_type": "ssh",
                 "den_auth": "den_auth" in request.keywords,
             },
@@ -662,12 +658,12 @@ def docker_cluster_pk_ssh_test_account_logged_in(request):
 
 
 @pytest.fixture(scope="session")
-def shared_cluster(docker_cluster_pk_ssh_test_account_logged_in):
+def shared_cluster(friend_account_logged_in_docker_cluster_pk_ssh, logged_in_account):
     username_to_share = rh.configs.username
-    with test_account():
+    with friend_account():
         # Share the cluster with the test account
-        docker_cluster_pk_ssh_test_account_logged_in.share(
+        friend_account_logged_in_docker_cluster_pk_ssh.share(
             username_to_share, notify_users=False, access_level="read"
         )
 
-    return docker_cluster_pk_ssh_test_account_logged_in
+    return friend_account_logged_in_docker_cluster_pk_ssh
