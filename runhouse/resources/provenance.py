@@ -216,7 +216,7 @@ class Run(Resource):
         return config
 
     def populate_init_provenance(self):
-        self.creator = configs.get("username", None)
+        self.creator = configs.username
         self.creation_stacktrace = "".join(self.traceback.format_stack(limit=11)[1:])
 
     @property

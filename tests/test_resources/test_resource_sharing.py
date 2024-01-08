@@ -49,7 +49,7 @@ def call_cluster_methods(cluster, test_env, valid_token):
 
 
 def test_cluster_sharing(shared_cluster, shared_function):
-    current_token = rh.configs.get("token")
+    current_token = rh.configs.token
     # Run commands on cluster with current token
     return_codes = shared_cluster.run_python(
         ["import numpy", "print(numpy.__version__)"]
@@ -69,7 +69,7 @@ def test_cluster_sharing(shared_cluster, shared_function):
 
 def test_use_shared_cluster_apis(shared_cluster, shared_function, test_env):
     # Should be able to use the shared cluster APIs if given access
-    current_token = rh.configs.get("token")
+    current_token = rh.configs.token
 
     # Confirm we can perform cluster actions with the current token
     call_cluster_methods(shared_cluster, test_env, valid_token=True)
@@ -81,15 +81,15 @@ def test_use_shared_cluster_apis(shared_cluster, shared_function, test_env):
         assert "No read or write access to requested resource" in str(e)
 
     # Confirm we cannot perform actions on the cluster with an invalid token
-    rh.configs.set("token", "abc123")
+    rh.configs.token = "abc123"
     call_cluster_methods(shared_cluster, test_env, valid_token=False)
 
     # Reset back to valid token
-    rh.configs.set("token", current_token)
+    rh.configs.token = current_token
 
 
 def test_use_shared_function_apis(shared_cluster, shared_function):
-    current_token = rh.configs.get("token")
+    current_token = rh.configs.token
 
     # Call the function with current valid token
     assert shared_function(2, 2) == 4
@@ -99,14 +99,14 @@ def test_use_shared_function_apis(shared_cluster, shared_function):
     assert reloaded_func(1, 2) == 3
 
     # Use invalid token to confirm no function access
-    rh.configs.set("token", "abc123")
+    rh.configs.token = "abc123"
     try:
         shared_function(2, 2) == 4
     except Exception as e:
         assert "Error calling call on server" in str(e)
 
     # Reset back to valid token and confirm we can call function again
-    rh.configs.set("token", current_token)
+    rh.configs.token = current_token
     res = call_func_with_curl(
         shared_cluster.address, shared_function.name, current_token, 1, 2
     )
@@ -116,8 +116,8 @@ def test_use_shared_function_apis(shared_cluster, shared_function):
 def test_running_func_with_cluster_read_access(shared_cluster, shared_function):
     """Check that a user with read only access to the cluster cannot call a function on that cluster if they do not
     explicitly have access to the function."""
-    current_username = rh.configs.get("username")
-    current_token = rh.configs.get("token")
+    current_username = rh.configs.username
+    current_token = rh.configs.token
 
     with test_account():
         # Delete user access to the function
@@ -147,8 +147,8 @@ def test_running_func_with_cluster_read_access(shared_cluster, shared_function):
 def test_running_func_with_cluster_write_access(shared_cluster, shared_function):
     """Check that a user with write access to a cluster can call a function on that cluster, even without having
     explicit access to the function."""
-    current_username = rh.configs.get("username")
-    current_token = rh.configs.get("token")
+    current_username = rh.configs.username
+    current_token = rh.configs.token
 
     cluster_uri = rns_client.resource_uri(shared_cluster.rns_address)
 
@@ -192,8 +192,8 @@ def test_running_func_with_cluster_write_access(shared_cluster, shared_function)
 def test_running_func_with_no_cluster_access(shared_cluster, shared_function):
     """Check that a user with no access to the cluster can still call a function on that cluster if they were
     given explicit access to the function."""
-    current_username = rh.configs.get("username")
-    current_token = rh.configs.get("token")
+    current_username = rh.configs.username
+    current_token = rh.configs.token
 
     with test_account():
         # Delete user access to cluster using the test account

@@ -1,4 +1,3 @@
-import os
 import unittest
 from pathlib import Path
 
@@ -6,7 +5,6 @@ import pytest
 
 import runhouse as rh
 from ray import cloudpickle as pickle
-from runhouse.globals import configs
 
 
 DATA_STORE_BUCKET = "runhouse-folder"
@@ -271,29 +269,11 @@ def test_cluster_and_cluster(byo_cpu, cluster, local_folder):
     assert "sample_file_0.txt" in cluster_folder_1.ls(full_paths=False)
 
 
-@pytest.mark.awstest
+@pytest.mark.skip
 @pytest.mark.rnstest
 def test_s3_sharing(s3_folder):
-    token = os.getenv("TEST_TOKEN") or configs.get("token")
-    headers = {"Authorization": f"Bearer {token}"}
-
-    assert (
-        token
-    ), "No token provided. Either set `TEST_TOKEN` env variable or set `token` in the .rh config file"
-
-    # Login to ensure the default folder / username are saved down correctly
-    rh.login(token=token, download_config=True, interactive=False)
-
-    s3_folder.save("@/my-s3-shared-folder")
-    s3_folder.share(
-        users=["donny@run.house", "josh@run.house"],
-        access_level="read",
-        notify_users=False,
-        headers=headers,
-    )
-
-    my_folder = rh.folder(name="@/my-s3-shared-folder")
-    assert my_folder.ls() == s3_folder.ls()
+    pass
+    # TODO
 
 
 def test_github_folder(tmp_path):

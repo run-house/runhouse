@@ -716,7 +716,7 @@ class HTTPServer:
 
         HTTPServer._log_cluster_data(
             {**cluster_data, **sky_data},
-            labels={"username": configs.get("username"), "environment": "prod"},
+            labels={"username": configs.username, "environment": "prod"},
         )
 
     @staticmethod
