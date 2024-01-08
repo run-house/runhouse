@@ -128,12 +128,9 @@ class TestResource:
         )  # To deal with tuples and non-json types
         for k, v in history[0]["data"].items():
             assert config[k] == v
-        resource.delete_configs()
 
     @pytest.mark.level("local")
-    def test_sharing(
-        self, resource, local_docker_cluster_pk_ssh_test_account_logged_in
-    ):
+    def test_sharing(self, resource, docker_cluster_pk_ssh_test_account_logged_in):
 
         # Unnamed resources can't even be saved, let alone shared
         if resource.name is None:
@@ -179,7 +176,7 @@ class TestResource:
         load_shared_resource_config_cluster = rh.function(
             load_shared_resource_config
         ).to(
-            system=local_docker_cluster_pk_ssh_test_account_logged_in,
+            system=docker_cluster_pk_ssh_test_account_logged_in,
             env=rh.env(
                 working_dir=None,
                 # TODO: If we are testing with an ondemand_cluster we need these secrets
