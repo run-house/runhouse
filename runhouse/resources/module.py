@@ -42,6 +42,7 @@ LOCAL_METHODS = dir(Resource) + [
     "local",
     "resolve",
     "_resolve",
+    "replicate",
     "resolved_state",
     "fetch",
     "fetch_async",
@@ -602,6 +603,48 @@ class Module(Resource):
             return self._system.get(self._name, remote=True)
         else:
             return self
+
+    def replicate(self, num_replicas=1, names="auto", envs="auto"):
+        """Replicate the module on the cluster in a new env and return the new modules."""
+        if not self.system or not self.name:
+            raise ValueError(
+                "Cannot replicate a module that is not on a cluster. Please send the module to a cluster first."
+            )
+        if not isinstance(self.system, Cluster):
+            raise ValueError(
+                "Cannot replicate a module that is not on a cluster. Please send the module to a cluster first."
+            )
+
+        replicas = []
+        for i in range(num_replicas):
+            if isinstance(names, list):
+                name = names[i]
+            elif names == "auto":
+                name = f"{self.name}_{i}"
+            else:
+                raise ValueError(
+                    "names must be a list of names or 'auto' to auto-generate names."
+                )
+
+            if isinstance(envs, list):
+                env = _get_env_from(envs[i])
+            elif envs == "auto":
+                env_conf = self.env.config_for_rns
+                env_conf["name"] = f"{self.env.name}_{i}"
+                env = Env.from_config(env_conf)
+            else:
+                raise ValueError(
+                    "envs must be a list of envs or 'auto' to auto-generate envs."
+                )
+
+            new_config = self.config_for_rns
+            new_config["name"] = name
+            new_config.pop("env", None)
+            new_config.pop("system", None)
+            new_module = Module.from_config(new_config).to(self.system, env)
+            replicas.append(new_module)
+
+        return replicas
 
     @property
     def remote(self):
