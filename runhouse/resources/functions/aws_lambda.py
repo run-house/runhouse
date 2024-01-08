@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 
 CRED_PATH = f"{Path.home()}/.aws/credentials"
 LOG_GROUP_PREFIX = "/aws/lambda/"
-#
 
 
 class LambdaFunction(Function):
