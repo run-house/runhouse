@@ -56,7 +56,6 @@ class Cluster(Resource):
 
     SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
     CLI_RESTART_CMD = "runhouse restart"
-    RAY_RESTART_CMD = "runhouse restart"
     SERVER_START_CMD = f"{sys.executable} -m runhouse.servers.http.http_server"
     SERVER_STOP_CMD = f'pkill -f "{SERVER_START_CMD}"'
     # 2>&1 redirects stderr to stdout
@@ -840,13 +839,6 @@ class Cluster(Resource):
             # Refresh the client params to use HTTPS
             self.client.use_https = https_flag
             self.client.cert_path = self.cert_config.cert_path
-
-        # Send the ssh restart command to each of the workers
-        if self.server_connection_type in [
-            ServerConnectionType.SSH,
-            ServerConnectionType.AWS_SSM,
-        ]:
-            self.run(commands=[self.RAY_RESTART_CMD])
 
         if restart_ray:
             # Restart Ray on the head node and each of the workers
