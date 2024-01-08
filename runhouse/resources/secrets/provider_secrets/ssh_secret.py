@@ -54,7 +54,7 @@ class SSHSecret(ProviderSecret):
             self.name = name
         elif not self.name:
             self.name = f"ssh-{self.key}"
-        super().save(
+        return super().save(
             save_values=save_values, headers=headers or rns_client.request_headers()
         )
 

@@ -469,7 +469,7 @@ class TestModule:
         # TODO: ask Josh for advice how to share it with a new user each time.
         users = ["josh@run.house"]
         remote_calc = rh.module(Calculator).to(cluster).save(name="rh_remote_calc")
-        added_users, new_users = remote_calc.share(
+        added_users, new_users, _ = remote_calc.share(
             users=users, notify_users=False, access_level="write"
         )
         assert remote_calc.name == "rh_remote_calc"

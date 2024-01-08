@@ -29,5 +29,6 @@ class SkySecret(SSHSecret):
             name=name, provider=provider, values=values, path=path, dryrun=dryrun
         )
 
+    @staticmethod
     def from_config(config: dict, dryrun: bool = False):
         return SkySecret(**config, dryrun=dryrun)

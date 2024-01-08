@@ -82,7 +82,7 @@ class ProviderSecret(Secret):
     def save(
         self, name: str = None, save_values: bool = True, headers: Optional[Dict] = None
     ):
-        name = name or self.name or self.provider
+        name = name or self.rns_address or self.provider
         return super().save(name=name, save_values=save_values, headers=headers)
 
     def delete(self, headers: Optional[Dict] = None, contents: bool = False):
