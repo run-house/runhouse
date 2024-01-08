@@ -51,7 +51,7 @@ class Cluster(Resource):
     DEFAULT_HTTP_PORT = 80
     DEFAULT_HTTPS_PORT = 443
     DEFAULT_SSH_PORT = 22
-    DEFAULT_RAY_PORT = 9341
+    DEFAULT_RAY_PORT = 9344
     LOCAL_HOSTS = ["localhost", LOCALHOST]
 
     SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
@@ -67,6 +67,7 @@ class Cluster(Resource):
     # We need to use this instead of ray stop to make sure we don't stop the SkyPilot ray server,
     # which runs on other ports but is required to preserve autostop and correct cluster status.
     RAY_KILL_CMD = 'pkill -f ".*ray.*6379.*"'
+    RAY_RUNHOUSE_KILL_CMD = 'pkill -f ".*ray.*' + str(DEFAULT_RAY_PORT) + '.*"'
 
     def __init__(
         self,
@@ -620,6 +621,7 @@ class Cluster(Resource):
             cmds.append(cls.SERVER_STOP_CMD)
         if restart_ray:
             cmds.append(cls.RAY_KILL_CMD)
+            cmds.append(cls.RAY_RUNHOUSE_KILL_CMD)
             # TODO Add in BOOTSTRAP file if it exists?
             cmds.append(cls.RAY_START_CMD)
 
@@ -725,15 +727,17 @@ class Cluster(Resource):
             )
             logger.info(output.stdout.decode("utf-8"))
             ray.init(address="auto", include_dashboard=False)
-            self._wait_for_workers(n_hosts)
-            logger.info("🎉 All workers present and accounted for 🎉")
-            logger.info(ray.cluster_resources())
+
+            worker_thread = threading.Thread(
+                target=self._wait_for_workers, args=(self, n_hosts)
+            )
+            worker_thread.start()
 
         else:
             # Worker node
             self.run(
                 commands=[
-                    f"sleep 30 && ray start --address={master_host}:{ray_port} --block",
+                    f"sleep 10 && ray start --address={master_host}:{ray_port} --block",
                 ],
                 node=host,
             )
@@ -853,6 +857,8 @@ class Cluster(Resource):
             for host in self.ips:
                 self._start_ray(host, master_host, n_hosts, self.DEFAULT_RAY_PORT)
 
+            # logger.info("🎉 All workers present and accounted for 🎉")
+            # logger.info(ray.cluster_resources())
         return status_codes
 
     @contextlib.contextmanager
