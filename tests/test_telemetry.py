@@ -5,8 +5,8 @@ import requests
 
 
 @pytest.mark.level("local")
-def test_public_key_cluster_has_telemetry(docker_cluster_pk_ssh_telemetry):
-    cluster = docker_cluster_pk_ssh_telemetry
+def test_public_key_cluster_has_telemetry(local_docker_cluster_pk_ssh_telemetry):
+    cluster = local_docker_cluster_pk_ssh_telemetry
     cluster.check_server()
     assert cluster.is_up()  # Should be true for a Cluster object
 

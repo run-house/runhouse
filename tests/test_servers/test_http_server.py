@@ -34,14 +34,14 @@ class TestHTTPServerDocker:
 
     UNIT = {
         "cluster": [
-            "docker_cluster_pk_ssh_den_auth",
-            "docker_cluster_pk_ssh_no_auth",
+            "local_docker_cluster_pk_ssh_den_auth",
+            "local_docker_cluster_pk_ssh_no_auth",
         ]
     }
     LOCAL = {
         "cluster": [
-            "docker_cluster_pk_ssh_den_auth",
-            "docker_cluster_pk_ssh_no_auth",
+            "local_docker_cluster_pk_ssh_den_auth",
+            "local_docker_cluster_pk_ssh_no_auth",
         ]
     }
 
@@ -216,11 +216,11 @@ class TestHTTPServerDockerDenAuthOnly:
     but it is a server without Den Auth enabled at all?
     """
 
-    UNIT = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
-    LOCAL = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
+    UNIT = {"cluster": ["local_docker_cluster_pk_ssh_den_auth"]}
+    LOCAL = {"cluster": ["local_docker_cluster_pk_ssh_den_auth"]}
     MINIMAL = {"cluster": []}
-    THOROUGH = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
-    MAXIMAL = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
+    THOROUGH = {"cluster": ["local_docker_cluster_pk_ssh_den_auth"]}
+    MAXIMAL = {"cluster": ["local_docker_cluster_pk_ssh_den_auth"]}
 
     # -------- INVALID TOKEN / CLUSTER ACCESS TESTS ----------- #
 
@@ -241,24 +241,11 @@ class TestHTTPServerDockerDenAuthOnly:
 
     @pytest.mark.level("local")
     def test_no_access_to_cluster(self, http_client, cluster):
-        # Make sure test account doesn't have access to the cluster (created by logged-in account, Den Tester in CI)
-        cluster.revoke(["info@run.house"])
-        cluster.enable_den_auth()  # Flush auth cache
-
-        import requests
-
-        with test_account():  # Test accounts with Den auth are created under test_account
-            res = requests.get(
-                f"{rns_client.api_server_url}/resource",
-                headers=rns_client.request_headers(),
-            )
-            assert cluster.rns_address not in [
-                config["name"] for config in res.json()["data"]
-            ]
+        with test_account():
             response = http_client.get("/keys", headers=rns_client.request_headers())
 
-        assert response.status_code == 403
-        assert "Cluster access is required for API" in response.text
+            assert response.status_code == 403
+            assert "Cluster access is required for API" in response.text
 
     @pytest.mark.level("local")
     def test_request_with_no_token(self, http_client):

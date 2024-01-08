@@ -20,15 +20,15 @@ logger = logging.getLogger(__name__)
 UNIT = {"cluster": []}
 LOCAL = {
     "cluster": [
-        "docker_cluster_pwd_ssh_no_auth",
-        "docker_cluster_pk_ssh_no_auth",
+        "local_docker_cluster_pwd_ssh_no_auth",
+        "local_docker_cluster_pk_ssh_no_auth",
     ]
 }
 MINIMAL = {"cluster": ["ondemand_cpu_cluster"]}
 THOROUGH = {
     "cluster": [
-        "docker_cluster_pwd_ssh_no_auth",
-        "docker_cluster_pk_ssh_no_auth",
+        "local_docker_cluster_pwd_ssh_no_auth",
+        "local_docker_cluster_pk_ssh_no_auth",
         "ondemand_cpu_cluster",
         "ondemand_https_cluster_with_auth",
         "password_cluster",
@@ -38,8 +38,8 @@ THOROUGH = {
 }
 MAXIMAL = {
     "cluster": [
-        "docker_cluster_pwd_ssh_no_auth",
-        "docker_cluster_pk_ssh_no_auth",
+        "local_docker_cluster_pwd_ssh_no_auth",
+        "local_docker_cluster_pk_ssh_no_auth",
         "ondemand_cpu_cluster",
         "ondemand_https_cluster_with_auth",
         "password_cluster",

@@ -128,8 +128,6 @@ class Defaults:
     ):
         config_path = Path(config_path or self.CONFIG_PATH)
         defaults = defaults or self.defaults_cache
-        if not defaults:
-            return
 
         if not config_path.exists():
             config_path.parent.mkdir(parents=True, exist_ok=True)

@@ -69,7 +69,7 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
     LOCAL = {
         "secret": ["test_secret"] + provider_secrets + api_secrets,
         "cluster": [
-            "docker_cluster_pk_ssh_no_auth",
+            "local_docker_cluster_pk_ssh_no_auth",
         ],
     }
     MINIMAL = {
@@ -92,8 +92,8 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
             "static_cpu_cluster",
             "password_cluster",
             "multinode_cpu_cluster",
-            "docker_cluster_pk_ssh_no_auth",
-            "docker_cluster_pwd_ssh_no_auth",
+            "local_docker_cluster_pk_ssh_no_auth",
+            "local_docker_cluster_pwd_ssh_no_auth",
         ],
     }
 
