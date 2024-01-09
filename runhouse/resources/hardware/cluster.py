@@ -705,7 +705,7 @@ class Cluster(Resource):
 
     def _start_ray(self, host, master_host, n_hosts, ray_port, workers_thread):
         # Extract the head_ip
-        public_head_ip = master_host  # self.live_state['handle']['head_ip']
+        public_head_ip = master_host
 
         # Find the internal IP corresponding to the public_head_ip
         internal_head_ip = None
@@ -716,7 +716,6 @@ class Cluster(Resource):
                 internal_head_ip = internal
                 break
 
-        # stable_internal_external_ips = self.get("live_state").get("handle").get("stable_internal_external_ips")
         logger.info(f"Internal head IP: {internal_head_ip}")
 
         if host == master_host:
@@ -730,30 +729,6 @@ class Cluster(Resource):
                 node=host,
             )
 
-            # if ray.is_initialized():
-            #     logger.info(
-            #         f"There is a Ray cluster already running on the head node {master_host}. Shutting it down."
-            #     )
-            #     ray.shutdown()
-            #     time.sleep(10)
-            # command = [
-            #     "ray",
-            #     "start",
-            #     "--head",
-            #     "--disable-usage-stats",
-            #     f"--port={ray_port}",
-            #     "--include-dashboard=false",
-            # ]
-            # command_str = ' '.join(command)
-            # logger.info(f"Running 'ray start' command on head node: {command_str}")
-            # output = subprocess.run(
-            #     command,
-            #     stdout=subprocess.PIPE,
-            #     stderr=subprocess.PIPE,
-            # )
-            # logger.info(output.stdout.decode("utf-8"))
-            # logger.warning(output.stderr.decode("utf-8"))
-
             logger.info(f"Running 'ray init' command on node:port : {host}:{ray_port}")
             self.run_python(
                 commands=[
@@ -762,18 +737,7 @@ class Cluster(Resource):
                 ],
                 node=host,
             )
-            # ray.init(address="auto", include_dashboard=False)
             logger.info(f"Ray cluster started on head node {host}:{ray_port}.")
-
-            # self.run_python(
-            #     commands=[
-            #         'import ray',
-            #         'ray.cluster_resources()',
-            #     ],
-            #     node=host,
-            # )
-
-            # logger.info(f"Ray cluster resources {ray.cluster_resources()}.")
 
             workers_thread.start()
             logger.info("Waiting for workers to join the cluster...")
