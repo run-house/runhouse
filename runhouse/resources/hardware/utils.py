@@ -471,7 +471,7 @@ def ssh_tunnel(
     ssh_port: int = 22,
     remote_port: Optional[int] = None,
     num_ports_to_try: int = 0,
-) -> SSHTunnelForwarder:
+) -> Tuple[SSHTunnelForwarder, int]:
     """Initialize an ssh tunnel from a remote server to localhost
 
     Args:
@@ -569,4 +569,4 @@ def ssh_tunnel(
 
     # ssh_tunnel should certainlly be non-None at this point.
     cache_open_tunnel(address, ssh_port, ssh_tunnel)
-    return ssh_tunnel
+    return ssh_tunnel, local_port

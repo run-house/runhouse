@@ -456,12 +456,12 @@ class Cluster(Resource):
             ServerConnectionType.AWS_SSM,
         ]:
             # Case 1: Server connection requires SSH tunnel, but we don't have one up yet
-            self._rpc_tunnel = self.ssh_tunnel(
+            self._rpc_tunnel, connected_port = self.ssh_tunnel(
                 local_port=self.server_port,
                 remote_port=self.server_port,
                 num_ports_to_try=10,
             )
-            self.client_port = self._rpc_tunnel.local_bind_port
+            self.client_port = connected_port or self.client_port or self.server_port
 
             ssh_user = self.ssh_creds.get("ssh_user")
             password = self.ssh_creds.get("password")
@@ -554,7 +554,7 @@ class Cluster(Resource):
 
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
-    ) -> SSHTunnelForwarder:
+    ) -> Tuple[SSHTunnelForwarder, int]:
         return ssh_tunnel(
             address=self.address,
             ssh_creds=self.ssh_creds,
@@ -568,15 +568,12 @@ class Cluster(Resource):
     def _use_https(self) -> bool:
         """Use HTTPS if server connection type is set to ``tls``"""
         connection_type = self.server_connection_type
-        tls_conn = ServerConnectionType.TLS.value
+        tls_conn = ServerConnectionType.TLS
 
-        if isinstance(connection_type, str):
+        if connection_type is not None:
             return connection_type == tls_conn
-
-        if connection_type is not None and connection_type.value is not None:
-            return connection_type.value == tls_conn
-        else:
-            return False
+        
+        return False
 
     @property
     def _use_nginx(self) -> bool:
@@ -890,6 +887,14 @@ class Cluster(Resource):
             self._rpc_tunnel.stop()
 
     def _sync_across_all_nodes(self, _rh_install_url):
+
+        if len(self.ips) == 1:  # only one node in cluster 
+            self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
+            self.save_config_to_cluster()
+            return
+        
+        # TODO: consider removing asyncio usage in favor of iterating through ips and running _sync_runhouse_to_cluster each time. 
+        
         loop = asyncio.new_event_loop()
 
         # Set the loop as the default for the current context
