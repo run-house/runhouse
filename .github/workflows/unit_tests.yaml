@@ -1,0 +1,40 @@
+name: Tests with level "unit"
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  all-tests-logged-out-level-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Setup Runhouse
+        uses: ./.github/workflows/setup_runhouse
+
+      - name: pytest -v --level unit -k "not secrettest"
+        run: pytest -v --level unit -k "not secrettest"
+
+#  all-tests-logged-in-level-unit:
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Check out repository code
+#        uses: actions/checkout@v3
+#
+#      - name: Setup Runhouse
+#        uses: ./.github/workflows/setup_runhouse
+#
+#      - name: Setup ~/.rh/config.yaml
+#        uses: ./.github/workflows/setup_rh_config
+#        with:
+#          username: ${{ secrets.CI_ACCOUNT_USERNAME }}
+#          token: ${{ secrets.CI_ACCOUNT_TOKEN }}
+#
+#      - name: pytest -v --level unit -k "not den_auth"
+#        env:
+#          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+#          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+#        run: pytest -v --level unit

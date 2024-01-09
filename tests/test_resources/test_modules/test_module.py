@@ -11,6 +11,8 @@ import pytest
 import runhouse as rh
 from runhouse import Package
 
+from tests.utils import friend_account
+
 logger = logging.getLogger(__name__)
 
 """ Tests for runhouse.Module. Structure:
@@ -111,8 +113,8 @@ class Calculator:
 class TestModule:
 
     # --------- integration tests ---------
-    # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
     @pytest.mark.parametrize("env", [None])
+    @pytest.mark.level("local")
     def test_call_module_method(self, cluster, env):
         cluster.put("numpy_pkg", Package.from_string("numpy"), env=env)
 
@@ -137,8 +139,8 @@ class TestModule:
             numpy_config.pop(key)
         assert not numpy_config
 
-    # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
     @pytest.mark.parametrize("env", [None])
+    @pytest.mark.level("local")
     def test_module_from_factory(self, cluster, env):
         size = 3
         RemoteClass = rh.module(SlowNumpyArray).to(cluster)
@@ -220,8 +222,8 @@ class TestModule:
         assert resolved_obj.size == 20
         assert list(resolved_obj.arr) == [0, 1, 2]
 
-    # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
     @pytest.mark.parametrize("env", [None])
+    @pytest.mark.level("local")
     def test_module_from_subclass(self, cluster, env):
         size = 3
         remote_df = SlowPandas(size=size).to(cluster, env)
@@ -281,10 +283,9 @@ class TestModule:
         assert resolved_obj.size == 20  # resolved_obj.remote.size causing an error
         assert resolved_obj.config_for_rns == remote_df.config_for_rns
 
-    @pytest.mark.clustertest
     @pytest.mark.asyncio
-    # @pytest.mark.parametrize("env", [None, "base", "pytorch"])
     @pytest.mark.parametrize("env", [None])
+    @pytest.mark.level("local")
     async def test_module_from_subclass_async(self, cluster, env):
         remote_df = SlowPandas(size=3).to(cluster, env)
         assert remote_df.system == cluster
@@ -322,7 +323,7 @@ class TestModule:
         assert remote_df.remote.size == 20
 
     @pytest.mark.skip("Not working yet")
-    @pytest.mark.clustertest
+    @pytest.mark.level("local")
     def test_hf_autotokenizer(self, cluster):
         from transformers import AutoTokenizer
 
@@ -339,6 +340,7 @@ class TestModule:
 
     @pytest.mark.usefixtures("cluster")
     @pytest.mark.parametrize("env", [None])
+    @pytest.mark.level("local")
     def test_create_and_rename(self, cluster, env):
         RemoteCalc = rh.module(cls=Calculator).to(cluster)
         remote_calc = RemoteCalc(owner="Runhouse", name="Runhouse_calc")
@@ -360,6 +362,7 @@ class TestModule:
 
     @pytest.mark.usefixtures("cluster")
     @pytest.mark.parametrize("env", [None])
+    @pytest.mark.level("local")
     def test_local_remote_properties(self, cluster, env):
         RemoteCalc = rh.module(cls=Calculator).to(cluster)
         remote_calc = RemoteCalc(owner="Runhouse", name="Runhouse_calc")
@@ -371,6 +374,7 @@ class TestModule:
 
     @pytest.mark.parametrize("env", [None])
     @pytest.mark.asyncio
+    @pytest.mark.level("local")
     async def test_fetch_class_and_properties(self, cluster, env):
         RemoteCalc = rh.module(cls=Calculator).to(cluster)
         owner = "Runhouse"
@@ -400,6 +404,7 @@ class TestModule:
         )
 
     @pytest.mark.parametrize("env", [None])
+    @pytest.mark.level("local")
     def test_get_or_to(self, cluster, env):
         RemoteCalcNew = rh.module(Calculator).get_or_to(cluster, name="new_remote_cals")
         remote_calc_new = RemoteCalcNew(owner="Runhouse_admin", name="Admin_calc")
@@ -417,6 +422,7 @@ class TestModule:
         assert remote_calc_existing.remote.name == "Users_calc"
 
     @pytest.mark.parametrize("env", [None])
+    @pytest.mark.level("local")
     def test_refresh(self, cluster, env):
         RemoteCalc = rh.module(cls=Calculator).to(cluster)
         # Note: by reusing the name, we're overwriting the class module in the cluster's object store with
@@ -439,6 +445,7 @@ class TestModule:
         return a * a
 
     @pytest.mark.parametrize("env", [None])
+    @pytest.mark.level("local")
     def test_resolve(self, cluster, env):
         remote_calc = rh.module(Calculator).to(cluster)
 
@@ -457,12 +464,13 @@ class TestModule:
         assert self.calc_square(remote_calc.resolved_state().sub(1, 1)) == 0
 
     @pytest.mark.parametrize("env", [None])
+    @pytest.mark.level("local")
     def test_save(self, cluster, env):
         # TODO: ask Josh for advice how to share it with a new user each time.
         users = ["josh@run.house"]
         remote_calc = rh.module(Calculator).to(cluster).save(name="rh_remote_calc")
-        added_users, new_users = remote_calc.share(
-            users=users, notify_users=False, access_type="write"
+        added_users, new_users, _ = remote_calc.share(
+            users=users, notify_users=False, access_level="write"
         )
         assert remote_calc.name == "rh_remote_calc"
         assert added_users == {users[0]: "write"} or added_users == {}
@@ -470,6 +478,7 @@ class TestModule:
 
     @pytest.mark.parametrize("env", [None])
     @pytest.mark.asyncio
+    @pytest.mark.level("local")
     async def test_set_async(self, cluster, env):
         RemoteCalc = rh.module(Calculator).to(cluster)
         my_remote_calc = RemoteCalc(owner="Runhouse", name="Runhouse_remote_dev")
@@ -489,6 +498,235 @@ class TestModule:
         # test that the unchanged properties remained the same.
         assert my_remote_calc.remote.model == "Casio"
         assert my_remote_calc.remote.name == "Runhouse_remote_dev"
+
+    @pytest.mark.level("unit")
+    def test_signature(self):
+
+        SlowNumpy = rh.module(SlowNumpyArray)
+        assert set(SlowNumpy.signature) == {
+            "slow_iter",
+            "cpu_count",
+            "size_minus_cpus",
+            "factory_constructor",
+        }
+        assert SlowNumpy.signature == {
+            "cpu_count": {
+                "signature": "(local=True)",
+                "property": False,
+                "async": False,
+                "gen": False,
+                "local": True,
+            },
+            "factory_constructor": {
+                "signature": "(size=5)",
+                "property": False,
+                "async": False,
+                "gen": False,
+                "local": False,
+            },
+            "size_minus_cpus": {
+                "signature": "(self)",
+                "property": False,
+                "async": False,
+                "gen": False,
+                "local": False,
+            },
+            "slow_iter": {
+                "signature": "(self)",
+                "property": False,
+                "async": False,
+                "gen": True,
+                "local": False,
+            },
+        }
+
+        arr = SlowNumpy(size=5)
+        assert set(arr.signature) == {
+            "size",
+            "_hidden_1",
+            "slow_iter",
+            "size_minus_cpus",
+            "arr",
+            "cpu_count",
+            "factory_constructor",
+        }
+
+        df = SlowPandas(size=10)
+        assert df.signature == {
+            "_hidden_1": {
+                "async": False,
+                "gen": False,
+                "local": False,
+                "property": True,
+                "signature": None,
+            },
+            "cpu_count": {
+                "async": False,
+                "gen": False,
+                "local": True,
+                "property": False,
+                "signature": "(self, local=True)",
+            },
+            "cpu_count_async": {
+                "async": True,
+                "gen": False,
+                "local": True,
+                "property": False,
+                "signature": "(self, local=True)",
+            },
+            "df": {
+                "async": False,
+                "gen": False,
+                "local": False,
+                "property": True,
+                "signature": None,
+            },
+            "size": {
+                "async": False,
+                "gen": False,
+                "local": False,
+                "property": True,
+                "signature": None,
+            },
+            "slow_iter": {
+                "async": False,
+                "gen": True,
+                "local": False,
+                "property": False,
+                "signature": "(self)",
+            },
+            "slow_iter_async": {
+                "async": True,
+                "gen": True,
+                "local": False,
+                "property": False,
+                "signature": "(self)",
+            },
+        }
+
+        RemoteCalc = rh.module(Calculator)
+        assert set(RemoteCalc.signature.keys()) == {
+            "summer",
+            "sub",
+            "divider",
+            "mult",
+            "importer",
+        }
+        assert RemoteCalc.signature == {
+            "divider": {
+                "signature": "(self, a: int, b: int)",
+                "property": False,
+                "async": False,
+                "gen": False,
+                "local": False,
+            },
+            "importer": {
+                "signature": None,
+                "property": True,
+                "async": False,
+                "gen": False,
+                "local": False,
+            },
+            "mult": {
+                "signature": "(self, a: int, b: int)",
+                "property": False,
+                "async": False,
+                "gen": False,
+                "local": False,
+            },
+            "sub": {
+                "signature": "(self, a: int, b: int)",
+                "property": False,
+                "async": False,
+                "gen": False,
+                "local": False,
+            },
+            "summer": {
+                "signature": "(self, a: int, b: int)",
+                "property": False,
+                "async": False,
+                "gen": False,
+                "local": False,
+            },
+        }
+
+    @pytest.mark.level("thorough")
+    def test_shared_readonly(
+        self,
+        ondemand_https_cluster_with_auth,
+        friend_account_logged_in_docker_cluster_pk_ssh,
+    ):
+        if ondemand_https_cluster_with_auth.address == "localhost":
+            pytest.skip("Skipping sharing test on local cluster")
+
+        size = 3
+        remote_df = SlowPandas(size=size).to(
+            ondemand_https_cluster_with_auth, name="remote_df"
+        )
+        remote_df.share(
+            users=["info@run.house"],
+            access_level="read",
+            notify_users=False,
+        )
+
+        with friend_account():
+            test_load_and_use_readonly_module(
+                mod_name=remote_df.rns_address, cpu_count=2, size=size
+            )
+
+        cpu_count = int(
+            ondemand_https_cluster_with_auth.run_python(
+                ["import os; print(os.cpu_count())"]
+            )[0][1]
+        )
+        test_fn = rh.fn(test_load_and_use_readonly_module).to(
+            friend_account_logged_in_docker_cluster_pk_ssh
+        )
+        test_fn(mod_name=remote_df.rns_address, cpu_count=cpu_count, size=size)
+
+
+def test_load_and_use_readonly_module(mod_name, cpu_count, size=3):
+    remote_df = rh.module(name=mod_name)
+    # Check that module is readonly and cluster is not set
+    assert isinstance(remote_df.system, str)
+    assert remote_df.access_level == "read"
+
+    assert remote_df.remote.size == size
+    assert len(remote_df.remote.df) == size
+    assert remote_df.remote._hidden_1 == "hidden"
+
+    results = []
+    # Capture stdout to check that it's working
+    out = ""
+    with rh.capture_stdout() as stdout:
+        for i, val in enumerate(remote_df.slow_iter()):
+            assert val
+            print(val)
+            results += [val]
+            out = out + str(stdout)
+    assert len(results) == 3
+
+    # Check that stdout was captured. Skip the last result because sometimes we
+    # don't catch it and it makes the test flaky.
+    for i in range(size - 1):
+        assert f"Hello from the cluster stdout! {i}" in out
+        assert f"Hello from the cluster logs! {i}" in out
+
+    print(remote_df.cpu_count())
+    assert remote_df.cpu_count() == os.cpu_count()
+    print(remote_df.cpu_count(local=False))
+    assert remote_df.cpu_count(local=False) == cpu_count
+
+    # Test setting and getting properties
+    df = remote_df.remote.df
+    assert isinstance(df, pd.DataFrame)
+    assert df.shape == (3, 3)
+    assert df.loc[0, 0] == 0
+    assert df.loc[2, 2] == 2
+
+    remote_df.size = 20
+    assert remote_df.remote.size == 20
+    remote_df.size = size  # reset to original value for second test
 
 
 if __name__ == "__main__":

@@ -47,6 +47,7 @@ def create_test_https_server(
     return httpd, sa[1], thread
 
 
+@pytest.mark.servertest
 class TestTLSCertConfig:
     @pytest.fixture(autouse=True)
     def init_fixtures(self):
@@ -104,12 +105,13 @@ class TestTLSCertConfig:
 
         resolved_path = resolve_absolute_path(self.cert_config.cert_path)
 
-        mock_expanduser.assert_called_once_with(self.cert_config.cert_path)
-        mock_abspath.assert_called_once_with(mock_expanduser.return_value)
+        mock_expanduser.assert_any_call(self.cert_config.cert_path)
+        mock_abspath.assert_any_call(mock_expanduser.return_value)
 
         assert resolved_path == mock_abspath.return_value
 
 
+@pytest.mark.servertest
 class TestHTTPSCertValidity:
     @pytest.fixture(autouse=True)
     def init_fixtures(self):

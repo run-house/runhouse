@@ -9,7 +9,7 @@ Quick Start Guide
 
 This tutorials walks through Runhouse setup (installation, hardware
 setup, and optional login) and goes through an example that demonstrates
-how to user Runhouse to bridge the gap between local and remote compute,
+how to use Runhouse to bridge the gap between local and remote compute,
 and create Resources that can be saved, reused, and shared.
 
 Installation
@@ -25,7 +25,7 @@ If using Runhouse with a cloud provider, you can additionally install
 cloud packages (e.g. the right versions of tools like boto, gsutil,
 etc.):
 
-::
+.. code:: shell
 
    $ pip install "runhouse[aws]"
    $ pip install "runhouse[gcp]"
@@ -111,10 +111,10 @@ cloud clusters, you can either:
 
     # Runhouse Secrets
     # Lambda Labs:
-    rh.Secrets.save_provider_secrets(secrets={"lambda": {"api_key": "*******"}})
+    rh.provider_secret("lambda", values={"api_key": "*******"}).write()
 
     # AWS:
-    rh.Secrets.save_provider_secrets(secrets={"aws": {"access_key": "******", "secret_key": "*******"}})
+    rh.provider_secret("aws", values={"access_key": "******", "secret_key": "*******"}).write()
 
     # GCP:
     !gcloud init
@@ -383,7 +383,7 @@ environment, or share it with your collaborators.
 
     num_cpus_cluster.share(
         users=["<email_to_runhouse_account>"],
-        access_type="write",
+        access_level="write",
     )
 
 Now, you, or whoever you shared it with, can reload this function from

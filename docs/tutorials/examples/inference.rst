@@ -871,7 +871,7 @@ The second approach constructs a Runhouse Module that maintains the
 model as a class variable. In notebook settings, we define this Module
 in another file and import it here.
 
-::
+.. code:: ipython3
 
     # sd_model.py
 

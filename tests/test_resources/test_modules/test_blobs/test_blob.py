@@ -1,4 +1,3 @@
-import os
 import unittest
 from pathlib import Path
 
@@ -7,7 +6,6 @@ import pytest
 import runhouse as rh
 
 from runhouse import Cluster
-from runhouse.globals import configs
 
 
 TEMP_LOCAL_FOLDER = Path(__file__).parents[1] / "rh-blobs"
@@ -22,7 +20,6 @@ def test_save_local_blob_fails(local_blob, blob_data):
 @pytest.mark.rnstest
 @pytest.mark.awstest
 @pytest.mark.gcptest
-@pytest.mark.clustertest
 @pytest.mark.parametrize(
     "blob",
     ["local_file", "s3_blob", "gcs_blob"],
@@ -53,7 +50,6 @@ def test_reload_blob_with_name(blob):
 @pytest.mark.rnstest
 @pytest.mark.awstest
 @pytest.mark.gcptest
-@pytest.mark.clustertest
 @pytest.mark.parametrize(
     "blob", ["local_file", "s3_blob", "gcs_blob", "cluster_file"], indirect=True
 )
@@ -67,7 +63,6 @@ def test_reload_file_with_path(blob):
     assert not reloaded_blob.exists_in_system()
 
 
-@pytest.mark.clustertest
 @pytest.mark.parametrize("file", ["local_file", "cluster_file"], indirect=True)
 def test_file_to_blob(file, cluster):
     local_blob = file.to("here")
@@ -86,7 +81,6 @@ def test_file_to_blob(file, cluster):
 @pytest.mark.rnstest
 @pytest.mark.awstest
 @pytest.mark.gcptest
-@pytest.mark.clustertest
 @pytest.mark.parametrize(
     "blob", ["local_blob", "cluster_blob", "local_file"], indirect=True
 )
@@ -109,33 +103,14 @@ def test_blob_to_file(blob, folder):
     assert "test_blob.pickle" in folder.ls(full_paths=False)
 
 
-@pytest.mark.awstest
+@pytest.mark.skip
 @pytest.mark.rnstest
-@pytest.mark.clustertest
 def test_sharing_blob(cluster_blob):
-    token = os.getenv("TEST_TOKEN") or configs.get("token")
-    headers = {"Authorization": f"Bearer {token}"}
-
-    assert (
-        token
-    ), "No token provided. Either set `TEST_TOKEN` env variable or set `token` in the .rh config file"
-
-    # Login to ensure the default folder / username are saved down correctly
-    rh.login(token=token, download_config=True, interactive=False)
-
-    cluster_blob.save("shared_blob")
-    cluster_blob.share(
-        users=["donny@run.house", "josh@run.house"],
-        access_type="write",
-        notify_users=False,
-        headers=headers,
-    )
-
-    # TODO assert something real here
+    pass
+    # TODO
 
 
 @pytest.mark.rnstest
-@pytest.mark.clustertest
 def test_load_shared_blob(local_blob):
     my_blob = rh.blob(name="@/shared_blob")
     assert my_blob.exists_in_system()

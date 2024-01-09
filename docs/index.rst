@@ -17,37 +17,33 @@
    <a class="github-button" href="https://github.com/run-house/runhouse/fork" data-icon="octicon-repo-forked" data-size="large" aria-label="Fork run-house/runhouse on GitHub">Fork</a>
    </p>
 
-Runhouse is a unified interface into *existing* compute and data systems, built to reclaim
-the 50-75% of ML practitioners' time lost to debugging, adapting, or repackaging code
-for different environments.
+Runhouse is a Python framework for composing and sharing production-quality backend apps and services ridiculously quickly and on your own infra.
 
-Runhouse lets you:
+Runhouse is built to do four things:
 
-* Send functions, classes, and data to any of your compute or data infra, all in Python, and continue to
-  interact with them eagerly (there's no DAG) from your existing code and environment.
-* Share live and versioned resources across environments or teams, providing a unified layer for
-  accessibility, visibility, and management across all your infra and providers.
-
-It wraps industry-standard tooling like Ray and the Cloud SDKs (boto, gsutil, etc. via `SkyPilot <https://github.com/skypilot-org/skypilot/>`_
-to give you production-quality features like queuing, distributed, async, logging, low latency, hardware efficiency, auto-launching, and auto-termination out of the box.
+1. Make it easy to send an arbitrary block of your code - function, subroutine, class, generator - to run on souped up
+   remote infra. It's basically a flag flip.
+2. Eliminate CLI and Flask/FastAPI boilerplate by allowing you to send your function or class directly to your remote
+   infra to execute or serve, and keep them debuggable like the original code, not a ``subprocess.Popen`` or
+   Postman/ ``curl`` call.
+3. Bake-in the middleware and automation to make your app production-quality, secure, and sharable instantly. That means
+   giving you out of the box, state-of-the-art auth, HTTPS, telemetry, packaging, developer tools and deployment
+   automation, with ample flexibility to swap in your own.
+4. Bring the power of `Ray <https://www.ray.io/>`_ to any app, anywhere, without having to learn Ray or manage Ray clusters,
+   like `Next.js <https://nextjs.org/>`_ did for React. OpenAI, Uber, Shopify, and many others use Ray to power their ML
+   infra, and Runhouse makes its best-in-class features accessible to any project, team, or company.
 
 Who is this for?
 ----------------
 
-* 🦸‍♀️ **OSS maintainers** who want to improve the accessibility, reproducibility, and reach of their code,
-  without having to build support or examples for every cloud or compute system (e.g. Kubernetes) one by one.
+* 👩‍🔧 **Engineers, Researchers and Data Scientists** who don't want to spend 3-6 months translating and packaging their work to share it, and want to be able to iterate and improve production services, pipelines, experiments and data artifacts with a Pythonic, debuggable devX.
+
+* 👩‍🔬 **ML and data teams** who want a versioned, shared, maintainable stack of services used across research and production, spanning any cloud or infra type (e.g. Instances, Kubernetes, Serverless, etc.).
+
+* 🦸‍♀️ **OSS maintainers** who want to supercharge their setup flow by providing a single script to stand up their app on any infra, rather than build support or guides for each cloud or compute system (e.g. Kubernetes) one by one.
   See this in action in 🤗 Hugging Face `Transformers <https://github.com/huggingface/transformers/blob/main/examples/README.md#running-the-examples-on-remote-hardware-with-auto-setup>`_,
   `Accelerate <https://github.com/huggingface/accelerate/blob/main/examples/README.md#simple-multi-gpu-hardware-launcher>`_
   and 🦜🔗 `Langchain <https://python.langchain.com/en/latest/modules/models/llms/integrations/runhouse.html>`_.
-
-* 👩‍🔬 **ML Researchers and Data Scientists** who don't want to spend or wait 3-6 months translating and packaging
-  their work for production.
-
-* 👩‍🏭 **ML Engineers** who want to be able to update and improve production services, pipelines, and artifacts with a
-  Pythonic, debuggable devX.
-
-* 👩‍🔧 **ML Platform teams** who want a versioned, shared, maintainable stack of services and data artifacts that
-  research and production pipelines both depend on.
 
 
 Table of Contents

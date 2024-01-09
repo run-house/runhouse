@@ -1,0 +1,24 @@
+name: Setup an RH config
+
+description: Reusable short flow for setting up a fake ~/.rh/config.yaml
+
+inputs:
+  username:
+    description: 'The username to log in with'
+    required: true
+
+  token:
+    description: 'The token of the logged in username'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Setup ~/.rh/config.yaml
+      shell: bash
+      run: |
+        mkdir ~/.rh && touch ~/.rh/config.yaml
+        echo "default_folder: /${{ inputs.username }}" > ~/.rh/config.yaml
+        echo "disable_data_collection: true" >> ~/.rh/config.yaml
+        echo "token: ${{ inputs.token }}" >> ~/.rh/config.yaml
+        echo "username: ${{ inputs.username }}" >> ~/.rh/config.yaml

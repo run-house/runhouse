@@ -40,7 +40,7 @@ def run_performance_tests(summer_func):
         lambda: requests.post(
             call_url,
             json={"args": [1, 2]},
-            headers=rns_client.request_headers if cluster.den_auth else None,
+            headers=rns_client.request_headers() if cluster.den_auth else None,
             verify=cluster.client.verify,
         ).json()
         == 3
@@ -48,13 +48,11 @@ def run_performance_tests(summer_func):
     print(f"{suffix} call took {round(avg_time, 2)} ms: {times_list}")
 
 
-@pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_roundtrip_performance(summer_func):
     run_performance_tests(summer_func)
 
 
-@pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_https_roundtrip_performance(summer_func_with_auth):
     run_performance_tests(summer_func_with_auth)

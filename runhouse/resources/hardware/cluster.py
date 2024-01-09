@@ -1,5 +1,7 @@
+import asyncio
 import contextlib
 import copy
+import json
 import logging
 import os
 import pkgutil
@@ -9,6 +11,7 @@ import sys
 import threading
 import time
 import warnings
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -19,15 +22,16 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import requests.exceptions
 import sshtunnel
+from sshtunnel import SSHTunnelForwarder
 
-from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
-
-from runhouse.globals import obj_store, open_cluster_tunnels, rns_client
+from runhouse.constants import CLUSTER_CONFIG_PATH, LOCALHOST
+from runhouse.globals import obj_store, rns_client
 from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware.utils import (
     _current_cluster,
     ServerConnectionType,
     SkySSHRunner,
+    ssh_tunnel,
     SshMode,
 )
 from runhouse.resources.resource import Resource
@@ -45,7 +49,6 @@ class Cluster(Resource):
     DEFAULT_HTTP_PORT = 80
     DEFAULT_HTTPS_PORT = 443
     DEFAULT_SSH_PORT = 22
-    LOCALHOST = "127.0.0.1"
     LOCAL_HOSTS = ["localhost", LOCALHOST]
 
     SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
@@ -117,19 +120,18 @@ class Cluster(Resource):
         self.ips = self.ips or [None]
         self.ips[0] = addr
 
-    def save_config_to_cluster(self):
-        import json
-
+    def save_config_to_cluster(self, node: str = None):
         config = self.config_for_rns
         if "live_state" in config.keys():
-            # a bunch of setup commands that mess up json dump
+            # a bunch of setup commands that mess up dumping
             del config["live_state"]
         json_config = f"{json.dumps(config)}"
 
         self.run(
             [
-                f"mkdir -p ~/.rh; touch ~/.rh/cluster_config.yaml; echo '{json_config}' > ~/.rh/cluster_config.yaml"
-            ]
+                f"mkdir -p ~/.rh; touch {CLUSTER_CONFIG_PATH}; echo '{json_config}' > {CLUSTER_CONFIG_PATH}"
+            ],
+            node=node,
         )
 
     @staticmethod
@@ -165,7 +167,7 @@ class Cluster(Resource):
             ],
         )
         if self.is_up():
-            config["ssh_creds"] = self.ssh_creds()
+            config["ssh_creds"] = self.ssh_creds
 
         if self._use_custom_cert:
             config["ssl_certfile"] = self.cert_config.cert_path
@@ -175,12 +177,51 @@ class Cluster(Resource):
 
         return config
 
+    def endpoint(self, external=False):
+        """Endpoint for the cluster's RPC server. If external is True, will only return the external url,
+        and will return None otherwise (e.g. if a tunnel is required). If external is False, will either return
+        the external url if it exists, or will set up the connection (based on connection_type) and return
+        the internal url (including the local connected port rather than the sever port). If cluster is not up,
+        returns None.
+        """
+        if not self.is_up():
+            return None
+
+        if self.server_connection_type in [
+            ServerConnectionType.NONE,
+            ServerConnectionType.TLS,
+        ]:
+            url_base = (
+                "https"
+                if self.server_connection_type == ServerConnectionType.TLS
+                else "http"
+            )
+            return f"{url_base}://{self.address}:{self.server_port}"
+
+        if external:
+            return None
+
+        if self.server_connection_type in [
+            ServerConnectionType.SSH,
+            ServerConnectionType.AWS_SSM,
+        ]:
+            self.check_server()
+            return f"http://{LOCALHOST}:{self.client_port}"
+
+    def _client(self, restart_server=True):
+        if self.on_this_cluster():
+            return None
+            # return obj_store  # TODO next PR
+        if not self.client:
+            self.check_server(restart_server=restart_server)
+        return self.client
+
     @property
     def server_address(self):
         """Address to use in the requests made to the cluster. If creating an SSH tunnel with the cluster,
         ths will be set to localhost, otherwise will use the cluster's public IP address."""
-        if self.server_host in [self.LOCALHOST, "localhost"]:
-            return self.LOCALHOST
+        if self.server_host in [LOCALHOST, "localhost"]:
+            return LOCALHOST
         return self.address
 
     def is_up(self) -> bool:
@@ -199,6 +240,8 @@ class Cluster(Resource):
             >>> rh.cluster("rh-cpu").up_if_not()
         """
         if not self.is_up():
+            # Don't store stale IPs
+            self.ips = None
             if not hasattr(self, "up"):
                 raise NotImplementedError(
                     f"Cluster <{self.name}> does not have an up method."
@@ -215,11 +258,22 @@ class Cluster(Resource):
         )
         return self
 
-    def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
-        if not self.address:
-            raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
+    def _sync_to_nodes(self, _rh_install_url: str, node: str):
+        """Sync to all cluster nodes (head node + workers where relevant)"""
+        try:
+            # Assuming _sync_runhouse_to_cluster and save_config_to_cluster are process-safe
+            self._sync_runhouse_to_cluster(_install_url=_rh_install_url, node=node)
 
+            # TODO: Deprecate once config is stored via Ray
+            # Update the cluster config on the cluster
+            self.save_config_to_cluster(node=node)
+
+        except Exception as e:
+            raise e
+
+    def _sync_runhouse_to_cluster(self, node: str = None, _install_url=None, env=None):
         local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
+        node = node or self.address
 
         # Check if runhouse is installed from source and has setup.py
         if (
@@ -234,6 +288,7 @@ class Cluster(Resource):
             self._rsync(
                 source=str(local_rh_package_path),
                 dest=dest_path,
+                node=node,
                 up=True,
                 contents=True,
                 filter_options="- docs/",
@@ -253,7 +308,7 @@ class Cluster(Resource):
 
         install_cmd = f"{env._run_cmd} {rh_install_cmd}" if env else rh_install_cmd
 
-        status_codes = self.run([install_cmd], stream_logs=True)
+        status_codes = self.run([install_cmd], node=node, stream_logs=True)
 
         if status_codes[0][0] != 0:
             raise ValueError(f"Error installing runhouse on cluster <{self.name}>")
@@ -306,12 +361,13 @@ class Cluster(Resource):
         self.check_server()
         return self.get(run_name, remote=True).provenance
 
-    # TODO this doesn't need to be a dedicated rpc, it can just flow through Secrets.to and put_resource,
-    #  like installing packages. Also, it should accept an env (for env var secrets and docker envs).
-    def add_secrets(self, provider_secrets: dict):
+    # TODO This should accept an env (for env var secrets and docker envs).
+    def add_secrets(
+        self, provider_secrets: List[str or "Secret"], env: Union[str, "Env"] = None
+    ):
         """Copy secrets from current environment onto the cluster"""
         self.check_server()
-        return self.client.add_secrets(provider_secrets)
+        self.sync_secrets(provider_secrets, env=env)
 
     def put(self, key: str, obj: Any, env=None):
         """Put the given object on the cluster's object store at the given key."""
@@ -320,10 +376,10 @@ class Cluster(Resource):
             return obj_store.put(key, obj, env=env)
         return self.client.put_object(key, obj, env=env)
 
-    def put_resource(self, resource: Resource, state=None, dryrun=False):
+    def put_resource(self, resource: Resource, state=None, dryrun=False, env=None):
         """Put the given resource on the cluster's object store. Returns the key (important if name is not set)."""
         self.check_server()
-        env = (
+        env = env or (
             resource.env
             if hasattr(resource, "env")
             else resource.name or resource.env_name
@@ -393,66 +449,53 @@ class Cluster(Resource):
 
         if self._rpc_tunnel and force_reconnect:
             self._rpc_tunnel.close()
+            self._rpc_tunnel = None
 
-        ssh_tunnel = None
-        connected_port = None
-        if (self.address, self.ssh_port) in open_cluster_tunnels:
-            ssh_tunnel, connected_port = open_cluster_tunnels[
-                (self.address, self.ssh_port)
-            ]
-            if isinstance(ssh_tunnel, SSHTunnelForwarder):
-                ssh_tunnel.check_tunnels()
-                if ssh_tunnel.tunnel_is_up[ssh_tunnel.local_bind_address]:
-                    self._rpc_tunnel = ssh_tunnel
-
-        if (
-            self.server_connection_type
-            not in [ServerConnectionType.NONE, ServerConnectionType.TLS]
-            and ssh_tunnel is None
-        ):
-            # Case 3: server connection requires SSH tunnel, but we don't have one up yet
-            self._rpc_tunnel, connected_port = self.ssh_tunnel(
-                local_port=self.server_port,
-                remote_port=self.server_port,
-                num_ports_to_try=10,
-            )
-
-        open_cluster_tunnels[(self.address, self.ssh_port)] = (
-            self._rpc_tunnel,
-            connected_port,
-        )
-
-        if self._rpc_tunnel:
-            logger.info(
-                f"Connecting to server via SSH, port forwarding via port {connected_port}."
-            )
-
-        self.client_port = connected_port or self.client_port or self.server_port
-        use_https = self._use_https
-        cert_path = self.cert_config.cert_path if use_https else None
-
-        # Connecting to localhost because it's tunneled into the server at the specified port.
-        creds = self.ssh_creds()
         if self.server_connection_type in [
             ServerConnectionType.SSH,
             ServerConnectionType.AWS_SSM,
         ]:
-            ssh_user = creds.get("ssh_user")
-            password = creds.get("password")
+            # Case 1: Server connection requires SSH tunnel, but we don't have one up yet
+            self._rpc_tunnel = self.ssh_tunnel(
+                local_port=self.server_port,
+                remote_port=self.server_port,
+                num_ports_to_try=10,
+            )
+            self.client_port = self._rpc_tunnel.local_bind_port
+
+            ssh_user = self.ssh_creds.get("ssh_user")
+            password = self.ssh_creds.get("password")
             auth = (ssh_user, password) if ssh_user and password else None
+
+            # Connecting to localhost because it's tunneled into the server at the specified port.
+            # As long as the tunnel was initialized,
+            # self.client_port has been set to the correct port
             self.client = HTTPClient(
-                host=self.LOCALHOST,
+                host=LOCALHOST,
                 port=self.client_port,
                 auth=auth,
-                cert_path=cert_path,
-                use_https=use_https,
+                system=self,
             )
+
         else:
+            # Case 2: We're making a direct connection to the server, either via HTTP or HTTPS
+            if self.server_connection_type not in [
+                ServerConnectionType.NONE,
+                ServerConnectionType.TLS,
+            ]:
+                raise ValueError(
+                    f"Unknown server connection type {self.server_connection_type}."
+                )
+
+            cert_path = self.cert_config.cert_path if self._use_https else None
+            self.client_port = self.client_port or self.server_port
+
             self.client = HTTPClient(
                 host=self.server_address,
                 port=self.client_port,
                 cert_path=cert_path,
-                use_https=use_https,
+                use_https=self._use_https,
+                system=self,
             )
 
     def check_server(self, restart_server=True):
@@ -474,10 +517,6 @@ class Cluster(Resource):
         if not self.client:
             try:
                 self.connect_server_client()
-                cluster_config = self.config_for_rns
-                if "live_state" in cluster_config.keys():
-                    # a bunch of setup commands that mess up json dump
-                    del cluster_config["live_state"]
                 logger.info(f"Checking server {self.name}")
                 self.client.check_server()
                 logger.info(f"Server {self.name} is up.")
@@ -515,65 +554,15 @@ class Cluster(Resource):
 
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
-    ) -> Tuple[SSHTunnelForwarder, int]:
-        # Debugging cmds (mac):
-        # netstat -vanp tcp | grep 32300
-        # lsof -i :32300
-        # kill -9 <pid>
-        open_tunnel = open_cluster_tunnels.get((self.address, self.ssh_port))
-        if open_tunnel is not None:
-            tunnel, port = open_tunnel
-            if (
-                port == local_port
-                and tunnel
-                and tunnel.remote_bind_address[1] == (remote_port or local_port)
-            ):
-                logger.info(
-                    f"SSH tunnel on ports {local_port, remote_port} already created with the cluster."
-                )
-                return tunnel, local_port
-
-        creds: dict = self.ssh_creds()
-        connected = False
-        ssh_tunnel = None
-        while not connected:
-            try:
-                if local_port > local_port + num_ports_to_try:
-                    raise Exception(
-                        f"Failed to create SSH tunnel after {num_ports_to_try} attempts"
-                    )
-
-                if creds.get("ssh_proxy_command"):
-                    # Start a tunnel using self.run in a thread, instead of ssh_tunnel
-                    ssh_credentials = copy.copy(self.ssh_creds())
-                    host = ssh_credentials.pop("ssh_host", self.address)
-                    runner = SkySSHRunner(host, **ssh_credentials, port=self.ssh_port)
-                    runner.tunnel(local_port, remote_port)
-                    ssh_tunnel = runner  # Just to keep the object in memory
-                else:
-                    ssh_tunnel = SSHTunnelForwarder(
-                        self.address,
-                        ssh_username=creds.get("ssh_user"),
-                        ssh_pkey=creds.get("ssh_private_key"),
-                        ssh_password=creds.get("password"),
-                        ssh_port=self.ssh_port,
-                        local_bind_address=("", local_port),
-                        remote_bind_address=(
-                            self.LOCALHOST,
-                            remote_port or local_port,
-                        ),
-                        set_keepalive=1,
-                        # mute_exceptions=True,
-                    )
-                    ssh_tunnel.start()
-                connected = True
-            except HandlerSSHTunnelForwarderError:
-                # try connecting with a different port - most likely the issue is the port is already taken
-                local_port += 1
-                num_ports_to_try -= 1
-                pass
-
-        return ssh_tunnel, local_port
+    ) -> SSHTunnelForwarder:
+        return ssh_tunnel(
+            address=self.address,
+            ssh_creds=self.ssh_creds,
+            local_port=local_port,
+            ssh_port=self.ssh_port,
+            remote_port=remote_port,
+            num_ports_to_try=num_ports_to_try,
+        )
 
     @property
     def _use_https(self) -> bool:
@@ -628,7 +617,7 @@ class Cluster(Resource):
         den_auth,
         ssl_keyfile,
         ssl_certfile,
-        force_reinstall,
+        restart_proxy,
         use_nginx,
         certs_address,
         use_local_telemetry,
@@ -667,10 +656,10 @@ class Cluster(Resource):
             logger.info("Starting server with Den auth.")
             flags.append(den_auth_flag)
 
-        force_reinstall_flag = " --force-reinstall" if force_reinstall else ""
-        if force_reinstall_flag:
+        restart_proxy_flag = " --restart-proxy" if restart_proxy else ""
+        if restart_proxy_flag:
             logger.info("Reinstalling Nginx and server configs.")
-            flags.append(force_reinstall_flag)
+            flags.append(restart_proxy_flag)
 
         use_nginx_flag = " --use-nginx" if use_nginx else ""
         if use_nginx_flag:
@@ -762,10 +751,9 @@ class Cluster(Resource):
         logger.info(f"Restarting Runhouse API server on {self.name}.")
 
         if resync_rh:
-            self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
-
-        # Update the cluster config on the cluster
-        self.save_config_to_cluster()
+            # Sync Runhouse & configs across all cluster nodes in parallel
+            self._sync_across_all_nodes(_rh_install_url)
+            logger.info("Finished syncing Runhouse to cluster nodes.")
 
         use_custom_cert = self._use_custom_cert
         if use_custom_cert:
@@ -901,6 +889,42 @@ class Cluster(Resource):
         if self._rpc_tunnel:
             self._rpc_tunnel.stop()
 
+    def _sync_across_all_nodes(self, _rh_install_url):
+        loop = asyncio.new_event_loop()
+
+        # Set the loop as the default for the current context
+        asyncio.set_event_loop(loop)
+
+        executor = ProcessPoolExecutor()
+
+        try:
+            tasks = [
+                loop.run_in_executor(
+                    executor, self._sync_to_nodes, _rh_install_url, node
+                )
+                for node in self.ips
+            ]
+            loop.run_until_complete(asyncio.gather(*tasks))
+
+        except Exception as e:
+            raise e
+
+        finally:
+            # Cancel all tasks running on the loop
+            for task in asyncio.all_tasks(loop):
+                task.cancel()
+
+            # Wait for all tasks to be cancelled
+            loop.run_until_complete(
+                asyncio.gather(*asyncio.all_tasks(loop), return_exceptions=True)
+            )
+
+            # Shutdown the executor
+            executor.shutdown(wait=True)
+
+            # Close the loop
+            loop.close()
+
     def __getstate__(self):
         """Delete non-serializable elements (e.g. thread locks) before pickling."""
         state = self.__dict__.copy()
@@ -910,15 +934,17 @@ class Cluster(Resource):
 
     # ----------------- SSH Methods ----------------- #
 
+    @property
     def ssh_creds(self):
         """Retrieve SSH credentials."""
-        return self._ssh_creds
+        return self._ssh_creds or {}
 
     def _rsync(
         self,
         source: str,
         dest: str,
         up: bool,
+        node: str = None,
         contents: bool = False,
         filter_options: str = None,
         stream_logs: bool = False,
@@ -930,16 +956,18 @@ class Cluster(Resource):
             Ending `source` with a slash will copy the contents of the directory into dest,
             while omitting it will copy the directory itself (adding a directory layer).
         """
+        # If no address provided explicitly use the head node address
+        node = node or self.address
         # FYI, could be useful: https://github.com/gchamon/sysrsync
         if contents:
             source = source + "/" if not source.endswith("/") else source
             dest = dest + "/" if not dest.endswith("/") else dest
 
-        ssh_credentials = copy.copy(self.ssh_creds()) or {}
-        ssh_credentials.pop("ssh_host", self.address)
+        ssh_credentials = copy.copy(self.ssh_creds) or {}
+        ssh_credentials.pop("ssh_host", node)
         pwd = ssh_credentials.pop("password", None)
 
-        runner = SkySSHRunner(self.address, **ssh_credentials, port=self.ssh_port)
+        runner = SkySSHRunner(node, **ssh_credentials, port=self.ssh_port)
         if not pwd:
             if up:
                 runner.run(["mkdir", "-p", dest], stream_logs=False)
@@ -1001,7 +1029,7 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("rh-cpu").ssh()
         """
-        creds = self.ssh_creds()
+        creds = self.ssh_creds
 
         if creds.get("ssh_private_key"):
             cmd = (
@@ -1028,6 +1056,7 @@ class Cluster(Resource):
         stream_logs: bool = True,
         port_forward: Union[None, int, Tuple[int, int]] = None,
         require_outputs: bool = True,
+        node: Optional[str] = None,
         run_name: Optional[str] = None,
     ) -> list:
         """Run a list of shell commands on the cluster. If `run_name` is provided, the commands will be
@@ -1035,8 +1064,9 @@ class Cluster(Resource):
 
         Example:
             >>> cpu.run(["pip install numpy"])
-            >>> cpu.run(["pip install numpy", env="my_conda_env"])
+            >>> cpu.run(["pip install numpy"], env="my_conda_env"])
             >>> cpu.run(["python script.py"], run_name="my_exp")
+            >>> cpu.run(["python script.py"], node="3.89.174.234")
         """
         # TODO [DG] suspend autostop while running
         from runhouse.resources.provenance import run
@@ -1052,13 +1082,23 @@ class Cluster(Resource):
         if not run_name:
             # If not creating a Run then just run the commands via SSH and return
             return self._run_commands_with_ssh(
-                commands, cmd_prefix, stream_logs, port_forward, require_outputs
+                commands,
+                cmd_prefix,
+                stream_logs,
+                node,
+                port_forward,
+                require_outputs,
             )
 
         # Create and save the Run locally
         with run(name=run_name, cmds=commands, overwrite=True) as r:
             return_codes = self._run_commands_with_ssh(
-                commands, cmd_prefix, stream_logs, port_forward, require_outputs
+                commands,
+                cmd_prefix,
+                stream_logs,
+                node,
+                port_forward,
+                require_outputs,
             )
 
         # Register the completed Run
@@ -1071,13 +1111,14 @@ class Cluster(Resource):
         commands: list,
         cmd_prefix: str,
         stream_logs: bool,
+        node: str = None,
         port_forward: int = None,
         require_outputs: bool = True,
     ):
         return_codes = []
 
-        ssh_credentials = copy.copy(self.ssh_creds())
-        host = ssh_credentials.pop("ssh_host", self.address)
+        ssh_credentials = copy.copy(self.ssh_creds)
+        host = ssh_credentials.pop("ssh_host", node or self.address)
         pwd = ssh_credentials.pop("password", None)
 
         runner = SkySSHRunner(host, **ssh_credentials, port=self.ssh_port)
@@ -1132,19 +1173,23 @@ class Cluster(Resource):
         commands: List[str],
         env: Union["Env", str] = None,
         stream_logs: bool = True,
+        node: str = None,
         port_forward: Optional[int] = None,
         run_name: Optional[str] = None,
     ):
-        """Run a list of python commands on the cluster.
+        """Run a list of python commands on the cluster, or a specific cluster node if its IP is provided.
 
         Example:
             >>> cpu.run_python(['import numpy', 'print(numpy.__version__)'])
             >>> cpu.run_python(["print('hello')"])
+            >>> cpu.run_python(["print('hello')"], node="3.89.174.234")
 
         Note:
             Running Python commands with nested quotes can be finicky. If using nested quotes,
             try to wrap the outer quote with double quotes (") and the inner quotes with a single quote (').
         """
+        # If no node provided, assume the commands are to be run on the head node
+        node = node or self.address
         cmd_prefix = "python3 -c"
         if env:
             if isinstance(env, str):
@@ -1155,7 +1200,7 @@ class Cluster(Resource):
         command_str = "; ".join(commands)
         command_str_repr = (
             repr(repr(command_str))[2:-2]
-            if self.ssh_creds().get("password")
+            if self.ssh_creds.get("password")
             else command_str
         )
         formatted_command = f'{cmd_prefix} "{command_str_repr}"'
@@ -1165,13 +1210,18 @@ class Cluster(Resource):
             [formatted_command],
             env=env,
             stream_logs=stream_logs,
+            node=node,
             port_forward=port_forward,
             run_name=run_name,
         )
 
         return return_codes
 
-    def sync_secrets(self, providers: Optional[List[str]] = None):
+    def sync_secrets(
+        self,
+        providers: Optional[List[str or "Secret"]] = None,
+        env: Union[str, "Env"] = None,
+    ):
         """Send secrets for the given providers.
 
         Args:
@@ -1179,13 +1229,30 @@ class Cluster(Resource):
                 If `None`, all providers configured in the environment will by sent.
 
         Example:
-            >>> cpu.sync_secrets(providers=["aws", "lambda"])
+            >>> cpu.sync_secrets(secrets=["aws", "lambda"])
         """
         self.check_server()
+        from runhouse.resources.secrets import Secret
 
-        from runhouse import Secrets
+        if isinstance(env, str):
+            from runhouse.resources.envs import Env
 
-        Secrets.to(system=self, providers=providers)
+            env = Env.from_name(env)
+
+        secrets = []
+        if providers:
+            for secret in providers:
+                secrets.append(
+                    Secret.from_name(secret) if isinstance(secret, str) else secret
+                )
+        else:
+            secrets = Secret.local_secrets()
+            enabled_provider_secrets = Secret.extract_provider_secrets()
+            secrets.update(enabled_provider_secrets)
+            secrets = secrets.values()
+
+        for secret in secrets:
+            secret.to(self, env=env)
 
     def ipython(self):
         # TODO tunnel into python interpreter in cluster
@@ -1202,7 +1269,12 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("test-cluster").notebook()
         """
-        tunnel, port_fwd = self.ssh_tunnel(local_port=port_forward, num_ports_to_try=10)
+        tunnel = self.ssh_tunnel(
+            local_port=port_forward,
+            num_ports_to_try=10,
+        )
+        port_fwd = tunnel.local_bind_port
+
         try:
             install_cmd = "pip install jupyterlab"
             jupyter_cmd = f"jupyter lab --port {port_fwd} --no-browser"
@@ -1236,7 +1308,27 @@ class Cluster(Resource):
 
     def download_cert(self):
         """Download certificate from the cluster (Note: user must have access to the cluster)"""
+        self.check_server()
         self.client.get_certificate()
         logger.info(
             f"Latest TLS certificate for {self.name} saved to local path: {self.cert_config.cert_path}"
         )
+
+    def enable_den_auth(self, flush=True):
+        """Enable Den auth on the cluster."""
+        self.check_server()
+        if self.on_this_cluster():
+            raise ValueError("Cannot toggle Den Auth live on the cluster.")
+        else:
+            self.den_auth = True
+            self.client.set_settings({"den_auth": True, "flush_auth_cache": flush})
+        return self
+
+    def disable_den_auth(self):
+        self.check_server()
+        if self.on_this_cluster():
+            raise ValueError("Cannot toggle Den Auth live on the cluster.")
+        else:
+            self.den_auth = False
+            self.client.set_settings({"den_auth": False})
+        return self

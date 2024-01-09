@@ -17,7 +17,7 @@ data abstractions (blobs, folders, tables).
 
 Compute Abstractions
 ------------------------------------
-The Function, Cluster, Env, Package, Run, and Module APIs allow a seamless flow of code and execution across local and remote compute.
+The Function, Cluster, Env, Package, and Module APIs allow a seamless flow of code and execution across local and remote compute.
 They blur the line between program execution and deployment, providing both a path of least resistence for running
 a sub-routine on specific hardware, while unceremoniously turning that sub-routine into a reusable service.
 They also provide convenient dependency isolation and management, provider-agnostic provisioning and termination,
@@ -42,11 +42,6 @@ and rich debugging and accessibility interfaces built-in.
    :maxdepth: 1
 
    python/package
-
-.. toctree::
-   :maxdepth: 1
-
-   python/run
 
 .. toctree::
     :maxdepth: 1

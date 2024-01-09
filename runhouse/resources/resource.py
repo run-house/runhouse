@@ -2,6 +2,8 @@ import logging
 
 import pprint
 import sys
+import warnings
+from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -13,7 +15,12 @@ from runhouse.rns.top_level_rns_fns import (
     save,
     split_rns_name_and_path,
 )
-from runhouse.rns.utils.api import load_resp_content, read_resp_data, ResourceAccess
+from runhouse.rns.utils.api import (
+    load_resp_content,
+    read_resp_data,
+    ResourceAccess,
+    ResourceVisibility,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +33,8 @@ class Resource:
         name: Optional[str] = None,
         dryrun: bool = False,
         provenance=None,
+        access_level: Optional[ResourceAccess] = ResourceAccess.WRITE,
+        visibility: Optional[ResourceVisibility] = ResourceVisibility.PRIVATE,
         **kwargs,
     ):
         """
@@ -67,6 +76,8 @@ class Resource:
             if isinstance(provenance, Dict)
             else provenance
         )
+        self.access_level = access_level
+        self._visibility = visibility
 
     # TODO add a utility to allow a parameter to be specified as "default" and then use the default value
 
@@ -78,6 +89,12 @@ class Resource:
             "resource_subtype": self.__class__.__name__,
             "provenance": self.provenance.config_for_rns if self.provenance else None,
         }
+        self.save_attrs_to_config(
+            config,
+            [
+                "visibility",  # Handles Enum to string conversion
+            ],
+        )
         return config
 
     def _resource_string_for_subconfig(self, resource):
@@ -118,6 +135,14 @@ class Resource:
             self._name, self._rns_folder = split_rns_name_and_path(
                 resolve_rns_path(name)
             )
+
+    @property
+    def visibility(self):
+        return self._visibility
+
+    @visibility.setter
+    def visibility(self, visibility):
+        self._visibility = visibility
 
     @rns_address.setter
     def rns_address(self, new_address):
@@ -280,7 +305,7 @@ class Resource:
         base_uri = f"{rns_client.api_server_url}/resource/history/{resource_uri}"
         uri = f"{base_uri}?num_entries={num_entries}" if num_entries else base_uri
 
-        resp = requests.get(uri, headers=rns_client.request_headers)
+        resp = requests.get(uri, headers=rns_client.request_headers())
         if resp.status_code != 200:
             logger.warning(f"No resource history found: {load_resp_content(resp)}")
             return []
@@ -298,6 +323,8 @@ class Resource:
         for attr in attrs:
             val = self.__getattribute__(attr)
             if val is not None:
+                if isinstance(val, Enum):
+                    val = val.value
                 config[attr] = val
 
     def is_local(self):
@@ -312,38 +339,60 @@ class Resource:
     # TODO [DG] Implement proper sharing of subresources (with an overload of some kind)
     def share(
         self,
-        users: Union[str, List[str]],
-        access_type: Union[ResourceAccess, str] = ResourceAccess.READ,
+        users: Union[str, List[str]] = None,
+        access_level: Union[ResourceAccess, str] = ResourceAccess.READ,
+        visibility: Optional[Union[ResourceVisibility, str]] = None,
         notify_users: bool = True,
         headers: Optional[Dict] = None,
+        # Deprecated
+        access_type: Union[ResourceAccess, str] = None,
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
-        """Grant access to the resource for the list of users (or a single user). If a user has a Runhouse account they
+        """Grant access to the resource for a list of users (or a single user). If a user has a Runhouse account they
         will receive an email notifying them of their new access. If the user does not have a Runhouse account they will
-        also receive instructions on creating one, after which they will be able to have access to the Resource.
+        also receive instructions on creating one, after which they will be able to have access to the Resource. If
+        ``visibility`` is set to ``public``, users will not be notified.
 
         .. note::
-            You can only grant resource access to other users if you have Write / Read privileges for the Resource.
+            You can only grant access to other users if you have write access to the resource.
 
         Args:
-            users (list or str): list of user emails and / or runhouse account usernames (or a single user).
-            access_type (:obj:`ResourceAccess`, optional): access type to provide for the resource.
-            notify_users (bool): Send email notification to users who have been given access. Defaults to `False`.
-            headers (Optional[Dict]): Request headers to provide for the request to RNS. Contains the user's auth token.
+            users (Union[str, list], optional): Single user or list of user emails and / or runhouse account usernames.
+                If none are provided and ``visibility`` is set to ``public``, resource will be made publicly
+                available to all users.
+            access_level (:obj:`ResourceAccess`, optional): Access level to provide for the resource.
+                Defaults to ``read``.
+            visibility (:obj:`ResourceVisibility`, optional): Type of visibility to provide for the shared
+                resource. Defaults to ``private``.
+            notify_users (bool, optional): Whether to send an email notification to users who have been given access.
+                Note: This is relevant for resources which are not ``shareable``. Defaults to ``True``.
+            headers (dict, optional): Request headers to provide for the request to RNS. Contains the user's auth token.
                 Example: ``{"Authorization": f"Bearer {token}"}``
 
         Returns:
-            Tuple(Dict, Dict):
+            Tuple(Dict, Dict, Set):
 
             `added_users`:
-                users who already have an account and have been granted access to the resource.
+                Users who already have a Runhouse account and have been granted access to the resource.
             `new_users`:
-                users who do not have Runhouse accounts.
+                Users who do not have Runhouse accounts and received notifications via their emails.
+            `valid_users`:
+                Set of valid usernames and emails from ``users`` parameter.
 
         Example:
-            >>> added_users, new_users = my_resource.share(users=["username1", "user2@gmail.com"], access_type='write')
+            >>> # Write access to the resource for these specific users.
+            >>> # Visibility will be set to private (users can search for and view resource in Den dashboard)
+            >>> my_resource.share(users=["username1", "user2@gmail.com"], access_level='write')
+
+            >>> # Make resource public, with read access to the resource for all users
+            >>> my_resource.share(visibility='public')
         """
         if self.name is None:
             raise ValueError("Resource must have a name in order to share")
+
+        if users is None and visibility is None:
+            raise ValueError(
+                "Must specify `visibility` for the resource if no users are provided."
+            )
 
         if hasattr(self, "system") and self.system in ["ssh", "sftp"]:
             logger.warning(
@@ -367,20 +416,55 @@ class Resource:
                     f"For example: `{self.name}.to(system='s3')`"
                 )
 
-        if isinstance(access_type, str):
-            access_type = ResourceAccess(access_type)
+        if access_type is not None:
+            warnings.warn("`access_type` is deprecated, please use `access_level`")
+            access_level = access_type
 
-        if not rns_client.exists(self.rns_address):
-            self.save(name=rns_client.local_to_remote_address(self.rns_address))
+        if isinstance(access_level, str):
+            access_level = ResourceAccess(access_level)
+
+        if visibility is not None:
+            # Update the resource in Den with this global visibility value
+            self.visibility = visibility
+
+            logger.info(f"Updating resource with visibility: {self.visibility}")
+
+        self.save()
 
         if isinstance(users, str):
             users = [users]
 
-        added_users, new_users = rns_client.grant_resource_access(
+        added_users, new_users, valid_users = rns_client.grant_resource_access(
             rns_address=self.rns_address,
             user_emails=users,
-            access_type=access_type,
+            access_level=access_level,
             notify_users=notify_users,
             headers=headers,
         )
-        return added_users, new_users
+        return added_users, new_users, valid_users
+
+    def revoke(
+        self, users: Union[str, List[str]] = None, headers: Optional[Dict] = None
+    ):
+        """Revoke access to the resource.
+
+        Args:
+            users (Union[str, str], optional): List of user emails and / or runhouse account usernames
+                (or a single user). If no users are specified will revoke access for all users.
+            headers (Optional[Dict]): Request headers to provide for the request to RNS. Contains the user's auth token.
+                Example: ``{"Authorization": f"Bearer {token}"}``
+        """
+        if isinstance(users, str):
+            users = [users]
+
+        request_uri = rns_client.resource_uri(self.rns_address)
+        resp = requests.put(
+            f"{rns_client.api_server_url}/resource/{request_uri}/users/access",
+            json={"users": users, "access_level": ResourceAccess.DENIED},
+            headers=headers or rns_client.request_headers(),
+        )
+
+        if resp.status_code != 200:
+            raise Exception(
+                f"Failed to revoke access for resource: {load_resp_content(resp)}"
+            )

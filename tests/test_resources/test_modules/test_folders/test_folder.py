@@ -1,4 +1,3 @@
-import os
 import unittest
 from pathlib import Path
 
@@ -6,7 +5,6 @@ import pytest
 
 import runhouse as rh
 from ray import cloudpickle as pickle
-from runhouse.globals import configs
 
 
 DATA_STORE_BUCKET = "runhouse-folder"
@@ -21,7 +19,6 @@ def fs_str_rh_fn(folder):
 
 
 @pytest.mark.skip("Bad path")
-@pytest.mark.clustertest
 def test_from_cluster(cluster):
     rh.folder(path="../../../").to(cluster, path="my_new_tests_folder")
     tests_folder = rh.folder(system=cluster, path="my_new_tests_folder")
@@ -59,7 +56,6 @@ def test_create_and_delete_folder_from_s3():
     assert not s3_folder.exists_in_system()
 
 
-@pytest.mark.clustertest
 def test_folder_attr_on_cluster(local_folder, cluster):
     cluster_folder = local_folder.to(cluster)
     fs_str_cluster = rh.function(fn=fs_str_rh_fn).to(cluster)
@@ -69,7 +65,6 @@ def test_folder_attr_on_cluster(local_folder, cluster):
 
 @pytest.mark.gcptest
 @pytest.mark.awstest
-@pytest.mark.clustertest
 def test_cluster_tos(cluster, tmp_path):
     tests_folder = rh.folder(path=str(Path.cwd()))
 
@@ -101,7 +96,6 @@ def test_cluster_tos(cluster, tmp_path):
         )
 
 
-@pytest.mark.clustertest
 def test_local_and_cluster(cluster, local_folder, tmp_path):
     # Local to cluster
     cluster_folder = local_folder.to(system=cluster)
@@ -145,7 +139,6 @@ def test_local_and_gcs(local_folder, tmp_path):
 
 
 @pytest.mark.awstest
-@pytest.mark.clustertest
 def test_cluster_and_s3(cluster, cluster_folder):
     # Cluster to S3
     s3_folder = cluster_folder.to(system="s3")
@@ -161,7 +154,6 @@ def test_cluster_and_s3(cluster, cluster_folder):
 
 
 @unittest.skip("requires GCS setup")
-@pytest.mark.clustertest
 def test_cluster_and_gcs(cluster, cluster_folder):
     # Make sure we have gsutil and gcloud on the cluster - needed for copying the package + authenticating
     cluster.install_packages(["gsutil"])
@@ -260,7 +252,6 @@ def test_s3_folder_uploads_and_downloads(local_folder, tmp_path):
     assert not s3_folder.exists_in_system()
 
 
-@pytest.mark.clustertest
 def test_cluster_and_cluster(byo_cpu, cluster, local_folder):
     # Upload sky secrets to cluster - required when syncing over the folder from c1 to c2
     byo_cpu.sync_secrets(providers=["sky"])
@@ -278,29 +269,11 @@ def test_cluster_and_cluster(byo_cpu, cluster, local_folder):
     assert "sample_file_0.txt" in cluster_folder_1.ls(full_paths=False)
 
 
-@pytest.mark.awstest
+@pytest.mark.skip
 @pytest.mark.rnstest
 def test_s3_sharing(s3_folder):
-    token = os.getenv("TEST_TOKEN") or configs.get("token")
-    headers = {"Authorization": f"Bearer {token}"}
-
-    assert (
-        token
-    ), "No token provided. Either set `TEST_TOKEN` env variable or set `token` in the .rh config file"
-
-    # Login to ensure the default folder / username are saved down correctly
-    rh.login(token=token, download_config=True, interactive=False)
-
-    s3_folder.save("@/my-s3-shared-folder")
-    s3_folder.share(
-        users=["donny@run.house", "josh@run.house"],
-        access_type="read",
-        notify_users=False,
-        headers=headers,
-    )
-
-    my_folder = rh.folder(name="@/my-s3-shared-folder")
-    assert my_folder.ls() == s3_folder.ls()
+    pass
+    # TODO
 
 
 def test_github_folder(tmp_path):

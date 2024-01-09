@@ -15,11 +15,11 @@ logger = logging.getLogger(__name__)
 
 configs = Defaults()
 
-open_cluster_tunnels = {}
+ssh_tunnel_cache = {}
 
 rns_client = RNSClient(configs=configs)
 
 # Note: this initalizes a dummy global object. The obj_store must
-# be properly initialized by a servlet via set_name.
+# be properly initialized by a servlet via initialize.
 obj_store = ObjStore()
 env_servlets = {}

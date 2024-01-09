@@ -29,54 +29,26 @@ def sd_generate_image(prompt):
     return model(prompt).images[0]
 
 
-@pytest.mark.clustertest
 def test_cluster_config(ondemand_cpu_cluster):
     config = ondemand_cpu_cluster.config_for_rns
     cluster2 = OnDemandCluster.from_config(config)
     assert cluster2.address == ondemand_cpu_cluster.address
 
 
-@pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_cluster_sharing(ondemand_cpu_cluster):
     ondemand_cpu_cluster.share(
         users=["donny@run.house", "josh@run.house"],
-        access_type="write",
+        access_level="write",
         notify_users=False,
     )
     assert True
 
 
-@pytest.mark.clustertest
 def test_read_shared_cluster(ondemand_cpu_cluster):
     res = ondemand_cpu_cluster.run_python(["import numpy", "print(numpy.__version__)"])
     assert res[0][1]
 
-
-# @pytest.mark.level("minimal")
-# @pytest.mark.clustertest
-# def test_read_shared_k8s_cluster(kubernetes_cpu_cluster):
-#     res = kubernetes_cpu_cluster.run_python(
-#         ["import numpy", "print(numpy.__version__)"]
-#     )
-#     assert res[0][1]
-
-
-# @pytest.mark.level("minimal")
-# @pytest.mark.clustertest
-# def test_function_on_k8s_cluster(kubernetes_cpu_cluster):
-#     def num_cpus():
-#         import multiprocessing
-
-#         return f"Num cpus: {multiprocessing.cpu_count()}"
-
-#     num_cpus_cluster = rh.function(name="num_cpus_cluster", fn=num_cpus).to(
-#         system=kubernetes_cpu_cluster, reqs=["./"]
-#     )
-#     assert num_cpus_cluster() == "Num cpus: 4"
-
-
-@pytest.mark.clustertest
 def test_install(cluster):
     cluster.install_packages(
         [
@@ -88,7 +60,6 @@ def test_install(cluster):
     )
 
 
-@pytest.mark.clustertest
 def test_basic_run(cluster):
     # Create temp file where fn's will be stored
     test_cmd = "echo hi"
@@ -96,14 +67,12 @@ def test_basic_run(cluster):
     assert "hi" in res[0][1]
 
 
-@pytest.mark.clustertest
 def test_restart_server(cluster):
     cluster.up_if_not()
     codes = cluster.restart_server(resync_rh=False)
     assert codes
 
 
-@pytest.mark.clustertest
 def test_on_same_cluster(cluster):
     hw_copy = copy.copy(cluster)
 
@@ -112,13 +81,11 @@ def test_on_same_cluster(cluster):
     assert func_hw(hw_copy)
 
 
-@pytest.mark.clustertest
 def test_on_diff_cluster(ondemand_cpu_cluster, byo_cpu):
     func_hw = rh.function(is_on_cluster).to(ondemand_cpu_cluster)
     assert not func_hw(byo_cpu)
 
 
-@pytest.mark.clustertest
 def test_byo_cluster(byo_cpu, local_folder):
     from tests.test_resources.test_modules.test_functions.conftest import summer
 
@@ -134,7 +101,6 @@ def test_byo_cluster(byo_cpu, local_folder):
     assert "sample_file_0.txt" in local_folder.ls(full_paths=False)
 
 
-@pytest.mark.clustertest
 def test_byo_cluster_with_https(byo_cpu):
     tls_connection = ServerConnectionType.TLS.value
     byo_cpu.server_connection_type = tls_connection
@@ -149,7 +115,6 @@ def test_byo_cluster_with_https(byo_cpu):
     byo_cpu.install_packages(["numpy"])
 
 
-@pytest.mark.clustertest
 def test_byo_proxy(byo_cpu, local_folder):
     from tests.test_resources.test_modules.test_functions.conftest import summer
 
@@ -179,18 +144,17 @@ def test_byo_proxy(byo_cpu, local_folder):
     # assert "sample_file_0.txt" in local_folder.ls(full_paths=False)
 
 
-@pytest.mark.clustertest
 def test_cluster_with_den_auth(ondemand_https_cluster_with_auth, summer_func_with_auth):
     ondemand_https_cluster_with_auth.restart_server()
     from runhouse.globals import configs
 
     # Create an invalid token, confirm the server does not accept the request
-    orig_token = configs.get("token")
+    orig_token = configs.token
 
     # Request should return 200 using a valid token
     summer_func_with_auth(1, 2)
 
-    configs.set("token", "abcd123")
+    configs.token = "abcd123"
 
     try:
         # Request should raise an exception with an invalid token
@@ -198,10 +162,9 @@ def test_cluster_with_den_auth(ondemand_https_cluster_with_auth, summer_func_wit
     except ValueError as e:
         assert "Invalid or expired token" in str(e)
 
-    configs.set("token", orig_token)
+    configs.token = orig_token
 
 
-@pytest.mark.clustertest
 def test_start_server_with_custom_certs(
     ondemand_https_cluster_with_auth, summer_func_with_auth
 ):

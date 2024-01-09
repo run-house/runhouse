@@ -1,6 +1,7 @@
 chardet==4.0.0
 myst-parser==2.0.0
 opentelemetry-api==1.20.0
+opentelemetry-exporter-otlp-proto-http==1.20.0
 opentelemetry-instrumentation==0.41b0
 opentelemetry-instrumentation-fastapi==0.41b0
 opentelemetry-instrumentation-requests==0.41b0

@@ -4,7 +4,7 @@ import os
 import pkgutil
 import shutil
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Set
 
 import dotenv
 
@@ -24,8 +24,13 @@ logger = logging.getLogger(__name__)
 class RNSClient:
     """Manage a particular resource with the runhouse database"""
 
-    CORE_RNS_FIELDS = ["name", "resource_type", "folder", "users", "groups"]
-    # RH_BUILTINS_FOLDER = '/builtins'
+    CORE_RNS_FIELDS = [
+        "name",
+        "resource_type",
+        "visibility",
+        "folder",
+        "users",
+    ]
     DEFAULT_FS = "file"
 
     def __init__(self, configs) -> None:
@@ -64,7 +69,7 @@ class RNSClient:
         )
         use_rns = (
             ["rns"]
-            if self._configs.get("use_rns", self._configs.get("token", False))
+            if self._configs.get("use_rns", self._configs.token or False)
             else []
         )
 
@@ -111,11 +116,11 @@ class RNSClient:
         # 4. User's cwd
 
         for search_target in [
-            "rh",
             ".git",
-            "requirements.txt",
             "setup.py",
             "pyproject.toml",
+            "rh",
+            "requirements.txt",
         ]:
             dir_with_target = cls.find_parent_with_file(cwd, search_target)
             if dir_with_target is not None:
@@ -125,17 +130,11 @@ class RNSClient:
 
     @property
     def default_folder(self):
-        folder = self._configs.get("default_folder")
-        if folder in [None, "~"] and self._configs.get("username"):
-            folder = "/" + self._configs.get("username")
-            self._configs.set("default_folder", folder)
-        return folder
+        return self._configs.default_folder
 
     @property
     def current_folder(self):
-        if not self._current_folder:
-            self._current_folder = self.default_folder
-        return self._current_folder
+        return self._current_folder if self._current_folder else self.default_folder
 
     @current_folder.setter
     def current_folder(self, value):
@@ -143,7 +142,7 @@ class RNSClient:
 
     @property
     def token(self):
-        return self._configs.get("token", None)
+        return self._configs.token
 
     @property
     def api_server_url(self):
@@ -179,7 +178,6 @@ class RNSClient:
     def remote_to_local_address(self, rns_address):
         return rns_address.replace(self.default_folder, "~")
 
-    @property
     def request_headers(self):
         return self._configs.request_headers
 
@@ -194,33 +192,38 @@ class RNSClient:
         payload["data"] = data
         return payload
 
-    def load_account_from_env(self) -> Dict[str, str]:
-        dotenv.load_dotenv()
+    def load_account_from_env(
+        self, token_env_var="RH_TOKEN", usr_env_var="RH_USERNAME", dotenv_path=None
+    ) -> Dict[str, str]:
+        dotenv.load_dotenv(dotenv_path=dotenv_path)
 
-        test_token = os.getenv("TEST_TOKEN")
-        test_username = os.getenv("TEST_USERNAME")
+        test_token = os.getenv(token_env_var)
+        test_username = os.getenv(usr_env_var)
         if not (test_token and test_username):
             return None
 
-        # Hack to avoid actually writing down these values, in case the user stops mid-test and we don't reach the
-        # finally block
-        self._configs.defaults_cache["token"] = test_token
-        self._configs.defaults_cache["username"] = test_username
-        self._configs.defaults_cache["default_folder"] = f"/{test_username}"
+        self._configs.token = test_token
+        self._configs.username = test_username
+        self._configs.default_folder = f"/{test_username}"
 
         # The client caches the folder that is used as the current folder variable, we clear this so it loads the new
         # folder when we switch accounts
         self._current_folder = None
 
         return {
-            "token": self._configs.defaults_cache["token"],
-            "username": self._configs.defaults_cache["username"],
-            "default_folder": self._configs.defaults_cache["default_folder"],
+            "token": self._configs.token,
+            "username": self._configs.username,
+            "default_folder": self._configs.default_folder,
         }
 
     def load_account_from_file(self) -> None:
         # Setting this to None causes it to be loaded from file upon next access
         self._configs.defaults_cache = None
+
+        # Calling with .get explicitly loads from the config.yaml file
+        self._configs.token = self._configs.get("token", None)
+        self._configs.username = self._configs.get("username", None)
+        self._configs.default_folder = self._configs.get("default_folder", None)
 
         # Same as above, for this to correctly load the account/folder from the new cache, it needs to be unset
         self._current_folder = None
@@ -257,17 +260,18 @@ class RNSClient:
 
     def grant_resource_access(
         self,
+        *,
         rns_address: str,
-        user_emails: list,
-        access_type: ResourceAccess,
+        user_emails: list = None,
+        access_level: ResourceAccess,
         notify_users: bool,
         headers: Optional[dict] = None,
     ):
         resource_uri = self.resource_uri(rns_address)
-        headers = headers or self.request_headers
+        headers = headers or self.request_headers()
         access_payload = {
             "users": user_emails,
-            "access_type": access_type,
+            "access_level": access_level,
             "notify_users": notify_users,
         }
         uri = "resource/" + resource_uri
@@ -282,8 +286,9 @@ class RNSClient:
         resp_data: dict = read_resp_data(resp)
         added_users: dict = resp_data.get("added_users", {})
         new_users: dict = resp_data.get("new_users", {})
+        valid_users: Set = resp_data.get("valid_users", set())
 
-        return added_users, new_users
+        return added_users, new_users, valid_users
 
     def load_config(
         self,
@@ -307,9 +312,9 @@ class RNSClient:
         if rns_address.startswith("/"):
             resource_uri = self.resource_uri(name)
             logger.info(f"Attempting to load config for {rns_address} from RNS.")
-            uri = "resource/" + resource_uri
             resp = requests.get(
-                f"{self.api_server_url}/{uri}", headers=self.request_headers
+                f"{self.api_server_url}/resource/{resource_uri}",
+                headers=self.request_headers(),
             )
             if resp.status_code != 200:
                 logger.info(f"No config found in RNS: {load_resp_content(resp)}")
@@ -325,7 +330,7 @@ class RNSClient:
 
     def _load_config_from_local(self, rns_address=None, path=None) -> Optional[dict]:
         """Load config from local file"""
-        # TODO should we handle remote filessytems, or throw an error if system != 'file'?
+        # TODO should we handle remote filesystems, or throw an error if system != 'file'?
         if not path:
             path = self.locate(rns_address, resolve_path=False)
             if not path:
@@ -395,7 +400,7 @@ class RNSClient:
         uri = f"resource/{resource_uri}"
 
         payload = self.resource_request_payload(config)
-        headers = self.request_headers
+        headers = self.request_headers()
         resp = requests.put(
             f"{self.api_server_url}/{uri}", data=json.dumps(payload), headers=headers
         )
@@ -446,7 +451,7 @@ class RNSClient:
             resource_uri = self.resource_uri(rns_address)
             uri = "resource/" + resource_uri
             resp = requests.delete(
-                f"{self.api_server_url}/{uri}", headers=self.request_headers
+                f"{self.api_server_url}/{uri}", headers=self.request_headers()
             )
             if resp.status_code != 200:
                 logger.error(f"Failed to delete_configs <{uri}>")

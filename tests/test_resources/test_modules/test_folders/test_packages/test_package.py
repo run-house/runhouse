@@ -35,7 +35,6 @@ def test_from_string():
         assert p.install_target == "~/runhouse"
 
 
-@pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_share_package(ondemand_cpu_cluster, local_package):
     local_package.to(system=ondemand_cpu_cluster)
@@ -43,7 +42,7 @@ def test_share_package(ondemand_cpu_cluster, local_package):
 
     local_package.share(
         users=["josh@run.house", "donny@run.house"],
-        access_type="write",
+        access_level="write",
         notify_users=False,
     )
 
@@ -64,7 +63,7 @@ def test_share_git_package():
 
     git_package.share(
         users=["donny@run.house", "josh@run.house"],
-        access_type="read",
+        access_level="read",
         notify_users=False,
     )
     assert rh.exists(name="shared_git_package")
@@ -76,7 +75,6 @@ def test_load_shared_git_package():
     assert git_package.config_for_rns
 
 
-@pytest.mark.clustertest
 def test_local_package_function(cluster):
     function = rh.function(fn=summer).to(cluster, env=["./"])
 
@@ -86,7 +84,6 @@ def test_local_package_function(cluster):
     assert req.install_target.system == cluster
 
 
-@pytest.mark.clustertest
 def test_local_package_to_cluster(cluster):
     package = rh.Package.from_string("./").to(cluster)
 
@@ -94,7 +91,6 @@ def test_local_package_to_cluster(cluster):
     assert package.install_target.system == cluster
 
 
-@pytest.mark.clustertest
 def test_mount_local_package_to_cluster(cluster):
     mount_path = "package_mount"
     package = rh.Package.from_string("./").to(cluster, path=mount_path, mount=True)
@@ -104,7 +100,6 @@ def test_mount_local_package_to_cluster(cluster):
     assert mount_path in cluster.run(["ls"])[0][1]
 
 
-@pytest.mark.clustertest
 @pytest.mark.awstest
 def test_package_file_system_to_cluster(cluster, s3_package):
     assert s3_package.install_target.system == "s3"

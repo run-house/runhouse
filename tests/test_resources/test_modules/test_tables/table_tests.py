@@ -557,7 +557,6 @@ def test_shuffling_pyarrow_data_from_s3(arrow_table, table_s3_bucket):
 # -------------------------------------------------
 # ----------------- Cluster tests -----------------
 # -------------------------------------------------
-@pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_create_and_reload_pandas_data_from_cluster(pandas_table, cluster):
     # Make sure the destination folder for the data exists on the cluster
@@ -595,7 +594,6 @@ def test_create_and_reload_pandas_data_from_cluster(pandas_table, cluster):
     assert not reloaded_table.exists_in_system()
 
 
-@pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_create_and_reload_ray_data_from_cluster(ray_table, cluster):
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/ray-data"
@@ -634,7 +632,6 @@ def test_create_and_reload_ray_data_from_cluster(ray_table, cluster):
     assert not reloaded_table.exists_in_system()
 
 
-@pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_create_and_reload_pyarrow_data_from_cluster(arrow_table, cluster):
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/pyarrow-data"
@@ -670,7 +667,6 @@ def test_create_and_reload_pyarrow_data_from_cluster(arrow_table, cluster):
     assert not reloaded_table.exists_in_system()
 
 
-@pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_create_and_reload_huggingface_data_from_cluster(huggingface_table, cluster):
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/hf-data"
@@ -708,7 +704,6 @@ def test_create_and_reload_huggingface_data_from_cluster(huggingface_table, clus
     assert not reloaded_table.exists_in_system()
 
 
-@pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_create_and_reload_dask_data_from_cluster(dask_table, cluster):
     data_path_on_cluster = f"{Folder.DEFAULT_CACHE_FOLDER}/dask-data"
@@ -745,7 +740,6 @@ def test_create_and_reload_dask_data_from_cluster(dask_table, cluster):
     assert not reloaded_table.exists_in_system()
 
 
-@pytest.mark.clustertest
 @pytest.mark.rnstest
 def test_to_cluster_attr(pandas_table, cluster, tmp_path):
     local_path = tmp_path / "table_tests/local_test_table"
@@ -951,7 +945,7 @@ def test_sharing_table(pandas_table):
 
     my_table.share(
         users=["donny@run.house", "josh@run.house"],
-        access_type="write",
+        access_level="write",
         notify_users=False,
     )
 

@@ -1,0 +1,70 @@
+name: Local Den Unit Tests
+
+on: workflow_dispatch
+
+jobs:
+  local-den-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.TEST_AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.TEST_AWS_SECRET_KEY }}
+          aws-region: us-east-1
+
+      - name: Start local MongoDB
+        uses: supercharge/mongodb-github-action@1.10.0
+        with:
+          mongodb-version: '4.0'
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Create env_file for Den container
+        run: |
+          echo "JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}" >> env_file
+          echo "ACCESS_TOKEN_EXPIRE_DAYS=${{ secrets.ACCESS_TOKEN_EXPIRE_DAYS }}" >> env_file
+          echo "TOKEN_URL=${{ secrets.TOKEN_URL }}" >> env_file
+          echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" >> env_file
+          echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" >> env_file
+          echo "GH_CLIENT_ID=${{ secrets.GH_CLIENT_ID }}" >> env_file
+          echo "GH_CLIENT_SECRET=${{ secrets.GH_CLIENT_SECRET }}" >> env_file
+          echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> env_file
+          echo "VAULT_URL=${{ secrets.VAULT_URL }}" >> env_file
+          echo "VAULT_NAMESPACE=${{ secrets.VAULT_NAMESPACE }}" >> env_file
+          echo "VAULT_ROLE_ID=${{ secrets.VAULT_ROLE_ID }}" >> env_file
+          echo "VAULT_SECRET_ID=${{ secrets.VAULT_SECRET_ID }}" >> env_file
+          echo "TEST_ACCOUNT_TOKEN=${{ env.TEST_ACCOUNT_TOKEN }}" >> env_file
+          echo "SHARED_ACCOUNT_TOKEN=${{ env.SHARED_ACCOUNT_TOKEN }}" >> env_file
+          echo "DEV_MODE=true" >> env_file
+
+      - name: Setup Runhouse
+        uses: ./.github/workflows/setup_runhouse
+
+      - name: Setup Runhouse Config
+        uses: ./.github/workflows/setup_rh_config
+        with:
+          username: ${{ secrets.TEST_USERNAME }}
+          token: ${{ secrets.TEST_TOKEN }}
+
+      - name: Update Server URL in Runhouse Config
+        run: |
+          echo "api_server_url: http://localhost:8000" >> ~/.rh/config.yaml
+
+
+      # TODO: pull the latest "prod" tag from ECR
+      - name: Start Den container
+        run: |
+          docker run -d -p 8000:80 --env-file env_file ${{ secrets.ECR_URL }}/runhouse-auth:prod-61370a76
+
+      - name: Run unit tests
+        env:
+          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+        run: pytest -v --level unit

@@ -1,9 +1,8 @@
-import contextlib
 import enum
 
 import pytest
 
-from runhouse.globals import rns_client
+import runhouse as rh
 
 """
 HOW TO USE FIXTURES IN RUNHOUSE TESTS
@@ -31,15 +30,15 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     UNIT = {"cluster": ["named_cluster"]}
     LOCAL = {
         "cluster": [
-            "local_docker_cluster_public_key_logged_in",
-            "local_docker_cluster_public_key_logged_out",
-            "local_docker_cluster_telemetry_public_key",
-            "local_docker_cluster_passwd",
+            "docker_cluster_pk_ssh_no_auth",
+            "docker_cluster_pk_ssh_den_auth",
+            "docker_cluster_pk_ssh_telemetry",
+            "docker_cluster_pwd_ssh_no_auth",
         ]
     }
     MINIMAL = {"cluster": ["static_cpu_cluster"]}
-    THOROUGH = {"cluster": ["static_cpu_cluster", "password_cluster"]}
-    MAXIMAL = {"cluster": ["static_cpu_cluster", "password_cluster"]}
+    THOROUGH = {"cluster": ["static_cpu_cluster", "password_cluster", "multinode_cpu_cluster"]}
+    MAXIMAL = {"cluster": ["static_cpu_cluster", "password_cluster", "multinode_cpu_cluster"]}
 
 Some key things to avoid:
 - Avoid ever importing from any conftest.py file. This can cause erratic
@@ -144,51 +143,51 @@ def pytest_configure():
 init_args = {}
 
 
+@pytest.fixture(scope="function")
+def logged_in_account():
+    """Helper fixture for tests which require the logged-in test account. Throws an error if the wrong account
+    is logged-in for some reason, and skips the test if the logged in state is not available."""
+    token = rh.globals.configs.token
+    if not token:
+        pytest.skip("`RH_TOKEN` or ~/.rh/config.yaml not set, skipping test.")
+
+    username = rh.globals.configs.username
+    if username == "kitchen_tester":
+        raise ValueError(
+            "The friend test account should not be active while running logged-in tests."
+        )
+
+
 # https://docs.pytest.org/en/6.2.x/fixture.html#conftest-py-sharing-fixtures-across-multiple-files
 
 ############## HELPERS ##############
 
 
-@pytest.fixture(scope="function")
-@contextlib.contextmanager
-def test_account():
-    """Used for the purposes of testing resource sharing among different accounts.
-    When inside the context manager, use the test account credentials before reverting back to the original
-    account when exiting."""
-
-    try:
-        account = rns_client.load_account_from_env()
-        if account is None:
-            pytest.skip("`TEST_TOKEN` or `TEST_USERNAME` not set, skipping test.")
-        yield account
-
-    finally:
-        rns_client.load_account_from_file()
-
-
 # ----------------- Clusters -----------------
 
-from tests.fixtures.local_docker_cluster_fixtures import (
+from tests.fixtures.docker_cluster_fixtures import (
     build_and_run_image,  # noqa: F401
     byo_cpu,  # noqa: F401
     cluster,  # noqa: F401
-    local_docker_cluster_passwd,  # noqa: F401
-    local_docker_cluster_public_key,  # noqa: F401
-    local_docker_cluster_public_key_den_auth,  # noqa: F401
-    local_docker_cluster_public_key_logged_in,  # noqa: F401
-    local_docker_cluster_public_key_logged_out,  # noqa: F401
-    local_docker_cluster_telemetry_public_key,  # noqa: F401
-    local_docker_cluster_with_nginx,  # noqa: F401
-    local_test_account_cluster_public_key,  # noqa: F401
+    docker_cluster_pk_http_exposed,  # noqa: F401
+    docker_cluster_pk_ssh,  # noqa: F401
+    docker_cluster_pk_ssh_den_auth,  # noqa: F401
+    docker_cluster_pk_ssh_no_auth,  # noqa: F401
+    docker_cluster_pk_ssh_telemetry,  # noqa: F401
+    docker_cluster_pk_tls_den_auth,  # noqa: F401
+    docker_cluster_pk_tls_exposed,  # noqa: F401
+    docker_cluster_pwd_ssh_no_auth,  # noqa: F401
+    friend_account_logged_in_docker_cluster_pk_ssh,  # noqa: F401
     named_cluster,  # noqa: F401
     password_cluster,  # noqa: F401
     shared_cluster,  # noqa: F401
     static_cpu_cluster,  # noqa: F401
 )
 
-from tests.test_resources.test_clusters.test_on_demand_cluster.conftest import (
+from tests.fixtures.on_demand_cluster_fixtures import (
     a10g_gpu_cluster,  # noqa: F401
     k80_gpu_cluster,  # noqa: F401
+    multinode_cpu_cluster,  # noqa: F401
     on_demand_cluster,  # noqa: F401
     ondemand_cluster,  # noqa: F401
     ondemand_cpu_cluster,  # noqa: F401
@@ -270,21 +269,38 @@ from tests.test_resources.test_modules.test_tables.conftest import (
     table,  # noqa: F401
 )
 
+from tests.test_resources.test_secrets.conftest import (
+    anthropic_secret,  # noqa: F401
+    aws_secret,  # noqa: F401
+    azure_secret,  # noqa: F401
+    cohere_secret,  # noqa: F401
+    custom_provider_secret,  # noqa: F401
+    gcp_secret,  # noqa: F401
+    github_secret,  # noqa: F401
+    huggingface_secret,  # noqa: F401
+    lambda_secret,  # noqa: F401
+    langchain_secret,  # noqa: F401
+    openai_secret,  # noqa: F401
+    pinecone_secret,  # noqa: F401
+    sky_secret,  # noqa: F401
+    ssh_secret,  # noqa: F401
+    test_secret,  # noqa: F401
+    wandb_secret,  # noqa: F401
+)
+
 
 ########## DEFAULT LEVELS ##########
 
 default_fixtures = {}
 default_fixtures[TestLevels.UNIT] = {
     "cluster": [
-        "local_docker_cluster_public_key_logged_in",
-        "local_docker_cluster_public_key_logged_out",
+        "named_cluster",
     ]
 }
 default_fixtures[TestLevels.LOCAL] = {
     "cluster": [
-        "local_docker_cluster_public_key_logged_in",
-        "local_docker_cluster_public_key_logged_out",
-        "local_docker_cluster_passwd",
+        "docker_cluster_pk_ssh_no_auth",
+        "docker_cluster_pk_ssh_den_auth",
     ]
 }
 default_fixtures[TestLevels.MINIMAL] = {
@@ -292,24 +308,26 @@ default_fixtures[TestLevels.MINIMAL] = {
 }
 default_fixtures[TestLevels.THOROUGH] = {
     "cluster": [
-        "local_docker_cluster_passwd",
-        "local_docker_cluster_public_key_logged_in",
-        "local_docker_cluster_public_key_logged_out",
+        "docker_cluster_pk_ssh_no_auth",
+        "docker_cluster_pk_ssh_den_auth",
+        "docker_cluster_pwd_ssh_no_auth",
         "ondemand_cpu_cluster",
         "ondemand_https_cluster_with_auth",
         "password_cluster",
+        "multinode_cpu_cluster",
         "static_cpu_cluster",
     ]
 }
 default_fixtures[TestLevels.MAXIMAL] = {
     "cluster": [
-        "local_docker_cluster_passwd",
-        "local_docker_cluster_public_key_logged_in",
-        "local_docker_cluster_public_key_logged_out",
-        "local_docker_cluster_telemetry_public_key",
+        "docker_cluster_pk_ssh_no_auth",
+        "docker_cluster_pk_ssh_den_auth",
+        "docker_cluster_pwd_ssh_no_auth",
+        "docker_cluster_pk_ssh_telemetry",
         "ondemand_cpu_cluster",
         "ondemand_https_cluster_with_auth",
         "password_cluster",
+        "multinode_cpu_cluster",
         "static_cpu_cluster",
     ]
 }

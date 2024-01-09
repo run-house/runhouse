@@ -10,16 +10,19 @@ from typing import Optional
 
 import ray
 import requests
+import yaml
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-from runhouse.globals import configs, env_servlets, rns_client
+from runhouse.constants import CLUSTER_CONFIG_PATH, RH_LOGFILE_PATH
+from runhouse.globals import configs, env_servlets, obj_store, rns_client
 from runhouse.resources.hardware.utils import _load_cluster_config
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
+from runhouse.servers.env_servlet import EnvServlet
 from runhouse.servers.http.auth import hash_token, verify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
@@ -30,9 +33,9 @@ from runhouse.servers.http.http_utils import (
     OutputType,
     pickle_b64,
     Response,
+    ServerSettings,
 )
 from runhouse.servers.nginx.config import NginxConfig
-from runhouse.servers.servlet import EnvServlet
 
 logger = logging.getLogger(__name__)
 
@@ -45,16 +48,22 @@ def validate_cluster_access(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         request: Request = kwargs.get("request")
-        use_den_auth: bool = HTTPServer.get_den_auth()
+        den_auth_enabled: bool = HTTPServer.get_den_auth()
         is_coro = inspect.iscoroutinefunction(func)
 
-        if not use_den_auth:
+        func_call: bool = func.__name__ in ["call_module_method", "call", "get_call"]
+        token = get_token_from_request(request)
+
+        if func_call and token:
+            obj_store.add_user_to_auth_cache(token, refresh_cache=False)
+
+        if not den_auth_enabled or func_call:
+            # If this is a func call, we'll handle the auth in the object store
             if is_coro:
                 return await func(*args, **kwargs)
 
             return func(*args, **kwargs)
 
-        token = get_token_from_request(request)
         if token is None:
             raise HTTPException(
                 status_code=404,
@@ -65,17 +74,16 @@ def validate_cluster_access(func):
         cluster_uri = load_current_cluster()
         if cluster_uri is None:
             logger.error(
-                "Failed to load cluster RNS address. Make sure cluster config YAML has been saved "
-                "on the cluster in path: ~/.rh/cluster_config.yaml"
+                f"Failed to load cluster RNS address. Make sure cluster config YAML has been saved "
+                f"on the cluster in path: {CLUSTER_CONFIG_PATH}"
             )
             raise HTTPException(
                 status_code=404,
                 detail="Failed to load current cluster. Make sure cluster config YAML exists on the cluster.",
             )
 
-        func_call: bool = func.__name__ in ["call_module_method", "call"]
         cluster_access = verify_cluster_access(cluster_uri, token)
-        if not cluster_access and not func_call:
+        if not cluster_access:
             # Must have cluster access for all the non func calls
             # Note: for func calls will be handling the auth in the object store
             raise HTTPException(
@@ -92,7 +100,6 @@ def validate_cluster_access(func):
 
 
 class HTTPServer:
-    MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     LOGGING_WAIT_TIME = 1
     DEFAULT_SERVER_HOST = "0.0.0.0"
     DEFAULT_SERVER_PORT = 32300
@@ -112,13 +119,20 @@ class HTTPServer:
             from opentelemetry import trace
             from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
             from opentelemetry.instrumentation.requests import RequestsInstrumentor
+            from opentelemetry.sdk.resources import Resource
             from opentelemetry.sdk.trace import TracerProvider
             from opentelemetry.sdk.trace.export import SimpleSpanProcessor
             from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
                 InMemorySpanExporter,
             )
 
-            trace.set_tracer_provider(TracerProvider())
+            trace.set_tracer_provider(
+                TracerProvider(
+                    resource=Resource.create(
+                        {"service.name": "runhouse-in-memory-service"}
+                    )
+                )
+            )
             self.memory_exporter = InMemorySpanExporter()
             trace.get_tracer_provider().add_span_processor(
                 SimpleSpanProcessor(self.memory_exporter)
@@ -147,21 +161,31 @@ class HTTPServer:
                 namespace="runhouse",
             )
 
-        try:
-            # Collect metadata for the cluster immediately on init
-            self._collect_cluster_stats()
-        except Exception as e:
-            logger.error(f"Failed to collect cluster stats: {str(e)}")
+        # TODO disabling due to latency, figure out what to do with this
+        # try:
+        #     # Collect metadata for the cluster immediately on init
+        #     self._collect_cluster_stats()
+        # except Exception as e:
+        #     logger.error(f"Failed to collect cluster stats: {str(e)}")
 
-        base_env = self.get_env_servlet(
+        try:
+            # Collect telemetry stats for the cluster
+            self._collect_telemetry_stats()
+        except Exception as e:
+            logger.error(f"Failed to collect cluster telemetry stats: {str(e)}")
+
+        # We initialize a base env servlet where some things may run.
+        # TODO: We aren't sure _exactly_ where this is or isn't used.
+        # There are a few spots where we do `env_name or "base"`, and
+        # this allows that base env to be pre-initialized.
+        _ = self.get_env_servlet(
             env_name="base",
             create=True,
             runtime_env=runtime_env,
         )
-        env_servlets["base"] = base_env
-        from runhouse.globals import obj_store
 
-        obj_store.set_name("server")
+        # Puts without an env here will be sent to the base env.
+        obj_store.initialize("base")
 
         HTTPServer.register_activity()
 
@@ -170,8 +194,14 @@ class HTTPServer:
         return cls._den_auth
 
     @classmethod
-    def enable_den_auth(cls):
+    def enable_den_auth(cls, flush=True):
         cls._den_auth = True
+        if flush:
+            obj_store.clear_auth_cache()
+
+    @classmethod
+    def disable_den_auth(cls):
+        cls._den_auth = False
 
     @staticmethod
     def register_activity():
@@ -274,7 +304,7 @@ class HTTPServer:
         HTTPServer.register_activity()
         try:
             if lookup_env_for_name:
-                env = env or HTTPServer.lookup_env_for_name(lookup_env_for_name)
+                env = env or obj_store.get_env_servlet_name_for_key(lookup_env_for_name)
             servlet = HTTPServer.get_env_servlet(env or "base", create=create)
             # If servlet is a RayActor, call with .remote
             return HTTPServer.call_servlet_method(servlet, method, args, block=block)
@@ -288,20 +318,15 @@ class HTTPServer:
             )
 
     @staticmethod
-    def lookup_env_for_name(name, check_rns=False):
-        from runhouse.globals import obj_store
+    @app.post("/settings")
+    @validate_cluster_access
+    def update_settings(request: Request, message: ServerSettings) -> Response:
+        if message.den_auth:
+            HTTPServer.enable_den_auth(flush=message.flush_auth_cache)
+        elif message.den_auth is not None and not message.den_auth:
+            HTTPServer.disable_den_auth()
 
-        env = obj_store.get_env(name)
-        if env:
-            return env
-
-        # Load the resource config from rns and see if it has an "env" field
-        if check_rns:
-            resource_config = rns_client.load_config(name)
-            if resource_config and "env" in resource_config:
-                return resource_config["env"]
-
-        return None
+        return Response(output_type=OutputType.SUCCESS)
 
     @staticmethod
     @app.post("/resource")
@@ -317,13 +342,11 @@ class HTTPServer:
                     else {}
                 )
 
-                new_env = HTTPServer.get_env_servlet(
+                _ = HTTPServer.get_env_servlet(
                     env_name=message.env,
                     create=True,
                     runtime_env=runtime_env,
                 )
-
-                env_servlets[message.env] = new_env
 
         return HTTPServer.call_in_env_servlet(
             "put_resource",
@@ -337,10 +360,11 @@ class HTTPServer:
     @app.post("/{module}/{method}")
     @validate_cluster_access
     def call_module_method(
-        request: Request, module, method=None, message: dict = Body(...)
+        request: Request, module, method=None, message: dict = Body(default=None)
     ):
         token = get_token_from_request(request)
-        token_hash = hash_token(token) if den_auth else None
+        den_auth_enabled = HTTPServer.get_den_auth()
+        token_hash = hash_token(token) if den_auth_enabled and token else None
         # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
@@ -351,7 +375,7 @@ class HTTPServer:
             message = message or (
                 Message(stream_logs=False, key=module) if not method else Message()
             )
-            env = message.env or HTTPServer.lookup_env_for_name(module)
+            env = message.env or obj_store.get_env_servlet_name_for_key(module)
             persist = message.run_async or message.remote or message.save or not method
             if method:
                 # TODO fix the way we generate runkeys, it's ugly
@@ -365,7 +389,7 @@ class HTTPServer:
                 # Unless we're returning a fast response, we discard this obj_ref
                 obj_ref = HTTPServer.call_in_env_servlet(
                     "call_module_method",
-                    [module, method, message, token_hash, den_auth],
+                    [module, method, message, token_hash, den_auth_enabled],
                     env=env,
                     create=True,
                     block=False,
@@ -378,9 +402,8 @@ class HTTPServer:
 
             else:
                 message.key = module
-                # If this is a "get" call, don't wait for the result, it's either there or not.
-                from runhouse.globals import obj_store
 
+                # If this is a "get" call, don't wait for the result, it's either there or not.
                 if not obj_store.contains(message.key):
                     return Response(output_type=OutputType.NOT_FOUND, data=message.key)
 
@@ -413,7 +436,7 @@ class HTTPServer:
     def _get_logfiles(log_key, log_type=None):
         if not log_key:
             return None
-        key_logs_path = Path(EnvServlet.RH_LOGFILE_PATH) / log_key
+        key_logs_path = Path(RH_LOGFILE_PATH) / log_key
         if key_logs_path.exists():
             # Logs are like: `.rh/logs/key/key.[out|err]`
             glob_pattern = (
@@ -438,9 +461,9 @@ class HTTPServer:
         return open_files
 
     @staticmethod
-    def _get_results_and_logs_generator(key, env, stream_logs, remote=False, pop=False):
-        from runhouse.globals import obj_store
-
+    def _get_results_and_logs_generator(
+        key, env, stream_logs, remote=False, pop=False, serialization=None
+    ):
         open_logfiles = []
         waiting_for_results = True
 
@@ -454,7 +477,7 @@ class HTTPServer:
                 if not obj_ref:
                     obj_ref = HTTPServer.call_in_env_servlet(
                         "get",
-                        [key, remote, True],
+                        [key, remote, True, None, serialization],
                         env=env,
                         block=False,
                     )
@@ -468,6 +491,7 @@ class HTTPServer:
                         raise ray.exceptions.GetTimeoutError
                     if not ret_val.output_type == OutputType.RESULT_STREAM:
                         waiting_for_results = False
+                    ret_val = ret_val.data if serialization == "json" else ret_val
                     ret_resp = json.dumps(jsonable_encoder(ret_val))
                     yield ret_resp + "\n"
                 except ray.exceptions.GetTimeoutError:
@@ -492,9 +516,13 @@ class HTTPServer:
                         #     ret_lines.append(f"Process {i}:")
                         ret_lines += file_lines
                 if ret_lines:
-                    lines_resp = Response(
-                        data=ret_lines,
-                        output_type=OutputType.STDOUT,
+                    lines_resp = (
+                        Response(
+                            data=ret_lines,
+                            output_type=OutputType.STDOUT,
+                        )
+                        if not serialization == "json"
+                        else ret_lines
                     )
                     logger.debug(f"Yielding logs for key {key}")
                     yield json.dumps(jsonable_encoder(lines_resp)) + "\n"
@@ -504,8 +532,10 @@ class HTTPServer:
             yield json.dumps(
                 jsonable_encoder(
                     Response(
-                        error=pickle_b64(e),
-                        traceback=pickle_b64(traceback.format_exc()),
+                        error=pickle_b64(e) if not serialization == "json" else str(e),
+                        traceback=pickle_b64(traceback.format_exc())
+                        if not serialization == "json"
+                        else str(traceback.format_exc()),
                         output_type=OutputType.EXCEPTION,
                     )
                 )
@@ -557,8 +587,6 @@ class HTTPServer:
     @app.get("/keys")
     @validate_cluster_access
     def get_keys(request: Request, env: Optional[str] = None):
-        from runhouse.globals import obj_store
-
         if not env:
             return Response(
                 output_type=OutputType.RESULT, data=pickle_b64(obj_store.keys())
@@ -566,12 +594,89 @@ class HTTPServer:
         return HTTPServer.call_in_env_servlet("get_keys", [], env=env)
 
     @staticmethod
-    @app.post("/secrets")
+    @app.get("/{module}/{method}")
     @validate_cluster_access
-    def add_secrets(request: Request, message: Message):
-        return HTTPServer.call_in_env_servlet(
-            "add_secrets", [message], env=message.env, create=True
-        )
+    def get_call(request: Request, module, method=None, serialization="json"):
+        token = get_token_from_request(request)
+        den_auth_enabled = HTTPServer.get_den_auth()
+        token_hash = hash_token(token) if den_auth_enabled and token else None
+        # Stream the logs and result (e.g. if it's a generator)
+        HTTPServer.register_activity()
+        try:
+            kwargs = dict(request.query_params)
+            kwargs.pop("serialization", None)
+            method = None if method == "None" else method
+            message = Message(stream_logs=True, data=kwargs)
+            env = obj_store.get_env_servlet_name_for_key(module)
+            persist = message.run_async or message.remote or message.save or not method
+            if method:
+                # TODO fix the way we generate runkeys, it's ugly
+                message.key = message.key or _generate_default_name(
+                    prefix=module if method == "__call__" else f"{module}_{method}",
+                    precision="ms",  # Higher precision because we see collisions within the same second
+                )
+                # If certain conditions are met, we can return a response immediately
+                fast_resp = not persist and not message.stream_logs
+
+                # Unless we're returning a fast response, we discard this obj_ref
+                obj_ref = HTTPServer.call_in_env_servlet(
+                    "call_module_method",
+                    [
+                        module,
+                        method,
+                        message,
+                        token_hash,
+                        den_auth_enabled,
+                        serialization,
+                    ],
+                    env=env,
+                    create=True,
+                    block=False,
+                )
+
+                if fast_resp:
+                    res = ray.get(obj_ref)
+                    logger.info(f"Returning fast response for {message.key}")
+                    return res
+
+            else:
+                message.key = module
+
+                # If this is a "get" call, don't wait for the result, it's either there or not.
+                if not obj_store.contains(message.key):
+                    return Response(output_type=OutputType.NOT_FOUND, data=message.key)
+
+            if message.run_async:
+                return (
+                    Response(
+                        data=pickle_b64(message.key),
+                        output_type=OutputType.RESULT,
+                    )
+                    if not serialization == "json"
+                    else message.key
+                )
+
+            return StreamingResponse(
+                HTTPServer._get_results_and_logs_generator(
+                    message.key,
+                    env=env,
+                    stream_logs=message.stream_logs,
+                    remote=message.remote,
+                    pop=not persist,
+                    serialization=serialization,
+                ),
+                media_type="application/json",
+            )
+        except Exception as e:
+            logger.exception(e)
+            HTTPServer.register_activity()
+            return Response(
+                error=pickle_b64(e) if not serialization == "json" else str(e),
+                traceback=pickle_b64(traceback.format_exc())
+                if not serialization == "json"
+                else str(traceback.format_exc()),
+                output_type=OutputType.EXCEPTION,
+            )
 
     @staticmethod
     @app.post("/call/{module}/{method}")
@@ -580,16 +685,21 @@ class HTTPServer:
         request: Request,
         module,
         method=None,
-        args: dict = Body(),
+        args: dict = Body(default={}),
         serialization="json",
     ):
         kwargs = args.get("kwargs", {})
         args = args.get("args", [])
+        query_params = dict(request.query_params)
+        query_params.pop("serialization", None)
+        den_auth_enabled = HTTPServer.get_den_auth()
+        if query_params:
+            kwargs.update(query_params)
         token = get_token_from_request(request)
-        token_hash = hash_token(token) if den_auth else None
+        token_hash = hash_token(token) if den_auth_enabled and token else None
         resp = HTTPServer.call_in_env_servlet(
             "call",
-            [module, method, args, kwargs, serialization, token_hash, den_auth],
+            [module, method, args, kwargs, serialization, token_hash, den_auth_enabled],
             create=True,
             lookup_env_for_name=module,
         )
@@ -607,8 +717,51 @@ class HTTPServer:
 
         HTTPServer._log_cluster_data(
             {**cluster_data, **sky_data},
-            labels={"username": configs.get("username"), "environment": "prod"},
+            labels={"username": configs.username, "environment": "prod"},
         )
+
+    @staticmethod
+    def _collect_telemetry_stats():
+        """Collect telemetry stats and send them to the Runhouse hosted OpenTelemetry collector"""
+
+        from opentelemetry import trace
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+            OTLPSpanExporter,
+        )
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        from opentelemetry.instrumentation.requests import RequestsInstrumentor
+        from opentelemetry.sdk.resources import Resource
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+        telemetry_collector_address = configs.get("telemetry_collector_address")
+
+        logger.info(f"Preparing to send telemetry to {telemetry_collector_address}")
+
+        # Set the tracer provider and the exporter
+        trace.set_tracer_provider(
+            TracerProvider(
+                resource=Resource.create({"service.name": "runhouse-service"})
+            )
+        )
+        otlp_exporter = OTLPSpanExporter(
+            endpoint=telemetry_collector_address + "/v1/traces",
+        )
+
+        # Add the exporter to the tracer provider
+        trace.get_tracer_provider().add_span_processor(
+            BatchSpanProcessor(otlp_exporter)
+        )
+
+        logger.info(
+            f"Successfully added telemetry exporter {telemetry_collector_address}"
+        )
+
+        # Instrument the app object
+        FastAPIInstrumentor.instrument_app(app)
+
+        # Instrument the requests library
+        RequestsInstrumentor().instrument()
 
     @staticmethod
     def _cluster_status_report():
@@ -630,9 +783,8 @@ class HTTPServer:
     @staticmethod
     def _cluster_sky_report():
         try:
-            from runhouse import Secrets
-
-            sky_ray_data = Secrets.read_yaml_file(HTTPServer.SKY_YAML)
+            with open(HTTPServer.SKY_YAML, "r") as stream:
+                sky_ray_data = yaml.safe_load(stream)
         except FileNotFoundError:
             # For non on-demand clusters we won't have sky data
             return {}
@@ -742,11 +894,7 @@ if __name__ == "__main__":
         help="Address to use for generating self-signed certs and enabling HTTPS. (e.g. public IP address)",
     )
 
-    cluster_config = (
-        _load_cluster_config()
-        if Path("~/.rh/cluster_config.yaml").expanduser().exists()
-        else {}
-    )
+    cluster_config = _load_cluster_config()
     parse_args = parser.parse_args()
 
     conda_name = parse_args.conda_env

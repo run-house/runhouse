@@ -104,10 +104,8 @@ class NginxConfig:
             server_name {server_name};
 
             location / {{
+                proxy_buffering off;
                 proxy_pass {proxy_pass};
-                proxy_buffer_size 128k;
-                proxy_buffers 4 256k;
-                proxy_busy_buffers_size 256k;
             }}
         }}
         """
@@ -134,10 +132,8 @@ class NginxConfig:
             ssl_certificate_key {ssl_key_path};
 
             location / {{
+                proxy_buffering off;
                 proxy_pass {proxy_pass};
-                proxy_buffer_size 128k;
-                proxy_buffers 4 256k;
-                proxy_busy_buffers_size 256k;
             }}
         }}
         """
@@ -211,21 +207,28 @@ class NginxConfig:
         logger.info("Applying Nginx settings.")
         self._build_template()
 
-        # Allow incoming traffic to the default port (HTTPS or HTTP)
-        # e.g. 'Nginx HTTPS': predefined profile that allows traffic for the Nginx web server on port 443
-        ufw_rule = "Nginx HTTPS" if self.use_https else "Nginx HTTP"
-        logger.info(f"Allowing incoming traffic using rule: `{ufw_rule}`")
+        # Check if UFW is enabled
         result = subprocess.run(
-            f"sudo ufw allow '{ufw_rule}'",
-            check=True,
-            capture_output=True,
-            text=True,
+            "sudo ufw status",
             shell=True,
+            text=True,
         )
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"Error configuring firewall to open default ports: {result.stderr}"
+        if result.returncode == 0:
+            # Allow incoming traffic to the default port (HTTPS or HTTP)
+            # e.g. 'Nginx HTTPS': predefined profile that allows traffic for the Nginx web server on port 443
+            ufw_rule = "Nginx HTTPS" if self.use_https else "Nginx HTTP"
+            logger.info(f"Allowing incoming traffic using rule: `{ufw_rule}`")
+            result = subprocess.run(
+                f"sudo ufw allow '{ufw_rule}'",
+                check=True,
+                capture_output=True,
+                text=True,
+                shell=True,
             )
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"Error configuring firewall to open default ports: {result.stderr}"
+                )
 
         if Path("/etc/nginx/sites-enabled/fastapi").exists():
             # Symlink already exists

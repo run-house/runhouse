@@ -65,10 +65,11 @@ def conda_env_from_path():
 @pytest.fixture(scope="session")
 def _local_conda_env():
     env_name = "test_conda_local_env"
-    os.system(f"conda create -n {env_name} -y python==3.10.9")
-    yield
-
-    os.system(f"conda env remove -n {env_name}")
+    try:
+        os.system(f"conda create -n {env_name} -y python==3.10.9")
+        yield
+    finally:
+        os.system(f"conda env remove -n {env_name} -y")
 
 
 @pytest.fixture(scope="function")

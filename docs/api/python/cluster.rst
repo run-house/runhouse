@@ -7,10 +7,14 @@ This can be either an :ref:`on-demand cluster <OnDemandCluster Class>` (requires
 
 A cluster is assigned a name, through which it can be accessed and reused later on.
 
-Cluster Factory Method
-~~~~~~~~~~~~~~~~~~~~~~
+Cluster Factory Methods
+~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autofunction:: runhouse.cluster
+
+.. autofunction:: runhouse.ondemand_cluster
+
+.. autofunction:: runhouse.sagemaker_cluster
 
 Cluster Class
 ~~~~~~~~~~~~~
@@ -151,6 +155,28 @@ To confirm the installation succeeded, run ``aws --version`` in the command line
 
     aws-cli/2.13.8 Python/3.11.4 Darwin/21.3.0 source/arm64 prompt/off
 
+If you are still seeing the V1 version, first try uninstalling V1 in case it is still present
+(e.g. ``pip uninstall awscli``).
+
+You may also need to add the V2 executable to the PATH of your python environment. For example, if you are using conda,
+it’s possible the conda env will try using its own version of the AWS CLI located at a different
+path (e.g. ``/opt/homebrew/anaconda3/bin/aws``), while the system wide installation of AWS CLI is located somewhere
+else (e.g. ``/opt/homebrew/bin/aws``).
+
+To find the global AWS CLI path:
+
+.. code-block:: cli
+
+    which aws
+
+To ensure that the global AWS CLI version is used within your python environment, you’ll need to adjust the
+PATH environment variable so that it prioritizes the global AWS CLI path.
+
+.. code-block:: cli
+
+    export PATH=/opt/homebrew/bin:$PATH
+
+
 SSM Setup
 ^^^^^^^^^
 The AWS Systems Manager service is used to create SSH tunnels with the SageMaker cluster.
@@ -170,18 +196,12 @@ To configure your SageMaker IAM role with the AWS Systems Manager, please
 refer to `these instructions <https://github.com/aws-samples/sagemaker-ssh-helper/blob/main/IAM_SSM_Setup.md>`_.
 
 
-SageMaker Factory Method
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autofunction:: runhouse.sagemaker_cluster
-
-
 Cluster Authentication & Verification
-====================================
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Runhouse provides a couple of options to manage the connection to the Runhouse API server running on a cluster.
 
 Server Connection
-~~~~~~~~~~~~~~~~~
+-----------------
 
 The below options can be specified with the ``server_connection_type`` parameter
 when :ref:`initializing a cluster <Cluster Factory Method>`. By default the Runhouse API server will
@@ -209,7 +229,7 @@ be started on the cluster on port :code:`32300`.
     to the public internet.
 
 Server Authentication
-~~~~~~~~~~~~~~~~~~~~~
+---------------------
 
 If desired, Runhouse provides out-of-the-box authentication via users' Runhouse token (generated when
 :ref:`logging in <Login/Logout>`) and set locally at: :code:`~/.rh/config.yaml`). This is crucial if the cluster
@@ -224,7 +244,7 @@ automatically, so your users do not need to worry about it after logging into Ru
 
 
 TLS Certificates
-----------------
+^^^^^^^^^^^^^^^^
 Enabling TLS and `Runhouse Den Dashboard <https://www.run.house/dashboard>`_ Auth for the API server makes it incredibly
 fast and easy to stand up a microservice with standard token authentication, allowing you to easily share Runhouse
 resources with collaborators, teams, customers, etc.
@@ -256,7 +276,7 @@ Let's illustrate this with a simple example:
 
     # Give read access to the function to another user - this will allow them to call this service remotely
     # and view the function metadata in Runhouse Den
-    remote_func.share("user1@gmail.com", access_type="read")
+    remote_func.share("user1@gmail.com", access_level="read")
 
     # Users can then call the function from any environment
     res = remote_func([1,2,3])
@@ -282,7 +302,7 @@ the :code:`np_array` function.
     the :ref:`Compute Guide <Compute: Clusters, Functions, Packages, & Envs>`.
 
 Nginx
------
+^^^^^
 Runhouse gives you the option of using `Nginx <https://www.nginx.com/>`_ as a reverse proxy for the Runhouse API
 server, which is a FastAPI app launched with `Uvicorn <https://www.uvicorn.org/>`_. Using Nginx provides you with a
 safer and more conventional approach running the FastAPI app on a higher, non-privileged port (such as 32300, the

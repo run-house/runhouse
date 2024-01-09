@@ -8,15 +8,6 @@ import pytest
 
 import runhouse as rh
 
-from tests.conftest import (
-    byo_cpu,
-    local_docker_cluster_passwd,
-    local_docker_cluster_public_key,
-    ondemand_cpu_cluster,
-    ondemand_https_cluster_with_auth,
-    password_cluster,
-)
-
 from tests.test_resources.test_modules.test_functions.test_function import (
     multiproc_np_sum,
 )
@@ -26,27 +17,34 @@ TEMP_FOLDER = "~/runhouse-tests"
 
 logger = logging.getLogger(__name__)
 
-UNIT = {"cluster": [local_docker_cluster_public_key]}
-LOCAL = {"cluster": [local_docker_cluster_passwd, local_docker_cluster_public_key]}
-MINIMAL = {"cluster": [ondemand_cpu_cluster]}
+UNIT = {"cluster": []}
+LOCAL = {
+    "cluster": [
+        "docker_cluster_pwd_ssh_no_auth",
+        "docker_cluster_pk_ssh_no_auth",
+    ]
+}
+MINIMAL = {"cluster": ["ondemand_cpu_cluster"]}
 THOROUGH = {
     "cluster": [
-        local_docker_cluster_passwd,
-        local_docker_cluster_public_key,
-        ondemand_cpu_cluster,
-        ondemand_https_cluster_with_auth,
-        password_cluster,
-        byo_cpu,
+        "docker_cluster_pwd_ssh_no_auth",
+        "docker_cluster_pk_ssh_no_auth",
+        "ondemand_cpu_cluster",
+        "ondemand_https_cluster_with_auth",
+        "password_cluster",
+        "multinode_cpu_cluster",
+        "byo_cpu",
     ]
 }
 MAXIMAL = {
     "cluster": [
-        local_docker_cluster_passwd,
-        local_docker_cluster_public_key,
-        ondemand_cpu_cluster,
-        ondemand_https_cluster_with_auth,
-        password_cluster,
-        byo_cpu,
+        "docker_cluster_pwd_ssh_no_auth",
+        "docker_cluster_pk_ssh_no_auth",
+        "ondemand_cpu_cluster",
+        "ondemand_https_cluster_with_auth",
+        "password_cluster",
+        "multinode_cpu_cluster",
+        "byo_cpu",
     ]
 }
 
@@ -71,7 +69,6 @@ def do_tqdm_printing_and_logging(steps=6):
     return list(range(50))
 
 
-@pytest.mark.clustertest
 def test_stream_logs(cluster):
     print_fn = rh.function(fn=do_printing_and_logging, system=cluster)
     res = print_fn(stream_logs=True)
@@ -79,7 +76,6 @@ def test_stream_logs(cluster):
     assert res == list(range(50))
 
 
-@pytest.mark.clustertest
 def test_get_from_cluster(cluster):
     print_fn = rh.function(fn=do_printing_and_logging, system=cluster)
     print(print_fn())
@@ -92,7 +88,6 @@ def test_get_from_cluster(cluster):
     assert res == list(range(50))
 
 
-@pytest.mark.clustertest
 def test_put_and_get_on_cluster(cluster):
     test_list = list(range(5, 50, 2)) + ["a string"]
     cluster.put("my_list", test_list)
@@ -118,7 +113,6 @@ class slow_numpy_array:
             yield f"Hello from the cluster! {self.arr}"
 
 
-@pytest.mark.clustertest
 @pytest.mark.parametrize("env", [None])
 def test_stateful_generator(cluster, env):
     # We need this here just to make sure the "tests" module is synced over
@@ -138,7 +132,6 @@ def pinning_helper(key=None):
     return ["fn result"] * 3
 
 
-@pytest.mark.clustertest
 def test_pinning_and_arg_replacement(cluster):
     cluster.clear()
     pin_fn = rh.function(pinning_helper).to(cluster)
@@ -158,7 +151,6 @@ def test_pinning_and_arg_replacement(cluster):
     assert pin_fn("put_pin") == "Found in obj store!"
 
 
-@pytest.mark.clustertest
 def test_put_resource(cluster, test_env):
     test_env.name = "~/test_env"
     cluster.put_resource(test_env)
@@ -183,7 +175,6 @@ def serialization_helper_2():
 
 
 @pytest.mark.skip
-@pytest.mark.clustertest
 @pytest.mark.gputest
 def test_pinning_to_gpu(k80_gpu_cluster):
     # Based on the following quirk having to do with Numpy objects becoming immutable if they're serialized:
@@ -207,7 +198,6 @@ def np_serialization_helper_2():
     return arr
 
 
-@pytest.mark.clustertest
 def test_pinning_in_memory(cluster):
     # Based on the following quirk having to do with Numpy objects becoming immutable if they're serialized:
     # https://docs.ray.io/en/latest/ray-core/objects/serialization.html#fixing-assignment-destination-is-read-only
@@ -220,7 +210,6 @@ def test_pinning_in_memory(cluster):
     assert res[1] == 0
 
 
-@pytest.mark.clustertest
 def test_multiprocessing_streaming(cluster):
     re_fn = rh.function(multiproc_np_sum, system=cluster, env=["numpy"])
     summands = list(zip(range(5), range(4, 9)))
@@ -228,7 +217,6 @@ def test_multiprocessing_streaming(cluster):
     assert res == [4, 6, 8, 10, 12]
 
 
-@pytest.mark.clustertest
 def test_tqdm_streaming(cluster):
     # Note, this doesn't work properly in PyCharm due to incomplete
     # support for carriage returns in the PyCharm console.
@@ -237,7 +225,6 @@ def test_tqdm_streaming(cluster):
     assert res == list(range(50))
 
 
-@pytest.mark.clustertest
 def test_cancel_run(cluster):
     print_fn = rh.function(fn=do_printing_and_logging, system=cluster)
     run_key = print_fn.run(10)

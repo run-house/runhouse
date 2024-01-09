@@ -6,8 +6,6 @@ ARG RUNHOUSE_VERSION
 
 WORKDIR /app
 
-COPY . .
-
 # Create the password file directory
 RUN mkdir -p /app/ssh
 
