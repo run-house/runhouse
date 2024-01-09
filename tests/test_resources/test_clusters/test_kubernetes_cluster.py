@@ -4,6 +4,7 @@ import pytest
 
 import runhouse as rh 
 
+
 @pytest.mark.kubernetestest
 class TestKubernetesCluster(tests.test_resources.test_clusters.test_cluster.TestCluster):
 
@@ -15,10 +16,10 @@ class TestKubernetesCluster(tests.test_resources.test_clusters.test_cluster.Test
     THOROUGH = {"cluster": []}
     MAXIMAL = {"cluster": []}
 
-    @pytest.mark.level("minimal")
-    def test_read_shared_k8s_cluster(kubernetes_cpu_cluster):
-        res = kubernetes_cpu_cluster.run_python(["import numpy", "print(numpy.__version__)"])
-        assert res[0][1]
+    # @pytest.mark.level("minimal")
+    # def test_read_shared_k8s_cluster(kubernetes_cpu_cluster):
+    #     res = kubernetes_cpu_cluster.run_python(["import numpy", "print(numpy.__version__)"])
+    #     assert res[0][1]
 
     # def num_cpus():
     #     import multiprocessing

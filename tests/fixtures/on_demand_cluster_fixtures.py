@@ -3,6 +3,7 @@ import pytest
 import runhouse as rh
 
 from tests.conftest import init_args
+from pathlib import Path
 
 
 @pytest.fixture(scope="session")
@@ -93,6 +94,12 @@ def multinode_cpu_cluster():
 
 @pytest.fixture(scope="session")
 def kubernetes_cpu_cluster():
+
+    kube_config_path = Path.home() / ".kube" / "config"
+
+    if not kube_config_path.exists():
+        pytest.skip("no kubeconfig found")
+
     args = {
         "name": "rh-cpu-k8s", 
         "provider": "kubernetes",

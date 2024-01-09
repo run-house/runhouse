@@ -76,7 +76,7 @@ install_requires = [
     "pyOpenSSL>=23.3.0",
     "rich",
     "sentry-sdk",
-    "skypilot==0.4.1",
+    "skypilot[docker]==0.4.1",
     "sshfs",
     "sshtunnel>=0.3.0",
     "typer",

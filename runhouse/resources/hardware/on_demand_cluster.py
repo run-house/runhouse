@@ -358,14 +358,7 @@ class OnDemandCluster(Cluster):
 
 
         if self.provider in ["aws", "gcp", "azure", "lambda", "kubernetes", "cheapest"]:
-            task = sky.Task(
-                num_nodes=self.num_instances
-                if self.instance_type and ":" not in self.instance_type
-                else None,
-                # docker_image=image,  # Zongheng: this is experimental, don't use it
-                # envs=None,
-            )
-
+            task = sky.Task(num_nodes=self.num_instances)
             cloud_provider = (
                 sky.clouds.CLOUD_REGISTRY.from_str(self.provider)
                 if self.provider != "cheapest"
