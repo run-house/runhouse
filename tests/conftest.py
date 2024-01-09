@@ -193,6 +193,7 @@ from tests.fixtures.on_demand_cluster_fixtures import (
     ondemand_cpu_cluster,  # noqa: F401
     ondemand_https_cluster_with_auth,  # noqa: F401
     v100_gpu_cluster,  # noqa: F401
+    kubernetes_cpu_cluster,  # noqa: F401
 )
 from tests.test_resources.test_clusters.test_sagemaker_cluster.conftest import (
     other_sm_cluster,  # noqa: F401
@@ -304,7 +305,7 @@ default_fixtures[TestLevels.LOCAL] = {
     ]
 }
 default_fixtures[TestLevels.MINIMAL] = {
-    "cluster": ["ondemand_cpu_cluster"]
+    "cluster": ["ondemand_cpu_cluster", "kubernetes_cpu_cluster"]
 }
 default_fixtures[TestLevels.THOROUGH] = {
     "cluster": [
