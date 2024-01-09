@@ -51,7 +51,7 @@ class Cluster(Resource):
     DEFAULT_HTTP_PORT = 80
     DEFAULT_HTTPS_PORT = 443
     DEFAULT_SSH_PORT = 22
-    DEFAULT_RAY_PORT = 9344
+    DEFAULT_RAY_PORT = 6381
     LOCAL_HOSTS = ["localhost", LOCALHOST]
 
     SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
@@ -703,48 +703,97 @@ class Cluster(Resource):
 
         return cmds
 
-    def _start_ray(self, host, master_host, n_hosts, ray_port):
+    def _start_ray(self, host, master_host, n_hosts, ray_port, workers_thread):
+        # Extract the head_ip
+        public_head_ip = master_host  # self.live_state['handle']['head_ip']
+
+        # Find the internal IP corresponding to the public_head_ip
+        internal_head_ip = None
+        for internal, external in self.live_state["handle"][
+            "stable_internal_external_ips"
+        ]:
+            if external == public_head_ip:
+                internal_head_ip = internal
+                break
+
+        # stable_internal_external_ips = self.get("live_state").get("handle").get("stable_internal_external_ips")
+        logger.info(f"Internal head IP: {internal_head_ip}")
+
         if host == master_host:
             # Head node
-            if ray.is_initialized():
-                logger.info(
-                    f"There is a Ray cluster already running on the head node {master_host}. Shutting it down."
-                )
-                ray.shutdown()
-                time.sleep(10)
-            output = subprocess.run(
-                [
-                    "ray",
-                    "start",
-                    "--head",
-                    "--port",
-                    f"{ray_port}",
-                    "--include-dashboard",
-                    "false",
-                ],
-                stdout=subprocess.PIPE,
-            )
-            logger.info(output.stdout.decode("utf-8"))
-            ray.init(address="auto", include_dashboard=False)
-
-            worker_thread = threading.Thread(
-                target=self._wait_for_workers, args=(self, n_hosts)
-            )
-            worker_thread.start()
-
-        else:
-            # Worker node
+            cmd = f"ray start --head --disable-usage-stats --port={ray_port} --include-dashboard=false"
+            logger.info(f"Running 'ray start' command on head node {host}: {cmd}")
             self.run(
                 commands=[
-                    f"sleep 10 && ray start --address={master_host}:{ray_port} --block",
+                    cmd,
                 ],
                 node=host,
             )
 
-    def _wait_for_workers(self, num_nodes, timeout=120):
-        logger.info(f"Waiting {timeout} seconds for {num_nodes} nodes to join")
+            # if ray.is_initialized():
+            #     logger.info(
+            #         f"There is a Ray cluster already running on the head node {master_host}. Shutting it down."
+            #     )
+            #     ray.shutdown()
+            #     time.sleep(10)
+            # command = [
+            #     "ray",
+            #     "start",
+            #     "--head",
+            #     "--disable-usage-stats",
+            #     f"--port={ray_port}",
+            #     "--include-dashboard=false",
+            # ]
+            # command_str = ' '.join(command)
+            # logger.info(f"Running 'ray start' command on head node: {command_str}")
+            # output = subprocess.run(
+            #     command,
+            #     stdout=subprocess.PIPE,
+            #     stderr=subprocess.PIPE,
+            # )
+            # logger.info(output.stdout.decode("utf-8"))
+            # logger.warning(output.stderr.decode("utf-8"))
 
-        while len(ray.nodes()) < num_nodes:
+            logger.info(f"Running 'ray init' command on node:port : {host}:{ray_port}")
+            self.run_python(
+                commands=[
+                    "import ray",
+                    "ray.init(include_dashboard=False)",
+                ],
+                node=host,
+            )
+            # ray.init(address="auto", include_dashboard=False)
+            logger.info(f"Ray cluster started on head node {host}:{ray_port}.")
+
+            # self.run_python(
+            #     commands=[
+            #         'import ray',
+            #         'ray.cluster_resources()',
+            #     ],
+            #     node=host,
+            # )
+
+            # logger.info(f"Ray cluster resources {ray.cluster_resources()}.")
+
+            workers_thread.start()
+            logger.info("Waiting for workers to join the cluster...")
+
+        else:
+            # Worker node
+            logger.info(
+                f"Starting Ray on worker {host} with head node at {internal_head_ip}:{ray_port}."
+            )
+            self.run(
+                commands=[
+                    f"sleep 10 && ray start --address={internal_head_ip}:{ray_port}",
+                ],
+                node=host,
+            )
+
+    def _wait_for_workers(self, n_hosts, timeout=60):
+        logger.info(f"Waiting {timeout} seconds for {n_hosts} nodes to join")
+
+        while len(ray.nodes()) < n_hosts:
             logger.info(f"{len(ray.nodes())} nodes connected to cluster")
             time.sleep(5)
             timeout -= 5
@@ -846,11 +895,17 @@ class Cluster(Resource):
             # multiple multi-node clusters running on the same set of machines case.
             master_host = self.address
             n_hosts = len(self.ips)
+            workers_thread = threading.Thread(
+                target=self._wait_for_workers, args=(n_hosts,)
+            )
             for host in self.ips:
-                self._start_ray(host, master_host, n_hosts, self.DEFAULT_RAY_PORT)
+                self._start_ray(
+                    host, master_host, n_hosts, self.DEFAULT_RAY_PORT, workers_thread
+                )
 
-            # logger.info("🎉 All workers present and accounted for 🎉")
-            # logger.info(ray.cluster_resources())
+            workers_thread.join()
+            logger.info("🎉 All workers present and accounted for 🎉")
+
         return status_codes
 
     @contextlib.contextmanager
