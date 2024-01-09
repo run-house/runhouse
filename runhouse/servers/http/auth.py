@@ -67,7 +67,12 @@ def verify_cluster_access(
 ) -> bool:
     """Checks whether the user has access to the cluster.
     Note: If user has write access to the cluster, will have access to all other resources on the cluster by default."""
-    from runhouse.globals import obj_store
+    from runhouse.globals import configs, obj_store
+
+    # The logged-in user always has full access to the cluster. This is especially important if they flip on
+    # Den Auth without saving the cluster.
+    if configs.token == token:
+        return True
 
     token_hash = hash_token(token)
 
