@@ -91,5 +91,5 @@ def multinode_cpu_cluster():
 
     c.save()
 
-    c.install_packages(["pytest", "ray"])
+    c.install_packages(["pytest"])
     return c

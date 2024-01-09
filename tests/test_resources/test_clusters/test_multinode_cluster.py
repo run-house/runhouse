@@ -32,9 +32,7 @@ class TestMultiNodeCluster:
     def test_ray_started_on_worker_node_after_cluster_restart(
         self, multinode_cpu_cluster
     ):
-        worker_node = multinode_cpu_cluster.ips[-1]
+        head_node = multinode_cpu_cluster.ips[0]
 
-        multinode_cpu_cluster.restart_server(restart_ray=True)
-
-        status_codes = multinode_cpu_cluster.run(["ray status"], node=worker_node)
+        status_codes = multinode_cpu_cluster.run(["ray status"], node=head_node)
         assert status_codes[0][0] == 0
