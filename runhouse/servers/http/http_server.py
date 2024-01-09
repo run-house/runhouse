@@ -36,6 +36,7 @@ from runhouse.servers.http.http_utils import (
     ServerSettings,
 )
 from runhouse.servers.nginx.config import NginxConfig
+from runhouse.servers.obj_store import initialize_cluster_servlet
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +162,9 @@ class HTTPServer:
                 namespace="runhouse",
             )
 
+        initialize_cluster_servlet()
+
+
         # TODO disabling due to latency, figure out what to do with this
         # try:
         #     # Collect metadata for the cluster immediately on init
@@ -274,7 +278,7 @@ class HTTPServer:
                 .remote(env_name=env_name)
             )
 
-            # Wait for the EnvServlet to actually initialize
+            # Make sure env_servlet is actually initialized
             ray.get(new_env.register_activity.remote())
 
             env_servlets[env_name] = new_env
