@@ -45,8 +45,8 @@ class LambdaFunction(Function):
     DEFAULT_REGION = "us-east-1"
     DEFAULT_RETENTION = 30  # one month, for lambdas log groups.
     DEFAULT_TIMEOUT = 900  # sec. meaning 15 min.
-    DEFAULT_MEMORY_SIZE = 1024  # MB
-    DEFAULT_TMP_SIZE = 3072  # MB, meaning 3G
+    DEFAULT_MEMORY_SIZE = 10240  # MB
+    DEFAULT_TMP_SIZE = 10240  # MB, meaning 10G
     HOME_DIR = "/tmp/home"
     SUPPORTED_RUNTIMES = [
         "python3.7",
@@ -364,14 +364,14 @@ class LambdaFunction(Function):
                 timeout = 3
                 warnings.warn("Timeout can not be less then 3 sec, setting to 3 sec.")
         if memory_size is None:
-            warnings.warn("Memory size set to 1024 MB.")
+            warnings.warn("Memory size set to 10240 MB.")
             memory_size = LambdaFunction.DEFAULT_MEMORY_SIZE
         else:
             if (
                 env.reqs is not None or len(env.reqs) > 0
             ) and memory_size < LambdaFunction.DEFAULT_MEMORY_SIZE:
                 warnings.warn(
-                    "Increasing the memory size to 1GB, in order to enable the packages setup."
+                    "Increasing the memory size to 10GB, in order to enable the packages setup."
                 )
                 memory_size = LambdaFunction.DEFAULT_MEMORY_SIZE
             if memory_size < 128:
@@ -386,7 +386,7 @@ class LambdaFunction(Function):
                 )
         if tmp_size is None or tmp_size < LambdaFunction.DEFAULT_TMP_SIZE:
             warnings.warn(
-                "Setting /tmp size to 3GB, in order to enable the packages setup."
+                "Setting /tmp size to 10GB, in order to enable the packages setup."
             )
             tmp_size = LambdaFunction.DEFAULT_TMP_SIZE
         elif tmp_size > 10240:
@@ -798,6 +798,7 @@ class LambdaFunction(Function):
             ).decode("utf-8")
 
             print(log_lines)
+            return_value = json.loads(return_value)["body"]
             return return_value
 
     def map(self, *args, **kwargs):

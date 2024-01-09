@@ -14,7 +14,7 @@ def test_create_func():
     aws_func = rh.aws_lambda_fn(fn=summer, name="summer_lambdas")
     aws_func.save()
     res = aws_func(1, 3)
-    assert int(res) == 4
+    assert res == 4
     aws_func.teardown()
     rns_client.delete_configs(aws_func)
 
@@ -22,7 +22,7 @@ def test_create_func():
 def test_from_runhouse_func():
     my_rh_lambda = rh.function(multiplier).to(system="Lambda_Function")
     res = my_rh_lambda(3, 5)
-    assert res == "15"
+    assert res == 15
     my_rh_lambda.teardown()
 
 
@@ -36,6 +36,6 @@ def test_share_lambda():
         lambda_func.share(users=[user], notify_users=False, access_level="write")
         shared_func = lambda_func.rns_address
     reloaded_func = rh.aws_lambda_fn(name=shared_func)
-    assert reloaded_func(1, 3) == "4"
+    assert reloaded_func(1, 3) == 4
     rns_client.delete_configs(lambda_func)
     lambda_func.teardown()
