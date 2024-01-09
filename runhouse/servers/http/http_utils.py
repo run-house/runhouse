@@ -23,6 +23,7 @@ class Message(BaseModel):
 
 class ServerSettings(BaseModel):
     den_auth: Optional[bool] = None
+    flush_auth_cache: Optional[bool] = None
 
 
 class Args(BaseModel):

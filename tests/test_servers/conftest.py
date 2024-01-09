@@ -61,7 +61,7 @@ def local_client_with_den_auth(logged_in_account):
     from fastapi.testclient import TestClient
 
     HTTPServer()
-    HTTPServer.enable_den_auth()
+    HTTPServer.enable_den_auth(flush=False)
     client = TestClient(app)
     with friend_account():
         client.headers = rns_client.request_headers()

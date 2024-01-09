@@ -243,7 +243,7 @@ class TestHTTPServerDockerDenAuthOnly:
     def test_no_access_to_cluster(self, http_client, cluster):
         # Make sure test account doesn't have access to the cluster (created by logged-in account, Den Tester in CI)
         cluster.revoke(["info@run.house"])
-        cluster.enable_den_auth()  # Flush auth cache
+        cluster.enable_den_auth(flush=True)  # Flush auth cache
 
         import requests
 
