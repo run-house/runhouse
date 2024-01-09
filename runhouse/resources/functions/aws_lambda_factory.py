@@ -44,9 +44,9 @@ def aws_lambda_fn(
         timeout: Optional[int]: The maximum amount of time (in seconds) during which the Lambda will run in AWS
             without timing-out. (Default: ``900``, Min: ``3``, Max: ``900``)
         memory_size: Optional[int], The amount of memory (in MB) to be allocated to the Lambda.
-             (Default: ``1024``, Min: ``128``, Max: ``10240``)
+             (Default: ``10240``, Min: ``128``, Max: ``10240``)
         tmp_size: Optional[int], This size of the /tmp folder in the aws lambda file system.
-             (Default: ``3072``, Min: ``512``, Max: ``10240``).
+             (Default: ``10240``, Min: ``512``, Max: ``10240``).
         retention_time: Optional[int] The time (in days) the Lambda execution logs will be saved in AWS
             cloudwatch. After that, they will be deleted. (Default: ``30`` days)
         dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
@@ -66,11 +66,11 @@ def aws_lambda_fn(
         >>> def multiply(a, b):
         >>>     return a * b
         >>> multiply_lambda = rh.aws_lambda_fn(fn=multiply, name="lambdas_mult_func")
-        >>> mult_res = multiply_lambda(4, 5)  # returns "20".
+        >>> mult_res = multiply_lambda(4, 5)  # returns 20.
 
         >>> # Load function from above
         >>> reloaded_function = rh.aws_lambda_fn(name="lambdas_mult_func")
-        >>> reloaded_function_res = reloaded_function(3, 4)  # returns "12".
+        >>> reloaded_function_res = reloaded_function(3, 4)  # returns 12.
 
     """
     # TODO: [SB] in the next phase, maybe add the option to create func from git.

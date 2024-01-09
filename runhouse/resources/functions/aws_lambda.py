@@ -213,9 +213,9 @@ class LambdaFunction(Function):
             timeout: Optional[int]: The maximum amount of time (in seconds) during which the Lambda will run in AWS
                 without timing-out. (Default: ``900``, Min: ``3``, Max: ``900``)
             memory_size: Optional[int], The amount of memory (in MB) to be allocated to the Lambda.
-                (Default: ``1024``, Min: ``128``, Max: ``10240``)
+                (Default: ``10240``, Min: ``128``, Max: ``10240``)
             tmp_size: Optional[int], This size of the /tmp folder in the aws lambda file system.
-                (Default: ``3072``, Min: ``512``, Max: ``10240``).
+                (Default: ``10240``, Min: ``512``, Max: ``10240``).
             retention_time: Optional[int] The time (in days) the Lambda execution logs will be saved in AWS
                 cloudwatch. After that, they will be deleted. (Default: ``30`` days)
             dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
@@ -237,7 +237,7 @@ class LambdaFunction(Function):
             >>>                     name="my_func").save()
 
             >>> # invoking the function
-            >>> summer_res = summer_lambda(5, 8)  # returns "13". (It returns str type because of AWS API)
+            >>> summer_res = summer_lambda(5, 8)  # returns 13.
         """
 
         if name is None:
@@ -364,14 +364,14 @@ class LambdaFunction(Function):
                 timeout = 3
                 warnings.warn("Timeout can not be less then 3 sec, setting to 3 sec.")
         if memory_size is None:
-            warnings.warn("Memory size set to 10240 MB.")
+            warnings.warn("Memory size set to 10 GB.")
             memory_size = LambdaFunction.DEFAULT_MEMORY_SIZE
         else:
             if (
                 env.reqs is not None or len(env.reqs) > 0
             ) and memory_size < LambdaFunction.DEFAULT_MEMORY_SIZE:
                 warnings.warn(
-                    "Increasing the memory size to 10GB, in order to enable the packages setup."
+                    "Increasing the memory size to 10240 MB, in order to enable the packages setup."
                 )
                 memory_size = LambdaFunction.DEFAULT_MEMORY_SIZE
             if memory_size < 128:
@@ -814,7 +814,7 @@ class LambdaFunction(Function):
             >>>                     fn=my_summer,
             >>>                     runtime = 'python3.9',
             >>>                     name="my_func")
-            >>> output = summer_lambda.map([1, 2], [1, 4], [2, 3])  # output = ["4", "9"]
+            >>> output = summer_lambda.map([1, 2], [1, 4], [2, 3])  # output = [4, 9]
         """
 
         return [self._invoke(*args, **kwargs) for args in zip(*args)]
@@ -827,7 +827,7 @@ class LambdaFunction(Function):
         Example:
             >>> arg_list = [(1,2, 3), (3, 4, 5)]
             >>> # invokes the Lambda function twice, once with args (1, 2, 3) and once with args (3, 4, 5)
-            >>> output = summer_lambda.starmap(arg_list) # output = ["6", "12"]
+            >>> output = summer_lambda.starmap(arg_list) # output = [6, 12]
         """
 
         return [self._invoke(*args, **kwargs) for args in args_lists]
@@ -843,7 +843,7 @@ class LambdaFunction(Function):
             >>> def multiply(a, b):
             >>>     return a * b
             >>> multiply_lambda = rh.aws_lambda_fn(fn=multiply, name="lambdas_mult_func")
-            >>> mult_res = multiply_lambda(4, 5)  # returns "20".
+            >>> mult_res = multiply_lambda(4, 5)  # returns 20.
             >>> multiply_lambda.teardown()  # returns true if succeeded, raises an exception otherwise.
 
         """
