@@ -161,11 +161,12 @@ class HTTPServer:
                 namespace="runhouse",
             )
 
-        try:
-            # Collect metadata for the cluster immediately on init
-            self._collect_cluster_stats()
-        except Exception as e:
-            logger.error(f"Failed to collect cluster stats: {str(e)}")
+        # TODO disabling due to latency, figure out what to do with this
+        # try:
+        #     # Collect metadata for the cluster immediately on init
+        #     self._collect_cluster_stats()
+        # except Exception as e:
+        #     logger.error(f"Failed to collect cluster stats: {str(e)}")
 
         try:
             # Collect telemetry stats for the cluster
@@ -193,14 +194,14 @@ class HTTPServer:
         return cls._den_auth
 
     @classmethod
-    def enable_den_auth(cls):
+    def enable_den_auth(cls, flush=True):
         cls._den_auth = True
-        obj_store.clear_auth_cache()
+        if flush:
+            obj_store.clear_auth_cache()
 
     @classmethod
     def disable_den_auth(cls):
         cls._den_auth = False
-        obj_store.clear_auth_cache()
 
     @staticmethod
     def register_activity():
@@ -321,7 +322,7 @@ class HTTPServer:
     @validate_cluster_access
     def update_settings(request: Request, message: ServerSettings) -> Response:
         if message.den_auth:
-            HTTPServer.enable_den_auth()
+            HTTPServer.enable_den_auth(flush=message.flush_auth_cache)
         elif message.den_auth is not None and not message.den_auth:
             HTTPServer.disable_den_auth()
 

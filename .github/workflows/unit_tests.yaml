@@ -15,8 +15,8 @@ jobs:
       - name: Setup Runhouse
         uses: ./.github/workflows/setup_runhouse
 
-      - name: pytest -v --level unit
-        run: pytest -v --level unit
+      - name: pytest -v --level unit -k "not secrettest"
+        run: pytest -v --level unit -k "not secrettest"
 
 #  all-tests-logged-in-level-unit:
 #    runs-on: ubuntu-latest

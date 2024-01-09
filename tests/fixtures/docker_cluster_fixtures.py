@@ -468,7 +468,7 @@ def docker_cluster_pk_ssh_den_auth(docker_cluster_pk_ssh, logged_in_account):
     the cluster using the base SSH credentials already present on the machine. We send a request
     to enable den auth server side.
     """
-    docker_cluster_pk_ssh.enable_den_auth()
+    docker_cluster_pk_ssh.enable_den_auth(flush=False)
     return docker_cluster_pk_ssh
 
 
