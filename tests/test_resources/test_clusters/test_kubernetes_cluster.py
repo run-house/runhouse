@@ -10,7 +10,7 @@ def num_cpus():
 
 
 @pytest.mark.kubernetestest
-class TestKubernetesCluster():
+class TestKubernetesCluster(tests.test_resources.test_clusters.test_cluster.TestCluster):
 
     MAP_FIXTURES = {"resource": "cluster"}
 
