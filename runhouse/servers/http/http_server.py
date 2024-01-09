@@ -273,6 +273,10 @@ class HTTPServer:
                 )
                 .remote(env_name=env_name)
             )
+
+            # Wait for the EnvServlet to actually initialize
+            ray.get(new_env.register_activity.remote())
+
             env_servlets[env_name] = new_env
             return new_env
 
@@ -591,7 +595,8 @@ class HTTPServer:
             return Response(
                 output_type=OutputType.RESULT, data=pickle_b64(obj_store.keys())
             )
-        return HTTPServer.call_in_env_servlet("get_keys", [], env=env)
+        else:
+            return HTTPServer.call_in_env_servlet("get_keys_local", [], env=env)
 
     @staticmethod
     @app.get("/{module}/{method}")
