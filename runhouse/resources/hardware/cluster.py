@@ -733,7 +733,7 @@ class Cluster(Resource):
             self.run_python(
                 commands=[
                     "import ray",
-                    "ray.init(include_dashboard=False)",
+                    'ray.init(include_dashboard=False, namespace="runhouse")',
                 ],
                 node=host,
             )
