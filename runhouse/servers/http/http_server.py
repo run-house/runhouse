@@ -167,6 +167,15 @@ class HTTPServer:
             )
 
         try:
+            # Wait for all the workers to join the cluster
+            self._wait_for_workers(ips.count())
+            logger.info("🎉 All workers present and accounted for 🎉")
+        except Exception as e:
+            logger.error(
+                f"Failed to connect Ray worker nodes to Ray head node: {str(e)}"
+            )
+
+        try:
             # Collect metadata for the cluster immediately on init
             self._collect_cluster_stats()
         except Exception as e:
@@ -189,6 +198,18 @@ class HTTPServer:
         obj_store.set_name("server")
 
         HTTPServer.register_activity()
+
+    def _wait_for_workers(self, n_hosts, timeout=60):
+        logger.info(f"Waiting {timeout} seconds for {n_hosts} nodes to join")
+
+        ray_node_count = len(ray.nodes())
+
+        while len(ray_node_count) < n_hosts:
+            logger.info(f"{ray_node_count} nodes connected to cluster")
+            time.sleep(5)
+            timeout -= 5
+            if timeout == 0:
+                raise Exception("Max timeout for nodes to join exceeded")
 
     @classmethod
     def get_den_auth(cls):

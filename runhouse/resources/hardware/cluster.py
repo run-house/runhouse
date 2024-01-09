@@ -15,8 +15,6 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import ray
-
 from runhouse.servers.http.certs import TLSCertConfig
 
 # Filter out DeprecationWarnings
@@ -65,7 +63,7 @@ class Cluster(Resource):
     # --autoscaling-config=~/ray_bootstrap_config.yaml
     # We need to use this instead of ray stop to make sure we don't stop the SkyPilot ray server,
     # which runs on other ports but is required to preserve autostop and correct cluster status.
-    RAY_KILL_CMD = 'pkill -f ".*ray.*' + DEFAULT_RAY_PORT + '.*"'
+    RAY_KILL_CMD = 'pkill -f ".*ray.*' + str(DEFAULT_RAY_PORT) + '.*"'
 
     def __init__(
         self,
@@ -701,7 +699,7 @@ class Cluster(Resource):
 
         return cmds
 
-    def _start_ray(self, host, master_host, ray_port, workers_thread):
+    def _start_ray(self, host, master_host, ray_port):
         # Extract the head_ip
         public_head_ip = master_host
 
@@ -716,12 +714,7 @@ class Cluster(Resource):
 
         logger.info(f"Internal head IP: {internal_head_ip}")
 
-        if host == master_host:
-            # Head node
-            workers_thread.start()
-            logger.info("Waiting for workers to join the cluster...")
-
-        else:
+        if host != master_host:
             # Worker node
             logger.info(
                 f"Starting Ray on worker {host} with head node at {internal_head_ip}:{ray_port}."
@@ -732,16 +725,6 @@ class Cluster(Resource):
                 ],
                 node=host,
             )
-
-    def _wait_for_workers(self, n_hosts, timeout=60):
-        logger.info(f"Waiting {timeout} seconds for {n_hosts} nodes to join")
-
-        while len(ray.nodes()) < n_hosts:
-            logger.info(f"{len(ray.nodes())} nodes connected to cluster")
-            time.sleep(5)
-            timeout -= 5
-            if timeout == 0:
-                raise Exception("Max timeout for nodes to join exceeded")
 
     def restart_server(
         self,
@@ -837,17 +820,9 @@ class Cluster(Resource):
             # TODO: kill ray on all nodes first. Need to think more of the
             # multiple multi-node clusters running on the same set of machines case.
             master_host = self.address
-            n_hosts = len(self.ips)
-            workers_thread = threading.Thread(
-                target=self._wait_for_workers, args=(n_hosts,)
-            )
-            for host in self.ips:
-                self._start_ray(
-                    host, master_host, self.DEFAULT_RAY_PORT, workers_thread
-                )
 
-            workers_thread.join()
-            logger.info("🎉 All workers present and accounted for 🎉")
+            for host in self.ips:
+                self._start_ray(host, master_host, self.DEFAULT_RAY_PORT)
 
         return status_codes
 
