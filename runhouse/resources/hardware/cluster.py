@@ -51,7 +51,7 @@ class Cluster(Resource):
     DEFAULT_HTTP_PORT = 80
     DEFAULT_HTTPS_PORT = 443
     DEFAULT_SSH_PORT = 22
-    DEFAULT_RAY_PORT = 6381
+    DEFAULT_RAY_PORT = 6379
     LOCAL_HOSTS = ["localhost", LOCALHOST]
 
     SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
@@ -60,13 +60,12 @@ class Cluster(Resource):
     SERVER_STOP_CMD = f'pkill -f "{SERVER_START_CMD}"'
     # 2>&1 redirects stderr to stdout
     START_SCREEN_CMD = f"screen -dm bash -c \"{SERVER_START_CMD} 2>&1 | tee -a '{SERVER_LOGFILE}' 2>&1\""
-    RAY_START_CMD = "ray start --head --port 6379"
+    RAY_START_CMD = f"ray start --head --port {DEFAULT_RAY_PORT}"
     # RAY_BOOTSTRAP_FILE = "~/ray_bootstrap_config.yaml"
     # --autoscaling-config=~/ray_bootstrap_config.yaml
     # We need to use this instead of ray stop to make sure we don't stop the SkyPilot ray server,
     # which runs on other ports but is required to preserve autostop and correct cluster status.
-    RAY_KILL_CMD = 'pkill -f ".*ray.*6379.*"'
-    RAY_RUNHOUSE_KILL_CMD = 'pkill -f ".*ray.*' + str(DEFAULT_RAY_PORT) + '.*"'
+    RAY_KILL_CMD = 'pkill -f ".*ray.*' + DEFAULT_RAY_PORT + '.*"'
 
     def __init__(
         self,
@@ -620,7 +619,6 @@ class Cluster(Resource):
             cmds.append(cls.SERVER_STOP_CMD)
         if restart_ray:
             cmds.append(cls.RAY_KILL_CMD)
-            cmds.append(cls.RAY_RUNHOUSE_KILL_CMD)
             # TODO Add in BOOTSTRAP file if it exists?
             cmds.append(cls.RAY_START_CMD)
 
@@ -703,7 +701,7 @@ class Cluster(Resource):
 
         return cmds
 
-    def _start_ray(self, host, master_host, n_hosts, ray_port, workers_thread):
+    def _start_ray(self, host, master_host, ray_port, workers_thread):
         # Extract the head_ip
         public_head_ip = master_host
 
@@ -720,25 +718,6 @@ class Cluster(Resource):
 
         if host == master_host:
             # Head node
-            cmd = f"ray start --head --disable-usage-stats --port={ray_port} --include-dashboard=false"
-            logger.info(f"Running 'ray start' command on head node {host}: {cmd}")
-            self.run(
-                commands=[
-                    cmd,
-                ],
-                node=host,
-            )
-
-            logger.info(f"Running 'ray init' command on node:port : {host}:{ray_port}")
-            self.run_python(
-                commands=[
-                    "import ray",
-                    'ray.init(include_dashboard=False, namespace="runhouse")',
-                ],
-                node=host,
-            )
-            logger.info(f"Ray cluster started on head node {host}:{ray_port}.")
-
             workers_thread.start()
             logger.info("Waiting for workers to join the cluster...")
 
@@ -749,7 +728,7 @@ class Cluster(Resource):
             )
             self.run(
                 commands=[
-                    f"sleep 10 && ray start --address={internal_head_ip}:{ray_port}",
+                    f"ray start --address={internal_head_ip}:{ray_port}",
                 ],
                 node=host,
             )
@@ -864,7 +843,7 @@ class Cluster(Resource):
             )
             for host in self.ips:
                 self._start_ray(
-                    host, master_host, n_hosts, self.DEFAULT_RAY_PORT, workers_thread
+                    host, master_host, self.DEFAULT_RAY_PORT, workers_thread
                 )
 
             workers_thread.join()
