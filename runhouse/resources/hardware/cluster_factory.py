@@ -307,10 +307,6 @@ def ondemand_cluster(
         else open_ports
     )
 
-    # Add the new Runhouse Ray port to open_ports if it's not already there
-    if Cluster.DEFAULT_RAY_PORT not in open_ports:
-        open_ports.append(Cluster.DEFAULT_RAY_PORT)
-
     if open_ports:
         open_ports = [str(p) for p in open_ports]
         if str(server_port) in open_ports:

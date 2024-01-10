@@ -817,8 +817,6 @@ class Cluster(Resource):
 
         if restart_ray:
             # Restart Ray on the head node and each of the workers
-            # TODO: kill ray on all nodes first. Need to think more of the
-            # multiple multi-node clusters running on the same set of machines case.
             master_host = self.address
 
             for host in self.ips:
