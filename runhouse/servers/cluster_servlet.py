@@ -16,6 +16,8 @@ class ClusterServlet:
         local_cluster_config = _load_cluster_config_from_file()
         if local_cluster_config:
             self.cluster_config = local_cluster_config
+        else:
+            self.cluster_config = {}
 
         self._initialized_env_servlet_names: Set[str] = set()
         self._key_to_env_servlet_name: Dict[Any, str] = {}
@@ -29,6 +31,9 @@ class ClusterServlet:
 
     def set_cluster_config(self, cluster_config: Dict[str, Any]):
         self.cluster_config = cluster_config
+
+    def set_cluster_config_value(self, key: str, value: Any):
+        self.cluster_config[key] = value
 
     ##############################################
     # Auth cache internal functions

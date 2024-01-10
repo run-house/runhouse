@@ -154,6 +154,11 @@ class ObjStore:
             self.cluster_servlet, "set_cluster_config", config
         )
 
+    def set_cluster_config_value(self, key: str, value: Any):
+        return self.call_actor_method(
+            self.cluster_servlet, "set_cluster_config_value", key, value
+        )
+
     ##############################################
     # Auth cache internal functions
     ##############################################
