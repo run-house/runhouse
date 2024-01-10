@@ -126,7 +126,7 @@ class Defaults:
         return config or {}
 
     @property
-    def request_headers(self):
+    def request_headers(self) -> dict:
         """Base request headers used to make requests to Runhouse Den."""
         return {"Authorization": f"Bearer {self.token}"} if self.token else {}
 

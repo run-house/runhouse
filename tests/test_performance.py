@@ -38,7 +38,9 @@ def run_performance_tests(summer_func):
         lambda: requests.post(
             call_url,
             json={"args": [1, 2]},
-            headers=rns_client.request_headers() if cluster.den_auth else None,
+            headers=rns_client.request_headers(cluster.rns_address)
+            if cluster.den_auth
+            else None,
             verify=cluster.client.verify,
         ).json()
         == 3

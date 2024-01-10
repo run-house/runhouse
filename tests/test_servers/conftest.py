@@ -78,11 +78,12 @@ def remote_log_streaming_func(cluster):
 
 @pytest.fixture(scope="session")
 def local_cluster():
+    # Save to validate cluster access for HTTP requests
     return rh.cluster(
         name="faux_local_cluster",
         server_connection_type="none",
         host="localhost",
-    )
+    ).save()
 
 
 @pytest.fixture(scope="session")

@@ -194,17 +194,14 @@ def status(
     cluster_or_local = rh.here
     if cluster_or_local == "file":
         if cluster_name is None:
-            console.print("Missing argument CLUSTER_NAME.")
+            console.print("Missing argument `cluster_name`.")
             return
         else:
             try:
                 current_cluster = rh.cluster(name=cluster_name)
                 config = current_cluster.status()
-            except ValueError:
-                console.print(
-                    f"Cluster {cluster_name} is not found in Den. Please save it, in order to get its"
-                    f" status"
-                )
+            except ValueError as e:
+                console.print(f"Failed to load status for cluster: {e}.")
                 return
             except requests.exceptions.ConnectionError:
                 console.print(

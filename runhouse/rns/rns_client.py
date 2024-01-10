@@ -175,6 +175,9 @@ class RNSClient:
     @staticmethod
     def base_folder(resource_uri: str):
         """Top level folder associated with a resource."""
+        if resource_uri is None:
+            return None
+
         paths = resource_uri.split("/")
         return paths[1] if len(paths) > 1 else None
 
@@ -194,39 +197,37 @@ class RNSClient:
     def request_headers(
         self, resource_address: str = None, headers: dict = None
     ) -> Union[dict, None]:
-        """Returns the headers to use for authentication requests to either the Runhouse API server started
-        on a cluster or to Runhouse Den.
+        """Returns the authentication headers to use for requests made to Den or to a cluster.
 
         If the request is being made to Den, we simply construct the request headers with the user's existing
         Runhouse token.
 
         If the request is being made to (or from) a cluster, we generate a new unique token to prevent exposing the
         user's original Runhouse token on the cluster. This new token is based on the user's existing Den token and
-        Den address of the resource they are attempting to access.
+        the Den address of the resource (or cluster API) they are attempting to access.
 
         For example, if userA tries to access a function on a cluster that was shared with them by userB, we generate a
         new token containing userA's Den token and top level directory associated with the
         resource (e.g. if the function has a rns address of: "/userB/some_func", the top level directory will be set
         to: "userB", indicating that the function's owner/namespace is userB).
 
-        The updated token used in requests would then look like:
+        The updated token used in requests made by userA to the cluster would then look like:
         "hash(userA den token + resource top level directory) + resource top level directory + userA", where
         "hash" is a sha256 hash function.
 
-        This also ensures that each user <> resource relationship will yield the same token, allowing
+        This method also ensures that each user <> resource relationship will yield the same token, allowing
         resource owners to more easily identify specific users consuming or accessing their resource.
 
         Args:
             resource_address (str, optional): Name of the top level directory or namespace that the resource
-                is associated with. If not provided, we construct headers using the original
-                Runhouse token. For example, if the Den address of the resource is: "/userA/some_func", the resource
-                address would be "userA".
+                is associated with. For example, if the Den address of a function is: "/userA/some_func", the resource
+                address would be "userA". If not provided, we construct headers with the user's default Runhouse token.
             headers (dict, optional): Request headers to use for the request. If not provided, we use the default
-                headers (i.e. using the user's default Den token stored in the local Runhouse configs).
+                headers (i.e. use the default Runhouse token).
 
         Returns:
             request_headers (Union[dict, None]): The resulting request headers, or ``None`` if no headers
-                are needed for the request.
+                are required for the request.
 
         """
         if headers == {}:
@@ -235,7 +236,11 @@ class RNSClient:
 
         if headers is None:
             # Use the default headers (i.e. the user's original Den token)
-            headers = self._configs.request_headers
+            headers: dict = self._configs.request_headers
+
+        if not headers:
+            # TODO: allow this? means we failed to load token from configs
+            return None
 
         if "Authorization" not in headers:
             raise ValueError(
@@ -246,22 +251,24 @@ class RNSClient:
             # If a base dir is not specified assume we are not sending a request to a cluster
             return headers
 
-        # Extract the den token from the headers provided, otherwise use the default token stored in the runhouse config
         den_token = None
         auth_header = headers["Authorization"]
         token_parts = auth_header.split(" ")
         if len(token_parts) == 2 and token_parts[0] == "Bearer":
             den_token = token_parts[1]
 
-        current_user_token = den_token or self.token
+        if den_token is None:
+            raise ValueError(
+                "Failed to extract token from request auth header. Expected in format: Bearer <token>"
+            )
 
         if "/" in resource_address:
             # If provided as a full rns address, extract the top level directory
             resource_address = self.base_folder(resource_address)
 
-        hash_input = (current_user_token + resource_address).encode("utf-8")
+        hash_input = (den_token + resource_address).encode("utf-8")
         hash_hex = hashlib.sha256(hash_input).hexdigest()
-        cluster_token = f"{hash_hex}+{resource_address}+{self.username}"
+        cluster_token = f"{hash_hex}+{resource_address}+{self._configs.username}"
 
         return {"Authorization": f"Bearer {cluster_token}"}
 

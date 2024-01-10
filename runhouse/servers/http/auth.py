@@ -1,4 +1,3 @@
-import hashlib
 import json
 import logging
 from typing import Union
@@ -14,21 +13,22 @@ class AuthCache:
     CACHE = {}
 
     @classmethod
-    def get_user_resources(cls, token_hash: str) -> dict:
-        """Get resources associated with a particular user's token"""
-        return cls.CACHE.get(token_hash, {})
+    def get_user_resources(cls, username: str) -> dict:
+        """Get resources associated with a particular username"""
+        return cls.CACHE.get(username, {})
 
     @classmethod
-    def lookup_access_level(
-        cls, token_hash: str, resource_uri: str
-    ) -> Union[str, None]:
-        resources: dict = cls.get_user_resources(token_hash)
+    def lookup_access_level(cls, username: str, resource_uri: str) -> Union[str, None]:
+        resources: dict = cls.get_user_resources(username)
         return resources.get(resource_uri)
 
     @classmethod
-    def add_user(cls, token, refresh_cache=True):
-        """Refresh the server cache with the latest resources and access levels for a particular user"""
-        if not refresh_cache and hash_token(token) in cls.CACHE:
+    def add_user(cls, username, token, refresh_cache=True):
+        """Refresh the server cache with the latest resources and access levels for a particular username"""
+        if username is None:
+            return
+
+        if not refresh_cache and username in cls.CACHE:
             return
 
         resp = rns_client.session.get(
@@ -49,55 +49,43 @@ class AuthCache:
             for resource in resp_data["data"]
         }
         # Update server cache with a user's resources and access type
-        cls.CACHE[hash_token(token)] = all_resources
+        cls.CACHE[username] = all_resources
 
-    def clear_cache(self, token_hash: str = None):
-        """Clear the server cache for a particular user's token"""
-        if token_hash is None:
+    def clear_cache(self, username: str = None):
+        """Clear the server cache, If a username is specified, clear the cache for that particular user only"""
+        if username is None:
             self.CACHE = {}
         else:
-            self.CACHE.pop(token_hash, None)
+            self.CACHE.pop(username, None)
 
 
 def verify_cluster_access(
     cluster_uri: str,
+    username: str,
     token: str,
 ) -> bool:
     """Checks whether the user has access to the cluster.
-    Note: If user has write access to the cluster, will have access to all other resources on the cluster by default."""
+    Note: A user with write access to the cluster or a cluster owner will have access to all other resources on
+    the cluster by default."""
     from runhouse.globals import configs, obj_store
 
     # The logged-in user always has full access to the cluster. This is especially important if they flip on
     # Den Auth without saving the cluster.
     if configs.token == token:
+        # Note: this can only be validated if the token provided is a Runhouse token and not a hashed cluster token
         return True
 
-    token_hash = hash_token(token)
-
     # Check if user already has saved resources in cache
-    cached_resources: dict = obj_store.user_resources(token_hash)
+    cached_resources: dict = obj_store.user_resources(username)
 
     # e.g. {"/jlewitt1/bert-preproc": "read"}
     cluster_access_level = cached_resources.get(cluster_uri)
 
     if cluster_access_level is None:
         # Reload from cache and check again
-        obj_store.add_user_to_auth_cache(token)
+        obj_store.add_user_to_auth_cache(username, token)
 
-        cached_resources: dict = obj_store.user_resources(token_hash)
+        cached_resources: dict = obj_store.user_resources(username)
         cluster_access_level = cached_resources.get(cluster_uri)
 
-    if cluster_access_level in [ResourceAccess.WRITE, ResourceAccess.READ]:
-        return True
-
-    return False
-
-
-def hash_token(token: str) -> str:
-    """Hash the user's Runhouse token to avoid storing them in plain text on the cluster. If the token received
-    is the hashed cluster token, do nothing."""
-    if "+" in token:
-        # If receiving a cluster token it will already be hashed
-        return token
-
-    return hashlib.sha256(token.encode()).hexdigest()
+    return cluster_access_level in [ResourceAccess.WRITE, ResourceAccess.READ]
