@@ -72,8 +72,8 @@ class TestResource:
     @pytest.mark.level("unit")
     def test_save_and_load(self, saved_resource):
         # Test loading from name
-        alt_resource = saved_resource.__class__.from_name(saved_resource.rns_address)
-        assert alt_resource.config_for_rns == saved_resource.config_for_rns
+        loaded_resource = saved_resource.__class__.from_name(saved_resource.rns_address)
+        assert loaded_resource.config_for_rns == saved_resource.config_for_rns
         # Changing the name doesn't work for OnDemandCluster, because the name won't match the local sky db
         if isinstance(saved_resource, rh.OnDemandCluster):
             return
@@ -83,15 +83,24 @@ class TestResource:
             # Test saving under new name
             original_name = saved_resource.rns_address
             alt_name = saved_resource.rns_address + "-alt"
+
+            # This saves a new RNS config with the same resource,
+            # but an alt name. It also updates the local config to point to the new RNS config.
             saved_resource.save(alt_name)
             alt_resource = saved_resource.__class__.from_name(alt_name)
             assert alt_resource.config_for_rns == saved_resource.config_for_rns
 
-            # Test that original resource is still available
+            # Test that original resource is still available in Den
             reloaded_resource = saved_resource.__class__.from_name(original_name)
             assert reloaded_resource.rns_address != alt_resource.rns_address
 
+            # Rename saved resource locally back to original name
             saved_resource.name = original_name
+            assert (
+                reloaded_resource.rns_address
+                == saved_resource.rns_address
+                == original_name
+            )
 
         finally:
             alt_resource.delete_configs()
