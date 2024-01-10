@@ -19,7 +19,6 @@ from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 from runhouse.constants import CLUSTER_CONFIG_PATH, RH_LOGFILE_PATH
 from runhouse.globals import configs, env_servlets, obj_store, rns_client
-from runhouse.resources.hardware.utils import _load_cluster_config
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.env_servlet import EnvServlet
@@ -108,7 +107,6 @@ class HTTPServer:
     DEFAULT_HTTPS_PORT = 443
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
     memory_exporter = None
-    _den_auth = False
 
     def __init__(
         self, conda_env=None, enable_local_span_collection=None, *args, **kwargs
@@ -197,17 +195,17 @@ class HTTPServer:
 
     @classmethod
     def get_den_auth(cls):
-        return cls._den_auth
+        return obj_store.get_cluster_config().get("den_auth", False)
 
     @classmethod
     def enable_den_auth(cls, flush=True):
-        cls._den_auth = True
+        obj_store.set_cluster_config_value("den_auth", True)
         if flush:
             obj_store.clear_auth_cache()
 
     @classmethod
     def disable_den_auth(cls):
-        cls._den_auth = False
+        obj_store.set_cluster_config_value("den_auth", False)
 
     @staticmethod
     def register_activity():
@@ -906,13 +904,15 @@ if __name__ == "__main__":
     )
 
     # The object store and the cluster servlet within it need to be
-    # initiailzed in order to call `_load_cluster_config`, which
+    # initiailzed in order to call `obj_store.get_cluster_config()`, which
     # uses the object store to load the cluster config from Ray.
     obj_store.initialize("base")
 
-    cluster_config = _load_cluster_config()
+    cluster_config = obj_store.get_cluster_config()
     if not cluster_config:
-        raise ValueError("Cluster config not found.")
+        logger.warning(
+            "Cluster config is not set. Using default values where possible."
+        )
 
     parse_args = parser.parse_args()
 
@@ -925,7 +925,7 @@ if __name__ == "__main__":
     use_local_telemetry = parse_args.use_local_telemetry
 
     # Update globally inside the module based on the args passed in or the cluster config
-    den_auth = parse_args.use_den_auth or cluster_config.get("den_auth")
+    den_auth = parse_args.use_den_auth or cluster_config.get("den_auth") or False
 
     ips = cluster_config.get("ips", [])
     address = parse_args.certs_address or ips[0] if ips else None
