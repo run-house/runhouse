@@ -88,6 +88,21 @@ class ServerConnectionType(str, Enum):
     AWS_SSM = "aws_ssm"
 
 
+def _load_cluster_config() -> Dict:
+    from runhouse.globals import obj_store
+
+    return obj_store.get_cluster_config()
+
+
+def _load_cluster_config_from_file() -> Dict:
+    if Path(CLUSTER_CONFIG_PATH).expanduser().exists():
+        with open(Path(CLUSTER_CONFIG_PATH).expanduser()) as f:
+            cluster_config = json.load(f)
+        return cluster_config
+    else:
+        return {}
+
+
 def _current_cluster(key="name"):
     """Retrive key value from the current cluster config.
     If key is "config", returns entire config."""
@@ -100,15 +115,6 @@ def _current_cluster(key="name"):
         return cluster_config[key]
     else:
         return None
-
-
-def _load_cluster_config() -> Dict:
-    if Path(CLUSTER_CONFIG_PATH).expanduser().exists():
-        with open(Path(CLUSTER_CONFIG_PATH).expanduser()) as f:
-            cluster_config = json.load(f)
-        return cluster_config
-    else:
-        return {}
 
 
 def _get_cluster_from(system, dryrun=False):

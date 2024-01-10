@@ -36,6 +36,7 @@ from runhouse.servers.http.http_utils import (
     ServerSettings,
 )
 from runhouse.servers.nginx.config import NginxConfig
+from runhouse.servers.obj_store import initialize_cluster_servlet
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +162,11 @@ class HTTPServer:
                 namespace="runhouse",
             )
 
+        # This should already be initialized by the start script
+        # But if the HTTPServer was started standalone in a test,
+        # We still want to make sure the cluster servlet is initialized
+        initialize_cluster_servlet()
+
         # TODO disabling due to latency, figure out what to do with this
         # try:
         #     # Collect metadata for the cluster immediately on init
@@ -274,7 +280,7 @@ class HTTPServer:
                 .remote(env_name=env_name)
             )
 
-            # Wait for the EnvServlet to actually initialize
+            # Make sure env_servlet is actually initialized
             ray.get(new_env.register_activity.remote())
 
             env_servlets[env_name] = new_env
@@ -899,7 +905,15 @@ if __name__ == "__main__":
         help="Address to use for generating self-signed certs and enabling HTTPS. (e.g. public IP address)",
     )
 
+    # The object store and the cluster servlet within it need to be
+    # initiailzed in order to call `_load_cluster_config`, which
+    # uses the object store to load the cluster config from Ray.
+    obj_store.initialize("base")
+
     cluster_config = _load_cluster_config()
+    if not cluster_config:
+        raise ValueError("Cluster config not found.")
+
     parse_args = parser.parse_args()
 
     conda_name = parse_args.conda_env
