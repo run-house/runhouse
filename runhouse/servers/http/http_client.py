@@ -106,7 +106,7 @@ class HTTPClient:
 
         cert_path = Path(self.cert_path)
         if not cert_path.exists():
-            raise FileNotFoundError(f"No cert found in path: {cert_path}")
+            return False
 
         # Check whether the cert is self-signed
         with open(cert_path, "rb") as cert_file:
@@ -138,7 +138,7 @@ class HTTPClient:
             auth=auth,
             cert_path=cert_path,
             resource_address=resource_address,
-            use_https=False
+            use_https=False,
         )
         client.use_https = use_https
         return client
@@ -188,7 +188,11 @@ class HTTPClient:
         headers: Union[Dict, None] = None,
     ):
         # Support use case where we explicitly do not want to provide headers (e.g. requesting a cert)
-        headers = rns_client.request_headers() if headers != {} else headers
+        headers = (
+            rns_client.request_headers(self.resource_address)
+            if headers != {}
+            else headers
+        )
         req_fn = (
             session.get
             if req_type == "get"
@@ -258,7 +262,10 @@ class HTTPClient:
             )
 
     def status(self):
-        return self.request("status", req_type="get")
+        logger.info(f"Resource address in status: {self.resource_address}")
+        return self.request(
+            "status", req_type="get", resource_address=self.resource_address
+        )
 
     def get_certificate(self):
         cert: bytes = self.request(
@@ -412,12 +419,9 @@ class HTTPClient:
         self, resource, env_name: Optional[str] = None, state=None, dryrun=False
     ):
         config = resource.config_for_rns
-        # base dir for this particular resource on the cluster
-        resource_address = rns_client.base_folder(config.get("name"))
         return self.request_json(
             "resource",
             req_type="post",
-            resource_address=resource_address,
             # TODO wire up dryrun properly
             json_dict=PutResourceParams(
                 serialized_data=serialize_data([config, state, dryrun], "pickle"),

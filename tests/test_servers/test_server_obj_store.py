@@ -1,6 +1,5 @@
 import pytest
 
-from runhouse.servers.http.auth import hash_token
 from runhouse.servers.obj_store import ObjStore, ObjStoreError
 
 from tests.utils import friend_account, get_ray_servlet_and_obj_store
@@ -354,30 +353,28 @@ class TestAuthCacheObjStore:
     def test_save_resources_to_obj_store_cache(self, obj_store):
         with friend_account() as test_account_dict:
             token = test_account_dict["token"]
-            hashed_token = hash_token(token)
+            username = test_account_dict["username"]
 
             # Add test account resources to the local cache
-            obj_store.add_user_to_auth_cache(token)
-            resources = obj_store.user_resources(hashed_token)
+            obj_store.add_user_to_auth_cache(username, token)
+            resources = obj_store.user_resources(username)
             assert resources
 
             resource_uri = f"/{test_account_dict['username']}/summer"
-            access_level = obj_store.resource_access_level(hashed_token, resource_uri)
+            access_level = obj_store.resource_access_level(username, resource_uri)
 
             assert access_level == "write"
 
     @pytest.mark.level("unit")
     def test_no_resources_for_invalid_token(self, obj_store):
-        token = "abc"
-        resources = obj_store.user_resources(hash_token(token))
+        username = "abc"
+        resources = obj_store.user_resources(username)
         assert not resources
 
     @pytest.mark.level("unit")
-    def test_no_resource_access_for_invalid_token(self, obj_store):
+    def test_no_resource_access_for_invalid_username(self, obj_store):
         with friend_account() as test_account_dict:
-            token = "abc"
+            username = "abc"
             resource_uri = f"/{test_account_dict['username']}/summer"
-            access_level = obj_store.resource_access_level(
-                hash_token(token), resource_uri
-            )
+            access_level = obj_store.resource_access_level(username, resource_uri)
             assert access_level is None

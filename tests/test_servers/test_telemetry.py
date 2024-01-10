@@ -26,7 +26,9 @@ class TestTelemetry:
         else:
             url = f"{cluster.endpoint()}/spans"
         response = requests.get(
-            url, verify=False, headers=rh.globals.rns_client.request_headers()
+            url,
+            verify=False,
+            headers=rh.globals.rns_client.request_headers(cluster.rns_address),
         )
 
         if cluster.use_local_telemetry:

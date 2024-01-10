@@ -273,7 +273,9 @@ class Module(Resource):
             and self._endpoint
             and isinstance(self._endpoint, str)
         ):
-            return HTTPClient.from_endpoint(self._endpoint, resource_address=self.rns_address)
+            return HTTPClient.from_endpoint(
+                self._endpoint, resource_address=self.rns_address
+            )
         return None
 
     def _remote_init(self, *args, **kwargs):
@@ -650,7 +652,9 @@ class Module(Resource):
                 return self.resolved_state(**kwargs)
             return client.call(name, "resolved_state", data=[(), kwargs])
 
-    async def fetch_async(self, key: str, remote: bool = False):
+    async def fetch_async(
+        self, key: str, remote: bool = False, stream_logs: bool = False
+    ):
         """Async version of fetch. Can't be a property like `fetch` because __getattr__ can't be awaited.
 
         Example:

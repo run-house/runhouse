@@ -25,16 +25,15 @@ from runhouse.constants import (
     RH_LOGFILE_PATH,
 )
 from runhouse.globals import configs, obj_store, rns_client
-from runhouse.rns.utils.api import resolve_absolute_path
+
+from runhouse.rns.utils.api import load_resp_content, resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.caddy.config import CaddyConfig
-from runhouse.servers.http.auth import hash_token, verify_cluster_access
+from runhouse.servers.http.auth import verify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
     CallParams,
     DeleteObjectParams,
-    auth_headers_from_request,
-    b64_unpickle,
     get_token_from_request,
     handle_exception_response,
     OutputType,
@@ -44,6 +43,7 @@ from runhouse.servers.http.http_utils import (
     Response,
     serialize_data,
     ServerSettings,
+    username_from_token,
 )
 from runhouse.servers.obj_store import (
     ClusterServletSetupOption,
@@ -57,7 +57,7 @@ app = FastAPI()
 
 
 def validate_cluster_access(func):
-    """If using Den auth, validate the user's Runhouse token and access to the cluster before continuing."""
+    """If using Den auth, validate the user's cluster subtoken and access to the cluster before continuing."""
 
     @wraps(func)
     async def wrapper(*args, **kwargs):
@@ -69,30 +69,29 @@ def validate_cluster_access(func):
 
         func_call: bool = func.__name__ in ["post_call", "get_call"]
         token = get_token_from_request(request)
+        username = None
 
-        _validate_request_token(
-            token, bearer_token=auth_headers_from_request(request)
-        )
+        if den_auth_enabled:
+            # Validate the cluster subtoken
+            _validate_request_token(token)
+
+            username = username_from_token(token)
+            if username is None:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Failed to validate user from provided token.",
+                )
 
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
-        token_hash = hash_token(token) if den_auth_enabled and token else None
-        ctx_token = obj_store.set_ctx(request_id=request_id, token_hash=token_hash)
+        ctx_token = obj_store.set_ctx(request_id=request_id, username=username)
 
         try:
-            if func_call and token:
-                obj_store.add_user_to_auth_cache(token, refresh_cache=False)
+            if func_call and token and username:
+                obj_store.add_user_to_auth_cache(username, token, refresh_cache=False)
 
             if den_auth_enabled and not func_call:
-                if token is None:
-                    raise HTTPException(
-                        status_code=401,
-                        detail="No Runhouse token provided. Try running `$ runhouse login` or visiting "
-                        "https://run.house/login to retrieve a token. If calling via HTTP, please "
-                        "provide a valid token in the Authorization header.",
-                    )
-
                 cluster_uri = obj_store.get_cluster_config().get("name")
-                cluster_access = verify_cluster_access(cluster_uri, token)
+                cluster_access = verify_cluster_access(cluster_uri, username, token)
                 if not cluster_access:
                     # Must have cluster access for all the non func calls
                     # Note: for func calls we handle the auth in the object store
@@ -116,27 +115,30 @@ def validate_cluster_access(func):
     return wrapper
 
 
-def _validate_request_token(token: str, bearer_token: str):
-    """Checks whether the cluster token is valid if provided with one. If a regular Runhouse token is provided,
-    it will be validated by the object store."""
-    if token is None:
+def _validate_request_token(request_token: str):
+    """Checks whether the cluster token is valid if provided in the request Auth headers.
+    If a regular Runhouse bearer token is provided it will be validated by the object store.
+    If a cluster subtoken is provided, validate it via Den."""
+    if request_token is None:
         raise HTTPException(
-            status_code=404,
-            detail="No token found in request auth headers. "
-            "Expected in format: {'Authorization': 'Bearer <token>'}",
+            status_code=401,
+            detail="No Runhouse token provided. Try running `$ runhouse login` or visiting "
+            "https://run.house/login to retrieve a token.",
         )
 
-    # If a hashed cluster token is provided, validate it
-    if "+" in token:
-        resp = requests.post(
-            f"{rns_client.api_server_url}/auth/cluster",
-            headers={"Authorization": bearer_token},
-        )
+    if "+" not in request_token:
+        # Only support cluster subtokens
+        raise HTTPException(status_code=401, detail="Invalid cluster token provided")
 
-        if resp.status_code != 200:
-            raise HTTPException(
-                status_code=resp.status_code, detail=load_resp_content(resp)
-            )
+    resp = requests.post(
+        f"{rns_client.api_server_url}/auth/cluster",
+        headers={"Authorization": request_token},
+    )
+
+    if resp.status_code != 200:
+        raise HTTPException(
+            status_code=resp.status_code, detail=load_resp_content(resp)
+        )
 
 
 class HTTPServer:
@@ -362,6 +364,7 @@ class HTTPServer:
                 precision="ms",  # Higher precision because we see collisions within the same second
                 sep="@",
             )
+
             # Call async so we can loop to collect logs until the result is ready
 
             fut = asyncio.create_task(
