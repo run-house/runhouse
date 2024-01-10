@@ -362,7 +362,6 @@ class Cluster(Resource):
             res = self.client.get(
                 key,
                 default=default,
-                resource_address=self.rns_address,
                 remote=remote,
                 system=self,
             )
