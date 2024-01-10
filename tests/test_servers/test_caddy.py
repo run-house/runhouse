@@ -365,14 +365,14 @@ class TestCaddyServerLocally:
                 key=key,
                 serialization="pickle",
             ).dict(),
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(cluster.rns_address),
             verify=verify,
         )
         assert response.status_code == 200
 
         response = requests.get(
             f"{protocol}://{cluster.server_address}:{cluster.client_port}/keys",
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(cluster.rns_address),
             verify=verify,
         )
 

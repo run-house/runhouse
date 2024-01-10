@@ -29,9 +29,9 @@ def call_func_with_curl(ip_address, func_name, token, *args):
     return res
 
 
-def update_cluster_auth_cache(cluster, token):
+def update_cluster_auth_cache(cluster, username, token):
     """Refresh cache on cluster for current user to reflect any Den updates made in the test."""
-    refresh_cmd = f"obj_store.add_user_to_auth_cache('{token}')"
+    refresh_cmd = f"obj_store.add_user_to_auth_cache('{username},{token}')"
     cluster.run_python(["from runhouse.globals import obj_store", refresh_cmd])
 
 
@@ -137,7 +137,7 @@ def test_running_func_with_cluster_read_access(shared_cluster, shared_function):
         if resp.status_code != 200:
             assert False, f"Failed to delete user access to resource: {resp.text}"
 
-        update_cluster_auth_cache(shared_cluster, current_token)
+        update_cluster_auth_cache(shared_cluster, username, current_token)
 
     # Confirm user can no longer call the function since only has read access to the cluster
     res = call_func_with_curl(
@@ -185,7 +185,7 @@ def test_running_func_with_cluster_write_access(shared_cluster, shared_function)
         if resp.status_code != 200:
             assert False, f"Failed to delete user access to resource: {resp.text}"
 
-        update_cluster_auth_cache(shared_cluster, current_token)
+        update_cluster_auth_cache(shared_cluster, current_username, current_token)
 
     # Confirm user can still call the function with write access to the cluster
     res = call_func_with_curl(
@@ -212,7 +212,7 @@ def test_running_func_with_no_cluster_access(shared_cluster, shared_function):
         if resp.status_code != 200:
             assert False, f"Failed to delete user access to cluster: {resp.text}"
 
-        update_cluster_auth_cache(shared_cluster, current_token)
+        update_cluster_auth_cache(shared_cluster, current_username, current_token)
 
     # Confirm current user can still call the function
     res = call_func_with_curl(

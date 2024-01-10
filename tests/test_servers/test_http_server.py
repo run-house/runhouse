@@ -100,7 +100,9 @@ class TestHTTPServerDocker:
         )
         assert response.status_code == 200
 
-        response = http_client.get("/keys", headers=rns_client.request_headers(cluster.rns_address))
+        response = http_client.get(
+            "/keys", headers=rns_client.request_headers(cluster.rns_address)
+        )
         assert new_key in response.json().get("data")
 
     @pytest.mark.level("local")
@@ -114,7 +116,9 @@ class TestHTTPServerDocker:
         )
         assert response.status_code == 200
 
-        response = http_client.get("/keys", headers=rns_client.request_headers(cluster.rns_address))
+        response = http_client.get(
+            "/keys", headers=rns_client.request_headers(cluster.rns_address)
+        )
         assert key not in response.json().get("data")
 
     # TODO test get_call, refactor into proper fixtures
@@ -133,7 +137,7 @@ class TestHTTPServerDocker:
                 "stream_logs": True,
                 "serialization": "pickle",
             },
-            headers=rns_client.request_headers(remote_func.rns_address),
+            headers=rns_client.request_headers(remote_func.system.rns_address),
         )
         assert response.status_code == 200
 
@@ -169,7 +173,7 @@ class TestHTTPServerDocker:
                 "stream_logs": True,
                 "serialization": "pickle",
             },
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(clus.rns_address),
         ) as r:
             assert r.status_code == 200
             for res in r.iter_lines():
@@ -193,7 +197,7 @@ class TestHTTPServerDocker:
         response = await async_http_client.post(
             f"/{remote_func.name}/{method}",
             json={"data": ([1, 2], {}), "serialization": None},
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(remote_func.system.rns_address),
         )
         assert response.status_code == 200
         assert response.json() == 3
@@ -207,7 +211,7 @@ class TestHTTPServerDocker:
         response = await async_http_client.post(
             f"/{remote_func.name}/{method}",
             json={"data": ([1, 2], {}), "serialization": "random"},
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(remote_func.system.rns_address),
         )
         assert response.status_code == 400
         assert "Invalid serialization type" in response.text
@@ -224,7 +228,7 @@ class TestHTTPServerDocker:
                 "data": serialize_data(([1, 2], {}), "pickle"),
                 "serialization": "pickle",
             },
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(remote_func.system.rns_address),
         )
         assert response.status_code == 200
         assert (
@@ -241,10 +245,65 @@ class TestHTTPServerDocker:
         response = await async_http_client.post(
             f"/{remote_func.name}/{method}",
             json={"data": json.dumps(([1, 2], {})), "serialization": "json"},
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(remote_func.system.rns_address),
         )
         assert response.status_code == 200
         assert response.json()["data"] == "3"
+
+    @pytest.mark.level("local")
+    def test_valid_cluster_token(self, http_client, cluster):
+        """User who created the cluster should be able to call cluster APIs with their default Den token
+        or with a cluster subtoken."""
+        response = http_client.get(
+            "/keys",
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        # Use cluster subtoken with resource address as the current username (cluster owner)
+        response = http_client.get(
+            "/keys",
+            headers=rns_client.request_headers(rns_client.username),
+        )
+        assert response.status_code == 200
+
+        # Use cluster subtoken with resource address as the cluster's rns address (/cluster_owner/cluster_name)
+        response = http_client.get(
+            "/keys",
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+    @pytest.mark.level("local")
+    def test_invalid_cluster_token(self, http_client, cluster):
+        """Invalid cluster token should not be able to access the cluster APIs if den auth is enabled."""
+        subtoken = f"abcdefg123+{rns_client.username}+{rns_client.username}"
+        response = http_client.get(
+            "/keys",
+            headers={"Authorization": f"Bearer {subtoken}"},
+        )
+
+        if cluster.den_auth:
+            # Should not be able to access cluster APIs
+            assert response.status_code == 403
+            assert "Failed to validate cluster token" in response.text
+        else:
+            # If den auth is not enabled token should be ignored
+            assert response.status_code == 200
+
+    @pytest.mark.level("local")
+    def test_no_access_with_invalid_default_token(self, http_client, cluster):
+        """Invalid bearer token should result in a 401 if den auth is enabled."""
+        invalid_subtoken = "invalid_resource_address"
+        response = http_client.get(
+            "/keys",
+            headers={"Authorization": f"Bearer {invalid_subtoken}"},
+        )
+
+        if cluster.den_auth:
+            assert response.status_code == 401
+        else:
+            assert response.status_code == 200
 
 
 @pytest.mark.servertest
@@ -275,12 +334,14 @@ class TestHTTPServerDockerDenAuthOnly:
         with friend_account():  # Test accounts with Den auth are created under test_account
             res = requests.get(
                 f"{rns_client.api_server_url}/resource",
-                headers=rns_client.request_headers(),
+                headers=rns_client.request_headers(cluster.rns_address),
             )
             assert cluster.rns_address not in [
                 config["name"] for config in res.json()["data"]
             ]
-            response = http_client.get("/keys", headers=rns_client.request_headers())
+            response = http_client.get(
+                "/keys", headers=rns_client.request_headers(cluster.rns_address)
+            )
 
         assert response.status_code == 403
         assert "Cluster access is required for this operation." in response.text
@@ -310,8 +371,7 @@ class TestHTTPServerDockerDenAuthOnly:
             json=PutResourceParams(serialized_data=data, serialization="pickle").dict(),
             headers=INVALID_HEADERS,
         )
-        assert response.status_code == 403
-        assert "Cluster access is required for this operation." in response.text
+        assert response.status_code == 401
 
     @pytest.mark.level("local")
     def test_call_module_method_with_invalid_token(self, http_client, remote_func):
@@ -328,8 +388,7 @@ class TestHTTPServerDockerDenAuthOnly:
             },
             headers=INVALID_HEADERS,
         )
-        assert response.status_code == 403
-        assert "Unauthorized access to resource summer" in response.text
+        assert response.status_code == 401
 
     @pytest.mark.level("local")
     def test_put_object_with_invalid_token(self, http_client):
@@ -343,8 +402,7 @@ class TestHTTPServerDockerDenAuthOnly:
             ).dict(),
             headers=INVALID_HEADERS,
         )
-        assert response.status_code == 403
-        assert "Cluster access is required for this operation." in response.text
+        assert response.status_code == 401
 
     @pytest.mark.level("local")
     def test_rename_object_with_invalid_token(self, http_client):
@@ -355,15 +413,13 @@ class TestHTTPServerDockerDenAuthOnly:
             json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
             headers=INVALID_HEADERS,
         )
-        assert response.status_code == 403
-        assert "Cluster access is required for this operation." in response.text
+        assert response.status_code == 401
 
     @pytest.mark.level("local")
     def test_get_keys_with_invalid_token(self, http_client):
         response = http_client.get("/keys", headers=INVALID_HEADERS)
 
-        assert response.status_code == 403
-        assert "Cluster access is required for this operation." in response.text
+        assert response.status_code == 401
 
 
 @pytest.fixture(scope="function")
@@ -396,7 +452,7 @@ class TestHTTPServerNoDocker:
         assert response.status_code == 200
 
     @pytest.mark.level("unit")
-    def test_put_resource(self, client, blob_data):
+    def test_put_resource(self, client, blob_data, local_cluster):
         with tempfile.TemporaryDirectory() as temp_dir:
             resource_path = Path(temp_dir, "local-blob")
             local_blob = rh.blob(blob_data, path=resource_path)
@@ -411,12 +467,12 @@ class TestHTTPServerNoDocker:
                 json=dict(
                     PutResourceParams(serialized_data=data, serialization="pickle")
                 ),
-                headers=rns_client.request_headers(),
+                headers=rns_client.request_headers(local_cluster.rns_address),
             )
             assert response.status_code == 200
 
     @pytest.mark.level("unit")
-    def test_put_object(self, client):
+    def test_put_object(self, client, local_cluster):
         test_list = list(range(5, 50, 2)) + ["a string"]
         response = client.post(
             "/object",
@@ -425,47 +481,49 @@ class TestHTTPServerNoDocker:
                 serialized_data=serialize_data(test_list, "pickle"),
                 serialization="pickle",
             ).dict(),
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(local_cluster.rns_address),
         )
         assert response.status_code == 200
 
     @pytest.mark.level("unit")
-    def test_rename_object(self, client):
+    def test_rename_object(self, client, local_cluster):
         old_key = "key1"
         new_key = "key2"
         response = client.post(
             "/rename",
             json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(local_cluster.rns_address),
         )
         assert response.status_code == 200
 
         response = client.get(
             "/keys",
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(local_cluster.rns_address),
         )
         assert new_key in response.json().get("data")
 
     @pytest.mark.level("unit")
-    def test_get_keys(self, client):
+    def test_get_keys(self, client, local_cluster):
         response = client.get(
             "/keys",
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(local_cluster.rns_address),
         )
         assert response.status_code == 200
         assert "key2" in response.json().get("data")
 
     @pytest.mark.level("unit")
-    def test_delete_obj(self, client):
+    def test_delete_obj(self, client, local_cluster):
         key = "key"
         response = client.post(
             url="/delete_object",
             json=DeleteObjectParams(keys=[key]).dict(),
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(local_cluster.rns_address),
         )
         assert response.status_code == 200
 
-        response = client.get("/keys", headers=rns_client.request_headers())
+        response = client.get(
+            "/keys", headers=rns_client.request_headers(local_cluster.rns_address)
+        )
         assert key not in response.json().get("data")
 
     # TODO [JL]: Test call_module_method and async_call with local and not just Docker.
@@ -518,7 +576,7 @@ class TestHTTPServerNoDockerDenAuthOnly:
                 headers=INVALID_HEADERS,
             )
 
-            assert resp.status_code == 403
+            assert resp.status_code == 401
 
     @pytest.mark.level("unit")
     def test_put_object_with_invalid_token(self, local_client_with_den_auth):
@@ -532,7 +590,7 @@ class TestHTTPServerNoDockerDenAuthOnly:
             ).dict(),
             headers=INVALID_HEADERS,
         )
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     @pytest.mark.level("unit")
     def test_rename_object_with_invalid_token(self, local_client_with_den_auth):
@@ -543,11 +601,11 @@ class TestHTTPServerNoDockerDenAuthOnly:
             json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
             headers=INVALID_HEADERS,
         )
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     @pytest.mark.level("unit")
     def test_get_keys_with_invalid_token(self, local_client_with_den_auth):
         resp = local_client_with_den_auth.get("/keys", headers=INVALID_HEADERS)
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     # TODO (JL): Test call_module_method.

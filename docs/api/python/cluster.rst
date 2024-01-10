@@ -243,6 +243,12 @@ format: :code:`{"Authorization": "Bearer <token>"}`. The Runhouse Python library
 automatically, so your users do not need to worry about it after logging into Runhouse.
 
 
+.. note::
+
+   Runhouse never uses your token for anything other than requests made to
+   `Runhouse Den <https://www.run.house/dashboard>`_. Your token will never be exposed or shared with anyone else.
+
+
 TLS Certificates
 ^^^^^^^^^^^^^^^^
 Enabling TLS and `Runhouse Den Dashboard <https://www.run.house/dashboard>`_ Auth for the API server makes it incredibly

@@ -15,7 +15,7 @@ import runhouse as rh
 
 import runhouse.rns.login
 
-from runhouse import __version__, cluster, configs
+from runhouse import __version__, cluster, Cluster, configs
 from runhouse.constants import (
     RAY_KILL_CMD,
     RAY_START_CMD,
@@ -25,6 +25,7 @@ from runhouse.constants import (
     START_NOHUP_CMD,
     START_SCREEN_CMD,
 )
+from runhouse.globals import obj_store, rns_client
 from runhouse.resources.hardware.ray_utils import check_for_existing_ray_instance
 
 
@@ -186,39 +187,37 @@ def _print_status(config):
 def status(
     cluster_name: str = typer.Argument(
         None,
-        help="Name of cluster to check. If not specified will check"
-        " the local cluster.",
+        help="Name of cluster to check. If not specified will check the local cluster.",
     )
 ):
-    """Get the config info about your runhouse cluster(s), as well as the environments setup of the cluster(s)"""
+    """Load the status of the Runhouse daemon running on a cluster."""
     cluster_or_local = rh.here
-    if cluster_or_local == "file":
-        if cluster_name is None:
-            console.print("Missing argument CLUSTER_NAME.")
-            return
-        else:
-            try:
-                current_cluster = rh.cluster(name=cluster_name)
-                config = current_cluster.status()
-            except ValueError:
-                console.print(
-                    f"Cluster {cluster_name} is not found in Den. Please save it, in order to get its"
-                    f" status"
-                )
-                return
-            except requests.exceptions.ConnectionError:
-                console.print(
-                    "\N{smiling face with horns} Runhouse Daemon is not running... \N{No Entry} \N{Runner}"
-                )
-                return
-    else:
-        from runhouse.globals import obj_store
+    if cluster_or_local != "file":
+        # If we are on the cluster load status directly from the object store
+        cluster_status: dict = obj_store.status()
+        return _print_status(cluster_status)
 
-        config = obj_store.status()
+    if cluster_name is None:
+        # If running outside the cluster must specify a cluster name
+        console.print("Missing argument `cluster_name`.")
+        return
 
-    config = _print_status(config)
+    try:
+        cluster_config: dict = rns_client.load_config(name=cluster_name)
+        current_cluster: Cluster = Cluster.from_config(cluster_config)
+        cluster_status: dict = current_cluster.status(
+            resource_address=current_cluster.rns_address
+        )
+    except ValueError:
+        console.print("Failed to load status for cluster.")
+        return
+    except requests.exceptions.ConnectionError:
+        console.print(
+            "\N{smiling face with horns} Runhouse Daemon is not running... \N{No Entry} \N{Runner}"
+        )
+        return
 
-    return config
+    return _print_status(cluster_status)
 
 
 def load_cluster(cluster_name: str):

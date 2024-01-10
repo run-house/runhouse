@@ -362,7 +362,6 @@ class Cluster(Resource):
             res = self.client.get(
                 key,
                 default=default,
-                resource_address=self.rns_address,
                 remote=remote,
                 system=self,
             )
@@ -577,12 +576,17 @@ class Cluster(Resource):
 
         return
 
-    def status(self):
+    def status(self, resource_address: str = None):
+        """Loads the status of the Runhouse daemon running on the cluster."""
+        # Note: If running outside a local cluster need to include a resource address to construct the cluster subtoken
+        # Allow for specifying a resource address explicitly in case the resource has no rns address yet
         try:
             self.check_server()
             if self.on_this_cluster():
                 return obj_store.status()
-            return self.client.status()
+            return self.client.status(
+                resource_address=resource_address or self.rns_address
+            )
         except ValueError as e:
             raise e
 
@@ -619,8 +623,9 @@ class Cluster(Resource):
 
     @property
     def _use_custom_certs(self):
-        """Generate custom certs if HTTPS is enabled and no domain is specified"""
-        return self._use_https and self.domain is None
+        """Use custom certs when HTTPS is not enabled, or when HTTPS is enabled, Caddy is enabled,
+        and a domain is provided."""
+        return self._use_https and not (self._use_caddy and self.domain is not None)
 
     def _start_ray_workers(self, ray_port):
         for host in self.ips:

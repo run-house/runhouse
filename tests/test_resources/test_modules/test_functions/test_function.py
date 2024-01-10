@@ -7,6 +7,7 @@ import pytest
 import requests
 
 import runhouse as rh
+from runhouse.globals import rns_client
 
 from tests.utils import friend_account
 
@@ -357,7 +358,9 @@ class TestFunction:
         sum1 = requests.post(
             url=f"{addr}/call",
             json={"data": ([1, 2], {})},
-            headers=rh.configs.request_headers if cluster.den_auth else None,
+            headers=rns_client.request_headers(cluster.rns_address)
+            if cluster.den_auth
+            else None,
             auth=auth,
             verify=verify,
         ).json()
@@ -365,7 +368,9 @@ class TestFunction:
         sum2 = requests.post(
             url=f"{addr}/call",
             json={"data": ([], {"a": 1, "b": 2})},
-            headers=rh.configs.request_headers if cluster.den_auth else None,
+            headers=rns_client.request_headers(cluster.rns_address)
+            if cluster.den_auth
+            else None,
             auth=auth,
             verify=verify,
         ).json()
