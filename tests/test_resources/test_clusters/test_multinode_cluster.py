@@ -34,7 +34,7 @@ class TestMultiNodeCluster:
     ):
         head_node = multinode_cpu_cluster.ips[0]
 
-        status_codes = multinode_cpu_cluster.run(["ray status"], node=head_node)
+        status_codes = multinode_cpu_cluster.run(["ray status --address 127.0.0.1:6379"], node=head_node)
         assert status_codes[0][0] == 0
 
         status_code_strings = []
