@@ -70,8 +70,8 @@ class TestMapper:
         for i in range(num_replicas):
             assert mapper.replicas[i].system == cluster
         assert mapper.replicas[0].env.name == pid_fn.env.name
-        assert mapper.replicas[1].env.name == pid_fn.env.name + "_0"
-        assert mapper.replicas[2].env.name == pid_fn.env.name + "_1"
+        assert mapper.replicas[1].env.name == pid_fn.env.name + "_replica_0"
+        assert mapper.replicas[2].env.name == pid_fn.env.name + "_replica_1"
         pids = mapper.map([0] * 10)
         assert len(pids) == 10
         assert len(set(pids)) == num_replicas
@@ -83,8 +83,8 @@ class TestMapper:
         for i in range(num_replicas):
             assert sum_mapper.replicas[i].system == cluster
         assert sum_mapper.replicas[0].env.name == summer_fn.env.name
-        assert sum_mapper.replicas[1].env.name == summer_fn.env.name + "_0"
-        assert sum_mapper.replicas[2].env.name == summer_fn.env.name + "_1"
+        assert sum_mapper.replicas[1].env.name == summer_fn.env.name + "_replica_0"
+        assert sum_mapper.replicas[2].env.name == summer_fn.env.name + "_replica_1"
         res = sum_mapper.starmap([[1, 2]] * 10)
         assert res == [3] * 10
         res = sum_mapper.map([1] * 10, [2] * 10)
@@ -94,6 +94,9 @@ class TestMapper:
         pids = mapper.starmap([[0]] * 10)
         assert len(pids) == 10
         assert len(set(pids)) == num_replicas
+
+        # Test call
+        assert len(set(mapper.call() for _ in range(4))) == 3
 
     @pytest.mark.skip
     @pytest.mark.level("local")

@@ -1,4 +1,5 @@
 import logging
+from typing import List, Optional, Union
 
 import ray
 
@@ -10,7 +11,14 @@ logger = logging.getLogger(__name__)
 
 
 class Mapper(Module):
-    def __init__(self, module, method, num_replicas=-1, replicas=None, **kwargs):
+    def __init__(
+        self,
+        module: Module,
+        method: str,
+        num_replicas: Optional[int] = -1,
+        replicas: Optional[List[Module]] = None,
+        **kwargs
+    ):
         super().__init__(**kwargs)
         self.module = module
         self.method = method
@@ -25,18 +33,20 @@ class Mapper(Module):
     def replicas(self):
         return [self.module] + self._auto_replicas + self._user_replicas
 
-    def add_replicas(self, replicas):
+    def add_replicas(self, replicas: Union[int, List[Module]]):
         if isinstance(replicas, int):
             self.num_replicas += replicas
-        self._user_replicas.extend(replicas)
+            self._add_auto_replicas(self.num_replicas - len(self.replicas))
+        else:
+            self._user_replicas.extend(replicas)
 
-    def drop_replicas(self, num_replicas, reap=True):
+    def drop_replicas(self, num_replicas: int, reap: bool = True):
         if reap:
             for replica in self._auto_replicas[-num_replicas:]:
                 replica.system.kill(replica.env.name)
         self._auto_replicas = self._auto_replicas[:-num_replicas]
 
-    def _add_auto_replicas(self, num_replicas):
+    def _add_auto_replicas(self, num_replicas: int):
         self._auto_replicas.extend(self.module.replicate(num_replicas))
 
     def increment_counter(self):
@@ -73,7 +83,7 @@ class Mapper(Module):
             ]
         )
 
-    def starmap(self, args_lists, **kwargs):
+    def starmap(self, args_lists: List, **kwargs):
         """Like :func:`map` except that the elements of the iterable are expected to be iterables
         that are unpacked as arguments. An iterable of [(1,2), (3, 4)] results in [func(1,2), func(3,4)].
 
@@ -85,7 +95,7 @@ class Mapper(Module):
             >>> mapper = rh.mapper(remote_fn, num_replicas=2)
             >>> arg_list = [(1,2), (3, 4)]
             >>> # runs the function twice, once with args (1, 2) and once with args (3, 4)
-            >>> remote_fn.starmap(arg_list)
+            >>> mapper.starmap(arg_list)
         """
         ray_wrapped_fn = ray.remote(self._call_method_on_replica)
         kwargs["stream_logs"] = kwargs.get("stream_logs", False)
@@ -105,17 +115,25 @@ class Mapper(Module):
             >>> def local_sum(arg1, arg2, arg3):
             >>>     return arg1 + arg2 + arg3
             >>>
-            >>> remote_fn = rh.function(local_fn).to(gpu)
-            >>> remote_fn.call(1, 2, 3)
-            >>> # output: 6
+            >>> remote_fn = rh.function(local_sum).to(my_cluster)
+            >>> mapper = rh.mapper(remote_fn, num_replicas=2)
+            >>> for i in range(10):
+            >>>     mapper.call(i, 1, 2)
+            >>>     # output: 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, run in round-robin replica order
 
         """
         return getattr(self.replicas[self.increment_counter()], self.method)(
-            args, kwargs
+            *args, **kwargs
         )
 
 
-def mapper(module, method=None, num_replicas=-1, replicas=None, **kwargs):
+def mapper(
+    module: Module,
+    method: Optional[str] = None,
+    num_replicas: Optional[int] = -1,
+    replicas: Optional[List[Module]] = None,
+    **kwargs
+):
     """
     A factory method for creating Mapper modules. A mapper is a module that can map a function or module method over
     a list of inputs in various ways.

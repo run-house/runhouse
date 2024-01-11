@@ -604,7 +604,7 @@ class Module(Resource):
         else:
             return self
 
-    def replicate(self, num_replicas=1, names="auto", envs="auto"):
+    def replicate(self, num_replicas=1, names=None, envs=None, parallel=True):
         """Replicate the module on the cluster in a new env and return the new modules."""
         if not self.system or not self.name:
             raise ValueError(
@@ -614,37 +614,39 @@ class Module(Resource):
             raise ValueError(
                 "Cannot replicate a module that is not on a cluster. Please send the module to a cluster first."
             )
+        if envs and not len(envs) == num_replicas:
+            raise ValueError(
+                "If envs is a list, it must be the same length as num_replicas."
+            )
+        if names and not len(names) == num_replicas:
+            raise ValueError(
+                "If names is a list, it must be the same length as num_replicas."
+            )
 
-        replicas = []
-        for i in range(num_replicas):
-            if isinstance(names, list):
-                name = names[i]
-            elif names == "auto":
-                name = f"{self.name}_{i}"
-            else:
-                raise ValueError(
-                    "names must be a list of names or 'auto' to auto-generate names."
-                )
+        def create_replica(i):
+            name = names[i] if isinstance(names, list) else f"{self.name}_replica_{i}"
 
             if isinstance(envs, list):
                 env = _get_env_from(envs[i])
-            elif envs == "auto":
-                env_conf = self.env.config_for_rns
-                env_conf["name"] = f"{self.env.name}_{i}"
-                env = Env.from_config(env_conf)
             else:
-                raise ValueError(
-                    "envs must be a list of envs or 'auto' to auto-generate envs."
-                )
+                env_conf = self.env.config_for_rns
+                env_conf["name"] = f"{self.env.name}_replica_{i}"
+                env = Env.from_config(env_conf)
 
             new_config = self.config_for_rns
             new_config["name"] = name
             new_config.pop("env", None)
             new_config.pop("system", None)
             new_module = Module.from_config(new_config).to(self.system, env)
-            replicas.append(new_module)
+            return new_module
 
-        return replicas
+        if parallel:
+            from multiprocessing import pool
+
+            with pool.ThreadPool() as p:
+                return list(p.imap(create_replica, range(num_replicas)))
+
+        return [create_replica(i) for i in range(num_replicas)]
 
     @property
     def remote(self):
