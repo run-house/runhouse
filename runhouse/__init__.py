@@ -49,12 +49,4 @@ send = function
 # Syntactic sugar
 fn = function
 
-# This allows us to natively interact with resources in the object store from a python interpreter on the cluster
-
-if _current_cluster():
-    import ray
-
-    ray.init(ignore_reinit_error=True)
-    obj_store.set_name("base")
-
 __version__ = "0.0.15"

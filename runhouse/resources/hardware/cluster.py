@@ -1317,14 +1317,14 @@ class Cluster(Resource):
             f"Latest TLS certificate for {self.name} saved to local path: {self.cert_config.cert_path}"
         )
 
-    def enable_den_auth(self):
+    def enable_den_auth(self, flush=True):
         """Enable Den auth on the cluster."""
         self.check_server()
         if self.on_this_cluster():
             raise ValueError("Cannot toggle Den Auth live on the cluster.")
         else:
             self.den_auth = True
-            self.client.set_settings({"den_auth": True})
+            self.client.set_settings({"den_auth": True, "flush_auth_cache": flush})
         return self
 
     def disable_den_auth(self):

@@ -12,7 +12,7 @@ import runhouse as rh
 import yaml
 
 from tests.conftest import init_args
-from tests.utils import test_account
+from tests.utils import friend_account
 
 SSH_USER = "rh-docker-user"
 BASE_LOCAL_SSH_PORT = 32320
@@ -361,7 +361,7 @@ def set_up_local_cluster(
 
 
 @pytest.fixture(scope="session")
-def local_docker_cluster_pk_tls_exposed(request):
+def docker_cluster_pk_tls_exposed(request):
     """This basic cluster fixture is set up with:
     - Public key authentication
     - Nginx set up on startup to forward Runhouse HTTP server to port 443
@@ -389,11 +389,11 @@ def local_docker_cluster_pk_tls_exposed(request):
         port_fwds=[f"{local_ssh_port}:22", f"{local_client_port}:443"],
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
-            "name": "local_docker_cluster_pk_tls_exposed",
+            "name": "docker_cluster_pk_tls_exposed",
             "server_connection_type": "tls",
             "server_port": 443,
             "client_port": local_client_port,
-            "den_auth": True,
+            "den_auth": False,
         },
     )
 
@@ -406,7 +406,7 @@ def local_docker_cluster_pk_tls_exposed(request):
 
 
 @pytest.fixture(scope="session")
-def local_docker_cluster_pk_ssh(request):
+def docker_cluster_pk_ssh(request):
     """This basic cluster fixture is set up with:
     - Public key authentication
     - Nginx set up on startup to forward Runhouse HTTP server to port 443
@@ -433,7 +433,7 @@ def local_docker_cluster_pk_ssh(request):
         port_fwds=[f"{local_ssh_port}:22"],
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
-            "name": "local_docker_cluster_pk_ssh",
+            "name": "docker_cluster_pk_ssh",
             "server_connection_type": "ssh",
         },
     )
@@ -450,35 +450,31 @@ def local_docker_cluster_pk_ssh(request):
 # the same image, but we switch the cluster parameters.
 # These depend on the base fixture above and swap out the cluster parameters as needed.
 @pytest.fixture(scope="function")
-def local_docker_cluster_pk_tls_den_auth(
-    local_docker_cluster_pk_tls_exposed,
-):
+def docker_cluster_pk_tls_den_auth(docker_cluster_pk_tls_exposed, logged_in_account):
     """This is one of our key use cases -- TLS + Den Auth set up.
 
     We use the base fixture, which already has nginx set up to port forward
     from 443 to 32300, and we set the cluster parameters to use the correct ports to communicate
     with the server, in case they had been changed.
     """
-    return local_docker_cluster_pk_tls_exposed
+    return docker_cluster_pk_tls_exposed
 
 
 @pytest.fixture(scope="function")
-def local_docker_cluster_pk_ssh_den_auth(
-    local_docker_cluster_pk_ssh,
-):
+def docker_cluster_pk_ssh_den_auth(docker_cluster_pk_ssh, logged_in_account):
     """This is our other key use case -- SSH with any Den Auth.
 
     We use the base fixture, and ignore the nginx/https setup, instead just communicating with
     the cluster using the base SSH credentials already present on the machine. We send a request
     to enable den auth server side.
     """
-    local_docker_cluster_pk_ssh.enable_den_auth()
-    return local_docker_cluster_pk_ssh
+    docker_cluster_pk_ssh.enable_den_auth(flush=False)
+    return docker_cluster_pk_ssh
 
 
 @pytest.fixture(scope="function")
-def local_docker_cluster_pk_ssh_no_auth(
-    local_docker_cluster_pk_ssh,
+def docker_cluster_pk_ssh_no_auth(
+    docker_cluster_pk_ssh,
 ):
     """This is our other key use case -- SSH without any Den Auth.
 
@@ -486,12 +482,12 @@ def local_docker_cluster_pk_ssh_no_auth(
     the cluster using the base SSH credentials already present on the machine. We send a request
     to disable den auth server side.
     """
-    local_docker_cluster_pk_ssh.disable_den_auth()
-    return local_docker_cluster_pk_ssh
+    docker_cluster_pk_ssh.disable_den_auth()
+    return docker_cluster_pk_ssh
 
 
 @pytest.fixture(scope="session")
-def local_docker_cluster_pk_http_exposed(request):
+def docker_cluster_pk_http_exposed(request):
     """This basic cluster fixture is set up with:
     - Public key authentication
     - Den auth enabled
@@ -520,7 +516,7 @@ def local_docker_cluster_pk_http_exposed(request):
         port_fwds=[f"{local_ssh_port}:22", f"{local_client_port}:80"],
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
-            "name": "local_docker_cluster_with_nginx",
+            "name": "docker_cluster_with_nginx",
             "server_connection_type": "none",
             "server_port": 80,
             "client_port": local_client_port,
@@ -536,7 +532,7 @@ def local_docker_cluster_pk_http_exposed(request):
 
 
 @pytest.fixture(scope="session")
-def local_docker_cluster_pwd_ssh_no_auth(request):
+def docker_cluster_pwd_ssh_no_auth(request):
     """This basic cluster fixture is set up with:
     - Password authentication
     - No Den Auth
@@ -564,7 +560,7 @@ def local_docker_cluster_pwd_ssh_no_auth(request):
         port_fwds=[f"{local_ssh_port}:22"],
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
-            "name": "local_docker_cluster_pwd_ssh_no_auth",
+            "name": "docker_cluster_pwd_ssh_no_auth",
             "server_connection_type": "ssh",
             "ssh_creds": {"ssh_user": SSH_USER, "password": pwd},
         },
@@ -578,7 +574,7 @@ def local_docker_cluster_pwd_ssh_no_auth(request):
 
 
 @pytest.fixture(scope="session")
-def local_docker_cluster_pk_ssh_telemetry(request, detached=True):
+def docker_cluster_pk_ssh_telemetry(request, detached=True):
     """This basic cluster fixture is set up with:
     - Public key authentication
     - No Den Auth
@@ -607,7 +603,7 @@ def local_docker_cluster_pk_ssh_telemetry(request, detached=True):
         port_fwds=[f"{local_ssh_port}:22"],
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
-            "name": "local_docker_cluster_pk_ssh_telemetry",
+            "name": "docker_cluster_pk_ssh_telemetry",
             "server_connection_type": "ssh",
             "use_local_telemetry": True,
         },
@@ -621,7 +617,7 @@ def local_docker_cluster_pk_ssh_telemetry(request, detached=True):
 
 
 @pytest.fixture(scope="session")
-def local_docker_cluster_pk_ssh_test_account_logged_in(request):
+def friend_account_logged_in_docker_cluster_pk_ssh(request):
     """
     This fixture is not parameterized for every test; it is a separate cluster started with a test account
     (username: kitchen_tester) in order to test sharing resources with other users.
@@ -630,7 +626,7 @@ def local_docker_cluster_pk_ssh_test_account_logged_in(request):
     # From pytest config
     detached = request.config.getoption("--detached")
     force_rebuild = request.config.getoption("--force-rebuild")
-    with test_account():
+    with friend_account():
         # Ports to use on the Docker VM such that they don't conflict
         local_ssh_port = BASE_LOCAL_SSH_PORT + 6
         local_cluster, cleanup = set_up_local_cluster(
@@ -647,7 +643,7 @@ def local_docker_cluster_pk_ssh_test_account_logged_in(request):
             port_fwds=[f"{local_ssh_port}:22"],
             local_ssh_port=local_ssh_port,
             additional_cluster_init_args={
-                "name": "local_docker_cluster_pk_ssh_test_account_logged_in",
+                "name": "friend_account_logged_in_docker_cluster_pk_ssh",
                 "server_connection_type": "ssh",
                 "den_auth": "den_auth" in request.keywords,
             },
@@ -662,12 +658,12 @@ def local_docker_cluster_pk_ssh_test_account_logged_in(request):
 
 
 @pytest.fixture(scope="session")
-def shared_cluster(local_docker_cluster_pk_ssh_test_account_logged_in):
-    username_to_share = rh.configs.get("username")
-    with test_account():
+def shared_cluster(friend_account_logged_in_docker_cluster_pk_ssh, logged_in_account):
+    username_to_share = rh.configs.username
+    with friend_account():
         # Share the cluster with the test account
-        local_docker_cluster_pk_ssh_test_account_logged_in.share(
+        friend_account_logged_in_docker_cluster_pk_ssh.share(
             username_to_share, notify_users=False, access_level="read"
         )
 
-    return local_docker_cluster_pk_ssh_test_account_logged_in
+    return friend_account_logged_in_docker_cluster_pk_ssh

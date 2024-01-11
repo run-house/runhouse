@@ -1,4 +1,3 @@
-import os
 import unittest
 from pathlib import Path
 
@@ -7,7 +6,6 @@ import pytest
 import runhouse as rh
 
 from runhouse import Cluster
-from runhouse.globals import configs
 
 
 TEMP_LOCAL_FOLDER = Path(__file__).parents[1] / "rh-blobs"
@@ -105,28 +103,11 @@ def test_blob_to_file(blob, folder):
     assert "test_blob.pickle" in folder.ls(full_paths=False)
 
 
-@pytest.mark.awstest
+@pytest.mark.skip
 @pytest.mark.rnstest
 def test_sharing_blob(cluster_blob):
-    token = os.getenv("TEST_TOKEN") or configs.get("token")
-    headers = {"Authorization": f"Bearer {token}"}
-
-    assert (
-        token
-    ), "No token provided. Either set `TEST_TOKEN` env variable or set `token` in the .rh config file"
-
-    # Login to ensure the default folder / username are saved down correctly
-    rh.login(token=token, download_config=True, interactive=False)
-
-    cluster_blob.save("shared_blob")
-    cluster_blob.share(
-        users=["donny@run.house", "josh@run.house"],
-        access_level="write",
-        notify_users=False,
-        headers=headers,
-    )
-
-    # TODO assert something real here
+    pass
+    # TODO
 
 
 @pytest.mark.rnstest

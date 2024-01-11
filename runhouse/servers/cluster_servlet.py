@@ -1,8 +1,8 @@
 import logging
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
 
-from runhouse.constants import RH_LOGFILE_PATH
+from runhouse.resources.hardware import _load_cluster_config_from_file
+
 from runhouse.servers.http.auth import AuthCache
 
 logger = logging.getLogger(__name__)
@@ -13,6 +13,11 @@ class ClusterServlet:
         self, cluster_config: Optional[Dict[str, Any]] = None, *args, **kwargs
     ):
         self.cluster_config: Optional[Dict[str, Any]] = cluster_config
+        local_cluster_config = _load_cluster_config_from_file()
+        if local_cluster_config:
+            self.cluster_config = local_cluster_config
+        else:
+            self.cluster_config = {}
 
         self._initialized_env_servlet_names: Set[str] = set()
         self._key_to_env_servlet_name: Dict[Any, str] = {}
@@ -26,6 +31,9 @@ class ClusterServlet:
 
     def set_cluster_config(self, cluster_config: Dict[str, Any]):
         self.cluster_config = cluster_config
+
+    def set_cluster_config_value(self, key: str, value: Any):
+        self.cluster_config[key] = value
 
     ##############################################
     # Auth cache internal functions
@@ -80,6 +88,12 @@ class ClusterServlet:
     def is_env_servlet_name_initialized(self, env_servlet_name: str) -> bool:
         return env_servlet_name in self._initialized_env_servlet_names
 
+    def get_all_initialized_env_servlet_names(self) -> Set[str]:
+        return self._initialized_env_servlet_names
+
+    def get_key_to_env_servlet_name_dict_keys(self) -> List[Any]:
+        return list(self._key_to_env_servlet_name.keys())
+
     def get_key_to_env_servlet_name_dict(self) -> Dict[Any, str]:
         return self._key_to_env_servlet_name
 
@@ -99,20 +113,3 @@ class ClusterServlet:
 
     def clear_key_to_env_servlet_name_dict(self):
         self._key_to_env_servlet_name = {}
-
-    def get_logfiles(self, key: Any, log_type=None) -> List[str]:
-        # TODO remove
-        # Info on ray logfiles: https://docs.ray.io/en/releases-2.2.0/ray-observability/ray-logging.html#id1
-        if key in self._key_to_env_servlet_name:
-            # Logs are like: `.rh/logs/key.[out|err]`
-            key_logs_path = Path(RH_LOGFILE_PATH) / key
-            glob_pattern = (
-                "*.out"
-                if log_type == "stdout"
-                else "*.err"
-                if log_type == "stderr"
-                else "*.[oe][ur][tr]"
-            )
-            return [str(f.absolute()) for f in key_logs_path.glob(glob_pattern)]
-        else:
-            return None

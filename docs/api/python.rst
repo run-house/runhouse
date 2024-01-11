@@ -51,7 +51,7 @@ and rich debugging and accessibility interfaces built-in.
 
 Data Abstractions
 ------------------------------------
-The Folder, Table, and Blob APIs provide a simple interface for storing, recalling, and moving data between
+The Folder, Table, Blob, and File APIs provide a simple interface for storing, recalling, and moving data between
 the user's laptop, remote compute, cloud storage, and specialized storage (e.g. data warehouses).
 They provide least-common-denominator APIs across providers, allowing users to easily specify the actions
 they want to take on the data without needed to dig into provider-specific APIs. We'd like to extend this
@@ -72,6 +72,11 @@ to other data concepts in the future, like kv-stores, time-series, vector and gr
    :maxdepth: 1
 
    python/blob
+
+.. toctree::
+   :maxdepth: 1
+
+   python/file
 
 
 Secrets

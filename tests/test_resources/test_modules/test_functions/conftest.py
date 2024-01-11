@@ -3,7 +3,7 @@ import pytest
 import runhouse as rh
 
 from tests.conftest import init_args
-from tests.utils import test_account
+from tests.utils import friend_account
 
 
 def summer(a: int, b: int):
@@ -60,8 +60,8 @@ def slow_func(ondemand_cpu_cluster):
 
 @pytest.fixture(scope="session")
 def shared_function(shared_cluster):
-    username_to_share = rh.configs.get("username")
-    with test_account():
+    username_to_share = rh.configs.username
+    with friend_account():
         # Create function on shared cluster with the same test account
         f = rh.function(summer).to(shared_cluster, env=["pytest"]).save()
 

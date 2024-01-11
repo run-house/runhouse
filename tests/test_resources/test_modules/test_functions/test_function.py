@@ -12,7 +12,7 @@ import requests
 import runhouse as rh
 from runhouse.resources.hardware.utils import LOCALHOST, ServerConnectionType
 
-from tests.utils import test_account
+from tests.utils import friend_account
 
 REMOTE_FUNC_NAME = "@/remote_function"
 
@@ -334,7 +334,7 @@ class TestFunction:
             access_level="read",
             notify_users=False,
         )
-        with test_account():
+        with friend_account():
             my_function = rh.function(name=my_function.rns_address)
             res = my_function(1, 2)
             assert res == 3
@@ -342,7 +342,7 @@ class TestFunction:
         my_function.revoke(users=["info@run.house"])
 
         with pytest.raises(Exception):
-            with test_account():
+            with friend_account():
                 my_function = rh.function(name=my_function.rns_address)
                 my_function(1, 2)
 
@@ -409,7 +409,7 @@ class TestFunction:
         sum1 = requests.post(
             url=f"{addr}:{cluster.client_port}/call/{remote_sum.name}/call",
             json={"args": [1, 2]},
-            headers=rh.configs.request_headers() if cluster.den_auth else None,
+            headers=rh.configs.request_headers if cluster.den_auth else None,
             auth=auth,
             verify=False,
         ).json()
@@ -417,7 +417,7 @@ class TestFunction:
         sum2 = requests.post(
             url=f"{addr}:{cluster.client_port}/call/{remote_sum.name}/call",
             json={"kwargs": {"a": 1, "b": 2}},
-            headers=rh.configs.request_headers() if cluster.den_auth else None,
+            headers=rh.configs.request_headers if cluster.den_auth else None,
             auth=auth,
             verify=False,
         ).json()

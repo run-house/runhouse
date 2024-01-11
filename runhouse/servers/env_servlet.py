@@ -6,8 +6,7 @@ import signal
 import threading
 import time
 import traceback
-from pathlib import Path
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
@@ -33,16 +32,12 @@ logger = logging.getLogger(__name__)
 
 
 class EnvServlet:
-    MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     LOGGING_WAIT_TIME = 1.0
-    SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
-    LOGS_DIR = ".rh/logs"
-    RH_LOGFILE_PATH = Path.home() / LOGS_DIR
 
-    def __init__(self, env_name, *args, **kwargs):
+    def __init__(self, env_name: str, *args, **kwargs):
         self.env_name = env_name
 
-        obj_store.set_name(self.env_name)
+        obj_store.initialize(self.env_name, has_local_storage=True)
 
         self.output_types = {}
         self.thread_ids = {}
@@ -482,9 +477,6 @@ class EnvServlet:
                 output_type=OutputType.EXCEPTION,
             )
 
-    def get_logfiles(self, key):
-        return obj_store.get_logfiles(key)
-
     def put_object(self, key, value, _intra_cluster=False):
         self.register_activity()
         # We may not want to deserialize the object here in case the object requires dependencies
@@ -601,6 +593,37 @@ class EnvServlet:
         self.register_activity()
         keys: list = list(obj_store.keys())
         return Response(data=pickle_b64(keys), output_type=OutputType.RESULT)
+
+    ##############################################################
+    # IPC methods for interacting with local object store only
+    ##############################################################
+    def keys_local(self):
+        self.register_activity()
+        return obj_store.keys_local()
+
+    def put_local(self, key: Any, value: Any):
+        self.register_activity()
+        return obj_store.put_local(key, value)
+
+    def get_local(self, key: Any, default: Optional[Any] = None):
+        self.register_activity()
+        return obj_store.get_local(key, default)
+
+    def contains_local(self, key: Any):
+        self.register_activity()
+        return obj_store.contains_local(key)
+
+    def pop_local(self, key: Any, *args):
+        self.register_activity()
+        return obj_store.pop_local(key, *args)
+
+    def delete_local(self, key: Any):
+        self.register_activity()
+        return obj_store.delete_local(key)
+
+    def clear_local(self):
+        self.register_activity()
+        return obj_store.clear_local()
 
     def call(
         self,

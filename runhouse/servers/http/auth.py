@@ -3,7 +3,6 @@ import json
 import logging
 from typing import Union
 
-import ray
 import requests
 
 from runhouse.globals import rns_client
@@ -68,7 +67,12 @@ def verify_cluster_access(
 ) -> bool:
     """Checks whether the user has access to the cluster.
     Note: If user has write access to the cluster, will have access to all other resources on the cluster by default."""
-    from runhouse.globals import obj_store
+    from runhouse.globals import configs, obj_store
+
+    # The logged-in user always has full access to the cluster. This is especially important if they flip on
+    # Den Auth without saving the cluster.
+    if configs.token == token:
+        return True
 
     token_hash = hash_token(token)
 
@@ -80,7 +84,7 @@ def verify_cluster_access(
 
     if cluster_access_level is None:
         # Reload from cache and check again
-        update_cache_for_user(token)
+        obj_store.add_user_to_auth_cache(token)
 
         cached_resources: dict = obj_store.user_resources(token_hash)
         cluster_access_level = cached_resources.get(cluster_uri)
@@ -94,8 +98,3 @@ def verify_cluster_access(
 def hash_token(token: str) -> str:
     """Hash the user's token to avoid storing them in plain text on the cluster."""
     return hashlib.sha256(token.encode()).hexdigest()
-
-
-def update_cache_for_user(token, refresh_cache=True):
-    auth_cache_actor = ray.get_actor("auth_cache", namespace="runhouse")
-    ray.get(auth_cache_actor.add_user.remote(token, refresh_cache))

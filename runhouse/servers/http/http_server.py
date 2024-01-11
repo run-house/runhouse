@@ -17,17 +17,12 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-from runhouse.constants import CLUSTER_CONFIG_PATH
-from runhouse.globals import configs, env_servlets, rns_client
-from runhouse.resources.hardware.utils import _load_cluster_config
+from runhouse.constants import CLUSTER_CONFIG_PATH, RH_LOGFILE_PATH
+from runhouse.globals import configs, env_servlets, obj_store, rns_client
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.env_servlet import EnvServlet
-from runhouse.servers.http.auth import (
-    hash_token,
-    update_cache_for_user,
-    verify_cluster_access,
-)
+from runhouse.servers.http.auth import hash_token, verify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
     b64_unpickle,
@@ -40,6 +35,7 @@ from runhouse.servers.http.http_utils import (
     ServerSettings,
 )
 from runhouse.servers.nginx.config import NginxConfig
+from runhouse.servers.obj_store import initialize_cluster_servlet
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +55,7 @@ def validate_cluster_access(func):
         token = get_token_from_request(request)
 
         if func_call and token:
-            update_cache_for_user(token, refresh_cache=False)
+            obj_store.add_user_to_auth_cache(token, refresh_cache=False)
 
         if not den_auth_enabled or func_call:
             # If this is a func call, we'll handle the auth in the object store
@@ -104,7 +100,6 @@ def validate_cluster_access(func):
 
 
 class HTTPServer:
-    MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     LOGGING_WAIT_TIME = 1
     DEFAULT_SERVER_HOST = "0.0.0.0"
     DEFAULT_SERVER_PORT = 32300
@@ -112,7 +107,6 @@ class HTTPServer:
     DEFAULT_HTTPS_PORT = 443
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
     memory_exporter = None
-    _den_auth = False
 
     def __init__(
         self, conda_env=None, enable_local_span_collection=None, *args, **kwargs
@@ -166,20 +160,17 @@ class HTTPServer:
                 namespace="runhouse",
             )
 
-        try:
-            # Wait for all the workers to join the cluster
-            self._wait_for_workers(ips.count())
-            logger.info("🎉 All workers present and accounted for 🎉")
-        except Exception as e:
-            logger.error(
-                f"Failed to connect Ray worker nodes to Ray head node: {str(e)}"
-            )
+        # This should already be initialized by the start script
+        # But if the HTTPServer was started standalone in a test,
+        # We still want to make sure the cluster servlet is initialized
+        initialize_cluster_servlet()
 
-        try:
-            # Collect metadata for the cluster immediately on init
-            self._collect_cluster_stats()
-        except Exception as e:
-            logger.error(f"Failed to collect cluster stats: {str(e)}")
+        # TODO disabling due to latency, figure out what to do with this
+        # try:
+        #     # Collect metadata for the cluster immediately on init
+        #     self._collect_cluster_stats()
+        # except Exception as e:
+        #     logger.error(f"Failed to collect cluster stats: {str(e)}")
 
         try:
             # Collect telemetry stats for the cluster
@@ -187,47 +178,34 @@ class HTTPServer:
         except Exception as e:
             logger.error(f"Failed to collect cluster telemetry stats: {str(e)}")
 
-        base_env = self.get_env_servlet(
+        # We initialize a base env servlet where some things may run.
+        # TODO: We aren't sure _exactly_ where this is or isn't used.
+        # There are a few spots where we do `env_name or "base"`, and
+        # this allows that base env to be pre-initialized.
+        _ = self.get_env_servlet(
             env_name="base",
             create=True,
             runtime_env=runtime_env,
         )
-        env_servlets["base"] = base_env
-        from runhouse.globals import obj_store
 
-        obj_store.set_name("server")
+        # Puts without an env here will be sent to the base env.
+        obj_store.initialize("base")
 
         HTTPServer.register_activity()
 
-    def _wait_for_workers(self, n_hosts, timeout=60):
-        logger.info(f"Waiting {timeout} seconds for {n_hosts} nodes to join")
-
-        ray_node_count = len(ray.nodes())
-
-        while len(ray_node_count) < n_hosts:
-            logger.info(f"{ray_node_count} nodes connected to cluster")
-            time.sleep(5)
-            timeout -= 5
-            if timeout == 0:
-                raise Exception("Max timeout for nodes to join exceeded")
-
     @classmethod
     def get_den_auth(cls):
-        return cls._den_auth
+        return obj_store.get_cluster_config().get("den_auth", False)
 
     @classmethod
-    def enable_den_auth(cls):
-        from runhouse.globals import obj_store
-
-        cls._den_auth = True
-        obj_store.clear_auth_cache()
+    def enable_den_auth(cls, flush=True):
+        obj_store.set_cluster_config_value("den_auth", True)
+        if flush:
+            obj_store.clear_auth_cache()
 
     @classmethod
     def disable_den_auth(cls):
-        from runhouse.globals import obj_store
-
-        cls._den_auth = False
-        obj_store.clear_auth_cache()
+        obj_store.set_cluster_config_value("den_auth", False)
 
     @staticmethod
     def register_activity():
@@ -299,6 +277,10 @@ class HTTPServer:
                 )
                 .remote(env_name=env_name)
             )
+
+            # Make sure env_servlet is actually initialized
+            ray.get(new_env.register_activity.remote())
+
             env_servlets[env_name] = new_env
             return new_env
 
@@ -330,7 +312,7 @@ class HTTPServer:
         HTTPServer.register_activity()
         try:
             if lookup_env_for_name:
-                env = env or HTTPServer.lookup_env_for_name(lookup_env_for_name)
+                env = env or obj_store.get_env_servlet_name_for_key(lookup_env_for_name)
             servlet = HTTPServer.get_env_servlet(env or "base", create=create)
             # If servlet is a RayActor, call with .remote
             return HTTPServer.call_servlet_method(servlet, method, args, block=block)
@@ -344,27 +326,11 @@ class HTTPServer:
             )
 
     @staticmethod
-    def lookup_env_for_name(name, check_rns=False):
-        from runhouse.globals import obj_store
-
-        env = obj_store.get_env(name)
-        if env:
-            return env
-
-        # Load the resource config from rns and see if it has an "env" field
-        if check_rns:
-            resource_config = rns_client.load_config(name)
-            if resource_config and "env" in resource_config:
-                return resource_config["env"]
-
-        return None
-
-    @staticmethod
     @app.post("/settings")
     @validate_cluster_access
     def update_settings(request: Request, message: ServerSettings) -> Response:
         if message.den_auth:
-            HTTPServer.enable_den_auth()
+            HTTPServer.enable_den_auth(flush=message.flush_auth_cache)
         elif message.den_auth is not None and not message.den_auth:
             HTTPServer.disable_den_auth()
 
@@ -384,13 +350,11 @@ class HTTPServer:
                     else {}
                 )
 
-                new_env = HTTPServer.get_env_servlet(
+                _ = HTTPServer.get_env_servlet(
                     env_name=message.env,
                     create=True,
                     runtime_env=runtime_env,
                 )
-
-                env_servlets[message.env] = new_env
 
         return HTTPServer.call_in_env_servlet(
             "put_resource",
@@ -419,7 +383,7 @@ class HTTPServer:
             message = message or (
                 Message(stream_logs=False, key=module) if not method else Message()
             )
-            env = message.env or HTTPServer.lookup_env_for_name(module)
+            env = message.env or obj_store.get_env_servlet_name_for_key(module)
             persist = message.run_async or message.remote or message.save or not method
             if method:
                 # TODO fix the way we generate runkeys, it's ugly
@@ -446,9 +410,8 @@ class HTTPServer:
 
             else:
                 message.key = module
-                # If this is a "get" call, don't wait for the result, it's either there or not.
-                from runhouse.globals import obj_store
 
+                # If this is a "get" call, don't wait for the result, it's either there or not.
                 if not obj_store.contains(message.key):
                     return Response(output_type=OutputType.NOT_FOUND, data=message.key)
 
@@ -481,7 +444,7 @@ class HTTPServer:
     def _get_logfiles(log_key, log_type=None):
         if not log_key:
             return None
-        key_logs_path = Path(EnvServlet.RH_LOGFILE_PATH) / log_key
+        key_logs_path = Path(RH_LOGFILE_PATH) / log_key
         if key_logs_path.exists():
             # Logs are like: `.rh/logs/key/key.[out|err]`
             glob_pattern = (
@@ -509,8 +472,6 @@ class HTTPServer:
     def _get_results_and_logs_generator(
         key, env, stream_logs, remote=False, pop=False, serialization=None
     ):
-        from runhouse.globals import obj_store
-
         open_logfiles = []
         waiting_for_results = True
 
@@ -634,13 +595,12 @@ class HTTPServer:
     @app.get("/keys")
     @validate_cluster_access
     def get_keys(request: Request, env: Optional[str] = None):
-        from runhouse.globals import obj_store
-
         if not env:
             return Response(
                 output_type=OutputType.RESULT, data=pickle_b64(obj_store.keys())
             )
-        return HTTPServer.call_in_env_servlet("get_keys", [], env=env)
+        else:
+            return HTTPServer.call_in_env_servlet("get_keys_local", [], env=env)
 
     @staticmethod
     @app.get("/{module}/{method}")
@@ -656,7 +616,7 @@ class HTTPServer:
             kwargs.pop("serialization", None)
             method = None if method == "None" else method
             message = Message(stream_logs=True, data=kwargs)
-            env = HTTPServer.lookup_env_for_name(module)
+            env = obj_store.get_env_servlet_name_for_key(module)
             persist = message.run_async or message.remote or message.save or not method
             if method:
                 # TODO fix the way we generate runkeys, it's ugly
@@ -690,9 +650,8 @@ class HTTPServer:
 
             else:
                 message.key = module
-                # If this is a "get" call, don't wait for the result, it's either there or not.
-                from runhouse.globals import obj_store
 
+                # If this is a "get" call, don't wait for the result, it's either there or not.
                 if not obj_store.contains(message.key):
                     return Response(output_type=OutputType.NOT_FOUND, data=message.key)
 
@@ -767,7 +726,7 @@ class HTTPServer:
 
         HTTPServer._log_cluster_data(
             {**cluster_data, **sky_data},
-            labels={"username": configs.get("username"), "environment": "prod"},
+            labels={"username": configs.username, "environment": "prod"},
         )
 
     @staticmethod
@@ -944,7 +903,17 @@ if __name__ == "__main__":
         help="Address to use for generating self-signed certs and enabling HTTPS. (e.g. public IP address)",
     )
 
-    cluster_config = _load_cluster_config()
+    # The object store and the cluster servlet within it need to be
+    # initiailzed in order to call `obj_store.get_cluster_config()`, which
+    # uses the object store to load the cluster config from Ray.
+    obj_store.initialize("base")
+
+    cluster_config = obj_store.get_cluster_config()
+    if not cluster_config:
+        logger.warning(
+            "Cluster config is not set. Using default values where possible."
+        )
+
     parse_args = parser.parse_args()
 
     conda_name = parse_args.conda_env
@@ -956,7 +925,7 @@ if __name__ == "__main__":
     use_local_telemetry = parse_args.use_local_telemetry
 
     # Update globally inside the module based on the args passed in or the cluster config
-    den_auth = parse_args.use_den_auth or cluster_config.get("den_auth")
+    den_auth = parse_args.use_den_auth or cluster_config.get("den_auth") or False
 
     ips = cluster_config.get("ips", [])
     address = parse_args.certs_address or ips[0] if ips else None
