@@ -81,7 +81,9 @@ class ObjStore:
         self._kv_store: Dict[Any, Any] = None
 
     def initialize(
-        self, servlet_name: Optional[str] = None, has_local_storage: bool = False
+        self,
+        servlet_name: Optional[str] = None,
+        has_local_storage: bool = False,
     ):
         # The initialization of the obj_store needs to be in a separate method
         # so the HTTPServer actually initalizes the obj_store,

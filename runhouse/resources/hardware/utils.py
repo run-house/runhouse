@@ -88,8 +88,12 @@ class ServerConnectionType(str, Enum):
     AWS_SSM = "aws_ssm"
 
 
-def _load_cluster_config_from_file() -> Dict:
-    if Path(CLUSTER_CONFIG_PATH).expanduser().exists():
+def cluster_config_file_exists() -> bool:
+    return Path(CLUSTER_CONFIG_PATH).expanduser().exists()
+
+
+def load_cluster_config_from_file() -> Dict:
+    if cluster_config_file_exists():
         with open(Path(CLUSTER_CONFIG_PATH).expanduser()) as f:
             cluster_config = json.load(f)
         return cluster_config

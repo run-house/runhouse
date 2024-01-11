@@ -896,6 +896,7 @@ if __name__ == "__main__":
         logger.warning(
             "Cluster config is not set. Using default values where possible."
         )
+    logger.info("Initialized Object Store and Cluster Servlet.")
 
     parse_args = parser.parse_args()
 
@@ -996,9 +997,24 @@ if __name__ == "__main__":
     address = parse_args.certs_address or cluster_config.get("ips", [None])[0]
     if address is not None:
         cluster_config["ips"] = [address]
+    else:
+        cluster_config["ips"] = ["0.0.0.0"]
 
-    # Set the new cluster config as the settings within the cluster servlet
+    # If there was no `cluster_config.json`, then server was created
+    # simply with `runhouse start`.
+    # A real `cluster_config` that was loaded
+    # from json would have this set for sure
+    if not cluster_config.get("resource_subtype"):
+        # This is needed for the Cluster object to be created
+        # in rh.here.
+        cluster_config["resource_subtype"] = "Cluster"
+
+        # server_connection_type is not set up if this is done through
+        # a local `runhouse start`
+        cluster_config["server_connection_type"] = "tls" if use_https else "none"
+
     obj_store.set_cluster_config(cluster_config)
+    logger.info("Updated cluster config with parsed argument values.")
 
     HTTPServer(
         conda_env=conda_name,
