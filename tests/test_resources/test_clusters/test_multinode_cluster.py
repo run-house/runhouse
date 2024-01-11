@@ -36,3 +36,16 @@ class TestMultiNodeCluster:
 
         status_codes = multinode_cpu_cluster.run(["ray status"], node=head_node)
         assert status_codes[0][0] == 0
+
+        status_code_strings = []
+
+        for status_code in status_codes:
+            # Convert each element of the tuple to a string and join them with ", "
+            status_code_string = ", ".join(map(str, status_code))
+            status_code_strings.append(status_code_string)
+
+        return_value = ", ".join(status_code_strings)
+        node_marker = "1 node_"
+        num_nodes = return_value.count(node_marker)
+
+        assert num_nodes == 2
