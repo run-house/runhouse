@@ -1,7 +1,6 @@
 import logging
+from multiprocessing import pool
 from typing import List, Optional, Union
-
-import ray
 
 from runhouse.resources.functions import function, Function
 
@@ -72,16 +71,20 @@ class Mapper(Module):
             >>> # output: [4, 9]
 
         """
-        ray_wrapped_fn = ray.remote(self._call_method_on_replica)
         kwargs["stream_logs"] = kwargs.get("stream_logs", False)
-        return ray.get(
-            [
-                ray_wrapped_fn.remote(
-                    self.replicas[self.increment_counter()], self.method, args, kwargs
-                )
-                for args in zip(*args)
-            ]
-        )
+
+        def call_method_on_replica(job):
+            replica, method, argies, kwargies = job
+            return getattr(replica, method)(*argies, **kwargies)
+
+        jobs = [
+            (self.replicas[self.increment_counter()], self.method, args, kwargs)
+            for args in zip(*args)
+        ]
+
+        with pool.ThreadPool() as p:
+            # Run the function in parallel on the arguments, keeping the order.
+            return list(p.imap(call_method_on_replica, jobs))
 
     def starmap(self, args_lists: List, **kwargs):
         """Like :func:`map` except that the elements of the iterable are expected to be iterables
@@ -97,16 +100,20 @@ class Mapper(Module):
             >>> # runs the function twice, once with args (1, 2) and once with args (3, 4)
             >>> mapper.starmap(arg_list)
         """
-        ray_wrapped_fn = ray.remote(self._call_method_on_replica)
         kwargs["stream_logs"] = kwargs.get("stream_logs", False)
-        return ray.get(
-            [
-                ray_wrapped_fn.remote(
-                    self.replicas[self.increment_counter()], self.method, args, kwargs
-                )
-                for args in args_lists
-            ]
-        )
+
+        def call_method_on_replica(job):
+            replica, method, argies, kwargies = job
+            return getattr(replica, method)(*argies, **kwargies)
+
+        jobs = [
+            (self.replicas[self.increment_counter()], self.method, args, kwargs)
+            for args in args_lists
+        ]
+
+        with pool.ThreadPool() as p:
+            # Run the function in parallel on the arguments, keeping the order.
+            return list(p.imap(call_method_on_replica, jobs))
 
     def call(self, *args, **kwargs):
         """Call the function or method on a single replica.
@@ -132,6 +139,7 @@ def mapper(
     method: Optional[str] = None,
     num_replicas: Optional[int] = -1,
     replicas: Optional[List[Module]] = None,
+    sync_workdir=False,
     **kwargs
 ):
     """
@@ -152,4 +160,13 @@ def mapper(
     if isinstance(module, Function):
         method = method or "call"
 
-    return Mapper(module, method, num_replicas, replicas, **kwargs)
+    backup = module.env.working_dir
+    if not sync_workdir:
+        module.env.working_dir = None
+
+    new_mapper = Mapper(module, method, num_replicas, replicas, **kwargs)
+
+    if not sync_workdir:
+        module.env.working_dir = backup
+
+    return new_mapper
