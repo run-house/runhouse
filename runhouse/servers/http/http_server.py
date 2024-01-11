@@ -260,7 +260,7 @@ class HTTPServer:
             )
 
     @staticmethod
-    def get_env_servlet(env_name, create=False, runtime_env=None):
+    def get_env_servlet(env_name, create=False, runtime_env=None, resources=None):
         if env_name in env_servlets.keys():
             return env_servlets[env_name]
 
@@ -271,6 +271,7 @@ class HTTPServer:
                     name=env_name,
                     get_if_exists=True,
                     runtime_env=runtime_env,
+                    resources=resources,
                     lifetime="detached",
                     namespace="runhouse",
                     max_concurrency=1000,
@@ -354,6 +355,7 @@ class HTTPServer:
                     env_name=message.env,
                     create=True,
                     runtime_env=runtime_env,
+                    resources=resource.get("compute", None),
                 )
 
         return HTTPServer.call_in_env_servlet(
