@@ -160,6 +160,15 @@ class HTTPServer:
                 namespace="runhouse",
             )
 
+        try:
+            # Wait for all the workers to join the cluster
+            self._wait_for_workers(ips.count())
+            logger.info("🎉 All workers present and accounted for 🎉")
+        except Exception as e:
+            logger.error(
+                f"Failed to connect Ray worker nodes to Ray head node: {str(e)}"
+            )
+
         # This should already be initialized by the start script
         # But if the HTTPServer was started standalone in a test,
         # We still want to make sure the cluster servlet is initialized
@@ -192,6 +201,18 @@ class HTTPServer:
         obj_store.initialize("base")
 
         HTTPServer.register_activity()
+
+    def _wait_for_workers(self, n_hosts, timeout=60):
+        logger.info(f"Waiting {timeout} seconds for {n_hosts} nodes to join")
+
+        ray_node_count = len(ray.nodes())
+
+        while len(ray_node_count) < n_hosts:
+            logger.info(f"{ray_node_count} nodes connected to cluster")
+            time.sleep(5)
+            timeout -= 5
+            if timeout == 0:
+                raise Exception("Max timeout for nodes to join exceeded")
 
     @classmethod
     def get_den_auth(cls):

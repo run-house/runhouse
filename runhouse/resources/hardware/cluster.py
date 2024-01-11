@@ -49,6 +49,7 @@ class Cluster(Resource):
     DEFAULT_HTTP_PORT = 80
     DEFAULT_HTTPS_PORT = 443
     DEFAULT_SSH_PORT = 22
+    DEFAULT_RAY_PORT = 6379
     LOCAL_HOSTS = ["localhost", LOCALHOST]
 
     SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
@@ -57,12 +58,12 @@ class Cluster(Resource):
     SERVER_STOP_CMD = f'pkill -f "{SERVER_START_CMD}"'
     # 2>&1 redirects stderr to stdout
     START_SCREEN_CMD = f"screen -dm bash -c \"{SERVER_START_CMD} 2>&1 | tee -a '{SERVER_LOGFILE}' 2>&1\""
-    RAY_START_CMD = "ray start --head --port 6379"
+    RAY_START_CMD = f"ray start --head --port {DEFAULT_RAY_PORT}"
     # RAY_BOOTSTRAP_FILE = "~/ray_bootstrap_config.yaml"
     # --autoscaling-config=~/ray_bootstrap_config.yaml
     # We need to use this instead of ray stop to make sure we don't stop the SkyPilot ray server,
     # which runs on other ports but is required to preserve autostop and correct cluster status.
-    RAY_KILL_CMD = 'pkill -f ".*ray.*6379.*"'
+    RAY_KILL_CMD = 'pkill -f ".*ray.*' + str(DEFAULT_RAY_PORT) + '.*"'
 
     def __init__(
         self,
@@ -698,6 +699,33 @@ class Cluster(Resource):
 
         return cmds
 
+    def _start_ray(self, host, master_host, ray_port):
+        # Extract the head_ip
+        public_head_ip = master_host
+
+        # Find the internal IP corresponding to the public_head_ip
+        internal_head_ip = None
+        for internal, external in self.live_state["handle"][
+            "stable_internal_external_ips"
+        ]:
+            if external == public_head_ip:
+                internal_head_ip = internal
+                break
+
+        logger.info(f"Internal head IP: {internal_head_ip}")
+
+        if host != master_host:
+            # Worker node
+            logger.info(
+                f"Starting Ray on worker {host} with head node at {internal_head_ip}:{ray_port}."
+            )
+            self.run(
+                commands=[
+                    f"ray start --address={internal_head_ip}:{ray_port}",
+                ],
+                node=host,
+            )
+
     def restart_server(
         self,
         _rh_install_url: str = None,
@@ -786,6 +814,13 @@ class Cluster(Resource):
             # Refresh the client params to use HTTPS
             self.client.use_https = https_flag
             self.client.cert_path = self.cert_config.cert_path
+
+        if restart_ray:
+            # Restart Ray on the head node and each of the workers
+            master_host = self.address
+
+            for host in self.ips:
+                self._start_ray(host, master_host, self.DEFAULT_RAY_PORT)
 
         return status_codes
 
