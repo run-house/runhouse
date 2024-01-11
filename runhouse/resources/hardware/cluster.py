@@ -699,29 +699,17 @@ class Cluster(Resource):
 
         return cmds
 
-    def _start_ray(self, host, master_host, ray_port):
-        # Extract the head_ip
-        public_head_ip = master_host
-
-        # Find the internal IP corresponding to the public_head_ip
-        internal_head_ip = None
-        for internal, external in self.live_state["handle"][
-            "stable_internal_external_ips"
-        ]:
-            if external == public_head_ip:
-                internal_head_ip = internal
-                break
-
-        logger.info(f"Internal head IP: {internal_head_ip}")
-
-        if host != master_host:
-            # Worker node
+    def _start_ray_workers(self, ray_port):
+        for host in self.ips:
+            if host == self.address:
+                # This is the master node, skip
+                continue
             logger.info(
-                f"Starting Ray on worker {host} with head node at {internal_head_ip}:{ray_port}."
+                f"Starting Ray on worker {host} with head node at {self.address}:{ray_port}."
             )
             self.run(
                 commands=[
-                    f"ray start --address={internal_head_ip}:{ray_port}",
+                    f"ray start --address={self.address}:{ray_port}",
                 ],
                 node=host,
             )
@@ -815,12 +803,8 @@ class Cluster(Resource):
             self.client.use_https = https_flag
             self.client.cert_path = self.cert_config.cert_path
 
-        if restart_ray:
-            # Restart Ray on the head node and each of the workers
-            master_host = self.address
-
-            for host in self.ips:
-                self._start_ray(host, master_host, self.DEFAULT_RAY_PORT)
+        if restart_ray and len(self.ips) > 1:
+            self._start_ray_workers(self.DEFAULT_RAY_PORT)
 
         return status_codes
 
