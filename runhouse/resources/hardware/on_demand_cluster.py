@@ -329,6 +329,7 @@ class OnDemandCluster(Cluster):
             )
             self.run(
                 commands=[
+                    "ray stop -v",
                     f"ray start --address={internal_head_ip}:{ray_port}",
                 ],
                 node=host,
