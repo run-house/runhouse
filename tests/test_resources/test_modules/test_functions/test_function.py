@@ -144,32 +144,6 @@ class TestFunction:
 
         assert res == [4, 6, 8]
 
-    @pytest.mark.skip("Does not work properly following Module refactor.")
-    @pytest.mark.level("local")
-    def test_maps(self, cluster):
-        pid_fn = rh.function(getpid, system=cluster)
-        num_pids = [1] * 10
-        pids = pid_fn.map(num_pids)
-        assert len(set(pids)) > 1
-        assert all(pid > 0 for pid in pids)
-
-        pids = pid_fn.repeat(num_repeats=10)
-        assert len(set(pids)) > 1
-        assert all(pid > 0 for pid in pids)
-
-        pids = [pid_fn.enqueue() for _ in range(10)]
-        assert len(pids) == 10
-        assert all(pid > 0 for pid in pids)
-
-        re_fn = rh.function(summer, system=cluster)
-        summands = list(zip(range(5), range(4, 9)))
-        res = re_fn.starmap(summands)
-        assert res == [4, 6, 8, 10, 12]
-
-        alist, blist = range(5), range(4, 9)
-        res = re_fn.map(alist, blist)
-        assert res == [4, 6, 8, 10, 12]
-
     @pytest.mark.level("local")
     def test_generator(self, cluster):
         remote_slow_generator = rh.function(slow_generator).to(cluster)
