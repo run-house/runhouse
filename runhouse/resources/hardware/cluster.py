@@ -695,10 +695,11 @@ class Cluster(Resource):
                 # This is the master node, skip
                 continue
             logger.info(
-                f"Starting Ray on worker {host} with head node at {self.address}:{ray_port}."
+                f"Restarting Ray on worker {host} with head node at {self.address}:{ray_port}."
             )
             self.run(
                 commands=[
+                    "ray stop -v",
                     f"ray start --address={self.address}:{ray_port}",
                 ],
                 node=host,
