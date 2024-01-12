@@ -45,6 +45,15 @@ def getpid(a=0):
     return os.getpid() + a
 
 
+def get_pid_and_ray_node(a=0):
+    import ray
+
+    return (
+        os.getpid(),
+        ray.runtime_context.RuntimeContext(ray.worker.global_worker).get_node_id(),
+    )
+
+
 class TestMapper:
 
     """Testing strategy:
@@ -97,6 +106,22 @@ class TestMapper:
 
         # Test call
         assert len(set(mapper.call() for _ in range(4))) == 3
+
+    @pytest.mark.level("thorough")
+    def test_multinode_map(self, multinode_cpu_cluster):
+        num_replicas = 6
+        env = rh.env(compute={"cpus": 0.5}, reqs=["pytest"])
+        pid_fn = rh.function(get_pid_and_ray_node).to(multinode_cpu_cluster, env=env)
+        mapper = rh.mapper(pid_fn, num_replicas=num_replicas)
+        assert len(mapper.replicas) == num_replicas
+        for i in range(num_replicas):
+            assert mapper.replicas[i].system == multinode_cpu_cluster
+        ids = mapper.map([0] * 100)
+        pids, nodes = zip(*ids)
+        assert len(pids) == 100
+        assert len(set(pids)) == num_replicas
+        assert len(set(nodes)) == 2
+        assert len(set(node for (pid, node) in [mapper.call() for _ in range(10)])) == 2
 
     @pytest.mark.skip
     @pytest.mark.level("local")
