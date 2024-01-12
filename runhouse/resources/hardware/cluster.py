@@ -943,6 +943,23 @@ class Cluster(Resource):
             Ending `source` with a slash will copy the contents of the directory into dest,
             while omitting it will copy the directory itself (adding a directory layer).
         """
+        # Theoretically we could reuse this logic from SkyPilot which Rsyncs to all nodes in parallel:
+        # https://github.com/skypilot-org/skypilot/blob/v0.4.1/sky/backends/cloud_vm_ray_backend.py#L3094
+        # This is an interesting policy... by default we're syncing to all nodes if the cluster is multinode.
+        # If we need to change it to be greedier we can.
+        if up and (node == "all" or (len(self.ips) > 1 and not node)):
+            for node in self.ips:
+                self._rsync(
+                    source,
+                    dest,
+                    up=up,
+                    node=node,
+                    contents=contents,
+                    filter_options=filter_options,
+                    stream_logs=stream_logs,
+                )
+            return
+
         # If no address provided explicitly use the head node address
         node = node or self.address
         # FYI, could be useful: https://github.com/gchamon/sysrsync
