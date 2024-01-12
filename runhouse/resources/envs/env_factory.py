@@ -19,6 +19,7 @@ def env(
     env_vars: Union[Dict, str] = {},
     working_dir: Optional[Union[str, Path]] = "./",
     secrets: Optional[Union[str, "Secret"]] = [],
+    compute: Optional[Dict] = {},
     dryrun: bool = False,
 ):
     """Builds an instance of :class:`Env`.
@@ -34,6 +35,10 @@ def env(
             environment variables. (Default: {})
         working_dir (str or Path): Working directory of the environment, to be loaded onto the system.
             (Default: "./")
+        compute (Dict): Logical compute resources to be used by this environment, passed through to the
+            cluster scheduler (generally Ray). Only use this if you know what you're doing.
+            Example: ``{"cpus": 1, "gpus": 1}``. (Default: {})
+            More info: https://docs.ray.io/en/latest/ray-core/scheduling/resources.html
         dryrun (bool, optional): Whether to run in dryrun mode. (Default: ``False``)
 
 
@@ -78,6 +83,7 @@ def env(
         working_dir=working_dir,
         secrets=secrets,
         name=name or Env.DEFAULT_NAME,
+        compute=compute,
         dryrun=dryrun,
     )
 
@@ -91,6 +97,7 @@ def conda_env(
     env_vars: Optional[Dict] = {},
     working_dir: Optional[Union[str, Path]] = "./",
     secrets: List[Union[str, "Secret"]] = [],
+    compute: Optional[Dict] = {},
     dryrun: bool = False,
 ):
     """Builds an instance of :class:`CondaEnv`.
@@ -106,6 +113,10 @@ def conda_env(
             environment variables. (Default: {})
         working_dir (str or Path): Working directory of the environment, to be loaded onto the system.
             (Default: "./")
+        compute (Dict): Logical compute resources to be used by this environment, passed through to the
+            cluster scheduler (generally Ray). Only use this if you know what you're doing.
+            Example: ``{"cpus": 1, "gpus": 1}``. (Default: {})
+            More info: https://docs.ray.io/en/latest/ray-core/scheduling/resources.html
         dryrun (bool, optional): Whether to run in dryrun mode. (Default: ``False``)
 
     Returns:
@@ -130,5 +141,6 @@ def conda_env(
         env_vars=env_vars,
         working_dir=working_dir,
         secrets=secrets,
+        compute=compute,
         dryrun=dryrun,
     )

@@ -17,6 +17,7 @@ jobs:
 
       - name: pytest -v --level unit -k "not secrettest"
         run: pytest -v --level unit -k "not secrettest"
+        timeout-minutes: 20
 
 #  all-tests-logged-in-level-unit:
 #    runs-on: ubuntu-latest
