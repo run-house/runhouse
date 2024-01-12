@@ -725,7 +725,7 @@ class Cluster(Resource):
         logger.info(f"Restarting Runhouse API server on {self.name}.")
 
         if resync_rh:
-            self._sync_runhouse_to_cluster(_install_url=_rh_install_url, node="all")
+            self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
             logger.info("Finished syncing Runhouse to cluster.")
 
         # Update the cluster config on the cluster
