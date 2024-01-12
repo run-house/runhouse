@@ -56,8 +56,8 @@ if __name__ == "__main__":
         replacements = [
             (".. code:: python", ".. code:: ipython3"),
             (
-                ".. parsed-literal::\n\n",
-                ".. parsed-literal::\n    :class: code-output\n\n",
+                ".. parsed-literal::\n",
+                ".. parsed-literal::\n    :class: code-output\n",
             ),
         ]
 
