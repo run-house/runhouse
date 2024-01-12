@@ -325,7 +325,7 @@ class OnDemandCluster(Cluster):
 
         for host in worker_ips:
             logger.info(
-                f"Starting Ray on worker {host} with head node at {internal_head_ip}:{ray_port}."
+                f"Restarting Ray on worker {host} with head node at {internal_head_ip}:{ray_port}."
             )
             self.run(
                 commands=[
