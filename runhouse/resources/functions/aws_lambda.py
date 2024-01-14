@@ -5,6 +5,7 @@ import importlib
 import inspect
 import json
 import logging
+import subprocess
 import time
 import warnings
 import zipfile
@@ -573,19 +574,7 @@ class LambdaFunction(Function):
     @contextlib.contextmanager
     def _deploy_lambda_to_aws(self, role_res, zipped_code, env_vars):
         """Deploying new lambda to AWS"""
-        config = self._deploy_lambda_to_aws_helper(role_res, zipped_code, env_vars)
-        time_passed = 0
-        while config is False:
-            if time_passed > self.MAX_WAIT_TIME:
-                raise TimeoutError(
-                    f"Role called {role_res['RoleName']} is being created AWS for too long."
-                    + " Please check the resource in AWS console, delete relevant resource(s) "
-                    + "if necessary, and re-run your Runhouse code."
-                )
-            time_passed += 1
-            time.sleep(1)
-            config = self._deploy_lambda_to_aws_helper(role_res, zipped_code, env_vars)
-        yield config
+        pass
 
     def _create_role_in_aws(self):
         """create a new role for the lambda function. If already exists - returns it."""
@@ -630,24 +619,44 @@ class LambdaFunction(Function):
 
         return role_res
 
+    def _run_shell_command(self, cmd: list[str], cwd: str = None):
+        # Run the command and wait for it to complete
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, cwd=cwd or Path.cwd()
+        )
+
+        if result.returncode != 0:
+            print("subprocess failed, stdout: " + result.stdout)
+            print("subprocess failed, stderr: " + result.stderr)
+
+        # Check for success
+        assert result.returncode == 0
+
+    def _build_docker_img(self):
+        reqs = self.env.reqs
+        reqs.remove("./")
+
+        build_cmd = [
+            "docker",
+            "build",
+            "--pull",
+            "--rm",
+            "-f",
+            str(self.dockerfile_path),
+            "--build-arg",
+            f"PYTHON_VERSION_LAMBDA={self.runtime}",
+            f"LAMBDA_FILES={self.local_path_to_code}",
+            f"LAMBDA_HANDLER=rh_handler_{self.name}.lambda_handler",
+            f"REQS={reqs}",
+            "-t",
+            f"runhouse:{self.name}",
+            ".",
+        ]
+        self._run_shell_command(build_cmd)
+
     def _create_new_lambda(self, env_vars):
         """Creates new AWS Lambda."""
         logger.info(f"Creating a new Lambda called {self.name}")
-        path = str(Path(self.local_path_to_code[0]).absolute()).split("/")
-        path = ["/" + path_e for path_e in path]
-        path[0] = ""
-        zip_file_name = f"{''.join(path[:-1])}/{self.name}_code_files.zip"
-        zf = zipfile.ZipFile(zip_file_name, mode="w")
-        try:
-            for file_name in self.local_path_to_code:
-                zf.write(file_name, str(Path(file_name).name))
-        except FileNotFoundError:
-            logger.error(f"Could not find {FileNotFoundError.filename}")
-        finally:
-            zf.close()
-        with open(zip_file_name, "rb") as f:
-            zipped_code = f.read()
-
         # creating a role for the Lambda, using default policy.
         # TODO [SB]: in the next phase, enable the user to update the default policy
         role_res = self._create_role_in_aws()
