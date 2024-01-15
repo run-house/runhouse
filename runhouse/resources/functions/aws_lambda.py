@@ -14,6 +14,7 @@ from typing import Any, List, Optional
 
 import boto3
 import botocore.exceptions
+from docker import APIClient
 
 from runhouse.globals import rns_client
 from runhouse.resources.envs import _get_env_from, Env
@@ -571,10 +572,50 @@ class LambdaFunction(Function):
         except self.lambda_client.exceptions.InvalidParameterValueException or botocore.exceptions.ClientError:
             return False
 
+    def _get_ecr_login_password(self, region):
+        # Set up the ECR client
+        ecr_client = boto3.client("ecr", region=region)
+
+        # Get the ECR login details
+        response = ecr_client.get_authorization_token()
+        authorization_data = response["authorizationData"]
+        registry = response["authorizationData"][0]["proxyEndpoint"]
+
+        # Decode the authorization token to get the username and password
+        for auth_data in authorization_data:
+            auth_token = auth_data["authorizationToken"]
+            decoded_token = base64.b64decode(auth_token).decode("utf-8")
+            username, password = decoded_token.split(":")
+
+            return username, password, registry
+
     @contextlib.contextmanager
-    def _deploy_lambda_to_aws(self, role_res, zipped_code, env_vars):
+    def _deploy_lambda_to_aws(self, role_res, env_vars, image_name, image_tag):
         """Deploying new lambda to AWS"""
-        pass
+        # setup
+        ecr_client = boto3.client("ecr")
+        region = self.lambda_client.meta.region_name
+        username, password, registry = self._get_ecr_login_password(region)
+        ecr_repo_name = f"runhouse_lambda_{self.name}"
+        docker_client = APIClient()
+
+        # step 1: create ecr repo for the lambda
+        repo_config = ecr_client.create_repository(repositoryName=ecr_repo_name)
+        print(repo_config)
+
+        # step 2: Tag the Docker image
+        image_name = f"{registry}/{ecr_repo_name}:{image_tag}"
+        docker_client.tag(ecr_repo_name, image_tag, image_name)
+
+        # step 3: Log in to the ECR registry
+        login_result = docker_client.login(username, password, registry)
+
+        # check login was successful
+        assert "Status" in login_result and "Login Succeeded" in login_result["Status"]
+
+        # step 4: Push the docker image to ECR
+        docker_client.push(image_name, stream=True, decode=True)
+        # returns the list of the lines that was pushed to the repo
 
     def _create_role_in_aws(self):
         """create a new role for the lambda function. If already exists - returns it."""
@@ -649,10 +690,11 @@ class LambdaFunction(Function):
             f"LAMBDA_HANDLER=rh_handler_{self.name}.lambda_handler",
             f"REQS={reqs}",
             "-t",
-            f"runhouse:{self.name}",
+            f"runhouse_lambda:{self.name}",
             ".",
         ]
         self._run_shell_command(build_cmd)
+        return f"runhouse_lambda:{self.name}"  # image_name = runhouse_lambda, tag = self.name
 
     def _create_new_lambda(self, env_vars):
         """Creates new AWS Lambda."""
@@ -661,13 +703,10 @@ class LambdaFunction(Function):
         # TODO [SB]: in the next phase, enable the user to update the default policy
         role_res = self._create_role_in_aws()
 
-        with self._deploy_lambda_to_aws(
-            role_res, zipped_code, env_vars
-        ) as lambda_config:
+        with self._deploy_lambda_to_aws(role_res, env_vars) as lambda_config:
             logger.info(
                 f'{lambda_config["Configuration"]["FunctionName"]} was created successfully.'
             )
-            Path(zip_file_name).absolute().unlink()
             return lambda_config
 
     def deploy(self):
