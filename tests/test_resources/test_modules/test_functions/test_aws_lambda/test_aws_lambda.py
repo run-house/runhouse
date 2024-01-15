@@ -54,13 +54,13 @@ def numpy_function():
 
 def test_create_and_run_no_layers(basic_function):
     res = basic_function(3, 4)
-    assert res == "7"
+    assert res == 7
     reload_func = rh.aws_lambda_fn(name=basic_function.name)
     res2 = reload_func(12, 7)
-    assert res2 == "19"
+    assert res2 == 19
     reload_func_rns_name = rh.aws_lambda_fn(name=basic_function.rns_address)
     res3 = reload_func_rns_name(4, 6)
-    assert res3 == "10"
+    assert res3 == 10
 
 
 def test_load_not_existing_lambda():
@@ -121,7 +121,7 @@ def test_func_no_args():
         runtime="python3.9",
         name=name,
     )
-    assert my_lambda() == '"no args lambda"'
+    assert my_lambda() == "no args lambda"
     assert my_lambda.name == "test_lambda_no_args"
     assert my_lambda.teardown() is True
 
@@ -129,25 +129,25 @@ def test_func_no_args():
 def test_create_and_run_generate_name():
     my_lambda = rh.aws_lambda_fn(fn=lambda_sum, runtime="python3.9")
     res = my_lambda(3, 4)
-    assert res == "7"
+    assert res == 7
     my_lambda.save()
     reload_func = rh.aws_lambda_fn(name="lambda_sum")
     res2 = reload_func(12, 7)
-    assert res2 == "19"
+    assert res2 == 19
     assert my_lambda.teardown() is True
     assert reload_func.teardown() is True
 
 
 def test_create_and_run_layers_dict(numpy_function):
     res = numpy_function([1, 2, 3], [1, 2, 3])
-    assert res == "12"
+    assert res == 12
 
 
 def test_reload_func_with_libs(numpy_function):
     # tests that after the libs are installed, they are not being re-installed.
     my_reloaded_lambda = rh.aws_lambda_fn(name=numpy_function.name)
     res = my_reloaded_lambda([1, 2, 3], [12, 5, 9])
-    assert res == "32"
+    assert res == 32
 
 
 def test_create_and_run_layers_env():
@@ -160,7 +160,7 @@ def test_create_and_run_layers_env():
         env=my_env,
     )
     res = my_lambda([1, 2, 3], [2, 5, 6])
-    assert res == "19"
+    assert res == 19
     assert my_lambda.teardown() is True
 
 
@@ -173,7 +173,7 @@ def test_create_and_run_layers_list():
         env=["numpy"],
     )
     res = my_lambda([1, 2, 3], [4, 7, 9])
-    assert res == "26"
+    assert res == 26
     assert my_lambda.teardown() is True
 
 
@@ -188,12 +188,12 @@ def test_layers_increase_timeout_and_memory():
         memory_size=128,
     )
     res = my_lambda([1, 2, 3], [4, 7, 9])
-    assert res == "26"
+    assert res == 26
     lambda_client = boto3.client("lambda")
     lambda_config = lambda_client.get_function(FunctionName=my_lambda.name)
     assert lambda_config["Configuration"]["Timeout"] == 600
-    assert lambda_config["Configuration"]["MemorySize"] == 1024
-    assert lambda_config["Configuration"]["EphemeralStorage"]["Size"] == 3072
+    assert lambda_config["Configuration"]["MemorySize"] == 10240
+    assert lambda_config["Configuration"]["EphemeralStorage"]["Size"] == 10240
     assert lambda_config["Configuration"]["FunctionName"] == my_lambda.name
     assert my_lambda.teardown() is True
 
@@ -207,7 +207,7 @@ def test_create_and_run_layers_txt():
         env=[f"reqs:{TEST_RESOURCES}/"],
     )
     res = my_lambda([1, 2, 3], [1, 2, 3])
-    assert res == "12"
+    assert res == 12
     assert my_lambda.teardown() is True
 
 
@@ -215,10 +215,10 @@ def test_update_lambda_one_file():
     name = "test_lambda_create_and_run"
     my_lambda = rh.aws_lambda_fn(fn=lambda_sum, runtime="python3.9", name=name)
     res = my_lambda(6, 4)
-    assert res == "10"
+    assert res == 10
     reload_func = rh.aws_lambda_fn(name=name)
     res2 = reload_func(12, 13)
-    assert res2 == "25"
+    assert res2 == 25
 
 
 def test_mult_files_each():
@@ -250,10 +250,10 @@ def test_mult_files_each():
     res2 = my_lambda_calc_1(5, 3)
     res3 = my_lambda_calc_1(2, 7)
     res4 = my_lambda_calc_1(10, 5)
-    assert res1 == "2.5"
-    assert res2 == "3.2"
-    assert res3 == "22.5"
-    assert res4 == "7.5"
+    assert res1 == 2.5
+    assert res2 == 3.2
+    assert res3 == 22.5
+    assert res4 == 7.5
     assert my_lambda_calc_1.teardown() is True
 
 
@@ -284,10 +284,10 @@ def test_few_python_files_chain():
     res2 = my_lambda_calc_2(5, 3)
     res3 = my_lambda_calc_2(2, 7)
     res4 = my_lambda_calc_2(10, 5)
-    assert res1 == "16"
-    assert res2 == "17"
-    assert res3 == "20"
-    assert res4 == "20"
+    assert res1 == 16
+    assert res2 == 17
+    assert res3 == 20
+    assert res4 == 20
     assert my_lambda_calc_2.teardown() is True
 
 
@@ -295,9 +295,9 @@ def test_args(basic_function):
     res1 = basic_function(2, 3)
     res2 = basic_function(5, arg2=3)
     res3 = basic_function(arg1=2, arg2=7)
-    assert res1 == "5"
-    assert res2 == "8"
-    assert res3 == "9"
+    assert res1 == 5
+    assert res2 == 8
+    assert res3 == 9
 
 
 def test_map_starmap(basic_function):
@@ -305,10 +305,10 @@ def test_map_starmap(basic_function):
     res_map2 = basic_function.map([6, 2, 3], [15, 52, 61])
     res_map3 = basic_function.starmap([(1, 2), (3, 4), (5, 6)])
     res_map4 = basic_function.starmap([(12, 5), (44, 32), (8, 3)])
-    assert res_map1 == ["5", "7", "9"]
-    assert res_map2 == ["21", "54", "64"]
-    assert res_map3 == ["3", "7", "11"]
-    assert res_map4 == ["17", "76", "11"]
+    assert res_map1 == [5, 7, 9]
+    assert res_map2 == [21, 54, 64]
+    assert res_map3 == [3, 7, 11]
+    assert res_map4 == [17, 76, 11]
 
 
 def test_create_from_config():
@@ -327,9 +327,9 @@ def test_create_from_config():
     res2 = config_lambda(8, 12)
     res3 = config_lambda(14, 17)
 
-    assert res1 == "3"
-    assert res2 == "20"
-    assert res3 == "31"
+    assert res1 == 3
+    assert res2 == 20
+    assert res3 == 31
     assert config_lambda.teardown() is True
 
 
@@ -341,7 +341,7 @@ def test_delete_lambda():
     lambda_to_delete = rh.aws_lambda_fn(fn=lambda_sum, runtime="python3.9", name=name)
 
     lambda_to_delete.save()
-    assert lambda_to_delete(5, 11) == "16"
+    assert lambda_to_delete(5, 11) == 16
 
     lambda_name = lambda_to_delete.name
     lambda_policy = f"{lambda_name}_Policy"
