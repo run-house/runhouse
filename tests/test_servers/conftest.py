@@ -72,8 +72,8 @@ def local_client_with_den_auth(logged_in_account):
 
 
 @pytest.fixture(scope="session")
-def base_servlet():
-    yield get_ray_servlet(BASE_ENV_ACTOR_NAME)
+def test_servlet():
+    yield get_ray_servlet("test_servlet")
 
 
 @pytest.fixture(scope="function")

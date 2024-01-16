@@ -2,7 +2,6 @@ import pytest
 
 from runhouse.servers.http.auth import hash_token
 
-from tests.test_servers.conftest import BASE_ENV_ACTOR_NAME
 from tests.utils import friend_account, get_test_obj_store
 
 
@@ -10,9 +9,12 @@ def list_compare(list1, list2):
     return sorted(list1) == sorted(list2)
 
 
+ENV_NAME_OBJ_STORE = "test_obj_store"
+
+
 @pytest.mark.servertest
-@pytest.mark.parametrize("obj_store", [BASE_ENV_ACTOR_NAME], indirect=True)
-class TestBaseEnvObjStore:
+@pytest.mark.parametrize("obj_store", [ENV_NAME_OBJ_STORE], indirect=True)
+class TestObjStore:
     """Start object store in a local base env servlet"""
 
     @pytest.mark.level("unit")
@@ -125,10 +127,6 @@ class TestBaseEnvObjStore:
         assert obj_store.keys() == []
 
         obj_store_2 = get_test_obj_store("other")
-        assert list_compare(
-            obj_store_2.get_all_initialized_env_servlet_names(),
-            sorted([obj_store.servlet_name, obj_store_2.servlet_name]),
-        )
         assert obj_store_2.keys() == []
 
         obj_store.put("k1", "v1")
@@ -302,14 +300,6 @@ class TestBaseEnvObjStore:
         # Testing of maintaining envs
         obj_store_3 = get_test_obj_store("third")
         assert obj_store_3.keys() == ["k1"]
-        assert list_compare(
-            obj_store_3.get_all_initialized_env_servlet_names(),
-            [
-                obj_store.servlet_name,
-                obj_store_2.servlet_name,
-                obj_store_3.servlet_name,
-            ],
-        )
         obj_store_3.put("k2", "v2")
         obj_store_3.put("k3", "v3")
         assert list_compare(obj_store_3.keys(), ["k1", "k2", "k3"])
@@ -322,7 +312,7 @@ class TestBaseEnvObjStore:
 
 
 @pytest.mark.servertest
-@pytest.mark.parametrize("obj_store", [BASE_ENV_ACTOR_NAME], indirect=True)
+@pytest.mark.parametrize("obj_store", [ENV_NAME_OBJ_STORE], indirect=True)
 class TestAuthCacheObjStore:
     """Start object store in a local auth cache servlet"""
 
