@@ -530,6 +530,10 @@ class StreamTee(object):
         for stream in self.outstreams:
             stream.flush()
 
+    def __getattr__(self, item):
+        # Needed in case someone calls a method on instream, such as Ray calling sys.stdout.istty()
+        return getattr(self.instream, item)
+
 
 class capture_stdout:
     """Context manager for capturing stdout to a file, list, or stream, while still printing to stdout."""

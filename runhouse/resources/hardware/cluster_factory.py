@@ -74,10 +74,9 @@ def cluster(
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.cluster(name="rh-a10x")
     """
-    if "ips" in kwargs:
-        host = kwargs["ips"]
-        warnings.warn(
-            "``ips`` argument has been deprecated. Please use ``host`` to refer to the cluster IPs or host instead."
+    if host and kwargs.get("ips"):
+        raise ValueError(
+            "Cluster factory method can only accept one of `host` or `ips` as an argument."
         )
 
     if name and all(
@@ -176,7 +175,7 @@ def cluster(
         host = [host]
 
     c = Cluster(
-        ips=host,
+        ips=kwargs.pop("ips", None) or host,
         ssh_creds=ssh_creds,
         name=name,
         server_host=server_host,

@@ -1,5 +1,6 @@
 import contextlib
 import pkgutil
+import uuid
 from pathlib import Path
 
 import pytest
@@ -36,6 +37,13 @@ def get_test_obj_store(env_servlet_name: str):
     test_obj_store.initialize(env_servlet_name)
 
     return test_obj_store
+
+
+def get_random_str(length: int = 8):
+    if length > 32:
+        raise ValueError("Max length of random string is 32")
+
+    return str(uuid.uuid4())[:length]
 
 
 @contextlib.contextmanager

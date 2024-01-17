@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 import ray
 
@@ -14,6 +14,30 @@ class ObjStoreError(Exception):
 class NoLocalObjStoreError(ObjStoreError):
     def __init__(self):
         super().__init__("No local object store exists; cannot perform operation.")
+
+
+def initialize_cluster_servlet():
+    from runhouse.servers.cluster_servlet import ClusterServlet
+
+    ray.init(
+        ignore_reinit_error=True,
+        logging_level=logging.ERROR,
+        namespace="runhouse",
+    )
+    cluster_servlet = (
+        ray.remote(ClusterServlet)
+        .options(
+            name="cluster_servlet",
+            get_if_exists=True,
+            lifetime="detached",
+            namespace="runhouse",
+        )
+        .remote()
+    )
+
+    # Make sure cluster servlet is actually initialized
+    ray.get(cluster_servlet.get_cluster_config.remote())
+    return cluster_servlet
 
 
 class ObjStore:
@@ -58,23 +82,8 @@ class ObjStore:
         # ClusterServlet essentially functions as a global state/metadata store
         # for all nodes connected to this Ray cluster.
         try:
-            from runhouse.servers.cluster_servlet import ClusterServlet
+            self.cluster_servlet = initialize_cluster_servlet()
 
-            ray.init(
-                ignore_reinit_error=True,
-                logging_level=logging.ERROR,
-                namespace="runhouse",
-            )
-            self.cluster_servlet = (
-                ray.remote(ClusterServlet)
-                .options(
-                    name="cluster_servlet",
-                    get_if_exists=True,
-                    lifetime="detached",
-                    namespace="runhouse",
-                )
-                .remote()
-            )
         except ConnectionError:
             # If ray.init fails, we're not on a cluster, so we don't need to do anything
             pass
@@ -88,15 +97,6 @@ class ObjStore:
         if not servlet_name and has_local_storage:
             raise ValueError(
                 "Must provide a servlet name if the servlet has local storage."
-            )
-
-        if (
-            servlet_name
-            and not has_local_storage
-            and not self.get_env_servlet(servlet_name)
-        ):
-            raise ValueError(
-                f"ObjStore wants to proxy writes to {servlet_name}, but there is no servlet with that name running."
             )
 
         # There can only be one initialized EnvServlet with a given name AND with local storage.
@@ -144,11 +144,19 @@ class ObjStore:
     ##############################################
     def get_cluster_config(self):
         # TODO: Potentially add caching here
-        return self.call_actor_method(self.cluster_servlet, "get_cluster_config")
+        if self.cluster_servlet is not None:
+            return self.call_actor_method(self.cluster_servlet, "get_cluster_config")
+        else:
+            return {}
 
     def set_cluster_config(self, config: Dict[str, Any]):
         return self.call_actor_method(
             self.cluster_servlet, "set_cluster_config", config
+        )
+
+    def set_cluster_config_value(self, key: str, value: Any):
+        return self.call_actor_method(
+            self.cluster_servlet, "set_cluster_config_value", key, value
         )
 
     ##############################################
@@ -220,6 +228,14 @@ class ObjStore:
             self.cluster_servlet, "is_env_servlet_name_initialized", env_servlet_name
         )
 
+    def get_all_initialized_env_servlet_names(self) -> Set[str]:
+        return list(
+            self.call_actor_method(
+                self.cluster_servlet,
+                "get_all_initialized_env_servlet_names",
+            )
+        )
+
     def get_env_servlet_name_for_key(self, key: Any):
         return self.call_actor_method(
             self.cluster_servlet, "get_env_servlet_name_for_key", key
@@ -234,25 +250,6 @@ class ObjStore:
         return self.call_actor_method(
             self.cluster_servlet, "pop_env_servlet_name_for_key", key, *args
         )
-
-    def list_env_servlet_names(
-        self, return_keys=False
-    ) -> Union[set, Dict[Any, List[str]]]:
-        key_to_env_servlet_name_dict = self.call_actor_method(
-            self.cluster_servlet, "get_key_to_env_servlet_name_dict"
-        )
-        unique_envs = set(key_to_env_servlet_name_dict.values())
-        if not return_keys:
-            return unique_envs
-        # Return a dictionary with envs as keys and the list of keys in the given env as values
-        return {
-            unique_env: [
-                key
-                for key, env_for_key in key_to_env_servlet_name_dict.items()
-                if env_for_key == unique_env
-            ]
-            for unique_env in unique_envs
-        }
 
     ##############################################
     # KV Store: Keys
@@ -271,10 +268,8 @@ class ObjStore:
 
     def keys(self) -> List[Any]:
         # Return keys across the cluster, not only in this process
-        return list(
-            self.call_actor_method(
-                self.cluster_servlet, "get_key_to_env_servlet_name_dict"
-            ).keys()
+        return self.call_actor_method(
+            self.cluster_servlet, "get_key_to_env_servlet_name_dict_keys"
         )
 
     ##############################################
@@ -513,7 +508,7 @@ class ObjStore:
 
     def clear(self):
         logger.warning("Clearing all keys from all envs in the object store!")
-        for env_servlet_name in self.list_env_servlet_names():
+        for env_servlet_name in self.get_all_initialized_env_servlet_names():
             if env_servlet_name == self.servlet_name and self.has_local_storage:
                 self.clear_local()
             else:

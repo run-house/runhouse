@@ -1,6 +1,7 @@
 import contextlib
 import logging
 import subprocess
+import time
 from pathlib import Path
 from typing import Any, Dict
 
@@ -317,6 +318,32 @@ class OnDemandCluster(Cluster):
         if len(state) == 0:
             return None
         return state[0]
+
+    def _start_ray_workers(self, ray_port):
+        # Find the internal IP corresponding to the public_head_ip and the rest are workers
+        internal_head_ip = None
+        worker_ips = []
+        live_state = self.live_state or self._get_sky_state()
+        for internal, external in live_state["handle"]["stable_internal_external_ips"]:
+            if external == self.address:
+                internal_head_ip = internal
+            else:
+                # NOTE: Using external worker address here because we're running from local
+                worker_ips.append(external)
+
+        logger.info(f"Internal head IP: {internal_head_ip}")
+
+        for host in worker_ips:
+            logger.info(
+                f"Starting Ray on worker {host} with head node at {internal_head_ip}:{ray_port}."
+            )
+            self.run(
+                commands=[
+                    f"ray start --address={internal_head_ip}:{ray_port}",
+                ],
+                node=host,
+            )
+        time.sleep(5)
 
     def _populate_connection_from_status_dict(self, cluster_dict: Dict[str, Any]):
         if cluster_dict and cluster_dict["status"].name in ["UP", "INIT"]:

@@ -19,7 +19,6 @@ from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 from runhouse.constants import CLUSTER_CONFIG_PATH, RH_LOGFILE_PATH
 from runhouse.globals import configs, env_servlets, obj_store, rns_client
-from runhouse.resources.hardware.utils import _load_cluster_config
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.env_servlet import EnvServlet
@@ -36,6 +35,7 @@ from runhouse.servers.http.http_utils import (
     ServerSettings,
 )
 from runhouse.servers.nginx.config import NginxConfig
+from runhouse.servers.obj_store import initialize_cluster_servlet
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +107,6 @@ class HTTPServer:
     DEFAULT_HTTPS_PORT = 443
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
     memory_exporter = None
-    _den_auth = False
 
     def __init__(
         self, conda_env=None, enable_local_span_collection=None, *args, **kwargs
@@ -161,6 +160,11 @@ class HTTPServer:
                 namespace="runhouse",
             )
 
+        # This should already be initialized by the start script
+        # But if the HTTPServer was started standalone in a test,
+        # We still want to make sure the cluster servlet is initialized
+        initialize_cluster_servlet()
+
         # TODO disabling due to latency, figure out what to do with this
         # try:
         #     # Collect metadata for the cluster immediately on init
@@ -191,17 +195,17 @@ class HTTPServer:
 
     @classmethod
     def get_den_auth(cls):
-        return cls._den_auth
+        return obj_store.get_cluster_config().get("den_auth", False)
 
     @classmethod
     def enable_den_auth(cls, flush=True):
-        cls._den_auth = True
+        obj_store.set_cluster_config_value("den_auth", True)
         if flush:
             obj_store.clear_auth_cache()
 
     @classmethod
     def disable_den_auth(cls):
-        cls._den_auth = False
+        obj_store.set_cluster_config_value("den_auth", False)
 
     @staticmethod
     def register_activity():
@@ -256,7 +260,7 @@ class HTTPServer:
             )
 
     @staticmethod
-    def get_env_servlet(env_name, create=False, runtime_env=None):
+    def get_env_servlet(env_name, create=False, runtime_env=None, resources=None):
         if env_name in env_servlets.keys():
             return env_servlets[env_name]
 
@@ -267,12 +271,17 @@ class HTTPServer:
                     name=env_name,
                     get_if_exists=True,
                     runtime_env=runtime_env,
+                    resources=resources,
                     lifetime="detached",
                     namespace="runhouse",
                     max_concurrency=1000,
                 )
                 .remote(env_name=env_name)
             )
+
+            # Make sure env_servlet is actually initialized
+            ray.get(new_env.register_activity.remote())
+
             env_servlets[env_name] = new_env
             return new_env
 
@@ -346,6 +355,7 @@ class HTTPServer:
                     env_name=message.env,
                     create=True,
                     runtime_env=runtime_env,
+                    resources=resource.get("compute", None),
                 )
 
         return HTTPServer.call_in_env_servlet(
@@ -591,7 +601,8 @@ class HTTPServer:
             return Response(
                 output_type=OutputType.RESULT, data=pickle_b64(obj_store.keys())
             )
-        return HTTPServer.call_in_env_servlet("get_keys", [], env=env)
+        else:
+            return HTTPServer.call_in_env_servlet("get_keys_local", [], env=env)
 
     @staticmethod
     @app.get("/{module}/{method}")
@@ -827,25 +838,21 @@ class HTTPServer:
 if __name__ == "__main__":
     import uvicorn
 
-    rh_server_host = HTTPServer.DEFAULT_SERVER_HOST
-    rh_server_port = HTTPServer.DEFAULT_SERVER_PORT
-    default_http_port = HTTPServer.DEFAULT_HTTP_PORT
-    default_https_port = HTTPServer.DEFAULT_HTTPS_PORT
-    http_port, https_port, ssl_keyfile, ssl_certfile = None, None, None, None
+    ssl_keyfile, ssl_certfile = None, None
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--host",
         type=str,
         default=None,
-        help=f"Host to run server on. By default will run on {rh_server_host}",
+        help=f"Host to run server on. By default will run on {HTTPServer.DEFAULT_SERVER_HOST}",
     )
     parser.add_argument(
         "--port",
         type=int,
         default=None,
-        help=f"Port to run server on. If not provided will run on {default_https_port} if HTTPS is enabled, "
-        f"{default_http_port} if HTTP is enabled, and {rh_server_port} if connecting to the server via SSH",
+        help="Port to run daemon on on. If provided and nginx is not enabled, "
+        f"will attempt to run the daemon on this port, defaults to {HTTPServer.DEFAULT_SERVER_PORT}",
     )
     parser.add_argument(
         "--conda-env", type=str, default=None, help="Conda env to run server in"
@@ -894,29 +901,123 @@ if __name__ == "__main__":
         help="Address to use for generating self-signed certs and enabling HTTPS. (e.g. public IP address)",
     )
 
-    cluster_config = _load_cluster_config()
+    # The object store and the cluster servlet within it need to be
+    # initiailzed in order to call `obj_store.get_cluster_config()`, which
+    # uses the object store to load the cluster config from Ray.
+    obj_store.initialize("base")
+
+    cluster_config = obj_store.get_cluster_config()
+    if not cluster_config:
+        logger.warning(
+            "Cluster config is not set. Using default values where possible."
+        )
+
     parse_args = parser.parse_args()
 
     conda_name = parse_args.conda_env
-    host = parse_args.host
-    port = parse_args.port
     use_https = parse_args.use_https
     restart_proxy = parse_args.restart_proxy
     use_nginx = parse_args.use_nginx
-    use_local_telemetry = parse_args.use_local_telemetry
 
-    # Update globally inside the module based on the args passed in or the cluster config
-    den_auth = parse_args.use_den_auth or cluster_config.get("den_auth")
+    ########################################
+    # Handling args that could be specified in the
+    # cluster_config.json or via CLI args
+    ########################################
 
-    ips = cluster_config.get("ips", [])
-    address = parse_args.certs_address or ips[0] if ips else None
+    # Server port
+    if parse_args.port != cluster_config.get("server_port"):
+        logger.warning(
+            f"CLI provided server port: {parse_args.port} is different from the server port specified in "
+            f"cluster_config.json: {cluster_config.get('server_port')}. Prioritizing CLI provided port."
+        )
 
-    # If custom certs are provided explicitly use them
-    keyfile_arg = parse_args.ssl_keyfile
-    parsed_ssl_keyfile = resolve_absolute_path(keyfile_arg) if keyfile_arg else None
+    port_arg = parse_args.port or cluster_config.get("server_port")
 
-    certfile_arg = parse_args.ssl_certfile
-    parsed_ssl_certfile = resolve_absolute_path(certfile_arg) if certfile_arg else None
+    if port_arg is not None:
+        cluster_config["server_port"] = port_arg
+
+    # Den auth enabled
+    if parse_args.use_den_auth != cluster_config.get("den_auth", False):
+        logger.warning(
+            f"CLI provided den_auth: {parse_args.use_den_auth} is different from the den_auth specified in "
+            f"cluster_config.json: {cluster_config.get('den_auth')}. Prioritizing CLI provided den_auth."
+        )
+
+    den_auth = parse_args.use_den_auth or cluster_config.get("den_auth", False)
+    cluster_config["den_auth"] = den_auth
+
+    # Telemetry enabled
+    if parse_args.use_local_telemetry != cluster_config.get(
+        "use_local_telemetry", False
+    ):
+        logger.warning(
+            f"CLI provided use_local_telemetry: {parse_args.use_local_telemetry} is different from the "
+            f"use_local_telemetry specified in cluster_config.json: "
+            f"{cluster_config.get('use_local_telemetry')}. Prioritizing CLI provided use_local_telemetry."
+        )
+
+    use_local_telemetry = parse_args.use_local_telemetry or cluster_config.get(
+        "use_local_telemetry", False
+    )
+    cluster_config["use_local_telemetry"] = use_local_telemetry
+
+    # Keyfile
+    if parse_args.ssl_keyfile != cluster_config.get("ssl_keyfile"):
+        logger.warning(
+            f"CLI provided ssl_keyfile: {parse_args.ssl_keyfile} is different from the ssl_keyfile specified in "
+            f"cluster_config.json: {cluster_config.get('ssl_keyfile')}. Prioritizing CLI provided ssl_keyfile."
+        )
+
+    ssl_keyfile_path_arg = parse_args.ssl_keyfile or cluster_config.get("ssl_keyfile")
+    if ssl_keyfile_path_arg is not None:
+        cluster_config["ssl_keyfile"] = ssl_keyfile_path_arg
+    parsed_ssl_keyfile = (
+        resolve_absolute_path(ssl_keyfile_path_arg) if ssl_keyfile_path_arg else None
+    )
+
+    # Certfile
+    if parse_args.ssl_certfile != cluster_config.get("ssl_certfile"):
+        logger.warning(
+            f"CLI provided ssl_certfile: {parse_args.ssl_certfile} is different from the ssl_certfile specified in "
+            f"cluster_config.json: {cluster_config.get('ssl_certfile')}. Prioritizing CLI provided ssl_certfile."
+        )
+
+    ssl_certfile_path_arg = parse_args.ssl_certfile or cluster_config.get(
+        "ssl_certfile"
+    )
+    if ssl_certfile_path_arg is not None:
+        cluster_config["ssl_certfile"] = ssl_certfile_path_arg
+    parsed_ssl_certfile = (
+        resolve_absolute_path(ssl_certfile_path_arg) if ssl_certfile_path_arg else None
+    )
+
+    # Host
+    if parse_args.host != cluster_config.get("server_host"):
+        logger.warning(
+            f"CLI provided server_host: {parse_args.host} is different from the server_host specified in "
+            f"cluster_config.json: {cluster_config.get('server_host')}. Prioritizing CLI provided server_host."
+        )
+
+    host = (
+        parse_args.host
+        or cluster_config.get("server_host")
+        or HTTPServer.DEFAULT_SERVER_HOST
+    )
+    cluster_config["server_host"] = host
+
+    # Address in the case we're a TLS server
+    if parse_args.certs_address != cluster_config.get("ips", [None])[0]:
+        logger.warning(
+            f"CLI provided certs_address: {parse_args.certs_address} is different from the certs_address specified in "
+            f"cluster_config.json: {cluster_config.get('ips', [None])[0]}. Prioritizing CLI provided certs_address."
+        )
+
+    address = parse_args.certs_address or cluster_config.get("ips", [None])[0]
+    if address is not None:
+        cluster_config["ips"] = [address]
+
+    # Set the new cluster config as the settings within the cluster servlet
+    obj_store.set_cluster_config(cluster_config)
 
     HTTPServer(
         conda_env=conda_name,
@@ -940,9 +1041,6 @@ if __name__ == "__main__":
 
     if use_https:
         # If not using nginx and no port is specified use the default RH port
-        https_port = port or (default_https_port if use_nginx else rh_server_port)
-        logger.info(f"Launching HTTPS server on port: {https_port}.")
-
         cert_config = TLSCertConfig()
         ssl_keyfile = resolve_absolute_path(parsed_ssl_keyfile or cert_config.key_path)
         ssl_certfile = resolve_absolute_path(
@@ -950,11 +1048,14 @@ if __name__ == "__main__":
         )
 
         if not Path(ssl_keyfile).exists() and not Path(ssl_certfile).exists():
-            if https_port != default_https_port:
+            # If the user has specified a server port and we're not using nginx, then they
+            # want to run a TLS server on an arbitrary port. In order to do this,
+            # they need to pass their own certs.
+            if port_arg is not None and not use_nginx:
                 # if using a custom HTTPS port must provide private key file and certs explicitly
                 raise FileNotFoundError(
                     f"Could not find SSL private key and cert files on the cluster, which are required when specifying "
-                    f"a custom port ({https_port}). Please specify the paths using the --ssl-certfile and "
+                    f"a custom port ({port_arg}). Please specify the paths using the --ssl-certfile and "
                     f"--ssl-keyfile flags."
                 )
 
@@ -963,10 +1064,16 @@ if __name__ == "__main__":
                 f"Generated new self-signed cert and private key files on the cluster in "
                 f"paths: {cert_config.cert_path} and {cert_config.key_path}"
             )
-    else:
-        # If not using nginx and no port is specified use the default RH port
-        http_port = port or (default_http_port if use_nginx else rh_server_port)
-        logger.info(f"Launching HTTP server on port: {http_port}.")
+
+    # If the daemon port was not specified, it should be the default RH port
+    daemon_port = port_arg
+    if not daemon_port or daemon_port in [
+        HTTPServer.DEFAULT_HTTP_PORT,
+        HTTPServer.DEFAULT_HTTPS_PORT,
+    ]:
+        # Since one of HTTP_PORT or HTTPS_PORT was specified, nginx is set up to forward requests
+        # from the daemon to that port
+        daemon_port = HTTPServer.DEFAULT_SERVER_PORT
 
     # Note: running the FastAPI app on a higher, non-privileged port (8000) and using Nginx as a reverse
     # proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the app's port.
@@ -980,7 +1087,7 @@ if __name__ == "__main__":
 
         nc = NginxConfig(
             address=address,
-            rh_server_port=rh_server_port,
+            rh_server_port=daemon_port,
             ssl_key_path=ssl_keyfile,
             ssl_cert_path=ssl_certfile,
             use_https=use_https,
@@ -992,13 +1099,15 @@ if __name__ == "__main__":
             # reload nginx in case updated certs were provided
             nc.reload()
 
-        logger.info("Nginx will forward all traffic to the API server")
+        nginx_port = (
+            HTTPServer.DEFAULT_HTTPS_PORT if use_https else HTTPServer.DEFAULT_HTTP_PORT
+        )
+        logger.info(f"Nginx is proxying requests from {nginx_port} to {daemon_port}.")
 
-    host = host or rh_server_host
     logger.info(
         f"Launching Runhouse API server with den_auth={den_auth} and "
         + f"use_local_telemetry={use_local_telemetry} "
-        + f"on host: {host} and port: {rh_server_port}"
+        + f"on host={host} and use_https={use_https} and port_arg={daemon_port}"
     )
 
     # Only launch uvicorn with certs if HTTPS is enabled and not using Nginx
@@ -1008,7 +1117,7 @@ if __name__ == "__main__":
     uvicorn.run(
         app,
         host=host,
-        port=rh_server_port,
+        port=daemon_port,
         ssl_certfile=uvicorn_cert,
         ssl_keyfile=uvicorn_key,
     )
