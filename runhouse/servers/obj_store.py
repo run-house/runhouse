@@ -131,6 +131,7 @@ class ObjStore:
         env_name: str,
         create: bool = False,
         raise_ex_if_not_found: bool = False,
+        resources: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
         # Need to import these here to avoid circular imports
@@ -149,6 +150,18 @@ class ObjStore:
             # ValueError: Failed to look up actor with name ...
             pass
 
+        if resources:
+            # Check if requested resources are available
+            available_resources = ray.available_resources()
+            for k, v in resources.items():
+                if k not in available_resources or available_resources[k] < v:
+                    raise Exception(
+                        f"Requested resource {k}={v} is not available on the cluster. "
+                        f"Available resources: {available_resources}"
+                    )
+        else:
+            resources = {}
+
         # Otherwise, create it
         if create:
             new_env_actor = (
@@ -159,7 +172,9 @@ class ObjStore:
                     runtime_env=kwargs["runtime_env"]
                     if "runtime_env" in kwargs
                     else None,
-                    resources=kwargs["resources"] if "resources" in kwargs else None,
+                    num_cpus=resources.pop("CPU", None),
+                    num_gpus=resources.pop("GPU", None),
+                    resources=resources,
                     lifetime="detached",
                     namespace="runhouse",
                     max_concurrency=1000,
