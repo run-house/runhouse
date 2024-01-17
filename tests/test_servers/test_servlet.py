@@ -34,13 +34,16 @@ class TestServlet:
             assert b64_unpickle(resp.data).startswith("file_")
 
     @pytest.mark.level("unit")
-    def test_put_obj(self, test_servlet, blob_data):
+    def test_put_obj_local(self, test_servlet, blob_data):
         with tempfile.TemporaryDirectory() as temp_dir:
             resource_path = Path(temp_dir, "local-blob")
             resource = rh.blob(blob_data, path=resource_path)
-            message = Message(data=pickle_b64(resource), key="key1")
-            resp = HTTPServer.call_servlet_method(
-                test_servlet, "put_object", [message.key, message.data]
+            resp = ObjStore.call_actor_method(
+                test_servlet,
+                "put_local",
+                key="key1",
+                data=pickle_b64(resource),
+                serialization="pickle",
             )
             assert resp.output_type == "success"
 

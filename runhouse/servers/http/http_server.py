@@ -29,6 +29,7 @@ from runhouse.servers.http.http_utils import (
     Message,
     OutputType,
     pickle_b64,
+    PutObjectParams,
     PutResourceParams,
     Response,
     ServerSettings,
@@ -524,10 +525,15 @@ class HTTPServer:
     @staticmethod
     @app.post("/object")
     @validate_cluster_access
-    def put_object(request: Request, message: Message):
-        return HTTPServer.call_in_env_servlet(
-            "put_object", [message.key, message.data], env=message.env, create=True
+    def put_object(request: Request, params: PutObjectParams):
+        obj_store.put(
+            key=params.key,
+            value=params.serialized_data,
+            env=params.env_name,
+            serialization=params.serialization,
+            create_env_if_not_exists=True,
         )
+        return Response(output_type=OutputType.SUCCESS)
 
     @staticmethod
     @app.put("/object")

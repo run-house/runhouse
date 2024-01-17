@@ -460,27 +460,6 @@ class EnvServlet:
                 output_type=OutputType.EXCEPTION,
             )
 
-    def put_object(self, key, value, _intra_cluster=False):
-        self.register_activity()
-        # We may not want to deserialize the object here in case the object requires dependencies
-        # (to be used inside an env) which aren't present in the BaseEnv.
-        if _intra_cluster:
-            obj = value
-        else:
-            obj = b64_unpickle(value)
-        logger.info(f"Message received from client to put object: {key}")
-        try:
-            obj_store.put(key, obj)
-            return Response(output_type=OutputType.SUCCESS)
-        except Exception as e:
-            logger.exception(e)
-            self.register_activity()
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
-
     def rename_object(self, message: Message):
         self.register_activity()
         # We may not want to deserialize the object here in case the object requires dependencies
@@ -588,6 +567,10 @@ class EnvServlet:
         resource_config, state, dryrun = data
         return obj_store.put_resource_local(resource_config, state, dryrun)
 
+    @error_handling_decorator
+    def put_local(self, key: Any, data: Any, serialization: Optional[str] = None):
+        return obj_store.put_local(key, data)
+
     ##############################################################
     # IPC methods for interacting with local object store only
     # These do not catch exceptions, and do not wrap the output
@@ -596,10 +579,6 @@ class EnvServlet:
     def keys_local(self):
         self.register_activity()
         return obj_store.keys_local()
-
-    def put_local(self, key: Any, value: Any):
-        self.register_activity()
-        return obj_store.put_local(key, value)
 
     def get_local(self, key: Any, default: Optional[Any] = None):
         self.register_activity()

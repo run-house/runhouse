@@ -33,6 +33,13 @@ class PutResourceParams(BaseModel):
     env_name: Optional[str] = None
 
 
+class PutObjectParams(BaseModel):
+    key: str
+    serialized_data: Any
+    serialization: Optional[str] = None
+    env_name: Optional[str] = None
+
+
 class Args(BaseModel):
     args: Optional[List[Any]]
     kwargs: Optional[Dict[str, Any]]
