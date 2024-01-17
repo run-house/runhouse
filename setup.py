@@ -104,6 +104,7 @@ extras_require = {
         "sagemaker",
         "paramiko>=3.2.0",
     ],
+    "kubernetes": ["kubernetes"],
 }
 
 extras_require["all"] = sum(extras_require.values(), [])

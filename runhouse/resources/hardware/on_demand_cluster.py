@@ -44,9 +44,6 @@ class OnDemandCluster(Cluster):
         region=None,
         sky_state=None,
         live_state=None,
-        namespace: str = None,
-        kube_config_path: str = None,
-        context: str = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
@@ -86,11 +83,6 @@ class OnDemandCluster(Cluster):
         self.address = None
         self.client = None
 
-        # K8s related fields
-        self.namespace = namespace
-        self.kube_config_path = kube_config_path
-        self.context = context
-
         # TODO remove after 0.0.13
         self.live_state = sky_state or live_state
 
@@ -128,14 +120,14 @@ class OnDemandCluster(Cluster):
             }
         )
 
-        if self.provider == "kubernetes":
-            config.update(
-                {
-                    "namespace": self.namespace,
-                    "kube_config_path": self.kube_config_path,
-                    "context": self.context,
-                }
-            )
+        # if self.provider == "kubernetes":
+        #     config.update(
+        #         {
+        #             "namespace": self.namespace,
+        #             "kube_config_path": self.kube_config_path,
+        #             "context": self.context,
+        #         }
+        #     )
 
         return config
 
@@ -347,6 +339,27 @@ class OnDemandCluster(Cluster):
         cluster_dict = self.status(refresh=not dryrun)
         self._populate_connection_from_status_dict(cluster_dict)
 
+    def compute_instance_type(self):
+        if "--" in self.instance_type:   # K8s specific syntax
+            return self.instance_type
+        elif ":" not in self.instance_type and "CPU" not in self.instance_type:
+            return self.instance_type
+        
+        return None
+
+    def compute_accelerators(self):
+        if self.instance_type and ":" in self.instance_type and "CPU" not in self.instance_type:
+            return self.instance_type
+        
+        return None
+
+    def compute_cpus(self):
+        if self.instance_type and ":" in self.instance_type and "CPU" in self.instance_type:
+            return self.instance_type.rsplit(":", 1)[1]
+        
+        return None
+
+
     def up(self):
         """Up the cluster.
 
@@ -368,23 +381,11 @@ class OnDemandCluster(Cluster):
                 sky.Resources(
                     cloud=cloud_provider,  # TODO: confirm if passing instance type in old way (without --) works when provider is k8s
 
-                    instance_type=self.instance_type
-                    if self.instance_type
-                    and ":" not in self.instance_type
-                    and "--" in self.instance_type
-                    else None,
+                    instance_type=self.compute_instance_type(),
 
-                    accelerators=self.instance_type
-                    if self.instance_type
-                    and ":" in self.instance_type
-                    and "CPU" not in self.instance_type
-                    else None,
+                    accelerators=self.compute_accelerators(),
 
-                    cpus=self.instance_type.rsplit(":", 1)[1]
-                    if self.instance_type
-                    and ":" in self.instance_type
-                    and "CPU" in self.instance_type
-                    else None,
+                    cpus=self.compute_cpus(),
 
                     memory=self.memory,
                     region=self.region or configs.get("default_region"),
@@ -521,5 +522,14 @@ class OnDemandCluster(Cluster):
             cmd = f"kubectl exec -it {pod_name} -- /bin/bash"
             subprocess.run(cmd, shell=True, check=True)
 
-        else:
+        elif node is None:
+            # SSH onto head node - can provide the name as specified in the local ~/.ssh/config
             subprocess.run(["ssh", f"{self.name}"])
+        else:
+            # If SSHing onto a specific node, which requires the default sky public key for verification
+            sky_key = Path(self.DEFAULT_KEYFILE).expanduser()
+
+            if not sky_key.exists():
+                raise FileNotFoundError(f"Expected default sky key in path: {sky_key}")
+
+            subprocess.run(["ssh", "-i", str(sky_key), f"ubuntu@{node}"])

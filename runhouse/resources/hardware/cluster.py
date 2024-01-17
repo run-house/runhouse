@@ -567,13 +567,8 @@ class Cluster(Resource):
     @property
     def _use_https(self) -> bool:
         """Use HTTPS if server connection type is set to ``tls``"""
-        connection_type = self.server_connection_type
-        tls_conn = ServerConnectionType.TLS
 
-        if connection_type is not None:
-            return connection_type == tls_conn
-        
-        return False
+        return self.server_connection_type == ServerConnectionType.TLS if self.server_connection_type is not None else False
 
     @property
     def _use_nginx(self) -> bool:
