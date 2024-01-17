@@ -7,6 +7,7 @@ import runhouse as rh
 from runhouse.servers.http.auth import hash_token
 from runhouse.servers.http.http_server import HTTPServer
 from runhouse.servers.http.http_utils import b64_unpickle, Message, pickle_b64
+from runhouse.servers.obj_store import ObjStore
 
 from tests.test_servers.conftest import summer
 from tests.utils import friend_account
@@ -22,14 +23,14 @@ class TestServlet:
             resource = local_blob.to(system="file", path=resource_path)
 
             state = {}
-            message = Message(
+            resp = ObjStore.call_actor_method(
+                test_servlet,
+                "put_resource_local",
                 data=pickle_b64((resource.config_for_rns, state, resource.dryrun)),
-            )
-            resp = HTTPServer.call_servlet_method(
-                test_servlet, "put_resource", [message]
+                serialization="pickle",
             )
 
-            assert resp.output_type == "result"
+            assert resp.output_type == "result_serialized"
             assert b64_unpickle(resp.data).startswith("file_")
 
     @pytest.mark.level("unit")

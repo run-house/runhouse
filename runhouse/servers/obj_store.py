@@ -603,3 +603,99 @@ class ObjStore:
         return {
             k: self.get(v, default=v) if isinstance(v, str) else v for k, v in d.items()
         }
+
+    ##############################################
+    # More specific helpers
+    ##############################################
+    def put_resource(
+        self,
+        serialized_data: Any,
+        serialization: Optional[str] = None,
+        env_name: Optional[str] = None,
+    ) -> "Response":
+        from runhouse.servers.http.http_utils import deserialize_data
+
+        if env_name is None and self.servlet_name is None:
+            raise ObjStoreError("No env name provided and no servlet name set.")
+
+        env_name = env_name or self.servlet_name
+        if self.has_local_storage and env_name == self.servlet_name:
+            resource_config, state, dryrun = deserialize_data(
+                serialized_data, serialization
+            )
+            return self.put_resource_local(resource_config, state, dryrun)
+
+        servlet = ObjStore.get_env_servlet(env_name)
+
+        # Normally, serialization and deserialization happens within the servlet
+        # However, if we're putting an env, we need to deserialize it here and
+        # actually create the corresponding env servlet.
+        if not servlet:
+            servlet = ObjStore.get_env_servlet(env_name, create=True)
+            resource_config, _, _ = deserialize_data(serialized_data, serialization)
+            if resource_config["resource_type"] == "env":
+                runtime_env = (
+                    {"conda_env": resource_config["env_name"]}
+                    if resource_config["resource_subtype"] == "CondaEnv"
+                    else {}
+                )
+
+                servlet = ObjStore.get_env_servlet(
+                    env_name=env_name,
+                    create=True,
+                    runtime_env=runtime_env,
+                    resources=resource_config.get("compute", None),
+                )
+
+        return ObjStore.call_actor_method(
+            servlet,
+            "put_resource_local",
+            data=serialized_data,
+            serialization=serialization,
+        )
+
+    def put_resource_local(
+        self,
+        resource_config: Dict[str, Any],
+        state: Dict[Any, Any],
+        dryrun: bool,
+    ) -> None:
+        from runhouse.resources.module import Module
+        from runhouse.resources.resource import Resource
+        from runhouse.rns.utils.names import _generate_default_name
+
+        state = state or {}
+        # Resolve any sub-resources which are string references to resources already sent to this cluster.
+        # We need to pop the resource's own name so it doesn't get resolved if it's already present in the
+        # obj_store.
+        name = resource_config.pop("name")
+        subtype = resource_config.pop("resource_subtype")
+        provider = (
+            resource_config.pop("provider") if "provider" in resource_config else None
+        )
+
+        resource_config = self.get_obj_refs_dict(resource_config)
+        resource_config["name"] = name
+        resource_config["resource_subtype"] = subtype
+        if provider:
+            resource_config["provider"] = provider
+
+        logger.info(
+            f"Message received from client to construct resource: {resource_config}"
+        )
+
+        resource = Resource.from_config(config=resource_config, dryrun=dryrun)
+
+        for attr, val in state.items():
+            setattr(resource, attr, val)
+
+        name = resource.name or _generate_default_name(prefix=resource.RESOURCE_TYPE)
+        if isinstance(resource, Module):
+            resource.rename(name)
+        else:
+            resource.name = name
+
+        self.put(resource.name, resource)
+
+        # Return the name in case we had to set it
+        return resource.name

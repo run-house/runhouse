@@ -366,9 +366,13 @@ class Cluster(Resource):
             return obj_store.put(key, obj, env=env)
         return self.client.put_object(key, obj, env=env)
 
-    def put_resource(self, resource: Resource, state=None, dryrun=False, env=None):
+    def put_resource(
+        self, resource: Resource, state: Dict = None, dryrun: bool = False, env=None
+    ):
         """Put the given resource on the cluster's object store. Returns the key (important if name is not set)."""
         self.check_server()
+
+        # Logic to get env_name from different ways env can be provided
         env = env or (
             resource.env
             if hasattr(resource, "env")
@@ -376,10 +380,19 @@ class Cluster(Resource):
             if resource.RESOURCE_TYPE == "env"
             else None
         )
+
+        if env and not isinstance(env, str):
+            env = _get_env_from(env)
+            env_name = env.name or env.env_name
+        else:
+            env_name = env
+
+        state = state or {}
         if self.on_this_cluster():
-            return obj_store.put(key=resource.name, value=resource, env=env)
+            data = (resource.config_for_rns, state, dryrun)
+            return obj_store.put_resource(serialized_data=data, env_name=env_name)
         return self.client.put_resource(
-            resource, state=state or {}, env=env, dryrun=dryrun
+            resource, state=state or {}, env_name=env_name, dryrun=dryrun
         )
 
     def rename(self, old_key: str, new_key: str):
