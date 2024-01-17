@@ -89,7 +89,7 @@ class Mapper(Module):
             for args in zip(*args)
         ]
 
-        with pool.ThreadPool() as p:
+        with pool.ThreadPool(self.num_replicas) as p:
             # Run the function in parallel on the arguments, keeping the order.
             return list(p.imap(call_method_on_replica, jobs))
 
@@ -119,7 +119,7 @@ class Mapper(Module):
             for args in args_lists
         ]
 
-        with pool.ThreadPool() as p:
+        with pool.ThreadPool(self.num_replicas) as p:
             # Run the function in parallel on the arguments, keeping the order.
             return list(p.imap(call_method_on_replica, jobs))
 
