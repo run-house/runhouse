@@ -187,13 +187,13 @@ from tests.fixtures.docker_cluster_fixtures import (
 from tests.fixtures.on_demand_cluster_fixtures import (
     a10g_gpu_cluster,  # noqa: F401
     k80_gpu_cluster,  # noqa: F401
+    kubernetes_cpu_cluster,  # noqa: F401
     multinode_cpu_cluster,  # noqa: F401
     on_demand_cluster,  # noqa: F401
     ondemand_cluster,  # noqa: F401
     ondemand_cpu_cluster,  # noqa: F401
     ondemand_https_cluster_with_auth,  # noqa: F401
     v100_gpu_cluster,  # noqa: F401
-    kubernetes_cpu_cluster,  # noqa: F401
 )
 from tests.test_resources.test_clusters.test_sagemaker_cluster.conftest import (
     other_sm_cluster,  # noqa: F401
