@@ -80,6 +80,6 @@ If updating or adding a notebook or colab file, please follow the following step
 * export the notebook into a `.ipynb` file (`notebook_name.ipynb`), and add/update the notebook file under `docs/notebooks`, either in the `api` or `examples` folder
 * To construct the `.rst` file corresponding to the notebook text and output, run from the runhouse git root:
 ```
-runhouse/scripts/docs/convert_nb_to_rst.sh docs/notebooks/xxx/notebook_name.ipynb
+scripts/docs/convert_nb_to_rst.sh docs/notebooks/xxx/notebook_name.ipynb
 ```
 * push changes to both the `.ipynb` and `.rst` files

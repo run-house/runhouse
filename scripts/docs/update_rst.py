@@ -1,4 +1,4 @@
-# script usage: python runhouse/scripts/docs/update_rst.py docs/tutorials/xxx/file.rst
+# script usage: python scripts/docs/update_rst.py docs/tutorials/xxx/file.rst
 
 import os
 from argparse import ArgumentParser

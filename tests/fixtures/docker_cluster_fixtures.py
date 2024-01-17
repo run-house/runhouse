@@ -170,9 +170,8 @@ def build_and_run_image(
 
     import docker
 
-    local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
-    dockerfile_path = local_rh_package_path / f"docker/slim/{dir_name}/Dockerfile"
-    rh_parent_path = local_rh_package_path.parent
+    rh_parent_path = Path(pkgutil.get_loader("runhouse").path).parent.parent
+    dockerfile_path = rh_parent_path / f"docker/slim/{dir_name}/Dockerfile"
     rh_path = "runhouse" if (rh_parent_path / "setup.py").exists() else None
     rh_version = rh.__version__ if not rh_path else None
 

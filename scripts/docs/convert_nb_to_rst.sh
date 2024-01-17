@@ -9,4 +9,4 @@ echo $dest_path
 
 jupyter nbconvert --to rst $1
 mv $output_path $dest_path
-python runhouse/scripts/docs/update_rst.py --files $dest_path --link-colab
+python scripts/docs/update_rst.py --files $dest_path --link-colab

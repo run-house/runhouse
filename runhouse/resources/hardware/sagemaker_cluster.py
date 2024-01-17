@@ -679,7 +679,7 @@ class SageMakerCluster(Cluster):
         can be maintained even if the job fails, after it has completed, or if autostop is enabled.**"""
         # Note: these entry points must point to the existing local files
         default_entry_point = "launch_instance.py"
-        full_module_name = f"scripts/sagemaker_cluster/{default_entry_point}"
+        full_module_name = f"resources/hardware/scripts/{default_entry_point}"
 
         entry_point_path = self._get_path_for_module(full_module_name)
         source_dir_path = os.path.dirname(entry_point_path)
@@ -879,7 +879,7 @@ class SageMakerCluster(Cluster):
         private_key_path = self._abs_ssh_key_path
         public_key_path = self._ssh_public_key_path
 
-        resource_name = "scripts/sagemaker_cluster/start-ssm-proxy-connection.sh"
+        resource_name = "resources/hardware/scripts/start-ssm-proxy-connection.sh"
         script_path = self._get_path_for_module(resource_name)
 
         os.chmod(script_path, 0o755)
@@ -930,7 +930,7 @@ class SageMakerCluster(Cluster):
             self._create_ssm_session_with_cluster()
 
         # https://github.com/aws-samples/sagemaker-ssh-helper/blob/main/sagemaker_ssh_helper/sm-connect-ssh-proxy
-        full_module_name = "scripts/sagemaker_cluster/refresh-ssm-session.sh"
+        full_module_name = "resources/hardware/scripts/refresh-ssm-session.sh"
         script_path = self._get_path_for_module(full_module_name)
 
         os.chmod(script_path, 0o755)
