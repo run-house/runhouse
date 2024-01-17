@@ -57,7 +57,7 @@ class Cluster(Resource):
     # 2>&1 redirects stderr to stdout
     START_SCREEN_CMD = f"screen -dm bash -c \"{SERVER_START_CMD} 2>&1 | tee -a '{SERVER_LOGFILE}' 2>&1\""
     START_NOHUP_CMD = f"nohup {SERVER_START_CMD} >> {SERVER_LOGFILE} 2>&1 &"
-    RAY_START_CMD = "ray start --head --port 6379"
+    RAY_START_CMD = f"ray start --head --port {DEFAULT_RAY_PORT}"
     # RAY_BOOTSTRAP_FILE = "~/ray_bootstrap_config.yaml"
     # --autoscaling-config=~/ray_bootstrap_config.yaml
     # We need to use this instead of ray stop to make sure we don't stop the SkyPilot ray server,

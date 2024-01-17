@@ -38,4 +38,4 @@ class TestKubernetesCluster(
         )
         assert (
             num_cpus_cluster() == "Num cpus: 4"
-        )  # This test will be improved so that it passes on any cluster setting
+        )  # TODO: This test will be improved so that it passes on any cluster setting

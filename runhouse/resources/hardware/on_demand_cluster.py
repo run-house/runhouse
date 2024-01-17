@@ -366,7 +366,7 @@ class OnDemandCluster(Cluster):
         cluster_dict = self.status(refresh=not dryrun)
         self._populate_connection_from_status_dict(cluster_dict)
 
-    def compute_instance_type(self):
+    def get_instance_type(self):
         if "--" in self.instance_type:  # K8s specific syntax
             return self.instance_type
         elif ":" not in self.instance_type and "CPU" not in self.instance_type:
@@ -374,7 +374,7 @@ class OnDemandCluster(Cluster):
 
         return None
 
-    def compute_accelerators(self):
+    def accelerators(self):
         if (
             self.instance_type
             and ":" in self.instance_type
@@ -384,7 +384,7 @@ class OnDemandCluster(Cluster):
 
         return None
 
-    def compute_cpus(self):
+    def num_cpus(self):
         if (
             self.instance_type
             and ":" in self.instance_type
@@ -414,9 +414,9 @@ class OnDemandCluster(Cluster):
                 sky.Resources(
                     # TODO: confirm if passing instance type in old way (without --) works when provider is k8s
                     cloud=cloud_provider,
-                    instance_type=self.compute_instance_type(),
-                    accelerators=self.compute_accelerators(),
-                    cpus=self.compute_cpus(),
+                    instance_type=self.get_instance_type(),
+                    accelerators=self.accelerators(),
+                    cpus=self.num_cpus(),
                     memory=self.memory,
                     region=self.region or configs.get("default_region"),
                     disk_size=self.disk_size,
