@@ -452,7 +452,7 @@ class Cluster(Resource):
                 remote_port=self.server_port,
                 num_ports_to_try=10,
             )
-            self.client_port = connected_port or self.client_port or self.server_port
+            self.client_port = connected_port or self.client_port or self.server_port or self._rpc_tunnel.local_bind_port
 
             ssh_user = self.ssh_creds.get("ssh_user")
             password = self.ssh_creds.get("password")
@@ -545,7 +545,7 @@ class Cluster(Resource):
 
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
-    ):
+    ) -> Tuple[SSHTunnelForwarder, int]:
         return ssh_tunnel(
             address=self.address,
             ssh_creds=self.ssh_creds,
