@@ -1,9 +1,10 @@
+from pathlib import Path
+
 import pytest
 
 import runhouse as rh
 
 from tests.conftest import init_args
-from pathlib import Path
 
 
 @pytest.fixture(scope="session")
@@ -17,7 +18,7 @@ def on_demand_cluster(request):
         "v100_gpu_cluster",
         "k80_gpu_cluster",
         "a10g_gpu_cluster",
-        "kubernetes_cpu_cluster"
+        "kubernetes_cpu_cluster",
     ],
     ids=["cpu", "v100", "k80", "a10g", "kubernetes"],
 )
@@ -96,6 +97,7 @@ def multinode_cpu_cluster():
     c.install_packages(["pytest"])
     return c
 
+
 @pytest.fixture(scope="session")
 def kubernetes_cpu_cluster():
 
@@ -105,9 +107,9 @@ def kubernetes_cpu_cluster():
         pytest.skip("no kubeconfig found")
 
     args = {
-        "name": "rh-cpu-k8s", 
+        "name": "rh-cpu-k8s",
         "provider": "kubernetes",
-        "instance_type":"1CPU--1GB",
+        "instance_type": "1CPU--1GB",
     }
     c = rh.ondemand_cluster(**args)
     init_args[id(c)] = args

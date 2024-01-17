@@ -142,7 +142,9 @@ def _start_server(
         for i, cmd in enumerate(cmds):
             last_cmd = i == len(cmds) - 1
             console.print(f"Executing `{cmd}`")
-            if last_cmd: # last cmd is not being parsed correctly when ran with shlex.split
+            if (
+                last_cmd
+            ):  # last cmd is not being parsed correctly when ran with shlex.split
                 result = subprocess.run(cmd, shell=True, check=True)
             else:
                 result = subprocess.run(shlex.split(cmd), text=True)

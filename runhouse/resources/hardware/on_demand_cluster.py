@@ -367,25 +367,32 @@ class OnDemandCluster(Cluster):
         self._populate_connection_from_status_dict(cluster_dict)
 
     def compute_instance_type(self):
-        if "--" in self.instance_type:   # K8s specific syntax
+        if "--" in self.instance_type:  # K8s specific syntax
             return self.instance_type
         elif ":" not in self.instance_type and "CPU" not in self.instance_type:
             return self.instance_type
-        
+
         return None
 
     def compute_accelerators(self):
-        if self.instance_type and ":" in self.instance_type and "CPU" not in self.instance_type:
+        if (
+            self.instance_type
+            and ":" in self.instance_type
+            and "CPU" not in self.instance_type
+        ):
             return self.instance_type
-        
+
         return None
 
     def compute_cpus(self):
-        if self.instance_type and ":" in self.instance_type and "CPU" in self.instance_type:
+        if (
+            self.instance_type
+            and ":" in self.instance_type
+            and "CPU" in self.instance_type
+        ):
             return self.instance_type.rsplit(":", 1)[1]
-        
-        return None
 
+        return None
 
     def up(self):
         """Up the cluster.
@@ -396,7 +403,6 @@ class OnDemandCluster(Cluster):
         if self.on_this_cluster():
             return self
 
-
         if self.provider in ["aws", "gcp", "azure", "lambda", "kubernetes", "cheapest"]:
             task = sky.Task(num_nodes=self.num_instances)
             cloud_provider = (
@@ -406,14 +412,11 @@ class OnDemandCluster(Cluster):
             )
             task.set_resources(
                 sky.Resources(
-                    cloud=cloud_provider,  # TODO: confirm if passing instance type in old way (without --) works when provider is k8s
-
+                    # TODO: confirm if passing instance type in old way (without --) works when provider is k8s
+                    cloud=cloud_provider,
                     instance_type=self.compute_instance_type(),
-
                     accelerators=self.compute_accelerators(),
-
                     cpus=self.compute_cpus(),
-
                     memory=self.memory,
                     region=self.region or configs.get("default_region"),
                     disk_size=self.disk_size,

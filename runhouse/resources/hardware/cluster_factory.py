@@ -193,21 +193,22 @@ def cluster(
 
     return c
 
+
 def kubernetes_cluster(
     name: str,
     instance_type: str = None,
     namespace: str = None,
     kube_config_path: str = None,
-    context: str = None,  
+    context: str = None,
     **kwargs,
 ) -> OnDemandCluster:
-    
+
     if name in RESERVED_SYSTEM_NAMES:
         raise ValueError(
             f"Cluster name {name} is a reserved name. Please use a different name which is not one of "
             f"{RESERVED_SYSTEM_NAMES}."
         )
-    
+
     server_connection_type = ServerConnectionType.SSH
 
     if context is not None and namespace is not None:
@@ -270,7 +271,6 @@ def kubernetes_cluster(
         except subprocess.CalledProcessError as e:
             logger.info(f"Error setting context: {e}")
 
-    
     c = OnDemandCluster(
         name=name,
         instance_type=instance_type,
@@ -373,7 +373,7 @@ def ondemand_cluster(
             kube_config_path=kube_config_path,
             context=context,
         )
-    
+
     if server_connection_type in [
         ServerConnectionType.AWS_SSM,
     ]:

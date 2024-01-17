@@ -49,6 +49,7 @@ def test_read_shared_cluster(ondemand_cpu_cluster):
     res = ondemand_cpu_cluster.run_python(["import numpy", "print(numpy.__version__)"])
     assert res[0][1]
 
+
 def test_install(cluster):
     cluster.install_packages(
         [

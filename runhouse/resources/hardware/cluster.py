@@ -559,7 +559,11 @@ class Cluster(Resource):
     def _use_https(self) -> bool:
         """Use HTTPS if server connection type is set to ``tls``"""
 
-        return self.server_connection_type == ServerConnectionType.TLS if self.server_connection_type is not None else False
+        return (
+            self.server_connection_type == ServerConnectionType.TLS
+            if self.server_connection_type is not None
+            else False
+        )
 
     @property
     def _use_nginx(self) -> bool:
@@ -614,15 +618,24 @@ class Cluster(Resource):
             cmds.append(cls.RAY_START_CMD)
 
         screen_check_cmd = "command -v screen"
-        screen_check = subprocess.run(screen_check_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        screen_check = subprocess.run(
+            screen_check_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
         if screen_check.returncode != 0:
-            logger.info("screen is not available on the system. Checking for nohup next.")
+            logger.info(
+                "screen is not available on the system. Checking for nohup next."
+            )
             screen = False
 
         nohup = False
         if not screen:
             nohup_check_cmd = "command -v nohup"
-            nohup_check = subprocess.run(nohup_check_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            nohup_check = subprocess.run(
+                nohup_check_cmd,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
             if nohup_check.returncode != 0:
                 logger.info("nohup is not available on the system.")
             else:
@@ -892,7 +905,6 @@ class Cluster(Resource):
         if self._rpc_tunnel:
             self._rpc_tunnel.stop()
 
-            
     def __getstate__(self):
         """Delete non-serializable elements (e.g. thread locks) before pickling."""
         state = self.__dict__.copy()

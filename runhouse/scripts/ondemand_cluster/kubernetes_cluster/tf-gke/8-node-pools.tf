@@ -29,7 +29,7 @@ resource "google_container_node_pool" "general" {
   }
 }
 
-resource "google_container_node_pool" "regular" {  
+resource "google_container_node_pool" "regular" {
   name    = "regular"
   cluster = google_container_cluster.primary.id
 
@@ -45,7 +45,7 @@ resource "google_container_node_pool" "regular" {
 
   node_config {
     preemptible  = true
-    machine_type = "c3-standard-4" # 4 vCPU 16 GB Memory 
+    machine_type = "c3-standard-4" # 4 vCPU 16 GB Memory
 
     service_account = google_service_account.kubernetes.email
     oauth_scopes = [

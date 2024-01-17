@@ -27,8 +27,8 @@ resource "azurerm_kubernetes_cluster" "this" {
   #   subnet_id                = azurerm_subnet.subnet1.id
   # }
 
-  # For production change to "Standard" 
-  sku_tier = "Standard"   # Can also be set to Free 
+  # For production change to "Standard"
+  sku_tier = "Standard"   # Can also be set to Free
 
   oidc_issuer_enabled       = true
   workload_identity_enabled = true
