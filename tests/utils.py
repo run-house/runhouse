@@ -6,7 +6,6 @@ from pathlib import Path
 import pytest
 
 from runhouse.globals import rns_client
-from runhouse.servers.http.http_server import HTTPServer
 from runhouse.servers.obj_store import ObjStore
 
 
@@ -20,10 +19,9 @@ def get_ray_servlet(env_name):
         namespace="runhouse",
     )
 
-    servlet = HTTPServer.get_env_servlet(
+    servlet = ObjStore.get_env_servlet(
         env_name=env_name,
         create=True,
-        runtime_env=None,
     )
 
     return servlet

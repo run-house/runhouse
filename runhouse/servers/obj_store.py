@@ -127,17 +127,59 @@ class ObjStore:
         return ray.get(getattr(actor, method).remote(*args, **kwargs))
 
     @staticmethod
-    def get_env_servlet(env_name: str):
+    def get_env_servlet(
+        env_name: str,
+        create: bool = False,
+        raise_ex_if_not_found: bool = False,
+        **kwargs,
+    ):
+        # Need to import these here to avoid circular imports
         from runhouse.globals import env_servlets
+        from runhouse.servers.env_servlet import EnvServlet
 
-        if env_name in env_servlets.keys():
+        if env_name in env_servlets:
             return env_servlets[env_name]
 
-        actor = ray.get_actor(env_name, namespace="runhouse")
-        if actor is not None:
-            env_servlets[env_name] = actor
-            return actor
-        return None
+        # It may not have been cached, but does exist
+        try:
+            existing_actor = ray.get_actor(env_name, namespace="runhouse")
+            env_servlets[env_name] = existing_actor
+            return existing_actor
+        except ValueError:
+            # ValueError: Failed to look up actor with name ...
+            pass
+
+        # Otherwise, create it
+        if create:
+            new_env_actor = (
+                ray.remote(EnvServlet)
+                .options(
+                    name=env_name,
+                    get_if_exists=True,
+                    runtime_env=kwargs["runtime_env"]
+                    if "runtime_env" in kwargs
+                    else None,
+                    resources=kwargs["resources"] if "resources" in kwargs else None,
+                    lifetime="detached",
+                    namespace="runhouse",
+                    max_concurrency=1000,
+                )
+                .remote(env_name=env_name)
+            )
+
+            # Make sure env_servlet is actually initialized
+            ray.get(new_env_actor.register_activity.remote())
+
+            env_servlets[env_name] = new_env_actor
+            return new_env_actor
+
+        else:
+            if raise_ex_if_not_found:
+                raise ObjStoreError(
+                    f"Environment {env_name} does not exist. Please send it to the cluster first."
+                )
+            else:
+                return None
 
     ##############################################
     # Cluster config state storage methods

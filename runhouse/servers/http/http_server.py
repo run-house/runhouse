@@ -21,7 +21,6 @@ from runhouse.constants import CLUSTER_CONFIG_PATH, RH_LOGFILE_PATH
 from runhouse.globals import configs, env_servlets, obj_store, rns_client
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
-from runhouse.servers.env_servlet import EnvServlet
 from runhouse.servers.http.auth import hash_token, verify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
@@ -35,7 +34,7 @@ from runhouse.servers.http.http_utils import (
     ServerSettings,
 )
 from runhouse.servers.nginx.config import NginxConfig
-from runhouse.servers.obj_store import initialize_cluster_servlet
+from runhouse.servers.obj_store import initialize_cluster_servlet, ObjStore
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +181,7 @@ class HTTPServer:
         # TODO: We aren't sure _exactly_ where this is or isn't used.
         # There are a few spots where we do `env_name or "base"`, and
         # this allows that base env to be pre-initialized.
-        _ = self.get_env_servlet(
+        _ = ObjStore.get_env_servlet(
             env_name="base",
             create=True,
             runtime_env=runtime_env,
@@ -260,37 +259,6 @@ class HTTPServer:
             )
 
     @staticmethod
-    def get_env_servlet(env_name, create=False, runtime_env=None, resources=None):
-        if env_name in env_servlets.keys():
-            return env_servlets[env_name]
-
-        if create:
-            new_env = (
-                ray.remote(EnvServlet)
-                .options(
-                    name=env_name,
-                    get_if_exists=True,
-                    runtime_env=runtime_env,
-                    resources=resources,
-                    lifetime="detached",
-                    namespace="runhouse",
-                    max_concurrency=1000,
-                )
-                .remote(env_name=env_name)
-            )
-
-            # Make sure env_servlet is actually initialized
-            ray.get(new_env.register_activity.remote())
-
-            env_servlets[env_name] = new_env
-            return new_env
-
-        else:
-            raise Exception(
-                f"Environment {env_name} does not exist. Please send it to the cluster first."
-            )
-
-    @staticmethod
     def call_servlet_method(servlet, method, args, block=True):
         if isinstance(servlet, ray.actor.ActorHandle):
             obj_ref = getattr(servlet, method).remote(*args)
@@ -314,7 +282,7 @@ class HTTPServer:
         try:
             if lookup_env_for_name:
                 env = env or obj_store.get_env_servlet_name_for_key(lookup_env_for_name)
-            servlet = HTTPServer.get_env_servlet(env or "base", create=create)
+            servlet = ObjStore.get_env_servlet(env or "base", create=create)
             # If servlet is a RayActor, call with .remote
             return HTTPServer.call_servlet_method(servlet, method, args, block=block)
         except Exception as e:
@@ -351,7 +319,7 @@ class HTTPServer:
                     else {}
                 )
 
-                _ = HTTPServer.get_env_servlet(
+                _ = ObjStore.get_env_servlet(
                     env_name=message.env,
                     create=True,
                     runtime_env=runtime_env,
