@@ -112,22 +112,12 @@ class TestServlet:
         assert isinstance(b64_unpickle(resp.error), KeyError)
 
     @pytest.mark.level("unit")
-    def test_get_keys(self, test_servlet):
-        resp = HTTPServer.call_servlet_method(test_servlet, "get_keys", [])
-        assert resp.output_type == "result"
-        keys: list = b64_unpickle(resp.data)
-        assert "key1" in keys
-
-    @pytest.mark.level("unit")
     def test_rename_object(self, test_servlet):
         message = Message(data=pickle_b64(("key1", "key2")))
         resp = HTTPServer.call_servlet_method(test_servlet, "rename_object", [message])
         assert resp.output_type == "success"
 
-        resp = HTTPServer.call_servlet_method(test_servlet, "get_keys", [])
-        assert resp.output_type == "result"
-
-        keys: list = b64_unpickle(resp.data)
+        keys = ObjStore.call_actor_method(test_servlet, "keys_local")
         assert "key2" in keys
 
     @pytest.mark.level("unit")

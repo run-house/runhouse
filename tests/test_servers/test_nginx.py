@@ -7,7 +7,7 @@ import pytest
 import requests
 
 from runhouse.globals import rns_client
-from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
+from runhouse.servers.http.http_utils import pickle_b64
 from runhouse.servers.nginx.config import NginxConfig
 
 
@@ -469,7 +469,7 @@ class TestNginxServerLocally:
         )
 
         assert response.status_code == 200
-        assert key in b64_unpickle(response.json().get("data"))
+        assert key in response.json().get("data")
 
 
 if __name__ == "__main__":

@@ -556,13 +556,26 @@ class HTTPServer:
     @staticmethod
     @app.get("/keys")
     @validate_cluster_access
-    def get_keys(request: Request, env: Optional[str] = None):
-        if not env:
+    def get_keys(request: Request, env_name: Optional[str] = None):
+        try:
+            if not env_name:
+                output = obj_store.keys()
+            else:
+                output = ObjStore.keys_for_env_servlet_name(env_name)
+
+            # Expicitly tell the client not to attempt to deserialize the output
             return Response(
-                output_type=OutputType.RESULT, data=pickle_b64(obj_store.keys())
+                data=output,
+                output_type=OutputType.RESULT_SERIALIZED,
+                serialization=None,
             )
-        else:
-            return HTTPServer.call_in_env_servlet("get_keys_local", [], env=env)
+        except Exception as e:
+            logger.exception(e)
+            return Response(
+                error=pickle_b64(e),
+                traceback=pickle_b64(traceback.format_exc()),
+                output_type=OutputType.EXCEPTION,
+            )
 
     @staticmethod
     @app.get("/{module}/{method}")

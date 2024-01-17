@@ -38,10 +38,11 @@ def error_handling_decorator(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         EnvServlet.register_activity()
-        serialization = kwargs.pop("serialization", None)
-        serialized_data = kwargs.pop("data", None)
-        deserialized_data = deserialize_data(serialized_data, serialization)
-        kwargs["data"] = deserialized_data
+        serialization = kwargs.get("serialization", None)
+        if "data" in kwargs:
+            serialized_data = kwargs.get("data", None)
+            deserialized_data = deserialize_data(serialized_data, serialization)
+            kwargs["data"] = deserialized_data
 
         try:
             output = func(*args, **kwargs)
@@ -570,11 +571,6 @@ class EnvServlet:
                 traceback=pickle_b64(traceback.format_exc()),
                 output_type=OutputType.EXCEPTION,
             )
-
-    def get_keys(self):
-        self.register_activity()
-        keys: list = list(obj_store.keys())
-        return Response(data=pickle_b64(keys), output_type=OutputType.RESULT)
 
     ##############################################################
     # Methods decorated with a standardized error decorating handler
