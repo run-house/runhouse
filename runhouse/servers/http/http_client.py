@@ -333,14 +333,12 @@ class HTTPClient:
         return self.request_json(
             "object",
             req_type="post",
-            json_dict=dict(
-                PutObjectParams(
-                    key=key,
-                    serialized_data=pickle_b64(value),
-                    env_name=env,
-                    serialization="pickle",
-                )
-            ),
+            json_dict=PutObjectParams(
+                key=key,
+                serialized_data=pickle_b64(value),
+                env_name=env,
+                serialization="pickle",
+            ).dict(),
             err_str=f"Error putting object {key}",
         )
 

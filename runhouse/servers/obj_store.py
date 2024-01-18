@@ -356,7 +356,7 @@ class ObjStore:
         key: Any,
         value: Any,
         env: Optional[str] = None,
-        serialization: Optional[str] = None,
+        serialization: Optional[str] = "pickle",
         create_env_if_not_exists: bool = False,
     ):
         # Before replacing something else, check if this op will even be valid.
@@ -485,9 +485,15 @@ class ObjStore:
     # KV Store: Pop
     ##############################################
     @staticmethod
-    def pop_from_env_servlet_name(env_servlet_name: str, key: Any, *args) -> Any:
+    def pop_from_env_servlet_name(
+        env_servlet_name: str, key: Any, serialization: Optional[str] = "pickle", *args
+    ) -> Any:
         return ObjStore.call_actor_method(
-            ObjStore.get_env_servlet(env_servlet_name), "pop_local", key, *args
+            ObjStore.get_env_servlet(env_servlet_name),
+            "pop_local",
+            key,
+            serialization,
+            *args,
         )
 
     def pop_local(self, key: Any, *args) -> Any:
@@ -516,7 +522,7 @@ class ObjStore:
             else:
                 raise KeyError(f"No local store exists; key {key} not found.")
 
-    def pop(self, key: Any, *args) -> Any:
+    def pop(self, key: Any, serialization: Optional[str] = "pickle", *args) -> Any:
         try:
             return self.pop_local(key)
         except KeyError as e:
@@ -532,7 +538,9 @@ class ObjStore:
                 )
             else:
                 # The key was found in another env, so we need to pop it from there
-                return self.pop_from_env_servlet_name(env_servlet_name, key)
+                return self.pop_from_env_servlet_name(
+                    env_servlet_name, key, serialization
+                )
         else:
             # Was not found in any env
             if args:

@@ -100,6 +100,15 @@ def serialize_data(data: Any, serialization: Optional[str]):
         return data
 
 
+def handle_exception_response(exception, traceback):
+    logger.exception(exception)
+    return Response(
+        output_type=OutputType.EXCEPTION,
+        error=pickle_b64(exception),
+        traceback=pickle_b64(traceback),
+    )
+
+
 def get_token_from_request(request):
     auth_headers = request.headers.get("Authorization", "")
     return auth_headers.split("Bearer ")[-1] if auth_headers else None

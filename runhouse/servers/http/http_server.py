@@ -25,6 +25,7 @@ from runhouse.servers.http.auth import hash_token, verify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
     get_token_from_request,
+    handle_exception_response,
     load_current_cluster,
     Message,
     OutputType,
@@ -47,6 +48,8 @@ def validate_cluster_access(func):
 
     @wraps(func)
     async def wrapper(*args, **kwargs):
+        HTTPServer.register_activity()
+
         request: Request = kwargs.get("request")
         den_auth_enabled: bool = HTTPServer.get_den_auth()
         is_coro = inspect.iscoroutinefunction(func)
@@ -310,7 +313,6 @@ class HTTPServer:
     @app.post("/resource")
     @validate_cluster_access
     def put_resource(request: Request, params: PutResourceParams):
-        HTTPServer.register_activity()
         try:
             env_name = params.env_name or "base"
             return obj_store.put_resource(
@@ -319,13 +321,7 @@ class HTTPServer:
                 env_name=env_name,
             )
         except Exception as e:
-            logger.exception(e)
-            HTTPServer.register_activity()
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
+            return handle_exception_response(e, traceback.format_exc())
 
     @staticmethod
     @app.post("/{module}/{method}")
@@ -526,14 +522,17 @@ class HTTPServer:
     @app.post("/object")
     @validate_cluster_access
     def put_object(request: Request, params: PutObjectParams):
-        obj_store.put(
-            key=params.key,
-            value=params.serialized_data,
-            env=params.env_name,
-            serialization=params.serialization,
-            create_env_if_not_exists=True,
-        )
-        return Response(output_type=OutputType.SUCCESS)
+        try:
+            obj_store.put(
+                key=params.key,
+                value=params.serialized_data,
+                env=params.env_name,
+                serialization=params.serialization,
+                create_env_if_not_exists=True,
+            )
+            return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(e, traceback.format_exc())
 
     @staticmethod
     @app.put("/object")
@@ -576,12 +575,7 @@ class HTTPServer:
                 serialization=None,
             )
         except Exception as e:
-            logger.exception(e)
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
+            return handle_exception_response(e, traceback.format_exc())
 
     @staticmethod
     @app.get("/{module}/{method}")
