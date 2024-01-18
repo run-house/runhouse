@@ -242,33 +242,14 @@ class Function(Module):
 
     def notebook(self, persist=False, sync_package_on_close=None, port_forward=8888):
         """Tunnel into and launch notebook from the system."""
-        # Roughly trying to follow:
-        # https://towardsdatascience.com/using-jupyter-notebook-running-on-a-remote-docker-container-via-ssh-ea2c3ebb9055
-        # https://docs.ray.io/en/latest/ray-core/using-ray-with-jupyter.html
         if self.system is None:
             raise RuntimeError("Cannot SSH, running locally")
 
-        tunnel, port_fwd = self.system.ssh_tunnel(
-            local_port=port_forward, num_ports_to_try=10
+        self.system.notebook(
+            persist=persist,
+            sync_package_on_close=sync_package_on_close,
+            port_forward=port_forward,
         )
-        try:
-            install_cmd = "pip install jupyterlab"
-            jupyter_cmd = f"jupyter lab --port {port_fwd} --no-browser"
-            # port_fwd = '-L localhost:8888:localhost:8888 '  # TOOD may need when we add docker support
-            with self.system.pause_autostop():
-                self.system.run(commands=[install_cmd, jupyter_cmd], stream_logs=True)
-
-        finally:
-            if sync_package_on_close:
-                if sync_package_on_close == "./":
-                    sync_package_on_close = globals.rns_client.locate_working_dir()
-                from ..folders import folder
-
-                folder(system=self.system, path=sync_package_on_close).to("here")
-            if not persist:
-                tunnel.stop()
-                kill_jupyter_cmd = f"jupyter notebook stop {port_fwd}"
-                self.system.run(commands=[kill_jupyter_cmd])
 
     def get_or_call(self, run_name: str, load=True, local=True, *args, **kwargs) -> Any:
         """Check if object already exists on cluster or rns, and if so return the result. If not, run the function.
