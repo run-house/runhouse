@@ -6,6 +6,7 @@ import inspect
 import json
 import logging
 import pkgutil
+import platform
 import shutil
 import subprocess
 import time
@@ -138,7 +139,10 @@ class LambdaFunction(Function):
             Path(pkgutil.get_loader("runhouse").path).parent
             / "docker/serverless/aws/Dockerfile"
         )
-        docker_working_dir_path = str(Path.cwd() / "Dockerfile")
+
+        docker_working_dir_path = str(
+            Path(self.local_path_to_code[0]).parent / "Dockerfile"
+        )
         shutil.copyfile(src=docker_template_path, dst=docker_working_dir_path)
         self.dockerfile_path = docker_working_dir_path
 
@@ -263,7 +267,7 @@ class LambdaFunction(Function):
             memory_size,
             tmp_size,
             retention_time,
-        ) = LambdaFunction.arguments_validation(
+        ) = LambdaFunction._arguments_validation(
             paths_to_code, env, runtime, timeout, memory_size, tmp_size, retention_time
         )
 
@@ -346,9 +350,20 @@ class LambdaFunction(Function):
         return args_names
 
     @classmethod
-    def arguments_validation(
+    def _arguments_validation(
         cls, paths_to_code, env, runtime, timeout, memory_size, tmp_size, retention_time
     ):
+        """
+        Validates all the arguments that are supposed to be sent to the constructor.
+        :param paths_to_code: list of paths to the source code files.
+        :param env: the environment that should be set up for the Lambda to run.
+        :param runtime: the python version of the Lambda.
+        :param timeout: the max time (in sec) that the Lambda could run for.
+        :param memory_size: the max memory (in MB) that the Lambda could use during execution.
+        :param tmp_size: the size of the /tmp folder in the Lambda's file system.
+        :param retention_time: the time (in days) that the Lambda logs will be saved in cloudwatch before deletion.
+        :return: The validated arguments.
+        """
 
         if isinstance(env, str) and "requirements.txt" in env:
             paths_to_code.append(Path(env).absolute())
@@ -545,8 +560,92 @@ class LambdaFunction(Function):
 
         return lambda_config
 
-    def _push_image_to_ecr(self, image_tag):
-        """Deploying new lambda to AWS"""
+    def _create_role_in_aws(self):
+        """create a new role for the lambda function. If already exists - returns it."""
+
+        role_policy = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Action": self.DEFAULT_ROLE_POLICIES,
+                    "Resource": "*",
+                    "Effect": "Allow",
+                }
+            ],
+        }
+
+        assume_role_policy_document = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {"Service": "lambda.amazonaws.com"},
+                    "Action": "sts:AssumeRole",
+                }
+            ],
+        }
+
+        try:
+            role_res = self.iam_client.create_role(
+                RoleName=f"{self.name}_Role",
+                AssumeRolePolicyDocument=json.dumps(assume_role_policy_document),
+            )
+            logger.info(f'{role_res["Role"]["RoleName"]} was created successfully.')
+
+        except self.iam_client.exceptions.EntityAlreadyExistsException:
+            role_res = self.iam_client.get_role(RoleName=f"{self.name}_Role")
+
+        self.iam_client.put_role_policy(
+            RoleName=role_res["Role"]["RoleName"],
+            PolicyName=f"{self.name}_Policy",
+            PolicyDocument=json.dumps(role_policy),
+        )
+
+        return role_res
+
+    def _run_shell_command(self, cmd: list[str]):
+        """
+        runs a shell command.
+        :param cmd: the command that should be executed.
+        """
+        # Run the command and wait for it to complete
+        result = subprocess.run(cmd, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            logger.error("subprocess failed, stdout: " + result.stdout)
+            logger.error("subprocess failed, stderr: " + result.stderr)
+
+        # Check for success
+        assert result.returncode == 0
+
+    def _start_docker(self):
+        """starts the docker daemon."""
+        system_os = platform.system().lower()
+        command = ""
+
+        if system_os == "linux":
+            # Linux command to start Docker daemon
+            command = "sudo service docker start"
+        elif system_os == "darwin":
+            # macOS command to start Docker daemon
+            command = "open --background -a Docker"
+        elif system_os == "windows":
+            # Windows command to start Docker daemon
+            command = "Start-Service Docker"
+
+        try:
+            self._run_shell_command(command.split())
+            logger.info("Docker daemon started successfully.")
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Error starting Docker daemon: {e}")
+
+    def _push_image_to_ecr(self, image_tag="latest"):
+        """
+        pushes the docker image to an AWS ECR repo. Create a repo if such does not exist. (Each Lambda has its own
+        ECR repo)
+        :param image_tag: the tag of the that will be associated with the newly pushed image.
+        :return: the image URI.
+        """
         # setup
         ecr_client = boto3.client("ecr")
         region = self.lambda_client.meta.region_name
@@ -592,61 +691,10 @@ class LambdaFunction(Function):
 
         return ecr_image
 
-    def _create_role_in_aws(self):
-        """create a new role for the lambda function. If already exists - returns it."""
-
-        role_policy = {
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                    "Action": self.DEFAULT_ROLE_POLICIES,
-                    "Resource": "*",
-                    "Effect": "Allow",
-                }
-            ],
-        }
-
-        assume_role_policy_document = {
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                    "Effect": "Allow",
-                    "Principal": {"Service": "lambda.amazonaws.com"},
-                    "Action": "sts:AssumeRole",
-                }
-            ],
-        }
-
-        try:
-            role_res = self.iam_client.create_role(
-                RoleName=f"{self.name}_Role",
-                AssumeRolePolicyDocument=json.dumps(assume_role_policy_document),
-            )
-            logger.info(f'{role_res["Role"]["RoleName"]} was created successfully.')
-
-        except self.iam_client.exceptions.EntityAlreadyExistsException:
-            role_res = self.iam_client.get_role(RoleName=f"{self.name}_Role")
-
-        self.iam_client.put_role_policy(
-            RoleName=role_res["Role"]["RoleName"],
-            PolicyName=f"{self.name}_Policy",
-            PolicyDocument=json.dumps(role_policy),
-        )
-
-        return role_res
-
-    def _run_shell_command(self, cmd: list[str]):
-        # Run the command and wait for it to complete
-        result = subprocess.run(cmd, capture_output=True, text=True)
-
-        if result.returncode != 0:
-            print("subprocess failed, stdout: " + result.stdout)
-            print("subprocess failed, stderr: " + result.stderr)
-
-        # Check for success
-        assert result.returncode == 0
-
     def _build_docker_img(self):
+        """
+        builds the Lambda docker image from a dockerfile.
+        """
         reqs = self.env.reqs
         is_reqs_txt = False
         reqs.remove("./")
@@ -687,6 +735,11 @@ class LambdaFunction(Function):
         self.image_name = f"{self.name}_lambda_image"
 
     def _setup_image_in_aws(self):
+        """
+        build and push the Lambda docker image in AWS.
+        :return:
+        """
+        self._start_docker()
         self._build_docker_img()
         img_uri = self._push_image_to_ecr("latest")
         return img_uri

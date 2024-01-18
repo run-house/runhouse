@@ -102,7 +102,7 @@ def aws_lambda_fn(
         memory_size,
         tmp_size,
         retention_time,
-    ) = LambdaFunction.arguments_validation(
+    ) = LambdaFunction._arguments_validation(
         paths_to_code, env, runtime, timeout, memory_size, tmp_size, retention_time
     )
 
