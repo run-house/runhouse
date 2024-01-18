@@ -1229,6 +1229,10 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("test-cluster").notebook()
         """
+        # Roughly trying to follow:
+        # https://towardsdatascience.com/using-jupyter-notebook-running-on-a-remote-docker-container-via-ssh-ea2c3ebb9055
+        # https://docs.ray.io/en/latest/ray-core/using-ray-with-jupyter.html
+
         tunnel = self.ssh_tunnel(
             local_port=port_forward,
             num_ports_to_try=10,
