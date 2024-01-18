@@ -16,6 +16,30 @@ class NoLocalObjStoreError(ObjStoreError):
         super().__init__("No local object store exists; cannot perform operation.")
 
 
+def initialize_cluster_servlet():
+    from runhouse.servers.cluster_servlet import ClusterServlet
+
+    ray.init(
+        ignore_reinit_error=True,
+        logging_level=logging.ERROR,
+        namespace="runhouse",
+    )
+    cluster_servlet = (
+        ray.remote(ClusterServlet)
+        .options(
+            name="cluster_servlet",
+            get_if_exists=True,
+            lifetime="detached",
+            namespace="runhouse",
+        )
+        .remote()
+    )
+
+    # Make sure cluster servlet is actually initialized
+    ray.get(cluster_servlet.get_cluster_config.remote())
+    return cluster_servlet
+
+
 class ObjStore:
     """Class to handle internal IPC and storage for Runhouse.
 
@@ -58,23 +82,8 @@ class ObjStore:
         # ClusterServlet essentially functions as a global state/metadata store
         # for all nodes connected to this Ray cluster.
         try:
-            from runhouse.servers.cluster_servlet import ClusterServlet
+            self.cluster_servlet = initialize_cluster_servlet()
 
-            ray.init(
-                ignore_reinit_error=True,
-                logging_level=logging.ERROR,
-                namespace="runhouse",
-            )
-            self.cluster_servlet = (
-                ray.remote(ClusterServlet)
-                .options(
-                    name="cluster_servlet",
-                    get_if_exists=True,
-                    lifetime="detached",
-                    namespace="runhouse",
-                )
-                .remote()
-            )
         except ConnectionError:
             # If ray.init fails, we're not on a cluster, so we don't need to do anything
             pass
@@ -88,15 +97,6 @@ class ObjStore:
         if not servlet_name and has_local_storage:
             raise ValueError(
                 "Must provide a servlet name if the servlet has local storage."
-            )
-
-        if (
-            servlet_name
-            and not has_local_storage
-            and not self.get_env_servlet(servlet_name)
-        ):
-            raise ValueError(
-                f"ObjStore wants to proxy writes to {servlet_name}, but there is no servlet with that name running."
             )
 
         # There can only be one initialized EnvServlet with a given name AND with local storage.
@@ -127,28 +127,93 @@ class ObjStore:
         return ray.get(getattr(actor, method).remote(*args, **kwargs))
 
     @staticmethod
-    def get_env_servlet(env_name: str):
+    def get_env_servlet(
+        env_name: str,
+        create: bool = False,
+        raise_ex_if_not_found: bool = False,
+        resources: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ):
+        # Need to import these here to avoid circular imports
         from runhouse.globals import env_servlets
+        from runhouse.servers.env_servlet import EnvServlet
 
-        if env_name in env_servlets.keys():
+        if env_name in env_servlets:
             return env_servlets[env_name]
 
-        actor = ray.get_actor(env_name, namespace="runhouse")
-        if actor is not None:
-            env_servlets[env_name] = actor
-            return actor
-        return None
+        # It may not have been cached, but does exist
+        try:
+            existing_actor = ray.get_actor(env_name, namespace="runhouse")
+            env_servlets[env_name] = existing_actor
+            return existing_actor
+        except ValueError:
+            # ValueError: Failed to look up actor with name ...
+            pass
+
+        if resources:
+            # Check if requested resources are available
+            available_resources = ray.available_resources()
+            for k, v in resources.items():
+                if k not in available_resources or available_resources[k] < v:
+                    raise Exception(
+                        f"Requested resource {k}={v} is not available on the cluster. "
+                        f"Available resources: {available_resources}"
+                    )
+        else:
+            resources = {}
+
+        # Otherwise, create it
+        if create:
+            new_env_actor = (
+                ray.remote(EnvServlet)
+                .options(
+                    name=env_name,
+                    get_if_exists=True,
+                    runtime_env=kwargs["runtime_env"]
+                    if "runtime_env" in kwargs
+                    else None,
+                    num_cpus=resources.pop("CPU", None),
+                    num_gpus=resources.pop("GPU", None),
+                    resources=resources,
+                    lifetime="detached",
+                    namespace="runhouse",
+                    max_concurrency=1000,
+                )
+                .remote(env_name=env_name)
+            )
+
+            # Make sure env_servlet is actually initialized
+            ray.get(new_env_actor.register_activity.remote())
+
+            env_servlets[env_name] = new_env_actor
+            return new_env_actor
+
+        else:
+            if raise_ex_if_not_found:
+                raise ObjStoreError(
+                    f"Environment {env_name} does not exist. Please send it to the cluster first."
+                )
+            else:
+                return None
 
     ##############################################
     # Cluster config state storage methods
     ##############################################
     def get_cluster_config(self):
         # TODO: Potentially add caching here
-        return self.call_actor_method(self.cluster_servlet, "get_cluster_config")
+        if self.cluster_servlet is not None:
+            return self.call_actor_method(self.cluster_servlet, "get_cluster_config")
+        else:
+            return {}
 
     def set_cluster_config(self, config: Dict[str, Any]):
         return self.call_actor_method(
             self.cluster_servlet, "set_cluster_config", config
+        )
+
+    def set_cluster_config_value(self, key: str, value: Any):
+        return self.call_actor_method(
+            self.cluster_servlet, "set_cluster_config_value", key, value
         )
 
     ##############################################

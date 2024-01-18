@@ -13,7 +13,7 @@ you may perform the following manual setup steps.
 
 1. Install Runhouse on your local box with:
 
-   .. code::
+   .. code:: shell
 
         pip install runhouse  # latest
         # or
@@ -22,13 +22,13 @@ you may perform the following manual setup steps.
 2. SSH into your server with a tunnel. You can use a different local or remote port here as well;
    steps 5 and 6 contain additional info for setting up your port.
 
-   .. code::
+   .. code:: shell
 
         ssh user@host -L 32300:localhost:32300
 
 3. Install Runhouse on the remote box using the same command as in step 1:
 
-   .. code::
+   .. code:: shell
 
         pip install runhouse  # latest
         # or
@@ -36,7 +36,7 @@ you may perform the following manual setup steps.
 
 4. Start Ray on the remote box:
 
-   .. code::
+   .. code:: shell
 
         ray start --head
 
@@ -46,13 +46,13 @@ you may perform the following manual setup steps.
 
 5. Start the Runhouse server on the remote box:
 
-   .. code::
+   .. code:: shell
 
         runhouse start
 
    If you previously already had a version of Runhouse installed and started, you will need to run:
 
-   .. code::
+   .. code:: shell
 
         runhouse restart
 
@@ -64,7 +64,7 @@ you may perform the following manual setup steps.
 6. Initialize the Runhouse cluster in Python as follows. Make sure to use ``localhost`` as the cluster address rather than the true IP,
    as you manually created the tunnel above.
 
-   .. code::
+   .. code:: ipython3
 
         gpu = rh.cluster(name='rh-a10x', host=["localhost"], ssh_creds={"ssh_user": "user"})
 
@@ -83,14 +83,14 @@ installing any packages on your remote box.
    to prevent an additional level of folder nesting on the remote cluster. Now is also a good time to install any packages on the remote box,
    including ``requirements.txt``.
 
-   .. code::
+   .. code:: shell
 
       rsync -a tutorials/ user@216.153.62.74:tutorials
 
    To ensure Runhouse doesn't try to resync over your code again, pass in an empty env object, ``env=rh.Env()``,
    when sending functions or modules to the cluster.
 
-   .. code::
+   .. code:: ipython3
 
       generate_gpu = rh.function(fn=sd_generate).to(gpu, env=rh.Env())
 
@@ -98,7 +98,7 @@ installing any packages on your remote box.
 2. If you're encountering a Module not found error, you may need to pass a Runhouse package object pointing to the
    package in the remote filesystem into your Env so the server can find the module properly. You can do that like so:
 
-   .. code::
+   .. code:: ipython3
 
         my_env = rh.Env(workdir=rh.Package(path="tutorials", system=gpu, install_method="reqs"))
         generate_gpu = rh.function(fn=sd_generate).to(gpu, env=my_env)
@@ -135,25 +135,25 @@ Q: I'm running into a few (usually 5) consecutive errors of the following form:
 
    1. Run the tests in ``test_module.py`` and see if the issue reproduces:
 
-   .. code::
+   .. code:: shell
 
         pytest tests/test_module.py -s
 
    2. If you see the same error(s), SSH into ``rh-cpu``:
 
-   .. code::
+   .. code:: shell
 
         ssh rh-cpu
 
    3. Check if you can resume the latest screen:
 
-   .. code::
+   .. code:: shell
 
         screen -r
 
    4. If the result is ``There is no screen to be resumed.``, it means the Runhouse server is not up. Start it using:
 
-   .. code::
+   .. code:: shell
 
         runhouse start
 

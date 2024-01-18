@@ -1,4 +1,3 @@
-import asyncio
 import contextlib
 import copy
 import json
@@ -11,7 +10,6 @@ import sys
 import threading
 import time
 import warnings
-from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -49,6 +47,7 @@ class Cluster(Resource):
     DEFAULT_HTTP_PORT = 80
     DEFAULT_HTTPS_PORT = 443
     DEFAULT_SSH_PORT = 22
+    DEFAULT_RAY_PORT = 6379
     LOCAL_HOSTS = ["localhost", LOCALHOST]
 
     SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
@@ -57,12 +56,12 @@ class Cluster(Resource):
     SERVER_STOP_CMD = f'pkill -f "{SERVER_START_CMD}"'
     # 2>&1 redirects stderr to stdout
     START_SCREEN_CMD = f"screen -dm bash -c \"{SERVER_START_CMD} 2>&1 | tee -a '{SERVER_LOGFILE}' 2>&1\""
-    RAY_START_CMD = "ray start --head --port 6379"
+    RAY_START_CMD = f"ray start --head --port {DEFAULT_RAY_PORT}"
     # RAY_BOOTSTRAP_FILE = "~/ray_bootstrap_config.yaml"
     # --autoscaling-config=~/ray_bootstrap_config.yaml
     # We need to use this instead of ray stop to make sure we don't stop the SkyPilot ray server,
     # which runs on other ports but is required to preserve autostop and correct cluster status.
-    RAY_KILL_CMD = 'pkill -f ".*ray.*6379.*"'
+    RAY_KILL_CMD = 'pkill -f ".*ray.*' + str(DEFAULT_RAY_PORT) + '.*"'
 
     def __init__(
         self,
@@ -130,7 +129,7 @@ class Cluster(Resource):
             [
                 f"mkdir -p ~/.rh; touch {CLUSTER_CONFIG_PATH}; echo '{json_config}' > {CLUSTER_CONFIG_PATH}"
             ],
-            node=node,
+            node=node or self.address,
         )
 
     @staticmethod
@@ -257,22 +256,11 @@ class Cluster(Resource):
         )
         return self
 
-    def _sync_to_nodes(self, _rh_install_url: str, node: str):
-        """Sync to all cluster nodes (head node + workers where relevant)"""
-        try:
-            # Assuming _sync_runhouse_to_cluster and save_config_to_cluster are process-safe
-            self._sync_runhouse_to_cluster(_install_url=_rh_install_url, node=node)
+    def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
+        if not self.address:
+            raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
 
-            # TODO: Deprecate once config is stored via Ray
-            # Update the cluster config on the cluster
-            self.save_config_to_cluster(node=node)
-
-        except Exception as e:
-            raise e
-
-    def _sync_runhouse_to_cluster(self, node: str = None, _install_url=None, env=None):
         local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
-        node = node or self.address
 
         # Check if runhouse is installed from source and has setup.py
         if (
@@ -287,7 +275,7 @@ class Cluster(Resource):
             self._rsync(
                 source=str(local_rh_package_path),
                 dest=dest_path,
-                node=node,
+                node="all",
                 up=True,
                 contents=True,
                 filter_options="- docs/",
@@ -307,10 +295,13 @@ class Cluster(Resource):
 
         install_cmd = f"{env._run_cmd} {rh_install_cmd}" if env else rh_install_cmd
 
-        status_codes = self.run([install_cmd], node=node, stream_logs=True)
+        for node in self.ips:
+            status_codes = self.run([install_cmd], node=node, stream_logs=True)
 
-        if status_codes[0][0] != 0:
-            raise ValueError(f"Error installing runhouse on cluster <{self.name}>")
+            if status_codes[0][0] != 0:
+                raise ValueError(
+                    f"Error installing runhouse on cluster <{self.name}> node <{node}>"
+                )
 
     def install_packages(
         self, reqs: List[Union["Package", str]], env: Union["Env", str] = None
@@ -698,6 +689,21 @@ class Cluster(Resource):
 
         return cmds
 
+    def _start_ray_workers(self, ray_port):
+        for host in self.ips:
+            if host == self.address:
+                # This is the master node, skip
+                continue
+            logger.info(
+                f"Starting Ray on worker {host} with head node at {self.address}:{ray_port}."
+            )
+            self.run(
+                commands=[
+                    f"ray start --address={self.address}:{ray_port}",
+                ],
+                node=host,
+            )
+
     def restart_server(
         self,
         _rh_install_url: str = None,
@@ -719,9 +725,11 @@ class Cluster(Resource):
         logger.info(f"Restarting Runhouse API server on {self.name}.")
 
         if resync_rh:
-            # Sync Runhouse & configs across all cluster nodes in parallel
-            self._sync_across_all_nodes(_rh_install_url)
-            logger.info("Finished syncing Runhouse to cluster nodes.")
+            self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
+            logger.info("Finished syncing Runhouse to cluster.")
+
+        # Update the cluster config on the cluster
+        self.save_config_to_cluster()
 
         use_custom_cert = self._use_custom_cert
         if use_custom_cert:
@@ -786,6 +794,9 @@ class Cluster(Resource):
             # Refresh the client params to use HTTPS
             self.client.use_https = https_flag
             self.client.cert_path = self.cert_config.cert_path
+
+        if restart_ray and len(self.ips) > 1:
+            self._start_ray_workers(self.DEFAULT_RAY_PORT)
 
         return status_codes
 
@@ -857,42 +868,6 @@ class Cluster(Resource):
         if self._rpc_tunnel:
             self._rpc_tunnel.stop()
 
-    def _sync_across_all_nodes(self, _rh_install_url):
-        loop = asyncio.new_event_loop()
-
-        # Set the loop as the default for the current context
-        asyncio.set_event_loop(loop)
-
-        executor = ProcessPoolExecutor()
-
-        try:
-            tasks = [
-                loop.run_in_executor(
-                    executor, self._sync_to_nodes, _rh_install_url, node
-                )
-                for node in self.ips
-            ]
-            loop.run_until_complete(asyncio.gather(*tasks))
-
-        except Exception as e:
-            raise e
-
-        finally:
-            # Cancel all tasks running on the loop
-            for task in asyncio.all_tasks(loop):
-                task.cancel()
-
-            # Wait for all tasks to be cancelled
-            loop.run_until_complete(
-                asyncio.gather(*asyncio.all_tasks(loop), return_exceptions=True)
-            )
-
-            # Shutdown the executor
-            executor.shutdown(wait=True)
-
-            # Close the loop
-            loop.close()
-
     def __getstate__(self):
         """Delete non-serializable elements (e.g. thread locks) before pickling."""
         state = self.__dict__.copy()
@@ -924,6 +899,23 @@ class Cluster(Resource):
             Ending `source` with a slash will copy the contents of the directory into dest,
             while omitting it will copy the directory itself (adding a directory layer).
         """
+        # Theoretically we could reuse this logic from SkyPilot which Rsyncs to all nodes in parallel:
+        # https://github.com/skypilot-org/skypilot/blob/v0.4.1/sky/backends/cloud_vm_ray_backend.py#L3094
+        # This is an interesting policy... by default we're syncing to all nodes if the cluster is multinode.
+        # If we need to change it to be greedier we can.
+        if up and (node == "all" or (len(self.ips) > 1 and not node)):
+            for node in self.ips:
+                self._rsync(
+                    source,
+                    dest,
+                    up=up,
+                    node=node,
+                    contents=contents,
+                    filter_options=filter_options,
+                    stream_logs=stream_logs,
+                )
+            return
+
         # If no address provided explicitly use the head node address
         node = node or self.address
         # FYI, could be useful: https://github.com/gchamon/sysrsync

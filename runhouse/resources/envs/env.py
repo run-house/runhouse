@@ -30,6 +30,7 @@ class Env(Resource):
         env_vars: Union[Dict, str] = {},
         working_dir: Optional[Union[str, Path]] = None,
         secrets: Optional[Union[str, "Secret"]] = [],
+        compute: Optional[Dict] = {},
         dryrun: bool = True,
         **kwargs,  # We have this here to ignore extra arguments when calling from_config
     ):
@@ -45,6 +46,7 @@ class Env(Resource):
         self.env_vars = env_vars
         self.working_dir = working_dir
         self.secrets = secrets
+        self.compute = compute
 
     @property
     def env_name(self):
@@ -79,16 +81,16 @@ class Env(Resource):
     @property
     def config_for_rns(self):
         config = super().config_for_rns
+        self.save_attrs_to_config(
+            config, ["setup_cmds", "env_vars", "env_name", "compute"]
+        )
         config.update(
             {
                 "reqs": [
                     self._resource_string_for_subconfig(package)
                     for package in self._reqs
                 ],
-                "setup_cmds": self.setup_cmds,
-                "env_vars": self.env_vars,
                 "working_dir": self._resource_string_for_subconfig(self.working_dir),
-                "env_name": self.env_name,
             }
         )
         return config

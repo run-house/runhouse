@@ -1,6 +1,7 @@
 from runhouse.resources.blobs import blob, Blob, file, File
 from runhouse.resources.envs import conda_env, CondaEnv, env, Env
 from runhouse.resources.folders import Folder, folder, GCSFolder, S3Folder
+from runhouse.resources.functionals.mapper import Mapper, mapper
 from runhouse.resources.functions.aws_lambda import LambdaFunction
 from runhouse.resources.functions.aws_lambda_factory import aws_lambda_fn
 from runhouse.resources.functions.function import Function
@@ -49,12 +50,4 @@ send = function
 # Syntactic sugar
 fn = function
 
-# This allows us to natively interact with resources in the object store from a python interpreter on the cluster
-
-if _current_cluster():
-    import ray
-
-    ray.init(ignore_reinit_error=True, namespace="runhouse")
-    obj_store.initialize()
-
-__version__ = "0.0.15"
+__version__ = "0.0.16"

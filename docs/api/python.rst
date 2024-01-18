@@ -48,6 +48,11 @@ and rich debugging and accessibility interfaces built-in.
 
     python/module
 
+.. toctree::
+    :maxdepth: 1
+
+    python/mapper
+
 
 Data Abstractions
 ------------------------------------

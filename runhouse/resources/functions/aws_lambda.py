@@ -43,13 +43,14 @@ class LambdaFunction(Function):
         "s3:GetObject",
         "s3:ListBucket",
         "s3:PutObject",
+        "kms:Decrypt",
     ]
     MAX_WAIT_TIME = 60  # seconds, max time that can pass before we raise an exception that AWS update takes too long.
     DEFAULT_REGION = "us-east-1"
     DEFAULT_RETENTION = 30  # one month, for lambdas log groups.
     DEFAULT_TIMEOUT = 900  # sec. meaning 15 min.
-    DEFAULT_MEMORY_SIZE = 1024  # MB
-    DEFAULT_TMP_SIZE = 3072  # MB, meaning 3G
+    DEFAULT_MEMORY_SIZE = 10240  # MB
+    DEFAULT_TMP_SIZE = 10240  # MB, meaning 10G
     HOME_DIR = "/tmp/home"
     SUPPORTED_RUNTIMES = [
         "python3.7",
@@ -108,18 +109,23 @@ class LambdaFunction(Function):
             paths_to_code, handler_function_name
         )
 
+        # set-up in order to prevent read timeout during lambda invocations
+        config = botocore.config.Config(read_timeout=900, connect_timeout=900)
+
         # will be used for reloading shared functions from other regions.
         function_arn = (
             kwargs.get("function_arn") if "function_arn" in kwargs.keys() else None
         )
         if function_arn:
             region = function_arn.split(":")[3]
-            self.lambda_client = boto3.client("lambda", region_name=region)
+            self.lambda_client = boto3.client(
+                "lambda", region_name=region, config=config
+            )
             self.logs_client = boto3.client("logs", region_name=region)
         else:
 
             if Path(CRED_PATH).is_file():
-                self.lambda_client = boto3.client("lambda")
+                self.lambda_client = boto3.client("lambda", config=config)
                 self.logs_client = boto3.client("logs")
 
             else:
@@ -218,9 +224,9 @@ class LambdaFunction(Function):
             timeout: Optional[int]: The maximum amount of time (in seconds) during which the Lambda will run in AWS
                 without timing-out. (Default: ``900``, Min: ``3``, Max: ``900``)
             memory_size: Optional[int], The amount of memory (in MB) to be allocated to the Lambda.
-                (Default: ``1024``, Min: ``128``, Max: ``10240``)
+                (Default: ``10240``, Min: ``128``, Max: ``10240``)
             tmp_size: Optional[int], This size of the /tmp folder in the aws lambda file system.
-                (Default: ``3072``, Min: ``512``, Max: ``10240``).
+                (Default: ``10240``, Min: ``512``, Max: ``10240``).
             retention_time: Optional[int] The time (in days) the Lambda execution logs will be saved in AWS
                 cloudwatch. After that, they will be deleted. (Default: ``30`` days)
             dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
@@ -242,7 +248,7 @@ class LambdaFunction(Function):
             >>>                     name="my_func").save()
 
             >>> # invoking the function
-            >>> summer_res = summer_lambda(5, 8)  # returns "13". (It returns str type because of AWS API)
+            >>> summer_res = summer_lambda(5, 8)  # returns 13.
         """
 
         if name is None:
@@ -371,14 +377,14 @@ class LambdaFunction(Function):
                 timeout = 3
                 warnings.warn("Timeout can not be less then 3 sec, setting to 3 sec.")
         if memory_size is None:
-            warnings.warn("Memory size set to 1024 MB.")
+            warnings.warn("Memory size set to 10 GB.")
             memory_size = LambdaFunction.DEFAULT_MEMORY_SIZE
         else:
             if (
                 env.reqs is not None or len(env.reqs) > 0
             ) and memory_size < LambdaFunction.DEFAULT_MEMORY_SIZE:
                 warnings.warn(
-                    "Increasing the memory size to 1GB, in order to enable the packages setup."
+                    "Increasing the memory size to 10240 MB, in order to enable the packages setup."
                 )
                 memory_size = LambdaFunction.DEFAULT_MEMORY_SIZE
             if memory_size < 128:
@@ -393,7 +399,7 @@ class LambdaFunction(Function):
                 )
         if tmp_size is None or tmp_size < LambdaFunction.DEFAULT_TMP_SIZE:
             warnings.warn(
-                "Setting /tmp size to 3GB, in order to enable the packages setup."
+                "Setting /tmp size to 10GB, in order to enable the packages setup."
             )
             tmp_size = LambdaFunction.DEFAULT_TMP_SIZE
         elif tmp_size > 10240:
@@ -469,10 +475,14 @@ class LambdaFunction(Function):
 
         f = open(wrapper_path, "w")
         f.write("def lambda_handler(event, context):\n")
+
         f.write(
             "\timport runhouse\n"
             f"\tfrom {handler_name} import {self.handler_function_name}\n"
-            f"\treturn {self.handler_function_name}(**event)"
+            "\treturn {\n"
+            "\t\t'status_code': 200,\n"
+            f"\t\t'body': {self.handler_function_name}(**event)\n"
+            "\t}"
         )
         f.close()
         return wrapper_path
@@ -857,6 +867,7 @@ class LambdaFunction(Function):
             ).decode("utf-8")
 
             print(log_lines)
+            return_value = json.loads(return_value)["body"]
             return return_value
 
     def map(self, *args, **kwargs):
@@ -872,7 +883,7 @@ class LambdaFunction(Function):
             >>>                     fn=my_summer,
             >>>                     runtime = 'python3.9',
             >>>                     name="my_func")
-            >>> output = summer_lambda.map([1, 2], [1, 4], [2, 3])  # output = ["4", "9"]
+            >>> output = summer_lambda.map([1, 2], [1, 4], [2, 3])  # output = [4, 9]
         """
 
         return [self._invoke(*args, **kwargs) for args in zip(*args)]
@@ -885,7 +896,7 @@ class LambdaFunction(Function):
         Example:
             >>> arg_list = [(1,2, 3), (3, 4, 5)]
             >>> # invokes the Lambda function twice, once with args (1, 2, 3) and once with args (3, 4, 5)
-            >>> output = summer_lambda.starmap(arg_list) # output = ["6", "12"]
+            >>> output = summer_lambda.starmap(arg_list) # output = [6, 12]
         """
 
         return [self._invoke(*args, **kwargs) for args in args_lists]
@@ -901,7 +912,7 @@ class LambdaFunction(Function):
             >>> def multiply(a, b):
             >>>     return a * b
             >>> multiply_lambda = rh.aws_lambda_fn(fn=multiply, name="lambdas_mult_func")
-            >>> mult_res = multiply_lambda(4, 5)  # returns "20".
+            >>> mult_res = multiply_lambda(4, 5)  # returns 20.
             >>> multiply_lambda.teardown()  # returns true if succeeded, raises an exception otherwise.
 
         """

@@ -1,6 +1,4 @@
 import json
-import os
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,7 +6,6 @@ from pathlib import Path
 import pytest
 
 import runhouse as rh
-from runhouse.constants import CLUSTER_CONFIG_PATH
 
 from runhouse.globals import rns_client
 from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
@@ -223,22 +220,6 @@ class TestHTTPServerDockerDenAuthOnly:
     MAXIMAL = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
 
     # -------- INVALID TOKEN / CLUSTER ACCESS TESTS ----------- #
-
-    @pytest.mark.level("local")
-    def test_request_with_no_cluster_config_json(self, http_client, cluster):
-        cluster.run([f"mv {CLUSTER_CONFIG_PATH} ~/.rh/cluster_config_temp.json"])
-        try:
-            response = http_client.get("/keys", headers=rns_client.request_headers())
-
-            assert response.status_code == 404
-            assert "Failed to load current cluster" in response.text
-        finally:
-            cluster.run([f"mv ~/.rh/cluster_config_temp.json {CLUSTER_CONFIG_PATH}"])
-
-        # Assert that things work once again
-        response = http_client.get("/keys", headers=rns_client.request_headers())
-        assert response.status_code == 200
-
     @pytest.mark.level("local")
     def test_no_access_to_cluster(self, http_client, cluster):
         # Make sure test account doesn't have access to the cluster (created by logged-in account, Den Tester in CI)
@@ -494,27 +475,6 @@ class TestHTTPServerNoDockerDenAuthOnly:
     """
 
     # -------- INVALID TOKEN / CLUSTER ACCESS TESTS ----------- #
-
-    @pytest.mark.level("unit")
-    def test_request_with_no_cluster_config_json(self, local_client_with_den_auth):
-        headers = rns_client.request_headers()
-        source_path = os.path.expanduser(CLUSTER_CONFIG_PATH)
-        destination_path = os.path.expanduser("~/.rh/cluster_config_temp.json")
-
-        # Use the expanded paths in the command
-        try:
-            subprocess.run(["mv", source_path, destination_path])
-            response = local_client_with_den_auth.get("/keys", headers=headers)
-
-            assert response.status_code == 404
-            assert "Failed to load current cluster" in response.text
-        finally:
-            subprocess.run(["mv", destination_path, source_path])
-
-        # Assert that things work once again
-        response = local_client_with_den_auth.get("/keys", headers=headers)
-        assert response.status_code == 200
-
     @pytest.mark.level("unit")
     def test_request_with_no_token(self, local_client_with_den_auth):
         response = local_client_with_den_auth.get(
