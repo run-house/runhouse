@@ -356,7 +356,7 @@ class ObjStore:
         key: Any,
         value: Any,
         env: Optional[str] = None,
-        serialization: Optional[str] = "pickle",
+        serialization: Optional[str] = None,
         create_env_if_not_exists: bool = False,
     ):
         # Before replacing something else, check if this op will even be valid.
@@ -602,9 +602,19 @@ class ObjStore:
     ##############################################
     # KV Store: Rename
     ##############################################
-    def rename(self, old_key: Any, new_key: Any):
-        # We also need to rename the resource itself
-        env_servlet_name_containing_old_key = self.get_env_servlet_name_for_key(old_key)
+    @staticmethod
+    def rename_for_env_servlet_name(env_servlet_name: str, old_key: Any, new_key: Any):
+        return ObjStore.call_actor_method(
+            ObjStore.get_env_servlet(env_servlet_name),
+            "rename_local",
+            old_key,
+            new_key,
+        )
+
+    def rename_local(self, old_key: Any, new_key: Any):
+        if self.servlet_name is None or not self.has_local_storage:
+            raise NoLocalObjStoreError()
+
         obj = self.pop(old_key)
         if obj is not None and hasattr(obj, "rns_address"):
             # Note - we set the obj.name here so the new_key is correctly turned into an rns_address, whether its
@@ -614,7 +624,20 @@ class ObjStore:
             new_key = obj.name  # new_key is now just the name
 
         # By passing default, we don't throw an error if the key is not found
-        self.put(new_key, obj, env=env_servlet_name_containing_old_key)
+        self.put(new_key, obj, env=self.servlet_name)
+
+    def rename(self, old_key: Any, new_key: Any):
+        # We also need to rename the resource itself
+        env_servlet_name_containing_old_key = self.get_env_servlet_name_for_key(old_key)
+        if (
+            env_servlet_name_containing_old_key == self.servlet_name
+            and self.has_local_storage
+        ):
+            self.rename_local(old_key, new_key)
+        else:
+            self.rename_for_env_servlet_name(
+                env_servlet_name_containing_old_key, old_key, new_key
+            )
 
     ##############################################
     # Get several keys for function initialization utiliies

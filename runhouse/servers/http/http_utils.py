@@ -40,6 +40,11 @@ class PutObjectParams(BaseModel):
     env_name: Optional[str] = None
 
 
+class RenameObjectParams(BaseModel):
+    key: str
+    new_key: str
+
+
 class Args(BaseModel):
     args: Optional[List[Any]]
     kwargs: Optional[Dict[str, Any]]

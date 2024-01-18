@@ -18,6 +18,7 @@ from runhouse.servers.http.http_utils import (
     pickle_b64,
     PutObjectParams,
     PutResourceParams,
+    RenameObjectParams,
 )
 
 logger = logging.getLogger(__name__)
@@ -381,11 +382,10 @@ class HTTPClient:
         return self.rename_object(old_key, new_key)
 
     def rename_object(self, old_key, new_key):
-        self.request(
-            "object",
-            req_type="put",
-            data=pickle_b64((old_key, new_key)),
-            key=old_key,
+        self.request_json(
+            "rename",
+            req_type="post",
+            json_dict=RenameObjectParams(key=old_key, new_key=new_key).dict(),
             err_str=f"Error renaming object {old_key}",
         )
 
