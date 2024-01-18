@@ -3,7 +3,6 @@ import unittest
 
 from tests.conftest import docker_cluster_pwd_ssh_no_auth, password_cluster
 from tests.test_obj_store import (
-    test_cancel_run,  # noqa: F401
     test_get_from_cluster,  # noqa: F401
     test_multiprocessing_streaming,  # noqa: F401
     test_pinning_and_arg_replacement,  # noqa: F401

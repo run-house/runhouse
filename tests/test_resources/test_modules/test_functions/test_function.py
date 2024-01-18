@@ -6,7 +6,6 @@ import unittest
 from unittest.mock import patch
 
 import pytest
-import ray.exceptions
 import requests
 
 import runhouse as rh
@@ -232,30 +231,6 @@ class TestFunction:
         assert set(
             [pid_obj3.name.replace("~/", ""), pid_obj4.name.replace("~/", "")]
         ).issubset(current_jobs)
-
-    @pytest.mark.level("local")
-    def test_cancel_jobs(self, cluster):
-        pid_fn = rh.function(slow_getpid).to(cluster)
-
-        pid_run1 = pid_fn.run(2)
-
-        time.sleep(1)  # So the runkeys are more than 1 second apart
-        pid_ref2 = pid_fn.run(5)
-
-        print("Cancelling jobs")
-        cluster.cancel_all()
-
-        with pytest.raises(Exception) as e:
-            print(pid_fn.get(pid_run1.name))
-            assert isinstance(
-                e, (ray.exceptions.TaskCancelledError, ray.exceptions.RayTaskError)
-            )
-
-        with pytest.raises(Exception) as e:
-            print(pid_fn.get(pid_ref2))
-            assert isinstance(
-                e, (ray.exceptions.TaskCancelledError, ray.exceptions.RayTaskError)
-            )
 
     @pytest.mark.skip("Does not work properly following Module refactor.")
     @pytest.mark.level("local")

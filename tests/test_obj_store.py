@@ -225,21 +225,5 @@ def test_tqdm_streaming(cluster):
     assert res == list(range(50))
 
 
-def test_cancel_run(cluster):
-    print_fn = rh.function(fn=do_printing_and_logging, system=cluster)
-    run_key = print_fn.run(10)
-    run_key2 = print_fn.run()
-
-    # TODO if you look at screen on the cluster, the job is continuing
-    cluster.cancel(run_key, force=True)
-    with pytest.raises(Exception) as e:
-        cluster.get(run_key, stream_logs=True)
-    assert "task was cancelled" in str(e.value)
-
-    # Check that another job in the same env isn't affected
-    res = cluster.get(run_key2).fetch()
-    assert res == list(range(50))
-
-
 if __name__ == "__main__":
     unittest.main()

@@ -410,20 +410,6 @@ class Cluster(Resource):
         res = self.client.keys(env=env)
         return res
 
-    def cancel(self, key: str, force=False):
-        """Cancel a given run on cluster by its key."""
-        self.check_server()
-        if self.on_this_cluster():
-            return obj_store.cancel(key, force=force)
-        return self.client.cancel(key, force=force)
-
-    def cancel_all(self, force=False):
-        """Cancel all runs on cluster."""
-        self.check_server()
-        if self.on_this_cluster():
-            return obj_store.cancel_all(force=force)
-        return self.client.cancel("all", force=force)
-
     def delete(self, keys: Union[None, str, List[str]]):
         """Delete the given items from the cluster's object store. To delete all items, use `cluster.clear()`"""
         self.check_server()

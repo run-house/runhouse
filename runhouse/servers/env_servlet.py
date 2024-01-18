@@ -2,7 +2,6 @@ import asyncio
 import inspect
 import json
 import logging
-import signal
 import threading
 import time
 import traceback
@@ -453,54 +452,6 @@ class EnvServlet:
                 traceback=pickle_b64(traceback.format_exc())
                 if not serialization == "json"
                 else str(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
-
-    def cancel_run(self, message: Message):
-        # Having this be a POST instead of a DELETE on the "run" endpoint is strange, but we're not actually
-        # deleting the run, just cancelling it. Maybe we should merge this into call_module_method to stream logs.
-        self.register_activity()
-        force = b64_unpickle(message.data)
-        logger.info(f"Message received from client to cancel runs: {message.key}")
-
-        def kill_thread(key, sigterm=False):
-            thread_id = self.thread_ids.get(key)
-            if not thread_id:
-                return
-            # Get thread object from id
-            # print(list(threading.enumerate()))
-            # print(self.thread_ids.items())
-            thread = threading._active.get(thread_id)
-            if thread is None:
-                return
-            if thread.is_alive():
-                # exc = KeyboardInterrupt()
-                # thread._async_raise(exc)
-                logging.info(f"Killing thread {thread_id}")
-                # SIGINT is like Ctrl+C: https://docs.python.org/3/library/signal.html#signal.SIGINT
-                signal.pthread_kill(
-                    thread_id, signal.SIGINT if not sigterm else signal.SIGTERM
-                )
-                self.output_types[thread_id] = OutputType.CANCELLED
-                if obj_store.contains(key):
-                    obj = obj_store.get(key)
-                    obj.provenance.status = RunStatus.CANCELLED
-            self.thread_ids.pop(thread_id, None)
-
-        try:
-            if message.key == "all":
-                for key in self.thread_ids:
-                    kill_thread(key, force)
-            else:
-                kill_thread(message.key, force)
-
-            return Response(output_type=OutputType.SUCCESS)
-        except Exception as e:
-            logger.exception(e)
-            self.register_activity()
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
                 output_type=OutputType.EXCEPTION,
             )
 

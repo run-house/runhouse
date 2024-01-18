@@ -566,14 +566,6 @@ class HTTPServer:
             return handle_exception_response(e, traceback.format_exc())
 
     @staticmethod
-    @app.post("/cancel")
-    @validate_cluster_access
-    def cancel_run(request: Request, message: Message):
-        return HTTPServer.call_in_env_servlet(
-            "cancel_run", [message], env=message.env, lookup_env_for_name=message.key
-        )
-
-    @staticmethod
     @app.get("/keys")
     @validate_cluster_access
     def get_keys(request: Request, env_name: Optional[str] = None):
