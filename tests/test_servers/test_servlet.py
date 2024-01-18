@@ -114,23 +114,6 @@ class TestServlet:
         assert resp.output_type == "exception"
         assert isinstance(b64_unpickle(resp.error), KeyError)
 
-    @pytest.mark.level("unit")
-    def test_delete_obj(self, test_servlet):
-        remote = False
-        keys = ["key1"]
-        message = Message(data=pickle_b64((keys)))
-        resp = HTTPServer.call_servlet_method(test_servlet, "delete_obj", [message])
-        assert resp.output_type == "result"
-        assert b64_unpickle(resp.data) == ["key1"]
-
-        resp = HTTPServer.call_servlet_method(
-            test_servlet,
-            "get",
-            ["key1", remote, True],
-        )
-        assert resp.output_type == "exception"
-        assert isinstance(b64_unpickle(resp.error), KeyError)
-
     @pytest.mark.skip("Not implemented yet.")
     @pytest.mark.level("unit")
     def test_call(self, test_servlet, docker_cluster_pk_ssh_no_auth):

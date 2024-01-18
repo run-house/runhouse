@@ -13,6 +13,7 @@ from runhouse.resources.envs.utils import _get_env_from
 
 from runhouse.resources.resource import Resource
 from runhouse.servers.http.http_utils import (
+    DeleteObjectParams,
     handle_response,
     OutputType,
     pickle_b64,
@@ -403,11 +404,10 @@ class HTTPClient:
         return res
 
     def delete(self, keys=None, env=None):
-        return self.request(
-            "object",
-            req_type="delete",
-            data=pickle_b64((keys or [])),
-            env=env,
+        return self.request_json(
+            "delete_object",
+            req_type="post",
+            json_dict=DeleteObjectParams(keys=keys or []).dict(),
             err_str=f"Error deleting keys {keys}",
         )
 

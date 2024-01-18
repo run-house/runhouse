@@ -9,7 +9,11 @@ import runhouse as rh
 from runhouse.globals import rns_client
 
 from runhouse.servers.http import HTTPClient
-from runhouse.servers.http.http_utils import pickle_b64, PutObjectParams
+from runhouse.servers.http.http_utils import (
+    DeleteObjectParams,
+    pickle_b64,
+    PutObjectParams,
+)
 
 
 @pytest.mark.servertest
@@ -298,23 +302,21 @@ class TestHTTPClient:
         mock_request.assert_called_with(f"keys/?env_name={test_env}", req_type="get")
 
     @pytest.mark.level("unit")
-    @patch("runhouse.servers.http.HTTPClient.request")
+    @patch("runhouse.servers.http.HTTPClient.request_json")
     def test_delete(self, mock_request):
         keys = ["key1", "key2"]
-        expected_data = pickle_b64(keys)
 
         self.client.delete(keys=keys)
 
         mock_request.assert_called_once_with(
-            "object",
-            req_type="delete",
-            data=ANY,
-            env=None,
+            "delete_object",
+            req_type="post",
+            json_dict=ANY,
             err_str=f"Error deleting keys {keys}",
         )
 
-        actual_data = mock_request.call_args[1]["data"]
-        assert actual_data == expected_data
+        actual_data = DeleteObjectParams(**mock_request.call_args[1]["json_dict"])
+        assert actual_data.keys == keys
 
 
 if __name__ == "__main__":

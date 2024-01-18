@@ -45,6 +45,10 @@ class RenameObjectParams(BaseModel):
     new_key: str
 
 
+class DeleteObjectParams(BaseModel):
+    keys: List[str]
+
+
 class Args(BaseModel):
     args: Optional[List[Any]]
     kwargs: Optional[Dict[str, Any]]

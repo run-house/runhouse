@@ -24,6 +24,7 @@ from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.auth import hash_token, verify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
+    DeleteObjectParams,
     get_token_from_request,
     handle_exception_response,
     load_current_cluster,
@@ -517,7 +518,6 @@ class HTTPServer:
             logger.debug(f"Deleting {key}")
             if pop:
                 obj_store.delete(key)
-                HTTPServer.call_in_env_servlet("delete_obj", [[key], True], env=env)
 
     @staticmethod
     @app.post("/object")
@@ -549,12 +549,27 @@ class HTTPServer:
             return handle_exception_response(e, traceback.format_exc())
 
     @staticmethod
-    @app.delete("/object")
+    @app.post("/delete_object")
     @validate_cluster_access
-    def delete_obj(request: Request, message: Message):
-        return HTTPServer.call_in_env_servlet(
-            "delete_obj", [message], env=message.env, lookup_env_for_name=message.key
-        )
+    def delete_obj(request: Request, params: DeleteObjectParams):
+        try:
+            if len(params.keys) == 0:
+                cleared = obj_store.keys()
+                obj_store.clear()
+            else:
+                cleared = []
+                for key in params.keys:
+                    obj_store.delete(key)
+                    cleared.append(key)
+
+            # Expicitly tell the client not to attempt to deserialize the output
+            return Response(
+                data=cleared,
+                output_type=OutputType.RESULT_SERIALIZED,
+                serialization=None,
+            )
+        except Exception as e:
+            return handle_exception_response(e, traceback.format_exc())
 
     @staticmethod
     @app.post("/cancel")
