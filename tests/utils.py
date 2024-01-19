@@ -11,14 +11,12 @@ from runhouse.servers.obj_store import ObjStore
 
 def get_ray_servlet(env_name):
     """Helper method for getting auth servlet and base env servlet"""
-    import ray
 
-    ray.init(
-        ignore_reinit_error=True,
-        runtime_env=None,
-        namespace="runhouse",
-    )
+    # We need to initialize the cluster_servlet before we can get the env servlet
+    fake_obj_store = ObjStore()
+    fake_obj_store.initialize(initialize_ray=True)
 
+    # Get the env servlet
     servlet = ObjStore.get_env_servlet(
         env_name=env_name,
         create=True,
