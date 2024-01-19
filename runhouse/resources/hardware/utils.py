@@ -329,6 +329,7 @@ class SkySSHRunner(SSHCommandRunner):
 
         time.sleep(3)
         self._tunnel_procs.append(proc)
+        self.local_bind_port = local_port
 
     def __del__(self):
         for proc in self._tunnel_procs:
@@ -473,7 +474,7 @@ def ssh_tunnel(
     ssh_port: int = 22,
     remote_port: Optional[int] = None,
     num_ports_to_try: int = 0,
-) -> Tuple[SSHTunnelForwarder, int]:
+) -> Union[SSHTunnelForwarder, SkySSHRunner]:
     """Initialize an ssh tunnel from a remote server to localhost
 
     Args:
@@ -490,7 +491,7 @@ def ssh_tunnel(
             starting at local_port and incrementing by 1 till we hit the max. Defaults to 0.
 
     Returns:
-        SSHTunnelForwarder: The initialized tunnel.
+        SSHTunnelForwarder or SkySSHRunner: The initialized tunnel.
     """
 
     # Debugging cmds (mac):
@@ -571,4 +572,4 @@ def ssh_tunnel(
 
     # ssh_tunnel should certainlly be non-None at this point.
     cache_open_tunnel(address, ssh_port, ssh_tunnel)
-    return ssh_tunnel, local_port
+    return ssh_tunnel

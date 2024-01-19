@@ -447,12 +447,12 @@ class Cluster(Resource):
             ServerConnectionType.AWS_SSM,
         ]:
             # Case 1: Server connection requires SSH tunnel, but we don't have one up yet
-            self._rpc_tunnel, connected_port = self.ssh_tunnel(
+            self._rpc_tunnel = self.ssh_tunnel(
                 local_port=self.server_port,
                 remote_port=self.server_port,
                 num_ports_to_try=10,
             )
-            self.client_port = connected_port or self.client_port or self.server_port or self._rpc_tunnel.local_bind_port
+            self.client_port = self._rpc_tunnel.local_bind_port
 
             ssh_user = self.ssh_creds.get("ssh_user")
             password = self.ssh_creds.get("password")
