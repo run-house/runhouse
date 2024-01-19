@@ -16,27 +16,36 @@ class NoLocalObjStoreError(ObjStoreError):
         super().__init__("No local object store exists; cannot perform operation.")
 
 
-def initialize_cluster_servlet():
+def initialize_ray_and_cluster_servlet(create_if_not_exists: bool = False):
     from runhouse.servers.cluster_servlet import ClusterServlet
 
-    ray.init(
-        ignore_reinit_error=True,
-        logging_level=logging.ERROR,
-        namespace="runhouse",
-    )
-    cluster_servlet = (
-        ray.remote(ClusterServlet)
-        .options(
-            name="cluster_servlet",
-            get_if_exists=True,
-            lifetime="detached",
+    if create_if_not_exists:
+        ray.init(
+            ignore_reinit_error=True,
+            logging_level=logging.ERROR,
             namespace="runhouse",
         )
-        .remote()
-    )
+        cluster_servlet = (
+            ray.remote(ClusterServlet)
+            .options(
+                name="cluster_servlet",
+                get_if_exists=True,
+                lifetime="detached",
+                namespace="runhouse",
+            )
+            .remote()
+        )
 
-    # Make sure cluster servlet is actually initialized
-    ray.get(cluster_servlet.get_cluster_config.remote())
+        # Make sure cluster servlet is actually initialized
+        ray.get(cluster_servlet.get_cluster_config.remote())
+    else:
+        ray.init(
+            address="auto",
+            ignore_reinit_error=True,
+            logging_level=logging.ERROR,
+            namespace="runhouse",
+        )
+        cluster_servlet = ray.get_actor("cluster_servlet", namespace="runhouse")
     return cluster_servlet
 
 
@@ -82,7 +91,7 @@ class ObjStore:
         # ClusterServlet essentially functions as a global state/metadata store
         # for all nodes connected to this Ray cluster.
         try:
-            self.cluster_servlet = initialize_cluster_servlet()
+            self.cluster_servlet = initialize_ray_and_cluster_servlet()
 
         except ConnectionError:
             # If ray.init fails, we're not on a cluster, so we don't need to do anything
