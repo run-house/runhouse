@@ -33,6 +33,13 @@ class PutResourceParams(BaseModel):
     env_name: Optional[str] = None
 
 
+class PutObjectParams(BaseModel):
+    key: str
+    serialized_data: Any
+    serialization: Optional[str] = None
+    env_name: Optional[str] = None
+
+
 class Args(BaseModel):
     args: Optional[List[Any]]
     kwargs: Optional[Dict[str, Any]]
@@ -91,6 +98,15 @@ def serialize_data(data: Any, serialization: Optional[str]):
         return pickle_b64(data)
     else:
         return data
+
+
+def handle_exception_response(exception, traceback):
+    logger.exception(exception)
+    return Response(
+        output_type=OutputType.EXCEPTION,
+        error=pickle_b64(exception),
+        traceback=pickle_b64(traceback),
+    )
 
 
 def get_token_from_request(request):

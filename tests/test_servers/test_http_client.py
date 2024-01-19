@@ -9,7 +9,7 @@ import runhouse as rh
 from runhouse.globals import rns_client
 
 from runhouse.servers.http import HTTPClient
-from runhouse.servers.http.http_utils import pickle_b64
+from runhouse.servers.http.http_utils import pickle_b64, PutObjectParams
 
 
 @pytest.mark.servertest
@@ -265,7 +265,7 @@ class TestHTTPClient:
         assert f"key {missing_key} not found" in str(context)
 
     @pytest.mark.level("unit")
-    @patch("runhouse.servers.http.HTTPClient.request")
+    @patch("runhouse.servers.http.HTTPClient.request_json")
     def test_put_object(self, mock_request):
         key = "my_list"
         value = list(range(5, 50, 2)) + ["a string"]
@@ -276,14 +276,14 @@ class TestHTTPClient:
         mock_request.assert_called_once_with(
             "object",
             req_type="post",
-            data=ANY,
-            key=key,
-            env=None,
+            json_dict=ANY,
             err_str=f"Error putting object {key}",
         )
 
-        actual_data = mock_request.call_args[1]["data"]
-        assert actual_data == expected_data
+        actual_data = PutObjectParams(**mock_request.call_args[1]["json_dict"])
+        assert actual_data.key == key
+        assert actual_data.serialized_data == expected_data
+        assert actual_data.serialization == "pickle"
 
     @pytest.mark.level("unit")
     @patch("runhouse.servers.http.HTTPClient.request")

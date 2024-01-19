@@ -333,10 +333,15 @@ class ObjStore:
     # KV Store: Put
     ##############################################
     @staticmethod
-    def put_for_env_servlet_name(env_servlet_name: str, key: Any, value: Any):
-        logger.info(f"Putting {key} and {value} into servlet {env_servlet_name}")
+    def put_for_env_servlet_name(
+        env_servlet_name: str, key: Any, data: Any, serialization: Optional[str] = None
+    ):
         return ObjStore.call_actor_method(
-            ObjStore.get_env_servlet(env_servlet_name), "put_local", key, value
+            ObjStore.get_env_servlet(env_servlet_name),
+            "put_local",
+            key,
+            data=data,
+            serialization=serialization,
         )
 
     def put_local(self, key: Any, value: Any):
@@ -346,27 +351,42 @@ class ObjStore:
         else:
             raise NoLocalObjStoreError()
 
-    def put(self, key: Any, value: Any, env: str = None):
+    def put(
+        self,
+        key: Any,
+        value: Any,
+        env: Optional[str] = None,
+        serialization: Optional[str] = "pickle",
+        create_env_if_not_exists: bool = False,
+    ):
         # Before replacing something else, check if this op will even be valid.
-        if env is None and not self.servlet_name:
+        if env is None and self.servlet_name is None:
             raise NoLocalObjStoreError()
 
-        if env is not None and self.get_env_servlet(env) is None:
-            raise ObjStoreError(
-                f"Env {env} does not exist; cannot put key {key} there."
-            )
+        # If it was not specified, we want to put into our own servlet_name
+        env = env or self.servlet_name
+
+        if self.get_env_servlet(env) is None:
+            if create_env_if_not_exists:
+                self.get_env_servlet(env, create=True)
+            else:
+                raise ObjStoreError(
+                    f"Env {env} does not exist; cannot put key {key} there."
+                )
 
         # If it does exist somewhere, no more!
         if self.get(key, default=None) is not None:
             logger.warning("Key already exists in some env, overwriting.")
             self.pop(key)
 
-        # If env is None, write to our own servlet, either via local or via global KV store
-        env = env or self.servlet_name
         if self.has_local_storage and env == self.servlet_name:
+            if serialization is not None:
+                raise ObjStoreError(
+                    "We should never reach this branch if serialization is not None."
+                )
             self.put_local(key, value)
         else:
-            self.put_for_env_servlet_name(env, key, value)
+            self.put_for_env_servlet_name(env, key, value, serialization)
 
     ##############################################
     # KV Store: Get
@@ -465,9 +485,15 @@ class ObjStore:
     # KV Store: Pop
     ##############################################
     @staticmethod
-    def pop_from_env_servlet_name(env_servlet_name: str, key: Any, *args) -> Any:
+    def pop_from_env_servlet_name(
+        env_servlet_name: str, key: Any, serialization: Optional[str] = "pickle", *args
+    ) -> Any:
         return ObjStore.call_actor_method(
-            ObjStore.get_env_servlet(env_servlet_name), "pop_local", key, *args
+            ObjStore.get_env_servlet(env_servlet_name),
+            "pop_local",
+            key,
+            serialization,
+            *args,
         )
 
     def pop_local(self, key: Any, *args) -> Any:
@@ -496,7 +522,7 @@ class ObjStore:
             else:
                 raise KeyError(f"No local store exists; key {key} not found.")
 
-    def pop(self, key: Any, *args) -> Any:
+    def pop(self, key: Any, serialization: Optional[str] = "pickle", *args) -> Any:
         try:
             return self.pop_local(key)
         except KeyError as e:
@@ -512,7 +538,9 @@ class ObjStore:
                 )
             else:
                 # The key was found in another env, so we need to pop it from there
-                return self.pop_from_env_servlet_name(env_servlet_name, key)
+                return self.pop_from_env_servlet_name(
+                    env_servlet_name, key, serialization
+                )
         else:
             # Was not found in any env
             if args:

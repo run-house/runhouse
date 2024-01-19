@@ -16,6 +16,7 @@ from runhouse.servers.http.http_utils import (
     handle_response,
     OutputType,
     pickle_b64,
+    PutObjectParams,
     PutResourceParams,
 )
 
@@ -328,13 +329,16 @@ class HTTPClient:
         logging.info(log_str)
         return non_generator_result
 
-    def put_object(self, key, value, env=None):
-        self.request(
+    def put_object(self, key: str, value: Any, env=None):
+        return self.request_json(
             "object",
             req_type="post",
-            data=pickle_b64(value),
-            key=key,
-            env=env,
+            json_dict=PutObjectParams(
+                key=key,
+                serialized_data=pickle_b64(value),
+                env_name=env,
+                serialization="pickle",
+            ).dict(),
             err_str=f"Error putting object {key}",
         )
 

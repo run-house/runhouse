@@ -8,7 +8,12 @@ import pytest
 import runhouse as rh
 
 from runhouse.globals import rns_client
-from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64, PutResourceParams
+from runhouse.servers.http.http_utils import (
+    b64_unpickle,
+    pickle_b64,
+    PutObjectParams,
+    PutResourceParams,
+)
 
 from tests.utils import friend_account
 
@@ -70,7 +75,11 @@ class TestHTTPServerDocker:
         test_list = list(range(5, 50, 2)) + ["a string"]
         response = http_client.post(
             "/object",
-            json={"data": pickle_b64(test_list), "key": key},
+            json=PutObjectParams(
+                key=key,
+                serialized_data=pickle_b64(test_list),
+                serialization="pickle",
+            ).dict(),
             headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
@@ -305,7 +314,11 @@ class TestHTTPServerDockerDenAuthOnly:
         test_list = list(range(5, 50, 2)) + ["a string"]
         response = http_client.post(
             "/object",
-            json={"data": pickle_b64(test_list), "key": "key1"},
+            json=PutObjectParams(
+                key="key1",
+                serialized_data=pickle_b64(test_list),
+                serialization="pickle",
+            ).dict(),
             headers=INVALID_HEADERS,
         )
         assert response.status_code == 403
@@ -417,7 +430,11 @@ class TestHTTPServerNoDocker:
         test_list = list(range(5, 50, 2)) + ["a string"]
         response = client.post(
             "/object",
-            json={"data": pickle_b64(test_list), "key": "key1"},
+            json=PutObjectParams(
+                key="key1",
+                serialized_data=pickle_b64(test_list),
+                serialization="pickle",
+            ).dict(),
             headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
@@ -527,7 +544,11 @@ class TestHTTPServerNoDockerDenAuthOnly:
         test_list = list(range(5, 50, 2)) + ["a string"]
         resp = local_client_with_den_auth.post(
             "/object",
-            json={"data": pickle_b64(test_list), "key": "key1"},
+            json=PutObjectParams(
+                key="key1",
+                serialized_data=pickle_b64(test_list),
+                serialization="pickle",
+            ).dict(),
             headers=INVALID_HEADERS,
         )
         assert resp.status_code == 403
