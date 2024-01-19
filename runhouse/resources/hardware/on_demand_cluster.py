@@ -121,15 +121,6 @@ class OnDemandCluster(Cluster):
             }
         )
 
-        # if self.provider == "kubernetes":
-        #     config.update(
-        #         {
-        #             "namespace": self.namespace,
-        #             "kube_config_path": self.kube_config_path,
-        #             "context": self.context,
-        #         }
-        #     )
-
         return config
 
     def _get_sky_state(self):

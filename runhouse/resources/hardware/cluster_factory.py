@@ -200,16 +200,30 @@ def kubernetes_cluster(
     namespace: str = None,
     kube_config_path: str = None,
     context: str = None,
+    server_connection_type: Union[ServerConnectionType, str] = None,
     **kwargs,
 ) -> OnDemandCluster:
+    
+    server_connection_type_passed = kwargs.pop("server_connection_type", None)
+    provider = kwargs.pop("provider", None)
+
+    if server_connection_type_passed or provider is not None:
+        raise ValueError(
+            "You passed server_connection_type and provider twice. Aborting."
+        )
+
+    if server_connection_type is not None and not ServerConnectionType.SSH:
+        raise ValueError(
+            f"Kubernetes Cluster currently only supports a server connection type of `ssh`. Aborting"
+        )
+    
+    server_connection_type = ServerConnectionType.SSH
 
     if name in RESERVED_SYSTEM_NAMES:
         raise ValueError(
             f"Cluster name {name} is a reserved name. Please use a different name which is not one of "
             f"{RESERVED_SYSTEM_NAMES}."
         )
-
-    server_connection_type = ServerConnectionType.SSH
 
     if context is not None and namespace is not None:
         warnings.warn(
@@ -365,6 +379,7 @@ def ondemand_cluster(
         namespace = kwargs.pop("namespace", None)
         kube_config_path = kwargs.pop("kube_config_path", None)
         context = kwargs.pop("context", None)
+        server_connection_type = kwargs.pop("server_connection_type", None)
 
         return kubernetes_cluster(
             name=name,
@@ -372,6 +387,7 @@ def ondemand_cluster(
             namespace=namespace,
             kube_config_path=kube_config_path,
             context=context,
+            server_connection_type=server_connection_type,
         )
 
     if server_connection_type in [

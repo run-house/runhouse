@@ -148,6 +148,7 @@ class SkySSHRunner(SSHCommandRunner):
         port: int = 22,
         docker_user: Optional[str] = None,
         disable_control_master: Optional[bool] = False,
+        local_bind_port: Optional[int] = None,
     ):
         super().__init__(
             ip,
@@ -160,6 +161,7 @@ class SkySSHRunner(SSHCommandRunner):
             disable_control_master,
         )
         self._tunnel_procs = []
+        self.local_bind_port = local_bind_port
 
     def _ssh_base_command(
         self, *, ssh_mode: SshMode, port_forward: Optional[List[int]]
