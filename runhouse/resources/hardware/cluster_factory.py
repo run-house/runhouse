@@ -3,7 +3,12 @@ import warnings
 
 from typing import Dict, List, Optional, Union
 
-from runhouse.constants import RESERVED_SYSTEM_NAMES
+from runhouse.constants import (
+    DEFAULT_HTTP_PORT,
+    DEFAULT_HTTPS_PORT,
+    DEFAULT_SERVER_PORT,
+    RESERVED_SYSTEM_NAMES,
+)
 from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import relative_ssh_path
 
@@ -109,11 +114,11 @@ def cluster(
 
     if server_port is None:
         if server_connection_type == ServerConnectionType.TLS:
-            server_port = Cluster.DEFAULT_HTTPS_PORT
+            server_port = DEFAULT_HTTPS_PORT
         elif server_connection_type == ServerConnectionType.NONE:
-            server_port = Cluster.DEFAULT_HTTP_PORT
+            server_port = DEFAULT_HTTP_PORT
         else:
-            server_port = Cluster.DEFAULT_SERVER_PORT
+            server_port = DEFAULT_SERVER_PORT
 
     if name in RESERVED_SYSTEM_NAMES:
         raise ValueError(
@@ -283,11 +288,11 @@ def ondemand_cluster(
 
     if server_port is None:
         if server_connection_type == ServerConnectionType.TLS:
-            server_port = Cluster.DEFAULT_HTTPS_PORT
+            server_port = DEFAULT_HTTPS_PORT
         elif server_connection_type == ServerConnectionType.NONE:
-            server_port = Cluster.DEFAULT_HTTP_PORT
+            server_port = DEFAULT_HTTP_PORT
         else:
-            server_port = Cluster.DEFAULT_SERVER_PORT
+            server_port = DEFAULT_SERVER_PORT
 
     if (
         server_connection_type in [ServerConnectionType.TLS, ServerConnectionType.NONE]
@@ -336,8 +341,8 @@ def ondemand_cluster(
             else:
                 warnings.warn(
                     f"No open ports specified. Make sure the relevant port is open. "
-                    f"HTTPS default: {Cluster.DEFAULT_HTTPS_PORT} and HTTP "
-                    f"default: {Cluster.DEFAULT_HTTP_PORT}."
+                    f"HTTPS default: {DEFAULT_HTTPS_PORT} and HTTP "
+                    f"default: {DEFAULT_HTTP_PORT}."
                 )
 
     if name:

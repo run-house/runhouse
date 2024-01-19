@@ -64,8 +64,6 @@ def error_handling_decorator(func):
 
 
 class EnvServlet:
-    LOGGING_WAIT_TIME = 1.0
-
     def __init__(self, env_name: str, *args, **kwargs):
         self.env_name = env_name
 

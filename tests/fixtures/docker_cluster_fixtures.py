@@ -11,6 +11,8 @@ import pytest
 import runhouse as rh
 import yaml
 
+from runhouse.constants import DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT, DEFAULT_SSH_PORT
+
 from tests.conftest import init_args
 from tests.utils import friend_account
 
@@ -162,7 +164,7 @@ def build_and_run_image(
     pwd_file=None,
     keypath=None,
     force_rebuild=False,
-    port_fwds=["22:22"],
+    port_fwds=[f"{DEFAULT_SSH_PORT}:{DEFAULT_SSH_PORT}"],
 ):
     import subprocess
 
@@ -386,12 +388,15 @@ def docker_cluster_pk_tls_exposed(request):
         ),
         reuse_existing_container=detached,
         force_rebuild=force_rebuild,
-        port_fwds=[f"{local_ssh_port}:22", f"{local_client_port}:443"],
+        port_fwds=[
+            f"{local_ssh_port}:{DEFAULT_SSH_PORT}",
+            f"{local_client_port}:{DEFAULT_HTTPS_PORT}",
+        ],
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
             "name": "docker_cluster_pk_tls_exposed",
             "server_connection_type": "tls",
-            "server_port": 443,
+            "server_port": DEFAULT_HTTPS_PORT,
             "client_port": local_client_port,
             "den_auth": False,
         },
@@ -430,7 +435,7 @@ def docker_cluster_pk_ssh(request):
         ),
         reuse_existing_container=detached,
         force_rebuild=force_rebuild,
-        port_fwds=[f"{local_ssh_port}:22"],
+        port_fwds=[f"{local_ssh_port}:{DEFAULT_SSH_PORT}"],
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
             "name": "docker_cluster_pk_ssh",
@@ -513,12 +518,15 @@ def docker_cluster_pk_http_exposed(request):
         ),
         reuse_existing_container=detached,
         force_rebuild=force_rebuild,
-        port_fwds=[f"{local_ssh_port}:22", f"{local_client_port}:80"],
+        port_fwds=[
+            f"{local_ssh_port}:{DEFAULT_SSH_PORT}",
+            f"{local_client_port}:{DEFAULT_HTTP_PORT}",
+        ],
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
             "name": "docker_cluster_with_nginx",
             "server_connection_type": "none",
-            "server_port": 80,
+            "server_port": DEFAULT_HTTP_PORT,
             "client_port": local_client_port,
             "den_auth": True,
         },
@@ -557,7 +565,7 @@ def docker_cluster_pwd_ssh_no_auth(request):
         pwd_file="docker_user_passwd",
         reuse_existing_container=detached,
         force_rebuild=force_rebuild,
-        port_fwds=[f"{local_ssh_port}:22"],
+        port_fwds=[f"{local_ssh_port}:{DEFAULT_SSH_PORT}"],
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
             "name": "docker_cluster_pwd_ssh_no_auth",
@@ -600,7 +608,7 @@ def docker_cluster_pk_ssh_telemetry(request, detached=True):
         ),
         reuse_existing_container=detached,
         force_rebuild=force_rebuild,
-        port_fwds=[f"{local_ssh_port}:22"],
+        port_fwds=[f"{local_ssh_port}:{DEFAULT_SSH_PORT}"],
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
             "name": "docker_cluster_pk_ssh_telemetry",
@@ -640,7 +648,7 @@ def friend_account_logged_in_docker_cluster_pk_ssh(request):
             ),
             reuse_existing_container=detached,
             force_rebuild=force_rebuild,
-            port_fwds=[f"{local_ssh_port}:22"],
+            port_fwds=[f"{local_ssh_port}:{DEFAULT_SSH_PORT}"],
             local_ssh_port=local_ssh_port,
             additional_cluster_init_args={
                 "name": "friend_account_logged_in_docker_cluster_pk_ssh",
