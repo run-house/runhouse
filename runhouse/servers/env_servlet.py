@@ -7,7 +7,7 @@ import threading
 import time
 import traceback
 from functools import wraps
-from typing import Any, List, Optional, Union
+from typing import Any, Optional
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
@@ -453,29 +453,6 @@ class EnvServlet:
                 traceback=pickle_b64(traceback.format_exc())
                 if not serialization == "json"
                 else str(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
-
-    def delete_obj(self, message: Union[Message, List], _intra_cluster=False):
-        self.register_activity()
-        keys = b64_unpickle(message.data) if not _intra_cluster else message
-        logger.info(f"Message received from client to delete keys: {keys or 'all'}")
-        try:
-            cleared = []
-            if keys:
-                for pin in keys:
-                    obj_store.delete(pin)
-                    cleared.append(pin)
-            else:
-                cleared = list(obj_store.keys())
-                obj_store.clear()
-            return Response(data=pickle_b64(cleared), output_type=OutputType.RESULT)
-        except Exception as e:
-            logger.exception(e)
-            self.register_activity()
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
                 output_type=OutputType.EXCEPTION,
             )
 

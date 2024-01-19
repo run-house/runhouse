@@ -10,6 +10,7 @@ import runhouse as rh
 from runhouse.globals import rns_client
 from runhouse.servers.http.http_utils import (
     b64_unpickle,
+    DeleteObjectParams,
     pickle_b64,
     PutObjectParams,
     PutResourceParams,
@@ -107,11 +108,9 @@ class TestHTTPServerDocker:
     def test_delete_obj(self, http_client):
         # https://www.python-httpx.org/compatibility/#request-body-on-http-methods
         key = "key2"
-        data = pickle_b64([key])
-        response = http_client.request(
-            "delete",
-            url="/object",
-            json={"data": data},
+        response = http_client.post(
+            url="/delete_object",
+            json=DeleteObjectParams(keys=[key]).dict(),
             headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
@@ -470,13 +469,10 @@ class TestHTTPServerNoDocker:
 
     @pytest.mark.level("unit")
     def test_delete_obj(self, client):
-        # https://www.python-httpx.org/compatibility/#request-body-on-http-methods
         key = "key"
-        data = pickle_b64([key])
-        response = client.request(
-            "delete",
-            url="/object",
-            json={"data": data},
+        response = client.post(
+            url="/delete_object",
+            json=DeleteObjectParams(keys=[key]).dict(),
             headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
