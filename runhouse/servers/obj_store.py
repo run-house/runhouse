@@ -39,12 +39,13 @@ def initialize_ray_and_cluster_servlet(create_if_not_exists: bool = False):
         # Make sure cluster servlet is actually initialized
         ray.get(cluster_servlet.get_cluster_config.remote())
     else:
-        ray.init(
-            address="auto",
-            ignore_reinit_error=True,
-            logging_level=logging.ERROR,
-            namespace="runhouse",
-        )
+        if not ray.is_initialized():
+            ray.init(
+                address="auto",
+                ignore_reinit_error=True,
+                logging_level=logging.ERROR,
+                namespace="runhouse",
+            )
         cluster_servlet = ray.get_actor("cluster_servlet", namespace="runhouse")
     return cluster_servlet
 
@@ -80,10 +81,14 @@ class ObjStore:
 
         self._kv_store: Dict[Any, Any] = None
 
+    def is_initialized(self):
+        return ray.is_initialized() and self.cluster_servlet is not None
+
     def initialize(
         self,
         servlet_name: Optional[str] = None,
         has_local_storage: bool = False,
+        initialize_ray: bool = False,
     ):
         # The initialization of the obj_store needs to be in a separate method
         # so the HTTPServer actually initalizes the obj_store,
@@ -92,41 +97,51 @@ class ObjStore:
 
         # ClusterServlet essentially functions as a global state/metadata store
         # for all nodes connected to this Ray cluster.
-        try:
-            self.cluster_servlet = initialize_ray_and_cluster_servlet()
 
-        except ConnectionError:
-            # If ray.init fails, we're not on a cluster, so we don't need to do anything
-            pass
-
-        # There are 3 operating modes of the KV store:
-        # servlet_name is set, has_local_storage is True: This is an EnvServlet with a local KV store.
-        # servlet_name is set, has_local_storage is False: This is an ObjStore class that is not an EnvServlet,
-        #   but wants to proxy its writes to a running EnvServlet.
-        # servlet_name is unset, has_local_storage is False: This is an ObjStore class that by default only looks at
-        #   the global KV store and other servlets.
-        if not servlet_name and has_local_storage:
-            raise ValueError(
-                "Must provide a servlet name if the servlet has local storage."
-            )
-
-        # There can only be one initialized EnvServlet with a given name AND with local storage.
-        if has_local_storage and servlet_name:
-            if self.is_env_servlet_name_initialized(servlet_name):
-                raise ValueError(
-                    f"There already exists an EnvServlet with name {servlet_name}."
+        # We need to
+        if not self.is_initialized():
+            try:
+                self.cluster_servlet = initialize_ray_and_cluster_servlet(
+                    create_if_not_exists=initialize_ray
                 )
-            else:
-                self.mark_env_servlet_name_as_initialized(servlet_name)
 
-        self.servlet_name = servlet_name
-        self.has_local_storage = has_local_storage
-        if self.has_local_storage:
-            self._kv_store = {}
+            except ConnectionError:
+                # If ray.init fails, we're not on a cluster, so we don't need to do anything
+                pass
 
-        num_gpus = ray.cluster_resources().get("GPU", 0)
-        cuda_visible_devices = list(range(int(num_gpus)))
-        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
+        # We only want to actually proceed with "initializing" the object store if
+        # we are on a cluster where the Runhouse daemon is running.
+        if self.is_initialized():
+            # There are 3 operating modes of the KV store:
+            # servlet_name is set, has_local_storage is True: This is an EnvServlet with a local KV store.
+            # servlet_name is set, has_local_storage is False: This is an ObjStore class that is not an EnvServlet,
+            #   but wants to proxy its writes to a running EnvServlet.
+            # servlet_name is unset, has_local_storage is False: This is an ObjStore class that by default only looks at
+            #   the global KV store and other servlets.
+            if not servlet_name and has_local_storage:
+                raise ValueError(
+                    "Must provide a servlet name if the servlet has local storage."
+                )
+
+            # There can only be one initialized EnvServlet with a given name AND with local storage.
+            if has_local_storage and servlet_name:
+                if self.is_env_servlet_name_initialized(servlet_name):
+                    raise ValueError(
+                        f"There already exists an EnvServlet with name {servlet_name}."
+                    )
+                else:
+                    self.mark_env_servlet_name_as_initialized(servlet_name)
+
+            self.servlet_name = servlet_name
+            self.has_local_storage = has_local_storage
+            if self.has_local_storage:
+                self._kv_store = {}
+
+            num_gpus = ray.cluster_resources().get("GPU", 0)
+            cuda_visible_devices = list(range(int(num_gpus)))
+            os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(
+                map(str, cuda_visible_devices)
+            )
 
     ##############################################
     # Generic helpers
