@@ -176,7 +176,7 @@ class Cluster(Resource):
         return config
 
     def endpoint(self, external=False):
-        """Endpoint for the cluster's RPC server. If external is True, will only return the external url,
+        """Endpoint for the cluster's Daemon server. If external is True, will only return the external url,
         and will return None otherwise (e.g. if a tunnel is required). If external is False, will either return
         the external url if it exists, or will set up the connection (based on connection_type) and return
         the internal url (including the local connected port rather than the sever port). If cluster is not up,
