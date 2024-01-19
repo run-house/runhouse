@@ -77,7 +77,7 @@ class TestHTTPServerDocker:
 
         response = http_client.get("/keys", headers=rns_client.request_headers())
         assert response.status_code == 200
-        assert key in b64_unpickle(response.json().get("data"))
+        assert key in response.json().get("data")
 
     @pytest.mark.level("local")
     def test_rename_object(self, http_client):
@@ -90,7 +90,7 @@ class TestHTTPServerDocker:
         assert response.status_code == 200
 
         response = http_client.get("/keys", headers=rns_client.request_headers())
-        assert new_key in b64_unpickle(response.json().get("data"))
+        assert new_key in response.json().get("data")
 
     @pytest.mark.level("local")
     def test_delete_obj(self, http_client):
@@ -106,7 +106,7 @@ class TestHTTPServerDocker:
         assert response.status_code == 200
 
         response = http_client.get("/keys", headers=rns_client.request_headers())
-        assert key not in b64_unpickle(response.json().get("data"))
+        assert key not in response.json().get("data")
 
     @pytest.mark.level("local")
     def test_call_module_method(self, http_client, cluster):
@@ -438,7 +438,7 @@ class TestHTTPServerNoDocker:
             "/keys",
             headers=rns_client.request_headers(),
         )
-        assert new_key in b64_unpickle(response.json().get("data"))
+        assert new_key in response.json().get("data")
 
     @pytest.mark.level("unit")
     def test_get_keys(self, client):
@@ -447,7 +447,7 @@ class TestHTTPServerNoDocker:
             headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
-        assert "key2" in b64_unpickle(response.json().get("data"))
+        assert "key2" in response.json().get("data")
 
     @pytest.mark.level("unit")
     def test_delete_obj(self, client):
@@ -463,7 +463,7 @@ class TestHTTPServerNoDocker:
         assert response.status_code == 200
 
         response = client.get("/keys", headers=rns_client.request_headers())
-        assert key not in b64_unpickle(response.json().get("data"))
+        assert key not in response.json().get("data")
 
     # TODO [JL]: Test call_module_method and async_call with local and not just Docker.
 

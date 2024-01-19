@@ -295,7 +295,7 @@ class TestHTTPClient:
 
         test_env = "test_env"
         self.client.keys(env=test_env)
-        mock_request.assert_called_with(f"keys/?env={test_env}", req_type="get")
+        mock_request.assert_called_with(f"keys/?env_name={test_env}", req_type="get")
 
     @pytest.mark.level("unit")
     @patch("runhouse.servers.http.HTTPClient.request")

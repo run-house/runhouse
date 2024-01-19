@@ -420,5 +420,9 @@ class HTTPClient:
     def keys(self, env=None):
         if env is not None and not isinstance(env, str):
             env = _get_env_from(env)
-            env = env.name
-        return self.request(f"keys/?env={env}" if env else "keys", req_type="get")
+            env_name = env.name
+        else:
+            env_name = env
+        return self.request(
+            f"keys/?env_name={env_name}" if env_name else "keys", req_type="get"
+        )
