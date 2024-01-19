@@ -215,8 +215,3 @@ class TestServlet:
         )
 
         assert b64_unpickle(resp.data) == 3
-
-    @pytest.mark.skip("Not implemented yet.")
-    @pytest.mark.level("unit")
-    def cancel_run(self, test_servlet):
-        pass

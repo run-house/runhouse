@@ -411,16 +411,6 @@ class HTTPClient:
             err_str=f"Error deleting keys {keys}",
         )
 
-    def cancel(self, key, force=False):
-        # Note key can be set to "all" to cancel all runs
-        return self.request(
-            "cancel",
-            req_type="post",
-            data=pickle_b64(force),
-            key=key,
-            err_str=f"Error cancelling runs {key}",
-        )
-
     def keys(self, env=None):
         if env is not None and not isinstance(env, str):
             env = _get_env_from(env)
