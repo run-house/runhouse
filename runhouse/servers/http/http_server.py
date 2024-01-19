@@ -38,7 +38,7 @@ from runhouse.servers.http.http_utils import (
     ServerSettings,
 )
 from runhouse.servers.nginx.config import NginxConfig
-from runhouse.servers.obj_store import initialize_cluster_servlet, ObjStore
+from runhouse.servers.obj_store import initialize_ray_and_cluster_servlet, ObjStore
 
 logger = logging.getLogger(__name__)
 
@@ -158,17 +158,14 @@ class HTTPServer:
                     ]
                 }
 
-        if not ray.is_initialized():
-            ray.init(
-                ignore_reinit_error=True,
-                runtime_env=runtime_env,
-                namespace="runhouse",
-            )
-
         # This should already be initialized by the start script
         # But if the HTTPServer was started standalone in a test,
         # We still want to make sure the cluster servlet is initialized
-        initialize_cluster_servlet()
+        if not ray.is_initialized():
+            initialize_ray_and_cluster_servlet(create_if_not_exists=True)
+
+        # Puts without an env here will be sent to the base env.
+        obj_store.initialize("base")
 
         # TODO disabling due to latency, figure out what to do with this
         # try:
@@ -192,9 +189,6 @@ class HTTPServer:
             create=True,
             runtime_env=runtime_env,
         )
-
-        # Puts without an env here will be sent to the base env.
-        obj_store.initialize("base")
 
         HTTPServer.register_activity()
 
@@ -898,6 +892,8 @@ if __name__ == "__main__":
     # The object store and the cluster servlet within it need to be
     # initiailzed in order to call `obj_store.get_cluster_config()`, which
     # uses the object store to load the cluster config from Ray.
+    initialize_ray_and_cluster_servlet(create_if_not_exists=True)
+
     obj_store.initialize("base")
 
     cluster_config = obj_store.get_cluster_config()
