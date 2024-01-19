@@ -456,26 +456,6 @@ class EnvServlet:
                 output_type=OutputType.EXCEPTION,
             )
 
-    def rename_object(self, message: Message):
-        self.register_activity()
-        # We may not want to deserialize the object here in case the object requires dependencies
-        # (to be used inside an env) which aren't present in the BaseEnv.
-        old_key, new_key = b64_unpickle(message.data)
-        logger.info(
-            f"Message received from client to rename object {old_key} to {new_key}"
-        )
-        try:
-            obj_store.rename(old_key, new_key)
-            return Response(output_type=OutputType.SUCCESS)
-        except Exception as e:
-            logger.exception(e)
-            self.register_activity()
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
-
     def delete_obj(self, message: Union[Message, List], _intra_cluster=False):
         self.register_activity()
         keys = b64_unpickle(message.data) if not _intra_cluster else message
@@ -564,12 +544,8 @@ class EnvServlet:
         return obj_store.put_resource_local(resource_config, state, dryrun)
 
     @error_handling_decorator
-    def put_local(self, key: Any, data: Any, serialization: Optional[str] = "pickle"):
+    def put_local(self, key: Any, data: Any, serialization: Optional[str] = None):
         return obj_store.put_local(key, data)
-
-    @error_handling_decorator
-    def pop_local(self, key: Any, serialization: Optional[str] = "pickle", *args):
-        return obj_store.pop_local(key, *args)
 
     ##############################################################
     # IPC methods for interacting with local object store only
@@ -584,9 +560,17 @@ class EnvServlet:
         self.register_activity()
         return obj_store.get_local(key, default)
 
+    def rename_local(self, key: Any, new_key: Any):
+        self.register_activity()
+        return obj_store.rename_local(key, new_key)
+
     def contains_local(self, key: Any):
         self.register_activity()
         return obj_store.contains_local(key)
+
+    def pop_local(self, key: Any, *args):
+        self.register_activity()
+        return obj_store.pop_local(key, *args)
 
     def delete_local(self, key: Any):
         self.register_activity()

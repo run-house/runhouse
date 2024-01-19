@@ -32,6 +32,7 @@ from runhouse.servers.http.http_utils import (
     pickle_b64,
     PutObjectParams,
     PutResourceParams,
+    RenameObjectParams,
     Response,
     ServerSettings,
 )
@@ -535,12 +536,17 @@ class HTTPServer:
             return handle_exception_response(e, traceback.format_exc())
 
     @staticmethod
-    @app.put("/object")
+    @app.post("/rename")
     @validate_cluster_access
-    def rename_object(request: Request, message: Message):
-        return HTTPServer.call_in_env_servlet(
-            "rename_object", [message], env=message.env, lookup_env_for_name=message.key
-        )
+    def rename_object(request: Request, params: RenameObjectParams):
+        try:
+            obj_store.rename(
+                old_key=params.key,
+                new_key=params.new_key,
+            )
+            return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(e, traceback.format_exc())
 
     @staticmethod
     @app.delete("/object")

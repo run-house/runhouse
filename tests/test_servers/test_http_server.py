@@ -13,6 +13,7 @@ from runhouse.servers.http.http_utils import (
     pickle_b64,
     PutObjectParams,
     PutResourceParams,
+    RenameObjectParams,
 )
 
 from tests.utils import friend_account
@@ -92,9 +93,10 @@ class TestHTTPServerDocker:
     def test_rename_object(self, http_client):
         old_key = "key1"
         new_key = "key2"
-        data = pickle_b64((old_key, new_key))
-        response = http_client.put(
-            "/object", json={"data": data}, headers=rns_client.request_headers()
+        response = http_client.post(
+            "/rename",
+            json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
+            headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
 
@@ -328,9 +330,10 @@ class TestHTTPServerDockerDenAuthOnly:
     def test_rename_object_with_invalid_token(self, http_client):
         old_key = "key1"
         new_key = "key2"
-        data = pickle_b64((old_key, new_key))
-        response = http_client.put(
-            "/object", json={"data": data}, headers=INVALID_HEADERS
+        response = http_client.post(
+            "/rename",
+            json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
+            headers=INVALID_HEADERS,
         )
         assert response.status_code == 403
         assert "Cluster access is required for API" in response.text
@@ -443,10 +446,9 @@ class TestHTTPServerNoDocker:
     def test_rename_object(self, client):
         old_key = "key1"
         new_key = "key2"
-        data = pickle_b64((old_key, new_key))
-        response = client.put(
-            "/object",
-            json={"data": data},
+        response = client.post(
+            "/rename",
+            json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
             headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
@@ -557,9 +559,10 @@ class TestHTTPServerNoDockerDenAuthOnly:
     def test_rename_object_with_invalid_token(self, local_client_with_den_auth):
         old_key = "key1"
         new_key = "key2"
-        data = pickle_b64((old_key, new_key))
-        resp = local_client_with_den_auth.put(
-            "/object", json={"data": data}, headers=INVALID_HEADERS
+        resp = local_client_with_den_auth.post(
+            "/rename",
+            json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
+            headers=INVALID_HEADERS,
         )
         assert resp.status_code == 403
 
