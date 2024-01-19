@@ -204,19 +204,26 @@ def kubernetes_cluster(
     **kwargs,
 ) -> OnDemandCluster:
     
+    # if user passes server_connection_type or provider via kwargs to kubernetes_cluster
     server_connection_type_passed = kwargs.pop("server_connection_type", None)
-    provider = kwargs.pop("provider", None)
+    provider_passed = kwargs.pop("provider", None)
 
-    if server_connection_type_passed or provider is not None:
+    if provider_passed is not None and provider_passed != "kubernetes":
         raise ValueError(
-            "You passed server_connection_type and provider twice. Aborting."
-        )
-
-    if server_connection_type is not None and not ServerConnectionType.SSH:
-        raise ValueError(
-            f"Kubernetes Cluster currently only supports a server connection type of `ssh`. Aborting"
+            f"Runhouse K8s Cluster provider is by default `kubernetes`. You passed {provider_passed}."
         )
     
+    if server_connection_type_passed is not None and server_connection_type_passed != ServerConnectionType.SSH:
+        raise ValueError(
+            f"Runhouse K8s Cluster server connection type must be set to `ssh`. You passed {server_connection_type_passed}."
+        )
+    
+    # checking server_connection_type passed over from ondemand_cluster factory method
+    if server_connection_type is not None and server_connection_type != ServerConnectionType.SSH:
+        raise ValueError(
+            f"Runhouse K8s Cluster server connection type must be set to `ssh`. You passed {server_connection_type}."
+        )
+
     server_connection_type = ServerConnectionType.SSH
 
     if name in RESERVED_SYSTEM_NAMES:
