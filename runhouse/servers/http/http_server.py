@@ -18,18 +18,18 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
 from runhouse.constants import CLUSTER_CONFIG_PATH, RH_LOGFILE_PATH
-from runhouse.globals import configs, env_servlets, obj_store, rns_client
+from runhouse.globals import configs, obj_store, rns_client
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.auth import hash_token, verify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
-    b64_unpickle,
     get_token_from_request,
     load_current_cluster,
     Message,
     OutputType,
     pickle_b64,
+    PutResourceParams,
     Response,
     ServerSettings,
 )
@@ -308,31 +308,23 @@ class HTTPServer:
     @staticmethod
     @app.post("/resource")
     @validate_cluster_access
-    def put_resource(request: Request, message: Message):
-        # if resource is env and not yet a servlet, construct env servlet
-        if message.env and message.env not in env_servlets.keys():
-            resource = b64_unpickle(message.data)[0]
-            if resource["resource_type"] == "env":
-                runtime_env = (
-                    {"conda_env": resource["env_name"]}
-                    if resource["resource_subtype"] == "CondaEnv"
-                    else {}
-                )
-
-                _ = ObjStore.get_env_servlet(
-                    env_name=message.env,
-                    create=True,
-                    runtime_env=runtime_env,
-                    resources=resource.get("compute", None),
-                )
-
-        return HTTPServer.call_in_env_servlet(
-            "put_resource",
-            [message],
-            env=message.env,
-            create=True,
-            lookup_env_for_name=message.key,
-        )
+    def put_resource(request: Request, params: PutResourceParams):
+        HTTPServer.register_activity()
+        try:
+            env_name = params.env_name or "base"
+            return obj_store.put_resource(
+                serialized_data=params.serialized_data,
+                serialization=params.serialization,
+                env_name=env_name,
+            )
+        except Exception as e:
+            logger.exception(e)
+            HTTPServer.register_activity()
+            return Response(
+                error=pickle_b64(e),
+                traceback=pickle_b64(traceback.format_exc()),
+                output_type=OutputType.EXCEPTION,
+            )
 
     @staticmethod
     @app.post("/{module}/{method}")

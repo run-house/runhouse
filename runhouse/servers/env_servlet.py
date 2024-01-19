@@ -6,6 +6,7 @@ import signal
 import threading
 import time
 import traceback
+from functools import wraps
 from typing import Any, List, Optional, Union
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
@@ -19,16 +20,51 @@ from runhouse.resources.queues import Queue
 from runhouse.resources.resource import Resource
 from runhouse.rns.utils.api import ResourceVisibility
 
-from runhouse.rns.utils.names import _generate_default_name
+# from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.http_utils import (
     b64_unpickle,
+    deserialize_data,
     Message,
     OutputType,
     pickle_b64,
     Response,
+    serialize_data,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def error_handling_decorator(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        EnvServlet.register_activity()
+        serialization = kwargs.pop("serialization", None)
+        serialized_data = kwargs.pop("data", None)
+        deserialized_data = deserialize_data(serialized_data, serialization)
+        kwargs["data"] = deserialized_data
+
+        try:
+            output = func(*args, **kwargs)
+            if output is not None:
+                serialized_data = serialize_data(output, serialization)
+                return Response(
+                    output_type=OutputType.RESULT_SERIALIZED,
+                    data=serialized_data,
+                    serialization=serialization,
+                )
+            else:
+                return Response(
+                    output_type=OutputType.SUCCESS,
+                )
+        except Exception as e:
+            logger.exception(e)
+            return Response(
+                error=pickle_b64(e),
+                traceback=pickle_b64(traceback.format_exc()),
+                output_type=OutputType.EXCEPTION,
+            )
+
+    return wrapper
 
 
 class EnvServlet:
@@ -45,60 +81,6 @@ class EnvServlet:
     @staticmethod
     def register_activity():
         set_last_active_time_to_now()
-
-    def put_resource(self, message: Message):
-        self.register_activity()
-        try:
-            resource_config, state, dryrun = b64_unpickle(message.data)
-            state = state or {}
-            # Resolve any sub-resources which are string references to resources already sent to this cluster.
-            # We need to pop the resource's own name so it doesn't get resolved if it's already present in the
-            # obj_store.
-            name = resource_config.pop("name")
-            subtype = resource_config.pop("resource_subtype")
-            provider = (
-                resource_config.pop("provider")
-                if "provider" in resource_config
-                else None
-            )
-
-            resource_config = obj_store.get_obj_refs_dict(resource_config)
-            resource_config["name"] = name
-            resource_config["resource_subtype"] = subtype
-            if provider:
-                resource_config["provider"] = provider
-
-            logger.info(
-                f"Message received from client to construct resource: {resource_config}"
-            )
-
-            resource = Resource.from_config(config=resource_config, dryrun=dryrun)
-
-            for attr, val in state.items():
-                setattr(resource, attr, val)
-
-            name = (
-                resource.name
-                or message.key
-                or _generate_default_name(prefix=resource.RESOURCE_TYPE)
-            )
-            if isinstance(resource, Module):
-                resource.rename(name)
-            else:
-                resource.name = name
-            obj_store.put(resource.name, resource)
-
-            self.register_activity()
-            # Return the name in case we had to set it
-            return Response(output_type=OutputType.RESULT, data=pickle_b64(name))
-        except Exception as e:
-            logger.exception(e)
-            self.register_activity()
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
 
     def call_module_method(
         self,
@@ -595,7 +577,25 @@ class EnvServlet:
         return Response(data=pickle_b64(keys), output_type=OutputType.RESULT)
 
     ##############################################################
+    # Methods decorated with a standardized error decorating handler
+    # These catch exceptions and wrap the output in a Response object.
+    # They also handle arbitrary serialization and deserialization.
+    # NOTE: These need to take in "data" and "serialization" as arguments
+    # even if unused, because they are used by the decorator
+    ##############################################################
+    @error_handling_decorator
+    def put_resource_local(
+        self,
+        data: Any,  # This first comes in a serialized format which the decorator re-populates after deserializing
+        serialization: Optional[str] = None,
+    ):
+        resource_config, state, dryrun = data
+        return obj_store.put_resource_local(resource_config, state, dryrun)
+
+    ##############################################################
     # IPC methods for interacting with local object store only
+    # These do not catch exceptions, and do not wrap the output
+    # in a Response object.
     ##############################################################
     def keys_local(self):
         self.register_activity()

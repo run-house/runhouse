@@ -8,7 +8,7 @@ import pytest
 import runhouse as rh
 
 from runhouse.globals import rns_client
-from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
+from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64, PutResourceParams
 
 from tests.utils import friend_account
 
@@ -58,7 +58,9 @@ class TestHTTPServerDocker:
         resource = rh.blob(data=blob_data, system=cluster)
         data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
         response = http_client.post(
-            "/resource", json={"data": data}, headers=rns_client.request_headers()
+            "/resource",
+            json=PutResourceParams(serialized_data=data, serialization="pickle").dict(),
+            headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
 
@@ -266,7 +268,9 @@ class TestHTTPServerDockerDenAuthOnly:
         resource = rh.blob(blob_data, system=cluster)
         data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
         response = http_client.post(
-            "/resource", json={"data": data}, headers=INVALID_HEADERS
+            "/resource",
+            json=PutResourceParams(serialized_data=data, serialization="pickle").dict(),
+            headers=INVALID_HEADERS,
         )
         assert response.status_code == 403
         assert "Cluster access is required for API" in response.text
@@ -401,7 +405,9 @@ class TestHTTPServerNoDocker:
             data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
             response = client.post(
                 "/resource",
-                json={"data": data},
+                json=dict(
+                    PutResourceParams(serialized_data=data, serialization="pickle")
+                ),
                 headers=rns_client.request_headers(),
             )
             assert response.status_code == 200
@@ -507,7 +513,11 @@ class TestHTTPServerNoDockerDenAuthOnly:
             state = None
             data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
             resp = local_client_with_den_auth.post(
-                "/resource", json={"data": data}, headers=INVALID_HEADERS
+                "/resource",
+                json=dict(
+                    PutResourceParams(serialized_data=data, serialization="pickle")
+                ),
+                headers=INVALID_HEADERS,
             )
 
             assert resp.status_code == 403
