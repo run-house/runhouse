@@ -545,7 +545,7 @@ class Cluster(Resource):
 
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
-    ) -> Tuple[SSHTunnelForwarder, int]:
+    ) -> Union[SSHTunnelForwarder, SkySSHRunner]:
         return ssh_tunnel(
             address=self.address,
             ssh_creds=self.ssh_creds,
