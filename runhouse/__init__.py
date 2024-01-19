@@ -10,6 +10,7 @@ from runhouse.resources.hardware import (
     _current_cluster,
     cluster,
     Cluster,
+    kubernetes_cluster,
     ondemand_cluster,
     OnDemandCluster,
     sagemaker_cluster,
