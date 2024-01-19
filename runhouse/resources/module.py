@@ -266,6 +266,11 @@ class Module(Resource):
 
         return signature_metadata
 
+    def _signature_extensions(self, item):
+        """A way to manually extend the methods behind names in the signature. We can't use __getattr__
+        because it gets too crazy and circular with the overloaded __getattribute__ below."""
+        return None
+
     def endpoint(self, external: bool = False):
         """The endpoint of the module on the cluster. Returns an endpoint if one was manually set (e.g. if loaded
         down from a config). If not, request the endpoint from the Module's system.
@@ -505,6 +510,16 @@ class Module(Resource):
             if is_prop:
                 return attr
         except (ModuleNotFoundError, AttributeError) as e:
+            # If there's no client, we can't call this method remotely, so ur last shot is if it's in
+            # the _signature_extensions
+            if not client:
+                if self._signature_extensions(item):
+                    return self._signature_extensions(item)
+                else:
+                    raise e
+
+            # If there is a client, we can try calling this method remotely, and load the required properties
+            # down from the signature
             if item in self.signature:
                 _, is_prop, is_async, is_gen, local_default = list(
                     self.signature.get(item).values()

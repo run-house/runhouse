@@ -9,7 +9,7 @@ def summer(a: int, b: int):
 
 
 @app.post("/my/deeply/{arg1}/nested/endpoint/{arg2}")
-async def my_deeply_nested_saync_endpoint(arg1: str, arg2: int, arg3: float):
+async def my_deeply_nested_async_endpoint(arg1: str, arg2: int, arg3: float):
     return arg1, arg2, arg3
 
 
