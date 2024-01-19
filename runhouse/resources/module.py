@@ -531,15 +531,17 @@ class Module(Resource):
             if isinstance(envs, list):
                 env = _get_env_from(envs[i])
             else:
-                env_conf = self.env.config_for_rns
-                env_conf["name"] = f"{self.env.name}_replica_{i}"
-                env = Env.from_config(env_conf)
+                # We do a shallow copy here because we want to reuse the Package objects in the env
+                # If we reconstruct from scratch, the cluster may not have been saved (but has a name), and won't
+                # be populated properly inside the package's folder's system.
+                env = copy.copy(self.env)
+                env.name = f"{self.env.name}_replica_{i}"
 
             new_module = copy.copy(self)
-            new_module.name = None
+            new_module.name = name
             new_module.env = None
             new_module.system = None
-            new_module = new_module.to(self.system, env=env, name=name)
+            new_module = new_module.to(self.system, env=env)
             return new_module
 
         if parallel:

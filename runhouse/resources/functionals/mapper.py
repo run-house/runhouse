@@ -93,6 +93,19 @@ class Mapper(Module):
             # Run the function in parallel on the arguments, keeping the order.
             return list(p.imap(call_method_on_replica, jobs))
 
+        # TODO should we add an async version of this?
+        # async def call_method_on_args(argies):
+        #     return getattr(self.replicas[self.increment_counter()], self.method)(*argies, **kwargs)
+        #
+        # async def gather():
+        #     return await asyncio.gather(
+        #         *[
+        #             call_method_on_args(args)
+        #             for args in zip(*args)
+        #         ]
+        #     )
+        # return asyncio.run(gather())
+
     def starmap(self, args_lists: List, **kwargs):
         """Like :func:`map` except that the elements of the iterable are expected to be iterables
         that are unpacked as arguments. An iterable of ``[(1,2), (3, 4)]`` results in
@@ -147,7 +160,6 @@ def mapper(
     method: Optional[str] = None,
     num_replicas: int = -1,
     replicas: Optional[List[Module]] = None,
-    sync_workdir: bool = False,
     **kwargs
 ) -> Mapper:
     """
@@ -167,8 +179,6 @@ def mapper(
             * If ``num_replicas`` is less than the number of user-specified replicas, only ``num_replicas`` will
               be used.
         replicas (Optional[List[Module]], optional): List of user-specified replicas.
-        sync_workdir (bool, optional): Whether to sync the working dir to the replicated environments.
-            (Default: ``False``)
 
     Returns:
         Mapper: The resulting Mapper object.
@@ -187,13 +197,4 @@ def mapper(
     if isinstance(module, Function):
         method = method or "call"
 
-    backup = module.env.working_dir
-    if not sync_workdir:
-        module.env.working_dir = None
-
-    new_mapper = Mapper(module, method, num_replicas, replicas, **kwargs)
-
-    if not sync_workdir:
-        module.env.working_dir = backup
-
-    return new_mapper
+    return Mapper(module, method, num_replicas, replicas, **kwargs)
