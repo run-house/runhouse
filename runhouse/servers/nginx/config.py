@@ -5,6 +5,12 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+from runhouse.constants import (
+    DEFAULT_HTTP_PORT,
+    DEFAULT_HTTPS_PORT,
+    DEFAULT_SERVER_PORT,
+)
+
 
 class NginxConfig:
     BASE_CONFIG_PATH = "/etc/nginx/sites-available/fastapi"
@@ -27,7 +33,7 @@ class NginxConfig:
         force_reinstall=False,
     ):
         self.use_https = use_https
-        self.rh_server_port = rh_server_port or self.RH_SERVER_PORT
+        self.rh_server_port = rh_server_port or DEFAULT_SERVER_PORT
 
         self.ssl_cert_path = ssl_cert_path
         self.ssl_key_path = ssl_key_path
@@ -112,7 +118,7 @@ class NginxConfig:
         )
 
         replace_dict = {
-            "app_port": 80,
+            "app_port": DEFAULT_HTTP_PORT,
             "proxy_pass": f"http://127.0.0.1:{self.rh_server_port}/",
             "server_name": self.address,
         }
@@ -140,7 +146,7 @@ class NginxConfig:
         )
 
         replace_dict = {
-            "app_port": 443,
+            "app_port": DEFAULT_HTTPS_PORT,
             "proxy_pass": f"http://127.0.0.1:{self.rh_server_port}/",
             "server_name": self.address,
             "ssl_cert_path": self.ssl_cert_path,

@@ -6,6 +6,8 @@ from unittest.mock import ANY, MagicMock, Mock, mock_open, patch
 import pytest
 
 import runhouse as rh
+from runhouse.constants import DEFAULT_SERVER_PORT
+
 from runhouse.globals import rns_client
 
 from runhouse.servers.http import HTTPClient
@@ -22,7 +24,7 @@ class TestHTTPClient:
     def init_fixtures(self):
         args = dict(name="local-cluster", host="localhost", server_host="0.0.0.0")
         self.local_cluster = rh.cluster(**args)
-        self.client = HTTPClient("localhost", HTTPClient.DEFAULT_PORT)
+        self.client = HTTPClient("localhost", DEFAULT_SERVER_PORT)
 
     @pytest.mark.level("unit")
     @patch("requests.get")
@@ -36,7 +38,7 @@ class TestHTTPClient:
         self.client.check_server()
 
         mock_get.assert_called_once_with(
-            f"http://localhost:{HTTPClient.DEFAULT_PORT}/check",
+            f"http://localhost:{DEFAULT_SERVER_PORT}/check",
             timeout=HTTPClient.CHECK_TIMEOUT_SEC,
             verify=False,
         )
@@ -75,7 +77,7 @@ class TestHTTPClient:
         # Test with HTTPS enabled and a valid cert path
         client = HTTPClient(
             "localhost",
-            HTTPClient.DEFAULT_PORT,
+            DEFAULT_SERVER_PORT,
             use_https=True,
             cert_path="/valid/path",
         )
@@ -89,7 +91,7 @@ class TestHTTPClient:
         # Test with HTTPS enabled and an existing cert path
         client = HTTPClient(
             "localhost",
-            HTTPClient.DEFAULT_PORT,
+            DEFAULT_SERVER_PORT,
             use_https=True,
             cert_path="/self-signed/path",
         )
@@ -99,7 +101,7 @@ class TestHTTPClient:
         mock_exists.return_value = False
         client = HTTPClient(
             "localhost",
-            HTTPClient.DEFAULT_PORT,
+            DEFAULT_SERVER_PORT,
             use_https=True,
             cert_path="/invalid/path",
         )
