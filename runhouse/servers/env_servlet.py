@@ -491,6 +491,17 @@ class EnvServlet:
     def put_local(self, key: Any, data: Any, serialization: Optional[str] = None):
         return obj_store.put_local(key, data)
 
+    @error_handling_decorator
+    def call_local(
+        self,
+        key: Any,
+        method_name: str = None,
+        data: Any = None,
+        serialization: Optional[str] = None,
+    ):
+        args, kwargs = data or ([], {})
+        return obj_store.call_local(key, method_name, *args, **kwargs)
+
     ##############################################################
     # IPC methods for interacting with local object store only
     # These do not catch exceptions, and do not wrap the output
