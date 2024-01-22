@@ -120,6 +120,7 @@ class OnDemandCluster(Cluster):
                 "live_state": self._get_sky_state(),
             }
         )
+
         return config
 
     def _get_sky_state(self):
@@ -356,6 +357,34 @@ class OnDemandCluster(Cluster):
         cluster_dict = self.status(refresh=not dryrun)
         self._populate_connection_from_status_dict(cluster_dict)
 
+    def get_instance_type(self):
+        if "--" in self.instance_type:  # K8s specific syntax
+            return self.instance_type
+        elif ":" not in self.instance_type and "CPU" not in self.instance_type:
+            return self.instance_type
+
+        return None
+
+    def accelerators(self):
+        if (
+            self.instance_type
+            and ":" in self.instance_type
+            and "CPU" not in self.instance_type
+        ):
+            return self.instance_type
+
+        return None
+
+    def num_cpus(self):
+        if (
+            self.instance_type
+            and ":" in self.instance_type
+            and "CPU" in self.instance_type
+        ):
+            return self.instance_type.rsplit(":", 1)[1]
+
+        return None
+
     def up(self):
         """Up the cluster.
 
@@ -365,7 +394,7 @@ class OnDemandCluster(Cluster):
         if self.on_this_cluster():
             return self
 
-        if self.provider in ["aws", "gcp", "azure", "lambda", "cheapest"]:
+        if self.provider in ["aws", "gcp", "azure", "lambda", "kubernetes", "cheapest"]:
             task = sky.Task(num_nodes=self.num_instances)
             cloud_provider = (
                 sky.clouds.CLOUD_REGISTRY.from_str(self.provider)
@@ -374,22 +403,11 @@ class OnDemandCluster(Cluster):
             )
             task.set_resources(
                 sky.Resources(
+                    # TODO: confirm if passing instance type in old way (without --) works when provider is k8s
                     cloud=cloud_provider,
-                    instance_type=self.instance_type
-                    if self.instance_type
-                    and ":" not in self.instance_type
-                    and "CPU" not in self.instance_type
-                    else None,
-                    accelerators=self.instance_type
-                    if self.instance_type
-                    and ":" in self.instance_type
-                    and "CPU" not in self.instance_type
-                    else None,
-                    cpus=self.instance_type.rsplit(":", 1)[1]
-                    if self.instance_type
-                    and ":" in self.instance_type
-                    and "CPU" in self.instance_type
-                    else None,
+                    instance_type=self.get_instance_type(),
+                    accelerators=self.accelerators(),
+                    cpus=self.num_cpus(),
                     memory=self.memory,
                     region=self.region or configs.get("default_region"),
                     disk_size=self.disk_size,
@@ -412,8 +430,6 @@ class OnDemandCluster(Cluster):
                 idle_minutes_to_autostop=self.autostop_mins,
                 down=True,
             )
-        elif self.provider == "k8s":
-            raise NotImplementedError("Kubernetes Cluster provider not yet supported")
         else:
             raise ValueError(f"Cluster provider {self.provider} not supported.")
 
@@ -508,7 +524,26 @@ class OnDemandCluster(Cluster):
             >>> rh.ondemand_cluster("rh-cpu").ssh()
             >>> rh.ondemand_cluster("rh-cpu", node="3.89.174.234").ssh()
         """
-        if node is None:
+
+        if self.provider == "kubernetes":
+            command = f"kubectl get pods | grep {self.name}"
+
+            try:
+
+                output = subprocess.check_output(command, shell=True, text=True)
+
+                lines = output.strip().split("\n")
+                if lines:
+                    pod_name = lines[0].split()[0]
+                else:
+                    logger.info("No matching pods found.")
+            except subprocess.CalledProcessError as e:
+                raise Exception(f"Error: {e}")
+
+            cmd = f"kubectl exec -it {pod_name} -- /bin/bash"
+            subprocess.run(cmd, shell=True, check=True)
+
+        elif node is None:
             # SSH onto head node - can provide the name as specified in the local ~/.ssh/config
             subprocess.run(["ssh", f"{self.name}"])
         else:

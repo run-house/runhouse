@@ -139,9 +139,14 @@ def _start_server(
             f.readlines()  # Discard these, they're from the previous times the server was started
 
         # We do these one by one so it's more obvious where the error is if there is one
-        for cmd in cmds:
+        for i, cmd in enumerate(cmds):
             console.print(f"Executing `{cmd}`")
-            result = subprocess.run(shlex.split(cmd), text=True)
+            if (
+                i == len(cmds) - 1
+            ):  # last cmd is not being parsed correctly when ran with shlex.split
+                result = subprocess.run(cmd, shell=True, check=True)
+            else:
+                result = subprocess.run(shlex.split(cmd), text=True)
             # We don't want to raise an error if the server kill fails, as it may simply not be running
             if result.returncode != 0 and "pkill" not in cmd:
                 console.print(f"Error while executing `{cmd}`")

@@ -73,7 +73,7 @@ install_requires = [
     "opentelemetry-sdk",
     "pexpect",
     "pyarrow",
-    "pyOpenSSL>=21.1.0",
+    "pyOpenSSL>=23.3.0",
     "rich",
     "sentry-sdk",
     "skypilot[docker]==0.4.1",
@@ -104,6 +104,7 @@ extras_require = {
         "sagemaker",
         "paramiko>=3.2.0",
     ],
+    "kubernetes": ["kubernetes"],
 }
 
 extras_require["all"] = sum(extras_require.values(), [])
