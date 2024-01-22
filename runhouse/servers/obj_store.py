@@ -719,7 +719,7 @@ class ObjStore:
         resource_config: Dict[str, Any],
         state: Dict[Any, Any],
         dryrun: bool,
-    ) -> None:
+    ) -> str:
         from runhouse.resources.module import Module
         from runhouse.resources.resource import Resource
         from runhouse.rns.utils.names import _generate_default_name

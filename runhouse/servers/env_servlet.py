@@ -44,21 +44,31 @@ def error_handling_decorator(func):
             deserialized_data = deserialize_data(serialized_data, serialization)
             kwargs["data"] = deserialized_data
 
+        # If serialization is None, then we have not called this from the server,
+        # so we should return the result of the function directly, or raise
+        # the exception if there is one, instead of returning a Response object.
         try:
             output = func(*args, **kwargs)
             if output is not None:
-                serialized_data = serialize_data(output, serialization)
-                return Response(
-                    output_type=OutputType.RESULT_SERIALIZED,
-                    data=serialized_data,
-                    serialization=serialization,
-                )
+                if serialization is None:
+                    return output
+                else:
+                    serialized_data = serialize_data(output, serialization)
+                    return Response(
+                        output_type=OutputType.RESULT_SERIALIZED,
+                        data=serialized_data,
+                        serialization=serialization,
+                    )
             else:
                 return Response(
                     output_type=OutputType.SUCCESS,
                 )
         except Exception as e:
-            return handle_exception_response(e, traceback.format_exc())
+            if serialization is None:
+                raise e
+            else:
+                # For now, this is always "pickle" because we don't support json serialization of exceptions
+                return handle_exception_response(e, traceback.format_exc())
 
     return wrapper
 
