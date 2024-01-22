@@ -59,6 +59,7 @@ class Cluster(Resource):
     SERVER_STOP_CMD = f'pkill -f "{SERVER_START_CMD}"'
     # 2>&1 redirects stderr to stdout
     START_SCREEN_CMD = f"screen -dm bash -c \"{SERVER_START_CMD} 2>&1 | tee -a '{SERVER_LOGFILE}' 2>&1\""
+    START_NOHUP_CMD = f"nohup {SERVER_START_CMD} >> {SERVER_LOGFILE} 2>&1 &"
     RAY_START_CMD = f"ray start --head --port {DEFAULT_RAY_PORT}"
     # RAY_BOOTSTRAP_FILE = "~/ray_bootstrap_config.yaml"
     # --autoscaling-config=~/ray_bootstrap_config.yaml
@@ -546,7 +547,7 @@ class Cluster(Resource):
 
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
-    ) -> SSHTunnelForwarder:
+    ) -> Union[SSHTunnelForwarder, SkySSHRunner]:
         return ssh_tunnel(
             address=self.address,
             ssh_creds=self.ssh_creds,
@@ -558,7 +559,13 @@ class Cluster(Resource):
 
     @property
     def _use_https(self) -> bool:
-        return self.server_connection_type == ServerConnectionType.TLS
+        """Use HTTPS if server connection type is set to ``tls``"""
+
+        return (
+            self.server_connection_type == ServerConnectionType.TLS
+            if self.server_connection_type is not None
+            else False
+        )
 
     @property
     def _use_nginx(self) -> bool:
@@ -612,8 +619,33 @@ class Cluster(Resource):
             # TODO Add in BOOTSTRAP file if it exists?
             cmds.append(cls.RAY_START_CMD)
 
+        screen_check_cmd = "command -v screen"
+        screen_check = subprocess.run(
+            screen_check_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        if screen_check.returncode != 0:
+            logger.info(
+                "screen is not available on the system. Checking for nohup next."
+            )
+            screen = False
+
+        nohup = False
+        if not screen:
+            nohup_check_cmd = "command -v nohup"
+            nohup_check = subprocess.run(
+                nohup_check_cmd,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            if nohup_check.returncode != 0:
+                logger.info("nohup is not available on the system.")
+            else:
+                nohup = True
+
         server_start_cmd = cls.SERVER_START_CMD
         start_screen_cmd = cls.START_SCREEN_CMD
+        start_nohup_cmd = cls.START_NOHUP_CMD
 
         flags = []
 
@@ -686,6 +718,11 @@ class Cluster(Resource):
                 Path(cls.SERVER_LOGFILE).parent.mkdir(parents=True, exist_ok=True)
                 Path(cls.SERVER_LOGFILE).touch()
             cmds.append(start_screen_cmd)
+        elif nohup:
+            if create_logfile and not Path(cls.SERVER_LOGFILE).exists():
+                Path(cls.SERVER_LOGFILE).parent.mkdir(parents=True, exist_ok=True)
+                Path(cls.SERVER_LOGFILE).touch()
+            cmds.append(start_nohup_cmd)
         else:
             cmds.append(server_start_cmd)
 

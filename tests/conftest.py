@@ -183,9 +183,11 @@ from tests.fixtures.docker_cluster_fixtures import (
     shared_cluster,  # noqa: F401
     static_cpu_cluster,  # noqa: F401
 )
+
 from tests.fixtures.on_demand_cluster_fixtures import (
     a10g_gpu_cluster,  # noqa: F401
     k80_gpu_cluster,  # noqa: F401
+    kubernetes_cpu_cluster,  # noqa: F401
     multinode_cpu_cluster,  # noqa: F401
     on_demand_cluster,  # noqa: F401
     ondemand_cluster,  # noqa: F401
@@ -302,7 +304,9 @@ default_fixtures[TestLevels.LOCAL] = {
         "docker_cluster_pk_ssh_den_auth",
     ]
 }
-default_fixtures[TestLevels.MINIMAL] = {"cluster": ["ondemand_cpu_cluster"]}
+default_fixtures[TestLevels.MINIMAL] = {
+    "cluster": ["ondemand_cpu_cluster", "kubernetes_cpu_cluster"]
+}
 default_fixtures[TestLevels.THOROUGH] = {
     "cluster": [
         "docker_cluster_pk_ssh_no_auth",
