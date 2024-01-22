@@ -209,23 +209,13 @@ def kubernetes_cluster(
     **kwargs,
 ) -> OnDemandCluster:
 
-    # if user passes server_connection_type or provider via kwargs to kubernetes_cluster
-    server_connection_type_passed = kwargs.pop("server_connection_type", None)
+    # if user passes provider via kwargs to kubernetes_cluster
     provider_passed = kwargs.pop("provider", None)
 
     if provider_passed is not None and provider_passed != "kubernetes":
         raise ValueError(
-            f"Runhouse K8s Cluster provider is by default `kubernetes`. "
+            f"Runhouse K8s Cluster provider must be `kubernetes`. "
             f"You passed {provider_passed}."
-        )
-
-    if (
-        server_connection_type_passed is not None
-        and server_connection_type_passed != ServerConnectionType.SSH
-    ):
-        raise ValueError(
-            f"Runhouse K8s Cluster server connection type must be set to `ssh`. "
-            f"You passed {server_connection_type_passed}."
         )
 
     # checking server_connection_type passed over from ondemand_cluster factory method
@@ -239,12 +229,6 @@ def kubernetes_cluster(
         )
 
     server_connection_type = ServerConnectionType.SSH
-
-    if name in RESERVED_SYSTEM_NAMES:
-        raise ValueError(
-            f"Cluster name {name} is a reserved name. Please use a different name which is not one of "
-            f"{RESERVED_SYSTEM_NAMES}."
-        )
 
     if context is not None and namespace is not None:
         warnings.warn(
@@ -396,6 +380,12 @@ def ondemand_cluster(
         >>> reloaded_cluster = rh.ondemand_cluster(name="rh-4-a100s")
     """
 
+    if name in RESERVED_SYSTEM_NAMES:
+        raise ValueError(
+            f"Cluster name {name} is a reserved name. Please use a different name which is not one of "
+            f"{RESERVED_SYSTEM_NAMES}."
+        )
+
     if provider == "kubernetes":
         namespace = kwargs.pop("namespace", None)
         kube_config_path = kwargs.pop("kube_config_path", None)
@@ -508,12 +498,6 @@ def ondemand_cluster(
                 return c
         except ValueError:
             pass
-
-    if name in RESERVED_SYSTEM_NAMES:
-        raise ValueError(
-            f"Cluster name {name} is a reserved name. Please use a different name which is not one of "
-            f"{RESERVED_SYSTEM_NAMES}."
-        )
 
     c = OnDemandCluster(
         instance_type=instance_type,

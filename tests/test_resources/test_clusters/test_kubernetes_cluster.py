@@ -37,6 +37,4 @@ class TestKubernetesCluster(
             system=kubernetes_cpu_cluster, reqs=["./"]
         )
         # TODO: This test will be improved so that it passes on any cluster setting
-        assert (
-            num_cpus_cluster() == "Num cpus: 4"
-        )
+        assert num_cpus_cluster() == "Num cpus: 4"
