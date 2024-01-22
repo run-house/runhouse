@@ -1,3 +1,4 @@
+import inspect
 import logging
 import os
 from typing import Any, Dict, List, Optional, Set, Union
@@ -651,7 +652,149 @@ class ObjStore:
             )
 
     ##############################################
-    # Get several keys for function initialization utiliies
+    # KV Store: Call
+    ##############################################
+    @staticmethod
+    def call_for_env_servlet_name(
+        env_servlet_name: str,
+        key: Any,
+        method_name: str,
+        data: Any = None,
+        serialization: Optional[str] = None,
+    ):
+        return ObjStore.call_actor_method(
+            ObjStore.get_env_servlet(env_servlet_name),
+            "call_local",
+            key,
+            method_name=method_name,
+            data=data,
+            serialization=serialization,
+        )
+
+    def call_local(self, key: str, method_name: Optional[str] = None, *args, **kwargs):
+        """Base call functionality: Load the module, and call a method on it with args and kwargs. Nothing else.
+
+        Handles calls on properties, methods, coroutines, and generators.
+
+        """
+        if self.servlet_name is None or not self.has_local_storage:
+            raise NoLocalObjStoreError()
+
+        # TODO auth
+        module = self.get_local(key, default=KeyError)
+
+        from runhouse.resources.module import Module
+
+        # Process any inputs which need to be resolved
+        args = [
+            arg.fetch() if (isinstance(arg, Module) and arg._resolve) else arg
+            for arg in args
+        ]
+        kwargs = {
+            k: v.fetch() if (isinstance(v, Module) and v._resolve) else v
+            for k, v in kwargs.items()
+        }
+
+        method_name = method_name or "__call__"
+
+        from runhouse.resources.module import Module
+
+        try:
+            if isinstance(module, Module):
+                # Force this to be fully local for Modules so we don't have any circular stuff calling into other
+                # envs or systems.
+                method = module.local.methodname
+            else:
+                method = getattr(module, method_name)
+        except AttributeError:
+            logger.debug(module.__dict__)
+            raise ValueError(f"Method {method_name} not found on module {module}")
+
+        if hasattr(method, "__call__") or method_name == "__call__":
+            # If method is callable, call it and return the result
+            logger.info(
+                f"{self.servlet_name} env: Calling method {method_name} on module {key}"
+            )
+            res = method(*args, **kwargs)
+        else:
+            # Method is a property, return the value
+            logger.info(
+                f"{self.servlet_name} servlet: Getting property {method_name} on module {key}"
+            )
+            res = method
+
+        laziness_type = (
+            "coroutine"
+            if inspect.iscoroutine(res)
+            else "generator"
+            if inspect.isgenerator(res)
+            else "async generator"
+            if inspect.isasyncgen(res)
+            else None
+        )
+
+        if laziness_type:
+            # If the result is a coroutine or generator, we can't return it over the process boundary
+            # and need to store it to be retrieved later. In this case we return a "retrievable".
+            res_key = f"{key}_{method_name}"
+            logger.debug(
+                f"{self.servlet_name} servlet: Method {method_name} on module {key} is a {laziness_type}. "
+                f"Storing result to be retrieved later at result key {res}."
+            )
+            return self.construct_call_retrievable(res, res_key, laziness_type)
+
+        return res
+
+    @staticmethod
+    def construct_call_retrievable(res, res_key, laziness_type):
+        if laziness_type == "coroutine":
+            from runhouse.resources.future_module import FutureModule
+
+            # TODO make this one-time-use
+            return FutureModule(future=res, name=res_key)
+
+        elif laziness_type == "generator":
+            from runhouse.resources.future_module import GeneratorModule
+
+            return GeneratorModule(future=res, name=res_key)
+
+        elif laziness_type == "async generator":
+            from runhouse.resources.future_module import AsyncGeneratorModule
+
+            return AsyncGeneratorModule(future=res, name=res_key)
+
+        else:
+            raise ValueError(f"Invalid laziness type {laziness_type}")
+
+    def call(
+        self,
+        key: str,
+        method_name: str,
+        data: Any = None,
+        serialization: Optional[str] = None,
+    ):
+        env_servlet_name_containing_key = self.get_env_servlet_name_for_key(key)
+
+        if (
+            env_servlet_name_containing_key == self.servlet_name
+            and self.has_local_storage
+        ):
+            from runhouse.servers.http.http_utils import deserialize_data
+
+            args, kwargs = deserialize_data(data, serialization)
+
+            return self.call_local(key, method_name, *args, **kwargs)
+        else:
+            return self.call_for_env_servlet_name(
+                env_servlet_name_containing_key,
+                key,
+                method_name,
+                data=data,
+                serialization=serialization,
+            )
+
+    ##############################################
+    # Get several keys for function initialization utilities
     ##############################################
     def get_list(self, keys: List[str], default: Optional[Any] = None):
         return [self.get(key, default=default or key) for key in keys]

@@ -1,6 +1,7 @@
 import logging
 import pkgutil
 import shlex
+import subprocess
 import time
 from pathlib import Path
 
@@ -39,6 +40,14 @@ def named_cluster():
     c = rh.cluster(**args)
     init_args[id(c)] = args
     return c
+
+
+@pytest.fixture(scope="session")
+def local_daemon(request):
+    if rh.here == "file" or not request.config.getoption("--detached"):
+        subprocess.call(["runhouse", "restart"])
+
+    yield rh.here
 
 
 @pytest.fixture(scope="session")
