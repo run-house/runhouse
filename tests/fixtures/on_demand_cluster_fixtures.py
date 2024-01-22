@@ -4,6 +4,8 @@ import pytest
 
 import runhouse as rh
 
+from runhouse.constants import DEFAULT_HTTPS_PORT
+
 from tests.conftest import init_args
 
 
@@ -70,7 +72,7 @@ def ondemand_https_cluster_with_auth():
         "instance_type": "CPU:2+",
         "den_auth": True,
         "server_connection_type": "tls",
-        "open_ports": [443],
+        "open_ports": [DEFAULT_HTTPS_PORT],
     }
     c = rh.ondemand_cluster(**args)
     c.up_if_not()

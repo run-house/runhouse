@@ -22,7 +22,15 @@ import requests.exceptions
 import sshtunnel
 from sshtunnel import SSHTunnelForwarder
 
-from runhouse.constants import CLUSTER_CONFIG_PATH, LOCALHOST
+from runhouse.constants import (
+    CLI_RESTART_CMD,
+    CLUSTER_CONFIG_PATH,
+    DEFAULT_HTTP_PORT,
+    DEFAULT_HTTPS_PORT,
+    DEFAULT_RAY_PORT,
+    DEFAULT_SERVER_PORT,
+    LOCALHOST,
+)
 from runhouse.globals import obj_store, rns_client
 from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware.utils import (
@@ -43,15 +51,10 @@ class Cluster(Resource):
     RESOURCE_TYPE = "cluster"
     REQUEST_TIMEOUT = 5  # seconds
 
-    DEFAULT_SERVER_PORT = 32300
-    DEFAULT_HTTP_PORT = 80
-    DEFAULT_HTTPS_PORT = 443
     DEFAULT_SSH_PORT = 22
-    DEFAULT_RAY_PORT = 6379
     LOCAL_HOSTS = ["localhost", LOCALHOST]
 
     SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
-    CLI_RESTART_CMD = "runhouse restart"
     SERVER_START_CMD = f"{sys.executable} -m runhouse.servers.http.http_server"
     SERVER_STOP_CMD = f'pkill -f "{SERVER_START_CMD}"'
     # 2>&1 redirects stderr to stdout
@@ -104,7 +107,7 @@ class Cluster(Resource):
         )
 
         self.server_connection_type = server_connection_type
-        self.server_port = server_port or self.DEFAULT_SERVER_PORT
+        self.server_port = server_port or DEFAULT_SERVER_PORT
         self.client_port = client_port
         self.ssh_port = ssh_port or self.DEFAULT_SSH_PORT
         self.server_host = server_host
@@ -177,7 +180,7 @@ class Cluster(Resource):
         return config
 
     def endpoint(self, external=False):
-        """Endpoint for the cluster's RPC server. If external is True, will only return the external url,
+        """Endpoint for the cluster's Daemon server. If external is True, will only return the external url,
         and will return None otherwise (e.g. if a tunnel is required). If external is False, will either return
         the external url if it exists, or will set up the connection (based on connection_type) and return
         the internal url (including the local connected port rather than the sever port). If cluster is not up,
@@ -367,9 +370,13 @@ class Cluster(Resource):
             return obj_store.put(key, obj, env=env)
         return self.client.put_object(key, obj, env=env)
 
-    def put_resource(self, resource: Resource, state=None, dryrun=False, env=None):
+    def put_resource(
+        self, resource: Resource, state: Dict = None, dryrun: bool = False, env=None
+    ):
         """Put the given resource on the cluster's object store. Returns the key (important if name is not set)."""
         self.check_server()
+
+        # Logic to get env_name from different ways env can be provided
         env = env or (
             resource.env
             if hasattr(resource, "env")
@@ -377,10 +384,19 @@ class Cluster(Resource):
             if resource.RESOURCE_TYPE == "env"
             else None
         )
+
+        if env and not isinstance(env, str):
+            env = _get_env_from(env)
+            env_name = env.name or env.env_name
+        else:
+            env_name = env
+
+        state = state or {}
         if self.on_this_cluster():
-            return obj_store.put(key=resource.name, value=resource, env=env)
+            data = (resource.config_for_rns, state, dryrun)
+            return obj_store.put_resource(serialized_data=data, env_name=env_name)
         return self.client.put_resource(
-            resource, state=state or {}, env=env, dryrun=dryrun
+            resource, state=state or {}, env_name=env_name, dryrun=dryrun
         )
 
     def rename(self, old_key: str, new_key: str):
@@ -397,20 +413,6 @@ class Cluster(Resource):
             return obj_store.keys()
         res = self.client.keys(env=env)
         return res
-
-    def cancel(self, key: str, force=False):
-        """Cancel a given run on cluster by its key."""
-        self.check_server()
-        if self.on_this_cluster():
-            return obj_store.cancel(key, force=force)
-        return self.client.cancel(key, force=force)
-
-    def cancel_all(self, force=False):
-        """Cancel all runs on cluster."""
-        self.check_server()
-        if self.on_this_cluster():
-            return obj_store.cancel_all(force=force)
-        return self.client.cancel("all", force=force)
 
     def delete(self, keys: Union[None, str, List[str]]):
         """Delete the given items from the cluster's object store. To delete all items, use `cluster.clear()`"""
@@ -570,7 +572,7 @@ class Cluster(Resource):
         """Use Nginx if the server port is set to the default HTTP (80) or HTTPS (443) port.
         Note: Nginx will serve as a reverse proxy, forwarding traffic from the server port to the Runhouse API
         server running on port 32300."""
-        return self.server_port in [self.DEFAULT_HTTP_PORT, self.DEFAULT_HTTPS_PORT]
+        return self.server_port in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]
 
     @property
     def _use_custom_cert(self):
@@ -802,7 +804,7 @@ class Cluster(Resource):
         use_local_telemetry = self.use_local_telemetry
 
         cmd = (
-            self.CLI_RESTART_CMD
+            CLI_RESTART_CMD
             + (" --no-restart-ray" if not restart_ray else "")
             + (" --use-https" if https_flag else "")
             + (" --use-nginx" if nginx_flag else "")
@@ -833,7 +835,7 @@ class Cluster(Resource):
             self.client.cert_path = self.cert_config.cert_path
 
         if restart_ray and len(self.ips) > 1:
-            self._start_ray_workers(self.DEFAULT_RAY_PORT)
+            self._start_ray_workers(DEFAULT_RAY_PORT)
 
         return status_codes
 
@@ -1266,6 +1268,10 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("test-cluster").notebook()
         """
+        # Roughly trying to follow:
+        # https://towardsdatascience.com/using-jupyter-notebook-running-on-a-remote-docker-container-via-ssh-ea2c3ebb9055
+        # https://docs.ray.io/en/latest/ray-core/using-ray-with-jupyter.html
+
         tunnel = self.ssh_tunnel(
             local_port=port_forward,
             num_ports_to_try=10,

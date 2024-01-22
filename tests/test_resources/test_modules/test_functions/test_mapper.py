@@ -110,7 +110,7 @@ class TestMapper:
     @pytest.mark.level("thorough")
     def test_multinode_map(self, multinode_cpu_cluster):
         num_replicas = 6
-        env = rh.env(compute={"cpus": 0.5}, reqs=["pytest"])
+        env = rh.env(compute={"CPU": 0.5}, reqs=["pytest"])
         pid_fn = rh.function(get_pid_and_ray_node).to(multinode_cpu_cluster, env=env)
         mapper = rh.mapper(pid_fn, num_replicas=num_replicas)
         assert len(mapper.replicas) == num_replicas

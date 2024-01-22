@@ -1,4 +1,5 @@
 import codecs
+import json
 import logging
 import re
 import sys
@@ -26,6 +27,28 @@ class ServerSettings(BaseModel):
     flush_auth_cache: Optional[bool] = None
 
 
+class PutResourceParams(BaseModel):
+    serialized_data: Any
+    serialization: Optional[str] = None
+    env_name: Optional[str] = None
+
+
+class PutObjectParams(BaseModel):
+    key: str
+    serialized_data: Any
+    serialization: Optional[str] = None
+    env_name: Optional[str] = None
+
+
+class RenameObjectParams(BaseModel):
+    key: str
+    new_key: str
+
+
+class DeleteObjectParams(BaseModel):
+    keys: List[str]
+
+
 class Args(BaseModel):
     args: Optional[List[Any]]
     kwargs: Optional[Dict[str, Any]]
@@ -36,6 +59,7 @@ class Response(BaseModel):
     error: Optional[str] = None
     traceback: Optional[str] = None
     output_type: str
+    serialization: Optional[str] = None
 
 
 class OutputType:
@@ -48,6 +72,7 @@ class OutputType:
     RESULT = "result"
     RESULT_LIST = "result_list"
     RESULT_STREAM = "result_stream"
+    RESULT_SERIALIZED = "result_serialized"
     SUCCESS_STREAM = "success_stream"  # No output, but with generators
     CONFIG = "config"
 
@@ -58,6 +83,39 @@ def pickle_b64(picklable):
 
 def b64_unpickle(b64_pickled):
     return pickle.loads(codecs.decode(b64_pickled.encode(), "base64"))
+
+
+def deserialize_data(data: Any, serialization: Optional[str]):
+    if data is None:
+        return None
+
+    if serialization == "json":
+        return json.loads(data)
+    elif serialization == "pickle":
+        return b64_unpickle(data)
+    else:
+        return data
+
+
+def serialize_data(data: Any, serialization: Optional[str]):
+    if data is None:
+        return None
+
+    if serialization == "json":
+        return json.dumps(data)
+    elif serialization == "pickle":
+        return pickle_b64(data)
+    else:
+        return data
+
+
+def handle_exception_response(exception, traceback):
+    logger.exception(exception)
+    return Response(
+        output_type=OutputType.EXCEPTION,
+        error=pickle_b64(exception),
+        traceback=pickle_b64(traceback),
+    )
 
 
 def get_token_from_request(request):
@@ -73,6 +131,8 @@ def load_current_cluster():
 
 
 def handle_response(response_data, output_type, err_str):
+    if output_type == OutputType.RESULT_SERIALIZED:
+        return deserialize_data(response_data["data"], response_data["serialization"])
     if output_type in [OutputType.RESULT, OutputType.RESULT_STREAM]:
         return b64_unpickle(response_data["data"])
     elif output_type == OutputType.CONFIG:

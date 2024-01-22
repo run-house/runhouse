@@ -6,10 +6,16 @@ from unittest.mock import ANY, MagicMock, Mock, mock_open, patch
 import pytest
 
 import runhouse as rh
+from runhouse.constants import DEFAULT_SERVER_PORT
+
 from runhouse.globals import rns_client
 
 from runhouse.servers.http import HTTPClient
-from runhouse.servers.http.http_utils import pickle_b64
+from runhouse.servers.http.http_utils import (
+    DeleteObjectParams,
+    pickle_b64,
+    PutObjectParams,
+)
 
 
 @pytest.mark.servertest
@@ -18,7 +24,7 @@ class TestHTTPClient:
     def init_fixtures(self):
         args = dict(name="local-cluster", host="localhost", server_host="0.0.0.0")
         self.local_cluster = rh.cluster(**args)
-        self.client = HTTPClient("localhost", HTTPClient.DEFAULT_PORT)
+        self.client = HTTPClient("localhost", DEFAULT_SERVER_PORT)
 
     @pytest.mark.level("unit")
     @patch("requests.get")
@@ -32,7 +38,7 @@ class TestHTTPClient:
         self.client.check_server()
 
         mock_get.assert_called_once_with(
-            f"http://localhost:{HTTPClient.DEFAULT_PORT}/check",
+            f"http://localhost:{DEFAULT_SERVER_PORT}/check",
             timeout=HTTPClient.CHECK_TIMEOUT_SEC,
             verify=False,
         )
@@ -71,7 +77,7 @@ class TestHTTPClient:
         # Test with HTTPS enabled and a valid cert path
         client = HTTPClient(
             "localhost",
-            HTTPClient.DEFAULT_PORT,
+            DEFAULT_SERVER_PORT,
             use_https=True,
             cert_path="/valid/path",
         )
@@ -85,7 +91,7 @@ class TestHTTPClient:
         # Test with HTTPS enabled and an existing cert path
         client = HTTPClient(
             "localhost",
-            HTTPClient.DEFAULT_PORT,
+            DEFAULT_SERVER_PORT,
             use_https=True,
             cert_path="/self-signed/path",
         )
@@ -95,7 +101,7 @@ class TestHTTPClient:
         mock_exists.return_value = False
         client = HTTPClient(
             "localhost",
-            HTTPClient.DEFAULT_PORT,
+            DEFAULT_SERVER_PORT,
             use_https=True,
             cert_path="/invalid/path",
         )
@@ -265,7 +271,7 @@ class TestHTTPClient:
         assert f"key {missing_key} not found" in str(context)
 
     @pytest.mark.level("unit")
-    @patch("runhouse.servers.http.HTTPClient.request")
+    @patch("runhouse.servers.http.HTTPClient.request_json")
     def test_put_object(self, mock_request):
         key = "my_list"
         value = list(range(5, 50, 2)) + ["a string"]
@@ -276,14 +282,14 @@ class TestHTTPClient:
         mock_request.assert_called_once_with(
             "object",
             req_type="post",
-            data=ANY,
-            key=key,
-            env=None,
+            json_dict=ANY,
             err_str=f"Error putting object {key}",
         )
 
-        actual_data = mock_request.call_args[1]["data"]
-        assert actual_data == expected_data
+        actual_data = PutObjectParams(**mock_request.call_args[1]["json_dict"])
+        assert actual_data.key == key
+        assert actual_data.serialized_data == expected_data
+        assert actual_data.serialization == "pickle"
 
     @pytest.mark.level("unit")
     @patch("runhouse.servers.http.HTTPClient.request")
@@ -295,26 +301,24 @@ class TestHTTPClient:
 
         test_env = "test_env"
         self.client.keys(env=test_env)
-        mock_request.assert_called_with(f"keys/?env={test_env}", req_type="get")
+        mock_request.assert_called_with(f"keys/?env_name={test_env}", req_type="get")
 
     @pytest.mark.level("unit")
-    @patch("runhouse.servers.http.HTTPClient.request")
+    @patch("runhouse.servers.http.HTTPClient.request_json")
     def test_delete(self, mock_request):
         keys = ["key1", "key2"]
-        expected_data = pickle_b64(keys)
 
         self.client.delete(keys=keys)
 
         mock_request.assert_called_once_with(
-            "object",
-            req_type="delete",
-            data=ANY,
-            env=None,
+            "delete_object",
+            req_type="post",
+            json_dict=ANY,
             err_str=f"Error deleting keys {keys}",
         )
 
-        actual_data = mock_request.call_args[1]["data"]
-        assert actual_data == expected_data
+        actual_data = DeleteObjectParams(**mock_request.call_args[1]["json_dict"])
+        assert actual_data.keys == keys
 
 
 if __name__ == "__main__":

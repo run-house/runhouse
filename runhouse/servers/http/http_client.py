@@ -3,7 +3,7 @@ import logging
 import time
 import warnings
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Dict, Optional, Union
 
 import requests
 
@@ -12,7 +12,15 @@ from runhouse.globals import rns_client
 from runhouse.resources.envs.utils import _get_env_from
 
 from runhouse.resources.resource import Resource
-from runhouse.servers.http.http_utils import handle_response, OutputType, pickle_b64
+from runhouse.servers.http.http_utils import (
+    DeleteObjectParams,
+    handle_response,
+    OutputType,
+    pickle_b64,
+    PutObjectParams,
+    PutResourceParams,
+    RenameObjectParams,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +30,6 @@ class HTTPClient:
     Client for cluster RPCs
     """
 
-    DEFAULT_PORT = 32300
-    MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     CHECK_TIMEOUT_SEC = 10
 
     def __init__(
@@ -93,6 +99,31 @@ class HTTPClient:
         timeout=None,
         headers: Union[Dict, None] = None,
     ):
+        json_dict = {
+            "data": data,
+            "env": env,
+            "stream_logs": stream_logs,
+            "save": save,
+            "key": key,
+        }
+        return self.request_json(
+            endpoint,
+            req_type=req_type,
+            json_dict=json_dict,
+            err_str=err_str,
+            timeout=timeout,
+            headers=headers,
+        )
+
+    def request_json(
+        self,
+        endpoint: str,
+        req_type: str = "post",
+        json_dict: Any = None,
+        err_str=None,
+        timeout=None,
+        headers: Union[Dict, None] = None,
+    ):
         # Support use case where we explicitly do not want to provide headers (e.g. requesting a cert)
         headers = rns_client.request_headers() if headers != {} else headers
         req_fn = (
@@ -114,13 +145,7 @@ class HTTPClient:
 
         response = req_fn(
             self._formatted_url(endpoint),
-            json={
-                "data": data,
-                "env": env,
-                "stream_logs": stream_logs,
-                "save": save,
-                "key": key,
-            },
+            json=json_dict,
             timeout=timeout,
             auth=self.auth,
             headers=headers,
@@ -304,27 +329,32 @@ class HTTPClient:
         logging.info(log_str)
         return non_generator_result
 
-    def put_object(self, key, value, env=None):
-        self.request(
+    def put_object(self, key: str, value: Any, env=None):
+        return self.request_json(
             "object",
             req_type="post",
-            data=pickle_b64(value),
-            key=key,
-            env=env,
+            json_dict=PutObjectParams(
+                key=key,
+                serialized_data=pickle_b64(value),
+                env_name=env,
+                serialization="pickle",
+            ).dict(),
             err_str=f"Error putting object {key}",
         )
 
-    def put_resource(self, resource, env=None, state=None, dryrun=False):
-        if env and not isinstance(env, str):
-            env = _get_env_from(env)
-            env = env.name or env.env_name
+    def put_resource(
+        self, resource, env_name: Optional[str] = None, state=None, dryrun=False
+    ):
         config = resource.config_for_rns
-        return self.request(
+        return self.request_json(
             "resource",
             req_type="post",
             # TODO wire up dryrun properly
-            data=pickle_b64((config, state, resource.dryrun)),
-            env=env,
+            json_dict=PutResourceParams(
+                serialized_data=pickle_b64((config, state, dryrun)),
+                env_name=env_name,
+                serialization="pickle",
+            ).dict(),
             err_str=f"Error putting resource {resource.name or type(resource)}",
         )
 
@@ -351,11 +381,10 @@ class HTTPClient:
         return self.rename_object(old_key, new_key)
 
     def rename_object(self, old_key, new_key):
-        self.request(
-            "object",
-            req_type="put",
-            data=pickle_b64((old_key, new_key)),
-            key=old_key,
+        self.request_json(
+            "rename",
+            req_type="post",
+            json_dict=RenameObjectParams(key=old_key, new_key=new_key).dict(),
             err_str=f"Error renaming object {old_key}",
         )
 
@@ -373,26 +402,19 @@ class HTTPClient:
         return res
 
     def delete(self, keys=None, env=None):
-        return self.request(
-            "object",
-            req_type="delete",
-            data=pickle_b64((keys or [])),
-            env=env,
-            err_str=f"Error deleting keys {keys}",
-        )
-
-    def cancel(self, key, force=False):
-        # Note key can be set to "all" to cancel all runs
-        return self.request(
-            "cancel",
+        return self.request_json(
+            "delete_object",
             req_type="post",
-            data=pickle_b64(force),
-            key=key,
-            err_str=f"Error cancelling runs {key}",
+            json_dict=DeleteObjectParams(keys=keys or []).dict(),
+            err_str=f"Error deleting keys {keys}",
         )
 
     def keys(self, env=None):
         if env is not None and not isinstance(env, str):
             env = _get_env_from(env)
-            env = env.name
-        return self.request(f"keys/?env={env}" if env else "keys", req_type="get")
+            env_name = env.name
+        else:
+            env_name = env
+        return self.request(
+            f"keys/?env_name={env_name}" if env_name else "keys", req_type="get"
+        )

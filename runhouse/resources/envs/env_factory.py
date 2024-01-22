@@ -17,7 +17,7 @@ def env(
     name: Optional[str] = None,
     setup_cmds: List[str] = None,
     env_vars: Union[Dict, str] = {},
-    working_dir: Optional[Union[str, Path]] = "./",
+    working_dir: Optional[Union[str, Path]] = None,
     secrets: Optional[Union[str, "Secret"]] = [],
     compute: Optional[Dict] = {},
     dryrun: bool = False,
@@ -58,8 +58,12 @@ def env(
         >>> conda_env = rh.env(conda_env="local-conda-env-name")     # from a existing local conda env
         >>> conda_env = rh.env(conda_env="conda_env.yaml", reqs=["pip:/accelerate"])   # with additional reqs
     """
-    if name and not any([reqs, conda_env, setup_cmds, env_vars, secrets]):
+    if name and not any(
+        [reqs, conda_env, setup_cmds, env_vars, secrets, working_dir, compute]
+    ):
         return Env.from_name(name, dryrun)
+
+    working_dir = working_dir or "./"
 
     reqs = _process_reqs(reqs or [])
     conda_yaml = _get_conda_yaml(conda_env)

@@ -8,7 +8,14 @@ import pytest
 import runhouse as rh
 
 from runhouse.globals import rns_client
-from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
+from runhouse.servers.http.http_utils import (
+    b64_unpickle,
+    DeleteObjectParams,
+    pickle_b64,
+    PutObjectParams,
+    PutResourceParams,
+    RenameObjectParams,
+)
 
 from tests.utils import friend_account
 
@@ -58,7 +65,9 @@ class TestHTTPServerDocker:
         resource = rh.blob(data=blob_data, system=cluster)
         data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
         response = http_client.post(
-            "/resource", json={"data": data}, headers=rns_client.request_headers()
+            "/resource",
+            json=PutResourceParams(serialized_data=data, serialization="pickle").dict(),
+            headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
 
@@ -68,43 +77,46 @@ class TestHTTPServerDocker:
         test_list = list(range(5, 50, 2)) + ["a string"]
         response = http_client.post(
             "/object",
-            json={"data": pickle_b64(test_list), "key": key},
+            json=PutObjectParams(
+                key=key,
+                serialized_data=pickle_b64(test_list),
+                serialization="pickle",
+            ).dict(),
             headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
 
         response = http_client.get("/keys", headers=rns_client.request_headers())
         assert response.status_code == 200
-        assert key in b64_unpickle(response.json().get("data"))
+        assert key in response.json().get("data")
 
     @pytest.mark.level("local")
     def test_rename_object(self, http_client):
         old_key = "key1"
         new_key = "key2"
-        data = pickle_b64((old_key, new_key))
-        response = http_client.put(
-            "/object", json={"data": data}, headers=rns_client.request_headers()
-        )
-        assert response.status_code == 200
-
-        response = http_client.get("/keys", headers=rns_client.request_headers())
-        assert new_key in b64_unpickle(response.json().get("data"))
-
-    @pytest.mark.level("local")
-    def test_delete_obj(self, http_client):
-        # https://www.python-httpx.org/compatibility/#request-body-on-http-methods
-        key = "key2"
-        data = pickle_b64([key])
-        response = http_client.request(
-            "delete",
-            url="/object",
-            json={"data": data},
+        response = http_client.post(
+            "/rename",
+            json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
             headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
 
         response = http_client.get("/keys", headers=rns_client.request_headers())
-        assert key not in b64_unpickle(response.json().get("data"))
+        assert new_key in response.json().get("data")
+
+    @pytest.mark.level("local")
+    def test_delete_obj(self, http_client):
+        # https://www.python-httpx.org/compatibility/#request-body-on-http-methods
+        key = "key2"
+        response = http_client.post(
+            url="/delete_object",
+            json=DeleteObjectParams(keys=[key]).dict(),
+            headers=rns_client.request_headers(),
+        )
+        assert response.status_code == 200
+
+        response = http_client.get("/keys", headers=rns_client.request_headers())
+        assert key not in response.json().get("data")
 
     @pytest.mark.level("local")
     def test_call_module_method(self, http_client, cluster):
@@ -266,7 +278,9 @@ class TestHTTPServerDockerDenAuthOnly:
         resource = rh.blob(blob_data, system=cluster)
         data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
         response = http_client.post(
-            "/resource", json={"data": data}, headers=INVALID_HEADERS
+            "/resource",
+            json=PutResourceParams(serialized_data=data, serialization="pickle").dict(),
+            headers=INVALID_HEADERS,
         )
         assert response.status_code == 403
         assert "Cluster access is required for API" in response.text
@@ -301,7 +315,11 @@ class TestHTTPServerDockerDenAuthOnly:
         test_list = list(range(5, 50, 2)) + ["a string"]
         response = http_client.post(
             "/object",
-            json={"data": pickle_b64(test_list), "key": "key1"},
+            json=PutObjectParams(
+                key="key1",
+                serialized_data=pickle_b64(test_list),
+                serialization="pickle",
+            ).dict(),
             headers=INVALID_HEADERS,
         )
         assert response.status_code == 403
@@ -311,9 +329,10 @@ class TestHTTPServerDockerDenAuthOnly:
     def test_rename_object_with_invalid_token(self, http_client):
         old_key = "key1"
         new_key = "key2"
-        data = pickle_b64((old_key, new_key))
-        response = http_client.put(
-            "/object", json={"data": data}, headers=INVALID_HEADERS
+        response = http_client.post(
+            "/rename",
+            json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
+            headers=INVALID_HEADERS,
         )
         assert response.status_code == 403
         assert "Cluster access is required for API" in response.text
@@ -401,7 +420,9 @@ class TestHTTPServerNoDocker:
             data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
             response = client.post(
                 "/resource",
-                json={"data": data},
+                json=dict(
+                    PutResourceParams(serialized_data=data, serialization="pickle")
+                ),
                 headers=rns_client.request_headers(),
             )
             assert response.status_code == 200
@@ -411,7 +432,11 @@ class TestHTTPServerNoDocker:
         test_list = list(range(5, 50, 2)) + ["a string"]
         response = client.post(
             "/object",
-            json={"data": pickle_b64(test_list), "key": "key1"},
+            json=PutObjectParams(
+                key="key1",
+                serialized_data=pickle_b64(test_list),
+                serialization="pickle",
+            ).dict(),
             headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
@@ -420,10 +445,9 @@ class TestHTTPServerNoDocker:
     def test_rename_object(self, client):
         old_key = "key1"
         new_key = "key2"
-        data = pickle_b64((old_key, new_key))
-        response = client.put(
-            "/object",
-            json={"data": data},
+        response = client.post(
+            "/rename",
+            json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
             headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
@@ -432,7 +456,7 @@ class TestHTTPServerNoDocker:
             "/keys",
             headers=rns_client.request_headers(),
         )
-        assert new_key in b64_unpickle(response.json().get("data"))
+        assert new_key in response.json().get("data")
 
     @pytest.mark.level("unit")
     def test_get_keys(self, client):
@@ -441,23 +465,20 @@ class TestHTTPServerNoDocker:
             headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
-        assert "key2" in b64_unpickle(response.json().get("data"))
+        assert "key2" in response.json().get("data")
 
     @pytest.mark.level("unit")
     def test_delete_obj(self, client):
-        # https://www.python-httpx.org/compatibility/#request-body-on-http-methods
         key = "key"
-        data = pickle_b64([key])
-        response = client.request(
-            "delete",
-            url="/object",
-            json={"data": data},
+        response = client.post(
+            url="/delete_object",
+            json=DeleteObjectParams(keys=[key]).dict(),
             headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
 
         response = client.get("/keys", headers=rns_client.request_headers())
-        assert key not in b64_unpickle(response.json().get("data"))
+        assert key not in response.json().get("data")
 
     # TODO [JL]: Test call_module_method and async_call with local and not just Docker.
 
@@ -507,7 +528,11 @@ class TestHTTPServerNoDockerDenAuthOnly:
             state = None
             data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
             resp = local_client_with_den_auth.post(
-                "/resource", json={"data": data}, headers=INVALID_HEADERS
+                "/resource",
+                json=dict(
+                    PutResourceParams(serialized_data=data, serialization="pickle")
+                ),
+                headers=INVALID_HEADERS,
             )
 
             assert resp.status_code == 403
@@ -517,7 +542,11 @@ class TestHTTPServerNoDockerDenAuthOnly:
         test_list = list(range(5, 50, 2)) + ["a string"]
         resp = local_client_with_den_auth.post(
             "/object",
-            json={"data": pickle_b64(test_list), "key": "key1"},
+            json=PutObjectParams(
+                key="key1",
+                serialized_data=pickle_b64(test_list),
+                serialization="pickle",
+            ).dict(),
             headers=INVALID_HEADERS,
         )
         assert resp.status_code == 403
@@ -526,9 +555,10 @@ class TestHTTPServerNoDockerDenAuthOnly:
     def test_rename_object_with_invalid_token(self, local_client_with_den_auth):
         old_key = "key1"
         new_key = "key2"
-        data = pickle_b64((old_key, new_key))
-        resp = local_client_with_den_auth.put(
-            "/object", json={"data": data}, headers=INVALID_HEADERS
+        resp = local_client_with_den_auth.post(
+            "/rename",
+            json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
+            headers=INVALID_HEADERS,
         )
         assert resp.status_code == 403
 
