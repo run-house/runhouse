@@ -57,7 +57,8 @@ _rh_here_stored = None
 def __getattr__(name):
     global _rh_here_stored
     if name == "here":
-        if _rh_here_stored is None:
+        # If it's either the first time or the cluster was not initialized before, attempt to retrieve the cluster again
+        if _rh_here_stored is None or _rh_here_stored == "file":
             _rh_here_stored = get_local_cluster_object()
         return _rh_here_stored
 
