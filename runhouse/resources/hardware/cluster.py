@@ -147,7 +147,7 @@ class Cluster(Resource):
 
             return OnDemandCluster(**config, dryrun=dryrun)
         elif resource_subtype == "SageMakerCluster":
-            from .sagemaker_cluster import SageMakerCluster
+            from .sagemaker.sagemaker_cluster import SageMakerCluster
 
             return SageMakerCluster(**config, dryrun=dryrun)
         else:

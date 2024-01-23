@@ -16,7 +16,7 @@ from runhouse.rns.utils.api import relative_ssh_path
 
 from .cluster import Cluster
 from .on_demand_cluster import OnDemandCluster
-from .sagemaker_cluster import SageMakerCluster
+from .sagemaker.sagemaker_cluster import SageMakerCluster
 
 logger = logging.getLogger(__name__)
 
