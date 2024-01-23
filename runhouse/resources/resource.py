@@ -251,7 +251,7 @@ class Resource:
         from runhouse.resources.hardware.utils import _current_cluster
 
         if _current_cluster() and obj_store.contains(name):
-            return obj_store.get(name, check_other_envs=True)
+            return obj_store.get(name)
 
         config = rns_client.load_config(name=name)
 

@@ -13,13 +13,16 @@ from runhouse.resources.envs.utils import _get_env_from
 
 from runhouse.resources.resource import Resource
 from runhouse.servers.http.http_utils import (
+    CallParams,
     DeleteObjectParams,
+    GetObjectParams,
     handle_response,
     OutputType,
     pickle_b64,
     PutObjectParams,
     PutResourceParams,
     RenameObjectParams,
+    serialize_data,
 )
 
 logger = logging.getLogger(__name__)
@@ -193,42 +196,41 @@ class HTTPClient:
 
     def call(
         self,
-        module_name,
-        method_name,
-        *args,
-        stream_logs=True,
-        run_name=None,
-        remote=False,
+        key: str,
+        method_name: str,
+        data: Any = None,
+        serialization: Optional[str] = None,
+        run_name: Optional[str] = None,
+        stream_logs: bool = True,
+        remote: bool = False,
         run_async=False,
         save=False,
-        **kwargs,
     ):
         """wrapper to temporarily support cluster's call signature"""
         return self.call_module_method(
-            module_name,
+            key,
             method_name,
-            stream_logs=stream_logs,
+            data=data,
+            serialization=serialization,
             run_name=run_name,
+            stream_logs=stream_logs,
             remote=remote,
             run_async=run_async,
             save=save,
-            args=args,
-            kwargs=kwargs,
             system=self.system,
         )
 
-    def call_module_method(  # TODO rename call_module_method to call
+    def call_module_method(
         self,
-        module_name,
-        method_name,
-        env=None,
-        stream_logs=True,
-        save=False,
-        run_name=None,
-        remote=False,
+        key: str,
+        method_name: str,
+        data: Any = None,
+        serialization: Optional[str] = None,
+        run_name: Optional[str] = None,
+        stream_logs: bool = True,
+        remote: bool = False,
         run_async=False,
-        args=None,
-        kwargs=None,
+        save=False,
         system=None,
     ):
         """
@@ -237,20 +239,21 @@ class HTTPClient:
         # Measure the time it takes to send the message
         start = time.time()
         logger.info(
-            f"{'Calling' if method_name else 'Getting'} {module_name}"
+            f"{'Calling' if method_name else 'Getting'} {key}"
             + (f".{method_name}" if method_name else "")
         )
+        serialization = serialization or "pickle"
         res = requests.post(
-            self._formatted_url(f"{module_name}/{method_name}"),
-            json={
-                "data": pickle_b64([args, kwargs]),
-                "env": env,
-                "stream_logs": stream_logs,
-                "save": save,
-                "key": run_name,
-                "remote": remote,
-                "run_async": run_async,
-            },
+            self._formatted_url(f"{key}/{method_name}"),
+            json=CallParams(
+                data=serialize_data(data, serialization),
+                serialization="pickle",
+                run_name=run_name,
+                stream_logs=stream_logs,
+                save=save,
+                remote=remote,
+                run_async=run_async,
+            ).dict(),
             stream=not run_async,
             headers=rns_client.request_headers(),
             verify=self.verify,
@@ -259,7 +262,7 @@ class HTTPClient:
             raise ValueError(
                 f"Error calling {method_name} on server: {res.content.decode()}"
             )
-        error_str = f"Error calling {method_name} on {module_name} on server"
+        error_str = f"Error calling {method_name} on {key} on server"
 
         # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single result,
         # maybe a stream of results), so we need to separate these out.
@@ -300,9 +303,11 @@ class HTTPClient:
                             yield result_inner
                     end_inner = time.time()
                     if method_name:
-                        log_str = f"Time to call {module_name}.{method_name}: {round(end_inner - start, 2)} seconds"
+                        log_str = f"Time to call {key}.{method_name}: {round(end_inner - start, 2)} seconds"
                     else:
-                        log_str = f"Time to get {module_name}: {round(end_inner - start, 2)} seconds"
+                        log_str = (
+                            f"Time to get {key}: {round(end_inner - start, 2)} seconds"
+                        )
                     logging.info(log_str)
 
                 return results_generator()
@@ -317,15 +322,25 @@ class HTTPClient:
                     result["system"] = system
                 non_generator_result = Resource.from_config(result, dryrun=True)
 
-            elif output_type == OutputType.RESULT:
+            elif output_type in [OutputType.RESULT, OutputType.RESULT_SERIALIZED]:
                 # Finish iterating over logs before returning single result
                 non_generator_result = result
 
         end = time.time()
+
+        if (
+            hasattr(non_generator_result, "system")
+            and system is not None
+            and non_generator_result.system.rns_address == system.rns_address
+        ):
+            non_generator_result.system = system
+
         if method_name:
-            log_str = f"Time to call {module_name}.{method_name}: {round(end - start, 2)} seconds"
+            log_str = (
+                f"Time to call {key}.{method_name}: {round(end - start, 2)} seconds"
+            )
         else:
-            log_str = f"Time to get {module_name}: {round(end - start, 2)} seconds"
+            log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
         logging.info(log_str)
         return non_generator_result
 
@@ -359,17 +374,30 @@ class HTTPClient:
         )
 
     def get(
-        self, key: str, default: Any = None, remote=False, stream_logs: bool = False
+        self,
+        key: str,
+        default: Any = None,
+        remote=False,
+        system=None,
     ):
         """Provides compatibility with cluster's get."""
         try:
-            res = self.call_module_method(
-                key,
-                None,
-                remote=remote,
-                stream_logs=stream_logs,
-                system=self,
+            res = self.request_json(
+                "object",
+                req_type="get",
+                json_dict=GetObjectParams(
+                    key=key,
+                    serialization="pickle",
+                    remote=remote,
+                ).dict(),
+                err_str=f"Error getting object {key}",
             )
+            if remote and isinstance(res, dict) and "resource_type" in res:
+                # Reconstruct the resource from the config
+                if "system" in res:
+                    res["system"] = system
+                res = Resource.from_config(res, dryrun=True)
+
         except KeyError as e:
             if default == KeyError:
                 raise e

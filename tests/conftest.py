@@ -301,6 +301,7 @@ default_fixtures[TestLevels.UNIT] = {
 }
 default_fixtures[TestLevels.LOCAL] = {
     "cluster": [
+        "local_daemon",
         "docker_cluster_pk_ssh_no_auth",
         "docker_cluster_pk_ssh_den_auth",
     ]
@@ -310,6 +311,7 @@ default_fixtures[TestLevels.MINIMAL] = {
 }
 default_fixtures[TestLevels.THOROUGH] = {
     "cluster": [
+        "local_daemon",
         "docker_cluster_pk_ssh_no_auth",
         "docker_cluster_pk_ssh_den_auth",
         "docker_cluster_pwd_ssh_no_auth",
@@ -322,6 +324,7 @@ default_fixtures[TestLevels.THOROUGH] = {
 }
 default_fixtures[TestLevels.MAXIMAL] = {
     "cluster": [
+        "local_daemon",
         "docker_cluster_pk_ssh_no_auth",
         "docker_cluster_pk_ssh_den_auth",
         "docker_cluster_pwd_ssh_no_auth",

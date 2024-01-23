@@ -175,7 +175,7 @@ class Run(Resource):
 
             # Save Run config to its folder on the system - this will already happen on the cluster
             # for function based Runs
-            self._write_config()
+            # self._write_config()
 
         # return False to propagate any exception that occurred inside the with block
         return False

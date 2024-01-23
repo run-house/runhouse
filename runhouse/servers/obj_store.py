@@ -480,17 +480,34 @@ class ObjStore:
     ##############################################
     @staticmethod
     def get_from_env_servlet_name(
-        env_servlet_name: str, key: Any, default: Optional[Any] = None
+        env_servlet_name: str,
+        key: Any,
+        default: Optional[Any] = None,
+        serialization: Optional[str] = None,
+        remote: bool = False,
     ):
         logger.info(f"Getting {key} from servlet {env_servlet_name}")
         return ObjStore.call_actor_method(
-            ObjStore.get_env_servlet(env_servlet_name), "get_local", key, default
+            ObjStore.get_env_servlet(env_servlet_name),
+            "get_local",
+            key,
+            default=default,
+            serialization=serialization,  # Crucial that this is a kwarg, or the wrapper doesn't pick it up!!
+            remote=remote,
         )
 
-    def get_local(self, key: Any, default: Optional[Any] = None):
+    def get_local(self, key: Any, default: Optional[Any] = None, remote: bool = False):
         if self.has_local_storage:
             try:
-                return self._kv_store[key]
+                res = self._kv_store[key]
+                if remote:
+                    if hasattr(res, "config_for_rns"):
+                        return res.config_for_rns
+                    else:
+                        raise ValueError(
+                            f"Cannot return remote for non-Resource object of type {type(res)}."
+                        )
+                return res
             except KeyError as e:
                 if default == KeyError:
                     raise e
@@ -503,40 +520,59 @@ class ObjStore:
     def get(
         self,
         key: Any,
+        serialization: Optional[str] = None,
+        remote: bool = False,
         default: Optional[Any] = None,
-        check_other_envs: bool = True,
     ):
-        # First check if it's in the Python kv store
-        try:
-            return self.get_local(key, default=KeyError)
-        except KeyError as e:
-            key_err = e
+        env_servlet_name_containing_key = self.get_env_servlet_name_for_key(key)
 
-        if not check_other_envs:
+        if not env_servlet_name_containing_key:
             if default == KeyError:
-                raise key_err
+                raise KeyError(f"No local store exists; key {key} not found.")
             return default
 
-        # If not, check if it's in another env's servlet
-        env_servlet_name = self.get_env_servlet_name_for_key(key)
-        if env_servlet_name == self.servlet_name and self.has_local_storage:
-            raise ValueError(
-                "Key not found in kv store despite env servlet specifying that it is here."
+        if (
+            env_servlet_name_containing_key == self.servlet_name
+            and self.has_local_storage
+        ):
+            # Short-circuit route if we're already in the right env
+            res = self.get_local(
+                key,
+                remote=remote,
+                default=default,
+            )
+        else:
+            # Note, if serialization is not None here and remote is True we won't enter the block below,
+            # because the EnvServlet already packaged the config into a Response object. This is desired, as we
+            # only want the remote object to be reconstructed when it's being returned to the user, which would
+            # not be here if serialization is not None (probably the HTTPClient).
+            res = self.get_from_env_servlet_name(
+                env_servlet_name_containing_key,
+                key,
+                default=default,
+                serialization=serialization,
+                remote=remote,
             )
 
-        if env_servlet_name is None:
-            if default == KeyError:
-                raise key_err
-            return default
+        # When the user called the obj_store.get with remote directly, we need to
+        # package the config back into the remote object here before returning it.
+        if (
+            remote
+            and serialization is None
+            and isinstance(res, dict)
+            and "resource_type" in res
+        ):
+            config = res
+            if config.get("system") == self.get_cluster_config():
+                from runhouse import here
 
-        try:
-            return self.get_from_env_servlet_name(
-                env_servlet_name, key, default=KeyError
-            )
-        except KeyError:
-            raise ObjStoreError(
-                f"Key was supposed to be in {env_servlet_name}, but it was not found there."
-            )
+                config["system"] = here
+            from runhouse.resources.resource import Resource
+
+            res_copy = Resource.from_config(config=config, dryrun=True)
+            return res_copy
+
+        return res
 
     ##############################################
     # KV Store: Contains
@@ -797,6 +833,15 @@ class ObjStore:
         if self.servlet_name is None or not self.has_local_storage:
             raise NoLocalObjStoreError()
 
+        from runhouse.resources.provenance import run
+
+        log_ctx = run(
+            name=run_name,
+            log_dest="file" if run_name else None,
+            load=False,
+        )
+        log_ctx.__enter__()
+
         # TODO auth
         module = self.get_local(key, default=KeyError)
 
@@ -861,7 +906,15 @@ class ObjStore:
             else None
         )
 
-        run_name = run_name or f"{key}_{method_name}"
+        from runhouse.rns.utils.names import _generate_default_name
+
+        # Make sure there's a run_name (if called through the HTTPServer there will be, but directly
+        # through the ObjStore there may not be)
+        run_name = run_name or _generate_default_name(
+            prefix=key if method_name == "__call__" else f"{key}_{method_name}",
+            precision="ms",  # Higher precision because we see collisions within the same second
+            sep="@",
+        )
 
         if laziness_type:
             # If the result is a coroutine or generator, we can't return it over the process boundary
@@ -872,14 +925,29 @@ class ObjStore:
             )
             fut = self.construct_call_retrievable(res, run_name, laziness_type)
             self.put_local(run_name, fut)
+            log_ctx.__exit__(None, None, None)
             return fut
 
-        if remote and isinstance(res, Module):
-            # If the result is a module, we return just the config
-            res.name = res.name or run_name
-            self.put_local(res.name, res)
-            config = res.config_for_rns
-            return config
+        from runhouse.resources.resource import Resource
+
+        if isinstance(res, Resource):
+            if run_name and "@" not in run_name:
+                # This is a user-specified name, so we want to override the existing name with it
+                # and save the resource
+                res.name = run_name or res.name
+                self.put_local(res.name, res)
+
+            if remote:
+                # If we've reached this block then we know "@" is in run_name and it's an auto-generated name,
+                # so we don't want override the existing name with it (as we do above with user-specified name)
+                res.name = res.name or run_name
+
+                # Need to save the resource in case we haven't yet (e.g. if run_name was auto-generated)
+                self.put_local(res.name, res)
+                # If remote is True and the result is a resource, we return just the config
+                res = res.config_for_rns
+
+        log_ctx.__exit__(None, None, None)
 
         return res
 
@@ -945,15 +1013,17 @@ class ObjStore:
                 remote=remote,
             )
 
-        if remote and isinstance(res, dict):
+        if remote and isinstance(res, dict) and "resource_type" in res:
             config = res
-            if config["system"] == self.get_cluster_config():
+            if config.get("system").get("name") == self.get_cluster_config().get(
+                "name"
+            ):
                 from runhouse import here
 
                 config["system"] = here
-            from runhouse.resources.module import Module
+            from runhouse.resources.resource import Resource
 
-            res_copy = Module.from_config(config=config, dryrun=True)
+            res_copy = Resource.from_config(config=config, dryrun=True)
             return res_copy
 
         return res

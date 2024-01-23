@@ -1,8 +1,8 @@
 import argparse
+import asyncio
 import inspect
 import json
 import logging
-import time
 import traceback
 from functools import wraps
 from pathlib import Path
@@ -30,8 +30,10 @@ from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.auth import hash_token, verify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
+    CallParams,
     DeleteObjectParams,
     get_token_from_request,
+    GetObjectParams,
     handle_exception_response,
     load_current_cluster,
     Message,
@@ -333,80 +335,47 @@ class HTTPServer:
             return handle_exception_response(e, traceback.format_exc())
 
     @staticmethod
-    @app.post("/{module}/{method}")
+    @app.post("/{key}/{method_name:path}")
     @validate_cluster_access
-    def call_module_method(
-        request: Request, module, method=None, message: dict = Body(default=None)
+    async def post_call(
+        request: Request, key, method_name=None, params: CallParams = Body(default=None)
     ):
-        token = get_token_from_request(request)
-        den_auth_enabled = HTTPServer.get_den_auth()
-        token_hash = hash_token(token) if den_auth_enabled and token else None
-        # Stream the logs and result (e.g. if it's a generator)
+        # token = get_token_from_request(request)
+        # den_auth_enabled = HTTPServer.get_den_auth()
+        # token_hash = hash_token(token) if den_auth_enabled and token else None
         HTTPServer.register_activity()
         try:
-            # This translates the json dict into an object that we can access with dot notation, e.g. message.key
-            message = argparse.Namespace(**message) if message else None
-            method = None if method == "None" else method
-            # If this is a "get" request to just return the module, do not stream logs or save by default
-            message = message or (
-                Message(stream_logs=False, key=module) if not method else Message()
+            params.run_name = params.run_name or _generate_default_name(
+                prefix=key if method_name == "__call__" else f"{key}_{method_name}",
+                precision="ms",  # Higher precision because we see collisions within the same second
+                sep="@",
             )
-            env = message.env or obj_store.get_env_servlet_name_for_key(module)
-            persist = message.run_async or message.remote or message.save or not method
-            if method:
-                # TODO fix the way we generate runkeys, it's ugly
-                message.key = message.key or _generate_default_name(
-                    prefix=module if method == "__call__" else f"{module}_{method}",
-                    precision="ms",  # Higher precision because we see collisions within the same second
-                )
-                # If certain conditions are met, we can return a response immediately
-                fast_resp = not persist and not message.stream_logs
+            # Call async so we can loop to collect logs until the result is ready
 
-                # Unless we're returning a fast response, we discard this obj_ref
-                obj_ref = HTTPServer.call_in_env_servlet(
-                    "call_module_method",
-                    [module, method, message, token_hash, den_auth_enabled],
-                    env=env,
-                    create=True,
-                    block=False,
+            async def call_async():
+                return obj_store.call(
+                    key=key,
+                    method_name=method_name,
+                    data=params.data,
+                    serialization=params.serialization,
+                    run_name=params.run_name,
                 )
 
-                if fast_resp:
-                    res = ray.get(obj_ref)
-                    logger.info(f"Returning fast response for {message.key}")
-                    return res
-
-            else:
-                message.key = module
-
-                # If this is a "get" call, don't wait for the result, it's either there or not.
-                if not obj_store.contains(message.key):
-                    return Response(output_type=OutputType.NOT_FOUND, data=message.key)
-
-            if message.run_async:
-                return Response(
-                    data=pickle_b64(message.key),
-                    output_type=OutputType.RESULT,
-                )
+            fut = asyncio.create_task(call_async())
+            # If stream_logs is False, we'll wait for the result and return it
+            if not params.stream_logs:
+                return await fut
 
             return StreamingResponse(
                 HTTPServer._get_results_and_logs_generator(
-                    message.key,
-                    env=env,
-                    stream_logs=message.stream_logs,
-                    remote=message.remote,
-                    pop=not persist,
+                    key,
+                    fut=fut,
+                    run_name=params.run_name,
                 ),
                 media_type="application/json",
             )
         except Exception as e:
-            logger.exception(e)
-            HTTPServer.register_activity()
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
+            return handle_exception_response(e, traceback.format_exc())
 
     @staticmethod
     def _get_logfiles(log_key, log_type=None):
@@ -437,52 +406,22 @@ class HTTPServer:
         return open_files
 
     @staticmethod
-    def _get_results_and_logs_generator(
-        key, env, stream_logs, remote=False, pop=False, serialization=None
-    ):
+    async def _get_results_and_logs_generator(key, fut, run_name, serialization=None):
+        logger.debug(f"Streaming logs for key {run_name}")
         open_logfiles = []
         waiting_for_results = True
 
         try:
-            obj_ref = None
             while waiting_for_results:
-
-                while not obj_store.contains(key):
-                    time.sleep(0.1)
-
-                if not obj_ref:
-                    obj_ref = HTTPServer.call_in_env_servlet(
-                        "get",
-                        [key, remote, True, None, serialization],
-                        env=env,
-                        block=False,
-                    )
-                try:
-                    ret_val = ray.get(obj_ref, timeout=LOGGING_WAIT_TIME)
-                    # Last result in a stream will have type RESULT to indicate the end
-                    if ret_val is None:
-                        # Still waiting for results in queue
-                        obj_ref = None
-                        # time.sleep(LOGGING_WAIT_TIME)
-                        raise ray.exceptions.GetTimeoutError
-                    if not ret_val.output_type == OutputType.RESULT_STREAM:
-                        waiting_for_results = False
-                    ret_val = ret_val.data if serialization == "json" else ret_val
-                    ret_resp = json.dumps(jsonable_encoder(ret_val))
-                    yield ret_resp + "\n"
-                except ray.exceptions.GetTimeoutError:
-                    pass
-
-                # Reset the obj_ref so we make a fresh request for the result next time around
-                obj_ref = None
-
+                if fut.done():
+                    waiting_for_results = False
+                    ret_val = fut.result()
+                    yield json.dumps(jsonable_encoder(ret_val)) + "\n"
+                else:
+                    await asyncio.sleep(LOGGING_WAIT_TIME)
                 # Grab all the lines written to all the log files since the last time we checked, including
                 # any new log files that have been created
-                open_logfiles = (
-                    HTTPServer.open_new_logfiles(key, open_logfiles)
-                    if stream_logs
-                    else []
-                )
+                open_logfiles = HTTPServer.open_new_logfiles(run_name, open_logfiles)
                 ret_lines = []
                 for i, f in enumerate(open_logfiles):
                     file_lines = f.readlines()
@@ -492,16 +431,15 @@ class HTTPServer:
                         #     ret_lines.append(f"Process {i}:")
                         ret_lines += file_lines
                 if ret_lines:
-                    lines_resp = (
-                        Response(
-                            data=ret_lines,
-                            output_type=OutputType.STDOUT,
+                    logger.debug(f"Yielding logs for key {run_name}")
+                    yield json.dumps(
+                        jsonable_encoder(
+                            Response(
+                                data=ret_lines,
+                                output_type=OutputType.STDOUT,
+                            )
                         )
-                        if not serialization == "json"
-                        else ret_lines
-                    )
-                    logger.debug(f"Yielding logs for key {key}")
-                    yield json.dumps(jsonable_encoder(lines_resp)) + "\n"
+                    ) + "\n"
 
         except Exception as e:
             logger.exception(e)
@@ -517,14 +455,10 @@ class HTTPServer:
                 )
             )
         finally:
-            if stream_logs and not open_logfiles:
+            if not open_logfiles:
                 logger.warning(f"No logfiles found for call {key}")
             for f in open_logfiles:
                 f.close()
-
-            logger.debug(f"Deleting {key}")
-            if pop:
-                obj_store.delete(key)
 
     @staticmethod
     @app.post("/object")
@@ -539,6 +473,19 @@ class HTTPServer:
                 create_env_if_not_exists=True,
             )
             return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(e, traceback.format_exc())
+
+    @staticmethod
+    @app.get("/object")
+    @validate_cluster_access
+    def get_object(request: Request, params: GetObjectParams):
+        try:
+            return obj_store.get(
+                key=params.key,
+                serialization=params.serialization,
+                remote=params.remote,
+            )
         except Exception as e:
             return handle_exception_response(e, traceback.format_exc())
 
