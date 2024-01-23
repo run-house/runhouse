@@ -202,8 +202,8 @@ class Cluster(Resource):
 
     def _client(self, restart_server=True):
         if self.on_this_cluster():
-            return None
-            # return obj_store  # TODO next PR
+            # Previously (before calling within the same cluster worked) returned None
+            return obj_store
         if not self.client:
             self.check_server(restart_server=restart_server)
         return self.client
@@ -384,7 +384,7 @@ class Cluster(Resource):
         state = state or {}
         if self.on_this_cluster():
             data = (resource.config_for_rns, state, dryrun)
-            return obj_store.put_resource(serialized_data=data, env_name=env_name).data
+            return obj_store.put_resource(serialized_data=data, env_name=env_name)
         return self.client.put_resource(
             resource, state=state or {}, env_name=env_name, dryrun=dryrun
         )
@@ -751,7 +751,7 @@ class Cluster(Resource):
         if self.on_this_cluster():
             return obj_store.call(
                 module_name, method_name, data=(args, kwargs), serialization=None
-            ).data
+            )
         return self.client.call_module_method(
             module_name,
             method_name,

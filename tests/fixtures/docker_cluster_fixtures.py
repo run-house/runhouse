@@ -44,9 +44,11 @@ def named_cluster():
 
 @pytest.fixture(scope="session")
 def local_daemon(request):
-    if rh.here == "file" or not request.config.getoption("--detached"):
+    if not request.config.getoption("--detached"):
         subprocess.call(["runhouse", "restart"])
 
+    # Make sure the object store is set up correctly
+    assert rh.here.on_this_cluster()
     yield rh.here
 
 
