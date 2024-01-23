@@ -715,9 +715,20 @@ class HTTPServer:
         )
 
     @staticmethod
+    @app.middleware("http")
+    async def _add_username_to_span(request: Request, call_next):
+        from opentelemetry import trace
+
+        span = trace.get_current_span()
+        username = configs.get("username")
+
+        # Set the username as a span attribute
+        span.set_attribute("username", username)
+        return await call_next(request)
+
+    @staticmethod
     def _collect_telemetry_stats():
         """Collect telemetry stats and send them to the Runhouse hosted OpenTelemetry collector"""
-
         from opentelemetry import trace
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
             OTLPSpanExporter,
