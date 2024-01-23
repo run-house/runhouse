@@ -160,7 +160,10 @@ class Resource:
         from runhouse.resources.hardware.utils import _current_cluster
 
         if _current_cluster():
-            obj_store.put(self._name, self)
+            if obj_store.has_local_storage:
+                obj_store.put_local(self._name, self)
+            else:
+                obj_store.put(self._name, self)
         else:
             raise ValueError("Cannot pin a resource outside of a cluster.")
 

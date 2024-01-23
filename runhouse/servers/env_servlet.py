@@ -51,6 +51,12 @@ def error_handling_decorator(func):
             if output is not None:
                 if serialization is None:
                     return output
+                elif "remote" in kwargs and kwargs["remote"]:
+                    return Response(
+                        output_type=OutputType.CONFIG,
+                        data=serialize_data(output, serialization),
+                        serialization=serialization,
+                    )
                 else:
                     serialized_data = serialize_data(output, serialization)
                     return Response(
@@ -499,9 +505,20 @@ class EnvServlet:
         method_name: str = None,
         data: Any = None,
         serialization: Optional[str] = None,
+        run_name: Optional[str] = None,
+        stream_logs: bool = False,
+        remote: bool = False,
     ):
         args, kwargs = data or ([], {})
-        return obj_store.call_local(key, method_name, *args, **kwargs)
+        return obj_store.call_local(
+            key,
+            method_name,
+            run_name=run_name,
+            stream_logs=stream_logs,
+            remote=remote,
+            *args,
+            **kwargs,
+        )
 
     ##############################################################
     # IPC methods for interacting with local object store only

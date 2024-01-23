@@ -128,7 +128,7 @@ class Function(Module):
         new_function.env = new_env
 
         new_function.dryrun = True
-        system.put_resource(new_function, dryrun=True)
+        new_function.system.put_resource(new_function, dryrun=True)
         logging.info("Function setup complete.")
 
         return new_function

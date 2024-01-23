@@ -68,7 +68,7 @@ def load_cluster_config_from_file() -> Dict:
 
 
 def _current_cluster(key="config"):
-    """Retrive key value from the current cluster config.
+    """Retrieve key value from the current cluster config.
     If key is "config", returns entire config."""
     from runhouse.globals import obj_store
 
