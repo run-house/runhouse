@@ -2,9 +2,6 @@ import logging
 import sys
 from typing import List
 
-import ray
-from ray.experimental.state.api import list_actors
-
 from runhouse.globals import configs, obj_store, rns_client
 
 from runhouse.logger import LOGGING_CONFIG
@@ -67,43 +64,23 @@ def load(name: str, instantiate: bool = True, dryrun: bool = False):
 
 
 def get_local_cluster_object():
-    # The cluster servlet is running if `runhouse start` has been run on this machine
-    # we check this using list_actors
-
     # This is likely being called from a different process than our HTTPServer
     # so we need to not initialize a new Ray instance, and rather connect
-    # to the existing one
+    # to the existing one.
 
-    # By specifying address, we attempt to connect to an existing Ray
-    # cluster instead of creating a new one
-    try:
-        ray.init(
-            address="auto",
-            ignore_reinit_error=True,
-            logging_level=logging.ERROR,
-            namespace="runhouse",
-        )
-    except ConnectionError:
-        logging.warning(
-            "Could not connect to Ray cluster. Make sure you have run `runhouse start`"
-        )
-        return "file"
+    # When we initialize the object store, it'll by default try to connect to
+    # a Ray cluster instead of starting one.
+    # If it was unable to connect to one and find a cluster servlet actor, then
+    # cluster config will be empty.
+    if not obj_store.is_initialized():
+        obj_store.initialize()
 
-    cluster_servlet_exists = any(
-        actor["class_name"] == "ClusterServlet" and actor["state"] == "ALIVE"
-        for actor in list_actors()
-    )
-
-    if cluster_servlet_exists:
-        # The base EnvServlet should have been created in the HTTPServer
-        obj_store.initialize("base")
-
-        # When HTTPServer is initialized, the cluster_config is set
-        # within the global state.
-        config = obj_store.get_cluster_config()
-        if config.get("resource_subtype") is not None:
-            system = _get_cluster_from(config, dryrun=True)
-            return system
+    # When HTTPServer is initialized, the cluster_config is set
+    # within the global state.
+    config = obj_store.get_cluster_config()
+    if config.get("resource_subtype") is not None:
+        system = _get_cluster_from(config, dryrun=True)
+        return system
 
     return "file"
 
