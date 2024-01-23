@@ -69,7 +69,8 @@ class Cluster(Resource):
 
     def __init__(
         self,
-        name,
+        # Name will almost always be provided unless a "local" cluster is created
+        name: Optional[str] = None,
         ips: List[str] = None,
         ssh_creds: Dict = None,
         server_host: str = None,
@@ -432,7 +433,8 @@ class Cluster(Resource):
 
     def on_this_cluster(self):
         """Whether this function is being called on the same cluster."""
-        return _current_cluster("name") == self.rns_address
+        config = _current_cluster("config")
+        return config is not None and config.get("name") == self.rns_address
 
     # ----------------- RPC Methods ----------------- #
 

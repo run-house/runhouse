@@ -8,7 +8,6 @@ from runhouse.resources.functions.aws_lambda_factory import aws_lambda_fn
 from runhouse.resources.functions.function import Function
 from runhouse.resources.functions.function_factory import function
 from runhouse.resources.hardware import (
-    _current_cluster,
     cluster,
     Cluster,
     kubernetes_cluster,
@@ -33,7 +32,7 @@ from runhouse.rns.secrets import Secrets  # Deprecated
 from runhouse.rns.top_level_rns_fns import (
     current_folder,
     exists,
-    here,
+    get_local_cluster_object,
     ipython,
     load,
     locate,
@@ -51,5 +50,18 @@ send = function
 
 # Syntactic sugar
 fn = function
+
+_rh_here_stored = None
+
+
+def __getattr__(name):
+    global _rh_here_stored
+    if name == "here":
+        if _rh_here_stored is None:
+            _rh_here_stored = get_local_cluster_object()
+        return _rh_here_stored
+
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __version__ = "0.0.16"
