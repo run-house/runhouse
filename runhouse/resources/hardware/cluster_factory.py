@@ -98,11 +98,10 @@ def cluster(
         )
         # Filter out None/default values
         alt_options = {k: v for k, v in alt_options.items() if v is not None}
-        try:
-            c = Cluster.from_name(name, dryrun, alt_options=alt_options)
-            if c:
-                c.set_connection_defaults()
-                return c
+        c = Cluster.from_name(name, dryrun, alt_options=alt_options)
+        if c:
+            c.set_connection_defaults()
+            return c
 
     if host and ("localhost" in host or ":" in host):
         # If server_connection_type is not specified, we
