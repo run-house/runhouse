@@ -112,6 +112,7 @@ class NginxConfig:
             location / {{
                 proxy_buffering off;
                 proxy_pass {proxy_pass};
+                send_timeout 3600;
             }}
         }}
         """
@@ -140,6 +141,7 @@ class NginxConfig:
             location / {{
                 proxy_buffering off;
                 proxy_pass {proxy_pass};
+                send_timeout 3600;
             }}
         }}
         """
