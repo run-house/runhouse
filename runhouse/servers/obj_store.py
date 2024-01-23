@@ -661,6 +661,9 @@ class ObjStore:
         method_name: str,
         data: Any = None,
         serialization: Optional[str] = None,
+        run_name: Optional[str] = None,
+        stream_logs: bool = False,
+        remote: bool = False,
     ):
         return ObjStore.call_actor_method(
             ObjStore.get_env_servlet(env_servlet_name),
@@ -669,9 +672,21 @@ class ObjStore:
             method_name=method_name,
             data=data,
             serialization=serialization,
+            run_name=run_name,
+            stream_logs=stream_logs,
+            remote=remote,
         )
 
-    def call_local(self, key: str, method_name: Optional[str] = None, *args, **kwargs):
+    def call_local(
+        self,
+        key: str,
+        method_name: Optional[str] = None,
+        *args,
+        run_name: Optional[str] = None,
+        stream_logs: bool = False,
+        remote: bool = False,
+        **kwargs,
+    ):
         """Base call functionality: Load the module, and call a method on it with args and kwargs. Nothing else.
 
         Handles calls on properties, methods, coroutines, and generators.
@@ -703,7 +718,7 @@ class ObjStore:
             if isinstance(module, Module):
                 # Force this to be fully local for Modules so we don't have any circular stuff calling into other
                 # envs or systems.
-                method = module.local.methodname
+                method = getattr(module.local, method_name)
             else:
                 method = getattr(module, method_name)
         except AttributeError:
@@ -717,11 +732,22 @@ class ObjStore:
             )
             res = method(*args, **kwargs)
         else:
-            # Method is a property, return the value
-            logger.info(
-                f"{self.servlet_name} servlet: Getting property {method_name} on module {key}"
-            )
-            res = method
+            if args and len(args) == 1:
+                # if there's an arg, this is a "set" call on the property
+                logger.info(
+                    f"{self.servlet_name} servlet: Setting property {method_name} on module {key}"
+                )
+                if isinstance(module, Module):
+                    setattr(module.local, method_name, args[0])
+                else:
+                    setattr(module, method_name, args[0])
+                res = None
+            else:
+                # Method is a property, return the value
+                logger.info(
+                    f"{self.servlet_name} servlet: Getting property {method_name} on module {key}"
+                )
+                res = method
 
         laziness_type = (
             "coroutine"
@@ -733,15 +759,25 @@ class ObjStore:
             else None
         )
 
+        run_name = run_name or f"{key}_{method_name}"
+
         if laziness_type:
             # If the result is a coroutine or generator, we can't return it over the process boundary
             # and need to store it to be retrieved later. In this case we return a "retrievable".
-            res_key = f"{key}_{method_name}"
             logger.debug(
                 f"{self.servlet_name} servlet: Method {method_name} on module {key} is a {laziness_type}. "
                 f"Storing result to be retrieved later at result key {res}."
             )
-            return self.construct_call_retrievable(res, res_key, laziness_type)
+            fut = self.construct_call_retrievable(res, run_name, laziness_type)
+            self.put_local(run_name, fut)
+            return fut
+
+        if remote and isinstance(res, Module):
+            # If the result is a module, we return just the config
+            res.name = res.name or run_name
+            self.put_local(res.name, res)
+            config = res.config_for_rns
+            return config
 
         return res
 
@@ -772,6 +808,9 @@ class ObjStore:
         method_name: str,
         data: Any = None,
         serialization: Optional[str] = None,
+        run_name: Optional[str] = None,
+        stream_logs: bool = False,
+        remote: bool = False,
     ):
         env_servlet_name_containing_key = self.get_env_servlet_name_for_key(key)
 
@@ -781,17 +820,41 @@ class ObjStore:
         ):
             from runhouse.servers.http.http_utils import deserialize_data
 
-            args, kwargs = deserialize_data(data, serialization)
+            args, kwargs = deserialize_data(data, serialization) if data else ([], {})
 
-            return self.call_local(key, method_name, *args, **kwargs)
+            res = self.call_local(
+                key,
+                method_name,
+                run_name=run_name,
+                stream_logs=stream_logs,
+                remote=remote,
+                *args,
+                **kwargs,
+            )
         else:
-            return self.call_for_env_servlet_name(
+            res = self.call_for_env_servlet_name(
                 env_servlet_name_containing_key,
                 key,
                 method_name,
                 data=data,
                 serialization=serialization,
+                run_name=run_name,
+                stream_logs=stream_logs,
+                remote=remote,
             )
+
+        if remote and isinstance(res, dict):
+            config = res
+            if config["system"] == self.get_cluster_config():
+                from runhouse import here
+
+                config["system"] = here
+            from runhouse.resources.module import Module
+
+            res_copy = Module.from_config(config=config, dryrun=True)
+            return res_copy
+
+        return res
 
     ##############################################
     # Get several keys for function initialization utilities

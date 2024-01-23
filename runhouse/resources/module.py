@@ -88,7 +88,7 @@ class Module(Resource):
             # of rh.Module, and we need to do the factory constructor logic here.
 
             # When creating a module as a subclass of rh.Module, we need to collect pointers here
-            self._env = env or Env(name=Env.DEFAULT_NAME)
+            self._env = self._env or Env(name=Env.DEFAULT_NAME)
             # If we're creating pointers, we're also local to the class definition and package, so it should be
             # set as the workdir (we can do this in a fancier way later)
             self._env.working_dir = self._env.working_dir or "./"
@@ -541,38 +541,13 @@ class Module(Resource):
                 if local_default and kwargs.pop("local", True):
                     return attr(*args, **kwargs)
 
-                # If the method is a coroutine, we need to wrap it in a function so we can await it
-                if is_async:
-
-                    def call_wrapper():
-                        return client.call(
-                            name,
-                            item,
-                            *args,
-                            **kwargs,
-                        )
-
-                    if is_gen:
-
-                        async def async_gen():
-                            for res in call_wrapper():
-                                yield res
-
-                        return async_gen()
-
-                    _executor = ThreadPoolExecutor(1)
-
-                    async def async_call():
-                        return await loop.run_in_executor(_executor, call_wrapper)
-
-                    loop = asyncio.get_event_loop()
-                    return asyncio.create_task(async_call())
-
                 return client.call(
                     name,
                     item,
-                    *args,
-                    **kwargs,
+                    run_name=kwargs.pop("run_name", None),
+                    stream_logs=kwargs.pop("stream_logs", False),
+                    remote=kwargs.pop("remote", False),
+                    data=[args, kwargs],
                 )
 
             def remote(self, *args, stream_logs=True, run_name=None, **kwargs):
@@ -603,20 +578,23 @@ class Module(Resource):
 
         return RemoteMethodWrapper()
 
-    def __setattr__(self, key, value):
-        """Override to allow for remote execution if system is a remote cluster. If not, the subclass's own
-        __setattr__ will be called."""
-        if key in LOCAL_METHODS or not hasattr(self, "_client"):
-            return super().__setattr__(key, value)
-        if not self._client() or not self._name:
-            return super().__setattr__(key, value)
-
-        return self._client().call(
-            module_name=self._name,
-            method_name=key,
-            new_value=value,
-            stream_logs=False,
-        )
+    # def __setattr__(self, key, value):
+    #     """Override to allow for remote execution if system is a remote cluster. If not, the subclass's own
+    #     __setattr__ will be called."""
+    #     if key in LOCAL_METHODS or not hasattr(self, "_client"):
+    #         return super().__setattr__(key, value)
+    #     if not self._client() or not self._name:
+    #         return super().__setattr__(key, value)
+    #
+    #     # Set the attribute to None locally just to make sure the property is set and doesn't throw an AttributeError
+    #     # when the user tries to use it in the future
+    #     super().__setattr__(key, None)
+    #
+    #     return self._client().call(
+    #         key=self._name,
+    #         method_name=key,
+    #         data=([value], {}),
+    #     )
 
     def refresh(self):
         """Update the resource in the object store."""
@@ -693,15 +671,16 @@ class Module(Resource):
         class RemotePropertyWrapper:
             @classmethod
             def __getattribute__(cls, item):
+                # TODO[DG] revise
                 if not client or not name:
                     return outer_super_gettattr(item)
 
                 if isinstance(system, Cluster) and name and system.on_this_cluster():
-                    obj_store_obj = obj_store.get(name, check_other_envs=True)
+                    obj_store_obj = obj_store.get_local(name, default=None)
                     if obj_store_obj:
                         return obj_store_obj.__getattribute__(item)
-                    else:
-                        return self.__getattribute__(item)
+                    # else:
+                    #     return self.__getattribute__(item)
 
                 return client.call(name, item, stream_logs=False)
 
@@ -711,10 +690,9 @@ class Module(Resource):
                     return outer_super_setattr(key, value)
 
                 return client.call(
-                    module_name=name,
+                    key=name,
                     method_name=key,
-                    new_value=value,
-                    stream_logs=False,
+                    data=([value], {}),
                 )
 
             @classmethod
@@ -848,9 +826,9 @@ class Module(Resource):
 
         def call_wrapper():
             return self._client().call(
-                module_name=self._name,
+                key=self._name,
                 method_name=key,
-                new_value=value,
+                data=([value], {}),
                 stream_logs=False,
             )
 

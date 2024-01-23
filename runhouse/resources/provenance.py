@@ -551,6 +551,7 @@ class capture_stdout:
         else:
             self._stream = self.output
         sys.stdout = StreamTee(sys.stdout, [self])
+        sys.stderr = StreamTee(sys.stderr, [self])
         return self
 
     def write(self, message):
@@ -576,6 +577,7 @@ class capture_stdout:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if hasattr(self, "instream"):
             sys.stdout = sys.stdout.instream
+            sys.stderr = sys.stderr.instream
         return False
 
 
