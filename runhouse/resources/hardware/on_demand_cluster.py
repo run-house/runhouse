@@ -358,9 +358,13 @@ class OnDemandCluster(Cluster):
         self._populate_connection_from_status_dict(cluster_dict)
 
     def get_instance_type(self):
-        if "--" in self.instance_type:  # K8s specific syntax
+        if self.instance_type and "--" in self.instance_type:  # K8s specific syntax
             return self.instance_type
-        elif ":" not in self.instance_type and "CPU" not in self.instance_type:
+        elif (
+            self.instance_type
+            and ":" not in self.instance_type
+            and "CPU" not in self.instance_type
+        ):
             return self.instance_type
 
         return None
