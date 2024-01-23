@@ -98,10 +98,13 @@ def cluster(
         )
         # Filter out None/default values
         alt_options = {k: v for k, v in alt_options.items() if v is not None}
-        c = Cluster.from_name(name, dryrun, alt_options=alt_options)
-        if c:
-            c.set_connection_defaults()
-            return c
+        try:
+            c = Cluster.from_name(name, dryrun, alt_options=alt_options)
+            if c:
+                c.set_connection_defaults()
+                return c
+        except ValueError:
+            pass
 
     if host and ("localhost" in host or ":" in host):
         # If server_connection_type is not specified, we
@@ -194,6 +197,7 @@ def cluster(
         dryrun=dryrun,
         **kwargs,
     )
+    c.set_connection_defaults()
 
     if den_auth:
         c.save()
@@ -299,6 +303,7 @@ def kubernetes_cluster(
         server_connection_type=server_connection_type,
         **kwargs,
     )
+    c.set_connection_defaults()
 
     return c
 
@@ -425,7 +430,7 @@ def ondemand_cluster(
         try:
             c = Cluster.from_name(name, dryrun, alt_options=alt_options)
             if c:
-                set_connection_defaults(c)
+                c.set_connection_defaults()
                 return c
         except ValueError:
             pass
@@ -451,8 +456,7 @@ def ondemand_cluster(
         dryrun=dryrun,
         **kwargs,
     )
-
-    set_connection_defaults(c)
+    c.set_connection_defaults()
 
     if den_auth:
         c.save()
@@ -609,6 +613,7 @@ def sagemaker_cluster(
         try:
             c = SageMakerCluster.from_name(name, dryrun, alt_options=alt_options)
             if c:
+                c.set_connection_defaults()
                 return c
         except ValueError:
             pass
@@ -641,6 +646,7 @@ def sagemaker_cluster(
         dryrun=dryrun,
         **kwargs,
     )
+    c.set_connection_defaults()
 
     if den_auth:
         sm.save()
