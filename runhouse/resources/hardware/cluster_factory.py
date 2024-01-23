@@ -85,22 +85,25 @@ def cluster(
             "Cluster factory method can only accept one of `host` or `ips` as an argument."
         )
 
-    if name and all(
-        not x
-        for x in [
-            host,
-            ssh_creds,
-            server_port,
-            server_host,
-            server_connection_type,
-            ssl_keyfile,
-            ssl_certfile,
-            den_auth,
-            kwargs,
-        ]
-    ):
-        # If only the name is provided
-        return Cluster.from_name(name, dryrun)
+    if name:
+        alt_options = dict(
+            host=host,
+            ssh_creds=ssh_creds,
+            server_port=server_port,
+            server_host=server_host,
+            server_connection_type=server_connection_type,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile,
+            den_auth=den_auth,
+            kwargs=kwargs,
+        )
+        # Filter out None/default values
+        alt_options = {k: v for k, v in alt_options.items() if v is not None}
+        try:
+            c = Cluster.from_name(name, dryrun, alt_options=alt_options)
+            if c:
+                c.set_connection_defaults()
+                return c
 
     if host and ("localhost" in host or ":" in host):
         # If server_connection_type is not specified, we
@@ -320,7 +323,7 @@ def ondemand_cluster(
     server_connection_type: Union[ServerConnectionType, str] = None,
     ssl_keyfile: str = None,
     ssl_certfile: str = None,
-    den_auth: bool = False,
+    den_auth: bool = None,
     dryrun: bool = False,
     **kwargs,
 ) -> OnDemandCluster:
@@ -402,78 +405,6 @@ def ondemand_cluster(
             server_connection_type=server_connection_type,
         )
 
-    if server_connection_type in [
-        ServerConnectionType.AWS_SSM,
-    ]:
-        raise ValueError(
-            f"OnDemandCluster does not support server connection type {server_connection_type}"
-        )
-
-    if not server_connection_type:
-        if ssl_keyfile or ssl_certfile:
-            server_connection_type = ServerConnectionType.TLS
-        else:
-            server_connection_type = ServerConnectionType.SSH
-
-    if server_port is None:
-        if server_connection_type == ServerConnectionType.TLS:
-            server_port = DEFAULT_HTTPS_PORT
-        elif server_connection_type == ServerConnectionType.NONE:
-            server_port = DEFAULT_HTTP_PORT
-        else:
-            server_port = DEFAULT_SERVER_PORT
-
-    if (
-        server_connection_type in [ServerConnectionType.TLS, ServerConnectionType.NONE]
-        and server_host in LOCAL_HOSTS
-    ):
-        warnings.warn(
-            f"Server connection type set to {server_connection_type}, with server host set to {server_host}. "
-            f"Note that this will require opening an SSH tunnel to forward traffic from {server_host} to the server."
-        )
-
-    open_ports = (
-        []
-        if open_ports is None
-        else [open_ports]
-        if isinstance(open_ports, (int, str))
-        else open_ports
-    )
-
-    if open_ports:
-        open_ports = [str(p) for p in open_ports]
-        if str(server_port) in open_ports:
-            if (
-                server_connection_type
-                in [ServerConnectionType.TLS, ServerConnectionType.NONE]
-                and not den_auth
-            ):
-                warnings.warn(
-                    "Server is insecure and must be inside a VPC or have `den_auth` enabled to secure it."
-                )
-        else:
-            warnings.warn(
-                f"Server port {server_port} not included in open ports. Note you are responsible for opening "
-                f"the port or ensure you have access to it via a VPC."
-            )
-    else:
-        # If using HTTP or HTTPS must enable traffic on the relevant port
-        if server_connection_type in [
-            ServerConnectionType.TLS,
-            ServerConnectionType.NONE,
-        ]:
-            if server_port:
-                warnings.warn(
-                    f"No open ports specified. Make sure port {server_port} is open "
-                    f"to {server_connection_type} traffic."
-                )
-            else:
-                warnings.warn(
-                    f"No open ports specified. Make sure the relevant port is open. "
-                    f"HTTPS default: {DEFAULT_HTTPS_PORT} and HTTP "
-                    f"default: {DEFAULT_HTTP_PORT}."
-                )
-
     if name:
         alt_options = dict(
             instance_type=instance_type,
@@ -496,6 +427,7 @@ def ondemand_cluster(
         try:
             c = Cluster.from_name(name, dryrun, alt_options=alt_options)
             if c:
+                set_connection_defaults(c)
                 return c
         except ValueError:
             pass
@@ -521,6 +453,8 @@ def ondemand_cluster(
         dryrun=dryrun,
         **kwargs,
     )
+
+    set_connection_defaults(c)
 
     if den_auth:
         c.save()
