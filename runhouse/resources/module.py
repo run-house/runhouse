@@ -331,10 +331,10 @@ class Module(Resource):
         # so methods like .to default to the module_cls and not Module's when on the cluster.
         # This is a small price to pay for matching PyTorch's .to API. If it creates too much craziness we can
         # revisit.
-        class NewSubclass(module_cls, Module):
-            pass
-
-        self.__class__ = NewSubclass
+        # class NewSubclass(module_cls, Module):
+        #     pass
+        #
+        # self.__class__ = NewSubclass
 
         module_cls.__init__(self, *args, **kwargs)
 
@@ -545,7 +545,7 @@ class Module(Resource):
                     name,
                     item,
                     run_name=kwargs.pop("run_name", None),
-                    stream_logs=kwargs.pop("stream_logs", False),
+                    stream_logs=kwargs.pop("stream_logs", True),
                     remote=kwargs.pop("remote", False),
                     data=[args, kwargs],
                 )
@@ -577,24 +577,6 @@ class Module(Resource):
                 )
 
         return RemoteMethodWrapper()
-
-    # def __setattr__(self, key, value):
-    #     """Override to allow for remote execution if system is a remote cluster. If not, the subclass's own
-    #     __setattr__ will be called."""
-    #     if key in LOCAL_METHODS or not hasattr(self, "_client"):
-    #         return super().__setattr__(key, value)
-    #     if not self._client() or not self._name:
-    #         return super().__setattr__(key, value)
-    #
-    #     # Set the attribute to None locally just to make sure the property is set and doesn't throw an AttributeError
-    #     # when the user tries to use it in the future
-    #     super().__setattr__(key, None)
-    #
-    #     return self._client().call(
-    #         key=self._name,
-    #         method_name=key,
-    #         data=([value], {}),
-    #     )
 
     def refresh(self):
         """Update the resource in the object store."""
@@ -675,13 +657,6 @@ class Module(Resource):
                 if not client or not name:
                     return outer_super_gettattr(item)
 
-                if isinstance(system, Cluster) and name and system.on_this_cluster():
-                    obj_store_obj = obj_store.get_local(name, default=None)
-                    if obj_store_obj:
-                        return obj_store_obj.__getattribute__(item)
-                    # else:
-                    #     return self.__getattribute__(item)
-
                 return client.call(name, item, stream_logs=False)
 
             @classmethod
@@ -725,7 +700,7 @@ class Module(Resource):
 
         return LocalPropertyWrapper()
 
-    def fetch(self, item: str = None, stream_logs: bool = False, **kwargs):
+    def fetch(self, item: str = None, **kwargs):
         """Helper method to allow for access to remote state, both public and private. Fetching functions
         is not advised. `system.get(module.name).resolved_state()` is roughly equivalent to `module.fetch()`.
 
@@ -743,31 +718,20 @@ class Module(Resource):
             >>>
             >>> MyModule(*args).to(system).fetch() # Returns the full remote module, including private and public state
         """
-        system = super().__getattribute__("_system")
         name = super().__getattribute__("_name")
 
+        client = super().__getattribute__("_client")()
+
         if item is not None:
-            if not isinstance(system, Cluster) or not name:
+            if not client or not name:
                 return super().__getattribute__(item)
-
-            if isinstance(system, Cluster) and name and system.on_this_cluster():
-                try:
-                    obj_store_obj = obj_store.get(
-                        name, check_other_envs=True, default=KeyError
-                    )
-                    return obj_store_obj.__getattribute__(item)
-                except KeyError:
-                    return self.__getattribute__(item)
-
-            return system.call(name, item, stream_logs=stream_logs)
+            return client.call(name, item)
         else:
-            if not isinstance(system, Cluster) or not name:
+            if not client or not name:
                 return self.resolved_state(**kwargs)
-            return system.get(name, stream_logs=stream_logs).resolved_state(**kwargs)
+            return client.call(name, "resolved_state", data=((), kwargs))
 
-    async def fetch_async(
-        self, key: str, remote: bool = False, stream_logs: bool = False
-    ):
+    async def fetch_async(self, key: str, remote: bool = False):
         """Async version of fetch. Can't be a property like `fetch` because __getattr__ can't be awaited.
 
         Example:
@@ -783,12 +747,12 @@ class Module(Resource):
                 return client.get(name, remote=remote, stream_logs=stream_logs)
 
             if isinstance(system, Cluster) and name and system.on_this_cluster():
-                obj_store_obj = obj_store.get(name, check_other_envs=True)
+                obj_store_obj = obj_store.get(name, default=None)
                 if obj_store_obj:
                     return obj_store_obj.__getattribute__(key)
                 else:
                     return self.__getattribute__(key)
-            return client.call(name, key, remote=remote, stream_logs=stream_logs)
+            return client.call(name, key, remote=remote)
 
         try:
             is_gen = (key and hasattr(self, key)) and inspect.isasyncgenfunction(

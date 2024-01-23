@@ -142,7 +142,7 @@ class TestHTTPClient:
         # Call the method under test
         method_name = "install"
         module_name = "base_env"
-        result_generator = self.client.call_module_method(module_name, method_name)
+        result_generator = self.client.call(module_name, method_name)
 
         # Iterate through the generator and collect results
         results = []
@@ -155,11 +155,11 @@ class TestHTTPClient:
         # Assert that the post request was called correctly
         expected_url = self.client._formatted_url(f"{module_name}/{method_name}")
         expected_json_data = {
-            "data": pickle_b64([None, None]),
-            "env": None,
+            "data": None,
+            "serialization": "pickle",
+            "run_name": None,
             "stream_logs": True,
             "save": False,
-            "key": None,
             "remote": False,
             "run_async": False,
         }
@@ -189,17 +189,15 @@ class TestHTTPClient:
         module_name = "module"
         method_name = "install"
 
-        self.client.call_module_method(
-            module_name, method_name, args=args, kwargs=kwargs
-        )
+        self.client.call(module_name, method_name, data=(args, kwargs))
 
         # Assert that the post request was called with the correct data
         expected_json_data = {
-            "data": pickle_b64([args, kwargs]),
-            "env": None,
+            "data": pickle_b64((args, kwargs)),
+            "serialization": "pickle",
+            "run_name": None,
             "stream_logs": True,
             "save": False,
-            "key": None,
             "remote": False,
             "run_async": False,
         }
@@ -221,7 +219,7 @@ class TestHTTPClient:
         mocker.patch("requests.Session.post", return_value=mock_response)
 
         with pytest.raises(ValueError):
-            self.client.call_module_method("module", "method")
+            self.client.call("module", "method")
 
     @pytest.mark.level("unit")
     def test_call_module_method_stream_logs(self, mocker):
@@ -237,7 +235,7 @@ class TestHTTPClient:
         mocker.patch("requests.Session.post", return_value=mock_response)
 
         # Call the method under test
-        res = self.client.call_module_method("base_env", "install")
+        res = self.client.call("base_env", "install")
         assert inspect.isgenerator(res)
         assert next(res) == "Log message"
 
@@ -253,7 +251,7 @@ class TestHTTPClient:
         )
         mocker.patch("requests.Session.post", return_value=mock_response)
 
-        cluster = self.client.call_module_method("base_env", "install")
+        cluster = self.client.call("base_env", "install")
         assert cluster.config_for_rns == test_data
 
     @pytest.mark.level("unit")
@@ -269,7 +267,7 @@ class TestHTTPClient:
         mocker.patch("requests.Session.post", return_value=mock_response)
 
         with pytest.raises(KeyError) as context:
-            next(self.client.call_module_method("module", "method"))
+            next(self.client.call("module", "method"))
 
         assert f"key {missing_key} not found" in str(context)
 

@@ -48,22 +48,15 @@ def error_handling_decorator(func):
         # the exception if there is one, instead of returning a Response object.
         try:
             output = func(*args, **kwargs)
+            if serialization is None:
+                return output
             if output is not None:
-                if serialization is None:
-                    return output
-                elif "remote" in kwargs and kwargs["remote"]:
-                    return Response(
-                        output_type=OutputType.CONFIG,
-                        data=serialize_data(output, serialization),
-                        serialization=serialization,
-                    )
-                else:
-                    serialized_data = serialize_data(output, serialization)
-                    return Response(
-                        output_type=OutputType.RESULT_SERIALIZED,
-                        data=serialized_data,
-                        serialization=serialization,
-                    )
+                serialized_data = serialize_data(output, serialization)
+                return Response(
+                    output_type=OutputType.RESULT_SERIALIZED,
+                    data=serialized_data,
+                    serialization=serialization,
+                )
             else:
                 return Response(
                     output_type=OutputType.SUCCESS,
@@ -303,180 +296,6 @@ class EnvServlet:
                 type(e), e, traceback.format_exc()
             )  # TODO use format_tb instead?
 
-    def get(
-        self,
-        key,
-        remote=False,
-        stream=False,
-        timeout=None,
-        serialization=None,
-        _intra_cluster=False,
-    ):
-        """Get an object from the servlet's object store.
-
-        Args:
-            key (str): The key of the object to get.
-            remote (bool): Whether to return the object or it's config to construct a remote object.
-            stream (bool): Whether to stream results as available (if the key points to a queue).
-        """
-        self.register_activity()
-        try:
-            ret_obj = obj_store.get(
-                key, default=KeyError, check_other_envs=not _intra_cluster
-            )
-            logger.debug(
-                f"Servlet {self.env_name} got object of type "
-                f"{type(ret_obj)} back from object store for key {key}"
-            )
-            if _intra_cluster:
-                if remote:
-                    return ret_obj.config_for_rns
-                return ret_obj
-
-            # If the request doesn't want a stream, we can just return the queue object in same way as any other, below
-            if isinstance(ret_obj, Queue) and stream:
-                if remote and self.output_types.get(key) in [
-                    OutputType.RESULT_STREAM,
-                    OutputType.SUCCESS_STREAM,
-                ]:
-                    # If this is a "remote" request and we already know the output type is a stream, we can
-                    # return the Queue as a remote immediately so the client can start streaming the results
-                    res = ret_obj.config_for_rns
-                    res["dryrun"] = True
-                    return Response(
-                        data=res,
-                        output_type=OutputType.CONFIG,
-                    )
-
-                # If we're waiting for a result, this will block until one is available, which will either
-                # cause the server's ray.get to timeout so it can try again, or return None as soon as the result is
-                # available so the server can try requesting again now that it's ready.
-                if ret_obj.empty():
-                    if (
-                        not ret_obj.provenance
-                        or ret_obj.provenance.status == RunStatus.NOT_STARTED
-                    ):
-                        while key not in self.output_types:
-                            time.sleep(0.1)
-                        return
-
-                    # This allows us to return the results of a generator as they become available, rather than
-                    # waiting a full second for the ray.get in the server to timeout before trying again.
-                    if ret_obj.provenance.status == RunStatus.RUNNING:
-                        time.sleep(0.1)
-                        return
-
-                    if ret_obj.provenance.status == RunStatus.COMPLETED:
-                        # We need to look up the output type because this could be a stream with no results left,
-                        # which should still return OutputType.RESULT_STREAM, or a call with no result, which should
-                        # return OutputType.SUCCESS
-                        if self.output_types[key] == OutputType.RESULT_STREAM:
-                            return Response(output_type=OutputType.SUCCESS_STREAM)
-                        else:
-                            return Response(output_type=OutputType.SUCCESS)
-
-                    if ret_obj.provenance.status == RunStatus.ERROR:
-                        return Response(
-                            error=pickle_b64(ret_obj.provenance.error)
-                            if not serialization == "json"
-                            else str(ret_obj.provenance.error),
-                            traceback=pickle_b64(ret_obj.provenance.traceback)
-                            if not serialization == "json"
-                            else str(ret_obj.provenance.traceback),
-                            output_type=OutputType.EXCEPTION,
-                        )
-
-                    if ret_obj.provenance.status == RunStatus.CANCELLED:
-                        return Response(output_type=OutputType.CANCELLED)
-
-                res = ret_obj.get(block=True, timeout=timeout)
-                # There's no OutputType.EXCEPTION case to handle here, because if an exception were thrown the
-                # provenance.status would be RunStatus.ERROR, and we want to continue retrieving results until the
-                # queue is empty, and then will return the exception and traceback in the empty case above.
-                return Response(
-                    data=pickle_b64(res) if not serialization == "json" else res,
-                    output_type=self.output_types[key],
-                )
-
-            # If the user requests a remote object, we can return a queue before results complete so they can
-            # stream in results directly from the queue. For all other cases, we need to wait for the results
-            # to be available.
-            if remote:
-                if not isinstance(ret_obj, Resource):
-                    # If the user requests a remote of an object that is not a Resource, we need to wrap it
-                    # in a Resource first, which will overwrite the original object in the object store. We
-                    # may want to just throw an error instead, but let's see if this is acceptable to start.
-                    # TODO just put it in the obj store and return a string instead?
-                    ret_obj = blob(data=ret_obj, name=key)
-                    ret_obj.pin()
-
-                if ret_obj.provenance and ret_obj.provenance.status == RunStatus.ERROR:
-                    return Response(
-                        error=pickle_b64(ret_obj.provenance.error)
-                        if not serialization == "json"
-                        else str(ret_obj.provenance.error),
-                        traceback=pickle_b64(ret_obj.provenance.traceback)
-                        if not serialization == "json"
-                        else str(ret_obj.provenance.traceback),
-                        output_type=OutputType.EXCEPTION,
-                    )
-
-                # If this is a "remote" request, just return the rns config and the client will reconstruct the
-                # resource from it
-                res = ret_obj.config_for_rns
-                res["dryrun"] = True
-                return Response(
-                    data=res,
-                    output_type=OutputType.CONFIG,
-                )
-
-            if isinstance(ret_obj, Resource) and ret_obj.provenance:
-                if ret_obj.provenance.status == RunStatus.ERROR:
-                    return Response(
-                        error=pickle_b64(ret_obj.provenance.error)
-                        if not serialization == "json"
-                        else str(ret_obj.provenance.error),
-                        traceback=pickle_b64(ret_obj.provenance.traceback)
-                        if not serialization == "json"
-                        else str(ret_obj.provenance.traceback),
-                        output_type=OutputType.EXCEPTION,
-                    )
-                # Includes the case where the user called a method with remote or save, where even if the original
-                # return value wasn't a resource, we want to return the wrapped resource anyway. If the user called
-                # a non-generator method without remote or save, the result would be in a queue and handled above,
-                # so it'll still be returned unwrapped.
-                if ret_obj.provenance.status == RunStatus.COMPLETED:
-                    return Response(
-                        data=pickle_b64(ret_obj)
-                        if not serialization == "json"
-                        else ret_obj,
-                        output_type=OutputType.RESULT,
-                    )
-
-                if ret_obj.provenance.status == RunStatus.CANCELLED:
-                    return Response(output_type=OutputType.CANCELLED)
-
-                # We don't need to handle the ret_obj.provenance.status == RunStatus.NOT_STARTED case, because
-                # if the run hasn't started yet, the result_resource will still be a Queue and handled above.
-                # If the run has started, but for some reason the Queue hasn't been created yet (even though it's
-                # created immediately), the ret_obj wouldn't be found in the obj_store.
-
-            return Response(
-                data=pickle_b64(ret_obj) if not serialization == "json" else ret_obj,
-                output_type=OutputType.RESULT,
-            )
-        except Exception as e:
-            if _intra_cluster:
-                raise e
-
-            return Response(
-                error=pickle_b64(e) if not serialization == "json" else str(e),
-                traceback=pickle_b64(traceback.format_exc())
-                if not serialization == "json"
-                else str(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
-
     ##############################################################
     # Methods decorated with a standardized error decorating handler
     # These catch exceptions and wrap the output in a Response object.
@@ -519,6 +338,16 @@ class EnvServlet:
             **kwargs,
         )
 
+    @error_handling_decorator
+    def get_local(
+        self,
+        key: Any,
+        default: Optional[Any] = None,
+        serialization: Optional[str] = None,
+        remote: bool = False,
+    ):
+        return obj_store.get_local(key, default=default, remote=remote)
+
     ##############################################################
     # IPC methods for interacting with local object store only
     # These do not catch exceptions, and do not wrap the output
@@ -527,10 +356,6 @@ class EnvServlet:
     def keys_local(self):
         self.register_activity()
         return obj_store.keys_local()
-
-    def get_local(self, key: Any, default: Optional[Any] = None):
-        self.register_activity()
-        return obj_store.get_local(key, default)
 
     def rename_local(self, key: Any, new_key: Any):
         self.register_activity()

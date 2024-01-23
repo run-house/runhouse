@@ -206,12 +206,12 @@ class TestModule:
 
         # TODO fix factory method support
         # Test creating a third instance with the factory method
-        # remote_array3 = RemoteClass.factory_constructor.remote(
-        #     size=40, run_name="remote_array3"
-        # )
-        # assert remote_array3.system.config_for_rns == cluster.config_for_rns
-        # assert remote_array3.remote.size == 40
-        # assert remote_array3.cpu_count(local=False) == cluster_cpus
+        remote_array3 = RemoteClass.factory_constructor.remote(
+            size=40, run_name="remote_array3"
+        )
+        assert remote_array3.system.config_for_rns == cluster.config_for_rns
+        assert remote_array3.remote.size == 40
+        assert remote_array3.cpu_count(local=False) == cluster_cpus
 
         # Make sure first array and class are unaffected by this change
         assert remote_array.remote.size == 20
@@ -251,8 +251,8 @@ class TestModule:
         # Check that stdout was captured. Skip the last result because sometimes we
         # don't catch it and it makes the test flaky.
         # for i in range(remote_df.size - 1):
-        # assert f"Hello from the cluster stdout! {i}" in out
-        # assert f"Hello from the cluster logs! {i}" in out
+        #     assert f"Hello from the cluster stdout! {i}" in out
+        #     assert f"Hello from the cluster logs! {i}" in out
 
         if cluster.on_this_cluster():
             cpu_count = os.cpu_count()
@@ -478,6 +478,9 @@ class TestModule:
     @pytest.mark.level("local")
     def test_save(self, cluster, env):
         # TODO: ask Josh for advice how to share it with a new user each time.
+        if cluster == rh.here:
+            pytest.skip("Skipping sharing test on local cluster")
+
         users = ["josh@run.house"]
         remote_calc = rh.module(Calculator).to(cluster).save(name="rh_remote_calc")
         added_users, new_users, _ = remote_calc.share(

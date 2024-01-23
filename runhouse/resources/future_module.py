@@ -21,7 +21,7 @@ class FutureModule(Module, Awaitable):
         # TODO talk about module dunder stuff through this file
         # __await__ needs to return an awaitable, so we wrap it in a coroutine
         async def __await():
-            return self.remote_await()
+            return self.remote_await(run_name=self.name)
 
         return __await().__await__()
 
@@ -71,7 +71,7 @@ class GeneratorModule(Module, Generator):
         return self._future.__next__()
 
     def __next__(self):
-        return self.remote_next()
+        return self.remote_next(run_name=self.name)
 
     def send(self, __value):
         return self._future.send(__value)
@@ -99,7 +99,7 @@ class AsyncGeneratorModule(Module, AsyncIterable):
         return asyncio.run(self._future.__anext__())
 
     async def __anext__(self):
-        return self.remote_anext()
+        return self.remote_anext(run_name=self.name)
 
     def remote_await(self):
         return self._future.__await__()

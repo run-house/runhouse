@@ -27,6 +27,16 @@ class ServerSettings(BaseModel):
     flush_auth_cache: Optional[bool] = None
 
 
+class CallParams(BaseModel):
+    data: Any = None
+    serialization: Optional[str] = None
+    run_name: Optional[str] = None
+    stream_logs: Optional[bool] = True
+    save: Optional[bool] = False
+    remote: Optional[bool] = False
+    run_async: Optional[bool] = False
+
+
 class PutResourceParams(BaseModel):
     serialized_data: Any
     serialization: Optional[str] = None
@@ -38,6 +48,12 @@ class PutObjectParams(BaseModel):
     serialized_data: Any
     serialization: Optional[str] = None
     env_name: Optional[str] = None
+
+
+class GetObjectParams(BaseModel):
+    key: str
+    serialization: Optional[str] = None
+    remote: Optional[bool] = False
 
 
 class RenameObjectParams(BaseModel):
@@ -110,7 +126,10 @@ def serialize_data(data: Any, serialization: Optional[str]):
 
 
 def handle_exception_response(exception, traceback):
-    logger.exception(exception)
+    if not (
+        isinstance(exception, StopIteration) or isinstance(exception, GeneratorExit)
+    ):
+        logger.exception(exception)
     return Response(
         output_type=OutputType.EXCEPTION,
         error=pickle_b64(exception),
@@ -150,8 +169,12 @@ def handle_response(response_data, output_type, err_str):
     elif output_type == OutputType.EXCEPTION:
         fn_exception = b64_unpickle(response_data["error"])
         fn_traceback = b64_unpickle(response_data["traceback"])
-        logger.error(f"{err_str}: {fn_exception}")
-        logger.error(f"Traceback: {fn_traceback}")
+        if not (
+            isinstance(fn_exception, StopIteration)
+            or isinstance(fn_exception, GeneratorExit)
+        ):
+            logger.error(f"{err_str}: {fn_exception}")
+            logger.error(f"Traceback: {fn_traceback}")
         raise fn_exception
     elif output_type == OutputType.STDOUT:
         res = response_data["data"]

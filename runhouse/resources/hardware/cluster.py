@@ -325,13 +325,12 @@ class Cluster(Resource):
         use `cluster.get(key, default=KeyError)`."""
         self.check_server()
         if self.on_this_cluster():
-            return obj_store.get(key, default=default)
+            return obj_store.get(key, default=default, remote=remote)
         try:
-            res = self.client.call_module_method(
+            res = self.client.get(
                 key,
-                None,
+                default=default,
                 remote=remote,
-                stream_logs=stream_logs,
                 system=self,
             )
         except KeyError as e:
@@ -756,12 +755,11 @@ class Cluster(Resource):
             module_name,
             method_name,
             stream_logs=stream_logs,
+            data=(args, kwargs),
             run_name=run_name,
             remote=remote,
             run_async=run_async,
             save=save,
-            args=args,
-            kwargs=kwargs,
             system=self,
         )
 
