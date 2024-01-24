@@ -335,6 +335,7 @@ class TestNginxConfiguration:
                 location / {{
                     proxy_buffering off;
                     proxy_pass http://127.0.0.1:{config.rh_server_port}/;
+                    send_timeout 3600;
                 }}
             }}
             """
@@ -402,6 +403,7 @@ class TestNginxConfiguration:
                 location / {{
                     proxy_buffering off;
                     proxy_pass http://127.0.0.1:{config.rh_server_port}/;
+                    send_timeout 3600;
                 }}
             }}
             """
