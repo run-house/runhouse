@@ -234,8 +234,6 @@ def kubernetes_cluster(
             f"You passed {server_connection_type}."
         )
 
-    server_connection_type = ServerConnectionType.SSH
-
     if context is not None and namespace is not None:
         warnings.warn(
             "You passed both a context and a namespace. Ensure your namespace matches the one in your context.",

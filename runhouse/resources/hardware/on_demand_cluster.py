@@ -2,6 +2,7 @@ import contextlib
 import logging
 import subprocess
 import time
+import warnings
 from pathlib import Path
 from typing import Any, Dict
 
@@ -10,7 +11,14 @@ import sky
 import yaml
 from sky.backends import backend_utils, CloudVmRayBackend
 
+from runhouse.constants import (
+    DEFAULT_HTTP_PORT,
+    DEFAULT_HTTPS_PORT,
+    DEFAULT_SERVER_PORT,
+)
+
 from runhouse.globals import configs, rns_client
+from runhouse.resources.hardware.utils import ServerConnectionType
 
 from .cluster import Cluster
 from .utils import _current_cluster
