@@ -101,16 +101,20 @@ def load_cluster_config_from_file() -> Dict:
         return {}
 
 
-def _current_cluster(key="name"):
+def _current_cluster(key="config"):
     """Retrive key value from the current cluster config.
     If key is "config", returns entire config."""
     from runhouse.globals import obj_store
 
     cluster_config = obj_store.get_cluster_config()
     if cluster_config:
+        # This could be a local cluster started via runhouse start,
+        # in which case it would have no Name.
+        if key in ["cluster_name", "name"] and "name" not in cluster_config:
+            return None
         if key == "config":
             return cluster_config
-        elif key == "cluster_name":
+        if key == "cluster_name":
             return cluster_config["name"].rsplit("/", 1)[-1]
         return cluster_config[key]
     else:
