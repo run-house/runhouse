@@ -2,7 +2,6 @@ import contextlib
 import copy
 import json
 import logging
-import os
 import pkgutil
 import re
 import subprocess
@@ -30,6 +29,13 @@ from runhouse.constants import (
     DEFAULT_RAY_PORT,
     DEFAULT_SERVER_PORT,
     LOCALHOST,
+    RAY_KILL_CMD,
+    RAY_START_CMD,
+    SERVER_LOGFILE,
+    SERVER_START_CMD,
+    SERVER_STOP_CMD,
+    START_NOHUP_CMD,
+    START_SCREEN_CMD,
 )
 from runhouse.globals import obj_store, rns_client
 from runhouse.resources.envs.utils import _get_env_from
@@ -52,20 +58,6 @@ class Cluster(Resource):
     REQUEST_TIMEOUT = 5  # seconds
 
     DEFAULT_SSH_PORT = 22
-    LOCAL_HOSTS = ["localhost", LOCALHOST]
-
-    SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
-    SERVER_START_CMD = f"{sys.executable} -m runhouse.servers.http.http_server"
-    SERVER_STOP_CMD = f'pkill -f "{SERVER_START_CMD}"'
-    # 2>&1 redirects stderr to stdout
-    START_SCREEN_CMD = f"screen -dm bash -c \"{SERVER_START_CMD} 2>&1 | tee -a '{SERVER_LOGFILE}' 2>&1\""
-    START_NOHUP_CMD = f"nohup {SERVER_START_CMD} >> {SERVER_LOGFILE} 2>&1 &"
-    RAY_START_CMD = f"ray start --head --port {DEFAULT_RAY_PORT}"
-    # RAY_BOOTSTRAP_FILE = "~/ray_bootstrap_config.yaml"
-    # --autoscaling-config=~/ray_bootstrap_config.yaml
-    # We need to use this instead of ray stop to make sure we don't stop the SkyPilot ray server,
-    # which runs on other ports but is required to preserve autostop and correct cluster status.
-    RAY_KILL_CMD = 'pkill -f ".*ray.*' + str(DEFAULT_RAY_PORT) + '.*"'
 
     def __init__(
         self,
@@ -616,11 +608,11 @@ class Cluster(Resource):
     ):
         cmds = []
         if restart:
-            cmds.append(cls.SERVER_STOP_CMD)
+            cmds.append(SERVER_STOP_CMD)
         if restart_ray:
-            cmds.append(cls.RAY_KILL_CMD)
+            cmds.append(RAY_KILL_CMD)
             # TODO Add in BOOTSTRAP file if it exists?
-            cmds.append(cls.RAY_START_CMD)
+            cmds.append(RAY_START_CMD)
 
         screen_check_cmd = "command -v screen"
         screen_check = subprocess.run(
@@ -644,9 +636,9 @@ class Cluster(Resource):
             if not nohup:
                 logger.info("nohup is not available on the system.")
 
-        server_start_cmd = cls.SERVER_START_CMD
-        start_screen_cmd = cls.START_SCREEN_CMD
-        start_nohup_cmd = cls.START_NOHUP_CMD
+        server_start_cmd = SERVER_START_CMD
+        start_screen_cmd = START_SCREEN_CMD
+        start_nohup_cmd = START_NOHUP_CMD
 
         flags = []
 
@@ -715,14 +707,14 @@ class Cluster(Resource):
             )
 
         if screen:
-            if create_logfile and not Path(cls.SERVER_LOGFILE).exists():
-                Path(cls.SERVER_LOGFILE).parent.mkdir(parents=True, exist_ok=True)
-                Path(cls.SERVER_LOGFILE).touch()
+            if create_logfile and not Path(SERVER_LOGFILE).exists():
+                Path(SERVER_LOGFILE).parent.mkdir(parents=True, exist_ok=True)
+                Path(SERVER_LOGFILE).touch()
             cmds.append(start_screen_cmd)
         elif nohup:
-            if create_logfile and not Path(cls.SERVER_LOGFILE).exists():
-                Path(cls.SERVER_LOGFILE).parent.mkdir(parents=True, exist_ok=True)
-                Path(cls.SERVER_LOGFILE).touch()
+            if create_logfile and not Path(SERVER_LOGFILE).exists():
+                Path(SERVER_LOGFILE).parent.mkdir(parents=True, exist_ok=True)
+                Path(SERVER_LOGFILE).touch()
             cmds.append(start_nohup_cmd)
         else:
             cmds.append(server_start_cmd)

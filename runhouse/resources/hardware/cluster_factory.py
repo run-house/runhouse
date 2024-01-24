@@ -9,6 +9,7 @@ from runhouse.constants import (
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
     DEFAULT_SERVER_PORT,
+    LOCAL_HOSTS,
     RESERVED_SYSTEM_NAMES,
 )
 from runhouse.resources.hardware.utils import ServerConnectionType
@@ -424,7 +425,7 @@ def ondemand_cluster(
 
     if (
         server_connection_type in [ServerConnectionType.TLS, ServerConnectionType.NONE]
-        and server_host in Cluster.LOCAL_HOSTS
+        and server_host in LOCAL_HOSTS
     ):
         warnings.warn(
             f"Server connection type set to {server_connection_type}, with server host set to {server_host}. "
@@ -648,7 +649,7 @@ def sagemaker_cluster(
         )
     server_connection_type = ServerConnectionType.AWS_SSM.value
 
-    if server_host and server_host not in Cluster.LOCAL_HOSTS:
+    if server_host and server_host not in LOCAL_HOSTS:
         raise ValueError(
             "SageMaker Cluster currently requires a server host of `localhost` or `127.0.0.1`"
         )
