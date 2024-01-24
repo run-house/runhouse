@@ -100,6 +100,7 @@ def _start_server(
     restart,
     restart_ray,
     screen,
+    nohup,
     create_logfile=True,
     host=None,
     port=None,
@@ -118,6 +119,7 @@ def _start_server(
         restart=restart,
         restart_ray=restart_ray,
         screen=screen,
+        nohup=nohup,
         create_logfile=create_logfile,
         host=host,
         port=port,
@@ -182,6 +184,9 @@ def _start_server(
 def start(
     restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
     screen: bool = typer.Option(False, help="Start the server in a screen"),
+    nohup: bool = typer.Option(
+        False, help="Start the server in a nohup if screen is not available"
+    ),
     host: Optional[str] = typer.Option(
         None, help="Custom server host address. Default is `0.0.0.0`."
     ),
@@ -212,6 +217,7 @@ def start(
         restart=False,
         restart_ray=restart_ray,
         screen=screen,
+        nohup=nohup,
         create_logfile=True,
         host=host,
         port=port,
@@ -230,6 +236,10 @@ def restart(
     screen: bool = typer.Option(
         True,
         help="Start the server in a screen. Only relevant when restarting locally.",
+    ),
+    nohup: bool = typer.Option(
+        True,
+        help="Start the server in a nohup if screen is not available. Only relevant when restarting locally.",
     ),
     resync_rh: bool = typer.Option(
         False,
@@ -280,6 +290,7 @@ def restart(
         restart=True,
         restart_ray=restart_ray,
         screen=screen,
+        nohup=nohup,
         create_logfile=True,
         host=host,
         port=port,
