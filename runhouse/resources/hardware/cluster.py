@@ -30,6 +30,7 @@ from runhouse.constants import (
     DEFAULT_RAY_PORT,
     DEFAULT_SERVER_PORT,
     LOCALHOST,
+    RESERVED_SYSTEM_NAMES,
 )
 from runhouse.globals import obj_store, rns_client
 from runhouse.resources.envs.utils import _get_env_from
@@ -1336,3 +1337,35 @@ class Cluster(Resource):
             self.den_auth = False
             self.client.set_settings({"den_auth": False})
         return self
+
+    def set_connection_defaults(self, **kwargs):
+        if self.host and ("localhost" in self.host or ":" in self.host):
+            # If server_connection_type is not specified, we
+            # assume we can hit the server directly via HTTP
+            self.server_connection_type = (
+                self.server_connection_type or ServerConnectionType.NONE
+            )
+            if ":" in self.host:
+                # e.g. "localhost:23324" or <real_ip>:<custom port> (e.g. a port is already open to the server)
+                self.host, self.client_port = self.host.split(":")
+                kwargs["client_port"] = self.client_port
+
+        self.server_connection_type = self.server_connection_type or (
+            ServerConnectionType.TLS
+            if self.ssl_certfile or self.ssl_keyfile
+            else ServerConnectionType.SSH
+        )
+
+        if self.server_port is None:
+            if self.server_connection_type == ServerConnectionType.TLS:
+                self.server_port = DEFAULT_HTTPS_PORT
+            elif self.server_connection_type == ServerConnectionType.NONE:
+                self.server_port = DEFAULT_HTTP_PORT
+            else:
+                self.server_port = DEFAULT_SERVER_PORT
+
+        if self.name in RESERVED_SYSTEM_NAMES:
+            raise ValueError(
+                f"Cluster name {self.name} is a reserved name. Please use a different name which is not one of "
+                f"{RESERVED_SYSTEM_NAMES}."
+            )

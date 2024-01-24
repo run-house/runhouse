@@ -5,12 +5,7 @@ import warnings
 
 from typing import Dict, List, Optional, Union
 
-from runhouse.constants import (
-    DEFAULT_HTTP_PORT,
-    DEFAULT_HTTPS_PORT,
-    DEFAULT_SERVER_PORT,
-    RESERVED_SYSTEM_NAMES,
-)
+from runhouse.constants import RESERVED_SYSTEM_NAMES
 from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import relative_ssh_path
 
@@ -106,35 +101,6 @@ def cluster(
         except ValueError:
             pass
 
-    if host and ("localhost" in host or ":" in host):
-        # If server_connection_type is not specified, we
-        # assume we can hit the server directly via HTTP
-        server_connection_type = server_connection_type or ServerConnectionType.NONE
-        if ":" in host:
-            # e.g. "localhost:23324" or <real_ip>:<custom port> (e.g. a port is already open to the server)
-            host, client_port = host.split(":")
-            kwargs["client_port"] = client_port
-
-    server_connection_type = server_connection_type or (
-        ServerConnectionType.TLS
-        if ssl_certfile or ssl_keyfile
-        else ServerConnectionType.SSH
-    )
-
-    if server_port is None:
-        if server_connection_type == ServerConnectionType.TLS:
-            server_port = DEFAULT_HTTPS_PORT
-        elif server_connection_type == ServerConnectionType.NONE:
-            server_port = DEFAULT_HTTP_PORT
-        else:
-            server_port = DEFAULT_SERVER_PORT
-
-    if name in RESERVED_SYSTEM_NAMES:
-        raise ValueError(
-            f"Cluster name {name} is a reserved name. Please use a different name which is not one of "
-            f"{RESERVED_SYSTEM_NAMES}."
-        )
-
     if "instance_type" in kwargs.keys():
         return ondemand_cluster(
             name=name,
@@ -197,7 +163,7 @@ def cluster(
         dryrun=dryrun,
         **kwargs,
     )
-    c.set_connection_defaults()
+    c.set_connection_defaults(**kwargs)
 
     if den_auth:
         c.save()
