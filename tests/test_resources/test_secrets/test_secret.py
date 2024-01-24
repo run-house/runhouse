@@ -1,5 +1,6 @@
 import json
 import os
+import time
 
 import pytest
 import requests
@@ -159,6 +160,11 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
             assert reloaded_secret.values == test_secret.values
 
         vault_secret.revoke(users=["info@run.house"])
+
+        # Wait for the revoke to take effect since we cannot guarantee "at least as fresh" consistency here
+        # https://authzed.com/docs/reference/api-consistency#at_least_as_fresh
+        time.sleep(1)
+
         with pytest.raises(Exception):
             with friend_account():
                 rh.secret(name=vault_secret.rns_address)

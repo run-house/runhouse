@@ -290,6 +290,10 @@ class TestFunction:
 
         my_function.revoke(users=["info@run.house"])
 
+        # Wait for the revoke to take effect since we cannot guarantee "at least as fresh" consistency here
+        # https://authzed.com/docs/reference/api-consistency#at_least_as_fresh
+        time.sleep(1)
+
         with pytest.raises(Exception):
             with friend_account():
                 my_function = rh.function(name=my_function.rns_address)
