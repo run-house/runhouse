@@ -68,7 +68,7 @@ class Module(Resource):
         signature: Optional[dict] = None,
         endpoint: Optional[str] = None,
         name: Optional[str] = None,
-        system: Union[Cluster] = None,
+        system: Union[Cluster, str] = None,
         env: Optional[Env] = None,
         dryrun: bool = False,
         provenance: Optional[dict] = None,

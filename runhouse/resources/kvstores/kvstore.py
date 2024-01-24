@@ -14,7 +14,7 @@ class Kvstore(Module):
     def __init__(
         self,
         name: Optional[str] = None,
-        system: Union[Cluster] = None,
+        system: Union[Cluster, str] = None,
         env: Optional[Env] = None,
         dryrun: bool = False,
         **kwargs,
