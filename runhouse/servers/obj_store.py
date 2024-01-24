@@ -3,6 +3,7 @@ import os
 from typing import Any, Dict, List, Optional, Set, Union
 
 import ray
+from ray.experimental.state.api import list_actors
 
 logger = logging.getLogger(__name__)
 
@@ -16,15 +17,52 @@ class NoLocalObjStoreError(ObjStoreError):
         super().__init__("No local object store exists; cannot perform operation.")
 
 
-def initialize_ray_and_cluster_servlet(create_if_not_exists: bool = False):
+def initialize_ray_and_cluster_servlet(create_if_not_exists: bool = True):
     from runhouse.servers.cluster_servlet import ClusterServlet
 
-    if create_if_not_exists:
+    # TODO: Should just be able to use ray.is_initialized here, but sometimes have problems
+    initialized_successfully = False
+    try:
+        # By specifying address, we attempt to connect to an existing Ray
+        # cluster instead of creating a new one
         ray.init(
+            # address="auto",
             ignore_reinit_error=True,
             logging_level=logging.ERROR,
             namespace="runhouse",
         )
+        initialized_successfully = True
+    except ConnectionError:
+        logging.warning(
+            "Could not connect to Ray cluster. Make sure you have run `runhouse start`"
+        )
+
+        # Attempt to actually initialize a Ray cluster.
+        if create_if_not_exists:
+            ray.init(
+                ignore_reinit_error=True,
+                logging_level=logging.ERROR,
+                namespace="runhouse",
+            )
+            initialized_successfully = True
+
+    # The cluster servlet is running if `runhouse start` has been run on this machine
+    # we check this using list_actors
+    cluster_servlet_exists = (
+        any(
+            actor["class_name"] == "ClusterServlet" and actor["state"] == "ALIVE"
+            for actor in list_actors()
+        )
+        if initialized_successfully
+        else False
+    )
+
+    # If the cluster servlet exists, we can just use Ray to get it
+    if cluster_servlet_exists:
+        return ray.get_actor("cluster_servlet", namespace="runhouse")
+
+    # If the cluster servlet does not exist, we can create it if specified.
+    elif create_if_not_exists:
         cluster_servlet = (
             ray.remote(ClusterServlet)
             .options(
@@ -36,17 +74,11 @@ def initialize_ray_and_cluster_servlet(create_if_not_exists: bool = False):
             .remote()
         )
 
-        # Make sure cluster servlet is actually initialized
+        # Make sure cluster servlet is actually initialized, then return it
         ray.get(cluster_servlet.get_cluster_config.remote())
+        return cluster_servlet
     else:
-        ray.init(
-            address="auto",
-            ignore_reinit_error=True,
-            logging_level=logging.ERROR,
-            namespace="runhouse",
-        )
-        cluster_servlet = ray.get_actor("cluster_servlet", namespace="runhouse")
-    return cluster_servlet
+        return None
 
 
 class ObjStore:
