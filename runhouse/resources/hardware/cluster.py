@@ -108,6 +108,8 @@ class Cluster(Resource):
             cert_path=ssl_certfile, key_path=ssl_keyfile, dir_name=self.name
         )
 
+        self.ssl_certfile = ssl_certfile
+        self.ssl_keyfile = ssl_keyfile
         self.server_connection_type = server_connection_type
         self.server_port = server_port or DEFAULT_SERVER_PORT
         self.client_port = client_port
