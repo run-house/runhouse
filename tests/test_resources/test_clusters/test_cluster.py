@@ -33,6 +33,26 @@ def test_table_to_rh_here():
     assert rh.here.get("test_table") is not None
 
 
+def rh_here_put_and_get():
+    rh.here.put("test", "value")
+    assert rh.here.get("test") == "value"
+    assert "test" in rh.here.keys()
+    rh.here.delete("test")
+    assert "test" not in rh.here.keys()
+    assert rh.here.get("test") is None
+
+    rh.here.put("a", 1)
+    rh.here.put("b", 2)
+    rh.here.put("c", 3)
+    rh.here.rename("a", "b")
+    assert rh.here.get("a") is None
+    assert rh.here.get("b") == 1
+    assert rh.here.pop("c") == 3
+    assert "a" not in rh.here.keys()
+    assert "b" in rh.here.keys()
+    assert "c" not in rh.here.keys()
+
+
 class TestCluster(tests.test_resources.test_resource.TestResource):
 
     MAP_FIXTURES = {"resource": "cluster"}
@@ -152,7 +172,13 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert cluster.get(k3) == "v3"
 
     @pytest.mark.level("local")
-    @pytest.mark.skip(reason="TODO")
+    @pytest.mark.skip(reason="Awaiting call working.")
+    def test_rh_here_basic(self, cluster):
+        rh_here_put_and_get_remote = rh.function(rh_here_put_and_get, system=cluster)
+        rh_here_put_and_get_remote()
+
+    @pytest.mark.level("local")
+    @pytest.mark.skip(reason="Awaiting call working.")
     def test_rh_here_objects(self, cluster):
         save_test_table_remote = rh.function(test_table_to_rh_here, system=cluster)
         save_test_table_remote()
