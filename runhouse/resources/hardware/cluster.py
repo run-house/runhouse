@@ -589,7 +589,7 @@ class Cluster(Resource):
         _rh_install_url: str = None,
         resync_rh: bool = True,
         restart_ray: bool = True,
-        env_activate_cmd: str = None,
+        env: Union[str, "Env"] = None,
         restart_proxy: bool = False,
     ):
         """Restart the RPC server.
@@ -597,7 +597,7 @@ class Cluster(Resource):
         Args:
             resync_rh (bool): Whether to resync runhouse. (Default: ``True``)
             restart_ray (bool): Whether to restart Ray. (Default: ``True``)
-            env_activate_cmd (str, optional): Command to activate the environment on the server. (Default: ``None``)
+            env (str or Env, optional): Specified environment to restart the server on. (Default: ``None``)
             restart_proxy (bool): Whether to restart nginx on the cluster, if configured. (Default: ``False``)
         Example:
             >>> rh.cluster("rh-cpu").restart_server()
@@ -656,7 +656,11 @@ class Cluster(Resource):
             + f" --port {self.server_port}"
         )
 
-        cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd
+        if env:
+            from runhouse.resources.envs import _get_env_from
+
+            env_activate_cmd = _get_env_from(env)._activate_cmd
+            cmd = f"{env_activate_cmd} && {cmd}"
 
         status_codes = self.run(commands=[cmd])
         if not status_codes[0][0] == 0:
@@ -679,6 +683,16 @@ class Cluster(Resource):
             self._start_ray_workers(DEFAULT_RAY_PORT)
 
         return status_codes
+
+    def stop_server(self, env: Union[str, "Env"] = None):
+        cmd = self.SERVER_STOP_CMD
+        if env:
+            from runhouse.resources.envs import _get_env_from
+
+            env_activate_cmd = _get_env_from(env)._activate_cmd
+            cmd = f"{env_activate_cmd} && {cmd}"
+
+        self.run(cmd)
 
     @contextlib.contextmanager
     def pause_autostop(self):

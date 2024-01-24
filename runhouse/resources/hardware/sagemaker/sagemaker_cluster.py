@@ -335,7 +335,7 @@ class SageMakerCluster(Cluster):
         _rh_install_url: str = None,
         resync_rh: bool = True,
         restart_ray: bool = True,
-        env_activate_cmd: str = None,
+        env: Union[str, "Env"] = None,
         restart_proxy: bool = False,
     ):
         """Restart the RPC server on the SageMaker instance.
@@ -343,15 +343,14 @@ class SageMakerCluster(Cluster):
         Args:
             resync_rh (bool): Whether to resync runhouse. (Default: ``True``)
             restart_ray (bool): Whether to restart Ray. (Default: ``True``)
-            env_activate_cmd (str, optional): Command to activate the environment on the server. If not provided
-                will activate the default conda environment provided on the cluster.
+            env (str or Env): Env to restart the server from. If not provided
+                will use default env on the cluster.
             restart_proxy (bool): Whether to restart nginx on the cluster, if configured. (Default: ``False``)
         Example:
             >>> rh.sagemaker_cluster("sagemaker-cluster").restart_server()
         """
-        env_activate_cmd = env_activate_cmd or self._env_activate_cmd
         return super().restart_server(
-            _rh_install_url, resync_rh, restart_ray, env_activate_cmd, restart_proxy
+            _rh_install_url, resync_rh, restart_ray, env, restart_proxy
         )
 
     def check_server(self, restart_server=True):
@@ -386,7 +385,7 @@ class SageMakerCluster(Cluster):
                     self.restart_server(
                         resync_rh=True,
                         restart_ray=True,
-                        env_activate_cmd=self._env_activate_cmd,
+                        env=None,
                     )
                     logger.info(f"Checking server {self.instance_id} again.")
 
