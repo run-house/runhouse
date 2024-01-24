@@ -145,7 +145,7 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
         for (key, val) in env_vars.items():
             assert get_remote_val(val) == secret.values[key]
 
-    @pytest.mark.level("local")
+    @pytest.mark.level("unit")
     def test_share_and_revoke_secret(self, test_secret):
         vault_secret = test_secret.save(f"{test_secret.name}_shared")
         vault_secret.share(
@@ -163,7 +163,7 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
             with friend_account():
                 rh.secret(name=vault_secret.rns_address)
 
-    @pytest.mark.level("local")
+    @pytest.mark.level("unit")
     def test_sharing_public_secret(self, test_secret):
         # Create & share
         with friend_account():
