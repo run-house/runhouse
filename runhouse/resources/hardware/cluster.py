@@ -577,15 +577,18 @@ class Cluster(Resource):
         return Path(self.cert_config.key_path).exists()
 
     @staticmethod
-    def _add_flags_to_commands(flags, start_screen_cmd, server_start_cmd):
-        flags_str = "".join(flags)
+    def _add_flags_to_commands(
+        flags, server_start_cmd_wrapper: str, server_start_cmd: str
+    ):
+        if flags:
+            flags_str = "".join(flags)
 
-        start_screen_cmd = start_screen_cmd.replace(
-            server_start_cmd, server_start_cmd + flags_str
-        )
-        server_start_cmd += flags_str
+            server_start_cmd_wrapper = server_start_cmd_wrapper.replace(
+                server_start_cmd, server_start_cmd + flags_str
+            )
+            server_start_cmd += flags_str
 
-        return start_screen_cmd, server_start_cmd
+        return server_start_cmd_wrapper, server_start_cmd
 
     @classmethod
     def _start_server_cmds(
@@ -701,22 +704,26 @@ class Cluster(Resource):
             f"Starting API server using the following command: {server_start_cmd}."
         )
 
-        if flags:
+        if screen:
             start_screen_cmd, server_start_cmd = cls._add_flags_to_commands(
                 flags, start_screen_cmd, server_start_cmd
             )
-
-        if screen:
             if create_logfile and not Path(SERVER_LOGFILE).exists():
                 Path(SERVER_LOGFILE).parent.mkdir(parents=True, exist_ok=True)
                 Path(SERVER_LOGFILE).touch()
             cmds.append(start_screen_cmd)
         elif nohup:
+            start_nohup_cmd, server_start_cmd = cls._add_flags_to_commands(
+                flags, start_nohup_cmd, server_start_cmd
+            )
             if create_logfile and not Path(SERVER_LOGFILE).exists():
                 Path(SERVER_LOGFILE).parent.mkdir(parents=True, exist_ok=True)
                 Path(SERVER_LOGFILE).touch()
             cmds.append(start_nohup_cmd)
         else:
+            _, server_start_cmd = cls._add_flags_to_commands(
+                flags, "", server_start_cmd
+            )
             cmds.append(server_start_cmd)
 
         return cmds
