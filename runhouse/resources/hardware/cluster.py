@@ -1339,15 +1339,17 @@ class Cluster(Resource):
         return self
 
     def set_connection_defaults(self, **kwargs):
-        if self.host and ("localhost" in self.host or ":" in self.host):
+        if self.server_host and (
+            "localhost" in self.server_host or ":" in self.server_host
+        ):
             # If server_connection_type is not specified, we
             # assume we can hit the server directly via HTTP
             self.server_connection_type = (
                 self.server_connection_type or ServerConnectionType.NONE
             )
-            if ":" in self.host:
+            if ":" in self.server_host:
                 # e.g. "localhost:23324" or <real_ip>:<custom port> (e.g. a port is already open to the server)
-                self.host, self.client_port = self.host.split(":")
+                self.server_host, self.client_port = self.server_host.split(":")
                 kwargs["client_port"] = self.client_port
 
         self.server_connection_type = self.server_connection_type or (
