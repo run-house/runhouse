@@ -601,6 +601,7 @@ class Cluster(Resource):
         restart,
         restart_ray,
         screen,
+        nohup,
         create_logfile,
         host,
         port,
@@ -631,8 +632,7 @@ class Cluster(Resource):
             )
             screen = False
 
-        nohup = False
-        if not screen:
+        if not screen and nohup:
             nohup_check_cmd = "command -v nohup"
             nohup_check = subprocess.run(
                 nohup_check_cmd,
@@ -640,10 +640,9 @@ class Cluster(Resource):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
-            if nohup_check.returncode != 0:
+            nohup = nohup_check.returncode == 0
+            if not nohup:
                 logger.info("nohup is not available on the system.")
-            else:
-                nohup = True
 
         server_start_cmd = cls.SERVER_START_CMD
         start_screen_cmd = cls.START_SCREEN_CMD
