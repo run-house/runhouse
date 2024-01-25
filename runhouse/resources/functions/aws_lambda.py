@@ -167,7 +167,7 @@ class LambdaFunction(Function):
             config["memory_size"] = LambdaFunction.DEFAULT_MEMORY_SIZE
         if "env" not in keys:
             config["env"] = Env(
-                reqs=[],
+                reqs=["runhouse"],
                 env_vars={"HOME": LambdaFunction.HOME_DIR},
                 name=Env.DEFAULT_NAME,
             )
@@ -313,6 +313,8 @@ class LambdaFunction(Function):
                     working_dir="./", name=Env.DEFAULT_NAME
                 )
             elif isinstance(original_env, str):
+                if original_env == "requirements.txt":
+                    env = [original_env]
                 env = _get_env_from(env)
             else:
                 env = _get_env_from(env) or Env(working_dir="./", name=Env.DEFAULT_NAME)
@@ -697,19 +699,28 @@ class LambdaFunction(Function):
         """
         reqs = self.env.reqs
         is_reqs_txt = False
-        reqs.remove("./")
+        if "./" in reqs:
+            reqs.remove("./")
+
         if "requirements.txt" in reqs:
             is_reqs_txt = True
-            reqs = self.local_path_to_code[-1]
-        else:
-            reqs = " ".join(reqs)
+
+        reqs = " ".join(reqs)
 
         with open(self.dockerfile_path, "a") as docker_file:
+
             docker_file.write("\n# Copy function code\n")
+
             for file in self.local_path_to_code:
-                docker_file.write(
-                    f'COPY {file.split("/")[-1]} ' + "${LAMBDA_TASK_ROOT}\n"
-                )
+                # we need to find the relative path of the .py file we want to copy to the image (relative to the
+                # current work dir). This way we can copy .py files from other dirs, which are not the dir the
+                # dockerfile located in.
+                curr_path = str(Path.cwd()).split("/")
+                file_path = file.split("/")
+                relative_path = [r for r in file_path if r not in curr_path]
+                relative_path = f'/{"/".join(relative_path)}'
+
+                docker_file.write(f"COPY {relative_path} " + "${LAMBDA_TASK_ROOT}\n")
             docker_file.write("# Set the CMD to your handler\n")
             docker_file.write(f'CMD [ "rh_handler_{self.name}.lambda_handler" ]')
 
