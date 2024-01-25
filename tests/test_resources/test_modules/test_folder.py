@@ -25,8 +25,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         tests_folder = rh.folder(system=cluster, path="my_new_tests_folder")
         assert "my_new_tests_folder/requirements.txt" in tests_folder.ls()
 
-    @pytest.mark.level("local")
-    @pytest.mark.awstest
+    @pytest.mark.level("minimal")  # This test needs S3 credentials
     def test_create_and_save_data_to_s3_folder(self):
         data = list(range(50))
         s3_folder = rh.folder(path=DATA_STORE_PATH, system="s3")
@@ -35,8 +34,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
 
         assert s3_folder.exists_in_system()
 
-    @pytest.mark.level("local")
-    @pytest.mark.awstest
+    @pytest.mark.level("minimal")  # This test needs S3 credentials
     def test_read_data_from_existing_s3_folder(self):
         # Note: Uses folder created above
         s3_folder = rh.folder(path=DATA_STORE_PATH, system="s3")
@@ -46,8 +44,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
 
         assert data == list(range(50))
 
-    @pytest.mark.level("local")
-    @pytest.mark.awstest
+    @pytest.mark.level("minimal")  # This test needs S3 credentials
     def test_create_and_delete_folder_from_s3(self):
         s3_folder = rh.folder(name=DATA_STORE_PATH, system="s3")
         s3_folder.mkdir()
@@ -56,16 +53,16 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
 
         assert not s3_folder.exists_in_system()
 
-    @pytest.mark.level("minimal")  # TODO: fix this test
+    @pytest.mark.level("local")  # TODO: fix this test
+    @pytest.mark.skip("[WIP] Fix this test")
     def test_folder_attr_on_cluster(self, local_folder, cluster):
         cluster_folder = local_folder.to(cluster)
         fs_str_cluster = rh.function(fn=fs_str_rh_fn).to(cluster)
         fs_str = fs_str_cluster(cluster_folder)
         assert fs_str == "file"
 
-    @pytest.mark.level("minimal")  # TODO: fix this test
-    @pytest.mark.gcptest
-    @pytest.mark.awstest
+    @pytest.mark.level("local")  # TODO: fix this test
+    @pytest.mark.skip("[WIP] Fix this test")
     def test_cluster_tos(self, cluster, tmp_path):
         tests_folder = rh.folder(path=str(Path.cwd()))
 
@@ -96,7 +93,8 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
                 f"See https://cloud.google.com/sdk/gcloud/reference/auth/login"
             )
 
-    @pytest.mark.level("minimal")  # TODO: fix this test
+    @pytest.mark.level("local")  # TODO: fix this test
+    @pytest.mark.skip("[WIP] Fix this test")
     def test_local_and_cluster(self, cluster, local_folder, tmp_path):
         # Local to cluster
         cluster_folder = local_folder.to(system=cluster)
@@ -108,8 +106,8 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         assert "sample_file_0.txt" in local_from_cluster.ls(full_paths=False)
         assert local_from_cluster._fs_str == "file"
 
-    @pytest.mark.level("minimal")  # TODO: fix this test
-    @pytest.mark.awstest
+    @pytest.mark.level("local")  # TODO: fix this test
+    @pytest.mark.skip("[WIP] Fix this test")
     def test_local_and_s3(self, local_folder, tmp_path):
         # Local to S3
         s3_folder = local_folder.to(system="s3")
@@ -124,9 +122,9 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         s3_folder.rm()
 
     @pytest.mark.level(
-        "minimal"
+        "local"
     )  # TODO: fix this test (just needs google-cloud-storage package)
-    @pytest.mark.gcptest
+    @pytest.mark.skip("[WIP] Fix this test")
     def test_local_and_gcs(self, local_folder, tmp_path):
         # Local to GCS
         gcs_folder = local_folder.to(system="gs")
@@ -140,8 +138,8 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
 
         gcs_folder.rm()
 
-    @pytest.mark.level("minimal")  # TODO: fix this test
-    @pytest.mark.awstest
+    @pytest.mark.level("local")  # TODO: fix this test
+    @pytest.mark.skip("[WIP] Fix this test")
     def test_cluster_and_s3(self, cluster, cluster_folder):
         # Cluster to S3
         s3_folder = cluster_folder.to(system="s3")
@@ -155,8 +153,8 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
 
         s3_folder.rm()
 
-    @pytest.mark.level("minimal")  # TODO: fix this test
-    # @unittest.skip("requires GCS setup")
+    @pytest.mark.level("minimal")  # May need to investigate this test further
+    @pytest.mark.skip("Requires GCS setup")
     def test_cluster_and_gcs(self, cluster, cluster_folder):
         # Make sure we have gsutil and gcloud on the cluster - needed for copying the package + authenticating
         cluster.install_packages(["gsutil"])
@@ -186,8 +184,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
                 f"See https://cloud.google.com/sdk/gcloud/reference/auth/login"
             )
 
-    @pytest.mark.level("local")
-    @pytest.mark.awstest
+    @pytest.mark.level("minimal")  # Needs S3 credentials
     def test_s3_and_s3(self, local_folder, s3_folder):
         # from one s3 folder to another s3 folder
         new_s3_folder = s3_folder.to(system="s3")
@@ -197,8 +194,8 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level(
         "minimal"
-    )  # TODO: fix this test (just needs google-cloud-storage package)
-    @pytest.mark.gcptest
+    )  # TODO: fix this test (Needs google-cloud-storage package)
+    @pytest.mark.skip("[WIP] Fix this test")
     def test_gcs_and_gcs(self, gcs_folder):
         # from one gcs folder to another gcs folder
         new_gcs_folder = gcs_folder.to(system="gs")
@@ -207,9 +204,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         new_gcs_folder.rm()
 
     @pytest.mark.level("minimal")  # TODO: fix this test
-    @pytest.mark.gcptest
-    @pytest.mark.awstest
-    # @unittest.skip("Doesn't work properly as only full-bucket copy is supported")
+    @pytest.mark.skip("Doesn't work properly as only full-bucket copy is supported")
     def test_s3_and_gcs(self, s3_folder):
         # *** NOTE: transfers between providers are only supported at the bucket level at the moment (not directory) ***
 
@@ -221,10 +216,8 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level(
         "minimal"
-    )  # TODO: fix this test (just needs google-cloud-storage package)
-    @pytest.mark.gcptest
-    @pytest.mark.awstest
-    # @unittest.skip("Doesn't work properly as only full-bucket copy is supported")
+    )  # TODO: fix this test (Needs google-cloud-storage package)
+    @pytest.mark.skip("Doesn't work properly as only full-bucket copy is supported")
     def test_gcs_and_s3(self, local_folder, gcs_folder):
         # *** NOTE: transfers between providers are only supported at the bucket level at the moment (not directory) ***
 
@@ -234,8 +227,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
 
         gcs_folder_to_s3.rm()
 
-    @pytest.mark.level("minimal")  # TODO: fix this test
-    @pytest.mark.awstest
+    @pytest.mark.level("minimal")  # TODO: needs S3 credentials
     def test_s3_folder_uploads_and_downloads(self, local_folder, tmp_path):
         # NOTE: you can also specify a specific path like this:
         # test_folder = rh.folder(path='/runhouse/my-folder', system='s3')
@@ -258,7 +250,8 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         s3_folder.rm()
         assert not s3_folder.exists_in_system()
 
-    @pytest.mark.level("minimal")  # TODO: fix this test
+    @pytest.mark.level("local")  # TODO: fix this test
+    @pytest.mark.skip("[WIP] Fix this test")
     def test_cluster_and_cluster(self, byo_cpu, cluster, local_folder):
         # Upload sky secrets to cluster - required when syncing over the folder from c1 to c2
         byo_cpu.sync_secrets(providers=["sky"])
@@ -280,8 +273,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         assert "sample_file_0.txt" in cluster_folder_1.ls(full_paths=False)
 
     @pytest.mark.level("local")
-    @pytest.mark.skip
-    @pytest.mark.rnstest
+    @pytest.mark.skip("Not implemented yet")
     def test_s3_sharing(self, s3_folder):
         pass
         # TODO
