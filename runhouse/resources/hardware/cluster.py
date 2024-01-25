@@ -23,6 +23,7 @@ from sshtunnel import SSHTunnelForwarder
 
 from runhouse.constants import (
     CLI_RESTART_CMD,
+    CLI_STOP_CMD,
     CLUSTER_CONFIG_PATH,
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
@@ -107,6 +108,13 @@ class Cluster(Resource):
     def address(self, addr):
         self.ips = self.ips or [None]
         self.ips[0] = addr
+
+    def _get_env_activate_cmd(self, env=None):
+        if env:
+            from runhouse.resources.envs import _get_env_from
+
+            return _get_env_from(env)._activate_cmd
+        return None
 
     def save_config_to_cluster(self, node: str = None):
         config = self.config_for_rns
@@ -656,11 +664,8 @@ class Cluster(Resource):
             + f" --port {self.server_port}"
         )
 
-        if env:
-            from runhouse.resources.envs import _get_env_from
-
-            env_activate_cmd = _get_env_from(env)._activate_cmd
-            cmd = f"{env_activate_cmd} && {cmd}"
+        env_activate_cmd = self._get_env_activate_cmd(env)
+        cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd
 
         status_codes = self.run(commands=[cmd])
         if not status_codes[0][0] == 0:
@@ -685,14 +690,12 @@ class Cluster(Resource):
         return status_codes
 
     def stop_server(self, env: Union[str, "Env"] = None):
-        cmd = self.SERVER_STOP_CMD
-        if env:
-            from runhouse.resources.envs import _get_env_from
+        env_activate_cmd = self._get_env_activate_cmd(env)
+        cmd = CLI_STOP_CMD
+        cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd
 
-            env_activate_cmd = _get_env_from(env)._activate_cmd
-            cmd = f"{env_activate_cmd} && {cmd}"
-
-        self.run(cmd)
+        status_codes = self.run([cmd], stream_logs=False)
+        assert status_codes[0][0] == 1
 
     @contextlib.contextmanager
     def pause_autostop(self):

@@ -403,11 +403,7 @@ def restart(
 
 @app.command()
 def stop():
-    from runhouse.resources.hardware.cluster import Cluster
-
-    server_stop_cmd = Cluster.SERVER_STOP_CMD
-    console.print(f"Executing `{server_stop_cmd}`")
-    subprocess.run(server_stop_cmd, shell=True, check=True)
+    subprocess.run(SERVER_STOP_CMD, shell=True, check=True)
 
 
 @app.callback()

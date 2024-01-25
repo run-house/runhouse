@@ -296,13 +296,6 @@ class SageMakerCluster(Cluster):
         return f"{self._abs_ssh_key_path}.pub"
 
     @property
-    def _env_activate_cmd(self):
-        """Prefix for commands run on the cluster. Ensure we are running all commands in the conda environment
-        and not the system default python."""
-        # TODO [JL] Can SageMaker handle this for us?
-        return "source /opt/conda/bin/activate"
-
-    @property
     def _abs_ssh_key_path(self):
         return resolve_absolute_path(self.ssh_key_path)
 
@@ -317,6 +310,13 @@ class SageMakerCluster(Cluster):
             self._set_boto_session()
 
         return self._boto_session.client("s3")
+
+    def _get_env_activate_cmd(self, env=None):
+        """Prefix for commands run on the cluster. Ensure we are running all commands in the conda environment
+        and not the system default python."""
+        # TODO [JL] Can SageMaker handle this for us?
+        cmd = super()._get_env_activate_cmd(env)
+        return cmd or "source /opt/conda/bin/activate"
 
     def _set_boto_session(self, profile_name: str = None):
         self._boto_session = boto3.Session(
@@ -1240,9 +1240,7 @@ class SageMakerCluster(Cluster):
         local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
 
         # **Note** temp patch to handle PyYAML errors: https://github.com/yaml/pyyaml/issues/724
-        base_rh_install_cmd = (
-            f'{self._env_activate_cmd} && python3 -m pip install "cython<3.0.0"'
-        )
+        base_rh_install_cmd = f'{self._get_env_activate_cmd(env=None)} && python3 -m pip install "cython<3.0.0"'
 
         # Check if runhouse is installed from source and has setup.py
         if (
