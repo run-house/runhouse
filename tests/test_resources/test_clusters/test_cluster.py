@@ -1,3 +1,4 @@
+import pandas as pd
 import pytest
 import requests
 
@@ -17,13 +18,19 @@ from tests.utils import get_random_str
 
 
 def save_resource_and_return_config():
-    import pandas as pd
-
     df = pd.DataFrame(
         {"id": [1, 2, 3, 4, 5, 6], "grade": ["a", "b", "b", "a", "a", "e"]}
     )
     table = rh.table(df, name="test_table")
     return table.config_for_rns
+
+
+def test_table_to_rh_here():
+    df = pd.DataFrame(
+        {"id": [1, 2, 3, 4, 5, 6], "grade": ["a", "b", "b", "a", "a", "e"]}
+    )
+    rh.table(df, name="test_table").to(rh.here)
+    assert rh.here.get("test_table") is not None
 
 
 class TestCluster(tests.test_resources.test_resource.TestResource):
@@ -143,3 +150,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         cluster.put(k3, "v3", env="numpy_env")
         assert k3 in cluster.keys()
         assert cluster.get(k3) == "v3"
+
+    @pytest.mark.level("local")
+    @pytest.mark.skip(reason="TODO")
+    def test_rh_here_objects(self, cluster):
+        save_test_table_remote = rh.function(test_table_to_rh_here, system=cluster)
+        save_test_table_remote()
+        assert "test_table" in cluster.keys()
+        assert isinstance(cluster.get("test_table"), rh.Table)

@@ -2,7 +2,6 @@ import contextlib
 import copy
 import json
 import logging
-import os
 import pkgutil
 import re
 import subprocess
@@ -22,7 +21,22 @@ import requests.exceptions
 import sshtunnel
 from sshtunnel import SSHTunnelForwarder
 
-from runhouse.constants import CLUSTER_CONFIG_PATH, LOCALHOST
+from runhouse.constants import (
+    CLI_RESTART_CMD,
+    CLUSTER_CONFIG_PATH,
+    DEFAULT_HTTP_PORT,
+    DEFAULT_HTTPS_PORT,
+    DEFAULT_RAY_PORT,
+    DEFAULT_SERVER_PORT,
+    LOCALHOST,
+    RAY_KILL_CMD,
+    RAY_START_CMD,
+    SERVER_LOGFILE,
+    SERVER_START_CMD,
+    SERVER_STOP_CMD,
+    START_NOHUP_CMD,
+    START_SCREEN_CMD,
+)
 from runhouse.globals import obj_store, rns_client
 from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware.utils import (
@@ -43,29 +57,12 @@ class Cluster(Resource):
     RESOURCE_TYPE = "cluster"
     REQUEST_TIMEOUT = 5  # seconds
 
-    DEFAULT_SERVER_PORT = 32300
-    DEFAULT_HTTP_PORT = 80
-    DEFAULT_HTTPS_PORT = 443
     DEFAULT_SSH_PORT = 22
-    DEFAULT_RAY_PORT = 6379
-    LOCAL_HOSTS = ["localhost", LOCALHOST]
-
-    SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
-    CLI_RESTART_CMD = "runhouse restart"
-    SERVER_START_CMD = f"{sys.executable} -m runhouse.servers.http.http_server"
-    SERVER_STOP_CMD = f'pkill -f "{SERVER_START_CMD}"'
-    # 2>&1 redirects stderr to stdout
-    START_SCREEN_CMD = f"screen -dm bash -c \"{SERVER_START_CMD} 2>&1 | tee -a '{SERVER_LOGFILE}' 2>&1\""
-    RAY_START_CMD = f"ray start --head --port {DEFAULT_RAY_PORT}"
-    # RAY_BOOTSTRAP_FILE = "~/ray_bootstrap_config.yaml"
-    # --autoscaling-config=~/ray_bootstrap_config.yaml
-    # We need to use this instead of ray stop to make sure we don't stop the SkyPilot ray server,
-    # which runs on other ports but is required to preserve autostop and correct cluster status.
-    RAY_KILL_CMD = 'pkill -f ".*ray.*' + str(DEFAULT_RAY_PORT) + '.*"'
 
     def __init__(
         self,
-        name,
+        # Name will almost always be provided unless a "local" cluster is created
+        name: Optional[str] = None,
         ips: List[str] = None,
         ssh_creds: Dict = None,
         server_host: str = None,
@@ -103,7 +100,7 @@ class Cluster(Resource):
         )
 
         self.server_connection_type = server_connection_type
-        self.server_port = server_port or self.DEFAULT_SERVER_PORT
+        self.server_port = server_port or DEFAULT_SERVER_PORT
         self.client_port = client_port
         self.ssh_port = ssh_port or self.DEFAULT_SSH_PORT
         self.server_host = server_host
@@ -142,7 +139,7 @@ class Cluster(Resource):
 
             return OnDemandCluster(**config, dryrun=dryrun)
         elif resource_subtype == "SageMakerCluster":
-            from .sagemaker_cluster import SageMakerCluster
+            from .sagemaker.sagemaker_cluster import SageMakerCluster
 
             return SageMakerCluster(**config, dryrun=dryrun)
         else:
@@ -410,20 +407,6 @@ class Cluster(Resource):
         res = self.client.keys(env=env)
         return res
 
-    def cancel(self, key: str, force=False):
-        """Cancel a given run on cluster by its key."""
-        self.check_server()
-        if self.on_this_cluster():
-            return obj_store.cancel(key, force=force)
-        return self.client.cancel(key, force=force)
-
-    def cancel_all(self, force=False):
-        """Cancel all runs on cluster."""
-        self.check_server()
-        if self.on_this_cluster():
-            return obj_store.cancel_all(force=force)
-        return self.client.cancel("all", force=force)
-
     def delete(self, keys: Union[None, str, List[str]]):
         """Delete the given items from the cluster's object store. To delete all items, use `cluster.clear()`"""
         self.check_server()
@@ -442,7 +425,8 @@ class Cluster(Resource):
 
     def on_this_cluster(self):
         """Whether this function is being called on the same cluster."""
-        return _current_cluster("name") == self.rns_address
+        config = _current_cluster("config")
+        return config is not None and config.get("name") == self.rns_address
 
     # ----------------- RPC Methods ----------------- #
 
@@ -557,7 +541,7 @@ class Cluster(Resource):
 
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
-    ) -> SSHTunnelForwarder:
+    ) -> Union[SSHTunnelForwarder, SkySSHRunner]:
         return ssh_tunnel(
             address=self.address,
             ssh_creds=self.ssh_creds,
@@ -569,14 +553,20 @@ class Cluster(Resource):
 
     @property
     def _use_https(self) -> bool:
-        return self.server_connection_type == ServerConnectionType.TLS
+        """Use HTTPS if server connection type is set to ``tls``"""
+
+        return (
+            self.server_connection_type == ServerConnectionType.TLS
+            if self.server_connection_type is not None
+            else False
+        )
 
     @property
     def _use_nginx(self) -> bool:
         """Use Nginx if the server port is set to the default HTTP (80) or HTTPS (443) port.
         Note: Nginx will serve as a reverse proxy, forwarding traffic from the server port to the Runhouse API
         server running on port 32300."""
-        return self.server_port in [self.DEFAULT_HTTP_PORT, self.DEFAULT_HTTPS_PORT]
+        return self.server_port in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]
 
     @property
     def _use_custom_cert(self):
@@ -587,15 +577,18 @@ class Cluster(Resource):
         return Path(self.cert_config.key_path).exists()
 
     @staticmethod
-    def _add_flags_to_commands(flags, start_screen_cmd, server_start_cmd):
-        flags_str = "".join(flags)
+    def _add_flags_to_commands(
+        flags, server_start_cmd_wrapper: str, server_start_cmd: str
+    ):
+        if flags:
+            flags_str = "".join(flags)
 
-        start_screen_cmd = start_screen_cmd.replace(
-            server_start_cmd, server_start_cmd + flags_str
-        )
-        server_start_cmd += flags_str
+            server_start_cmd_wrapper = server_start_cmd_wrapper.replace(
+                server_start_cmd, server_start_cmd + flags_str
+            )
+            server_start_cmd += flags_str
 
-        return start_screen_cmd, server_start_cmd
+        return server_start_cmd_wrapper, server_start_cmd
 
     @classmethod
     def _start_server_cmds(
@@ -603,6 +596,7 @@ class Cluster(Resource):
         restart,
         restart_ray,
         screen,
+        nohup,
         create_logfile,
         host,
         port,
@@ -617,14 +611,37 @@ class Cluster(Resource):
     ):
         cmds = []
         if restart:
-            cmds.append(cls.SERVER_STOP_CMD)
+            cmds.append(SERVER_STOP_CMD)
         if restart_ray:
-            cmds.append(cls.RAY_KILL_CMD)
+            cmds.append(RAY_KILL_CMD)
             # TODO Add in BOOTSTRAP file if it exists?
-            cmds.append(cls.RAY_START_CMD)
+            cmds.append(RAY_START_CMD)
 
-        server_start_cmd = cls.SERVER_START_CMD
-        start_screen_cmd = cls.START_SCREEN_CMD
+        screen_check_cmd = "command -v screen"
+        screen_check = subprocess.run(
+            screen_check_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        if screen_check.returncode != 0:
+            logger.info(
+                "screen is not available on the system. Checking for nohup next."
+            )
+            screen = False
+
+        if not screen and nohup:
+            nohup_check_cmd = "command -v nohup"
+            nohup_check = subprocess.run(
+                nohup_check_cmd,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            nohup = nohup_check.returncode == 0
+            if not nohup:
+                logger.info("nohup is not available on the system.")
+
+        server_start_cmd = SERVER_START_CMD
+        start_screen_cmd = START_SCREEN_CMD
+        start_nohup_cmd = START_NOHUP_CMD
 
         flags = []
 
@@ -687,17 +704,26 @@ class Cluster(Resource):
             f"Starting API server using the following command: {server_start_cmd}."
         )
 
-        if flags:
+        if screen:
             start_screen_cmd, server_start_cmd = cls._add_flags_to_commands(
                 flags, start_screen_cmd, server_start_cmd
             )
-
-        if screen:
-            if create_logfile and not Path(cls.SERVER_LOGFILE).exists():
-                Path(cls.SERVER_LOGFILE).parent.mkdir(parents=True, exist_ok=True)
-                Path(cls.SERVER_LOGFILE).touch()
+            if create_logfile and not Path(SERVER_LOGFILE).exists():
+                Path(SERVER_LOGFILE).parent.mkdir(parents=True, exist_ok=True)
+                Path(SERVER_LOGFILE).touch()
             cmds.append(start_screen_cmd)
+        elif nohup:
+            start_nohup_cmd, server_start_cmd = cls._add_flags_to_commands(
+                flags, start_nohup_cmd, server_start_cmd
+            )
+            if create_logfile and not Path(SERVER_LOGFILE).exists():
+                Path(SERVER_LOGFILE).parent.mkdir(parents=True, exist_ok=True)
+                Path(SERVER_LOGFILE).touch()
+            cmds.append(start_nohup_cmd)
         else:
+            _, server_start_cmd = cls._add_flags_to_commands(
+                flags, "", server_start_cmd
+            )
             cmds.append(server_start_cmd)
 
         return cmds
@@ -778,7 +804,7 @@ class Cluster(Resource):
         use_local_telemetry = self.use_local_telemetry
 
         cmd = (
-            self.CLI_RESTART_CMD
+            CLI_RESTART_CMD
             + (" --no-restart-ray" if not restart_ray else "")
             + (" --use-https" if https_flag else "")
             + (" --use-nginx" if nginx_flag else "")
@@ -809,7 +835,7 @@ class Cluster(Resource):
             self.client.cert_path = self.cert_config.cert_path
 
         if restart_ray and len(self.ips) > 1:
-            self._start_ray_workers(self.DEFAULT_RAY_PORT)
+            self._start_ray_workers(DEFAULT_RAY_PORT)
 
         return status_codes
 

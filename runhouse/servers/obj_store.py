@@ -81,7 +81,10 @@ class ObjStore:
         self._kv_store: Dict[Any, Any] = None
 
     def initialize(
-        self, servlet_name: Optional[str] = None, has_local_storage: bool = False
+        self,
+        servlet_name: Optional[str] = None,
+        has_local_storage: bool = False,
+        setup_ray: bool = False,
     ):
         # The initialization of the obj_store needs to be in a separate method
         # so the HTTPServer actually initalizes the obj_store,
@@ -91,7 +94,7 @@ class ObjStore:
         # ClusterServlet essentially functions as a global state/metadata store
         # for all nodes connected to this Ray cluster.
         try:
-            self.cluster_servlet = initialize_ray_and_cluster_servlet()
+            self.cluster_servlet = initialize_ray_and_cluster_servlet(setup_ray)
 
         except ConnectionError:
             # If ray.init fails, we're not on a cluster, so we don't need to do anything
@@ -719,7 +722,7 @@ class ObjStore:
         resource_config: Dict[str, Any],
         state: Dict[Any, Any],
         dryrun: bool,
-    ) -> None:
+    ) -> str:
         from runhouse.resources.module import Module
         from runhouse.resources.resource import Resource
         from runhouse.rns.utils.names import _generate_default_name

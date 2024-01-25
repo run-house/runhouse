@@ -30,8 +30,6 @@ class HTTPClient:
     Client for cluster RPCs
     """
 
-    DEFAULT_PORT = 32300
-    MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
     CHECK_TIMEOUT_SEC = 10
 
     def __init__(
@@ -409,16 +407,6 @@ class HTTPClient:
             req_type="post",
             json_dict=DeleteObjectParams(keys=keys or []).dict(),
             err_str=f"Error deleting keys {keys}",
-        )
-
-    def cancel(self, key, force=False):
-        # Note key can be set to "all" to cancel all runs
-        return self.request(
-            "cancel",
-            req_type="post",
-            data=pickle_b64(force),
-            key=key,
-            err_str=f"Error cancelling runs {key}",
         )
 
     def keys(self, env=None):

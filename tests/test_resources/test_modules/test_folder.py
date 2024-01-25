@@ -16,7 +16,6 @@ def fs_str_rh_fn(folder):
     return folder._fs_str
 
 
-@pytest.mark.foldertest
 class TestFolder(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.skip("Bad path")

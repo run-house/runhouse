@@ -1,15 +1,25 @@
+import logging
+import os
 import subprocess
 import warnings
 
 from typing import Dict, List, Optional, Union
 
-from runhouse.constants import RESERVED_SYSTEM_NAMES
+from runhouse.constants import (
+    DEFAULT_HTTP_PORT,
+    DEFAULT_HTTPS_PORT,
+    DEFAULT_SERVER_PORT,
+    LOCAL_HOSTS,
+    RESERVED_SYSTEM_NAMES,
+)
 from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import relative_ssh_path
 
 from .cluster import Cluster
 from .on_demand_cluster import OnDemandCluster
-from .sagemaker_cluster import SageMakerCluster
+from .sagemaker.sagemaker_cluster import SageMakerCluster
+
+logger = logging.getLogger(__name__)
 
 
 # Cluster factory method
@@ -109,11 +119,11 @@ def cluster(
 
     if server_port is None:
         if server_connection_type == ServerConnectionType.TLS:
-            server_port = Cluster.DEFAULT_HTTPS_PORT
+            server_port = DEFAULT_HTTPS_PORT
         elif server_connection_type == ServerConnectionType.NONE:
-            server_port = Cluster.DEFAULT_HTTP_PORT
+            server_port = DEFAULT_HTTP_PORT
         else:
-            server_port = Cluster.DEFAULT_SERVER_PORT
+            server_port = DEFAULT_SERVER_PORT
 
     if name in RESERVED_SYSTEM_NAMES:
         raise ValueError(
@@ -186,6 +196,108 @@ def cluster(
 
     if den_auth:
         c.save()
+
+    return c
+
+
+def kubernetes_cluster(
+    name: str,
+    instance_type: str = None,
+    namespace: str = None,
+    kube_config_path: str = None,
+    context: str = None,
+    server_connection_type: Union[ServerConnectionType, str] = None,
+    **kwargs,
+) -> OnDemandCluster:
+
+    # if user passes provider via kwargs to kubernetes_cluster
+    provider_passed = kwargs.pop("provider", None)
+
+    if provider_passed is not None and provider_passed != "kubernetes":
+        raise ValueError(
+            f"Runhouse K8s Cluster provider must be `kubernetes`. "
+            f"You passed {provider_passed}."
+        )
+
+    # checking server_connection_type passed over from ondemand_cluster factory method
+    if (
+        server_connection_type is not None
+        and server_connection_type != ServerConnectionType.SSH
+    ):
+        raise ValueError(
+            f"Runhouse K8s Cluster server connection type must be set to `ssh`. "
+            f"You passed {server_connection_type}."
+        )
+
+    server_connection_type = ServerConnectionType.SSH
+
+    if context is not None and namespace is not None:
+        warnings.warn(
+            "You passed both a context and a namespace. Ensure your namespace matches the one in your context.",
+            UserWarning,
+        )
+
+    if namespace is not None:  # check if user passed a user-defined namespace
+        cmd = f"kubectl config set-context --current --namespace={namespace}"
+        try:
+            process = subprocess.run(
+                cmd,
+                shell=True,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            logger.info(process.stdout)
+            logger.info(f"Kubernetes namespace set to {namespace}")
+
+        except subprocess.CalledProcessError as e:
+            logger.info(f"Error: {e}")
+
+    if (
+        kube_config_path is not None
+    ):  # check if user passed a user-defined kube_config_path
+        kube_config_dir = os.path.expanduser("~/.kube")
+        kube_config_path_rl = os.path.join(kube_config_dir, "config")
+
+        if not os.path.exists(
+            kube_config_dir
+        ):  # check if ~/.kube directory exists on local machine
+            try:
+                os.makedirs(
+                    kube_config_dir
+                )  # create ~/.kube directory if it doesn't exist
+                logger.info(f"Created directory: {kube_config_dir}")
+            except OSError as e:
+                logger.info(f"Error creating directory: {e}")
+
+        if os.path.exists(kube_config_path_rl):
+            raise Exception(
+                "A kubeconfig file already exists in ~/.kube directory. Aborting."
+            )
+
+        try:
+            cmd = f"cp {kube_config_path} {kube_config_path_rl}"  # copy user-defined kube_config to ~/.kube/config
+            subprocess.run(cmd, shell=True, check=True)
+            logger.info(f"Copied kubeconfig to: {kube_config_path}")
+        except subprocess.CalledProcessError as e:
+            logger.info(f"Error copying kubeconfig: {e}")
+
+    if context is not None:  # check if user passed a user-defined context
+        try:
+            cmd = f"kubectl config use-context {context}"  # set user-defined context as current context
+            subprocess.run(cmd, shell=True, check=True)
+            logger.info(f"Kubernetes context has been set to: {context}")
+        except subprocess.CalledProcessError as e:
+            logger.info(f"Error setting context: {e}")
+
+    c = OnDemandCluster(
+        name=name,
+        instance_type=instance_type,
+        provider="kubernetes",
+        server_connection_type=server_connection_type,
+        **kwargs,
+    )
 
     return c
 
@@ -268,6 +380,28 @@ def ondemand_cluster(
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.ondemand_cluster(name="rh-4-a100s")
     """
+
+    if name in RESERVED_SYSTEM_NAMES:
+        raise ValueError(
+            f"Cluster name {name} is a reserved name. Please use a different name which is not one of "
+            f"{RESERVED_SYSTEM_NAMES}."
+        )
+
+    if provider == "kubernetes":
+        namespace = kwargs.pop("namespace", None)
+        kube_config_path = kwargs.pop("kube_config_path", None)
+        context = kwargs.pop("context", None)
+        server_connection_type = kwargs.pop("server_connection_type", None)
+
+        return kubernetes_cluster(
+            name=name,
+            instance_type=instance_type,
+            namespace=namespace,
+            kube_config_path=kube_config_path,
+            context=context,
+            server_connection_type=server_connection_type,
+        )
+
     if server_connection_type in [
         ServerConnectionType.AWS_SSM,
     ]:
@@ -283,15 +417,15 @@ def ondemand_cluster(
 
     if server_port is None:
         if server_connection_type == ServerConnectionType.TLS:
-            server_port = Cluster.DEFAULT_HTTPS_PORT
+            server_port = DEFAULT_HTTPS_PORT
         elif server_connection_type == ServerConnectionType.NONE:
-            server_port = Cluster.DEFAULT_HTTP_PORT
+            server_port = DEFAULT_HTTP_PORT
         else:
-            server_port = Cluster.DEFAULT_SERVER_PORT
+            server_port = DEFAULT_SERVER_PORT
 
     if (
         server_connection_type in [ServerConnectionType.TLS, ServerConnectionType.NONE]
-        and server_host in Cluster.LOCAL_HOSTS
+        and server_host in LOCAL_HOSTS
     ):
         warnings.warn(
             f"Server connection type set to {server_connection_type}, with server host set to {server_host}. "
@@ -336,8 +470,8 @@ def ondemand_cluster(
             else:
                 warnings.warn(
                     f"No open ports specified. Make sure the relevant port is open. "
-                    f"HTTPS default: {Cluster.DEFAULT_HTTPS_PORT} and HTTP "
-                    f"default: {Cluster.DEFAULT_HTTP_PORT}."
+                    f"HTTPS default: {DEFAULT_HTTPS_PORT} and HTTP "
+                    f"default: {DEFAULT_HTTP_PORT}."
                 )
 
     if name:
@@ -365,12 +499,6 @@ def ondemand_cluster(
                 return c
         except ValueError:
             pass
-
-    if name in RESERVED_SYSTEM_NAMES:
-        raise ValueError(
-            f"Cluster name {name} is a reserved name. Please use a different name which is not one of "
-            f"{RESERVED_SYSTEM_NAMES}."
-        )
 
     c = OnDemandCluster(
         instance_type=instance_type,
@@ -521,7 +649,7 @@ def sagemaker_cluster(
         )
     server_connection_type = ServerConnectionType.AWS_SSM.value
 
-    if server_host and server_host not in Cluster.LOCAL_HOSTS:
+    if server_host and server_host not in LOCAL_HOSTS:
         raise ValueError(
             "SageMaker Cluster currently requires a server host of `localhost` or `127.0.0.1`"
         )

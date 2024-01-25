@@ -1,3 +1,2 @@
 include runhouse/builtins/*
-include runhouse/scripts/*
-include runhouse/scripts/sagemaker_cluster/*
+include runhouse/resources/hardware/sagemaker/*
