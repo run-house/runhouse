@@ -184,6 +184,16 @@ from tests.fixtures.docker_cluster_fixtures import (
     static_cpu_cluster,  # noqa: F401
 )
 
+# ----------------- Folders -----------------
+
+from tests.fixtures.folder_fixtures import (
+    cluster_folder,  # noqa: F401
+    folder,  # noqa: F401
+    gcs_folder,  # noqa: F401
+    local_folder,  # noqa: F401
+    s3_folder,  # noqa: F401
+)
+
 from tests.fixtures.on_demand_cluster_fixtures import (
     a10g_gpu_cluster,  # noqa: F401
     k80_gpu_cluster,  # noqa: F401
@@ -225,16 +235,6 @@ from tests.test_resources.test_modules.test_blobs.conftest import (
     local_blob,  # noqa: F401
     local_file,  # noqa: F401
     s3_blob,  # noqa: F401
-)
-
-# ----------------- Folders -----------------
-
-from tests.test_resources.test_modules.test_folders.conftest import (
-    cluster_folder,  # noqa: F401
-    folder,  # noqa: F401
-    gcs_folder,  # noqa: F401
-    local_folder,  # noqa: F401
-    s3_folder,  # noqa: F401
 )
 
 # ----------------- Packages -----------------
