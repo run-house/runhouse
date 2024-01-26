@@ -301,14 +301,17 @@ the :code:`np_array` function.
     For more examples on using clusters and functions see
     the :ref:`Compute Guide <Compute: Clusters, Functions, Packages, & Envs>`.
 
-Nginx
+Caddy
 ^^^^^
-Runhouse gives you the option of using `Nginx <https://www.nginx.com/>`_ as a reverse proxy for the Runhouse API
-server, which is a FastAPI app launched with `Uvicorn <https://www.uvicorn.org/>`_. Using Nginx provides you with a
+Runhouse gives you the option of using `Caddy <https://caddyserver.com/>`_ as a reverse proxy for the Runhouse API
+server, which is a FastAPI app launched with `Uvicorn <https://www.uvicorn.org/>`_. Using Caddy provides you with a
 safer and more conventional approach running the FastAPI app on a higher, non-privileged port (such as 32300, the
-default Runhouse port) and then use Nginx as a reverse proxy to forward requests from the HTTP port (default: 80) or
+default Runhouse port) and then use Caddy as a reverse proxy to forward requests from the HTTP port (default: 80) or
 the HTTPS port (default: 443).
+
+Caddy also enables auto-renewing self-signed certificates, making it easy to secure your cluster with HTTPS right
+out of the box.
 
 .. note::
 
-    Nginx is enabled by default when you launch a cluster with the :code:`server_port` set to either 80 or 443.
+    Caddy is enabled by default when you launch a cluster with the :code:`server_port` set to either 80 or 443.
