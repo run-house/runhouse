@@ -89,7 +89,7 @@ class ObjStore:
         # The initialization of the obj_store needs to be in a separate method
         # so the HTTPServer actually initalizes the obj_store,
         # and it doesn't get created and destroyed when
-        # nginx runs http_server.py as a module.
+        # caddy runs http_server.py as a module.
 
         # ClusterServlet essentially functions as a global state/metadata store
         # for all nodes connected to this Ray cluster.

@@ -555,9 +555,9 @@ class Cluster(Resource):
         )
 
     @property
-    def _use_nginx(self) -> bool:
-        """Use Nginx if the server port is set to the default HTTP (80) or HTTPS (443) port.
-        Note: Nginx will serve as a reverse proxy, forwarding traffic from the server port to the Runhouse API
+    def _use_caddy(self) -> bool:
+        """Use Caddy if the server port is set to the default HTTP (80) or HTTPS (443) port.
+        Note: Caddy will serve as a reverse proxy, forwarding traffic from the server port to the Runhouse API
         server running on port 32300."""
         return self.server_port in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]
 
@@ -598,7 +598,7 @@ class Cluster(Resource):
             resync_rh (bool): Whether to resync runhouse. (Default: ``True``)
             restart_ray (bool): Whether to restart Ray. (Default: ``True``)
             env_activate_cmd (str, optional): Command to activate the environment on the server. (Default: ``None``)
-            restart_proxy (bool): Whether to restart nginx on the cluster, if configured. (Default: ``False``)
+            restart_proxy (bool): Whether to restart Caddy on the cluster, if configured. (Default: ``False``)
         Example:
             >>> rh.cluster("rh-cpu").restart_server()
         """
@@ -608,48 +608,39 @@ class Cluster(Resource):
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
             logger.info("Finished syncing Runhouse to cluster.")
 
+        https_flag = self._use_https
+        caddy_flag = self._use_caddy
+        use_local_telemetry = self.use_local_telemetry
+
+        use_custom_cert = self._use_custom_cert
+        use_custom_key = self._use_custom_key
+
+        base_cluster_dir = self.cert_config.DEFAULT_CLUSTER_DIR
+        cluster_key_path = f"{base_cluster_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
+        cluster_cert_path = f"{base_cluster_dir}/{self.cert_config.CERT_NAME}"
+
+        if not use_custom_key and not use_custom_cert:
+            # If no cert and keyfile are provided, generate them client side and copy them onto the cluster
+            self.cert_config.generate_certs(address=self.address)
+
+        # Copy existing cert and keyfiles onto the cluster
+        self._copy_certs_to_cluster(cluster_key_path, cluster_cert_path)
+
         # Update the cluster config on the cluster
         self.save_config_to_cluster()
 
-        use_custom_cert = self._use_custom_cert
-        if use_custom_cert:
-            # Copy the provided cert onto the cluster
-            from runhouse import folder
-
-            cert_dir = self.cert_config.DEFAULT_CERT_DIR
-            folder(path=self.cert_config.cert_dir).to(self, path=cert_dir)
-
-            # Path to cert file stored on the cluster
-            cluster_cert_path = f"{cert_dir}/{self.cert_config.CERT_NAME}"
-            logger.info(
-                f"Copied TLS cert onto the cluster in path: {cluster_cert_path}"
-            )
-
-        use_custom_key = self._use_custom_key
-        if use_custom_key:
-            # Copy the provided key onto the cluster
-            from runhouse import folder
-
-            keyfile_dir = self.cert_config.DEFAULT_PRIVATE_KEY_DIR
-            folder(path=self.cert_config.key_dir).to(self, path=keyfile_dir)
-
-            # Path to key file stored on the cluster
-            cluster_key_path = f"{keyfile_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
-
-            logger.info(
-                f"Copied TLS keyfile onto the cluster in path: {cluster_key_path}"
-            )
-
-        https_flag = self._use_https
-        nginx_flag = self._use_nginx
-        use_local_telemetry = self.use_local_telemetry
+        if self._use_caddy:
+            # Update pointers to the cert and key files to the Caddy directories on the cluster
+            base_caddy_dir = self.cert_config.CADDY_CLUSTER_DIR
+            cluster_key_path = f"{base_caddy_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
+            cluster_cert_path = f"{base_caddy_dir}/{self.cert_config.CERT_NAME}"
 
         cmd = (
             CLI_RESTART_CMD
             + (" --no-restart-ray" if not restart_ray else "")
             + (" --use-https" if https_flag else "")
-            + (" --use-nginx" if nginx_flag else "")
-            + (" --restart-proxy" if restart_proxy and nginx_flag else "")
+            + (" --use-caddy" if caddy_flag else "")
+            + (" --restart-proxy" if restart_proxy and caddy_flag else "")
             + (f" --ssl-certfile {cluster_cert_path}" if use_custom_cert else "")
             + (f" --ssl-keyfile {cluster_key_path}" if use_custom_key else "")
             + (" --use-local-telemetry" if use_local_telemetry else "")
@@ -888,6 +879,39 @@ class Cluster(Resource):
         if ssh_call.is_alive():
             raise TimeoutError("SSH call timed out")
         return True
+
+    def _copy_certs_to_cluster(self, cluster_key_path: str, cluster_cert_path: str):
+        """Copy local certs to the cluster. Destination on the cluster depends on whether Caddy is enabled. This is
+        to ensure that the Caddy service has the necessary access to load the certs when the service is started."""
+        from runhouse import folder
+
+        # Copy to the home directory by default
+        local_key_path = self.cert_config.key_path
+        folder(path=Path(local_key_path).parent).to(
+            self, path=self.cert_config.DEFAULT_CLUSTER_DIR
+        )
+
+        local_cert_path = self.cert_config.cert_path
+        folder(path=Path(local_cert_path).parent).to(
+            self, path=self.cert_config.DEFAULT_CLUSTER_DIR
+        )
+
+        if self._use_caddy:
+            self.run(
+                [
+                    f"sudo mv {self.cert_config.DEFAULT_CLUSTER_DIR} {self.cert_config.CADDY_CLUSTER_DIR}"
+                ]
+            )
+            logger.info(
+                f"Copied local certs onto the cluster in path: {self.cert_config.CADDY_CLUSTER_DIR}"
+            )
+        else:
+            logger.info(
+                f"Copied local key path: {local_key_path} onto the cluster in path: {cluster_key_path}"
+            )
+            logger.info(
+                f"Copied local cert path: {local_cert_path} onto the cluster in path: {cluster_cert_path}"
+            )
 
     def run(
         self,
