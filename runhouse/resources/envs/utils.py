@@ -38,7 +38,7 @@ def _process_reqs(reqs):
 
 
 def _get_env_from(env):
-    if isinstance(env, Resource):
+    if isinstance(env, Resource) or env is None:
         return env
 
     from runhouse.resources.envs import Env
@@ -49,13 +49,12 @@ def _get_env_from(env):
         return Env(reqs=env, working_dir="./", name=Env.DEFAULT_NAME)
     elif isinstance(env, Dict):
         return Env.from_config(env)
-    elif (
-        isinstance(env, str)
-        and Env.DEFAULT_NAME not in env
-        and rns_client.exists(env, resource_type="env")
-    ):
+    elif isinstance(env, str) and rns_client.exists(env, resource_type="env"):
         return Env.from_name(env)
-    return env
+    elif env == Env.DEFAULT_NAME:
+        return Env(name=Env.DEFAULT_NAME)
+
+    raise ValueError("Could not locate Env from value: {env}")
 
 
 def _get_conda_yaml(conda_env=None):
