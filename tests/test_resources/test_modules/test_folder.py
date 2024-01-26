@@ -15,7 +15,7 @@ DATA_STORE_PATH = f"/{DATA_STORE_BUCKET}/folder-tests"
 def fs_str_rh_fn(folder):
     return folder._fs_str
 
-
+# @pytest.mark.usefixtures("cluster")
 class TestFolder(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.skip("Bad path")
@@ -60,7 +60,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         fs_str = fs_str_cluster(cluster_folder)
         assert fs_str == "file"
 
-    @pytest.mark.level("local")  # TODO: fix this test
+    @pytest.mark.level("local")  # TODO: fix this test needs GCS
     @pytest.mark.skip("[WIP] Fix this test")
     def test_cluster_tos(self, cluster, tmp_path):
         tests_folder = rh.folder(path=str(Path.cwd()))
@@ -93,7 +93,9 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
             )
 
     @pytest.mark.level("local")  # TODO: fix this test
-    @pytest.mark.skip("[WIP] Fix this test")
+    # @pytest.mark.skip("[WIP] Fix this test")
+    @pytest.mark.usefixtures("cluster")
+    @pytest.mark.usefixtures("folder")
     def test_local_and_cluster(self, cluster, local_folder, tmp_path):
         # Local to cluster
         cluster_folder = local_folder.to(system=cluster)
