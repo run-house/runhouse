@@ -46,7 +46,11 @@ from runhouse.servers.http.http_utils import (
     ServerSettings,
 )
 from runhouse.servers.nginx.config import NginxConfig
-from runhouse.servers.obj_store import ObjStore
+from runhouse.servers.obj_store import (
+    ClusterServletSetupOption,
+    ObjStore,
+    RaySetupOption,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +121,12 @@ class HTTPServer:
     memory_exporter = None
 
     def __init__(
-        self, conda_env=None, enable_local_span_collection=None, *args, **kwargs
+        self,
+        conda_env=None,
+        enable_local_span_collection=None,
+        from_test: bool = False,
+        *args,
+        **kwargs,
     ):
         runtime_env = {"conda": conda_env} if conda_env else {}
 
@@ -165,9 +174,8 @@ class HTTPServer:
         # initialized by the start script (see below)
         # But if the HTTPServer was started standalone in a test,
         # We still want to make sure the cluster servlet is initialized
-        # We connect this to the "base" env, which we'll initialize later,
-        # so writes to the obj_store within the server get proxied to the "base" env.
-        obj_store.initialize("base", setup_ray=True)
+        if from_test:
+            obj_store.initialize("base", setup_ray=RaySetupOption.TEST_PROCESS)
 
         # TODO disabling due to latency, figure out what to do with this
         # try:
@@ -835,6 +843,12 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "--restart-ray",
+        action="store_true",
+        default=False,
+        help="Whether to kill and restart our own Ray instance. Defaults to False.",
+    )
+    parser.add_argument(
         "--host",
         type=str,
         default=None,
@@ -894,24 +908,40 @@ if __name__ == "__main__":
         help="Address to use for generating self-signed certs and enabling HTTPS. (e.g. public IP address)",
     )
 
-    # The object store and the cluster servlet within it need to be
-    # initiailzed in order to call `obj_store.get_cluster_config()`, which
-    # uses the object store to load the cluster config from Ray.
-    obj_store.initialize("base", setup_ray=True)
-
-    cluster_config = obj_store.get_cluster_config()
-    if not cluster_config:
-        logger.warning(
-            "Cluster config is not set. Using default values where possible."
-        )
-    logger.info("Initialized Object Store and Cluster Servlet.")
-
     parse_args = parser.parse_args()
 
     conda_name = parse_args.conda_env
     use_https = parse_args.use_https
     restart_proxy = parse_args.restart_proxy
     use_nginx = parse_args.use_nginx
+
+    # The object store and the cluster servlet within it need to be
+    # initiailzed in order to call `obj_store.get_cluster_config()`, which
+    # uses the object store to load the cluster config from Ray.
+    # When setting up the server, we always want to create a new ClusterServlet.
+    # We only want to forcibly start a Ray cluster if asked.
+    # We connect this to the "base" env, which we'll initialize later,
+    # so writes to the obj_store within the server get proxied to the "base" env.
+    if parse_args.restart_ray:
+        obj_store.initialize(
+            "base",
+            setup_ray=RaySetupOption.FORCE_CREATE,
+            setup_cluster_servlet=ClusterServletSetupOption.FORCE_CREATE,
+        )
+    else:
+        obj_store.initialize(
+            "base",
+            setup_ray=RaySetupOption.GET_OR_CREATE,
+            setup_cluster_servlet=ClusterServletSetupOption.FORCE_CREATE,
+        )
+
+    cluster_config = obj_store.get_cluster_config()
+    if not cluster_config:
+        logger.warning(
+            "Cluster config is not set. Using default values where possible."
+        )
+    else:
+        logger.info("Loaded cluster config from Ray.")
 
     ########################################
     # Handling args that could be specified in the

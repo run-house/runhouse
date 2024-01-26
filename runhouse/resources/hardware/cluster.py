@@ -596,7 +596,7 @@ class Cluster(Resource):
         self,
         _rh_install_url: str = None,
         resync_rh: bool = True,
-        restart_ray: bool = True,
+        restart_ray: bool = False,
         env: Union[str, "Env"] = None,
         restart_proxy: bool = False,
     ):
@@ -655,7 +655,7 @@ class Cluster(Resource):
 
         cmd = (
             CLI_RESTART_CMD
-            + (" --no-restart-ray" if not restart_ray else "")
+            + (" --restart-ray" if restart_ray else "")
             + (" --use-https" if https_flag else "")
             + (" --use-nginx" if nginx_flag else "")
             + (" --restart-proxy" if restart_proxy and nginx_flag else "")

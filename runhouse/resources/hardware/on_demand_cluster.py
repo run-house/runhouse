@@ -438,7 +438,7 @@ class OnDemandCluster(Cluster):
             raise ValueError(f"Cluster provider {self.provider} not supported.")
 
         self._update_from_sky_status()
-        self.restart_server(restart_ray=True)
+        self.restart_server()
 
         return self
 

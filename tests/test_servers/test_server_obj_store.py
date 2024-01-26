@@ -2,7 +2,7 @@ import pytest
 
 from runhouse.servers.http.auth import hash_token
 
-from tests.utils import friend_account, get_test_obj_store
+from tests.utils import friend_account, get_ray_servlet_and_obj_store
 
 
 def list_compare(list1, list2):
@@ -126,7 +126,7 @@ class TestObjStore:
     def test_many_env_servlets(self, obj_store):
         assert obj_store.keys() == []
 
-        obj_store_2 = get_test_obj_store("other")
+        _, obj_store_2 = get_ray_servlet_and_obj_store("other")
         assert obj_store_2.keys() == []
 
         obj_store.put("k1", "v1")
@@ -298,7 +298,7 @@ class TestObjStore:
         assert obj_store.keys_for_env_servlet_name(obj_store_2.servlet_name) == []
 
         # Testing of maintaining envs
-        obj_store_3 = get_test_obj_store("third")
+        _, obj_store_3 = get_ray_servlet_and_obj_store("third")
         assert obj_store_3.keys() == ["k1"]
         obj_store_3.put("k2", "v2")
         obj_store_3.put("k3", "v3")
