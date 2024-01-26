@@ -580,25 +580,25 @@ class ObjStore:
     def delete_local(self, key: Any):
         self.pop_local(key)
 
-    def delete_env(self, key: Any):
+    def delete_env(self, env_name: Any):
         from runhouse.globals import env_servlets
 
         # clear keys in the env servlet
-        env_servlet_keys = list(self._kv_store.keys()) if self.has_local_storage else []
-        self.clear_for_env_servlet_name(key)
+        env_servlet_keys = self.keys_for_env_servlet_name(env_name)
+        self.clear_for_env_servlet_name(env_name)
 
         # delete the env servlet actor
-        if key in env_servlets:
-            actor = env_servlets[key]
+        if env_name in env_servlets:
+            actor = env_servlets[env_name]
             ray.kill(actor)
 
-            del env_servlets[key]
+            del env_servlets[env_name]
 
         # delete the local key
-        if self.contains_local(key):
-            self.delete_local(key)
+        if self.contains_local(env_name):
+            self.delete_local(env_name)
 
-        self.remove_env_servlet_name(key)
+        self.remove_env_servlet_name(env_name)
         return env_servlet_keys
 
     def delete(self, key: Union[Any, List[Any]]):

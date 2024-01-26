@@ -331,10 +331,14 @@ class TestObjStore:
 
         obj_store.delete(env_to_delete)
 
-        # check obj_store_2 servlet and nested keys are deleted
+        # check obj_store_2 servlet and nested keys are deleted but obj_store_1 unaffected
         assert env_to_delete not in obj_store.get_all_initialized_env_servlet_names()
         for key in obj_store_2_keys:
             assert not obj_store.get(key)
+        assert (
+            obj_store.servlet_name in obj_store.get_all_initialized_env_servlet_names()
+        )
+        assert obj_store.get("k1")
 
         # check that corresponding Ray actor is killed
         with pytest.raises(ObjStoreError):
