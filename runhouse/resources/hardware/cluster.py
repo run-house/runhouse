@@ -41,6 +41,7 @@ from runhouse.globals import obj_store, rns_client
 from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware.utils import (
     _current_cluster,
+    _get_cluster_from,
     ServerConnectionType,
     SkySSHRunner,
     ssh_tunnel,
@@ -317,7 +318,7 @@ class Cluster(Resource):
         from runhouse.resources.envs.env import Env
 
         self.check_server()
-        env = _get_env_from(env) or Env(name=env or Env.DEFAULT_NAME)
+        env = _get_env_from(env, system=self) or Env(name=env or Env.DEFAULT_NAME)
         env.reqs = env._reqs + reqs
         env.to(self)
 
@@ -379,7 +380,12 @@ class Cluster(Resource):
         )
 
         if env and not isinstance(env, str):
-            env = _get_env_from(env)
+            system = (
+                _get_cluster_from(resource.system)
+                if hasattr(resource, "system")
+                else None
+            )
+            env = _get_env_from(env, system=system)
             env_name = env.name or env.env_name
         else:
             env_name = env

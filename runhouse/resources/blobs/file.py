@@ -119,7 +119,7 @@ class File(Blob):
                 system = "file"
 
         system = _get_cluster_from(system)
-        env = _get_env_from(env or self.env)
+        env = _get_env_from(env or self.env, system=system)
 
         if (not system or isinstance(system, Cluster)) and not path:
             name = self.name or _generate_default_name(prefix="blob")

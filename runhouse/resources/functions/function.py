@@ -83,6 +83,10 @@ class Function(Module):
                 "Please pass in setup commands to the ``Env`` class corresponding to the function instead."
             )
 
+        new_fn_system = (
+            _get_cluster_from(system, dryrun=self.dryrun) if system else self.system
+        )
+
         # to retain backwards compatibility
         if reqs or setup_cmds:
             warnings.warn(
@@ -93,7 +97,7 @@ class Function(Module):
             env = Env(reqs=env, setup_cmds=setup_cmds, name=Env.DEFAULT_NAME)
         else:
             env = env or self.env or Env(name=Env.DEFAULT_NAME)
-            env = _get_env_from(env)
+            env = _get_env_from(env, system=new_fn_system)
 
         if isinstance(system, str) and system.lower() == "lambda_function":
             from runhouse.resources.functions.aws_lambda_factory import aws_lambda_fn
@@ -114,9 +118,7 @@ class Function(Module):
         new_function = copy.deepcopy(self)
         self.system = hw_backup
 
-        new_function.system = (
-            _get_cluster_from(system, dryrun=self.dryrun) if system else self.system
-        )
+        new_function.system = new_fn_system
 
         logging.info("Setting up Function on cluster.")
         # To up cluster in case it's not yet up
