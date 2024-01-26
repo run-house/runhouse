@@ -29,6 +29,7 @@ from runhouse.constants import (
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
+from runhouse.servers.caddy.config import CaddyConfig
 from runhouse.servers.http.auth import hash_token, verify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
@@ -45,7 +46,6 @@ from runhouse.servers.http.http_utils import (
     Response,
     ServerSettings,
 )
-from runhouse.servers.nginx.config import NginxConfig
 from runhouse.servers.obj_store import ObjStore
 
 logger = logging.getLogger(__name__)
@@ -81,7 +81,7 @@ def validate_cluster_access(func):
             raise HTTPException(
                 status_code=404,
                 detail="No token found in request auth headers. Expected in "
-                f"format: {json.dumps({'Authorization': 'Bearer <token>'})}",
+                "format: {{'Authorization': 'Bearer <token>'}})",
             )
 
         cluster_uri = load_current_cluster()
@@ -844,7 +844,7 @@ if __name__ == "__main__":
         "--port",
         type=int,
         default=None,
-        help="Port to run daemon on on. If provided and nginx is not enabled, "
+        help="Port to run daemon on on. If provided and Caddy is not enabled, "
         f"will attempt to run the daemon on this port, defaults to {DEFAULT_SERVER_PORT}",
     )
     parser.add_argument(
@@ -883,9 +883,9 @@ if __name__ == "__main__":
         help="Reconfigure Nginx",
     )
     parser.add_argument(
-        "--use-nginx",
-        action="store_true",  # if providing --use-nginx will be set to True
-        help="Configure Nginx as a reverse proxy",
+        "--use-caddy",
+        action="store_true",  # if providing --use-caddy will be set to True
+        help="Configure Caddy as a reverse proxy",
     )
     parser.add_argument(
         "--certs-address",
@@ -911,7 +911,7 @@ if __name__ == "__main__":
     conda_name = parse_args.conda_env
     use_https = parse_args.use_https
     restart_proxy = parse_args.restart_proxy
-    use_nginx = parse_args.use_nginx
+    use_caddy = parse_args.use_caddy
 
     ########################################
     # Handling args that could be specified in the
@@ -1033,41 +1033,19 @@ if __name__ == "__main__":
         # Update den auth if enabled - keep as a class attribute to be referenced by the validator decorator
         HTTPServer.enable_den_auth()
 
-    # Custom certs should already be on the cluster if their file paths are provided
-    if parsed_ssl_keyfile and not Path(parsed_ssl_keyfile).exists():
-        raise FileNotFoundError(
-            f"No SSL key file found on cluster in path: {parsed_ssl_keyfile}"
-        )
-
-    if parsed_ssl_certfile and not Path(parsed_ssl_certfile).exists():
-        raise FileNotFoundError(
-            f"No SSL cert file found on cluster in path: {parsed_ssl_certfile}"
-        )
-
     if use_https:
-        # If not using nginx and no port is specified use the default RH port
-        cert_config = TLSCertConfig()
-        ssl_keyfile = resolve_absolute_path(parsed_ssl_keyfile or cert_config.key_path)
-        ssl_certfile = resolve_absolute_path(
-            parsed_ssl_certfile or cert_config.cert_path
-        )
-
-        if not Path(ssl_keyfile).exists() and not Path(ssl_certfile).exists():
-            # If the user has specified a server port and we're not using nginx, then they
-            # want to run a TLS server on an arbitrary port. In order to do this,
-            # they need to pass their own certs.
-            if port_arg is not None and not use_nginx:
-                # if using a custom HTTPS port must provide private key file and certs explicitly
-                raise FileNotFoundError(
-                    f"Could not find SSL private key and cert files on the cluster, which are required when specifying "
-                    f"a custom port ({port_arg}). Please specify the paths using the --ssl-certfile and "
-                    f"--ssl-keyfile flags."
-                )
-
-            cert_config.generate_certs(address=address)
-            logger.info(
-                f"Generated new self-signed cert and private key files on the cluster in "
-                f"paths: {cert_config.cert_path} and {cert_config.key_path}"
+        # If using https (whether or not Caddy is being used), need to provide both key and cert files
+        if (
+            not parsed_ssl_keyfile
+            or not Path(parsed_ssl_keyfile).exists()
+            or not parsed_ssl_certfile
+            or not Path(parsed_ssl_certfile).exists()
+        ):
+            # Custom certs should already be on the cluster if their file paths are provided
+            raise FileNotFoundError(
+                f"Could not find SSL private key and cert files on the cluster, which are required when specifying "
+                f"a custom port ({port_arg}) or enabling HTTPS. Please specify the paths using the --ssl-certfile and "
+                f"--ssl-keyfile flags."
             )
 
     # If the daemon port was not specified, it should be the default RH port
@@ -1076,21 +1054,21 @@ if __name__ == "__main__":
         DEFAULT_HTTP_PORT,
         DEFAULT_HTTPS_PORT,
     ]:
-        # Since one of HTTP_PORT or HTTPS_PORT was specified, nginx is set up to forward requests
+        # Since one of HTTP_PORT or HTTPS_PORT was specified, Caddy is set up to forward requests
         # from the daemon to that port
         daemon_port = DEFAULT_SERVER_PORT
 
-    # Note: running the FastAPI app on a higher, non-privileged port (8000) and using Nginx as a reverse
+    # Note: running the FastAPI app on a higher, non-privileged port (8000) and using Caddy as a reverse
     # proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the app's port.
-    if use_nginx:
-        logger.info("Configuring Nginx")
+    if use_caddy:
+        logger.info("Using Caddy as a reverse proxy")
         if address is None:
             raise ValueError(
-                "Must provide the server address to configure Nginx. No address found in the server "
+                "Must provide the server address to configure Caddy. No address found in the server "
                 "start command (--certs-address) or in the cluster config YAML saved on the cluster."
             )
 
-        nc = NginxConfig(
+        cc = CaddyConfig(
             address=address,
             rh_server_port=daemon_port,
             ssl_key_path=ssl_keyfile,
@@ -1098,14 +1076,10 @@ if __name__ == "__main__":
             use_https=use_https,
             force_reinstall=restart_proxy,
         )
-        nc.configure()
+        cc.configure()
 
-        if use_https and (parsed_ssl_keyfile or parsed_ssl_certfile):
-            # reload nginx in case updated certs were provided
-            nc.reload()
-
-        nginx_port = DEFAULT_HTTPS_PORT if use_https else DEFAULT_HTTP_PORT
-        logger.info(f"Nginx is proxying requests from {nginx_port} to {daemon_port}.")
+        caddy_port = DEFAULT_HTTPS_PORT if use_https else DEFAULT_HTTP_PORT
+        logger.info(f"Caddy is proxying requests from {caddy_port} to {daemon_port}.")
 
     logger.info(
         f"Launching Runhouse API server with den_auth={den_auth} and "
@@ -1113,9 +1087,9 @@ if __name__ == "__main__":
         + f"on host={host} and use_https={use_https} and port_arg={daemon_port}"
     )
 
-    # Only launch uvicorn with certs if HTTPS is enabled and not using Nginx
-    uvicorn_cert = ssl_certfile if not use_nginx and use_https else None
-    uvicorn_key = ssl_keyfile if not use_nginx and use_https else None
+    # Only launch uvicorn with certs if HTTPS is enabled and not using Caddy
+    uvicorn_cert = ssl_certfile if not use_caddy and use_https else None
+    uvicorn_key = ssl_keyfile if not use_caddy and use_https else None
 
     uvicorn.run(
         app,
