@@ -555,9 +555,9 @@ class Cluster(Resource):
         )
 
     @property
-    def _use_nginx(self) -> bool:
-        """Use Nginx if the server port is set to the default HTTP (80) or HTTPS (443) port.
-        Note: Nginx will serve as a reverse proxy, forwarding traffic from the server port to the Runhouse API
+    def _use_caddy(self) -> bool:
+        """Use Caddy if the server port is set to the default HTTP (80) or HTTPS (443) port.
+        Note: Caddy will serve as a reverse proxy, forwarding traffic from the server port to the Runhouse API
         server running on port 32300."""
         return self.server_port in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]
 
@@ -598,7 +598,7 @@ class Cluster(Resource):
             resync_rh (bool): Whether to resync runhouse. (Default: ``True``)
             restart_ray (bool): Whether to restart Ray. (Default: ``True``)
             env_activate_cmd (str, optional): Command to activate the environment on the server. (Default: ``None``)
-            restart_proxy (bool): Whether to restart nginx on the cluster, if configured. (Default: ``False``)
+            restart_proxy (bool): Whether to restart Caddy on the cluster, if configured. (Default: ``False``)
         Example:
             >>> rh.cluster("rh-cpu").restart_server()
         """
@@ -641,15 +641,15 @@ class Cluster(Resource):
             )
 
         https_flag = self._use_https
-        nginx_flag = self._use_nginx
+        caddy_flag = self._use_caddy
         use_local_telemetry = self.use_local_telemetry
 
         cmd = (
             CLI_RESTART_CMD
             + (" --no-restart-ray" if not restart_ray else "")
             + (" --use-https" if https_flag else "")
-            + (" --use-nginx" if nginx_flag else "")
-            + (" --restart-proxy" if restart_proxy and nginx_flag else "")
+            + (" --use-caddy" if caddy_flag else "")
+            + (" --restart-proxy" if restart_proxy and caddy_flag else "")
             + (f" --ssl-certfile {cluster_cert_path}" if use_custom_cert else "")
             + (f" --ssl-keyfile {cluster_key_path}" if use_custom_key else "")
             + (" --use-local-telemetry" if use_local_telemetry else "")
