@@ -293,9 +293,10 @@ class Resource:
         self.delete_configs()
         self._name = None
 
-    def history(self, num_entries: int = None) -> List[Dict]:
+    def history(self, limit: int = None) -> List[Dict]:
         """Return the history of the resource, including specific config fields (e.g. blob path) and which runs
-        have overwritten it."""
+        have overwritten it.
+        If ``limit`` is specified, return the last ``limit`` number of entries in the history."""
         if not self.rns_address:
             raise ValueError("Resource must have a name in order to have a history")
 
@@ -306,7 +307,7 @@ class Resource:
 
         resource_uri = rns_client.resource_uri(self.rns_address)
         base_uri = f"{rns_client.api_server_url}/resource/history/{resource_uri}"
-        uri = f"{base_uri}?num_entries={num_entries}" if num_entries else base_uri
+        uri = f"{base_uri}?limit={limit}" if limit else base_uri
 
         resp = requests.get(uri, headers=rns_client.request_headers())
         if resp.status_code != 200:
