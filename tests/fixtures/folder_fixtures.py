@@ -8,6 +8,12 @@ from .utils import create_gcs_bucket, create_s3_bucket
 
 
 @pytest.fixture
+def dest(request):
+    """Parametrize over multiple folders - useful for running the same test on multiple storage types."""
+    return request.getfixturevalue(request.param)
+
+
+@pytest.fixture
 def folder(request):
     """Parametrize over multiple folders - useful for running the same test on multiple storage types."""
     return request.getfixturevalue(request.param)
@@ -23,13 +29,47 @@ def local_folder(tmp_path):
 
 
 @pytest.fixture
-def cluster_folder(ondemand_cpu_cluster, local_folder):
-    return local_folder.to(system=ondemand_cpu_cluster)
+def local_folder_docker(docker_cluster_pk_ssh_no_auth):
+    args = {
+        "name": "test_docker_folder",
+        "system": docker_cluster_pk_ssh_no_auth,
+        "path": "rh-folder",
+    }
+
+    local_folder_docker = rh.folder(**args)
+    init_args[id(local_folder_docker)] = args
+    local_folder_docker.put(
+        {f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)}
+    )
+    return local_folder_docker
 
 
 @pytest.fixture
-def s3_folder(local_folder):
-    s3_folder = local_folder.to(system="s3")
+def cluster_folder(ondemand_cpu_cluster):
+    args = {
+        "name": "test_cluster_folder",
+        "system": ondemand_cpu_cluster,
+        "path": "rh-folder",
+    }
+
+    cluster_folder = rh.folder(**args)
+    init_args[id(cluster_folder)] = args
+    cluster_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
+    return cluster_folder
+
+
+@pytest.fixture
+def s3_folder():
+    args = {
+        "name": "test_s3_folder",
+        "system": "s3",
+        "path": "rh-folder",
+    }
+
+    s3_folder = rh.folder(**args)
+    init_args[id(s3_folder)] = args
+    s3_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
+
     yield s3_folder
 
     # Delete files from S3
@@ -37,8 +77,17 @@ def s3_folder(local_folder):
 
 
 @pytest.fixture
-def gcs_folder(local_folder):
-    gcs_folder = local_folder.to(system="gs")
+def gcs_folder():
+    args = {
+        "name": "test_gcs_folder",
+        "system": "gs",
+        "path": "rh-folder",
+    }
+
+    gcs_folder = rh.folder(**args)
+    init_args[id(gcs_folder)] = args
+    gcs_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
+
     yield gcs_folder
 
     # Delete files from GCS
