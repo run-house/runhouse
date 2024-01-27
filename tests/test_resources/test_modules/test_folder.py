@@ -17,6 +17,89 @@ def fs_str_rh_fn(folder):
 
 
 class TestFolder(tests.test_resources.test_resource.TestResource):
+
+    MAP_FIXTURES = {"resource": "folder"}
+
+    UNIT = {
+        "folder": ["local_folder"],
+        "dest": ["local_folder"],
+    }
+    LOCAL = {
+        "folder": ["local_folder", "local_folder_docker"],
+        "dest": ["local_folder", "local_folder_docker"],
+    }
+    MINIMAL = {
+        "folder": [
+            "local_folder",
+            "local_folder_docker",
+            "cluster_folder",
+            "s3_folder",
+            "gcs_folder",
+        ],
+        "dest": [
+            "local_folder",
+            "local_folder_docker",
+            "cluster_folder",
+            "s3_folder",
+            "gcs_folder",
+        ],
+    }
+    THOROUGH = {
+        "folder": [
+            "local_folder",
+            "local_folder_docker",
+            "cluster_folder",
+            "s3_folder",
+            "gcs_folder",
+        ],
+        "dest": [
+            "local_folder",
+            "local_folder_docker",
+            "cluster_folder",
+            "s3_folder",
+            "gcs_folder",
+        ],
+    }
+    MAXIMAL = {
+        "folder": [
+            "local_folder",
+            "local_folder_docker",
+            "cluster_folder",
+            "s3_folder",
+            "gcs_folder",
+        ],
+        "dest": [
+            "local_folder",
+            "local_folder_docker",
+            "cluster_folder",
+            "s3_folder",
+            "gcs_folder",
+        ],
+    }
+
+    @pytest.mark.level("unit")
+    def test_send_folder_to_dest(self, folder, dest):
+
+        if (
+            isinstance(folder.system, rh.Cluster)
+            and isinstance(dest.system, rh.Cluster)
+            and folder.system.name == "docker_cluster_pk_ssh"
+            and dest.system.name == "docker_cluster_pk_ssh"
+        ):
+            pytest.skip(
+                "Test skipped when both folder and dest are set to local_folder_docker"
+            )
+
+        system = "here" if dest.system == "file" else dest.system
+        expected_fs_str = "ssh" if isinstance(dest.system, rh.Cluster) else dest.system
+
+        new_folder = folder.to(system=system)
+
+        assert new_folder._fs_str == expected_fs_str
+        assert "sample_file_0.txt" in new_folder.ls(full_paths=False)
+
+        new_folder.rm()
+
     @pytest.mark.level("local")
     @pytest.mark.skip("Bad path")
     def test_from_cluster(self, cluster):
@@ -92,66 +175,6 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
                 f"See https://cloud.google.com/sdk/gcloud/reference/auth/login"
             )
 
-    @pytest.mark.level("local")  # TODO: fix this test
-    @pytest.mark.skip("[WIP] Fix this test")
-    def test_local_and_cluster(self, cluster, local_folder, tmp_path):
-        # Local to cluster
-        cluster_folder = local_folder.to(system=cluster)
-        assert "sample_file_0.txt" in cluster_folder.ls(full_paths=False)
-        assert cluster_folder._fs_str == "ssh"
-
-        # Cluster to local
-        local_from_cluster = cluster_folder.to("here", path=tmp_path)
-        assert "sample_file_0.txt" in local_from_cluster.ls(full_paths=False)
-        assert local_from_cluster._fs_str == "file"
-
-    @pytest.mark.level("local")  # TODO: fix this test
-    @pytest.mark.skip("[WIP] Fix this test")
-    def test_local_and_s3(self, local_folder, tmp_path):
-        # Local to S3
-        s3_folder = local_folder.to(system="s3")
-        assert "sample_file_0.txt" in s3_folder.ls(full_paths=False)
-        assert s3_folder._fs_str == "s3"
-
-        # S3 to local
-        local_from_s3 = s3_folder.to("here", path=tmp_path)
-        assert "sample_file_0.txt" in local_from_s3.ls(full_paths=False)
-        assert local_from_s3._fs_str == "file"
-
-        s3_folder.rm()
-
-    @pytest.mark.level(
-        "local"
-    )  # TODO: fix this test (just needs google-cloud-storage package)
-    @pytest.mark.skip("[WIP] Fix this test")
-    def test_local_and_gcs(self, local_folder, tmp_path):
-        # Local to GCS
-        gcs_folder = local_folder.to(system="gs")
-        assert "sample_file_0.txt" in gcs_folder.ls(full_paths=False)
-        assert gcs_folder._fs_str == "gs"
-
-        # GCS to local
-        local_from_gcs = gcs_folder.to("here", path=tmp_path)
-        assert "sample_file_0.txt" in local_from_gcs.ls(full_paths=False)
-        assert local_from_gcs._fs_str == "file"
-
-        gcs_folder.rm()
-
-    @pytest.mark.level("local")  # TODO: fix this test
-    @pytest.mark.skip("[WIP] Fix this test")
-    def test_cluster_and_s3(self, cluster, cluster_folder):
-        # Cluster to S3
-        s3_folder = cluster_folder.to(system="s3")
-        assert "sample_file_0.txt" in s3_folder.ls(full_paths=False)
-        assert s3_folder._fs_str == "s3"
-
-        # S3 to cluster
-        cluster_from_s3 = s3_folder.to(system=cluster)
-        assert "sample_file_0.txt" in cluster_from_s3.ls(full_paths=False)
-        assert cluster_from_s3._fs_str == "ssh"
-
-        s3_folder.rm()
-
     @pytest.mark.level("minimal")  # May need to investigate this test further
     @pytest.mark.skip("Requires GCS setup")
     def test_cluster_and_gcs(self, cluster, cluster_folder):
@@ -182,49 +205,6 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
                 f"on the cluster {cluster.name}. For now please manually enable them directly on the cluster. "
                 f"See https://cloud.google.com/sdk/gcloud/reference/auth/login"
             )
-
-    @pytest.mark.level("minimal")  # Needs S3 credentials
-    def test_s3_and_s3(self, local_folder, s3_folder):
-        # from one s3 folder to another s3 folder
-        new_s3_folder = s3_folder.to(system="s3")
-        assert "sample_file_0.txt" in new_s3_folder.ls(full_paths=False)
-
-        new_s3_folder.rm()
-
-    @pytest.mark.level(
-        "minimal"
-    )  # TODO: fix this test (Needs google-cloud-storage package)
-    @pytest.mark.skip("[WIP] Fix this test")
-    def test_gcs_and_gcs(self, gcs_folder):
-        # from one gcs folder to another gcs folder
-        new_gcs_folder = gcs_folder.to(system="gs")
-        assert "sample_file_0.txt" in new_gcs_folder.ls(full_paths=False)
-
-        new_gcs_folder.rm()
-
-    @pytest.mark.level("minimal")  # TODO: fix this test
-    @pytest.mark.skip("Doesn't work properly as only full-bucket copy is supported")
-    def test_s3_and_gcs(self, s3_folder):
-        # *** NOTE: transfers between providers are only supported at the bucket level at the moment (not directory) ***
-
-        s3_folder_to_gcs = s3_folder.to(system="gs")
-        assert "sample_file_0.txt" in s3_folder_to_gcs.ls(full_paths=False)
-        assert s3_folder_to_gcs._fs_str == "gs"
-
-        s3_folder_to_gcs.rm()
-
-    @pytest.mark.level(
-        "minimal"
-    )  # TODO: fix this test (Needs google-cloud-storage package)
-    @pytest.mark.skip("Doesn't work properly as only full-bucket copy is supported")
-    def test_gcs_and_s3(self, local_folder, gcs_folder):
-        # *** NOTE: transfers between providers are only supported at the bucket level at the moment (not directory) ***
-
-        gcs_folder_to_s3 = gcs_folder.to(system="s3")
-        assert "sample_file_0.txt" in gcs_folder_to_s3.ls(full_paths=False)
-        assert gcs_folder_to_s3._fs_str == "s3"
-
-        gcs_folder_to_s3.rm()
 
     @pytest.mark.level("minimal")  # TODO: needs S3 credentials
     def test_s3_folder_uploads_and_downloads(self, local_folder, tmp_path):
@@ -271,13 +251,13 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         )
         assert "sample_file_0.txt" in cluster_folder_1.ls(full_paths=False)
 
-    @pytest.mark.level("local")
+    @pytest.mark.level("minimal")
     @pytest.mark.skip("Not implemented yet")
     def test_s3_sharing(self, s3_folder):
         pass
         # TODO
 
-    @pytest.mark.level("local")
+    @pytest.mark.level("unit")
     def test_github_folder(self, tmp_path):
         gh_folder = rh.folder(
             path="/", system="github", data_config={"org": "pytorch", "repo": "rfcs"}

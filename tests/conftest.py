@@ -194,9 +194,11 @@ from tests.fixtures.docker_cluster_fixtures import (
 
 from tests.fixtures.folder_fixtures import (
     cluster_folder,  # noqa: F401
+    dest,  # noqa: F401
     folder,  # noqa: F401
     gcs_folder,  # noqa: F401
     local_folder,  # noqa: F401
+    local_folder_docker,  # noqa: F401
     s3_folder,  # noqa: F401
 )
 
