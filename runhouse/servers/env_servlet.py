@@ -2,11 +2,11 @@ import asyncio
 import inspect
 import json
 import logging
-import signal
 import threading
 import time
 import traceback
-from typing import Any, List, Optional, Union
+from functools import wraps
+from typing import Any, Optional
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
@@ -19,21 +19,61 @@ from runhouse.resources.queues import Queue
 from runhouse.resources.resource import Resource
 from runhouse.rns.utils.api import ResourceVisibility
 
-from runhouse.rns.utils.names import _generate_default_name
+# from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.http_utils import (
     b64_unpickle,
+    deserialize_data,
+    handle_exception_response,
     Message,
     OutputType,
     pickle_b64,
     Response,
+    serialize_data,
 )
 
 logger = logging.getLogger(__name__)
 
 
-class EnvServlet:
-    LOGGING_WAIT_TIME = 1.0
+def error_handling_decorator(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        EnvServlet.register_activity()
+        serialization = kwargs.get("serialization", None)
+        if "data" in kwargs:
+            serialized_data = kwargs.get("data", None)
+            deserialized_data = deserialize_data(serialized_data, serialization)
+            kwargs["data"] = deserialized_data
 
+        # If serialization is None, then we have not called this from the server,
+        # so we should return the result of the function directly, or raise
+        # the exception if there is one, instead of returning a Response object.
+        try:
+            output = func(*args, **kwargs)
+            if output is not None:
+                if serialization is None:
+                    return output
+                else:
+                    serialized_data = serialize_data(output, serialization)
+                    return Response(
+                        output_type=OutputType.RESULT_SERIALIZED,
+                        data=serialized_data,
+                        serialization=serialization,
+                    )
+            else:
+                return Response(
+                    output_type=OutputType.SUCCESS,
+                )
+        except Exception as e:
+            if serialization is None:
+                raise e
+            else:
+                # For now, this is always "pickle" because we don't support json serialization of exceptions
+                return handle_exception_response(e, traceback.format_exc())
+
+    return wrapper
+
+
+class EnvServlet:
     def __init__(self, env_name: str, *args, **kwargs):
         self.env_name = env_name
 
@@ -45,60 +85,6 @@ class EnvServlet:
     @staticmethod
     def register_activity():
         set_last_active_time_to_now()
-
-    def put_resource(self, message: Message):
-        self.register_activity()
-        try:
-            resource_config, state, dryrun = b64_unpickle(message.data)
-            state = state or {}
-            # Resolve any sub-resources which are string references to resources already sent to this cluster.
-            # We need to pop the resource's own name so it doesn't get resolved if it's already present in the
-            # obj_store.
-            name = resource_config.pop("name")
-            subtype = resource_config.pop("resource_subtype")
-            provider = (
-                resource_config.pop("provider")
-                if "provider" in resource_config
-                else None
-            )
-
-            resource_config = obj_store.get_obj_refs_dict(resource_config)
-            resource_config["name"] = name
-            resource_config["resource_subtype"] = subtype
-            if provider:
-                resource_config["provider"] = provider
-
-            logger.info(
-                f"Message received from client to construct resource: {resource_config}"
-            )
-
-            resource = Resource.from_config(config=resource_config, dryrun=dryrun)
-
-            for attr, val in state.items():
-                setattr(resource, attr, val)
-
-            name = (
-                resource.name
-                or message.key
-                or _generate_default_name(prefix=resource.RESOURCE_TYPE)
-            )
-            if isinstance(resource, Module):
-                resource.rename(name)
-            else:
-                resource.name = name
-            obj_store.put(resource.name, resource)
-
-            self.register_activity()
-            # Return the name in case we had to set it
-            return Response(output_type=OutputType.RESULT, data=pickle_b64(name))
-        except Exception as e:
-            logger.exception(e)
-            self.register_activity()
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
 
     def call_module_method(
         self,
@@ -477,137 +463,42 @@ class EnvServlet:
                 output_type=OutputType.EXCEPTION,
             )
 
-    def put_object(self, key, value, _intra_cluster=False):
-        self.register_activity()
-        # We may not want to deserialize the object here in case the object requires dependencies
-        # (to be used inside an env) which aren't present in the BaseEnv.
-        if _intra_cluster:
-            obj = value
-        else:
-            obj = b64_unpickle(value)
-        logger.info(f"Message received from client to put object: {key}")
-        try:
-            obj_store.put(key, obj)
-            return Response(output_type=OutputType.SUCCESS)
-        except Exception as e:
-            logger.exception(e)
-            self.register_activity()
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
+    ##############################################################
+    # Methods decorated with a standardized error decorating handler
+    # These catch exceptions and wrap the output in a Response object.
+    # They also handle arbitrary serialization and deserialization.
+    # NOTE: These need to take in "data" and "serialization" as arguments
+    # even if unused, because they are used by the decorator
+    ##############################################################
+    @error_handling_decorator
+    def put_resource_local(
+        self,
+        data: Any,  # This first comes in a serialized format which the decorator re-populates after deserializing
+        serialization: Optional[str] = None,
+    ):
+        resource_config, state, dryrun = data
+        return obj_store.put_resource_local(resource_config, state, dryrun)
 
-    def rename_object(self, message: Message):
-        self.register_activity()
-        # We may not want to deserialize the object here in case the object requires dependencies
-        # (to be used inside an env) which aren't present in the BaseEnv.
-        old_key, new_key = b64_unpickle(message.data)
-        logger.info(
-            f"Message received from client to rename object {old_key} to {new_key}"
-        )
-        try:
-            obj_store.rename(old_key, new_key)
-            return Response(output_type=OutputType.SUCCESS)
-        except Exception as e:
-            logger.exception(e)
-            self.register_activity()
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
-
-    def delete_obj(self, message: Union[Message, List], _intra_cluster=False):
-        self.register_activity()
-        keys = b64_unpickle(message.data) if not _intra_cluster else message
-        logger.info(f"Message received from client to delete keys: {keys or 'all'}")
-        try:
-            cleared = []
-            if keys:
-                for pin in keys:
-                    obj_store.delete(pin)
-                    cleared.append(pin)
-            else:
-                cleared = list(obj_store.keys())
-                obj_store.clear()
-            return Response(data=pickle_b64(cleared), output_type=OutputType.RESULT)
-        except Exception as e:
-            logger.exception(e)
-            self.register_activity()
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
-
-    def cancel_run(self, message: Message):
-        # Having this be a POST instead of a DELETE on the "run" endpoint is strange, but we're not actually
-        # deleting the run, just cancelling it. Maybe we should merge this into call_module_method to stream logs.
-        self.register_activity()
-        force = b64_unpickle(message.data)
-        logger.info(f"Message received from client to cancel runs: {message.key}")
-
-        def kill_thread(key, sigterm=False):
-            thread_id = self.thread_ids.get(key)
-            if not thread_id:
-                return
-            # Get thread object from id
-            # print(list(threading.enumerate()))
-            # print(self.thread_ids.items())
-            thread = threading._active.get(thread_id)
-            if thread is None:
-                return
-            if thread.is_alive():
-                # exc = KeyboardInterrupt()
-                # thread._async_raise(exc)
-                logging.info(f"Killing thread {thread_id}")
-                # SIGINT is like Ctrl+C: https://docs.python.org/3/library/signal.html#signal.SIGINT
-                signal.pthread_kill(
-                    thread_id, signal.SIGINT if not sigterm else signal.SIGTERM
-                )
-                self.output_types[thread_id] = OutputType.CANCELLED
-                if obj_store.contains(key):
-                    obj = obj_store.get(key)
-                    obj.provenance.status = RunStatus.CANCELLED
-            self.thread_ids.pop(thread_id, None)
-
-        try:
-            if message.key == "all":
-                for key in self.thread_ids:
-                    kill_thread(key, force)
-            else:
-                kill_thread(message.key, force)
-
-            return Response(output_type=OutputType.SUCCESS)
-        except Exception as e:
-            logger.exception(e)
-            self.register_activity()
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
-            )
-
-    def get_keys(self):
-        self.register_activity()
-        keys: list = list(obj_store.keys())
-        return Response(data=pickle_b64(keys), output_type=OutputType.RESULT)
+    @error_handling_decorator
+    def put_local(self, key: Any, data: Any, serialization: Optional[str] = None):
+        return obj_store.put_local(key, data)
 
     ##############################################################
     # IPC methods for interacting with local object store only
+    # These do not catch exceptions, and do not wrap the output
+    # in a Response object.
     ##############################################################
     def keys_local(self):
         self.register_activity()
         return obj_store.keys_local()
 
-    def put_local(self, key: Any, value: Any):
-        self.register_activity()
-        return obj_store.put_local(key, value)
-
     def get_local(self, key: Any, default: Optional[Any] = None):
         self.register_activity()
         return obj_store.get_local(key, default)
+
+    def rename_local(self, key: Any, new_key: Any):
+        self.register_activity()
+        return obj_store.rename_local(key, new_key)
 
     def contains_local(self, key: Any):
         self.register_activity()

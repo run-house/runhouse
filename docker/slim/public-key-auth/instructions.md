@@ -21,7 +21,7 @@ ssh-keygen -t rsa -b 4096 -C "your_email@example.com" -f ~/.ssh/runhouse/docker/
 
 4. Build the Docker container
 
-docker build --no-cache --pull --rm -f "runhouse/docker/slim/public-key-auth/Dockerfile" --secret id=ssh_key,src=$HOME/.ssh/runhouse/docker/id_rsa.pub -t runhouse:start .
+docker build --no-cache --pull --rm -f "docker/slim/public-key-auth/Dockerfile" --secret id=ssh_key,src=$HOME/.ssh/runhouse/docker/id_rsa.pub -t runhouse:start .
 
 5. Run the Docker container
 

@@ -1,9 +1,10 @@
+import logging
 import shlex
 import subprocess
 import time
 import webbrowser
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import typer
 from rich.console import Console
@@ -11,6 +12,15 @@ from rich.console import Console
 import runhouse.rns.login
 
 from runhouse import __version__, cluster, configs
+from runhouse.constants import (
+    RAY_KILL_CMD,
+    RAY_START_CMD,
+    SERVER_LOGFILE,
+    SERVER_START_CMD,
+    SERVER_STOP_CMD,
+    START_NOHUP_CMD,
+    START_SCREEN_CMD,
+)
 
 # create an explicit Typer application
 app = typer.Typer(add_completion=False)
@@ -18,6 +28,7 @@ state = {"verbose": False}
 
 # For printing with typer
 console = Console()
+logger = logging.getLogger(__name__)
 
 
 @app.command()
@@ -96,10 +107,38 @@ def load_cluster(cluster_name: str):
         c._update_from_sky_status(dryrun=True)
 
 
+def _check_if_command_exists(cmd: str):
+    cmd_check = subprocess.run(
+        f"command -v {cmd}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    available = cmd_check.returncode == 0
+    if not available:
+        logger.info(f"{cmd} is not available on the system.")
+    return available
+
+
+def _get_wrapped_server_start_cmd(flags: List[str], screen: bool, nohup: bool):
+    if screen:
+        wrapped_cmd = START_SCREEN_CMD
+    elif nohup:
+        wrapped_cmd = START_NOHUP_CMD
+    else:
+        wrapped_cmd = SERVER_START_CMD
+
+    if flags:
+        flags_str = "".join(flags)
+        wrapped_cmd = wrapped_cmd.replace(
+            SERVER_START_CMD, SERVER_START_CMD + flags_str
+        )
+
+    return wrapped_cmd
+
+
 def _start_server(
     restart,
     restart_ray,
     screen,
+    nohup,
     create_logfile=True,
     host=None,
     port=None,
@@ -112,36 +151,100 @@ def _start_server(
     certs_address=None,
     use_local_telemetry=False,
 ):
-    from runhouse.resources.hardware.cluster import Cluster
 
-    cmds = Cluster._start_server_cmds(
-        restart=restart,
-        restart_ray=restart_ray,
-        screen=screen,
-        create_logfile=create_logfile,
-        host=host,
-        port=port,
-        use_https=use_https,
-        den_auth=den_auth,
-        ssl_keyfile=ssl_keyfile,
-        ssl_certfile=ssl_certfile,
-        restart_proxy=restart_proxy,
-        use_nginx=use_nginx,
-        certs_address=certs_address,
-        use_local_telemetry=use_local_telemetry,
-    )
+    ############################################
+    # Build CLI commands to start the server
+    ############################################
+    cmds = []
+    if restart:
+        cmds.append(SERVER_STOP_CMD)
+    if restart_ray:
+        cmds.append(RAY_KILL_CMD)
+        # TODO Add in BOOTSTRAP file if it exists?
+        cmds.append(RAY_START_CMD)
+
+    # Collect flags
+    flags = []
+    den_auth_flag = " --use-den-auth" if den_auth else ""
+    if den_auth_flag:
+        logger.info("Starting server with Den auth.")
+        flags.append(den_auth_flag)
+
+    restart_proxy_flag = " --restart-proxy" if restart_proxy else ""
+    if restart_proxy_flag:
+        logger.info("Reinstalling Nginx and server configs.")
+        flags.append(restart_proxy_flag)
+
+    use_nginx_flag = " --use-nginx" if use_nginx else ""
+    if use_nginx_flag:
+        logger.info("Configuring Nginx on the cluster.")
+        flags.append(use_nginx_flag)
+
+    ssl_keyfile_flag = f" --ssl-keyfile {ssl_keyfile}" if ssl_keyfile else ""
+    if ssl_keyfile_flag:
+        logger.info(f"Using SSL keyfile in path: {ssl_keyfile}")
+        flags.append(ssl_keyfile_flag)
+
+    ssl_certfile_flag = f" --ssl-certfile {ssl_certfile}" if ssl_certfile else ""
+    if ssl_certfile_flag:
+        logger.info(f"Using SSL certfile in path: {ssl_certfile}")
+        flags.append(ssl_certfile_flag)
+
+    # Use HTTPS if explicitly specified or if SSL cert or keyfile path are provided
+    https_flag = " --use-https" if use_https or (ssl_keyfile or ssl_certfile) else ""
+    if https_flag:
+        logger.info("Starting server with HTTPS.")
+        flags.append(https_flag)
+
+    host_flag = f" --host {host}" if host else ""
+    if host_flag:
+        logger.info(f"Using host: {host}.")
+        flags.append(host_flag)
+
+    port_flag = f" --port {port}" if port else ""
+    if port_flag:
+        logger.info(f"Using port: {port}.")
+        flags.append(port_flag)
+
+    address_flag = f" --certs-address {certs_address}" if certs_address else ""
+    if address_flag:
+        logger.info(f"Server public IP address: {certs_address}.")
+        flags.append(address_flag)
+
+    use_local_telemetry_flag = " --use-local-telemetry" if use_local_telemetry else ""
+    if use_local_telemetry_flag:
+        logger.info("Configuring local telemetry on the cluster.")
+        flags.append(use_local_telemetry_flag)
+
+    # Check if screen or nohup are available
+    screen = screen and _check_if_command_exists("screen")
+    nohup = not screen and nohup and _check_if_command_exists("nohup")
+
+    # Create logfile if we are using backgrounding
+    if (screen or nohup) and create_logfile and not Path(SERVER_LOGFILE).exists():
+        Path(SERVER_LOGFILE).parent.mkdir(parents=True, exist_ok=True)
+        Path(SERVER_LOGFILE).touch()
+
+    # Add flags to the server start command
+    cmds.append(_get_wrapped_server_start_cmd(flags, screen, nohup))
+    logger.info(f"Starting API server using the following command: {cmds[-1]}.")
 
     try:
         # Open and read the lines of the server logfile so we only print the most recent lines after starting
         f = None
-        if screen and Path(Cluster.SERVER_LOGFILE).exists():
-            f = open(Cluster.SERVER_LOGFILE, "r")
+        if screen and Path(SERVER_LOGFILE).exists():
+            f = open(SERVER_LOGFILE, "r")
             f.readlines()  # Discard these, they're from the previous times the server was started
 
         # We do these one by one so it's more obvious where the error is if there is one
-        for cmd in cmds:
+        for i, cmd in enumerate(cmds):
             console.print(f"Executing `{cmd}`")
-            result = subprocess.run(shlex.split(cmd), text=True)
+            if (
+                i == len(cmds) - 1
+            ):  # last cmd is not being parsed correctly when ran with shlex.split
+                result = subprocess.run(cmd, shell=True, check=True)
+            else:
+                result = subprocess.run(shlex.split(cmd), text=True)
             # We don't want to raise an error if the server kill fails, as it may simply not be running
             if result.returncode != 0 and "pkill" not in cmd:
                 console.print(f"Error while executing `{cmd}`")
@@ -150,9 +253,9 @@ def _start_server(
         server_started_str = "Uvicorn running on"
         # Read and print the server logs until the
         if screen:
-            while not Path(Cluster.SERVER_LOGFILE).exists():
+            while not Path(SERVER_LOGFILE).exists():
                 time.sleep(1)
-            f = f or open(Cluster.SERVER_LOGFILE, "r")
+            f = f or open(SERVER_LOGFILE, "r")
             start_time = time.time()
             # Wait for input for 60 seconds max (for nginx to download and set up)
             while time.time() - start_time < 60:
@@ -177,6 +280,9 @@ def _start_server(
 def start(
     restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
     screen: bool = typer.Option(False, help="Start the server in a screen"),
+    nohup: bool = typer.Option(
+        False, help="Start the server in a nohup if screen is not available"
+    ),
     host: Optional[str] = typer.Option(
         None, help="Custom server host address. Default is `0.0.0.0`."
     ),
@@ -207,6 +313,7 @@ def start(
         restart=False,
         restart_ray=restart_ray,
         screen=screen,
+        nohup=nohup,
         create_logfile=True,
         host=host,
         port=port,
@@ -225,6 +332,10 @@ def restart(
     screen: bool = typer.Option(
         True,
         help="Start the server in a screen. Only relevant when restarting locally.",
+    ),
+    nohup: bool = typer.Option(
+        True,
+        help="Start the server in a nohup if screen is not available. Only relevant when restarting locally.",
     ),
     resync_rh: bool = typer.Option(
         False,
@@ -275,6 +386,7 @@ def restart(
         restart=True,
         restart_ray=restart_ray,
         screen=screen,
+        nohup=nohup,
         create_logfile=True,
         host=host,
         port=port,

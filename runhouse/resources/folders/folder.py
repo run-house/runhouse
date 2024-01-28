@@ -463,7 +463,9 @@ class Folder(Resource):
         dest_folder.path = dest_path
         dest_folder.system = dest_cluster
 
-        if self._fs_str == "file":  # Includes case where we're on the cluster
+        if self._fs_str == "file" and dest_cluster.name is not None:
+            # Includes case where we're on the cluster itself
+            # And the destination is a cluster, not rh.here
             dest_cluster._rsync(
                 source=self.path, dest=dest_path, up=True, contents=True
             )

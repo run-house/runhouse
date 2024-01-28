@@ -88,8 +88,12 @@ class ServerConnectionType(str, Enum):
     AWS_SSM = "aws_ssm"
 
 
-def _load_cluster_config_from_file() -> Dict:
-    if Path(CLUSTER_CONFIG_PATH).expanduser().exists():
+def cluster_config_file_exists() -> bool:
+    return Path(CLUSTER_CONFIG_PATH).expanduser().exists()
+
+
+def load_cluster_config_from_file() -> Dict:
+    if cluster_config_file_exists():
         with open(Path(CLUSTER_CONFIG_PATH).expanduser()) as f:
             cluster_config = json.load(f)
         return cluster_config
@@ -97,16 +101,20 @@ def _load_cluster_config_from_file() -> Dict:
         return {}
 
 
-def _current_cluster(key="name"):
+def _current_cluster(key="config"):
     """Retrive key value from the current cluster config.
     If key is "config", returns entire config."""
     from runhouse.globals import obj_store
 
     cluster_config = obj_store.get_cluster_config()
     if cluster_config:
+        # This could be a local cluster started via runhouse start,
+        # in which case it would have no Name.
+        if key in ["cluster_name", "name"] and "name" not in cluster_config:
+            return None
         if key == "config":
             return cluster_config
-        elif key == "cluster_name":
+        if key == "cluster_name":
             return cluster_config["name"].rsplit("/", 1)[-1]
         return cluster_config[key]
     else:
@@ -148,6 +156,7 @@ class SkySSHRunner(SSHCommandRunner):
         port: int = 22,
         docker_user: Optional[str] = None,
         disable_control_master: Optional[bool] = False,
+        local_bind_port: Optional[int] = None,
     ):
         super().__init__(
             ip,
@@ -160,6 +169,7 @@ class SkySSHRunner(SSHCommandRunner):
             disable_control_master,
         )
         self._tunnel_procs = []
+        self.local_bind_port = local_bind_port
 
     def _ssh_base_command(
         self, *, ssh_mode: SshMode, port_forward: Optional[List[int]]
@@ -329,6 +339,7 @@ class SkySSHRunner(SSHCommandRunner):
 
         time.sleep(3)
         self._tunnel_procs.append(proc)
+        self.local_bind_port = local_port
 
     def __del__(self):
         for proc in self._tunnel_procs:
@@ -473,7 +484,7 @@ def ssh_tunnel(
     ssh_port: int = 22,
     remote_port: Optional[int] = None,
     num_ports_to_try: int = 0,
-) -> SSHTunnelForwarder:
+) -> Union[SSHTunnelForwarder, SkySSHRunner]:
     """Initialize an ssh tunnel from a remote server to localhost
 
     Args:
@@ -490,7 +501,7 @@ def ssh_tunnel(
             starting at local_port and incrementing by 1 till we hit the max. Defaults to 0.
 
     Returns:
-        SSHTunnelForwarder: The initialized tunnel.
+        SSHTunnelForwarder or SkySSHRunner: The initialized tunnel.
     """
 
     # Debugging cmds (mac):

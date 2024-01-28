@@ -2,9 +2,11 @@ import logging
 import sys
 from typing import List
 
-from runhouse.globals import configs, rns_client
+from runhouse.globals import configs, obj_store, rns_client
 
 from runhouse.logger import LOGGING_CONFIG
+
+from runhouse.resources.hardware.utils import _get_cluster_from
 
 # Configure the logger once
 logging.config.dictConfig(LOGGING_CONFIG)
@@ -61,20 +63,24 @@ def load(name: str, instantiate: bool = True, dryrun: bool = False):
         )
 
 
-# This funny structure lets us use `rh.here` to get the current cluster
-def __getattr__(name):
-    if name == "here":
-        from runhouse.resources.hardware.utils import (
-            _current_cluster,
-            _get_cluster_from,
-        )
+def get_local_cluster_object():
+    # By default, obj_store.initialize does not initialize Ray, and instead
+    # attempts to connect to an existing cluster.
 
-        config = _current_cluster(key="config")
-        if not config:
-            return "file"
+    # In case we are calling `rh.here` within the same Python process
+    # as an initialized object store, keep the same name.
+    # If it was not set, let's proxy requests to `base` since we're likely on the cluster
+    # and want to easily read and write from the object store that the Server is using.
+    obj_store.initialize(servlet_name=obj_store.servlet_name or "base")
+
+    # When HTTPServer is initialized, the cluster_config is set
+    # within the global state.
+    config = obj_store.get_cluster_config()
+    if config.get("resource_subtype") is not None:
         system = _get_cluster_from(config, dryrun=True)
         return system
-    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+    return "file"
 
 
 def set_save_to(save_to: List[str]):

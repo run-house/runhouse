@@ -7,6 +7,7 @@ import runhouse as rh
 from runhouse.servers.http.auth import hash_token
 from runhouse.servers.http.http_server import HTTPServer
 from runhouse.servers.http.http_utils import b64_unpickle, Message, pickle_b64
+from runhouse.servers.obj_store import ObjStore
 
 from tests.test_servers.conftest import summer
 from tests.utils import friend_account
@@ -22,24 +23,27 @@ class TestServlet:
             resource = local_blob.to(system="file", path=resource_path)
 
             state = {}
-            message = Message(
+            resp = ObjStore.call_actor_method(
+                test_servlet,
+                "put_resource_local",
                 data=pickle_b64((resource.config_for_rns, state, resource.dryrun)),
-            )
-            resp = HTTPServer.call_servlet_method(
-                test_servlet, "put_resource", [message]
+                serialization="pickle",
             )
 
-            assert resp.output_type == "result"
+            assert resp.output_type == "result_serialized"
             assert b64_unpickle(resp.data).startswith("file_")
 
     @pytest.mark.level("unit")
-    def test_put_obj(self, test_servlet, blob_data):
+    def test_put_obj_local(self, test_servlet, blob_data):
         with tempfile.TemporaryDirectory() as temp_dir:
             resource_path = Path(temp_dir, "local-blob")
             resource = rh.blob(blob_data, path=resource_path)
-            message = Message(data=pickle_b64(resource), key="key1")
-            resp = HTTPServer.call_servlet_method(
-                test_servlet, "put_object", [message.key, message.data]
+            resp = ObjStore.call_actor_method(
+                test_servlet,
+                "put_local",
+                key="key1",
+                data=pickle_b64(resource),
+                serialization="pickle",
             )
             assert resp.output_type == "success"
 
@@ -106,42 +110,6 @@ class TestServlet:
             test_servlet,
             "get",
             ["abcdefg", remote, stream],
-        )
-        assert resp.output_type == "exception"
-        assert isinstance(b64_unpickle(resp.error), KeyError)
-
-    @pytest.mark.level("unit")
-    def test_get_keys(self, test_servlet):
-        resp = HTTPServer.call_servlet_method(test_servlet, "get_keys", [])
-        assert resp.output_type == "result"
-        keys: list = b64_unpickle(resp.data)
-        assert "key1" in keys
-
-    @pytest.mark.level("unit")
-    def test_rename_object(self, test_servlet):
-        message = Message(data=pickle_b64(("key1", "key2")))
-        resp = HTTPServer.call_servlet_method(test_servlet, "rename_object", [message])
-        assert resp.output_type == "success"
-
-        resp = HTTPServer.call_servlet_method(test_servlet, "get_keys", [])
-        assert resp.output_type == "result"
-
-        keys: list = b64_unpickle(resp.data)
-        assert "key2" in keys
-
-    @pytest.mark.level("unit")
-    def test_delete_obj(self, test_servlet):
-        remote = False
-        keys = ["key2"]
-        message = Message(data=pickle_b64((keys)))
-        resp = HTTPServer.call_servlet_method(test_servlet, "delete_obj", [message])
-        assert resp.output_type == "result"
-        assert b64_unpickle(resp.data) == ["key2"]
-
-        resp = HTTPServer.call_servlet_method(
-            test_servlet,
-            "get",
-            ["key2", remote, True],
         )
         assert resp.output_type == "exception"
         assert isinstance(b64_unpickle(resp.error), KeyError)
@@ -247,8 +215,3 @@ class TestServlet:
         )
 
         assert b64_unpickle(resp.data) == 3
-
-    @pytest.mark.skip("Not implemented yet.")
-    @pytest.mark.level("unit")
-    def cancel_run(self, test_servlet):
-        pass

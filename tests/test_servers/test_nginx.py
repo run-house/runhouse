@@ -7,7 +7,7 @@ import pytest
 import requests
 
 from runhouse.globals import rns_client
-from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
+from runhouse.servers.http.http_utils import pickle_b64, PutObjectParams
 from runhouse.servers.nginx.config import NginxConfig
 
 
@@ -335,6 +335,7 @@ class TestNginxConfiguration:
                 location / {{
                     proxy_buffering off;
                     proxy_pass http://127.0.0.1:{config.rh_server_port}/;
+                    send_timeout 3600;
                 }}
             }}
             """
@@ -402,6 +403,7 @@ class TestNginxConfiguration:
                 location / {{
                     proxy_buffering off;
                     proxy_pass http://127.0.0.1:{config.rh_server_port}/;
+                    send_timeout 3600;
                 }}
             }}
             """
@@ -456,7 +458,9 @@ class TestNginxServerLocally:
         test_list = list(range(5, 50, 2)) + ["a string"]
         response = requests.post(
             f"{protocol}://{cluster.address}:{cluster.client_port}/object",
-            json={"data": pickle_b64(test_list), "key": key},
+            json=PutObjectParams(
+                serialized_data=pickle_b64(test_list), key=key, serialization="pickle"
+            ).dict(),
             headers=rns_client.request_headers(),
             verify=False,
         )
@@ -469,7 +473,7 @@ class TestNginxServerLocally:
         )
 
         assert response.status_code == 200
-        assert key in b64_unpickle(response.json().get("data"))
+        assert key in response.json().get("data")
 
 
 if __name__ == "__main__":

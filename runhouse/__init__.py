@@ -1,3 +1,4 @@
+from runhouse.resources.asgi import Asgi, asgi
 from runhouse.resources.blobs import blob, Blob, file, File
 from runhouse.resources.envs import conda_env, CondaEnv, env, Env
 from runhouse.resources.folders import Folder, folder, GCSFolder, S3Folder
@@ -7,9 +8,9 @@ from runhouse.resources.functions.aws_lambda_factory import aws_lambda_fn
 from runhouse.resources.functions.function import Function
 from runhouse.resources.functions.function_factory import function
 from runhouse.resources.hardware import (
-    _current_cluster,
     cluster,
     Cluster,
+    kubernetes_cluster,
     ondemand_cluster,
     OnDemandCluster,
     sagemaker_cluster,
@@ -31,7 +32,7 @@ from runhouse.rns.secrets import Secrets  # Deprecated
 from runhouse.rns.top_level_rns_fns import (
     current_folder,
     exists,
-    here,
+    get_local_cluster_object,
     ipython,
     load,
     locate,
@@ -49,5 +50,19 @@ send = function
 
 # Syntactic sugar
 fn = function
+
+_rh_here_stored = None
+
+
+def __getattr__(name):
+    global _rh_here_stored
+    if name == "here":
+        # If it's either the first time or the cluster was not initialized before, attempt to retrieve the cluster again
+        if _rh_here_stored is None or _rh_here_stored == "file":
+            _rh_here_stored = get_local_cluster_object()
+        return _rh_here_stored
+
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __version__ = "0.0.16"

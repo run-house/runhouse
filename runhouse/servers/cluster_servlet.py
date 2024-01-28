@@ -1,8 +1,7 @@
 import logging
 from typing import Any, Dict, List, Optional, Set, Union
 
-from runhouse.resources.hardware import _load_cluster_config_from_file
-
+from runhouse.resources.hardware import load_cluster_config_from_file
 from runhouse.servers.http.auth import AuthCache
 
 logger = logging.getLogger(__name__)
@@ -12,13 +11,16 @@ class ClusterServlet:
     def __init__(
         self, cluster_config: Optional[Dict[str, Any]] = None, *args, **kwargs
     ):
-        self.cluster_config: Optional[Dict[str, Any]] = cluster_config
-        local_cluster_config = _load_cluster_config_from_file()
-        if local_cluster_config:
-            self.cluster_config = local_cluster_config
-        else:
-            self.cluster_config = {}
 
+        # We do this here instead of at the start of the HTTP Server startup
+        # because someone can be running `HTTPServer()` standalone in a test
+        # and still want an initialized cluster config in the servlet.
+        if not cluster_config:
+            cluster_config = load_cluster_config_from_file()
+
+        self.cluster_config: Optional[Dict[str, Any]] = (
+            cluster_config if cluster_config else {}
+        )
         self._initialized_env_servlet_names: Set[str] = set()
         self._key_to_env_servlet_name: Dict[Any, str] = {}
         self._auth_cache: AuthCache = AuthCache()

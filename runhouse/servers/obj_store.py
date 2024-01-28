@@ -16,27 +16,36 @@ class NoLocalObjStoreError(ObjStoreError):
         super().__init__("No local object store exists; cannot perform operation.")
 
 
-def initialize_cluster_servlet():
+def initialize_ray_and_cluster_servlet(create_if_not_exists: bool = False):
     from runhouse.servers.cluster_servlet import ClusterServlet
 
-    ray.init(
-        ignore_reinit_error=True,
-        logging_level=logging.ERROR,
-        namespace="runhouse",
-    )
-    cluster_servlet = (
-        ray.remote(ClusterServlet)
-        .options(
-            name="cluster_servlet",
-            get_if_exists=True,
-            lifetime="detached",
+    if create_if_not_exists:
+        ray.init(
+            ignore_reinit_error=True,
+            logging_level=logging.ERROR,
             namespace="runhouse",
         )
-        .remote()
-    )
+        cluster_servlet = (
+            ray.remote(ClusterServlet)
+            .options(
+                name="cluster_servlet",
+                get_if_exists=True,
+                lifetime="detached",
+                namespace="runhouse",
+            )
+            .remote()
+        )
 
-    # Make sure cluster servlet is actually initialized
-    ray.get(cluster_servlet.get_cluster_config.remote())
+        # Make sure cluster servlet is actually initialized
+        ray.get(cluster_servlet.get_cluster_config.remote())
+    else:
+        ray.init(
+            address="auto",
+            ignore_reinit_error=True,
+            logging_level=logging.ERROR,
+            namespace="runhouse",
+        )
+        cluster_servlet = ray.get_actor("cluster_servlet", namespace="runhouse")
     return cluster_servlet
 
 
@@ -72,7 +81,10 @@ class ObjStore:
         self._kv_store: Dict[Any, Any] = None
 
     def initialize(
-        self, servlet_name: Optional[str] = None, has_local_storage: bool = False
+        self,
+        servlet_name: Optional[str] = None,
+        has_local_storage: bool = False,
+        setup_ray: bool = False,
     ):
         # The initialization of the obj_store needs to be in a separate method
         # so the HTTPServer actually initalizes the obj_store,
@@ -82,7 +94,7 @@ class ObjStore:
         # ClusterServlet essentially functions as a global state/metadata store
         # for all nodes connected to this Ray cluster.
         try:
-            self.cluster_servlet = initialize_cluster_servlet()
+            self.cluster_servlet = initialize_ray_and_cluster_servlet(setup_ray)
 
         except ConnectionError:
             # If ray.init fails, we're not on a cluster, so we don't need to do anything
@@ -333,10 +345,15 @@ class ObjStore:
     # KV Store: Put
     ##############################################
     @staticmethod
-    def put_for_env_servlet_name(env_servlet_name: str, key: Any, value: Any):
-        logger.info(f"Putting {key} and {value} into servlet {env_servlet_name}")
+    def put_for_env_servlet_name(
+        env_servlet_name: str, key: Any, data: Any, serialization: Optional[str] = None
+    ):
         return ObjStore.call_actor_method(
-            ObjStore.get_env_servlet(env_servlet_name), "put_local", key, value
+            ObjStore.get_env_servlet(env_servlet_name),
+            "put_local",
+            key,
+            data=data,
+            serialization=serialization,
         )
 
     def put_local(self, key: Any, value: Any):
@@ -346,27 +363,42 @@ class ObjStore:
         else:
             raise NoLocalObjStoreError()
 
-    def put(self, key: Any, value: Any, env: str = None):
+    def put(
+        self,
+        key: Any,
+        value: Any,
+        env: Optional[str] = None,
+        serialization: Optional[str] = None,
+        create_env_if_not_exists: bool = False,
+    ):
         # Before replacing something else, check if this op will even be valid.
-        if env is None and not self.servlet_name:
+        if env is None and self.servlet_name is None:
             raise NoLocalObjStoreError()
 
-        if env is not None and self.get_env_servlet(env) is None:
-            raise ObjStoreError(
-                f"Env {env} does not exist; cannot put key {key} there."
-            )
+        # If it was not specified, we want to put into our own servlet_name
+        env = env or self.servlet_name
+
+        if self.get_env_servlet(env) is None:
+            if create_env_if_not_exists:
+                self.get_env_servlet(env, create=True)
+            else:
+                raise ObjStoreError(
+                    f"Env {env} does not exist; cannot put key {key} there."
+                )
 
         # If it does exist somewhere, no more!
         if self.get(key, default=None) is not None:
             logger.warning("Key already exists in some env, overwriting.")
             self.pop(key)
 
-        # If env is None, write to our own servlet, either via local or via global KV store
-        env = env or self.servlet_name
         if self.has_local_storage and env == self.servlet_name:
+            if serialization is not None:
+                raise ObjStoreError(
+                    "We should never reach this branch if serialization is not None."
+                )
             self.put_local(key, value)
         else:
-            self.put_for_env_servlet_name(env, key, value)
+            self.put_for_env_servlet_name(env, key, value, serialization)
 
     ##############################################
     # KV Store: Get
@@ -465,9 +497,15 @@ class ObjStore:
     # KV Store: Pop
     ##############################################
     @staticmethod
-    def pop_from_env_servlet_name(env_servlet_name: str, key: Any, *args) -> Any:
+    def pop_from_env_servlet_name(
+        env_servlet_name: str, key: Any, serialization: Optional[str] = "pickle", *args
+    ) -> Any:
         return ObjStore.call_actor_method(
-            ObjStore.get_env_servlet(env_servlet_name), "pop_local", key, *args
+            ObjStore.get_env_servlet(env_servlet_name),
+            "pop_local",
+            key,
+            serialization,
+            *args,
         )
 
     def pop_local(self, key: Any, *args) -> Any:
@@ -496,7 +534,7 @@ class ObjStore:
             else:
                 raise KeyError(f"No local store exists; key {key} not found.")
 
-    def pop(self, key: Any, *args) -> Any:
+    def pop(self, key: Any, serialization: Optional[str] = "pickle", *args) -> Any:
         try:
             return self.pop_local(key)
         except KeyError as e:
@@ -512,7 +550,9 @@ class ObjStore:
                 )
             else:
                 # The key was found in another env, so we need to pop it from there
-                return self.pop_from_env_servlet_name(env_servlet_name, key)
+                return self.pop_from_env_servlet_name(
+                    env_servlet_name, key, serialization
+                )
         else:
             # Was not found in any env
             if args:
@@ -574,9 +614,19 @@ class ObjStore:
     ##############################################
     # KV Store: Rename
     ##############################################
-    def rename(self, old_key: Any, new_key: Any):
-        # We also need to rename the resource itself
-        env_servlet_name_containing_old_key = self.get_env_servlet_name_for_key(old_key)
+    @staticmethod
+    def rename_for_env_servlet_name(env_servlet_name: str, old_key: Any, new_key: Any):
+        return ObjStore.call_actor_method(
+            ObjStore.get_env_servlet(env_servlet_name),
+            "rename_local",
+            old_key,
+            new_key,
+        )
+
+    def rename_local(self, old_key: Any, new_key: Any):
+        if self.servlet_name is None or not self.has_local_storage:
+            raise NoLocalObjStoreError()
+
         obj = self.pop(old_key)
         if obj is not None and hasattr(obj, "rns_address"):
             # Note - we set the obj.name here so the new_key is correctly turned into an rns_address, whether its
@@ -586,7 +636,20 @@ class ObjStore:
             new_key = obj.name  # new_key is now just the name
 
         # By passing default, we don't throw an error if the key is not found
-        self.put(new_key, obj, env=env_servlet_name_containing_old_key)
+        self.put(new_key, obj, env=self.servlet_name)
+
+    def rename(self, old_key: Any, new_key: Any):
+        # We also need to rename the resource itself
+        env_servlet_name_containing_old_key = self.get_env_servlet_name_for_key(old_key)
+        if (
+            env_servlet_name_containing_old_key == self.servlet_name
+            and self.has_local_storage
+        ):
+            self.rename_local(old_key, new_key)
+        else:
+            self.rename_for_env_servlet_name(
+                env_servlet_name_containing_old_key, old_key, new_key
+            )
 
     ##############################################
     # Get several keys for function initialization utiliies
@@ -603,3 +666,99 @@ class ObjStore:
         return {
             k: self.get(v, default=v) if isinstance(v, str) else v for k, v in d.items()
         }
+
+    ##############################################
+    # More specific helpers
+    ##############################################
+    def put_resource(
+        self,
+        serialized_data: Any,
+        serialization: Optional[str] = None,
+        env_name: Optional[str] = None,
+    ) -> "Response":
+        from runhouse.servers.http.http_utils import deserialize_data
+
+        if env_name is None and self.servlet_name is None:
+            raise ObjStoreError("No env name provided and no servlet name set.")
+
+        env_name = env_name or self.servlet_name
+        if self.has_local_storage and env_name == self.servlet_name:
+            resource_config, state, dryrun = deserialize_data(
+                serialized_data, serialization
+            )
+            return self.put_resource_local(resource_config, state, dryrun)
+
+        servlet = ObjStore.get_env_servlet(env_name)
+
+        # Normally, serialization and deserialization happens within the servlet
+        # However, if we're putting an env, we need to deserialize it here and
+        # actually create the corresponding env servlet.
+        if not servlet:
+            servlet = ObjStore.get_env_servlet(env_name, create=True)
+            resource_config, _, _ = deserialize_data(serialized_data, serialization)
+            if resource_config["resource_type"] == "env":
+                runtime_env = (
+                    {"conda_env": resource_config["env_name"]}
+                    if resource_config["resource_subtype"] == "CondaEnv"
+                    else {}
+                )
+
+                servlet = ObjStore.get_env_servlet(
+                    env_name=env_name,
+                    create=True,
+                    runtime_env=runtime_env,
+                    resources=resource_config.get("compute", None),
+                )
+
+        return ObjStore.call_actor_method(
+            servlet,
+            "put_resource_local",
+            data=serialized_data,
+            serialization=serialization,
+        )
+
+    def put_resource_local(
+        self,
+        resource_config: Dict[str, Any],
+        state: Dict[Any, Any],
+        dryrun: bool,
+    ) -> str:
+        from runhouse.resources.module import Module
+        from runhouse.resources.resource import Resource
+        from runhouse.rns.utils.names import _generate_default_name
+
+        state = state or {}
+        # Resolve any sub-resources which are string references to resources already sent to this cluster.
+        # We need to pop the resource's own name so it doesn't get resolved if it's already present in the
+        # obj_store.
+        name = resource_config.pop("name")
+        subtype = resource_config.pop("resource_subtype")
+        provider = (
+            resource_config.pop("provider") if "provider" in resource_config else None
+        )
+
+        resource_config = self.get_obj_refs_dict(resource_config)
+        resource_config["name"] = name
+        resource_config["resource_subtype"] = subtype
+        if provider:
+            resource_config["provider"] = provider
+
+        logger.info(
+            f"Message received from client to construct resource: {resource_config}"
+        )
+
+        resource = Resource.from_config(config=resource_config, dryrun=dryrun)
+
+        for attr, val in state.items():
+            setattr(resource, attr, val)
+
+        name = resource.name or _generate_default_name(prefix=resource.RESOURCE_TYPE)
+        if isinstance(resource, Module):
+            resource.rename(name)
+        else:
+            resource.name = name
+
+        self.put(resource.name, resource)
+
+        # Return the name in case we had to set it
+        return resource.name

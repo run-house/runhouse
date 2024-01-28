@@ -17,24 +17,36 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-from runhouse.constants import CLUSTER_CONFIG_PATH, RH_LOGFILE_PATH
-from runhouse.globals import configs, env_servlets, obj_store, rns_client
+from runhouse.constants import (
+    CLUSTER_CONFIG_PATH,
+    DEFAULT_HTTP_PORT,
+    DEFAULT_HTTPS_PORT,
+    DEFAULT_SERVER_HOST,
+    DEFAULT_SERVER_PORT,
+    LOGGING_WAIT_TIME,
+    RH_LOGFILE_PATH,
+)
+from runhouse.globals import configs, obj_store, rns_client
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.auth import hash_token, verify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
-    b64_unpickle,
+    DeleteObjectParams,
     get_token_from_request,
+    handle_exception_response,
     load_current_cluster,
     Message,
     OutputType,
     pickle_b64,
+    PutObjectParams,
+    PutResourceParams,
+    RenameObjectParams,
     Response,
     ServerSettings,
 )
 from runhouse.servers.nginx.config import NginxConfig
-from runhouse.servers.obj_store import initialize_cluster_servlet, ObjStore
+from runhouse.servers.obj_store import ObjStore
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +58,8 @@ def validate_cluster_access(func):
 
     @wraps(func)
     async def wrapper(*args, **kwargs):
+        HTTPServer.register_activity()
+
         request: Request = kwargs.get("request")
         den_auth_enabled: bool = HTTPServer.get_den_auth()
         is_coro = inspect.iscoroutinefunction(func)
@@ -99,11 +113,6 @@ def validate_cluster_access(func):
 
 
 class HTTPServer:
-    LOGGING_WAIT_TIME = 1
-    DEFAULT_SERVER_HOST = "0.0.0.0"
-    DEFAULT_SERVER_PORT = 32300
-    DEFAULT_HTTP_PORT = 80
-    DEFAULT_HTTPS_PORT = 443
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
     memory_exporter = None
 
@@ -152,17 +161,13 @@ class HTTPServer:
                     ]
                 }
 
-        if not ray.is_initialized():
-            ray.init(
-                ignore_reinit_error=True,
-                runtime_env=runtime_env,
-                namespace="runhouse",
-            )
-
-        # This should already be initialized by the start script
+        # Ray and ClusterServlet should already be
+        # initialized by the start script (see below)
         # But if the HTTPServer was started standalone in a test,
         # We still want to make sure the cluster servlet is initialized
-        initialize_cluster_servlet()
+        # We connect this to the "base" env, which we'll initialize later,
+        # so writes to the obj_store within the server get proxied to the "base" env.
+        obj_store.initialize("base", setup_ray=True)
 
         # TODO disabling due to latency, figure out what to do with this
         # try:
@@ -186,9 +191,6 @@ class HTTPServer:
             create=True,
             runtime_env=runtime_env,
         )
-
-        # Puts without an env here will be sent to the base env.
-        obj_store.initialize("base")
 
         HTTPServer.register_activity()
 
@@ -308,31 +310,16 @@ class HTTPServer:
     @staticmethod
     @app.post("/resource")
     @validate_cluster_access
-    def put_resource(request: Request, message: Message):
-        # if resource is env and not yet a servlet, construct env servlet
-        if message.env and message.env not in env_servlets.keys():
-            resource = b64_unpickle(message.data)[0]
-            if resource["resource_type"] == "env":
-                runtime_env = (
-                    {"conda_env": resource["env_name"]}
-                    if resource["resource_subtype"] == "CondaEnv"
-                    else {}
-                )
-
-                _ = ObjStore.get_env_servlet(
-                    env_name=message.env,
-                    create=True,
-                    runtime_env=runtime_env,
-                    resources=resource.get("compute", None),
-                )
-
-        return HTTPServer.call_in_env_servlet(
-            "put_resource",
-            [message],
-            env=message.env,
-            create=True,
-            lookup_env_for_name=message.key,
-        )
+    def put_resource(request: Request, params: PutResourceParams):
+        try:
+            env_name = params.env_name or "base"
+            return obj_store.put_resource(
+                serialized_data=params.serialized_data,
+                serialization=params.serialization,
+                env_name=env_name,
+            )
+        except Exception as e:
+            return handle_exception_response(e, traceback.format_exc())
 
     @staticmethod
     @app.post("/{module}/{method}")
@@ -460,12 +447,12 @@ class HTTPServer:
                         block=False,
                     )
                 try:
-                    ret_val = ray.get(obj_ref, timeout=HTTPServer.LOGGING_WAIT_TIME)
+                    ret_val = ray.get(obj_ref, timeout=LOGGING_WAIT_TIME)
                     # Last result in a stream will have type RESULT to indicate the end
                     if ret_val is None:
                         # Still waiting for results in queue
                         obj_ref = None
-                        # time.sleep(HTTPServer.LOGGING_WAIT_TIME)
+                        # time.sleep(LOGGING_WAIT_TIME)
                         raise ray.exceptions.GetTimeoutError
                     if not ret_val.output_type == OutputType.RESULT_STREAM:
                         waiting_for_results = False
@@ -527,50 +514,77 @@ class HTTPServer:
             logger.debug(f"Deleting {key}")
             if pop:
                 obj_store.delete(key)
-                HTTPServer.call_in_env_servlet("delete_obj", [[key], True], env=env)
 
     @staticmethod
     @app.post("/object")
     @validate_cluster_access
-    def put_object(request: Request, message: Message):
-        return HTTPServer.call_in_env_servlet(
-            "put_object", [message.key, message.data], env=message.env, create=True
-        )
+    def put_object(request: Request, params: PutObjectParams):
+        try:
+            obj_store.put(
+                key=params.key,
+                value=params.serialized_data,
+                env=params.env_name,
+                serialization=params.serialization,
+                create_env_if_not_exists=True,
+            )
+            return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(e, traceback.format_exc())
 
     @staticmethod
-    @app.put("/object")
+    @app.post("/rename")
     @validate_cluster_access
-    def rename_object(request: Request, message: Message):
-        return HTTPServer.call_in_env_servlet(
-            "rename_object", [message], env=message.env, lookup_env_for_name=message.key
-        )
+    def rename_object(request: Request, params: RenameObjectParams):
+        try:
+            obj_store.rename(
+                old_key=params.key,
+                new_key=params.new_key,
+            )
+            return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(e, traceback.format_exc())
 
     @staticmethod
-    @app.delete("/object")
+    @app.post("/delete_object")
     @validate_cluster_access
-    def delete_obj(request: Request, message: Message):
-        return HTTPServer.call_in_env_servlet(
-            "delete_obj", [message], env=message.env, lookup_env_for_name=message.key
-        )
+    def delete_obj(request: Request, params: DeleteObjectParams):
+        try:
+            if len(params.keys) == 0:
+                cleared = obj_store.keys()
+                obj_store.clear()
+            else:
+                cleared = []
+                for key in params.keys:
+                    obj_store.delete(key)
+                    cleared.append(key)
 
-    @staticmethod
-    @app.post("/cancel")
-    @validate_cluster_access
-    def cancel_run(request: Request, message: Message):
-        return HTTPServer.call_in_env_servlet(
-            "cancel_run", [message], env=message.env, lookup_env_for_name=message.key
-        )
+            # Expicitly tell the client not to attempt to deserialize the output
+            return Response(
+                data=cleared,
+                output_type=OutputType.RESULT_SERIALIZED,
+                serialization=None,
+            )
+        except Exception as e:
+            return handle_exception_response(e, traceback.format_exc())
 
     @staticmethod
     @app.get("/keys")
     @validate_cluster_access
-    def get_keys(request: Request, env: Optional[str] = None):
-        if not env:
+    def get_keys(request: Request, env_name: Optional[str] = None):
+        try:
+            if not env_name:
+                output = obj_store.keys()
+            else:
+                output = ObjStore.keys_for_env_servlet_name(env_name)
+
+            # Expicitly tell the client not to attempt to deserialize the output
             return Response(
-                output_type=OutputType.RESULT, data=pickle_b64(obj_store.keys())
+                data=output,
+                output_type=OutputType.RESULT_SERIALIZED,
+                serialization=None,
             )
-        else:
-            return HTTPServer.call_in_env_servlet("get_keys_local", [], env=env)
+        except Exception as e:
+            return handle_exception_response(e, traceback.format_exc())
 
     @staticmethod
     @app.get("/{module}/{method}")
@@ -700,9 +714,20 @@ class HTTPServer:
         )
 
     @staticmethod
+    @app.middleware("http")
+    async def _add_username_to_span(request: Request, call_next):
+        from opentelemetry import trace
+
+        span = trace.get_current_span()
+        username = configs.get("username")
+
+        # Set the username as a span attribute
+        span.set_attribute("username", username)
+        return await call_next(request)
+
+    @staticmethod
     def _collect_telemetry_stats():
         """Collect telemetry stats and send them to the Runhouse hosted OpenTelemetry collector"""
-
         from opentelemetry import trace
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
             OTLPSpanExporter,
@@ -813,14 +838,14 @@ if __name__ == "__main__":
         "--host",
         type=str,
         default=None,
-        help=f"Host to run server on. By default will run on {HTTPServer.DEFAULT_SERVER_HOST}",
+        help=f"Host to run server on. By default will run on {DEFAULT_SERVER_HOST}",
     )
     parser.add_argument(
         "--port",
         type=int,
         default=None,
         help="Port to run daemon on on. If provided and nginx is not enabled, "
-        f"will attempt to run the daemon on this port, defaults to {HTTPServer.DEFAULT_SERVER_PORT}",
+        f"will attempt to run the daemon on this port, defaults to {DEFAULT_SERVER_PORT}",
     )
     parser.add_argument(
         "--conda-env", type=str, default=None, help="Conda env to run server in"
@@ -872,13 +897,14 @@ if __name__ == "__main__":
     # The object store and the cluster servlet within it need to be
     # initiailzed in order to call `obj_store.get_cluster_config()`, which
     # uses the object store to load the cluster config from Ray.
-    obj_store.initialize("base")
+    obj_store.initialize("base", setup_ray=True)
 
     cluster_config = obj_store.get_cluster_config()
     if not cluster_config:
         logger.warning(
             "Cluster config is not set. Using default values where possible."
         )
+    logger.info("Initialized Object Store and Cluster Servlet.")
 
     parse_args = parser.parse_args()
 
@@ -966,11 +992,7 @@ if __name__ == "__main__":
             f"cluster_config.json: {cluster_config.get('server_host')}. Prioritizing CLI provided server_host."
         )
 
-    host = (
-        parse_args.host
-        or cluster_config.get("server_host")
-        or HTTPServer.DEFAULT_SERVER_HOST
-    )
+    host = parse_args.host or cluster_config.get("server_host") or DEFAULT_SERVER_HOST
     cluster_config["server_host"] = host
 
     # Address in the case we're a TLS server
@@ -983,9 +1005,24 @@ if __name__ == "__main__":
     address = parse_args.certs_address or cluster_config.get("ips", [None])[0]
     if address is not None:
         cluster_config["ips"] = [address]
+    else:
+        cluster_config["ips"] = ["0.0.0.0"]
 
-    # Set the new cluster config as the settings within the cluster servlet
+    # If there was no `cluster_config.json`, then server was created
+    # simply with `runhouse start`.
+    # A real `cluster_config` that was loaded
+    # from json would have this set for sure
+    if not cluster_config.get("resource_subtype"):
+        # This is needed for the Cluster object to be created
+        # in rh.here.
+        cluster_config["resource_subtype"] = "Cluster"
+
+        # server_connection_type is not set up if this is done through
+        # a local `runhouse start`
+        cluster_config["server_connection_type"] = "tls" if use_https else "none"
+
     obj_store.set_cluster_config(cluster_config)
+    logger.info("Updated cluster config with parsed argument values.")
 
     HTTPServer(
         conda_env=conda_name,
@@ -1036,12 +1073,12 @@ if __name__ == "__main__":
     # If the daemon port was not specified, it should be the default RH port
     daemon_port = port_arg
     if not daemon_port or daemon_port in [
-        HTTPServer.DEFAULT_HTTP_PORT,
-        HTTPServer.DEFAULT_HTTPS_PORT,
+        DEFAULT_HTTP_PORT,
+        DEFAULT_HTTPS_PORT,
     ]:
         # Since one of HTTP_PORT or HTTPS_PORT was specified, nginx is set up to forward requests
         # from the daemon to that port
-        daemon_port = HTTPServer.DEFAULT_SERVER_PORT
+        daemon_port = DEFAULT_SERVER_PORT
 
     # Note: running the FastAPI app on a higher, non-privileged port (8000) and using Nginx as a reverse
     # proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the app's port.
@@ -1067,9 +1104,7 @@ if __name__ == "__main__":
             # reload nginx in case updated certs were provided
             nc.reload()
 
-        nginx_port = (
-            HTTPServer.DEFAULT_HTTPS_PORT if use_https else HTTPServer.DEFAULT_HTTP_PORT
-        )
+        nginx_port = DEFAULT_HTTPS_PORT if use_https else DEFAULT_HTTP_PORT
         logger.info(f"Nginx is proxying requests from {nginx_port} to {daemon_port}.")
 
     logger.info(

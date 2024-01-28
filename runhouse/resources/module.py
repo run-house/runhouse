@@ -26,6 +26,7 @@ LOCAL_METHODS = dir(Resource) + [
     "_pointers",
     "_endpoint",
     "endpoint",
+    "set_endpoint",
     "_client",
     "access_level",
     "visibility",
@@ -67,7 +68,7 @@ class Module(Resource):
         signature: Optional[dict] = None,
         endpoint: Optional[str] = None,
         name: Optional[str] = None,
-        system: Union[Cluster] = None,
+        system: Union[Cluster, str] = None,
         env: Optional[Env] = None,
         dryrun: bool = False,
         provenance: Optional[dict] = None,
@@ -126,7 +127,8 @@ class Module(Resource):
         # modules change across Runhouse versions.
         config["signature"] = self.signature
 
-        config["endpoint"] = self.endpoint
+        # Only save the endpoint if it's present in _endpoint or externally accessible
+        config["endpoint"] = self.endpoint(external=True)
         return config
 
     @classmethod
@@ -264,20 +266,33 @@ class Module(Resource):
 
         return signature_metadata
 
-    @property
-    def endpoint(self):
-        """The endpoint of the module on the cluster. If the module is local, this will be None."""
-        # Only return an endpoint if it's external, local endpoints are not useful
+    def _signature_extensions(self, item):
+        """A way to manually extend the methods behind names in the signature. We can't use __getattr__
+        because it gets too crazy and circular with the overloaded __getattribute__ below."""
+        return None
+
+    def endpoint(self, external: bool = False):
+        """The endpoint of the module on the cluster. Returns an endpoint if one was manually set (e.g. if loaded
+        down from a config). If not, request the endpoint from the Module's system.
+
+        Args:
+            external: If True and getting the endpoint from the system, only return an endpoint if it's externally
+                accessible (i.e. not on localhost, not connected through as ssh tunnel). If False, return the endpoint
+                even if it's not externally accessible.
+        """
+        if self._endpoint:
+            return self._endpoint
+
         if (
             self._system
             and hasattr(self._system, "endpoint")
-            and self._system.endpoint(external=True)
+            and self._system.endpoint(external=external)
         ):
-            return f"{self._system.endpoint(external=True)}/{self.name}"
-        return self._endpoint
+            return f"{self._system.endpoint(external=external)}/{self.name}"
 
-    @endpoint.setter
-    def endpoint(self, new_endpoint: str):
+        return None
+
+    def set_endpoint(self, new_endpoint: str):
         self._endpoint = new_endpoint
 
     def _client(self):
@@ -495,6 +510,16 @@ class Module(Resource):
             if is_prop:
                 return attr
         except (ModuleNotFoundError, AttributeError) as e:
+            # If there's no client, we can't call this method remotely, so ur last shot is if it's in
+            # the _signature_extensions
+            if not client:
+                if self._signature_extensions(item):
+                    return self._signature_extensions(item)
+                else:
+                    raise e
+
+            # If there is a client, we can try calling this method remotely, and load the required properties
+            # down from the signature
             if item in self.signature:
                 _, is_prop, is_async, is_gen, local_default = list(
                     self.signature.get(item).values()

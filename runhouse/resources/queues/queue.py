@@ -15,7 +15,7 @@ class Queue(Module):
     def __init__(
         self,
         name: Optional[str] = None,
-        system: Union[Cluster] = None,
+        system: Union[Cluster, str] = None,
         env: Optional[Env] = None,
         max_size: int = 0,
         persist: bool = False,  # TODO

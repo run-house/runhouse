@@ -183,9 +183,21 @@ from tests.fixtures.docker_cluster_fixtures import (
     shared_cluster,  # noqa: F401
     static_cpu_cluster,  # noqa: F401
 )
+
+# ----------------- Folders -----------------
+
+from tests.fixtures.folder_fixtures import (
+    cluster_folder,  # noqa: F401
+    folder,  # noqa: F401
+    gcs_folder,  # noqa: F401
+    local_folder,  # noqa: F401
+    s3_folder,  # noqa: F401
+)
+
 from tests.fixtures.on_demand_cluster_fixtures import (
     a10g_gpu_cluster,  # noqa: F401
     k80_gpu_cluster,  # noqa: F401
+    kubernetes_cpu_cluster,  # noqa: F401
     multinode_cpu_cluster,  # noqa: F401
     on_demand_cluster,  # noqa: F401
     ondemand_cluster,  # noqa: F401
@@ -223,16 +235,6 @@ from tests.test_resources.test_modules.test_blobs.conftest import (
     local_blob,  # noqa: F401
     local_file,  # noqa: F401
     s3_blob,  # noqa: F401
-)
-
-# ----------------- Folders -----------------
-
-from tests.test_resources.test_modules.test_folders.conftest import (
-    cluster_folder,  # noqa: F401
-    folder,  # noqa: F401
-    gcs_folder,  # noqa: F401
-    local_folder,  # noqa: F401
-    s3_folder,  # noqa: F401
 )
 
 # ----------------- Packages -----------------
@@ -302,7 +304,9 @@ default_fixtures[TestLevels.LOCAL] = {
         "docker_cluster_pk_ssh_den_auth",
     ]
 }
-default_fixtures[TestLevels.MINIMAL] = {"cluster": ["ondemand_cpu_cluster"]}
+default_fixtures[TestLevels.MINIMAL] = {
+    "cluster": ["ondemand_cpu_cluster", "kubernetes_cpu_cluster"]
+}
 default_fixtures[TestLevels.THOROUGH] = {
     "cluster": [
         "docker_cluster_pk_ssh_no_auth",
