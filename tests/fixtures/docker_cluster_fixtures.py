@@ -495,7 +495,7 @@ def docker_cluster_pk_http_exposed(request):
     """This basic cluster fixture is set up with:
     - Public key authentication
     - Den auth enabled
-    - Nginx set up on startup to forward Runhouse HTTP Server to port 80
+    - Caddy set up on startup to forward Runhouse HTTP Server to port 80
     """
 
     # From pytest config
@@ -523,7 +523,7 @@ def docker_cluster_pk_http_exposed(request):
         ],
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
-            "name": "docker_cluster_with_nginx",
+            "name": "docker_cluster_with_caddy",
             "server_connection_type": "none",
             "server_port": DEFAULT_HTTP_PORT,
             "client_port": local_client_port,

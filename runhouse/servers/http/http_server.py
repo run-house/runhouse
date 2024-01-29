@@ -886,7 +886,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--restart-proxy",
         action="store_true",  # if providing --restart-proxy will be set to True
-        help="Reconfigure Nginx",
+        help="Reconfigure Caddy",
     )
     parser.add_argument(
         "--use-caddy",
@@ -1054,8 +1054,8 @@ if __name__ == "__main__":
         )
 
     if use_https:
-        if not use_caddy and not domain:
-            # If not using Caddy need to provide both key and cert files
+        if use_caddy and not domain:
+            # If using Caddy and no domain specified need to provide both key and cert files
             cert_config = TLSCertConfig()
             ssl_keyfile = resolve_absolute_path(
                 parsed_ssl_keyfile or cert_config.key_path
@@ -1063,14 +1063,13 @@ if __name__ == "__main__":
             ssl_certfile = resolve_absolute_path(
                 parsed_ssl_certfile or cert_config.cert_path
             )
-
             if not Path(ssl_keyfile).exists() and not Path(ssl_certfile).exists():
                 # If the user has specified a server port and we're not using Caddy, then they
                 # want to run a TLS server on an arbitrary port. In order to do this,
                 # they need to pass their own certs.
                 raise FileNotFoundError(
                     f"Could not find SSL private key and cert files on the cluster, which are required when specifying "
-                    f"a custom port ({port_arg}). Please specify the paths using the --ssl-certfile and "
+                    f"a custom port ({port_arg}) or using Caddy. Please specify the paths using the --ssl-certfile and "
                     f"--ssl-keyfile flags."
                 )
 
