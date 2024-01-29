@@ -31,6 +31,7 @@ class CaddyConfig:
     def __init__(
         self,
         address: str,
+        domain: str = None,
         rh_server_port: int = None,
         ssl_cert_path: str = None,
         ssl_key_path: str = None,
@@ -39,9 +40,28 @@ class CaddyConfig:
     ):
         self.use_https = use_https
         self.rh_server_port = rh_server_port or DEFAULT_SERVER_PORT
+        self.domain = domain
 
-        self.ssl_cert_path = ssl_cert_path
-        self.ssl_key_path = ssl_key_path
+        self.ssl_cert_path = (
+            Path(ssl_cert_path).expanduser()
+            if (ssl_cert_path and self.use_https)
+            else None
+        )
+        self.ssl_key_path = (
+            Path(ssl_key_path).expanduser()
+            if (ssl_key_path and self.use_https)
+            else None
+        )
+
+        if not self.domain and self.ssl_cert_path and not self.ssl_cert_path.exists():
+            raise FileNotFoundError(
+                f"Failed to find SSL cert file in path: {self.ssl_cert_path}"
+            )
+
+        if not self.domain and self.ssl_key_path and not self.ssl_key_path.exists():
+            raise FileNotFoundError(
+                f"Failed to find SSL cert file in path: {self.ssl_key_path}"
+            )
 
         self.force_reinstall = force_reinstall
 
@@ -62,7 +82,7 @@ class CaddyConfig:
 
         # Reload Caddy with the updated config
         logger.info("Reloading Caddy service")
-        self._reload()
+        self.reload()
 
         if not self._is_configured():
             raise RuntimeError("Failed to configure and start Caddy")
@@ -72,7 +92,7 @@ class CaddyConfig:
     # -----------------
     # HELPERS
     # -----------------
-    def _reload(self):
+    def reload(self):
         # https://caddyserver.com/docs/command-line#caddy-stop
         reload_cmd = ["sudo", "systemctl", "reload", "caddy"]
         result = subprocess.run(
@@ -143,23 +163,29 @@ class CaddyConfig:
         ).strip()
 
     def _https_template(self):
-        # Note: We cannot use fully managed certs since we only have an IP address, not a domain name
-        # https://caddyserver.com/docs/automatic-https#hostname-requirements
         if self.ssl_key_path and self.ssl_cert_path:
             logger.info("Using custom certs for HTTPS")
             tls_directive = f"tls {self.ssl_cert_path} {self.ssl_key_path}"
+            address_or_domain = self.address
+        elif self.domain:
+            # https://caddyserver.com/docs/automatic-https#hostname-requirements
+            logger.info(f"Using Caddy to generate certs for domain: {self.domain}")
+            tls_directive = "tls on_demand"
+            address_or_domain = self.domain
         else:
-            # Generate self-signed certs which will not be trusted by external clietns
-            logger.info("Using Caddy to generate self-signed certs")
+            logger.warning(
+                "No domain or custom certs specified, issuing self-signed certs"
+            )
             tls_directive = "tls internal"
+            address_or_domain = self.address
 
         return textwrap.dedent(
             f"""
             {{
-                default_sni {self.address}
+                default_sni {address_or_domain}
             }}
 
-            https://{self.address} {{
+            https://{address_or_domain} {{
                 {tls_directive}
                 reverse_proxy 127.0.0.1:{self.rh_server_port}
             }}

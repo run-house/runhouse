@@ -866,6 +866,12 @@ if __name__ == "__main__":
         help="Whether to authenticate requests with a Runhouse token",
     )
     parser.add_argument(
+        "--domain",
+        type=str,
+        default=None,
+        help="Server domain name",
+    )
+    parser.add_argument(
         "--ssl-keyfile",
         type=str,
         default=None,
@@ -912,6 +918,7 @@ if __name__ == "__main__":
     use_https = parse_args.use_https
     restart_proxy = parse_args.restart_proxy
     use_caddy = parse_args.use_caddy
+    domain = parse_args.domain
 
     ########################################
     # Handling args that could be specified in the
@@ -1079,14 +1086,16 @@ if __name__ == "__main__":
     # proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the app's port.
     if use_caddy:
         logger.info("Using Caddy as a reverse proxy")
-        if address is None:
+        if address is None and domain is None:
             raise ValueError(
-                "Must provide the server address to configure Caddy. No address found in the server "
-                "start command (--certs-address) or in the cluster config YAML saved on the cluster."
+                "Must provide the server address or domain to configure Caddy. No address or domain found in the "
+                "server start command (--certs-address or --domain) or in the cluster config YAML saved on the cluster."
             )
 
+        # use the domain if we have it
         cc = CaddyConfig(
             address=address,
+            domain=domain,
             rh_server_port=daemon_port,
             ssl_key_path=ssl_keyfile,
             ssl_cert_path=ssl_certfile,
