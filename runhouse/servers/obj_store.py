@@ -594,10 +594,6 @@ class ObjStore:
 
             del env_servlets[env_name]
 
-        # delete the local key
-        if self.contains_local(env_name):
-            self.delete_local(env_name)
-
         self.remove_env_servlet_name(env_name)
         return env_servlet_keys
 
