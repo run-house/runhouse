@@ -65,6 +65,7 @@ class Cluster(Resource):
         server_connection_type: str = None,
         ssl_keyfile: str = None,
         ssl_certfile: str = None,
+        domain: str = None,
         den_auth: bool = False,
         use_local_telemetry: bool = False,
         dryrun=False,
@@ -97,6 +98,7 @@ class Cluster(Resource):
         self.client_port = client_port
         self.ssh_port = ssh_port or self.DEFAULT_SSH_PORT
         self.server_host = server_host
+        self.domain = domain
         self.use_local_telemetry = use_local_telemetry
 
     @property
@@ -642,6 +644,7 @@ class Cluster(Resource):
 
         https_flag = self._use_https
         caddy_flag = self._use_caddy
+        domain = self.domain
         use_local_telemetry = self.use_local_telemetry
 
         cmd = (
@@ -652,6 +655,7 @@ class Cluster(Resource):
             + (" --restart-proxy" if restart_proxy and caddy_flag else "")
             + (f" --ssl-certfile {cluster_cert_path}" if use_custom_cert else "")
             + (f" --ssl-keyfile {cluster_key_path}" if use_custom_key else "")
+            + (f" --domain {domain}" if domain else "")
             + (" --use-local-telemetry" if use_local_telemetry else "")
             + f" --port {self.server_port}"
         )
