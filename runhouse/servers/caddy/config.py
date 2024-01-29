@@ -31,7 +31,7 @@ class CaddyConfig:
     def __init__(
         self,
         address: str,
-        domain: str,
+        domain: str = None,
         rh_server_port: int = None,
         ssl_cert_path: str = None,
         ssl_key_path: str = None,
@@ -40,6 +40,7 @@ class CaddyConfig:
     ):
         self.use_https = use_https
         self.rh_server_port = rh_server_port or DEFAULT_SERVER_PORT
+        self.domain = domain
 
         self.ssl_cert_path = (
             Path(ssl_cert_path).expanduser()
@@ -51,20 +52,18 @@ class CaddyConfig:
             if (ssl_key_path and self.use_https)
             else None
         )
-        logger.info(f"SSL cert path inside caddy config class: {self.ssl_cert_path}")
-        if self.ssl_cert_path and not self.ssl_cert_path.exists() and not domain:
+
+        if not self.domain and self.ssl_cert_path and not self.ssl_cert_path.exists():
             raise FileNotFoundError(
                 f"Failed to find SSL cert file in path: {self.ssl_cert_path}"
             )
 
-        logger.info(f"SSL key path inside caddy config class: {self.ssl_key_path}")
-        if self.ssl_key_path and not self.ssl_key_path.exists() and not domain:
+        if not self.domain and self.ssl_key_path and not self.ssl_key_path.exists():
             raise FileNotFoundError(
                 f"Failed to find SSL cert file in path: {self.ssl_key_path}"
             )
 
         self.force_reinstall = force_reinstall
-        self.domain = domain
 
         # To expose the server to the internet, set address to the public IP, otherwise leave it as localhost
         self.address = address or "localhost"
