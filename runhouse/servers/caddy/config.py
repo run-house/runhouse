@@ -51,12 +51,13 @@ class CaddyConfig:
             if (ssl_key_path and self.use_https)
             else None
         )
-
+        logger.info(f"SSL cert path inside caddy config class: {self.ssl_cert_path}")
         if self.ssl_cert_path and not self.ssl_cert_path.exists() and not domain:
             raise FileNotFoundError(
                 f"Failed to find SSL cert file in path: {self.ssl_cert_path}"
             )
 
+        logger.info(f"SSL key path inside caddy config class: {self.ssl_key_path}")
         if self.ssl_key_path and not self.ssl_key_path.exists() and not domain:
             raise FileNotFoundError(
                 f"Failed to find SSL cert file in path: {self.ssl_key_path}"
@@ -164,7 +165,7 @@ class CaddyConfig:
 
     def _https_template(self):
         if self.ssl_key_path and self.ssl_cert_path:
-            logger.info("Using custom certs for HTTPS")
+            logger.info("Using custom certs to enable HTTPs")
             tls_directive = f"tls {self.ssl_cert_path} {self.ssl_key_path}"
             address_or_domain = self.address
         elif self.domain:
@@ -204,14 +205,26 @@ class CaddyConfig:
         logger.info("Updated ufw firewall rule to allow HTTPS traffic")
 
         if self.ssl_cert_path and self.ssl_key_path:
-            subprocess.run(
-                f"sudo chmod 600 {self.ssl_cert_path} && "
-                f"sudo chmod 600 {self.ssl_key_path}",
-                shell=True,
-                check=True,
+            logger.info("Updating permissions for Caddy to read custom cert files.")
+            result_cert = subprocess.run(
+                ["sudo", "chmod", "755", str(self.ssl_cert_path)],
                 capture_output=True,
                 text=True,
             )
+            if result_cert.returncode != 0:
+                logger.warning(
+                    f"Failed to update permissions for custom cert file: {result_cert.stderr}"
+                )
+
+            result_key = subprocess.run(
+                ["sudo", "chmod", "755", str(self.ssl_key_path)],
+                capture_output=True,
+                text=True,
+            )
+            if result_key.returncode != 0:
+                logger.warning(
+                    f"Failed to update permissions for custom key file: {result_key.stderr}"
+                )
 
         else:
             # Add Caddy as a sudoer, otherwise will not be able to install certs on the server

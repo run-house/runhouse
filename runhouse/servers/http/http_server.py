@@ -918,7 +918,6 @@ if __name__ == "__main__":
     use_https = parse_args.use_https
     restart_proxy = parse_args.restart_proxy
     use_caddy = parse_args.use_caddy
-    domain = parse_args.domain
 
     ########################################
     # Handling args that could be specified in the
@@ -961,6 +960,9 @@ if __name__ == "__main__":
         "use_local_telemetry", False
     )
     cluster_config["use_local_telemetry"] = use_local_telemetry
+
+    domain = parse_args.domain or cluster_config.get("domain", None)
+    cluster_config["domain"] = domain
 
     # Keyfile
     if parse_args.ssl_keyfile != cluster_config.get("ssl_keyfile"):
@@ -1041,19 +1043,19 @@ if __name__ == "__main__":
         HTTPServer.enable_den_auth()
 
     # Custom certs should already be on the cluster if their file paths are provided
-    if parsed_ssl_keyfile and not Path(parsed_ssl_keyfile).exists():
+    if parsed_ssl_keyfile and not Path(parsed_ssl_keyfile).exists() and not domain:
         raise FileNotFoundError(
             f"No SSL key file found on cluster in path: {parsed_ssl_keyfile}"
         )
 
-    if parsed_ssl_certfile and not Path(parsed_ssl_certfile).exists():
+    if parsed_ssl_certfile and not Path(parsed_ssl_certfile).exists() and not domain:
         raise FileNotFoundError(
             f"No SSL cert file found on cluster in path: {parsed_ssl_certfile}"
         )
 
     if use_https:
-        if not use_caddy:
-            # If not using Caddy need to provide both key and cert files
+        if use_caddy and not domain:
+            # If using Caddy and no domain specified need to provide both key and cert files
             cert_config = TLSCertConfig()
             ssl_keyfile = resolve_absolute_path(
                 parsed_ssl_keyfile or cert_config.key_path
@@ -1061,14 +1063,13 @@ if __name__ == "__main__":
             ssl_certfile = resolve_absolute_path(
                 parsed_ssl_certfile or cert_config.cert_path
             )
-
             if not Path(ssl_keyfile).exists() and not Path(ssl_certfile).exists():
                 # If the user has specified a server port and we're not using Caddy, then they
                 # want to run a TLS server on an arbitrary port. In order to do this,
                 # they need to pass their own certs.
                 raise FileNotFoundError(
                     f"Could not find SSL private key and cert files on the cluster, which are required when specifying "
-                    f"a custom port ({port_arg}). Please specify the paths using the --ssl-certfile and "
+                    f"a custom port ({port_arg}) or using Caddy. Please specify the paths using the --ssl-certfile and "
                     f"--ssl-keyfile flags."
                 )
 
