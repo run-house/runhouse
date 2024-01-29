@@ -24,8 +24,8 @@ class TLSCertConfig:
     TOKEN_VALIDITY_DAYS = 365
 
     # Base directory for certs on both the cluster and locally
-    DEFAULT_PRIVATE_KEY_DIR = "~/ssl/private"
-    DEFAULT_CERT_DIR = "~/ssl/certs"
+    DEFAULT_PRIVATE_KEY_DIR = "~/.rh/certs/private"
+    DEFAULT_CERT_DIR = "~/.rh/certs"
 
     def __init__(
         self, cert_path: str = None, key_path: str = None, dir_name: str = None

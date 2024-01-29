@@ -164,7 +164,7 @@ class CaddyConfig:
 
     def _https_template(self):
         if self.ssl_key_path and self.ssl_cert_path:
-            logger.info("Using custom certs for HTTPS")
+            logger.info("Using custom certs to enable HTTPs")
             tls_directive = f"tls {self.ssl_cert_path} {self.ssl_key_path}"
             address_or_domain = self.address
         elif self.domain:

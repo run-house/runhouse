@@ -150,6 +150,7 @@ class Cluster(Resource):
                 "server_port",
                 "server_host",
                 "server_connection_type",
+                "domain",
                 "den_auth",
                 "use_local_telemetry",
                 "ssh_port",
@@ -159,10 +160,10 @@ class Cluster(Resource):
         if self.is_up():
             config["ssh_creds"] = self.ssh_creds
 
-        if self._use_custom_cert:
+        if self._use_https and self.domain is None:
             config["ssl_certfile"] = self.cert_config.cert_path
 
-        if self._use_custom_key:
+        if self._use_https and self.domain is None:
             config["ssl_keyfile"] = self.cert_config.key_path
 
         return config
@@ -610,42 +611,52 @@ class Cluster(Resource):
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
             logger.info("Finished syncing Runhouse to cluster.")
 
-        # Update the cluster config on the cluster
-        self.save_config_to_cluster()
-
-        use_custom_cert = self._use_custom_cert
-        if use_custom_cert:
-            # Copy the provided cert onto the cluster
-            from runhouse import folder
-
-            cert_dir = self.cert_config.DEFAULT_CERT_DIR
-            folder(path=self.cert_config.cert_dir).to(self, path=cert_dir)
-
-            # Path to cert file stored on the cluster
-            cluster_cert_path = f"{cert_dir}/{self.cert_config.CERT_NAME}"
-            logger.info(
-                f"Copied TLS cert onto the cluster in path: {cluster_cert_path}"
-            )
-
-        use_custom_key = self._use_custom_key
-        if use_custom_key:
-            # Copy the provided key onto the cluster
-            from runhouse import folder
-
-            keyfile_dir = self.cert_config.DEFAULT_PRIVATE_KEY_DIR
-            folder(path=self.cert_config.key_dir).to(self, path=keyfile_dir)
-
-            # Path to key file stored on the cluster
-            cluster_key_path = f"{keyfile_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
-
-            logger.info(
-                f"Copied TLS keyfile onto the cluster in path: {cluster_key_path}"
-            )
-
         https_flag = self._use_https
         caddy_flag = self._use_caddy
         domain = self.domain
         use_local_telemetry = self.use_local_telemetry
+
+        use_custom_cert = self._use_custom_cert
+        cert_dir = self.cert_config.DEFAULT_CERT_DIR
+        # Path to cert file to be stored on the cluster
+        cluster_cert_path = f"{cert_dir}/{self.cert_config.CERT_NAME}"
+
+        use_custom_key = self._use_custom_key
+        keyfile_dir = self.cert_config.DEFAULT_PRIVATE_KEY_DIR
+        # Path to key file to be stored on the cluster
+        cluster_key_path = f"{keyfile_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
+
+        if not use_custom_key and not use_custom_cert:
+            # If no cert and keyfile are provided, generate them client side unless a domain is specified
+            # and Caddy is enabled
+            if domain is None and caddy_flag:
+                logger.info(
+                    "Skipping TLS keyfile generation locally. Caddy will automate generating certs on the "
+                    f"cluster using domain: {domain}."
+                )
+            else:
+                self.cert_config.generate_certs(address=self.address)
+                logger.info(
+                    f"Generated new TLS cert and saved in path: {cluster_cert_path}"
+                )
+        else:
+            # Copy the provided cert and keyfiles onto the cluster
+            from runhouse import folder
+
+            folder(path=self.cert_config.key_dir).to(self, path=keyfile_dir)
+
+            logger.info(
+                f"Copied existing TLS keyfile onto the cluster in path: {cluster_key_path}"
+            )
+
+            folder(path=self.cert_config.cert_dir).to(self, path=cert_dir)
+
+            logger.info(
+                f"Copied TLS cert onto the cluster in path: {cluster_cert_path}"
+            )
+
+        # Update the cluster config on the cluster
+        self.save_config_to_cluster()
 
         cmd = (
             CLI_RESTART_CMD
