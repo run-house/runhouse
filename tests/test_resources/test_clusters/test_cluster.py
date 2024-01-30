@@ -152,6 +152,32 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert cluster.get(k3) == "v3"
 
     @pytest.mark.level("local")
+    def test_cluster_delete_env(self, cluster):
+        env1 = rh.env(reqs=["numpy"], name="env1").to(cluster)
+        env2 = rh.env(reqs=["numpy"], name="env2").to(cluster)
+        env3 = rh.env(reqs=["numpy"], name="env3")
+
+        cluster.put("k1", "v1", env=env1.name)
+        cluster.put("k2", "v2", env=env2.name)
+        cluster.put_resource(env3, env=env1.name)
+
+        # test delete env2
+        assert cluster.get(env2.name)
+        assert cluster.get("k2")
+
+        cluster.delete(env2.name)
+        assert not cluster.get(env2.name)
+        assert not cluster.get("k2")
+
+        # test delete env3, which doesn't affect env1
+        assert cluster.get(env3.name)
+
+        cluster.delete(env3.name)
+        assert not cluster.get(env3.name)
+        assert cluster.get(env1.name)
+        assert cluster.get("k1")
+
+    @pytest.mark.level("local")
     @pytest.mark.skip(reason="TODO")
     def test_rh_here_objects(self, cluster):
         save_test_table_remote = rh.function(test_table_to_rh_here, system=cluster)
