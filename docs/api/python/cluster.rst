@@ -315,15 +315,3 @@ out of the box.
 .. note::
 
     Caddy is enabled by default when you launch a cluster with the :code:`server_port` set to either 80 or 443.
-
-
-**Generating Certs**
-
-Runhouse offers two options for enabling TLS/SSL on a cluster with Caddy:
-
-1. *Using existing certs*: provide the path to the cert and key files with the :code:`ssl_certfile` and
-   :code:`ssl_keyfile` arguments. These certs will be used by Caddy as specified in the Caddyfile on the cluster.
-   If no cert paths are provided and no domain is specified, Runhouse will issue
-   self-signed certificates to use for the cluster. These certs will not be verified by a CA.
-2. *Using Caddy to generate CA verified certs*: Provide the :code:`domain` argument. Caddy will then obtain
-   certificates from Let's Encrypt on-demand when a client connects for the first time.
