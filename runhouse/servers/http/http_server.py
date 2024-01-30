@@ -1093,7 +1093,6 @@ if __name__ == "__main__":
                 "server start command (--certs-address or --domain) or in the cluster config YAML saved on the cluster."
             )
 
-        # use the domain if we have it
         cc = CaddyConfig(
             address=address,
             domain=domain,
