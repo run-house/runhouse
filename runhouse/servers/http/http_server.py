@@ -1042,36 +1042,21 @@ if __name__ == "__main__":
         # Update den auth if enabled - keep as a class attribute to be referenced by the validator decorator
         HTTPServer.enable_den_auth()
 
-    # Custom certs should already be on the cluster if their file paths are provided
-    if parsed_ssl_keyfile and not Path(parsed_ssl_keyfile).exists() and not domain:
-        raise FileNotFoundError(
-            f"No SSL key file found on cluster in path: {parsed_ssl_keyfile}"
-        )
-
-    if parsed_ssl_certfile and not Path(parsed_ssl_certfile).exists() and not domain:
-        raise FileNotFoundError(
-            f"No SSL cert file found on cluster in path: {parsed_ssl_certfile}"
-        )
-
-    if use_https:
-        if use_caddy and not domain:
-            # If using Caddy and no domain specified need to provide both key and cert files
-            cert_config = TLSCertConfig()
-            ssl_keyfile = resolve_absolute_path(
-                parsed_ssl_keyfile or cert_config.key_path
+    if use_https and not domain:
+        # If using https (whether or not Caddy is being used) and no domain is specified, need to provide both
+        # key and cert files
+        if (
+            not parsed_ssl_keyfile
+            or not Path(parsed_ssl_keyfile).exists()
+            or not parsed_ssl_certfile
+            or not Path(parsed_ssl_certfile).exists()
+        ):
+            # Custom certs should already be on the cluster if their file paths are provided
+            raise FileNotFoundError(
+                f"Could not find SSL private key and cert files on the cluster, which are required when specifying "
+                f"a custom port ({port_arg}) or enabling HTTPS. Please specify the paths using the --ssl-certfile and "
+                f"--ssl-keyfile flags."
             )
-            ssl_certfile = resolve_absolute_path(
-                parsed_ssl_certfile or cert_config.cert_path
-            )
-            if not Path(ssl_keyfile).exists() and not Path(ssl_certfile).exists():
-                # If the user has specified a server port and we're not using Caddy, then they
-                # want to run a TLS server on an arbitrary port. In order to do this,
-                # they need to pass their own certs.
-                raise FileNotFoundError(
-                    f"Could not find SSL private key and cert files on the cluster, which are required when specifying "
-                    f"a custom port ({port_arg}) or using Caddy. Please specify the paths using the --ssl-certfile and "
-                    f"--ssl-keyfile flags."
-                )
 
     # If the daemon port was not specified, it should be the default RH port
     daemon_port = port_arg
