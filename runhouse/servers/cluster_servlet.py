@@ -115,3 +115,9 @@ class ClusterServlet:
 
     def clear_key_to_env_servlet_name_dict(self):
         self._key_to_env_servlet_name = {}
+
+    ##############################################
+    # Remove Env Servlet
+    ##############################################
+    def remove_env_servlet_name(self, env_servlet_name: str):
+        self._initialized_env_servlet_names.remove(env_servlet_name)

@@ -1,6 +1,7 @@
 import pytest
 
 from runhouse.servers.http.auth import hash_token
+from runhouse.servers.obj_store import ObjStore, ObjStoreError
 
 from tests.utils import friend_account, get_ray_servlet_and_obj_store
 
@@ -309,6 +310,39 @@ class TestObjStore:
         )
         obj_store_2.clear()
         assert obj_store_3.keys() == []
+
+    @pytest.mark.level("unit")
+    def test_delete_env_servelet(self, obj_store):
+        obj_store_2 = get_test_obj_store("other")
+
+        assert obj_store.keys() == []
+        assert obj_store_2.keys() == []
+
+        obj_store.put("k1", "v1")
+        obj_store_2.put("k2", "v2")
+        obj_store_2.put("k3", "v3")
+
+        env_to_delete = obj_store_2.servlet_name
+        obj_store_2_keys = obj_store_2.keys_for_env_servlet_name(env_to_delete)
+
+        assert env_to_delete in obj_store.get_all_initialized_env_servlet_names()
+        for key in obj_store_2_keys:
+            assert obj_store.get(key)
+
+        obj_store._delete_env_contents(env_to_delete)
+
+        # check obj_store_2 servlet and nested keys are deleted but obj_store_1 unaffected
+        assert env_to_delete not in obj_store.get_all_initialized_env_servlet_names()
+        for key in obj_store_2_keys:
+            assert not obj_store.get(key)
+        assert (
+            obj_store.servlet_name in obj_store.get_all_initialized_env_servlet_names()
+        )
+        assert obj_store.get("k1")
+
+        # check that corresponding Ray actor is killed
+        with pytest.raises(ObjStoreError):
+            ObjStore.get_env_servlet(env_name=env_to_delete, raise_ex_if_not_found=True)
 
 
 @pytest.mark.servertest
