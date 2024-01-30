@@ -16,7 +16,7 @@ class CaddyConfig:
     # sudo apt-get install net-tools
     # sudo netstat -tulpn | grep 443
 
-    # Useful Caddy service commands:
+    # Caddy service commands:
     # sudo systemctl start caddy
     # sudo systemctl stop caddy
     # sudo systemctl status caddy
