@@ -100,7 +100,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         if "name" not in args:
             assert env.name == rh.Env.DEFAULT_NAME
 
-    @pytest.mark.level("local")
+    @pytest.mark.level("minimal")
     def test_env_to_cluster(self, env, cluster):
         env.to(cluster, force_install=True)
 
@@ -140,7 +140,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         assert "sample_file_0.txt" in cluster.run([f"ls {folder_name}"])[0][1]
         cluster.run([f"rm -r {folder_name}"])
 
-    @pytest.mark.level("local")
+    @pytest.mark.level("minimal")
     def test_addtl_env_reqs(self, env, cluster):
         package = "jedi"
         env.reqs = env.reqs + [package] if env.reqs else [package]
@@ -152,14 +152,14 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
 
         _uninstall_env(env, cluster)
 
-    @pytest.mark.level("local")
+    @pytest.mark.level("minimal")
     def test_fn_to_env(self, env, cluster):
         package = "numpy"
         env.reqs = env.reqs + [package] or [package]
         fn = rh.function(np_summer).to(system=cluster, env=env, force_install=True)
         assert fn(1, 4) == 5
 
-    @pytest.mark.level("local")
+    @pytest.mark.level("minimal")
     def test_env_vars_dict(self, env, cluster):
         test_env_var = "TEST_ENV_VAR"
         test_value = "value"
@@ -174,7 +174,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
 
         _uninstall_env(env, cluster)
 
-    @pytest.mark.level("local")
+    @pytest.mark.level("minimal")
     def test_env_vars_file(self, env, cluster):
         env_file = ".env"
         contents = [
@@ -201,7 +201,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
 
         _uninstall_env(env, cluster)
 
-    @pytest.mark.level("local")
+    @pytest.mark.level("minimal")
     def test_working_dir_env(self, env, cluster, tmp_path):
         working_dir = tmp_path / "test_working_dir"
         working_dir.mkdir(exist_ok=True)

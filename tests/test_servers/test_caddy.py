@@ -24,8 +24,7 @@ class TestCaddyConfiguration:
 
             # Using HTTPS client with Caddy handling certs generation
             self.https_config_caddy_certs = CaddyConfig(
-                address="127.0.0.1",
-                use_https=True,
+                address="127.0.0.1", use_https=True, domain="run.house"
             )
 
             # Using temporary certs for testing
@@ -34,7 +33,6 @@ class TestCaddyConfiguration:
             ) as cert_file, tempfile.NamedTemporaryFile(
                 suffix=".key", delete=False
             ) as key_file:
-
                 self.temp_cert_path = cert_file.name
                 self.temp_key_path = key_file.name
 
@@ -265,10 +263,7 @@ class TestCaddyConfiguration:
     @patch("subprocess.run")
     def test_caddy_https_caddy_certs_config_generation(self, mock_subprocess_run):
         # Set up CaddyConfig for HTTPS only
-        config = CaddyConfig(
-            address="127.0.0.1",
-            use_https=True,
-        )
+        config = CaddyConfig(address="127.0.0.1", use_https=True, domain="run.house")
 
         mock_subprocess_run.return_value = MagicMock(returncode=0)
 
@@ -283,6 +278,20 @@ class TestCaddyConfiguration:
         assert config.ssl_key_path is None
 
         assert https_template == self.caddy_certs_template
+
+    @pytest.mark.level("unit")
+    def test_invalid_https_configuration(self):
+        # Set up CaddyConfig for HTTPS without specifying valid cert files or a domain
+        with pytest.raises(FileNotFoundError):
+            CaddyConfig(address="127.0.0.1", use_https=True)
+
+        with pytest.raises(FileNotFoundError):
+            CaddyConfig(
+                address="127.0.0.1",
+                use_https=True,
+                ssl_cert_path="/some/random/path",
+                ssl_key_path="/some/random/other/path",
+            )
 
 
 @pytest.mark.servertest

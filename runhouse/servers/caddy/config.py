@@ -16,14 +16,19 @@ class CaddyConfig:
     # sudo apt-get install net-tools
     # sudo netstat -tulpn | grep 443
 
-    # For viewing logs:
-    # journalctl -u caddy --no-pager | less +G
-
-    # Caddy service commands:
+    # Useful Caddy service commands:
     # sudo systemctl start caddy
     # sudo systemctl stop caddy
     # sudo systemctl status caddy
     # sudo systemctl reload caddy
+
+    # For viewing logs (if running as a service):
+    # journalctl -u caddy --no-pager | less +G
+
+    # Useful Caddy background process commands:
+    # caddy start
+    # caddy stop
+    # caddy validate --config /etc/caddy/Caddyfile
 
     # Checking config settings:
     # caddy adapt --config /etc/caddy/Caddyfile
@@ -41,35 +46,29 @@ class CaddyConfig:
         self.use_https = use_https
         self.rh_server_port = rh_server_port or DEFAULT_SERVER_PORT
         self.domain = domain
-
-        self.ssl_cert_path = (
-            Path(ssl_cert_path).expanduser()
-            if (ssl_cert_path and self.use_https)
-            else None
-        )
-        self.ssl_key_path = (
-            Path(ssl_key_path).expanduser()
-            if (ssl_key_path and self.use_https)
-            else None
-        )
-
-        if not self.domain and self.ssl_cert_path and not self.ssl_cert_path.exists():
-            raise FileNotFoundError(
-                f"Failed to find SSL cert file in path: {self.ssl_cert_path}"
-            )
-
-        if not self.domain and self.ssl_key_path and not self.ssl_key_path.exists():
-            raise FileNotFoundError(
-                f"Failed to find SSL cert file in path: {self.ssl_key_path}"
-            )
-
         self.force_reinstall = force_reinstall
 
         # To expose the server to the internet, set address to the public IP, otherwise leave it as localhost
         self.address = address or "localhost"
 
+        self.ssl_cert_path = Path(ssl_cert_path).expanduser() if ssl_cert_path else None
+        self.ssl_key_path = Path(ssl_key_path).expanduser() if ssl_key_path else None
+
+        if self.use_https and self.domain is None:
+            # If no domain is provided, need to provide a custom certs
+            if self.ssl_cert_path is None or not self.ssl_cert_path.exists():
+                raise FileNotFoundError(
+                    f"Failed to find SSL cert file in path: {self.ssl_cert_path}"
+                )
+
+            if self.ssl_key_path is None or not self.ssl_key_path.exists():
+                raise FileNotFoundError(
+                    f"Failed to find SSL key file in path: {self.ssl_key_path}"
+                )
+
     @property
     def caddyfile(self):
+        """Caddy config file."""
         return Path(self.BASE_CONFIG_PATH).expanduser()
 
     def configure(self):
@@ -102,7 +101,17 @@ class CaddyConfig:
         )
 
         if result.returncode != 0:
-            raise RuntimeError(f"Failed to reload Caddy: {result.stderr}")
+            if "systemctl: command not found" in result.stderr:
+                # If running in a docker container or distro without systemctl, we need to reload caddy manually
+                reload_cmd = f"sudo caddy reload --config {str(self.caddyfile)}"
+                try:
+                    subprocess.run(reload_cmd, shell=True, check=True, text=True)
+                except subprocess.CalledProcessError as e:
+                    raise RuntimeError(
+                        f"Failed to reload Caddy as a background process: {e}"
+                    )
+            else:
+                raise RuntimeError(f"Failed to reload Caddy service: {result.stderr}")
 
         logger.info("Successfully reloaded Caddy.")
 
@@ -118,9 +127,10 @@ class CaddyConfig:
         else:
             # Install caddy as a service
             # https://caddyserver.com/docs/running#using-the-service
-            logger.info("Installing Caddy as a service.")
+            logger.info("Installing Caddy.")
 
             commands = [
+                "sudo apt update",
                 "sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https",
                 "yes | curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg",  # noqa
                 "yes | curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list",  # noqa
@@ -147,7 +157,7 @@ class CaddyConfig:
                     f"Could not installed certutil, skipping: {result.stderr}"
                 )
 
-        logger.info("Successfully installed Caddy as service.")
+        logger.info("Successfully installed Caddy.")
 
     def _http_template(self):
         return textwrap.dedent(
@@ -173,11 +183,9 @@ class CaddyConfig:
             tls_directive = "tls on_demand"
             address_or_domain = self.domain
         else:
-            logger.warning(
-                "No domain or custom certs specified, issuing self-signed certs"
-            )
-            tls_directive = "tls internal"
-            address_or_domain = self.address
+            # Do not support issuing self-signed certs on the cluster
+            # Unverified certs should be generated client side and passed in as custom certs
+            raise RuntimeError("No certs or domain provided. Cannot enable HTTPS.")
 
         return textwrap.dedent(
             f"""
@@ -244,9 +252,8 @@ class CaddyConfig:
             template = (
                 self._https_template() if self.use_https else self._http_template()
             )
-            logger.info(f"New template for Caddyfile:\n {template}")
 
-            # Update the base (default) Caddyfile with this new template
+            # Update the Caddyfile with this new template
             subprocess.run(
                 f"echo '{template}' | sudo tee {self.caddyfile} > /dev/null",
                 shell=True,
@@ -257,15 +264,6 @@ class CaddyConfig:
 
         except Exception as e:
             raise e
-
-        # format the Caddyfile to remove spammy warnings
-        result = subprocess.run(
-            ["sudo", "caddy", "fmt", "--overwrite"],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            logger.warning(f"Failed to format Caddy template: {result.stderr}")
 
         logger.info(
             f"Successfully built and formatted Caddy template (https={self.use_https})."
@@ -279,14 +277,26 @@ class CaddyConfig:
             text=True,
         )
         if result.returncode != 0:
-            logger.warning(result.stderr)
-            return False
+            if "systemctl: command not found" in result.stderr:
+                # If running in a docker container or distro without systemctl, check whether Caddy has been configured
+                run_cmd = f"sudo caddy validate --config {str(self.caddyfile)}"
+                try:
+                    subprocess.run(run_cmd, shell=True, check=True, text=True)
+                except subprocess.CalledProcessError as e:
+                    logger.warning(e)
+                    return False
+                return True
+
+            else:
+                logger.warning(result.stderr)
+                return False
 
         return "active (running)" in result.stdout
 
     def _start_caddy(self):
-        # Run the caddy server as a background service
-        logger.info("Starting Caddy service.")
+        """Run the caddy server as a service or background process. Try to start as a service first, if that
+        fails then default to running as a background process."""
+        logger.info("Starting Caddy.")
         run_cmd = ["sudo", "systemctl", "start", "caddy"]
         result = subprocess.run(
             run_cmd,
@@ -294,6 +304,17 @@ class CaddyConfig:
             text=True,
         )
         if result.returncode != 0:
-            raise RuntimeError(f"Failed to run Caddy service: {result.stderr}")
+            if "systemctl: command not found" in result.stderr:
+                # If running in a docker container or distro without systemctl, we need to start Caddy manually
+                # as a background process
+                run_cmd = "sudo caddy start"
+                try:
+                    subprocess.run(run_cmd, shell=True, check=True, text=True)
+                except subprocess.CalledProcessError as e:
+                    raise RuntimeError(
+                        f"Failed to start Caddy as a background process: {e}"
+                    )
+            else:
+                raise RuntimeError(f"Failed to run Caddy service: {result.stderr}")
 
-        logger.info("Successfully applied Caddy service settings.")
+        logger.info("Successfully started Caddy.")
