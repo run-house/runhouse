@@ -918,6 +918,7 @@ if __name__ == "__main__":
     use_https = parse_args.use_https
     restart_proxy = parse_args.restart_proxy
     use_caddy = parse_args.use_caddy
+    domain = parse_args.domain
 
     ########################################
     # Handling args that could be specified in the
