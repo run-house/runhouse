@@ -402,8 +402,14 @@ def restart(
 
 
 @app.command()
-def stop():
-    subprocess.run(SERVER_STOP_CMD, shell=True, check=True)
+def stop(stop_ray: bool = typer.Option(True, help="Stop the Ray runtime")):
+    try:
+        subprocess.run(SERVER_STOP_CMD, shell=True, check=True)
+    except subprocess.CalledProcessError:
+        pass
+
+    if stop_ray:
+        subprocess.run(RAY_KILL_CMD, shell=True, check=True)
 
 
 @app.callback()

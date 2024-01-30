@@ -607,6 +607,7 @@ class Cluster(Resource):
             restart_ray (bool): Whether to restart Ray. (Default: ``True``)
             env (str or Env, optional): Specified environment to restart the server on. (Default: ``None``)
             restart_proxy (bool): Whether to restart nginx on the cluster, if configured. (Default: ``False``)
+
         Example:
             >>> rh.cluster("rh-cpu").restart_server()
         """
@@ -689,9 +690,15 @@ class Cluster(Resource):
 
         return status_codes
 
-    def stop_server(self, env: Union[str, "Env"] = None):
+    def stop_server(self, stop_ray: bool = True, env: Union[str, "Env"] = None):
+        """Stop the RPC server.
+
+        Args:
+            stop_ray (bool): Whether to stop Ray. (Default: `True`)
+            env (str or Env, optional): Specified environment to stop the server on. (Default: ``None``)
+        """
         env_activate_cmd = self._get_env_activate_cmd(env)
-        cmd = CLI_STOP_CMD
+        cmd = CLI_STOP_CMD if stop_ray else f"{CLI_STOP_CMD} --no-stop-ray"
         cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd
 
         status_codes = self.run([cmd], stream_logs=False)
