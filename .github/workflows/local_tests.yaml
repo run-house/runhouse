@@ -1,9 +1,6 @@
 name: Tests with level "local"
 
-on:
-  push:
-    branches: [ main ]
-  pull_request:
+on: workflow_dispatch
 
 jobs:
   # TODO: THESE ARE ONLY SEPARATE JOBS BECAUSE THERE ARE
