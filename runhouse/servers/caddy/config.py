@@ -82,7 +82,7 @@ class CaddyConfig:
 
         # Reload Caddy with the updated config
         logger.info("Reloading Caddy service")
-        self.reload()
+        self._reload()
 
         if not self._is_configured():
             raise RuntimeError("Failed to configure and start Caddy")
@@ -92,7 +92,7 @@ class CaddyConfig:
     # -----------------
     # HELPERS
     # -----------------
-    def reload(self):
+    def _reload(self):
         # https://caddyserver.com/docs/command-line#caddy-stop
         reload_cmd = ["sudo", "systemctl", "reload", "caddy"]
         result = subprocess.run(
