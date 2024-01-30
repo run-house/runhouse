@@ -619,19 +619,18 @@ class Cluster(Resource):
         use_custom_cert = self._use_custom_cert
         use_custom_key = self._use_custom_key
 
-        base_cluster_dir = f"{self.cert_config.DEFAULT_CLUSTER_DIR}/{self.name}"
+        base_cluster_dir = self.cert_config.DEFAULT_CLUSTER_DIR
         cluster_key_path = f"{base_cluster_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
         cluster_cert_path = f"{base_cluster_dir}/{self.cert_config.CERT_NAME}"
 
         if not use_custom_key and not use_custom_cert:
-            # If no cert and keyfile are provided, generate them client side unless a domain is specified
-            # and Caddy is enabled
             if domain and caddy_flag:
                 logger.info(
                     "Skipping issuing certs locally. Caddy will automate generating certs on the "
                     f"cluster using domain: {domain}."
                 )
             else:
+                # If no cert and keyfile are provided, generate them client side and copy them onto the cluster
                 self.cert_config.generate_certs(address=self.address)
                 self._copy_certs_to_cluster(cluster_key_path, cluster_cert_path)
         else:
@@ -640,6 +639,12 @@ class Cluster(Resource):
 
         # Update the cluster config on the cluster
         self.save_config_to_cluster()
+
+        if self._use_caddy:
+            # Update pointers to the cert and key files to the Caddy directories on the cluster
+            base_caddy_dir = self.cert_config.CADDY_CLUSTER_DIR
+            cluster_key_path = f"{base_caddy_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
+            cluster_cert_path = f"{base_caddy_dir}/{self.cert_config.CERT_NAME}"
 
         cmd = (
             CLI_RESTART_CMD
@@ -888,31 +893,36 @@ class Cluster(Resource):
         return True
 
     def _copy_certs_to_cluster(self, cluster_key_path: str, cluster_cert_path: str):
+        """Copy local certs to the cluster. Destination on the cluster depends on whether Caddy is enabled. This is
+        to ensure that the Caddy service has the necessary access to load the certs when the service is started."""
         from runhouse import folder
 
+        # Copy to the home directory by default
         local_key_path = self.cert_config.key_path
         folder(path=Path(local_key_path).parent).to(
-            self, path=Path(cluster_key_path).parent
-        )
-        logger.info(
-            f"Copied local key path: {local_key_path} onto the cluster in path: {cluster_key_path}"
+            self, path=self.cert_config.DEFAULT_CLUSTER_DIR
         )
 
         local_cert_path = self.cert_config.cert_path
         folder(path=Path(local_cert_path).parent).to(
-            self, path=Path(cluster_cert_path).parent
-        )
-        logger.info(
-            f"Copied local cert path: {local_cert_path} onto the cluster in path: {cluster_cert_path}"
+            self, path=self.cert_config.DEFAULT_CLUSTER_DIR
         )
 
         if self._use_caddy:
-            # TODO may need to change the owner to "caddy"
             self.run(
                 [
-                    f"sudo chmod 600 {cluster_key_path} && "
-                    f"sudo chmod 600 {cluster_cert_path}"
+                    f"sudo mv {self.cert_config.DEFAULT_CLUSTER_DIR} {self.cert_config.CADDY_CLUSTER_DIR}"
                 ]
+            )
+            logger.info(
+                f"Copied local certs onto the cluster in path: {self.cert_config.CADDY_CLUSTER_DIR}"
+            )
+        else:
+            logger.info(
+                f"Copied local key path: {local_key_path} onto the cluster in path: {cluster_key_path}"
+            )
+            logger.info(
+                f"Copied local cert path: {local_cert_path} onto the cluster in path: {cluster_cert_path}"
             )
 
     def run(
