@@ -616,35 +616,42 @@ class Cluster(Resource):
         domain = self.domain
         use_local_telemetry = self.use_local_telemetry
 
-        use_custom_cert = self._use_custom_cert
-        use_custom_key = self._use_custom_key
-
-        base_cluster_dir = self.cert_config.DEFAULT_CLUSTER_DIR
-        cluster_key_path = f"{base_cluster_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
-        cluster_cert_path = f"{base_cluster_dir}/{self.cert_config.CERT_NAME}"
-
-        if not use_custom_key and not use_custom_cert:
-            if domain and caddy_flag:
-                logger.info(
-                    "Skipping issuing certs locally. Caddy will automate generating certs on the "
-                    f"cluster using domain: {domain}."
-                )
-            else:
-                # If no cert and keyfile are provided, generate them client side and copy them onto the cluster
-                self.cert_config.generate_certs(address=self.address)
-                self._copy_certs_to_cluster(cluster_key_path, cluster_cert_path)
+        if not self._use_https:
+            use_custom_cert, use_custom_key = None, None
+            cluster_key_path, cluster_cert_path = None, None
         else:
-            # Copy existing cert and keyfiles onto the cluster
-            self._copy_certs_to_cluster(cluster_key_path, cluster_cert_path)
+            # Make sure certs are copied to the cluster (where relevant)
+            use_custom_cert = self._use_custom_cert
+            use_custom_key = self._use_custom_key
+
+            base_cluster_dir = self.cert_config.DEFAULT_CLUSTER_DIR
+            cluster_key_path = f"{base_cluster_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
+            cluster_cert_path = f"{base_cluster_dir}/{self.cert_config.CERT_NAME}"
+
+            if not use_custom_key and not use_custom_cert:
+                if domain and caddy_flag:
+                    logger.info(
+                        "Skipping issuing certs locally. Caddy will automate generating certs on the "
+                        f"cluster using domain: {domain}."
+                    )
+                else:
+                    # If no cert and keyfile are provided, generate them client side and copy them onto the cluster
+                    self.cert_config.generate_certs(address=self.address)
+                    self._copy_certs_to_cluster(cluster_key_path, cluster_cert_path)
+            else:
+                # Copy existing cert and keyfiles onto the cluster
+                self._copy_certs_to_cluster(cluster_key_path, cluster_cert_path)
+
+            if caddy_flag:
+                # Update pointers to the cert and key files to the Caddy directories on the cluster
+                base_caddy_dir = self.cert_config.CADDY_CLUSTER_DIR
+                cluster_key_path = (
+                    f"{base_caddy_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
+                )
+                cluster_cert_path = f"{base_caddy_dir}/{self.cert_config.CERT_NAME}"
 
         # Update the cluster config on the cluster
         self.save_config_to_cluster()
-
-        if self._use_caddy:
-            # Update pointers to the cert and key files to the Caddy directories on the cluster
-            base_caddy_dir = self.cert_config.CADDY_CLUSTER_DIR
-            cluster_key_path = f"{base_caddy_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
-            cluster_cert_path = f"{base_caddy_dir}/{self.cert_config.CERT_NAME}"
 
         cmd = (
             CLI_RESTART_CMD

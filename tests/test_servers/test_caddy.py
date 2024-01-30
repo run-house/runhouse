@@ -282,7 +282,7 @@ class TestCaddyConfiguration:
     @pytest.mark.level("unit")
     def test_invalid_https_configuration(self):
         # Set up CaddyConfig for HTTPS without specifying valid cert files or a domain
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(ValueError):
             CaddyConfig(address="127.0.0.1", use_https=True)
 
         with pytest.raises(FileNotFoundError):
