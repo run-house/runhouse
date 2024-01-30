@@ -293,6 +293,27 @@ class TestCaddyConfiguration:
                 ssl_key_path="/some/random/other/path",
             )
 
+    @pytest.mark.level("unit")
+    def test_use_certs_even_if_domain_provided(self):
+        cc = CaddyConfig(
+            address="127.0.0.1",
+            use_https=True,
+            ssl_cert_path="/some/random/path",
+            ssl_key_path="/some/random/other/path",
+            domain="run.house",
+        )
+        assert (
+            str(cc.ssl_cert_path) == "/some/random/path"
+            and str(cc.ssl_key_path) == "/some/random/other/path"
+        )
+        assert f"tls {cc.ssl_cert_path} {cc.ssl_key_path}" in cc._https_template()
+
+    @pytest.mark.level("unit")
+    def test_use_domain_with_no_certs(self):
+        cc = CaddyConfig(address="127.0.0.1", use_https=True, domain="run.house")
+        assert cc.ssl_cert_path is None and cc.ssl_key_path is None
+        assert "tls on_demand" in cc._https_template()
+
 
 @pytest.mark.servertest
 class TestCaddyServerLocally:

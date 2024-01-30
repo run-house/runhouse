@@ -1044,7 +1044,7 @@ if __name__ == "__main__":
 
     if use_https and not domain:
         # If using https (whether or not Caddy is being used) and no domain is specified, need to provide both
-        # key and cert files
+        # key and cert files - they should both already exist on the cluster
         if (
             not parsed_ssl_keyfile
             or not Path(parsed_ssl_keyfile).exists()
@@ -1054,7 +1054,7 @@ if __name__ == "__main__":
             # Custom certs should already be on the cluster if their file paths are provided
             raise FileNotFoundError(
                 f"Could not find SSL private key and cert files on the cluster, which are required when specifying "
-                f"a custom port ({port_arg}) or enabling HTTPS. Please specify the paths using the --ssl-certfile and "
+                f"a port ({port_arg}) or enabling HTTPS. Please specify the paths using the --ssl-certfile and "
                 f"--ssl-keyfile flags."
             )
 
@@ -1082,8 +1082,8 @@ if __name__ == "__main__":
             address=address,
             domain=domain,
             rh_server_port=daemon_port,
-            ssl_key_path=ssl_keyfile,
-            ssl_cert_path=ssl_certfile,
+            ssl_key_path=parsed_ssl_keyfile,
+            ssl_cert_path=parsed_ssl_certfile,
             use_https=use_https,
             force_reinstall=restart_proxy,
         )

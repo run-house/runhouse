@@ -90,7 +90,7 @@ class CaddyConfig:
             self._start_caddy()
 
         # Reload Caddy with the updated config
-        logger.info("Reloading Caddy service")
+        logger.info("Reloading Caddy")
         self.reload()
 
         if not self._is_configured():
@@ -171,19 +171,21 @@ class CaddyConfig:
 
     def _https_template(self):
         if self.ssl_key_path and self.ssl_cert_path:
+            # If custom certs provided use them instead of having Caddy generate them
             logger.info("Using custom certs to enable HTTPs")
             tls_directive = f"tls {self.ssl_cert_path} {self.ssl_key_path}"
-            address_or_domain = self.address
+            # If domain also provided use it
+            address_or_domain = self.domain or self.address
         elif self.domain:
             # https://caddyserver.com/docs/automatic-https#hostname-requirements
             logger.info(
-                f"Using Caddy to generate certs to enable HTTPs with domain: {self.domain}"
+                f"Generating certs with Caddy to enable HTTPs using domain: {self.domain}"
             )
             tls_directive = "tls on_demand"
             address_or_domain = self.domain
         else:
             # Do not support issuing self-signed certs on the cluster
-            # Unverified certs should be generated client side and passed in as custom certs
+            # Unverified certs should be generated client side and passed to Caddy as custom certs
             raise RuntimeError("No certs or domain provided. Cannot enable HTTPS.")
 
         return textwrap.dedent(
@@ -209,17 +211,6 @@ class CaddyConfig:
                 text=True,
                 shell=True,
             )
-            logger.info("Updated ufw firewall rule to allow HTTPS traffic")
-
-            # Add Caddy as a sudoer, otherwise will not be able to install certs on the server
-            # Will receive an error that looks like:
-            # caddy : user NOT in sudoers ; TTY=unknown ; PWD=/ ; USER=root
-            try:
-                subprocess.run("sudo caddy trust", shell=True, check=True, text=True)
-            except subprocess.CalledProcessError as e:
-                raise RuntimeError(
-                    f"Failed to add Caddy to list of trusted applications on the server: {e}"
-                )
         else:
             # Update firewall rule for HTTP
             subprocess.run(
@@ -229,7 +220,6 @@ class CaddyConfig:
                 text=True,
                 shell=True,
             )
-            logger.info("Updated ufw firewall rule to allow HTTP traffic")
 
         try:
             template = (
@@ -248,9 +238,7 @@ class CaddyConfig:
         except Exception as e:
             raise e
 
-        logger.info(
-            f"Successfully built and formatted Caddy template (https={self.use_https})."
-        )
+        logger.info("Successfully built and formatted Caddy template.")
 
     def _is_configured(self) -> bool:
         logger.info("Checking Caddy configuration.")
@@ -278,6 +266,22 @@ class CaddyConfig:
     def _start_caddy(self):
         """Run the caddy server as a service or background process. Try to start as a service first, if that
         fails then default to running as a background process."""
+        # Add Caddy as a sudoer, otherwise will not be able to install certs on the server
+        # Will receive an error that looks like:
+        # caddy : user NOT in sudoers ; TTY=unknown ; PWD=/ ; USER=root
+        # https://github.com/caddyserver/caddy/issues/4248
+        logger.info("Adding Caddy as trusted app.")
+        try:
+            subprocess.run(
+                "sudo mkdir -p /var/lib/caddy/.local && "
+                "sudo chown -R caddy: /var/lib/caddy",
+                shell=True,
+                check=True,
+                text=True,
+            )
+        except subprocess.CalledProcessError as e:
+            raise e
+
         logger.info("Starting Caddy.")
         run_cmd = ["sudo", "systemctl", "start", "caddy"]
         result = subprocess.run(

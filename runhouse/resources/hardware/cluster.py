@@ -160,10 +160,8 @@ class Cluster(Resource):
         if self.is_up():
             config["ssh_creds"] = self.ssh_creds
 
-        if self._use_https and self.domain is None:
+        if self._use_custom_certs:
             config["ssl_certfile"] = self.cert_config.cert_path
-
-        if self._use_https and self.domain is None:
             config["ssl_keyfile"] = self.cert_config.key_path
 
         return config
@@ -565,12 +563,9 @@ class Cluster(Resource):
         return self.server_port in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]
 
     @property
-    def _use_custom_cert(self):
-        return Path(self.cert_config.cert_path).exists()
-
-    @property
-    def _use_custom_key(self):
-        return Path(self.cert_config.key_path).exists()
+    def _use_custom_certs(self):
+        """Generate custom certs if HTTPS is enabled and no domain is specified"""
+        return self._use_https and self.domain is None
 
     def _start_ray_workers(self, ray_port):
         for host in self.ips:
@@ -616,34 +611,33 @@ class Cluster(Resource):
         domain = self.domain
         use_local_telemetry = self.use_local_telemetry
 
-        if not self._use_https:
-            use_custom_cert, use_custom_key = None, None
-            cluster_key_path, cluster_cert_path = None, None
-        else:
-            # Make sure certs are copied to the cluster (where relevant)
-            use_custom_cert = self._use_custom_cert
-            use_custom_key = self._use_custom_key
+        cluster_key_path = None
+        cluster_cert_path = None
 
+        if https_flag:
+            # Make sure certs are copied to the cluster (where relevant)
             base_cluster_dir = self.cert_config.DEFAULT_CLUSTER_DIR
             cluster_key_path = f"{base_cluster_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
             cluster_cert_path = f"{base_cluster_dir}/{self.cert_config.CERT_NAME}"
 
-            if not use_custom_key and not use_custom_cert:
-                if domain and caddy_flag:
-                    logger.info(
-                        "Skipping issuing certs locally. Caddy will automate generating certs on the "
-                        f"cluster using domain: {domain}."
-                    )
-                else:
-                    # If no cert and keyfile are provided, generate them client side and copy them onto the cluster
-                    self.cert_config.generate_certs(address=self.address)
-                    self._copy_certs_to_cluster(cluster_key_path, cluster_cert_path)
+            if domain and caddy_flag:
+                logger.info(
+                    "Skipping issuing certs locally. Caddy will automate generating certs on the "
+                    f"cluster using domain: {domain}."
+                )
             else:
-                # Copy existing cert and keyfiles onto the cluster
+                # If no cert and keyfile already exist, generate them client side and copy them onto the cluster
+                if (
+                    not Path(self.cert_config.cert_path).exists()
+                    or not Path(self.cert_config.key_path).exists()
+                ):
+                    self.cert_config.generate_certs(address=self.address)
+
                 self._copy_certs_to_cluster(cluster_key_path, cluster_cert_path)
 
             if caddy_flag:
-                # Update pointers to the cert and key files to the Caddy directories on the cluster
+                # Update pointers to the cert and key files as stored on the cluster
+                # (to be passed in to the runhouse restart command)
                 base_caddy_dir = self.cert_config.CADDY_CLUSTER_DIR
                 cluster_key_path = (
                     f"{base_caddy_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
@@ -659,8 +653,8 @@ class Cluster(Resource):
             + (" --use-https" if https_flag else "")
             + (" --use-caddy" if caddy_flag else "")
             + (" --restart-proxy" if restart_proxy and caddy_flag else "")
-            + (f" --ssl-certfile {cluster_cert_path}" if use_custom_cert else "")
-            + (f" --ssl-keyfile {cluster_key_path}" if use_custom_key else "")
+            + (f" --ssl-certfile {cluster_cert_path}" if self._use_custom_certs else "")
+            + (f" --ssl-keyfile {cluster_key_path}" if self._use_custom_certs else "")
             + (f" --domain {domain}" if domain else "")
             + (" --use-local-telemetry" if use_local_telemetry else "")
             + f" --port {self.server_port}"
@@ -916,9 +910,13 @@ class Cluster(Resource):
         )
 
         if self._use_caddy:
+            src = self.cert_config.DEFAULT_CLUSTER_DIR
+            dest = self.cert_config.CADDY_CLUSTER_DIR
             self.run(
                 [
-                    f"sudo mv {self.cert_config.DEFAULT_CLUSTER_DIR} {self.cert_config.CADDY_CLUSTER_DIR}"
+                    f"sudo mkdir -p {dest}",
+                    f"sudo mv {src}/* {dest}/",
+                    f"sudo rm -r {src}",
                 ]
             )
             logger.info(
@@ -926,10 +924,7 @@ class Cluster(Resource):
             )
         else:
             logger.info(
-                f"Copied local key path: {local_key_path} onto the cluster in path: {cluster_key_path}"
-            )
-            logger.info(
-                f"Copied local cert path: {local_cert_path} onto the cluster in path: {cluster_cert_path}"
+                f"Copied local certs {local_key_path} onto the cluster in path: {cluster_key_path}"
             )
 
     def run(
