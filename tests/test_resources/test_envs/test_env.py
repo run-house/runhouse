@@ -36,6 +36,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
     UNIT = {
         "env": [
             "base_env",
+            "named_env",
             "base_conda_env",
             "conda_env_from_dict",
             "conda_env_from_local",
@@ -43,7 +44,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         ]
     }
     LOCAL = {
-        "env": ["base_env"],
+        "env": ["base_env", "named_env"],
         "cluster": [
             "docker_cluster_pk_ssh_no_auth",
         ]
@@ -51,11 +52,11 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         # and add local clusters once conda docker container is set up
     }
     MINIMAL = {
-        "env": ["base_env", "base_conda_env"],
+        "env": ["base_env", "named_env", "base_conda_env"],
         "cluster": ["ondemand_cpu_cluster"],
     }
     THOROUGH = {
-        "env": ["base_env", "base_conda_env", "conda_env_from_dict"],
+        "env": ["base_env", "named_env", "base_conda_env", "conda_env_from_dict"],
         "cluster": [
             "ondemand_cpu_cluster",
             "static_cpu_cluster",
@@ -68,6 +69,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
     MAXIMAL = {
         "env": [
             "base_env",
+            "named_env",
             "base_conda_env",
             "conda_env_from_dict",
             "conda_env_from_local",
