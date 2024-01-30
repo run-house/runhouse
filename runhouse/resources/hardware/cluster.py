@@ -33,13 +33,7 @@ from runhouse.constants import (
 )
 from runhouse.globals import obj_store, rns_client
 from runhouse.resources.envs.utils import _get_env_from
-from runhouse.resources.hardware.utils import (
-    _current_cluster,
-    ServerConnectionType,
-    SkySSHRunner,
-    ssh_tunnel,
-    SshMode,
-)
+from runhouse.resources.hardware.utils import _current_cluster, ServerConnectionType
 from runhouse.resources.resource import Resource
 
 from runhouse.servers.http import HTTPClient
@@ -278,7 +272,7 @@ class Cluster(Resource):
                 contents=True,
                 filter_options="- docs/",
             )
-            rh_install_cmd = "python3 -m pip install ./runhouse"
+            rh_install_cmd = 'python3 -m pip install "./runhouse[sky]"'
         # elif local_rh_package_path.parent.name == 'site-packages':
         else:
             # Package is installed in site-packages
@@ -288,7 +282,7 @@ class Cluster(Resource):
             if not _install_url:
                 import runhouse
 
-                _install_url = f"runhouse=={runhouse.__version__}"
+                _install_url = f'"runhouse[sky]"=={runhouse.__version__}'
             rh_install_cmd = f"python3 -m pip install {_install_url}"
 
         install_cmd = f"{env._run_cmd} {rh_install_cmd}" if env else rh_install_cmd
@@ -542,7 +536,9 @@ class Cluster(Resource):
 
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
-    ) -> Union[SSHTunnelForwarder, SkySSHRunner]:
+    ) -> Union[SSHTunnelForwarder, "SkySSHRunner"]:
+        from runhouse.resources.hardware.sky_ssh_runner import ssh_tunnel
+
         return ssh_tunnel(
             address=self.address,
             ssh_creds=self.ssh_creds,
@@ -820,6 +816,8 @@ class Cluster(Resource):
                 )
             return
 
+        from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner, SshMode
+
         # If no address provided explicitly use the head node address
         node = node or self.address
         # FYI, could be useful: https://github.com/gchamon/sysrsync
@@ -979,6 +977,8 @@ class Cluster(Resource):
         port_forward: int = None,
         require_outputs: bool = True,
     ):
+        from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner, SshMode
+
         return_codes = []
 
         ssh_credentials = copy.copy(self.ssh_creds)

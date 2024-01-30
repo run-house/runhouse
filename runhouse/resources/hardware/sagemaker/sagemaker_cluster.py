@@ -35,7 +35,7 @@ from sshtunnel import BaseSSHTunnelForwarderError, SSHTunnelForwarder
 from runhouse.globals import configs, rns_client, ssh_tunnel_cache
 
 from runhouse.resources.hardware.cluster import Cluster
-from runhouse.resources.hardware.utils import get_open_tunnel, SkySSHRunner
+from runhouse.resources.hardware.utils import get_open_tunnel
 from runhouse.rns.utils.api import is_jsonable, relative_ssh_path, resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 
@@ -627,6 +627,8 @@ class SageMakerCluster(Cluster):
                     return_codes.append((255, "", str(e)))
             else:
                 # Host can be replaced with name (as reflected in the ~/.ssh/config file)
+                from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner
+
                 runner = SkySSHRunner(
                     self.name,
                     port=self.ssh_port,

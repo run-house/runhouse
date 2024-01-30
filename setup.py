@@ -71,12 +71,13 @@ install_requires = [
     "opentelemetry-instrumentation-fastapi",
     "opentelemetry-instrumentation-requests",
     "opentelemetry-sdk",
+    "pandas",
     "pexpect",
     "pyarrow",
     "pyOpenSSL>=23.3.0",
+    "ray",
     "rich",
     "sentry-sdk",
-    "skypilot[docker]==0.4.1",
     "sshfs",
     "sshtunnel>=0.3.0",
     "typer",
@@ -87,6 +88,7 @@ install_requires = [
 # NOTE: Change the templates/spot-controller.yaml.j2 file if any of the following
 # packages dependencies are changed.
 extras_require = {
+    "sky": ["skypilot[docker]==0.4.1"],
     "aws": [
         # https://github.com/aio-libs/aiobotocore/issues/983
         # If you don't want to use these exact versions, you can install runhouse without the aws extras, then

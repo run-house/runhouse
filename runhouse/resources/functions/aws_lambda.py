@@ -11,8 +11,11 @@ import zipfile
 from pathlib import Path
 from typing import Any, List, Optional
 
-import boto3
-import botocore.exceptions
+try:
+    import boto3
+    import botocore.exceptions
+except ImportError:
+    pass
 
 from runhouse.globals import rns_client
 from runhouse.resources.envs import _get_env_from, Env
