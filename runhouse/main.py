@@ -6,19 +6,25 @@ import webbrowser
 from pathlib import Path
 from typing import List, Optional
 
+import requests
+
 import typer
 from rich.console import Console
+
+import runhouse as rh
 
 import runhouse.rns.login
 
 from runhouse import __version__, cluster, configs
 from runhouse.constants import (
+    RAY_KILL_CMD,
     SERVER_LOGFILE,
     SERVER_START_CMD,
     SERVER_STOP_CMD,
     START_NOHUP_CMD,
     START_SCREEN_CMD,
 )
+
 
 # create an explicit Typer application
 app = typer.Typer(add_completion=False)
@@ -98,6 +104,131 @@ def ssh(cluster_name: str, up: bool = typer.Option(False, help="Start the cluste
     c.ssh()
 
 
+def _print_status(config):
+    """
+    Prints the status of the cluster to the console
+    :param config: cluster's  config
+    :return: cluster's  config
+    """
+    envs = config["envs"]
+    config.pop("envs", [])
+
+    # print headlines
+    daemon_headline_txt = (
+        "\N{smiling face with horns} Runhouse Daemon is running \N{Runner}"
+    )
+    console.print(daemon_headline_txt, style="bold royal_blue1")
+    cluster_url = (
+        f"https://www.run.house/resources/{config['name'][1:].replace('/', ':')}"
+    )
+    hyperlink_text = f"[link={cluster_url}]{config['name']}[/link]"
+    console.print(hyperlink_text)
+
+    first_info_to_print = ["den_auth", "server_connection_type", "server_port"]
+
+    for info in config:
+        if info in first_info_to_print:
+            console.print(f"\u2022 {info}: {config[info]}")
+    first_info_to_print.append("name")
+
+    console.print("\u2022 backend config:")
+    for info in config:
+        if info not in first_info_to_print:
+            console.print(f"\t\u2022 {info}: {config[info]}")
+
+    # print the environments in the cluster, and the resources associated with each  environment.
+    envs_in_cluster_headline = "Serving 🍦 :"
+    console.print(envs_in_cluster_headline, style="bold")
+
+    if len(envs) == 0:
+        console.print("This cluster has no environment nor resources.")
+
+    for env_name in envs:
+        resources_in_env = envs[env_name]
+        if len(resources_in_env) == 0:
+            console.print(f"{env_name} (Env):", style="italic underline")
+            console.print("This environment has no resources.")
+
+        else:
+            current_env = [
+                resource
+                for resource in resources_in_env
+                if resource["name"] == env_name
+            ]
+
+            # sometimes the env itself is not a resource (key) inside the env's servlet.
+            if len(current_env) == 0:
+                env_name_txt = f"{env_name} (Env):"
+            else:
+                current_env = current_env[0]
+                env_name_txt = (
+                    f"{current_env['name']} ({current_env['resource_type']}):"
+                )
+
+            console.print(
+                env_name_txt,
+                style="italic underline",
+            )
+
+            resources_in_env = [
+                resource for resource in resources_in_env if resource is not current_env
+            ]
+
+            for resource in resources_in_env:
+                resource_name = resource["name"]
+                resource_type = resource["resource_type"]
+                console.print(f"\u2022{resource_name} ({resource_type})")
+
+    return config
+
+
+@app.command()
+def status(
+    cluster_name: str = typer.Argument(
+        None,
+        help="Name of cluster to check. If not specified will check"
+        " the local cluster.",
+    )
+):
+    """Get the config info about your runhouse cluster(s), as well as the environments setup of the cluster(s)"""
+
+    cluster_or_local = rh.here
+
+    if cluster_or_local == "file":
+        if cluster_name is None:
+            console.print("Missing argument CLUSTER_NAME.")
+            return
+        else:
+            try:
+                current_cluster = rh.cluster(name=cluster_name)
+                if not current_cluster.is_up():
+                    console.print(f"A cluster called {cluster_name} is not up")
+                    return
+                current_cluster.connect_server_client()
+                config = current_cluster.client.request(
+                    endpoint="/status", req_type="get"
+                )
+            except ValueError:
+                console.print(
+                    f"Cluster {cluster_name} is not found in Den. Please save it, in order to get its"
+                    f" status"
+                )
+                return
+            except requests.exceptions.ConnectionError:
+                console.print(
+                    "\N{smiling face with horns} Runhouse Daemon is not running... \N{No Entry} \N{Runner}"
+                )
+                return
+    else:
+        from runhouse.globals import obj_store
+
+        config = obj_store.get_status()
+
+    config = _print_status(config)
+
+    return config
+
+
 def load_cluster(cluster_name: str):
     """Load a cluster from RNS into the local environment, e.g. to be able to ssh."""
     c = cluster(name=cluster_name)
@@ -149,7 +280,6 @@ def _start_server(
     certs_address=None,
     use_local_telemetry=False,
 ):
-
     ############################################
     # Build CLI commands to start the server
     ############################################

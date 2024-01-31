@@ -711,6 +711,13 @@ class HTTPServer:
         return JSONResponse(content=resp)
 
     @staticmethod
+    @app.get("/status")
+    @validate_cluster_access
+    def get_status(request: Request):
+        config_cluster = obj_store.get_status()
+        return Response(data=config_cluster, output_type=OutputType.CONFIG)
+
+    @staticmethod
     def _collect_cluster_stats():
         """Collect cluster metadata and send to Grafana Loki"""
         if configs.get("disable_data_collection") is True:
