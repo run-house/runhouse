@@ -5,6 +5,9 @@ from pathlib import Path
 
 import pytest
 
+import runhouse as rh
+import yaml
+
 from runhouse.globals import rns_client
 from runhouse.servers.obj_store import ObjStore, RaySetupOption
 
@@ -80,3 +83,17 @@ def invalid_friend_account():
         rns_client._configs.token = "junk"
 
         yield friend_account_dict
+
+
+def test_env(logged_in=False):
+    return rh.env(
+        reqs=["pytest", "httpx", "pytest_asyncio"],
+        working_dir=None,
+        setup_cmds=[
+            f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
+            f"echo '{yaml.safe_dump(rh.configs.defaults_cache)}' > ~/.rh/config.yaml"
+        ]
+        if logged_in
+        else False,
+        name="base_env",
+    )

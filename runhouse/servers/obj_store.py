@@ -984,6 +984,10 @@ class ObjStore:
         remote: bool = False,
     ):
         env_servlet_name_containing_key = self.get_env_servlet_name_for_key(key)
+        if not env_servlet_name_containing_key:
+            raise ObjStoreError(
+                f"Key {key} not found in any env, cannot call method {method_name} on it."
+            )
 
         if (
             env_servlet_name_containing_key == self.servlet_name

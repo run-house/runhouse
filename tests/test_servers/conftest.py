@@ -2,7 +2,6 @@ import json
 from pathlib import Path
 
 import httpx
-
 import pytest
 import pytest_asyncio
 
@@ -25,16 +24,21 @@ def summer(a, b):
 
 
 # -------- FIXTURES ----------- #
-@pytest.fixture(scope="module")
-def http_client():
-    with httpx.Client(base_url=BASE_URL, timeout=60.0) as client:
+@pytest.fixture(scope="function")
+def http_client(cluster):
+    with httpx.Client(base_url=cluster.endpoint(), timeout=60.0) as client:
         yield client
 
 
 @pytest_asyncio.fixture(scope="function")
-async def async_http_client():
-    async with httpx.AsyncClient(base_url=BASE_URL) as client:
+async def async_http_client(cluster):
+    async with httpx.AsyncClient(base_url=cluster.endpoint(), timeout=60.0) as client:
         yield client
+
+
+@pytest_asyncio.fixture(scope="function")
+def remote_func(cluster):
+    return rh.function(summer).to(cluster)
 
 
 @pytest.fixture(scope="session")

@@ -51,11 +51,7 @@ def error_handling_decorator(func):
                     output_type=OutputType.SUCCESS,
                 )
         except Exception as e:
-            if serialization is None:
-                raise e
-            else:
-                # For now, this is always "pickle" because we don't support json serialization of exceptions
-                return handle_exception_response(e, traceback.format_exc())
+            return handle_exception_response(e, traceback.format_exc(), serialization)
 
     return wrapper
 
