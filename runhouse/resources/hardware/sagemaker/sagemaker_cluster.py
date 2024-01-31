@@ -298,13 +298,6 @@ class SageMakerCluster(Cluster):
         return f"{self._abs_ssh_key_path}.pub"
 
     @property
-    def _env_activate_cmd(self):
-        """Prefix for commands run on the cluster. Ensure we are running all commands in the conda environment
-        and not the system default python."""
-        # TODO [JL] Can SageMaker handle this for us?
-        return "source /opt/conda/bin/activate"
-
-    @property
     def _abs_ssh_key_path(self):
         return resolve_absolute_path(self.ssh_key_path)
 
@@ -319,6 +312,13 @@ class SageMakerCluster(Cluster):
             self._set_boto_session()
 
         return self._boto_session.client("s3")
+
+    def _get_env_activate_cmd(self, env=None):
+        """Prefix for commands run on the cluster. Ensure we are running all commands in the conda environment
+        and not the system default python."""
+        # TODO [JL] Can SageMaker handle this for us?
+        cmd = super()._get_env_activate_cmd(env)
+        return cmd or "source /opt/conda/bin/activate"
 
     def _set_boto_session(self, profile_name: str = None):
         self._boto_session = boto3.Session(
@@ -337,7 +337,7 @@ class SageMakerCluster(Cluster):
         _rh_install_url: str = None,
         resync_rh: bool = True,
         restart_ray: bool = True,
-        env_activate_cmd: str = None,
+        env: Union[str, "Env"] = None,
         restart_proxy: bool = False,
     ):
         """Restart the RPC server on the SageMaker instance.
@@ -345,15 +345,14 @@ class SageMakerCluster(Cluster):
         Args:
             resync_rh (bool): Whether to resync runhouse. (Default: ``True``)
             restart_ray (bool): Whether to restart Ray. (Default: ``True``)
-            env_activate_cmd (str, optional): Command to activate the environment on the server. If not provided
-                will activate the default conda environment provided on the cluster.
+            env (str or Env): Env to restart the server from. If not provided
+                will use default env on the cluster.
             restart_proxy (bool): Whether to restart nginx on the cluster, if configured. (Default: ``False``)
         Example:
             >>> rh.sagemaker_cluster("sagemaker-cluster").restart_server()
         """
-        env_activate_cmd = env_activate_cmd or self._env_activate_cmd
         return super().restart_server(
-            _rh_install_url, resync_rh, restart_ray, env_activate_cmd, restart_proxy
+            _rh_install_url, resync_rh, restart_ray, env, restart_proxy
         )
 
     def check_server(self, restart_server=True):
@@ -388,7 +387,7 @@ class SageMakerCluster(Cluster):
                     self.restart_server(
                         resync_rh=True,
                         restart_ray=True,
-                        env_activate_cmd=self._env_activate_cmd,
+                        env=None,
                     )
                     logger.info(f"Checking server {self.instance_id} again.")
 
@@ -1243,9 +1242,7 @@ class SageMakerCluster(Cluster):
         local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
 
         # **Note** temp patch to handle PyYAML errors: https://github.com/yaml/pyyaml/issues/724
-        base_rh_install_cmd = (
-            f'{self._env_activate_cmd} && python3 -m pip install "cython<3.0.0"'
-        )
+        base_rh_install_cmd = f'{self._get_env_activate_cmd(env=None)} && python3 -m pip install "cython<3.0.0"'
 
         # Check if runhouse is installed from source and has setup.py
         if (
