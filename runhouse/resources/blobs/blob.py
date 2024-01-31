@@ -187,7 +187,7 @@ def blob(
             pass
 
     system = _get_cluster_from(system or _current_cluster(key="config"), dryrun=dryrun)
-    env = env or _get_env_from(env)
+    env = env or _get_env_from(env, system)
 
     if (not system or isinstance(system, Cluster)) and not path and data_config is None:
         # Blobs must be named, or we don't have a key for the kv store

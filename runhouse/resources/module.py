@@ -199,7 +199,7 @@ class Module(Resource):
             config["system"] = _get_cluster_from(system)
         env = config.get("env")
         if isinstance(env, str):
-            config["env"] = _get_env_from(env)
+            config["env"] = _get_env_from(env, system=config.get("system"))
         return config
 
     @property
@@ -400,7 +400,7 @@ class Module(Resource):
             _get_cluster_from(system, dryrun=self.dryrun) if system else self.system
         )
         env = env or self.env
-        env = _get_env_from(env)
+        env = _get_env_from(env, system=system)
 
         if system:
             system.check_server()

@@ -37,8 +37,8 @@ def _process_reqs(reqs):
     return preprocessed_reqs
 
 
-def _get_env_from(env):
-    if isinstance(env, Resource):
+def _get_env_from(env, system: "Cluster" = None):
+    if isinstance(env, Resource) or env is None:
         return env
 
     from runhouse.resources.envs import Env
@@ -49,12 +49,27 @@ def _get_env_from(env):
         return Env(reqs=env, working_dir="./", name=Env.DEFAULT_NAME)
     elif isinstance(env, Dict):
         return Env.from_config(env)
-    elif (
-        isinstance(env, str)
-        and Env.DEFAULT_NAME not in env
-        and rns_client.exists(env, resource_type="env")
-    ):
-        return Env.from_name(env)
+    elif isinstance(env, str):
+        if rns_client.exists(env, resource_type="env"):
+            return Env.from_name(env)
+        if system:
+            if system.get(env):
+                return system.get(env)
+
+            # handle case where env is passed in as full rns address
+            name, _ = rns_client.split_rns_name_and_path(
+                rns_client.resolve_rns_path(env)
+            )
+            if system.get(name):
+                return system.get(name)
+
+        if env == Env.DEFAULT_NAME:
+            return Env(name=Env.DEFAULT_NAME)
+
+    warning = f"Could not locate Env from value: {env}"
+    warning = f"{warning} on cluster {system.name}" if system else warning
+    logging.warning(warning)
+
     return env
 
 
