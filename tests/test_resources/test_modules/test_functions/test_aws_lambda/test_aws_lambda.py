@@ -13,6 +13,7 @@ from .test_helpers.lambda_tests.basic_handler_layer import arr_handler
 
 from .test_helpers.lambda_tests.basic_test_handler import lambda_no_args, lambda_sum
 
+
 logger = logging.getLogger(__name__)
 CUR_WORK_DIR = os.path.dirname(os.path.abspath(__file__))
 TEST_RESOURCES = f"{CUR_WORK_DIR}/test_helpers/lambda_tests"
@@ -21,6 +22,7 @@ CRED_PATH = f"{Path.home()}/.aws/credentials"
 DEFAULT_REGION = "us-east-1"
 
 
+# Test Fixtures
 @pytest.fixture(scope="session")
 def basic_function():
     my_lambda = rh.aws_lambda_fn(
@@ -29,12 +31,10 @@ def basic_function():
         name="test_lambda_create_and_run",
     )
     my_lambda.save()
-    try:
-        yield my_lambda
-    finally:
-        my_lambda.teardown()
-        if rns_client.exists(my_lambda.rns_address):
-            rns_client.delete_configs(my_lambda)
+    yield my_lambda
+    my_lambda.teardown()
+    if rns_client.exists(my_lambda.rns_address):
+        rns_client.delete_configs(my_lambda)
 
 
 @pytest.fixture(scope="session")
@@ -86,28 +86,38 @@ def test_crate_no_arguments():
     )
 
 
-def test_bad_runtime_to_factory():
+def test_bad_runtime_to_factory_1():
     name = "test_wrong_runtime"
 
     wrong_runtime_1 = rh.aws_lambda_fn(fn=lambda_sum, runtime=None, name=f"{name}_1")
 
-    wrong_runtime_2 = rh.aws_lambda_fn(fn=lambda_sum, name=f"{name}_2")
-
-    wrong_runtime_3 = rh.aws_lambda_fn(
-        fn=lambda_sum, runtime="python3.91", name=f"{name}_3"
-    )
-
     assert wrong_runtime_1.runtime == "python3.9"
-    assert wrong_runtime_2.runtime == "python3.9"
-    assert wrong_runtime_3.runtime == "python3.9"
 
     assert wrong_runtime_1.teardown() is True
     if rns_client.exists(wrong_runtime_1.rns_address):
         rns_client.delete_configs(wrong_runtime_1)
 
+
+def test_bad_runtime_to_factory_2():
+    name = "test_wrong_runtime"
+
+    wrong_runtime_2 = rh.aws_lambda_fn(fn=lambda_sum, name=f"{name}_2")
+
+    assert wrong_runtime_2.runtime == "python3.9"
+
     assert wrong_runtime_2.teardown() is True
     if rns_client.exists(wrong_runtime_2.rns_address):
-        rns_client.delete_configs(wrong_runtime_1)
+        rns_client.delete_configs(wrong_runtime_2)
+
+
+def test_bad_runtime_to_factory_3():
+    name = "test_wrong_runtime"
+
+    wrong_runtime_3 = rh.aws_lambda_fn(
+        fn=lambda_sum, runtime="python3.91", name=f"{name}_3"
+    )
+
+    assert wrong_runtime_3.runtime == "python3.9"
 
     assert wrong_runtime_3.teardown() is True
     if rns_client.exists(wrong_runtime_3.rns_address):
@@ -204,7 +214,7 @@ def test_create_and_run_layers_txt():
         fn=arr_handler,
         runtime="python3.9",
         name=name,
-        env=[f"reqs:{TEST_RESOURCES}/"],
+        env="requirements.txt",
     )
     res = my_lambda([1, 2, 3], [1, 2, 3])
     assert res == 12

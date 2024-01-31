@@ -5,6 +5,10 @@ import importlib
 import inspect
 import json
 import logging
+import pkgutil
+import platform
+import shutil
+import subprocess
 import time
 import warnings
 import zipfile
@@ -13,6 +17,7 @@ from typing import Any, List, Optional
 
 import boto3
 import botocore.exceptions
+from docker import APIClient
 
 from runhouse.globals import rns_client
 from runhouse.resources.envs import _get_env_from, Env
@@ -130,6 +135,16 @@ class LambdaFunction(Function):
                 )
                 self.logs_client = boto3.client("logs", region_name=self.DEFAULT_REGION)
         self.iam_client = boto3.client("iam")
+        docker_template_path = str(
+            Path(pkgutil.get_loader("runhouse").path).parent
+            / "docker/serverless/aws/Dockerfile"
+        )
+
+        docker_working_dir_path = str(
+            Path(self.local_path_to_code[0]).parent / "Dockerfile"
+        )
+        shutil.copyfile(src=docker_template_path, dst=docker_working_dir_path)
+        self.dockerfile_path = docker_working_dir_path
 
     # --------------------------------------
     # Constructor helper methods
@@ -152,7 +167,7 @@ class LambdaFunction(Function):
             config["memory_size"] = LambdaFunction.DEFAULT_MEMORY_SIZE
         if "env" not in keys:
             config["env"] = Env(
-                reqs=[],
+                reqs=["runhouse"],
                 env_vars={"HOME": LambdaFunction.HOME_DIR},
                 name=Env.DEFAULT_NAME,
             )
@@ -252,7 +267,7 @@ class LambdaFunction(Function):
             memory_size,
             tmp_size,
             retention_time,
-        ) = LambdaFunction.arguments_validation(
+        ) = LambdaFunction._arguments_validation(
             paths_to_code, env, runtime, timeout, memory_size, tmp_size, retention_time
         )
 
@@ -298,6 +313,8 @@ class LambdaFunction(Function):
                     working_dir="./", name=Env.DEFAULT_NAME
                 )
             elif isinstance(original_env, str):
+                if original_env == "requirements.txt":
+                    env = [original_env]
                 env = _get_env_from(env)
             else:
                 env = _get_env_from(env) or Env(working_dir="./", name=Env.DEFAULT_NAME)
@@ -310,8 +327,10 @@ class LambdaFunction(Function):
                 working_dir="./",
             )
 
-        if isinstance(env, Env) and "HOME" not in env.env_vars.keys():
+        if "HOME" not in env.env_vars.keys():
             env.env_vars["HOME"] = cls.HOME_DIR
+        if "runhouse" not in env.reqs:
+            env._reqs.append("runhouse")
 
         return env
 
@@ -333,9 +352,20 @@ class LambdaFunction(Function):
         return args_names
 
     @classmethod
-    def arguments_validation(
+    def _arguments_validation(
         cls, paths_to_code, env, runtime, timeout, memory_size, tmp_size, retention_time
     ):
+        """
+        Validates all the arguments that are supposed to be sent to the constructor.
+        :param paths_to_code: list of paths to the source code files.
+        :param env: the environment that should be set up for the Lambda to run.
+        :param runtime: the python version of the Lambda.
+        :param timeout: the max time (in sec) that the Lambda could run for.
+        :param memory_size: the max memory (in MB) that the Lambda could use during execution.
+        :param tmp_size: the size of the /tmp folder in the Lambda's file system.
+        :param retention_time: the time (in days) that the Lambda logs will be saved in cloudwatch before deletion.
+        :return: The validated arguments.
+        """
 
         if isinstance(env, str) and "requirements.txt" in env:
             paths_to_code.append(Path(env).absolute())
@@ -461,39 +491,7 @@ class LambdaFunction(Function):
         Path(handler_path).touch()
 
         f = open(wrapper_path, "w")
-        f.write("import subprocess\n" "import sys\n" "import os\n\n")
         f.write("def lambda_handler(event, context):\n")
-        f.write(f"\tif not os.path.isdir('{self.HOME_DIR}'):\n")
-        f.write(f"\t\tos.mkdir('{self.HOME_DIR}')\n")
-
-        # adding code for installing python libraries
-        if isinstance(self.env, str):
-            f.write(
-                "\tsubprocess.call(['pip', 'install', '-r', 'requirements.txt',"
-                + " '--ignore-installed', '-t', '{self.HOME_DIR}/'])\n"
-                f"\tif not os.path.isdir('{self.HOME_DIR}/runhouse'):\n"
-                f"\t\tsubprocess.call(['pip', 'install', 'runhouse', '-t', '{self.HOME_DIR}/'])\n"
-                f"\tsys.path.insert(1, '{self.HOME_DIR}/')\n\n"
-            )
-        else:
-            reqs = self.env.reqs
-            if "runhouse" not in reqs:
-                reqs.append("runhouse")
-            if "./" in reqs:
-                reqs.remove("./")
-            for req in reqs:
-                req = req.split()
-                dir_name = req[0]
-                if len(req) > 1:
-                    req = "".join("'%s', " % str(s) for s in req)[:-1]
-                else:
-                    req = f"'{req[0]}',"
-                f.write(
-                    f"\tif not os.path.isdir('{self.HOME_DIR}/{dir_name}'):\n"
-                    f"\t\tsubprocess.call(['pip', 'install', {req} '-t', '{self.HOME_DIR}/'])\n"
-                )
-            if reqs is not None and len(reqs) > 0:
-                f.write(f"\tsys.path.insert(1, '{self.HOME_DIR}/')\n\n")
 
         f.write(
             "\timport runhouse\n"
@@ -564,44 +562,6 @@ class LambdaFunction(Function):
 
         return lambda_config
 
-    def _deploy_lambda_to_aws_helper(self, role_res, zipped_code, env_vars):
-        """Deploying new lambda to AWS helping function"""
-        try:
-            lambda_config = self.lambda_client.create_function(
-                FunctionName=self.name,
-                Runtime=self.runtime,
-                Role=role_res["Role"]["Arn"],
-                Handler=f"rh_handler_{self.name}.lambda_handler",
-                Code={"ZipFile": zipped_code},
-                Timeout=self.timeout,
-                MemorySize=self.memory_size,
-                Environment={"Variables": env_vars},
-                EphemeralStorage={"Size": self.tmp_size},  # size of /tmp folder.
-            )
-            func_name = lambda_config["FunctionName"]
-            with self._wait_until_lambda_update_is_finished(func_name):
-                lambda_config = self.lambda_client.get_function(FunctionName=func_name)
-                return lambda_config
-        except self.lambda_client.exceptions.InvalidParameterValueException or botocore.exceptions.ClientError:
-            return False
-
-    @contextlib.contextmanager
-    def _deploy_lambda_to_aws(self, role_res, zipped_code, env_vars):
-        """Deploying new lambda to AWS"""
-        config = self._deploy_lambda_to_aws_helper(role_res, zipped_code, env_vars)
-        time_passed = 0
-        while config is False:
-            if time_passed > self.MAX_WAIT_TIME:
-                raise TimeoutError(
-                    f"Role called {role_res['RoleName']} is being created AWS for too long."
-                    + " Please check the resource in AWS console, delete relevant resource(s) "
-                    + "if necessary, and re-run your Runhouse code."
-                )
-            time_passed += 1
-            time.sleep(1)
-            config = self._deploy_lambda_to_aws_helper(role_res, zipped_code, env_vars)
-        yield config
-
     def _create_role_in_aws(self):
         """create a new role for the lambda function. If already exists - returns it."""
 
@@ -645,35 +605,207 @@ class LambdaFunction(Function):
 
         return role_res
 
+    def _run_shell_command(self, cmd: list[str]):
+        """
+        runs a shell command.
+        :param cmd: the command that should be executed.
+        """
+        # Run the command and wait for it to complete
+        result = subprocess.run(cmd, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            logger.error("subprocess failed, stdout: " + result.stdout)
+            logger.error("subprocess failed, stderr: " + result.stderr)
+
+        # Check for success
+        assert result.returncode == 0
+
+    def _start_docker(self):
+        """starts the docker daemon."""
+        system_os = platform.system().lower()
+        command = ""
+
+        if system_os == "linux":
+            # Linux command to start Docker daemon
+            command = "sudo service docker start"
+        elif system_os == "darwin":
+            # macOS command to start Docker daemon
+            command = "open --background -a Docker"
+        elif system_os == "windows":
+            # Windows command to start Docker daemon
+            command = "Start-Service Docker"
+
+        try:
+            self._run_shell_command(command.split())
+            logger.info("Docker daemon started successfully.")
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Error starting Docker daemon: {e}")
+
+    def _push_image_to_ecr(self, image_tag="latest"):
+        """
+        pushes the docker image to an AWS ECR repo. Create a repo if such does not exist. (Each Lambda has its own
+        ECR repo)
+        :param image_tag: the tag of the that will be associated with the newly pushed image.
+        :return: the image URI.
+        """
+        # setup
+        ecr_client = boto3.client("ecr")
+        region = self.lambda_client.meta.region_name
+        ecr_repo_name = f"runhouse_lambda_{self.name}"
+        docker_client = APIClient()
+
+        # step 1: create ecr repo for the lambda, if it does not exists
+        ecr_repos = {
+            repo["repositoryName"]: repo
+            for repo in ecr_client.describe_repositories()["repositories"]
+        }
+        if ecr_repo_name not in ecr_repos.keys():
+            repo_config = ecr_client.create_repository(repositoryName=ecr_repo_name)[
+                "repository"
+            ]
+        else:
+            repo_config = ecr_repos[ecr_repo_name]
+        print(repo_config)
+
+        ecr_repo_uri = repo_config["repositoryUri"]
+
+        # step 2: Log in to the ECR registry
+        password_command = f"aws ecr get-login-password --region {region}".split()
+        password = subprocess.check_output(password_command).decode("utf-8")
+        login_command = (
+            f"docker login --username AWS --password {password} {ecr_repo_uri}".split()
+        )
+        self._run_shell_command(login_command)
+
+        # step 3: Tag the Docker image
+        docker_image = f"{self.image_name}:{image_tag}"
+        ecr_image = f"{ecr_repo_uri}:{image_tag}"
+        docker_client.tag(image=docker_image, repository=ecr_image)
+
+        # step 4: Push the docker image to ECR
+        # returns the list of the lines that was pushed to the repo
+        push_resp = docker_client.push(
+            repository=ecr_repo_uri, stream=True, decode=True
+        )
+        ret_values_push = [line for line in push_resp]
+        assert len(ret_values_push) > 0
+        # TODO[SB]: handle error properly, if such occurred
+
+        return ecr_image
+
+    def _build_docker_img(self):
+        """
+        builds the Lambda docker image from a dockerfile.
+        """
+        reqs = self.env.reqs
+        is_reqs_txt = False
+        if "./" in reqs:
+            reqs.remove("./")
+
+        if "requirements.txt" in reqs:
+            is_reqs_txt = True
+
+        reqs = " ".join(reqs)
+
+        with open(self.dockerfile_path, "a") as docker_file:
+
+            docker_file.write("\n# Copy function code\n")
+
+            for file in self.local_path_to_code:
+                # we need to find the relative path of the .py file we want to copy to the image (relative to the
+                # current work dir). This way we can copy .py files from other dirs, which are not the dir the
+                # dockerfile located in.
+                curr_path = str(Path.cwd()).split("/")
+                file_path = file.split("/")
+                relative_path = [r for r in file_path if r not in curr_path]
+                relative_path = f'/{"/".join(relative_path)}'
+
+                docker_file.write(f"COPY {relative_path} " + "${LAMBDA_TASK_ROOT}\n")
+            docker_file.write("# Set the CMD to your handler\n")
+            docker_file.write(f'CMD [ "rh_handler_{self.name}.lambda_handler" ]')
+
+        build_cmd = [
+            "docker",
+            "build",
+            "--no-cache",
+            "--platform",
+            "linux/amd64",
+            "-f",
+            str(self.dockerfile_path),
+            "--build-arg",
+            f"PYTHON_VERSION_LAMBDA={self.runtime[6:]}",
+            "--build-arg",
+            f"REQS={reqs}",
+            "--build-arg",
+            f"IS_REQS_TXT={is_reqs_txt}",
+            "-t",
+            f"{self.name}_lambda_image",
+            ".",
+        ]
+        self._run_shell_command(build_cmd)
+        self.image_name = f"{self.name}_lambda_image"
+
+    def _setup_image_in_aws(self):
+        """
+        build and push the Lambda docker image in AWS.
+        :return:
+        """
+        self._start_docker()
+        self._build_docker_img()
+        img_uri = self._push_image_to_ecr("latest")
+        return img_uri
+
+    def _deploy_lambda_to_aws_helper(self, role_res, img_uri, env_vars):
+        """Deploying new lambda to AWS helping function"""
+        try:
+            lambda_config = self.lambda_client.create_function(
+                FunctionName=self.name,
+                Role=role_res["Role"]["Arn"],
+                Code={"ImageUri": img_uri},
+                PackageType="Image",
+                Timeout=self.timeout,
+                MemorySize=self.memory_size,
+                Environment={"Variables": env_vars},
+                EphemeralStorage={"Size": self.tmp_size},  # size of /tmp folder.
+            )
+            func_name = lambda_config["FunctionName"]
+            with self._wait_until_lambda_update_is_finished(func_name):
+                lambda_config = self.lambda_client.get_function(FunctionName=func_name)
+                return lambda_config
+        except self.lambda_client.exceptions.InvalidParameterValueException or botocore.exceptions.ClientError:
+            return False
+
+    @contextlib.contextmanager
+    def _deploy_lambda_to_aws(self, role_res, img_uri, env_vars):
+        """Deploying new lambda to AWS"""
+        config = self._deploy_lambda_to_aws_helper(role_res, img_uri, env_vars)
+        time_passed = 0
+        while config is False:
+            if time_passed > self.MAX_WAIT_TIME:
+                raise TimeoutError(
+                    f"Role called {role_res['RoleName']} is being created AWS for too long."
+                    + " Please check the resource in AWS console, delete relevant resource(s) "
+                    + "if necessary, and re-run your Runhouse code."
+                )
+            time_passed += 1
+            time.sleep(1)
+            config = self._deploy_lambda_to_aws_helper(role_res, img_uri, env_vars)
+        yield config
+
     def _create_new_lambda(self, env_vars):
         """Creates new AWS Lambda."""
         logger.info(f"Creating a new Lambda called {self.name}")
-        path = str(Path(self.local_path_to_code[0]).absolute()).split("/")
-        path = ["/" + path_e for path_e in path]
-        path[0] = ""
-        zip_file_name = f"{''.join(path[:-1])}/{self.name}_code_files.zip"
-        zf = zipfile.ZipFile(zip_file_name, mode="w")
-        try:
-            for file_name in self.local_path_to_code:
-                zf.write(file_name, str(Path(file_name).name))
-        except FileNotFoundError:
-            logger.error(f"Could not find {FileNotFoundError.filename}")
-        finally:
-            zf.close()
-        with open(zip_file_name, "rb") as f:
-            zipped_code = f.read()
+
+        img_uri = self._setup_image_in_aws()
 
         # creating a role for the Lambda, using default policy.
         # TODO [SB]: in the next phase, enable the user to update the default policy
         role_res = self._create_role_in_aws()
 
-        with self._deploy_lambda_to_aws(
-            role_res, zipped_code, env_vars
-        ) as lambda_config:
+        with self._deploy_lambda_to_aws(role_res, img_uri, env_vars) as lambda_config:
             logger.info(
                 f'{lambda_config["Configuration"]["FunctionName"]} was created successfully.'
             )
-            Path(zip_file_name).absolute().unlink()
             return lambda_config
 
     def deploy(self):
@@ -717,6 +849,7 @@ class LambdaFunction(Function):
 
         self.aws_lambda_config = lambda_config
         Path(rh_handler_wrapper).absolute().unlink()
+        Path(self.dockerfile_path).absolute().unlink()
         return self
 
     # --------------------------------------
