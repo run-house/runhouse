@@ -60,7 +60,7 @@ class GCSFolder(Folder):
 
     def _download_command(self, src, dest):
         # https://github.com/skypilot-org/skypilot/blob/3517f55ed074466eadd4175e152f68c5ea3f5f4c/sky/cloud_stores.py#L139
-        download_via_gsutil = f"rsync -e -r {src} {dest}"
+        download_via_gsutil = f"gsutil -m rsync -e -r {src} {dest}"
         return download_via_gsutil
 
     def _to_cluster(self, dest_cluster, path=None, mount=False):
@@ -110,8 +110,26 @@ class GCSFolder(Folder):
 
     def gcs_to_s3(self, gs_bucket_name: str, s3_bucket_name: str) -> None:
         # https://github.com/skypilot-org/skypilot/blob/3517f55ed074466eadd4175e152f68c5ea3f5f4c/sky/data/data_transfer.py#L138
-        sync_command = f"rsync -rd gs://{gs_bucket_name} s3://{s3_bucket_name}"
+        disable_multiprocessing_flag = '-o "GSUtil:parallel_process_count=1"'
+        sync_command = f"gsutil -m {disable_multiprocessing_flag} rsync -rd gs://{gs_bucket_name} s3://{s3_bucket_name}"
         try:
             subprocess.call(sync_command, shell=True)
         except subprocess.CalledProcessError as e:
             raise e
+
+    @staticmethod
+    def add_bucket_iam_member(
+        bucket_name: str, role: str, member: str, project_id: str
+    ) -> None:
+        # https://github.com/skypilot-org/skypilot/blob/983f5fa3197fe7c4b5a28be240f7b027f7192b15/sky/data/data_transfer.py#L132
+        from google.cloud import storage
+
+        storage_client = storage.Client(project=project_id)
+        bucket = storage_client.bucket(bucket_name)
+
+        policy = bucket.get_iam_policy(requested_policy_version=3)
+        policy.bindings.append({"role": role, "members": {member}})
+
+        bucket.set_iam_policy(policy)
+
+        logger.debug(f"Added {member} with role {role} to {bucket_name}.")

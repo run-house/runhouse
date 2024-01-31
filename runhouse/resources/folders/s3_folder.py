@@ -68,7 +68,7 @@ class S3Folder(Folder):
             raise e
 
     def _download_command(self, src: str, dest: str):
-        # https://github.com/skypilot-org/skypilot/blob/983f5fa3197fe7c4b5a28be240f7b027f7192b15/sky/cloud_stores.py#L133
+        # https://github.com/skypilot-org/skypilot/blob/983f5fa3197fe7c4b5a28be240f7b027f7192b15/sky/cloud_stores.py#L68
         download_via_awscli = "aws s3 sync --no-follow-symlinks " f"{src} {dest}"
         return download_via_awscli
 
@@ -124,7 +124,7 @@ class S3Folder(Folder):
         from googleapiclient import discovery
         from oauth2client.client import GoogleCredentials
 
-        from runhouse import S3Folder
+        from runhouse import GCSFolder
 
         # Adapted from:
         # https://github.com/skypilot-org/skypilot/blob/983f5fa3197fe7c4b5a28be240f7b027f7192b15/sky/data/data_transfer.py#L36
@@ -143,7 +143,8 @@ class S3Folder(Folder):
             raise ValueError(
                 "Failed to get GCP project id. Please make sure you have "
                 "run the following: gcloud init; "
-                "gcloud auth application-default login"
+                "Alternatively, set the project ID using: gcloud config set project <project_id> "
+                "or with an environment variable: export GOOGLE_CLOUD_PROJECT=<project_id>"
             )
 
         session = boto3.Session()
@@ -154,7 +155,7 @@ class S3Folder(Folder):
             storagetransfer.googleServiceAccounts().get(projectId=project_id).execute()
         )
 
-        S3Folder.add_bucket_iam_member(
+        GCSFolder.add_bucket_iam_member(
             gs_bucket_name,
             "roles/storage.admin",
             "serviceAccount:" + storage_account["accountEmail"],
@@ -227,20 +228,3 @@ class S3Folder(Folder):
                 "Storage Transfer Service console at "
                 "https://cloud.google.com/storage-transfer-service"
             )
-
-    @staticmethod
-    def add_bucket_iam_member(
-        bucket_name: str, role: str, member: str, project_id: str
-    ) -> None:
-        # https://github.com/skypilot-org/skypilot/blob/983f5fa3197fe7c4b5a28be240f7b027f7192b15/sky/data/data_transfer.py#L132
-        from google.cloud import storage
-
-        storage_client = storage.Client(project=project_id)
-        bucket = storage_client.bucket(bucket_name)
-
-        policy = bucket.get_iam_policy(requested_policy_version=3)
-        policy.bindings.append({"role": role, "members": {member}})
-
-        bucket.set_iam_policy(policy)
-
-        logger.debug(f"Added {member} with role {role} to {bucket_name}.")
