@@ -378,7 +378,11 @@ class HTTPServer:
                 media_type="application/json",
             )
         except Exception as e:
-            return handle_exception_response(e, traceback.format_exc())
+            return handle_exception_response(
+                e,
+                traceback.format_exc(),
+                serialization=params.serialization or "pickle",
+            )
 
     @staticmethod
     def _get_logfiles(log_key, log_type=None):
@@ -477,7 +481,11 @@ class HTTPServer:
             )
             return Response(output_type=OutputType.SUCCESS)
         except Exception as e:
-            return handle_exception_response(e, traceback.format_exc())
+            return handle_exception_response(
+                e,
+                traceback.format_exc(),
+                serialization=params.serialization or "pickle",
+            )
 
     @staticmethod
     @app.get("/object")
@@ -490,7 +498,11 @@ class HTTPServer:
                 remote=params.remote,
             )
         except Exception as e:
-            return handle_exception_response(e, traceback.format_exc())
+            return handle_exception_response(
+                e,
+                traceback.format_exc(),
+                serialization=params.serialization or "pickle",
+            )
 
     @staticmethod
     @app.post("/rename")

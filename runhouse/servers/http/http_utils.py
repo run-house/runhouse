@@ -129,15 +129,19 @@ def serialize_data(data: Any, serialization: Optional[str]):
         raise ValueError(f"Invalid serialization type {serialization}")
 
 
-def handle_exception_response(exception, traceback):
+def handle_exception_response(exception, traceback, serialization="pickle"):
     if not (
         isinstance(exception, StopIteration) or isinstance(exception, GeneratorExit)
     ):
         logger.exception(exception)
+
+    if serialization not in ["json", "pickle"]:
+        raise exception
+
     return Response(
         output_type=OutputType.EXCEPTION,
-        error=pickle_b64(exception),
-        traceback=pickle_b64(traceback),
+        error=serialize_data(exception, serialization=serialization),
+        traceback=serialize_data(traceback, serialization=serialization),
     )
 
 

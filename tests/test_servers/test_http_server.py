@@ -118,10 +118,8 @@ class TestHTTPServerDocker:
 
     # TODO test get_call, refactor into proper fixtures
     @pytest.mark.level("local")
-    def test_call_module_method(self, http_client, cluster):
+    def test_call_module_method(self, http_client, remote_func):
         # Create new func on the cluster, then call it
-        remote_func = rh.function(summer).to(cluster)
-
         method_name = "call"
         module_name = remote_func.name
         args = (1, 2)
@@ -153,8 +151,7 @@ class TestHTTPServerDocker:
             assert b64_unpickle(resp_obj["data"]) == 3
 
     @pytest.mark.level("local")
-    async def test_async_call(self, async_http_client, cluster):
-        remote_func = rh.function(summer).to(cluster)
+    async def test_async_call(self, async_http_client, remote_func):
         method = "call"
 
         response = await async_http_client.post(
@@ -167,9 +164,8 @@ class TestHTTPServerDocker:
 
     @pytest.mark.level("local")
     async def test_async_call_with_invalid_serialization(
-        self, async_http_client, cluster
+        self, async_http_client, remote_func
     ):
-        remote_func = rh.function(summer).to(cluster)
         method = "call"
 
         response = await async_http_client.post(
@@ -177,13 +173,14 @@ class TestHTTPServerDocker:
             json={"data": ([1, 2], {}), "serialization": "random"},
             headers=rns_client.request_headers(),
         )
-        assert response.status_code == 500
+        assert "ValueError: Invalid serialization type" in b64_unpickle(
+            response.json()["traceback"]
+        )
 
     @pytest.mark.level("local")
     async def test_async_call_with_pickle_serialization(
-        self, async_http_client, cluster
+        self, async_http_client, remote_func
     ):
-        remote_func = rh.function(summer).to(cluster)
         method = "call"
 
         response = await async_http_client.post(
@@ -195,8 +192,9 @@ class TestHTTPServerDocker:
         assert b64_unpickle(response.json()["data"]) == 3
 
     @pytest.mark.level("local")
-    async def test_async_call_with_json_serialization(self, async_http_client, cluster):
-        remote_func = rh.function(summer).to(cluster)
+    async def test_async_call_with_json_serialization(
+        self, async_http_client, remote_func
+    ):
         method = "call"
 
         response = await async_http_client.post(
@@ -279,10 +277,8 @@ class TestHTTPServerDockerDenAuthOnly:
         assert "Cluster access is required for API" in response.text
 
     @pytest.mark.level("local")
-    def test_call_module_method_with_invalid_token(self, http_client, cluster):
+    def test_call_module_method_with_invalid_token(self, http_client, remote_func):
         # Create new func on the cluster, then call it
-        remote_func = rh.function(summer).to(cluster)
-
         method_name = "call"
         module_name = remote_func.name
         args = (1, 2)

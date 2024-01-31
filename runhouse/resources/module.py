@@ -345,6 +345,7 @@ class Module(Resource):
         system: Union[str, Cluster],
         env: Optional[Union[str, List[str], Env]] = None,
         name: Optional[str] = None,
+        force_install: bool = False,
     ):
         """Put a copy of the module on the destination system and env, and return the new module.
 
@@ -374,7 +375,7 @@ class Module(Resource):
         if system:
             system.check_server()
             if env:
-                env = env.to(system)
+                env = env.to(system, force_install=force_install)
 
         # We need to backup the system here so the __getstate__ method of the cluster
         # doesn't wipe the client of this function's cluster when deepcopy copies it.

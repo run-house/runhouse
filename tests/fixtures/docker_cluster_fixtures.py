@@ -15,7 +15,7 @@ import yaml
 from runhouse.constants import DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT, DEFAULT_SSH_PORT
 
 from tests.conftest import init_args
-from tests.utils import friend_account
+from tests.utils import friend_account, test_env
 
 SSH_USER = "rh-docker-user"
 BASE_LOCAL_SSH_PORT = 32320
@@ -47,9 +47,14 @@ def local_daemon(request):
     if not request.config.getoption("--detached"):
         subprocess.call(["runhouse", "restart"])
 
-    # Make sure the object store is set up correctly
-    assert rh.here.on_this_cluster()
-    yield rh.here
+    try:
+        # Make sure the object store is set up correctly
+        assert rh.here.on_this_cluster()
+        yield rh.here
+
+    finally:
+        if not request.config.getoption("--detached"):
+            subprocess.call(["runhouse", "stop"])
 
 
 @pytest.fixture(scope="session")
@@ -100,7 +105,7 @@ def static_cpu_cluster():
     c.restart_server(resync_rh=True)  # needed to override the cluster's config file
     init_args[id(c)] = args
 
-    c.install_packages(["pytest"])
+    test_env().to(c)
     c.sync_secrets(["ssh"])
 
     return c
@@ -126,7 +131,7 @@ def byo_cpu():
     c = rh.cluster(**args).save()
     init_args[id(c)] = args
 
-    c.install_packages(["pytest"])
+    test_env().to(c)
     c.sync_secrets(["ssh"])
 
     return c

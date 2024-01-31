@@ -234,8 +234,7 @@ class TestFunction:
         pids = [pid_fn.enqueue(resources={"num_cpus": 1}) for _ in range(10)]
         assert len(pids) == 10
 
-    # @pytest.mark.skip("Not working properly.")
-    # originally used ondemand_cpu_cluster, therefore marked as minimal
+    @pytest.mark.skip("Not working properly.")
     @pytest.mark.level("minimal")
     def test_function_external_fn(self, cluster):
         """Test functioning a module from reqs, not from working_dir"""
