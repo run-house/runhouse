@@ -6,35 +6,21 @@ from pathlib import Path
 import pytest
 
 from runhouse.globals import rns_client
-from runhouse.servers.obj_store import ObjStore
+from runhouse.servers.obj_store import ObjStore, RaySetupOption
 
 
-def get_ray_servlet(env_name):
+def get_ray_servlet_and_obj_store(env_name):
     """Helper method for getting auth servlet and base env servlet"""
-    import ray
 
-    ray.init(
-        ignore_reinit_error=True,
-        runtime_env=None,
-        namespace="runhouse",
-    )
+    test_obj_store = ObjStore()
+    test_obj_store.initialize(env_name, setup_ray=RaySetupOption.TEST_PROCESS)
 
     servlet = ObjStore.get_env_servlet(
         env_name=env_name,
         create=True,
     )
 
-    return servlet
-
-
-def get_test_obj_store(env_servlet_name: str):
-    # Ensure servlet is running
-    _ = get_ray_servlet(env_servlet_name)
-
-    test_obj_store = ObjStore()
-    test_obj_store.initialize(env_servlet_name)
-
-    return test_obj_store
+    return servlet, test_obj_store
 
 
 def get_random_str(length: int = 8):

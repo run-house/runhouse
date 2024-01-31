@@ -13,8 +13,6 @@ import runhouse.rns.login
 
 from runhouse import __version__, cluster, configs
 from runhouse.constants import (
-    RAY_KILL_CMD,
-    RAY_START_CMD,
     SERVER_LOGFILE,
     SERVER_START_CMD,
     SERVER_STOP_CMD,
@@ -158,13 +156,14 @@ def _start_server(
     cmds = []
     if restart:
         cmds.append(SERVER_STOP_CMD)
-    if restart_ray:
-        cmds.append(RAY_KILL_CMD)
-        # TODO Add in BOOTSTRAP file if it exists?
-        cmds.append(RAY_START_CMD)
 
     # Collect flags
     flags = []
+    restart_ray_flag = " --restart-ray" if restart_ray else ""
+    if restart_ray_flag:
+        logger.info("Restarting a Ray instance on the remote machine.")
+        flags.append(restart_ray_flag)
+
     den_auth_flag = " --use-den-auth" if den_auth else ""
     if den_auth_flag:
         logger.info("Starting server with Den auth.")
@@ -328,7 +327,7 @@ def start(
 @app.command()
 def restart(
     name: str = typer.Option(None, help="A *saved* remote cluster object to restart."),
-    restart_ray: bool = typer.Option(True, help="Restart the Ray runtime"),
+    restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
     screen: bool = typer.Option(
         True,
         help="Start the server in a screen. Only relevant when restarting locally.",

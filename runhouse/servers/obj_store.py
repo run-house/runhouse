@@ -1,10 +1,27 @@
 import logging
 import os
+import subprocess
+from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Union
 
 import ray
 
+from runhouse.constants import RAY_KILL_CMD, RAY_START_CMD
+
 logger = logging.getLogger(__name__)
+
+
+class RaySetupOption(str, Enum):
+    GET_OR_CREATE = "get_or_create"
+    GET_OR_FAIL = "get_or_fail"
+    FORCE_CREATE = "force_create"
+    TEST_PROCESS = "test_process"
+
+
+class ClusterServletSetupOption(str, Enum):
+    GET_OR_CREATE = "get_or_create"
+    GET_OR_FAIL = "get_or_fail"
+    FORCE_CREATE = "force_create"
 
 
 class ObjStoreError(Exception):
@@ -16,15 +33,21 @@ class NoLocalObjStoreError(ObjStoreError):
         super().__init__("No local object store exists; cannot perform operation.")
 
 
-def initialize_ray_and_cluster_servlet(create_if_not_exists: bool = False):
+def get_cluster_servlet(create_if_not_exists: bool = False):
     from runhouse.servers.cluster_servlet import ClusterServlet
 
-    if create_if_not_exists:
-        ray.init(
-            ignore_reinit_error=True,
-            logging_level=logging.ERROR,
-            namespace="runhouse",
-        )
+    if not ray.is_initialized():
+        raise ConnectionError("Ray is not initialized.")
+
+    # Previously used list_actors here to avoid a try/except, but it is finicky
+    # when there are several Ray clusters running. In tests, we typically run multiple
+    # clusters, so let's avoid this.
+    try:
+        cluster_servlet = ray.get_actor("cluster_servlet", namespace="runhouse")
+    except ValueError:
+        cluster_servlet = None
+
+    if cluster_servlet is None and create_if_not_exists:
         cluster_servlet = (
             ray.remote(ClusterServlet)
             .options(
@@ -38,14 +61,7 @@ def initialize_ray_and_cluster_servlet(create_if_not_exists: bool = False):
 
         # Make sure cluster servlet is actually initialized
         ray.get(cluster_servlet.get_cluster_config.remote())
-    else:
-        ray.init(
-            address="auto",
-            ignore_reinit_error=True,
-            logging_level=logging.ERROR,
-            namespace="runhouse",
-        )
-        cluster_servlet = ray.get_actor("cluster_servlet", namespace="runhouse")
+
     return cluster_servlet
 
 
@@ -84,7 +100,9 @@ class ObjStore:
         self,
         servlet_name: Optional[str] = None,
         has_local_storage: bool = False,
-        setup_ray: bool = False,
+        setup_ray: RaySetupOption = RaySetupOption.GET_OR_CREATE,
+        ray_address: str = "auto",
+        setup_cluster_servlet: ClusterServletSetupOption = ClusterServletSetupOption.GET_OR_CREATE,
     ):
         # The initialization of the obj_store needs to be in a separate method
         # so the HTTPServer actually initalizes the obj_store,
@@ -93,12 +111,60 @@ class ObjStore:
 
         # ClusterServlet essentially functions as a global state/metadata store
         # for all nodes connected to this Ray cluster.
-        try:
-            self.cluster_servlet = initialize_ray_and_cluster_servlet(setup_ray)
+        from runhouse.resources.hardware.ray_utils import (
+            check_for_existing_ray_instance,
+            kill_actors,
+        )
 
-        except ConnectionError:
-            # If ray.init fails, we're not on a cluster, so we don't need to do anything
-            pass
+        if setup_ray == RaySetupOption.FORCE_CREATE and ray_address != "auto":
+            raise ValueError(
+                "Cannot specify ray_address when forcing creation of Ray cluster, address should "
+                "remain as 'auto' to connect to the newly created Ray cluster."
+            )
+
+        if not ray.is_initialized() and setup_ray == RaySetupOption.TEST_PROCESS:
+            # When we run ray.init() with no address provided
+            # and no Ray is running, it will start a new Ray cluster,
+            # but one that is only exposed to this process. This allows us to
+            # run unit tests without starting bare metal Ray clusters on each machine.
+            ray.init(
+                ignore_reinit_error=True,
+                logging_level=logging.ERROR,
+                namespace="runhouse",
+            )
+
+        if not ray.is_initialized() or setup_ray == RaySetupOption.FORCE_CREATE:
+            # Only if ray is not initialized do we attempt a setup process.
+            if (
+                setup_ray == RaySetupOption.GET_OR_CREATE
+                and not check_for_existing_ray_instance(ray_address)
+            ) or setup_ray == RaySetupOption.FORCE_CREATE:
+                subprocess.run(RAY_KILL_CMD, shell=True)
+                subprocess.run(RAY_START_CMD, shell=True)
+
+            ray.init(
+                address=ray_address,
+                ignore_reinit_error=True,
+                logging_level=logging.ERROR,
+                namespace="runhouse",
+            )
+
+        # Now, we expect to be connected to an initialized Ray instance.
+        if setup_cluster_servlet == ClusterServletSetupOption.FORCE_CREATE:
+            kill_actors(namespace="runhouse")
+
+        create_if_not_exists = (
+            setup_cluster_servlet != ClusterServletSetupOption.GET_OR_FAIL
+        )
+        self.cluster_servlet = get_cluster_servlet(
+            create_if_not_exists=create_if_not_exists
+        )
+        if self.cluster_servlet is None:
+            # TODO: logger.<method> is not printing correctly here when doing `runhouse start`.
+            # Fix this and general logging.
+            logging.warning(
+                "Warning, cluster servlet is not initialized. Object Store operations will not work."
+            )
 
         # There are 3 operating modes of the KV store:
         # servlet_name is set, has_local_storage is True: This is an EnvServlet with a local KV store.
