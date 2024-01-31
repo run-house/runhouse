@@ -21,31 +21,24 @@ class GCSFolder(Folder):
 
     def delete_bucket(self):
         """Delete the gcs bucket."""
-        try:
-            from sky.data.storage import GcsStore
+        # https://github.com/skypilot-org/skypilot/blob/3517f55ed074466eadd4175e152f68c5ea3f5f4c/sky/data/storage.py#L1775
+        bucket_name = self._bucket_name_from_path(self.path)
+        remove_obj_command = f"rm -r gs://{bucket_name}"
 
-            GcsStore(
-                name=self._bucket_name_from_path(self.path), source=self._fsspec_fs
-            ).delete()
-        except Exception as e:
+        try:
+            subprocess.check_output(
+                remove_obj_command,
+                stderr=subprocess.STDOUT,
+                shell=True,
+                executable="/bin/bash",
+            )
+        except subprocess.CalledProcessError as e:
             raise e
 
     def _upload(self, src: str, region: Optional[str] = None):
         """Upload a folder to an GCS bucket."""
-        from sky.data.storage import GcsStore
-
-        # NOTE: The sky GcsStore.upload() API does not let us specify the folder within the bucket to upload to.
-        # This means we have to use the CLI command for performing the actual upload using sky's `run_upload_cli`
-
-        # Initialize the GcsStore object which creates the bucket if it does not exist
-        gcs_store = GcsStore(
-            name=self._bucket_name_from_path(self.path), source=src, region=region
-        )
-
         sync_dir_command = self._upload_command(src=src, dest=self.path)
-        self._run_upload_cli_cmd(
-            sync_dir_command, access_denied_message=gcs_store._ACCESS_DENIED_MESSAGE
-        )
+        self._run_upload_cli_cmd(sync_dir_command)
 
     def _upload_command(self, src: str, dest: str):
         # https://github.com/skypilot-org/skypilot/blob/983f5fa3197fe7c4b5a28be240f7b027f7192b15/sky/data/storage.py#L1240
@@ -66,10 +59,9 @@ class GCSFolder(Folder):
         )
 
     def _download_command(self, src, dest):
-        from sky.cloud_stores import GcsCloudStorage
-
-        download_command = GcsCloudStorage().make_sync_dir_command(src, dest)
-        return download_command
+        # https://github.com/skypilot-org/skypilot/blob/3517f55ed074466eadd4175e152f68c5ea3f5f4c/sky/cloud_stores.py#L139
+        download_via_gsutil = f"rsync -e -r {src} {dest}"
+        return download_via_gsutil
 
     def _to_cluster(self, dest_cluster, path=None, mount=False):
         upload_command = self._upload_command(src=self.path, dest=path)
@@ -92,24 +84,20 @@ class GCSFolder(Folder):
         """Copy folder from GCS to another remote data store (ex: GCS, S3, Azure)"""
         if system == "gs":
             # Transfer between GCS folders
-            from sky.data.storage import GcsStore
-
             sync_dir_command = self._upload_command(
                 src=self.fsspec_url, dest=data_store_path
             )
-            self._run_upload_cli_cmd(
-                sync_dir_command, access_denied_message=GcsStore._ACCESS_DENIED_MESSAGE
-            )
+            self._run_upload_cli_cmd(sync_dir_command)
         elif system == "s3":
-            from sky.data import data_transfer
-
             # Note: The sky data transfer API only allows for transfers between buckets, not specific directories.
             logger.warning(
                 "Transfer from GCS to S3 currently supported for buckets only, not specific directories."
             )
-            data_transfer.gcs_to_s3(
-                gs_bucket_name=self._bucket_name_from_path(self.path),
-                s3_bucket_name=self._bucket_name_from_path(data_store_path),
+            gs_bucket_name = self._bucket_name_from_path(self.path)
+            s3_bucket_name = self._bucket_name_from_path(data_store_path)
+            self.gcs_to_s3(
+                gs_bucket_name=gs_bucket_name,
+                s3_bucket_name=s3_bucket_name,
             )
         elif system == "azure":
             raise NotImplementedError("Azure not yet supported")
@@ -119,3 +107,11 @@ class GCSFolder(Folder):
         return self.destination_folder(
             dest_path=data_store_path, dest_system=system, data_config=data_config
         )
+
+    def gcs_to_s3(self, gs_bucket_name: str, s3_bucket_name: str) -> None:
+        # https://github.com/skypilot-org/skypilot/blob/3517f55ed074466eadd4175e152f68c5ea3f5f4c/sky/data/data_transfer.py#L138
+        sync_command = f"rsync -rd gs://{gs_bucket_name} s3://{s3_bucket_name}"
+        try:
+            subprocess.call(sync_command, shell=True)
+        except subprocess.CalledProcessError as e:
+            raise e
