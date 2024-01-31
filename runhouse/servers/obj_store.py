@@ -688,30 +688,32 @@ class ObjStore:
             )
             return self.put_resource_local(resource_config, state, dryrun)
 
-        servlet = ObjStore.get_env_servlet(env_name)
-
         # Normally, serialization and deserialization happens within the servlet
         # However, if we're putting an env, we need to deserialize it here and
         # actually create the corresponding env servlet.
-        if not servlet:
-            servlet = ObjStore.get_env_servlet(env_name, create=True)
-            resource_config, _, _ = deserialize_data(serialized_data, serialization)
-            if resource_config["resource_type"] == "env":
-                runtime_env = (
-                    {"conda_env": resource_config["env_name"]}
-                    if resource_config["resource_subtype"] == "CondaEnv"
-                    else {}
-                )
+        resource_config, _, _ = deserialize_data(serialized_data, serialization)
+        if resource_config["resource_type"] == "env":
 
-                servlet = ObjStore.get_env_servlet(
-                    env_name=env_name,
-                    create=True,
-                    runtime_env=runtime_env,
-                    resources=resource_config.get("compute", None),
-                )
+            # Note that the passed in `env_name` and the `env_name_to_create` here are
+            # distinct. The `env_name` is the name of the env servlet where we want to store
+            # the resource itself. The `env_name_to_create` is the name of the env servlet
+            # that we need to create because we are putting an env resource somewhere on the cluster.
+            env_name_to_create = resource_config["env_name"]
+            runtime_env = (
+                {"conda_env": env_name_to_create}
+                if resource_config["resource_subtype"] == "CondaEnv"
+                else {}
+            )
+
+            _ = ObjStore.get_env_servlet(
+                env_name=env_name_to_create,
+                create=True,
+                runtime_env=runtime_env,
+                resources=resource_config.get("compute", None),
+            )
 
         return ObjStore.call_actor_method(
-            servlet,
+            ObjStore.get_env_servlet(env_name),
             "put_resource_local",
             data=serialized_data,
             serialization=serialization,

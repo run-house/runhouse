@@ -33,6 +33,14 @@ def base_env():
 
 
 @pytest.fixture(scope="function")
+def named_env():
+    args = {"reqs": ["npm"], "name": "named_env"}
+    env = rh.env(**args)
+    init_args[id(env)] = args
+    return env
+
+
+@pytest.fixture(scope="function")
 def base_conda_env():
     args = {"name": "conda_base", "reqs": ["pytest", "npm"]}
     env = rh.conda_env(**args)

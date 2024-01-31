@@ -55,7 +55,7 @@ class CaddyConfig:
         self.ssl_key_path = Path(ssl_key_path).expanduser() if ssl_key_path else None
 
         if self.use_https and self.domain is None:
-            # If no domain is provided need to provide certs
+            # If using https, need to provide certs
             if self.ssl_cert_path is None:
                 raise ValueError(
                     "No SSL cert path provided. Cannot enable HTTPS without a domain or custom certs."
@@ -259,6 +259,7 @@ class CaddyConfig:
                 return True
 
             else:
+                logger.warning(result.stderr)
                 return False
 
         return "active (running)" in result.stdout
