@@ -54,12 +54,21 @@ class CaddyConfig:
 
         if self.use_https:
             # If using https, need to provide certs
-            if self.ssl_cert_path is None or not self.ssl_cert_path.exists():
+            if self.ssl_cert_path is None:
+                raise ValueError(
+                    "No SSL cert path provided. Cannot enable HTTPS without a domain or custom certs."
+                )
+            if not self.ssl_cert_path.exists():
                 raise FileNotFoundError(
                     f"Failed to find SSL cert file in path: {self.ssl_cert_path}"
                 )
 
-            if self.ssl_key_path is None or not self.ssl_key_path.exists():
+            if self.ssl_key_path is None:
+                raise ValueError(
+                    "No SSL key path provided. Cannot enable HTTPS without a domain or custom certs."
+                )
+
+            if not self.ssl_key_path.exists():
                 raise FileNotFoundError(
                     f"Failed to find SSL key file in path: {self.ssl_key_path}"
                 )
@@ -72,13 +81,13 @@ class CaddyConfig:
     def configure(self):
         """Configure Caddy to proxy requests to the Fast API HTTP server"""
         if not self._is_configured() or self.force_reinstall:
-            logger.info(f"Configuring Caddy (force reinstall={self.force_reinstall})")
+            logger.info(f"Configuring Caddy for address: {self.address}")
             self._install()
             self._build_template()
             self._start_caddy()
 
         # Reload Caddy with the updated config
-        logger.info("Reloading Caddy service")
+        logger.info("Reloading Caddy")
         self.reload()
 
         if not self._is_configured():
@@ -100,8 +109,8 @@ class CaddyConfig:
 
         if result.returncode != 0:
             if "systemctl: command not found" in result.stderr:
-                # If running in a docker container or distro without systemctl, we need to reload caddy manually
-                reload_cmd = f"sudo caddy reload --config {str(self.caddyfile)}"
+                # If running in a docker container or distro without systemctl, reload caddy as a background process
+                reload_cmd = f"caddy reload --config {str(self.caddyfile)}"
                 try:
                     subprocess.run(reload_cmd, shell=True, check=True, text=True)
                 except subprocess.CalledProcessError as e:
@@ -123,7 +132,7 @@ class CaddyConfig:
         if result.returncode == 0 and "v2." in result.stdout:
             logger.info("Caddy is already installed, skipping install.")
         else:
-            # Install caddy as a service
+            # Install caddy as a service (or background process if we can't use systemctl)
             # https://caddyserver.com/docs/running#using-the-service
             logger.info("Installing Caddy.")
 
@@ -140,7 +149,7 @@ class CaddyConfig:
                 try:
                     subprocess.run(cmd, shell=True, check=True, text=True)
                 except subprocess.CalledProcessError as e:
-                    raise RuntimeError(f"Failed to install Caddy as a service: {e}")
+                    raise RuntimeError(f"Failed to run Caddy install command: {e}")
 
         # "certutil" is required for generating certs
         if not self.ssl_key_path and not self.ssl_cert_path:
@@ -194,52 +203,24 @@ class CaddyConfig:
         ).strip()
 
     def _build_template(self):
-        # Update firewall rule where relevant
-        subprocess.run(
-            "sudo ufw allow 443/tcp",
-            check=True,
-            capture_output=True,
-            text=True,
-            shell=True,
-        )
-        logger.info("Updated ufw firewall rule to allow HTTPS traffic")
-
-        if self.ssl_cert_path and self.ssl_key_path:
-            logger.info("Updating permissions for Caddy to read custom cert files.")
-            result_cert = subprocess.run(
-                ["sudo", "chmod", "755", str(self.ssl_cert_path)],
+        if self.use_https:
+            # Update firewall rule for HTTPS
+            subprocess.run(
+                "sudo ufw allow 443/tcp",
+                check=True,
                 capture_output=True,
                 text=True,
+                shell=True,
             )
-            if result_cert.returncode != 0:
-                logger.warning(
-                    f"Failed to update permissions for custom cert file: {result_cert.stderr}"
-                )
-
-            result_key = subprocess.run(
-                ["sudo", "chmod", "755", str(self.ssl_key_path)],
-                capture_output=True,
-                text=True,
-            )
-            if result_key.returncode != 0:
-                logger.warning(
-                    f"Failed to update permissions for custom key file: {result_key.stderr}"
-                )
-
         else:
-            # Add Caddy as a sudoer, otherwise will not be able to install certs on the server
-            # Will receive an error that looks like:
-            # caddy : user NOT in sudoers ; TTY=unknown ; PWD=/ ; USER=root
-            logger.info("Adding Caddy to the list of trusted applications.")
-            result = subprocess.run(
-                ["sudo", "caddy", "trust"],
+            # Update firewall rule for HTTP
+            subprocess.run(
+                "sudo ufw allow 80/tcp",
+                check=True,
                 capture_output=True,
                 text=True,
+                shell=True,
             )
-            if result.returncode != 0:
-                raise RuntimeError(
-                    f"Failed to add Caddy to trusted apps: {result.stderr}"
-                )
 
         try:
             template = (
@@ -258,9 +239,7 @@ class CaddyConfig:
         except Exception as e:
             raise e
 
-        logger.info(
-            f"Successfully built and formatted Caddy template (https={self.use_https})."
-        )
+        logger.info("Successfully built and formatted Caddy template.")
 
     def _is_configured(self) -> bool:
         logger.info("Checking Caddy configuration.")
@@ -272,7 +251,7 @@ class CaddyConfig:
         if result.returncode != 0:
             if "systemctl: command not found" in result.stderr:
                 # If running in a docker container or distro without systemctl, check whether Caddy has been configured
-                run_cmd = f"sudo caddy validate --config {str(self.caddyfile)}"
+                run_cmd = f"caddy validate --config {str(self.caddyfile)}"
                 try:
                     subprocess.run(run_cmd, shell=True, check=True, text=True)
                 except subprocess.CalledProcessError as e:
@@ -289,6 +268,22 @@ class CaddyConfig:
     def _start_caddy(self):
         """Run the caddy server as a service or background process. Try to start as a service first, if that
         fails then default to running as a background process."""
+        # Add Caddy as a sudoer, otherwise will not be able to install certs on the server
+        # Will receive an error that looks like:
+        # caddy : user NOT in sudoers ; TTY=unknown ; PWD=/ ; USER=root
+        # https://github.com/caddyserver/caddy/issues/4248
+        logger.info("Adding Caddy as trusted app.")
+        try:
+            subprocess.run(
+                "sudo mkdir -p /var/lib/caddy/.local && "
+                "sudo chown -R caddy: /var/lib/caddy",
+                shell=True,
+                check=True,
+                text=True,
+            )
+        except subprocess.CalledProcessError as e:
+            raise e
+
         logger.info("Starting Caddy.")
         run_cmd = ["sudo", "systemctl", "start", "caddy"]
         result = subprocess.run(
@@ -300,7 +295,7 @@ class CaddyConfig:
             if "systemctl: command not found" in result.stderr:
                 # If running in a docker container or distro without systemctl, we need to start Caddy manually
                 # as a background process
-                run_cmd = "sudo caddy start"
+                run_cmd = "caddy start"
                 try:
                     subprocess.run(run_cmd, shell=True, check=True, text=True)
                 except subprocess.CalledProcessError as e:

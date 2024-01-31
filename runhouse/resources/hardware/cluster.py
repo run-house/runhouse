@@ -23,6 +23,7 @@ from sshtunnel import SSHTunnelForwarder
 
 from runhouse.constants import (
     CLI_RESTART_CMD,
+    CLI_STOP_CMD,
     CLUSTER_CONFIG_PATH,
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
@@ -107,6 +108,13 @@ class Cluster(Resource):
     def address(self, addr):
         self.ips = self.ips or [None]
         self.ips[0] = addr
+
+    def _get_env_activate_cmd(self, env=None):
+        if env:
+            from runhouse.resources.envs import _get_env_from
+
+            return _get_env_from(env)._activate_cmd
+        return None
 
     def save_config_to_cluster(self, node: str = None):
         config = self.config_for_rns
@@ -589,7 +597,7 @@ class Cluster(Resource):
         _rh_install_url: str = None,
         resync_rh: bool = True,
         restart_ray: bool = True,
-        env_activate_cmd: str = None,
+        env: Union[str, "Env"] = None,
         restart_proxy: bool = False,
     ):
         """Restart the RPC server.
@@ -597,8 +605,9 @@ class Cluster(Resource):
         Args:
             resync_rh (bool): Whether to resync runhouse. (Default: ``True``)
             restart_ray (bool): Whether to restart Ray. (Default: ``True``)
-            env_activate_cmd (str, optional): Command to activate the environment on the server. (Default: ``None``)
+            env (str or Env, optional): Specified environment to restart the server on. (Default: ``None``)
             restart_proxy (bool): Whether to restart Caddy on the cluster, if configured. (Default: ``False``)
+
         Example:
             >>> rh.cluster("rh-cpu").restart_server()
         """
@@ -654,6 +663,7 @@ class Cluster(Resource):
             + f" --port {self.server_port}"
         )
 
+        env_activate_cmd = self._get_env_activate_cmd(env)
         cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd
 
         status_codes = self.run(commands=[cmd])
@@ -677,6 +687,20 @@ class Cluster(Resource):
             self._start_ray_workers(DEFAULT_RAY_PORT)
 
         return status_codes
+
+    def stop_server(self, stop_ray: bool = True, env: Union[str, "Env"] = None):
+        """Stop the RPC server.
+
+        Args:
+            stop_ray (bool): Whether to stop Ray. (Default: `True`)
+            env (str or Env, optional): Specified environment to stop the server on. (Default: ``None``)
+        """
+        env_activate_cmd = self._get_env_activate_cmd(env)
+        cmd = CLI_STOP_CMD if stop_ray else f"{CLI_STOP_CMD} --no-stop-ray"
+        cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd
+
+        status_codes = self.run([cmd], stream_logs=False)
+        assert status_codes[0][0] == 1
 
     @contextlib.contextmanager
     def pause_autostop(self):
