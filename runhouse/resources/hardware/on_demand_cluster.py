@@ -2,6 +2,7 @@ import contextlib
 import logging
 import subprocess
 import time
+import warnings
 from pathlib import Path
 from typing import Any, Dict
 
@@ -14,7 +15,15 @@ try:
 except ImportError:
     pass
 
+from runhouse.constants import (
+    DEFAULT_HTTP_PORT,
+    DEFAULT_HTTPS_PORT,
+    DEFAULT_SERVER_PORT,
+    LOCAL_HOSTS,
+)
+
 from runhouse.globals import configs, rns_client
+from runhouse.resources.hardware.utils import ServerConnectionType
 
 from .cluster import Cluster
 from .utils import _current_cluster
@@ -277,12 +286,14 @@ class OnDemandCluster(Cluster):
                 self.server_port = DEFAULT_SERVER_PORT
 
         if (
-                self.server_connection_type in [ServerConnectionType.TLS, ServerConnectionType.NONE]
-                and self.server_host in Cluster.LOCAL_HOSTS
+            self.server_connection_type
+            in [ServerConnectionType.TLS, ServerConnectionType.NONE]
+            and self.server_host in LOCAL_HOSTS
         ):
             warnings.warn(
-                f"Server connection type set to {self.server_connection_type}, with server host set to {self.server_host}. "
-                f"Note that this will require opening an SSH tunnel to forward traffic from {self.server_host} to the server."
+                f"Server connection type: {self.server_connection_type}, server host: {self.server_host}. "
+                f"Note that this will require opening an SSH tunnel to forward traffic from"
+                f" {self.server_host} to the server."
             )
 
         self.open_ports = (
@@ -297,9 +308,9 @@ class OnDemandCluster(Cluster):
             self.open_ports = [str(p) for p in self.open_ports]
             if str(self.server_port) in self.open_ports:
                 if (
-                        self.server_connection_type
-                        in [ServerConnectionType.TLS, ServerConnectionType.NONE]
-                        and not self.den_auth
+                    self.server_connection_type
+                    in [ServerConnectionType.TLS, ServerConnectionType.NONE]
+                    and not self.den_auth
                 ):
                     warnings.warn(
                         "Server is insecure and must be inside a VPC or have `den_auth` enabled to secure it."
