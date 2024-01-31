@@ -10,9 +10,9 @@ from typing import Any, Optional
 
 from runhouse.globals import obj_store
 
-from runhouse.resources.blobs import blob, Blob
+from runhouse.resources.blobs import Blob
 from runhouse.resources.module import Module
-from runhouse.resources.provenance import run, RunStatus
+from runhouse.resources.provenance import run
 from runhouse.resources.queues import Queue
 from runhouse.resources.resource import Resource
 from runhouse.rns.utils.api import ResourceVisibility

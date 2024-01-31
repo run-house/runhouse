@@ -557,6 +557,10 @@ class TestModule:
             },
         }
 
+        # Set system to None as otherwise system will be local_daemon and we won't capture instance variables
+        # because they'll be in the remote module, not the local one here.
+        SlowNumpy.system = None
+
         arr = SlowNumpy(size=5)
         assert set(arr.signature) == {
             "size",

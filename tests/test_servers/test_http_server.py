@@ -160,12 +160,12 @@ class TestHTTPServerDocker:
         method = "call"
 
         response = await async_http_client.post(
-            f"/call/{remote_func.name}/{method}?serialization=None",
-            json={"args": [1, 2]},
+            f"/{remote_func.name}/{method}",
+            json={"data": ([1, 2], {}), "serialization": None},
             headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
-        assert response.text == "3"
+        assert response.json() == 3
 
     @pytest.mark.level("local")
     @pytest.mark.asyncio
@@ -176,8 +176,8 @@ class TestHTTPServerDocker:
         method = "call"
 
         response = await async_http_client.post(
-            f"/call/{remote_func.name}/{method}?serialization=random",
-            json={"args": [1, 2]},
+            f"/{remote_func.name}/{method}",
+            json={"data": ([1, 2], {}), "serialization": "random"},
             headers=rns_client.request_headers(),
         )
         assert response.status_code == 500
@@ -191,13 +191,12 @@ class TestHTTPServerDocker:
         method = "call"
 
         response = await async_http_client.post(
-            f"/call/{remote_func.name}/{method}?serialization=pickle",
-            json={"args": [1, 2]},
+            f"/{remote_func.name}/{method}",
+            json={"data": pickle_b64(([1, 2], {})), "serialization": "pickle"},
             headers=rns_client.request_headers(),
         )
-
         assert response.status_code == 200
-        assert b64_unpickle(response.text) == 3
+        assert b64_unpickle(response.json()["data"]) == 3
 
     @pytest.mark.level("local")
     @pytest.mark.asyncio
@@ -206,12 +205,12 @@ class TestHTTPServerDocker:
         method = "call"
 
         response = await async_http_client.post(
-            f"/call/{remote_func.name}/{method}?serialization=json",
-            json={"args": [1, 2]},
+            f"/{remote_func.name}/{method}",
+            json={"data": json.dumps(([1, 2], {})), "serialization": "json"},
             headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
-        assert json.loads(response.text) == "3"
+        assert response.json()["data"] == "3"
 
 
 @pytest.mark.servertest

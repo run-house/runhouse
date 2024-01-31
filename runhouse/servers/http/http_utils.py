@@ -109,8 +109,10 @@ def deserialize_data(data: Any, serialization: Optional[str]):
         return json.loads(data)
     elif serialization == "pickle":
         return b64_unpickle(data)
-    else:
+    elif serialization is None:
         return data
+    else:
+        raise ValueError(f"Invalid serialization type {serialization}")
 
 
 def serialize_data(data: Any, serialization: Optional[str]):
@@ -121,8 +123,10 @@ def serialize_data(data: Any, serialization: Optional[str]):
         return json.dumps(data)
     elif serialization == "pickle":
         return pickle_b64(data)
-    else:
+    elif serialization is None:
         return data
+    else:
+        raise ValueError(f"Invalid serialization type {serialization}")
 
 
 def handle_exception_response(exception, traceback):
