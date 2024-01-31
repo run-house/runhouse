@@ -148,7 +148,7 @@ class Module(Resource):
                     # and this may a "type" module rather than an "instance". The user might instantiate it later, or
                     # it may be populated with attributes by the servlet's put_resource.
                     module_cls = _module_subclass_factory(
-                        module_cls, config.get("pointers"), remote_init=True
+                        module_cls, config.get("pointers")
                     )
             except ModuleNotFoundError:
                 # If we fail to construct the module class from the pointers, we check if the code is not local,
@@ -1014,7 +1014,7 @@ class Module(Resource):
     #     full_name = func_name
 
 
-def _module_subclass_factory(cls, cls_pointers, remote_init=False):
+def _module_subclass_factory(cls, cls_pointers):
     def __init__(
         self,
         *args,
@@ -1041,8 +1041,14 @@ def _module_subclass_factory(cls, cls_pointers, remote_init=False):
         )
         # This allows a class which is already on the cluster to construct an instance of itself with a factory
         # method, e.g. my_module = MyModuleCls.factory_constructor(*args, **kwargs)
-        if self.system and self.system.on_this_cluster() and remote_init:
+        if self.system and self.system.on_this_cluster():
             self._remote_init(*args, **kwargs)
+
+    @classmethod
+    def _module_init_only(cls, *args, **kwargs):
+        new_module = cls.__new__(cls)
+        Module.__init__(new_module, *args, **kwargs)
+        return new_module
 
     def __call__(
         self,
@@ -1055,15 +1061,22 @@ def _module_subclass_factory(cls, cls_pointers, remote_init=False):
         # Create a copy of the item on the cluster under the new name
         new_module.name = name or self.name
         new_module.dryrun = dryrun
+        env = _get_env_from(kwargs.get("env") or self.env)
         if not new_module.dryrun and new_module.system:
-            new_module.system.put_resource(new_module)
+            # We use system.put_resource here because the signatures for HTTPClient.put_resource and
+            # obj_store.put_resource are different, but we should fix that.
+            new_module.system.put_resource(new_module, env=env)
             new_module.system.call(new_module.name, "_remote_init", *args, **kwargs)
         else:
             new_module._remote_init(*args, **kwargs)
 
         return new_module
 
-    methods = {"__init__": __init__, "__call__": __call__}
+    methods = {
+        "__init__": __init__,
+        "__call__": __call__,
+        "_module_init_only": _module_init_only,
+    }
     new_type = type(cls_pointers[2], (Module, cls), methods)
     return new_type
 
@@ -1181,7 +1194,7 @@ def module(
     )
 
     module_subclass = _module_subclass_factory(cls, cls_pointers)
-    return module_subclass(
+    return module_subclass._module_init_only(
         system=system,
         env=env,
         dryrun=dryrun,
