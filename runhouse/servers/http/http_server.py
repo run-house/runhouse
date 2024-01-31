@@ -68,7 +68,7 @@ def validate_cluster_access(func):
         den_auth_enabled: bool = HTTPServer.get_den_auth()
         is_coro = inspect.iscoroutinefunction(func)
 
-        func_call: bool = func.__name__ in ["call_module_method", "call", "get_call"]
+        func_call: bool = func.__name__ in ["post_call", "get_call"]
         token = get_token_from_request(request)
 
         if func_call and token:
@@ -336,6 +336,7 @@ class HTTPServer:
         except Exception as e:
             return handle_exception_response(e, traceback.format_exc())
 
+    # TODO refactor into a call method and separate post_call, get_call, put_call, delete_call, etc.
     @staticmethod
     @app.post("/{key}/{method_name:path}")
     @validate_cluster_access

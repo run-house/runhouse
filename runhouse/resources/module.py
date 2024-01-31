@@ -20,42 +20,21 @@ from runhouse.servers.http import HTTPClient
 
 logger = logging.getLogger(__name__)
 
-# These are methods that the Module's __getattribute__ logic should not intercept to run remotely
-# Should we just be using inspect.getclasstree to get signatures without the Module methods instead?
-LOCAL_METHODS = dir(Resource) + [
+# These are attributes that the Module's __getattribute__ logic should not intercept to run remotely
+# and values that shouldn't be passed as state in put_resource
+MODULE_ATTRS = [
     "_pointers",
     "_endpoint",
-    "endpoint",
-    "set_endpoint",
     "_client",
-    "access_level",
-    "visibility",
     "_visibility",
-    "env",
     "_env",
-    "_extract_pointers",
     "_name",
     "_rns_folder",
-    "system",
     "_system",
     "dryrun",
-    "remote",
-    "local",
-    "resolve",
     "_resolve",
-    "replicate",
-    "resolved_state",
-    "fetch",
-    "fetch_async",
-    "set_async",
-    "rename",
-    "to",
     "provenance",
-    "get_or_to",
-    "signature",
     "_signature",
-    "method_signature",
-    "keep_warm",
 ]
 
 
@@ -125,7 +104,7 @@ class Module(Resource):
         # Note that we even do this for built-in modules, because 1) we want their methods preserved in Den for when
         # they're called via HTTP and 2) we want to preserve the exact set of methods in case the methods on built-in
         # modules change across Runhouse versions.
-        config["signature"] = self.signature
+        config["signature"] = self.signature(rich=True)
 
         # Only save the endpoint if it's present in _endpoint or externally accessible
         config["endpoint"] = self.endpoint(external=True)
@@ -218,51 +197,36 @@ class Module(Resource):
     def env(self, new_env: Optional[Union[str, Env]]):
         self._env = _get_env_from(new_env)
 
-    @property
-    def signature(self):
+    def signature(self, rich=False):
         if self._signature:
             return self._signature
 
-        var_attrs = {
-            name: self.method_signature(getattr(self, name))
-            for name in self._extract_state()
-        }
         member_attrs = {
-            name: self.method_signature(method)
+            name: self.method_signature(method) if rich else None
             for (name, method) in inspect.getmembers(self.__class__)
-            if not name[0] == "_" and name not in LOCAL_METHODS
+            if not name[0] == "_"
+            and name not in MODULE_ATTRS
+            and name not in dir(Module)
+            and callable(method)
+            # Checks if there's an arg called "local" in the method signature, and if so, if it's default is True.
+            and not getattr(
+                inspect.signature(method).parameters.get("local"), "default", False
+            )
         }
-        return {**var_attrs, **member_attrs}
+        return member_attrs
 
-    def method_signature(self, method, rich=False):
+    def method_signature(self, method):
         """Extracts the properties of a method that we want to preserve when sending the method over the wire."""
-        if not callable(method):
-            return {
-                "signature": None,
-                "property": True,
-                "async": False,
-                "gen": False,
-                "local": False,
-            }
-
         signature = inspect.signature(method)
         signature_metadata = {
             "signature": str(signature),
-            "property": not callable(method),
             "async": inspect.iscoroutinefunction(method)
             or inspect.isasyncgenfunction(method),
             "gen": inspect.isgeneratorfunction(method)
             or inspect.isasyncgenfunction(method),
-            "local": "local" in signature.parameters
-            and signature.parameters["local"].default is True,
+            "doc": inspect.getdoc(method) if method.__doc__ else None,
+            "annotations": str(inspect.getfullargspec(method).annotations),
         }
-        if rich:
-            signature_metadata["doc"] = (
-                inspect.getdoc(method) if method.__doc__ else None
-            )
-            signature_metadata["annotations"] = (
-                method.__annotations__ if method.__annotations__ else None
-            )
 
         return signature_metadata
 
@@ -367,9 +331,14 @@ class Module(Resource):
             state = {
                 attr: val
                 for attr, val in self.__dict__.items()
-                if attr not in LOCAL_METHODS
+                if attr not in MODULE_ATTRS and attr not in dir(Module)
             }
         return state
+
+    def default_name(self):
+        return (
+            self._pointers[2] if self._pointers else None
+        ) or _generate_default_name(prefix=self.__class__.__qualname__.lower())
 
     def to(
         self,
@@ -419,42 +388,28 @@ class Module(Resource):
         new_module.dryrun = True
 
         if isinstance(system, Cluster):
-            new_module.name = (
-                name
-                or self.name
-                or (
-                    self._pointers[2]
-                    if self._pointers
-                    else None
-                    or _generate_default_name(
-                        prefix=self.__class__.__qualname__.lower()
-                    )
-                )
-            )
-            if system.on_this_cluster():
-                new_module.pin()
-            else:
-                # TODO dedup with _extract_state
-                # Exclude anything already being sent in the config and private module attributes
-                excluded_state_keys = list(new_module.config_for_rns.keys()) + [
-                    "_system",
-                    "_name",
-                    "_rns_folder",
-                    "dryrun",
-                    "_env",
-                    "_pointers",
-                    "_resolve",
-                ]
-                state = {}
-                # We only send over state for instances, not classes
-                if not isinstance(self, type):
-                    state = {
-                        attr: val
-                        for attr, val in self.__dict__.items()
-                        if attr not in excluded_state_keys
-                    }
-                logger.info(f"Sending module {new_module.name} to {system.name}")
-                system.put_resource(new_module, state, dryrun=True)
+            new_module.name = name or self.name or self.default_name()
+            # TODO dedup with _extract_state
+            # Exclude anything already being sent in the config and private module attributes
+            excluded_state_keys = list(new_module.config_for_rns.keys()) + [
+                "_system",
+                "_name",
+                "_rns_folder",
+                "dryrun",
+                "_env",
+                "_pointers",
+                "_resolve",
+            ]
+            state = {}
+            # We only send over state for instances, not classes
+            if not isinstance(self, type):
+                state = {
+                    attr: val
+                    for attr, val in self.__dict__.items()
+                    if attr not in excluded_state_keys
+                }
+            logger.info(f"Sending module {new_module.name} to {system.name}")
+            system.put_resource(new_module, state, dryrun=True)
 
         return new_module
 
@@ -488,46 +443,19 @@ class Module(Resource):
     def __getattribute__(self, item):
         """Override to allow for remote execution if system is a remote cluster. If not, the subclass's own
         __getattr__ will be called."""
-        if item in LOCAL_METHODS or not hasattr(self, "_client"):
+        if item in dir(Module) or item in MODULE_ATTRS or not hasattr(self, "_client"):
             return super().__getattribute__(item)
-        client = super().__getattribute__("_client")()
-
-        try:
-            attr = super().__getattribute__(item)
-
-            if not client:
-                return attr
-
-            # Don't try to run private methods or attributes remotely
-            if item[0] == "_":
-                return attr
-
-            _, is_prop, is_async, is_gen, local_default = list(
-                self.method_signature(attr).values()
-            )[0:5]
-
-            # Handle properties
-            if is_prop:
-                return attr
-        except (ModuleNotFoundError, AttributeError) as e:
-            # If there's no client, we can't call this method remotely, so ur last shot is if it's in
-            # the _signature_extensions
-            if not client:
-                if self._signature_extensions(item):
-                    return self._signature_extensions(item)
-                else:
-                    raise e
-
-            # If there is a client, we can try calling this method remotely, and load the required properties
-            # down from the signature
-            if item in self.signature:
-                _, is_prop, is_async, is_gen, local_default = list(
-                    self.signature.get(item).values()
-                )[0:5]
-            else:
-                raise e
 
         name = super().__getattribute__("_name")
+
+        if item not in self.signature(rich=False) or not name:
+            return super().__getattribute__(item)
+
+        # Do this after the signature and name check because it's potentially expensive
+        client = super().__getattribute__("_client")()
+
+        if not client:
+            return super().__getattribute__(item)
 
         class RemoteMethodWrapper:
             """Helper class to allow methods to be called with __call__, remote, or run."""
@@ -536,10 +464,6 @@ class Module(Resource):
                 # stream_logs and run_name are both supported args here, but we can't include them explicitly because
                 # the local code path here will throw an error if they are included and not supported in the
                 # method signature.
-
-                # Check if the method has a "local=True" arg, and check that the user didn't pass local=False instead
-                if local_default and kwargs.pop("local", True):
-                    return attr(*args, **kwargs)
 
                 return client.call(
                     name,
@@ -565,14 +489,6 @@ class Module(Resource):
                     stream_logs=stream_logs,
                     run_name=run_name,
                     run_async=True,
-                    **kwargs,
-                )
-
-            def local(self, *args, **kwargs):
-                """Allows us to call a function with fn.local(*args) instead of fn(*args, local=True)"""
-                return self.__call__(
-                    *args,
-                    local=True,
                     **kwargs,
                 )
 
@@ -759,7 +675,7 @@ class Module(Resource):
                 super().__getattribute__(key)
             )
         except AttributeError:
-            is_gen = self.signature.get(key, {}).get("gen", False)
+            is_gen = self.signature(rich=False).get(key, {}).get("gen", False)
 
         if is_gen:
 
@@ -854,7 +770,7 @@ class Module(Resource):
         return new_module
 
     def _save_sub_resources(self):
-        if isinstance(self.system, Resource):
+        if isinstance(self.system, Resource) and self.system.name:
             self.system.save()
         if isinstance(self.env, Resource) and self.env.name != Env.DEFAULT_NAME:
             self.env.save()
