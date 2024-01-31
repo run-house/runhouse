@@ -1,28 +1,17 @@
-import asyncio
-import inspect
 import json
 import logging
-import threading
-import time
 import traceback
 from functools import wraps
 from typing import Any, Optional
 
 from runhouse.globals import obj_store
 
-from runhouse.resources.blobs import Blob
-from runhouse.resources.module import Module
-from runhouse.resources.provenance import run
-from runhouse.resources.queues import Queue
 from runhouse.resources.resource import Resource
 from runhouse.rns.utils.api import ResourceVisibility
 
-# from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.http_utils import (
-    b64_unpickle,
     deserialize_data,
     handle_exception_response,
-    Message,
     OutputType,
     pickle_b64,
     Response,
@@ -93,209 +82,6 @@ class EnvServlet:
             set_last_active_time_to_now()
         except ImportError:
             pass
-
-    def call_module_method(
-        self,
-        module_name,
-        method_name,
-        message: Message,
-        token_hash: str,
-        den_auth: bool,
-        serialization: Optional[str] = None,
-    ):
-        self.register_activity()
-        result_resource = None
-
-        persist = message.save or message.remote or message.run_async
-        try:
-            logger.info(
-                f"Message received from client to call method {method_name} on module {module_name} at {time.time()}"
-            )
-
-            result_resource = Queue(name=message.key, persist=persist)
-            result_resource.provenance = run(
-                name=message.key,
-                log_dest="file" if message.stream_logs else None,
-                load=False,
-            )
-            result_resource.provenance.__enter__()
-
-            module = obj_store.get(module_name, default=KeyError)
-            if den_auth:
-                if not isinstance(module, Resource) or module.visibility not in [
-                    ResourceVisibility.UNLISTED,
-                    ResourceVisibility.PUBLIC,
-                    "unlisted",
-                    "public",
-                ]:
-                    # Setting to None in the case of non-resource or no rns_address will force auth to only
-                    # succeed if the user has WRITE or READ access to the cluster
-                    resource_uri = (
-                        module.rns_address if hasattr(module, "rns_address") else None
-                    )
-                    if not obj_store.has_resource_access(token_hash, resource_uri):
-                        raise PermissionError(
-                            f"No read or write access to requested resource {resource_uri}"
-                        )
-
-            self.thread_ids[
-                message.key
-            ] = threading.get_ident()  # Save thread ID for this message
-            # Remove output types from previous runs
-            self.output_types.pop(message.key, None)
-
-            # Save now so status and initial streamed results are available globally
-            if message.save:
-                result_resource.save()
-
-            # If method_name is None, return the module itself as this is a "get" request
-            try:
-                method = getattr(module, method_name) if method_name else module
-            except AttributeError:
-                logger.debug(module.__dict__)
-                raise ValueError(
-                    f"Method {method_name} not found on module {module_name}"
-                )
-
-            # Don't call the method if it's a property or a "get" request (returning the module itself)
-            if hasattr(method, "__call__") and method_name:
-                # If method is callable, call it and return the result
-                logger.info(
-                    f"{self.env_name} servlet: Calling method {method_name} on module {module_name}"
-                )
-                callable_method = True
-
-            else:
-                # Method is a property, return the value
-                logger.info(
-                    f"{self.env_name} servlet: Getting property {method_name} on module {module_name}"
-                )
-                callable_method = False
-
-            # FastAPI automatically deserializes json
-            args, kwargs = (
-                b64_unpickle(message.data)
-                if message.data and not serialization
-                else ([], message.data)
-                if serialization == "json"
-                else ([], {})
-            )
-            # Resolve any resources which need to be resolved
-            args = [
-                arg.fetch() if (isinstance(arg, Module) and arg._resolve) else arg
-                for arg in args
-            ]
-            kwargs = {
-                k: v.fetch() if (isinstance(v, Module) and v._resolve) else v
-                for k, v in kwargs.items()
-            }
-
-            if not callable_method and kwargs and "new_value" in kwargs:
-                # If new_value was passed, that means we're setting a property
-                setattr(module, method_name, kwargs["new_value"])
-                result_resource.pin()
-                self.output_types[message.key] = OutputType.SUCCESS
-                result_resource.provenance.__exit__(None, None, None)
-                return Response(output_type=OutputType.SUCCESS)
-
-            if persist or message.stream_logs:
-                result_resource.pin()
-
-            # If method is a property, `method = getattr(module, method_name, None)` above already
-            # got our result
-            if inspect.iscoroutinefunction(method):
-                # If method is a coroutine, we need to await it
-                logger.debug(
-                    f"{self.env_name} servlet: Method {method_name} on module {module_name} is a coroutine"
-                )
-                result = asyncio.run(method(*args, **kwargs))
-            else:
-                result = method(*args, **kwargs) if callable_method else method
-
-            # TODO do we need the branch above if we do this?
-            if inspect.iscoroutine(result):
-                result = asyncio.run(result)
-
-            if inspect.isgenerator(result) or inspect.isasyncgen(result):
-                result_resource.pin()
-                # Stream back the results of the generator
-                logger.info(
-                    f"Streaming back results of generator {module_name}.{method_name}"
-                )
-                self.output_types[message.key] = OutputType.RESULT_STREAM
-                if inspect.isasyncgen(result):
-                    while True:
-                        try:
-                            self.register_activity()
-                            result_resource.put(asyncio.run(result.__anext__()))
-                        except StopAsyncIteration:
-                            break
-                else:
-                    for val in result:
-                        self.register_activity()
-                        # Doing this at the top of the loop so we can catch the final result and change the OutputType
-                        result_resource.put(val)
-
-                # Set run status to COMPLETED to indicate end of stream
-                result_resource.provenance.__exit__(None, None, None)
-
-                # Resave with new status
-                if message.save:
-                    result_resource.save()
-            else:
-                # If the user needs this result again later, don't put it in queue or
-                # it will be gone after the first get
-                if persist:
-                    if isinstance(result, Resource):
-                        # If the user's method returned a resource, save that resource as the result
-                        # instead of the queue so it's available for global caching
-                        result.provenance = result_resource.provenance
-                        result.name = message.key
-                        result_resource = result
-                    else:
-                        # We shouldn't return a queue if the result is not a generator, so replace it with a blob
-                        result_resource = Blob(
-                            name=message.key, provenance=result_resource.provenance
-                        )
-                        result_resource.data = result
-
-                    result_resource.pin()
-
-                    # Write out the new result_resource to the obj_store
-                    # obj_store.put(message.key, result_resource, env=self.env_name)
-                else:
-                    if not message.stream_logs:
-                        # If we don't need to persist the result or stream logs,
-                        # we can return the result to the user immediately
-                        result_resource.provenance.__exit__(None, None, None)
-                        return Response(
-                            data=pickle_b64(result)
-                            if not serialization == "json"
-                            else result,
-                            output_type=OutputType.RESULT,
-                        )
-                    # Put the result in the queue so we can retrieve it once
-                    result_resource.put(result)
-
-                # If not a generator, the method was already called above and completed
-                self.output_types[message.key] = OutputType.RESULT
-                result_resource.provenance.__exit__(None, None, None)
-
-                if message.save:
-                    result_resource.save()
-                self.register_activity()
-        except Exception as e:
-            logger.exception(e)
-            self.register_activity()
-
-            # Setting this here is great because it allows us to still return all the computed values of a
-            # generator before hitting the exception, stream the logs back to the client until raising the exception,
-            # and indicate that we hit an exception before any results are available if that's the case.
-            self.output_types[message.key] = OutputType.EXCEPTION
-            result_resource.pin()
-            result_resource.provenance.__exit__(
-                type(e), e, traceback.format_exc()
-            )  # TODO use format_tb instead?
 
     ##############################################################
     # Methods decorated with a standardized error decorating handler

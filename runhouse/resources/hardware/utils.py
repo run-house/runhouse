@@ -100,7 +100,7 @@ def _get_cluster_from(system, dryrun=False):
 
     if isinstance(system, str):
         config = _current_cluster(key="config")
-        if config and system == config["name"]:
+        if config and system == config.get("name"):
             return Cluster.from_config(config, dryrun)
         try:
             system = Cluster.from_name(name=system, dryrun=dryrun)

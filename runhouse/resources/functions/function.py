@@ -1,13 +1,11 @@
-import copy
 import inspect
 import logging
-import warnings
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Union
 
 from runhouse import globals
-from runhouse.resources.envs import _get_env_from, Env
-from runhouse.resources.hardware import _get_cluster_from, Cluster
+from runhouse.resources.envs import Env
+from runhouse.resources.hardware import Cluster
 from runhouse.resources.module import Module
 
 from runhouse.resources.resource import Resource
@@ -58,13 +56,16 @@ class Function(Module):
             )
         return super().share(*args, **kwargs, visibility=visibility)
 
+    def default_name(self):
+        return (
+            self.fn_pointers[2] if self.fn_pointers else None
+        ) or super().default_name()
+
     def to(
         self,
-        system: Union[str, Cluster] = None,
-        env: Union[List[str], Env] = [],
-        reqs: Optional[List[str]] = None,  # deprecated
-        setup_cmds: Optional[List[str]] = [],  # deprecated
-        force_install: bool = False,
+        system: Union[str, Cluster],
+        env: Optional[Union[str, List[str], Env]] = None,
+        name: Optional[str] = None,
     ):
         """to(system: str | Cluster | None = None, env: List[str] | Env = [], force_install: bool = False)
 
@@ -77,23 +78,6 @@ class Function(Module):
             >>> rh.function(fn=local_fn).to(system=gpu_cluster, env=my_conda_env)
             >>> rh.function(fn=local_fn).to(system='aws_lambda')  # will deploy the rh.function to AWS as a Lambda.
         """  # noqa: E501
-        if setup_cmds:
-            warnings.warn(
-                "``setup_cmds`` argument has been deprecated. "
-                "Please pass in setup commands to the ``Env`` class corresponding to the function instead."
-            )
-
-        # to retain backwards compatibility
-        if reqs or setup_cmds:
-            warnings.warn(
-                "``reqs`` and ``setup_cmds`` arguments has been deprecated. Please use ``env`` instead."
-            )
-            env = Env(reqs=reqs, setup_cmds=setup_cmds, name=Env.DEFAULT_NAME)
-        elif env and isinstance(env, List):
-            env = Env(reqs=env, setup_cmds=setup_cmds, name=Env.DEFAULT_NAME)
-        else:
-            env = env or self.env or Env(name=Env.DEFAULT_NAME)
-            env = _get_env_from(env)
 
         if isinstance(system, str) and system.lower() == "lambda_function":
             from runhouse.resources.functions.aws_lambda_factory import aws_lambda_fn
@@ -102,36 +86,7 @@ class Function(Module):
                 fn=self._get_obj_from_pointers(*self.fn_pointers), env=env
             )
 
-        if self.dryrun or not (system or self.system):
-            # don't move the function to a system
-            self.env = env
-            return self
-
-        # We need to backup the system here so the __getstate__ method of the cluster
-        # doesn't wipe the client of this function's cluster when deepcopy copies it.
-        hw_backup = self.system
-        self.system = None
-        new_function = copy.deepcopy(self)
-        self.system = hw_backup
-
-        new_function.system = (
-            _get_cluster_from(system, dryrun=self.dryrun) if system else self.system
-        )
-
-        logging.info("Setting up Function on cluster.")
-        # To up cluster in case it's not yet up
-        new_function.system.check_server()
-        new_function.name = new_function.name or self.fn_pointers[2]
-        # TODO
-        # env.name = env.name or (new_function.name + "_env")
-        new_env = env.to(new_function.system, force_install=force_install)
-        new_function.env = new_env
-
-        new_function.dryrun = True
-        new_function.system.put_resource(new_function, dryrun=True)
-        logging.info("Function setup complete.")
-
-        return new_function
+        return super().to(system=system, env=env, name=name)
 
     # ----------------- Function call methods -----------------
 
@@ -156,10 +111,10 @@ class Function(Module):
         fn = self._get_obj_from_pointers(*self.fn_pointers)
         return fn(*args, **kwargs)
 
-    def method_signature(self, method, rich=False):
+    def method_signature(self, method):
         if callable(method) and method.__name__ == "call":
             return self.method_signature(self._get_obj_from_pointers(*self.fn_pointers))
-        return super().method_signature(method, rich=rich)
+        return super().method_signature(method)
 
     def map(self, *args, **kwargs):
         """Map a function over a list of arguments.

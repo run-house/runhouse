@@ -823,6 +823,7 @@ class ObjStore:
         run_name: Optional[str] = None,
         stream_logs: bool = False,
         remote: bool = False,
+        run_async: bool = False,  # TODO implement
         **kwargs,
     ):
         """Base call functionality: Load the module, and call a method on it with args and kwargs. Nothing else.

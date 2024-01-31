@@ -123,10 +123,8 @@ def function(
     system = _get_cluster_from(system)
 
     new_function = Function(
-        fn_pointers=fn_pointers,
-        name=name,
-        dryrun=dryrun,
-    ).to(system=system, env=env)
+        fn_pointers=fn_pointers, name=name, dryrun=dryrun, system=system, env=env
+    )
 
     if load_secrets and not dryrun:
         new_function.send_secrets()
