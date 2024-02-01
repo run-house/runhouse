@@ -24,6 +24,7 @@ from runhouse.constants import (
     SERVER_STOP_CMD,
     START_NOHUP_CMD,
     START_SCREEN_CMD,
+    RAY_KILL_CMD,
 )
 from runhouse.resources.hardware.ray_utils import check_for_existing_ray_instance
 
