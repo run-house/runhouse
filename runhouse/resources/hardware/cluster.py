@@ -251,6 +251,9 @@ class Cluster(Resource):
         return self
 
     def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
+        if self.on_this_cluster():
+            return
+
         if not self.address:
             raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
 
@@ -837,6 +840,34 @@ class Cluster(Resource):
             source = source + "/" if not source.endswith("/") else source
             dest = dest + "/" if not dest.endswith("/") else dest
 
+        # If we're already on this cluster (and node, if multinode), this is just a local rsync
+        if self.on_this_cluster() and node == self.address:
+            if Path(source).expanduser().resolve() == Path(dest).expanduser().resolve():
+                return
+
+            if not up:
+                # If we're not uploading, we're downloading
+                source, dest = dest, source
+
+            dest = Path(dest).expanduser()
+            if not dest.exists():
+                dest.mkdir(parents=True, exist_ok=True)
+            if not dest.is_dir():
+                raise ValueError(f"Destination {dest} is not a directory.")
+            dest = str(dest) + "/" if contents else str(dest)
+
+            cmd = [
+                "rsync",
+                "-avz",
+                source,
+                dest,
+            ]  # -a is archive mode, -v is verbose, -z is compress
+            if filter_options:
+                cmd += [filter_options]
+
+            subprocess.run(cmd, check=True, capture_output=stream_logs, text=True)
+            return
+
         ssh_credentials = copy.copy(self.ssh_creds) or {}
         ssh_credentials.pop("ssh_host", node)
         pwd = ssh_credentials.pop("password", None)
@@ -976,6 +1007,22 @@ class Cluster(Resource):
 
                 env = Env.from_name(env)
             cmd_prefix = env._run_cmd
+
+        if self.on_this_cluster():
+            return_codes = []
+            location_str = "locally" if not self.name else f"on {self.name}"
+            for command in commands:
+                command = f"{cmd_prefix} {command}" if cmd_prefix else command
+                logger.info(f"Running command {location_str}: {command}")
+                ret_code = subprocess.run(
+                    command,
+                    shell=True,
+                    capture_output=stream_logs,
+                    text=True,
+                    check=not require_outputs,
+                ).returncode
+                return_codes.append(ret_code)
+            return return_codes
 
         if not run_name:
             # If not creating a Run then just run the commands via SSH and return

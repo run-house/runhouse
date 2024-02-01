@@ -46,7 +46,14 @@ def named_cluster():
 def local_daemon(request):
     if rh.here == "file" or not request.config.getoption("--detached"):
         local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent.parent
-        subprocess.call(["runhouse", "restart"], cwd=local_rh_package_path)
+        subprocess.run(
+            "runhouse restart",
+            shell=True,  # Needed because we need to be in the right conda env
+            cwd=local_rh_package_path,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
 
     try:
         # Make sure the object store is set up correctly
@@ -55,7 +62,7 @@ def local_daemon(request):
 
     finally:
         if not request.config.getoption("--detached"):
-            subprocess.call(["runhouse", "stop"])
+            subprocess.run("runhouse stop", capture_output=True, text=True, shell=True)
 
 
 @pytest.fixture(scope="session")

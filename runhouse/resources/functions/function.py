@@ -66,6 +66,7 @@ class Function(Module):
         system: Union[str, Cluster],
         env: Optional[Union[str, List[str], Env]] = None,
         name: Optional[str] = None,
+        force_install: bool = False,
     ):
         """to(system: str | Cluster | None = None, env: List[str] | Env = [], force_install: bool = False)
 
@@ -86,7 +87,9 @@ class Function(Module):
                 fn=self._get_obj_from_pointers(*self.fn_pointers), env=env
             )
 
-        return super().to(system=system, env=env, name=name)
+        return super().to(
+            system=system, env=env, name=name, force_install=force_install
+        )
 
     # ----------------- Function call methods -----------------
 
