@@ -23,6 +23,7 @@ from runhouse.constants import (
     SERVER_STOP_CMD,
     START_NOHUP_CMD,
     START_SCREEN_CMD,
+    RAY_KILL_CMD,
 )
 
 
@@ -536,7 +537,7 @@ def stop(stop_ray: bool = typer.Option(True, help="Stop the Ray runtime")):
         pass
 
     if stop_ray:
-        subprocess.run(RAY_KILL_CMD, shell=True, check=True)
+        subprocess.run(RAY_KILL_CMD, shell=True)
 
 
 @app.callback()

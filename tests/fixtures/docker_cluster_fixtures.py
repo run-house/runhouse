@@ -44,8 +44,9 @@ def named_cluster():
 
 @pytest.fixture(scope="session")
 def local_daemon(request):
-    if not request.config.getoption("--detached"):
-        subprocess.call(["runhouse", "restart"])
+    if rh.here == "file" or not request.config.getoption("--detached"):
+        local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent.parent
+        subprocess.call(["runhouse", "restart"], cwd=local_rh_package_path)
 
     try:
         # Make sure the object store is set up correctly
