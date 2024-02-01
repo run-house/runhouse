@@ -23,7 +23,6 @@ from runhouse.constants import (
     SERVER_STOP_CMD,
     START_NOHUP_CMD,
     START_SCREEN_CMD,
-    RAY_KILL_CMD,
 )
 
 
