@@ -1,5 +1,3 @@
-import time
-
 import pytest
 
 from runhouse.servers.http.auth import hash_token
@@ -314,7 +312,7 @@ class TestObjStore:
         assert obj_store_3.keys() == []
 
     @pytest.mark.level("unit")
-    def test_delete_env_servelet(self, obj_store):
+    def test_delete_env_servlet(self, obj_store):
         _, obj_store_2 = get_ray_servlet_and_obj_store("obj_store_2")
 
         assert obj_store.keys() == []
@@ -344,7 +342,6 @@ class TestObjStore:
 
         # check that corresponding Ray actor is killed
         with pytest.raises(ObjStoreError):
-            time.sleep(0.5)  # ensure the actor has been fully killed
             ObjStore.get_env_servlet(env_name=env_to_delete, raise_ex_if_not_found=True)
 
 

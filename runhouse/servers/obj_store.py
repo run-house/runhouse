@@ -648,7 +648,6 @@ class ObjStore:
 
     def _delete_env_contents(self, env_name: Any):
         from runhouse.globals import env_servlets
-        from runhouse.resources.hardware.ray_utils import kill_actors
 
         # clear keys in the env servlet
         deleted_keys = self.keys_for_env_servlet_name(env_name)
@@ -656,7 +655,9 @@ class ObjStore:
 
         # delete the env servlet actor and remove its references
         if env_name in env_servlets:
-            kill_actors(env_name)
+            actor = env_servlets[env_name]
+            ray.kill(actor)
+
             del env_servlets[env_name]
         self.remove_env_servlet_name(env_name)
 
