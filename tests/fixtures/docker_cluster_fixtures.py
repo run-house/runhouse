@@ -1,5 +1,5 @@
+import importlib
 import logging
-import pkgutil
 import shlex
 import time
 from pathlib import Path
@@ -24,7 +24,7 @@ DEFAULT_KEYPAIR_KEYPATH = "~/.ssh/sky-key"
 
 
 def get_rh_parent_path():
-    return Path(pkgutil.get_loader("runhouse").path).parent.parent
+    return Path(importlib.util.find_spec("runhouse").origin).parent.parent
 
 
 @pytest.fixture(scope="function")
@@ -170,7 +170,7 @@ def build_and_run_image(
 
     import docker
 
-    rh_parent_path = Path(pkgutil.get_loader("runhouse").path).parent.parent
+    rh_parent_path = Path(importlib.util.find_spec("runhouse").origin).parent.parent
     dockerfile_path = rh_parent_path / f"docker/slim/{dir_name}/Dockerfile"
     rh_path = "runhouse" if (rh_parent_path / "setup.py").exists() else None
     rh_version = rh.__version__ if not rh_path else None

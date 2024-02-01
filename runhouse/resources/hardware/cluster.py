@@ -1,8 +1,8 @@
 import contextlib
 import copy
+import importlib
 import json
 import logging
-import pkgutil
 import re
 import subprocess
 import sys
@@ -252,7 +252,7 @@ class Cluster(Resource):
         if not self.address:
             raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
 
-        local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
+        local_rh_package_path = Path(importlib.util.find_spec("runhouse").origin).parent
 
         # Check if runhouse is installed from source and has setup.py
         if (
@@ -272,7 +272,7 @@ class Cluster(Resource):
                 contents=True,
                 filter_options="- docs/",
             )
-            rh_install_cmd = 'python3 -m pip install "./runhouse[sky]"'
+            rh_install_cmd = "python3 -m pip install ./runhouse"
         # elif local_rh_package_path.parent.name == 'site-packages':
         else:
             # Package is installed in site-packages
@@ -282,7 +282,7 @@ class Cluster(Resource):
             if not _install_url:
                 import runhouse
 
-                _install_url = f'"runhouse[sky]"=={runhouse.__version__}'
+                _install_url = f"runhouse=={runhouse.__version__}"
             rh_install_cmd = f"python3 -m pip install {_install_url}"
 
         install_cmd = f"{env._run_cmd} {rh_install_cmd}" if env else rh_install_cmd

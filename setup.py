@@ -75,7 +75,7 @@ install_requires = [
     "pexpect",
     "pyarrow",
     "pyOpenSSL>=23.3.0",
-    "ray",
+    "ray[default] >= 2.2.0, <= 2.6.3, != 2.6.0",
     "rich",
     "sentry-sdk",
     "sshfs",

@@ -216,9 +216,12 @@ class HTTPServer:
 
     @staticmethod
     def register_activity():
-        from sky.skylet.autostop_lib import set_last_active_time_to_now
+        try:
+            from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-        set_last_active_time_to_now()
+            set_last_active_time_to_now()
+        except ImportError:
+            pass
 
     @staticmethod
     @app.get("/cert")

@@ -5,7 +5,6 @@ import time
 from pathlib import Path
 from typing import Any, Dict
 
-# import sky here
 import rich.errors
 import yaml
 
