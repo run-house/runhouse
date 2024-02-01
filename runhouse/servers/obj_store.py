@@ -387,6 +387,14 @@ class ObjStore:
         )
 
     ##############################################
+    # Remove Env Servlet
+    ##############################################
+    def remove_env_servlet_name(self, env_servlet_name: str):
+        return self.call_actor_method(
+            self.cluster_servlet, "remove_env_servlet_name", env_servlet_name
+        )
+
+    ##############################################
     # KV Store: Keys
     ##############################################
     @staticmethod
@@ -638,11 +646,37 @@ class ObjStore:
     def delete_local(self, key: Any):
         self.pop_local(key)
 
+    def _delete_env_contents(self, env_name: Any):
+        from runhouse.globals import env_servlets
+
+        # clear keys in the env servlet
+        deleted_keys = self.keys_for_env_servlet_name(env_name)
+        self.clear_for_env_servlet_name(env_name)
+
+        # delete the env servlet actor and remove its references
+        if env_name in env_servlets:
+            actor = env_servlets[env_name]
+            ray.kill(actor)
+
+            del env_servlets[env_name]
+        self.remove_env_servlet_name(env_name)
+
+        return deleted_keys
+
     def delete(self, key: Union[Any, List[Any]]):
         keys_to_delete = [key] if isinstance(key, str) else key
+        deleted_keys = []
+
         for key_to_delete in keys_to_delete:
+            if key_to_delete in self.get_all_initialized_env_servlet_names():
+                deleted_keys += self._delete_env_contents(key_to_delete)
+
+            if key_to_delete in deleted_keys:
+                continue
+
             if self.contains_local(key_to_delete):
                 self.delete_local(key_to_delete)
+                deleted_keys.append(key_to_delete)
             else:
                 env_servlet_name = self.get_env_servlet_name_for_key(key_to_delete)
                 if env_servlet_name == self.servlet_name and self.has_local_storage:
@@ -653,6 +687,7 @@ class ObjStore:
                     raise KeyError(f"Key {key} not found in any env.")
 
                 self.delete_for_env_servlet_name(env_servlet_name, key_to_delete)
+                deleted_keys.append(key_to_delete)
 
     ##############################################
     # KV Store: Clear
