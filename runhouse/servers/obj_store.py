@@ -140,8 +140,8 @@ class ObjStore:
                 setup_ray == RaySetupOption.GET_OR_CREATE
                 and not check_for_existing_ray_instance(ray_address)
             ) or setup_ray == RaySetupOption.FORCE_CREATE:
-                subprocess.run(RAY_KILL_CMD, shell=True)
-                subprocess.run(RAY_START_CMD, shell=True)
+                subprocess.run(RAY_KILL_CMD, shell=True, capture_output=True)
+                subprocess.run(RAY_START_CMD, shell=True, capture_output=True)
 
             ray.init(
                 address=ray_address,

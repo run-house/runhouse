@@ -89,9 +89,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     def test_docker_cluster_fixture_is_logged_out(self, docker_cluster_pk_ssh_no_auth):
         save_resource_and_return_config_cluster = rh.function(
-            save_resource_and_return_config,
-            name="save_resource_and_return_config_cluster",
+            save_resource_and_return_config
+        ).to(
             system=docker_cluster_pk_ssh_no_auth,
+            name="save_resource_and_return_config_cluster",
         )
         saved_config_on_cluster = save_resource_and_return_config_cluster()
         # This cluster was created without any logged in Runhouse config. Make sure that the simple resource

@@ -294,13 +294,8 @@ class TestHTTPServerDockerDenAuthOnly:
         response = http_client.post(
             f"{module_name}/{method_name}",
             json={
-                "data": pickle_b64([args, kwargs]),
-                "env": None,
-                "stream_logs": True,
-                "save": False,
-                "key": None,
-                "remote": False,
-                "run_async": False,
+                "data": [args, kwargs],
+                "serialization": None,
             },
             headers=INVALID_HEADERS,
         )
