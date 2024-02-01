@@ -770,7 +770,7 @@ class HTTPServer:
         )
 
         logger.info(
-            f"Successfully added telemetry exporter {telemetry_collector_address}"
+            f"Successfully added telemetry traces & spans exporter {telemetry_collector_address}"
         )
         logger_provider = LoggerProvider(
             resource=Resource.create(
@@ -781,7 +781,9 @@ class HTTPServer:
         )
         set_logger_provider(logger_provider)
 
-        logger_exporter = OTLPLogExporter()
+        logger_exporter = OTLPLogExporter(
+            endpoint=telemetry_collector_address + "/v1/logs",
+        )
         logger_provider.add_log_record_processor(
             BatchLogRecordProcessor(logger_exporter)
         )
@@ -789,6 +791,10 @@ class HTTPServer:
 
         # Attach OTLP handler to root logger
         logger.addHandler(handler)
+
+        logger.info(
+            f"Successfully added telemetry logs exporter {telemetry_collector_address}"
+        )
 
         # Instrument the app object
         FastAPIInstrumentor.instrument_app(app)
