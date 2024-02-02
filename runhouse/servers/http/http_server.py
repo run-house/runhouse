@@ -255,6 +255,7 @@ class HTTPServer:
             if not ray.is_initialized():
                 raise Exception("Ray is not initialized, restart the server.")
             logger.info("Server is up.")
+            logging.info("Server is up.")
 
             import runhouse
 
@@ -782,15 +783,15 @@ class HTTPServer:
         set_logger_provider(logger_provider)
 
         logger_exporter = OTLPLogExporter(
-            endpoint=telemetry_collector_address + "/v1/logs",
+            endpoint=telemetry_collector_address + "/v1/logs"
         )
         logger_provider.add_log_record_processor(
             BatchLogRecordProcessor(logger_exporter)
         )
-        handler = LoggingHandler(level=logging.NOTSET, logger_provider=logger_provider)
+        handler = LoggingHandler(level=logging.INFO, logger_provider=logger_provider)
 
         # Attach OTLP handler to root logger
-        logger.addHandler(handler)
+        logging.getLogger().addHandler(handler)
 
         logger.info(
             f"Successfully added telemetry logs exporter {telemetry_collector_address}"
