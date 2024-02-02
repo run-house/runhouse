@@ -17,7 +17,6 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from runhouse.constants import (
-    CLUSTER_CONFIG_PATH,
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
     DEFAULT_SERVER_HOST,
@@ -36,7 +35,6 @@ from runhouse.servers.http.http_utils import (
     get_token_from_request,
     GetObjectParams,
     handle_exception_response,
-    load_current_cluster,
     Message,
     OutputType,
     pickle_b64,
@@ -44,7 +42,8 @@ from runhouse.servers.http.http_utils import (
     PutResourceParams,
     RenameObjectParams,
     Response,
-    ServerSettings, serialize_data,
+    serialize_data,
+    ServerSettings,
 )
 from runhouse.servers.nginx.config import NginxConfig
 from runhouse.servers.obj_store import (
@@ -74,50 +73,42 @@ def validate_cluster_access(func):
 
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
         token_hash = hash_token(token) if den_auth_enabled and token else None
-        obj_store._set_ctx(request_id=request_id, token_hash=token_hash)
+        _ctx_token = obj_store._set_ctx(request_id=request_id, token_hash=token_hash)
 
-        if func_call and token:
-            obj_store.add_user_to_auth_cache(token, refresh_cache=False)
+        try:
+            if func_call and token:
+                obj_store.add_user_to_auth_cache(token, refresh_cache=False)
 
-        if not den_auth_enabled or func_call:
-            # If this is a func call, we'll handle the auth in the object store
+            if den_auth_enabled and not func_call:
+                if token is None:
+                    raise HTTPException(
+                        status_code=401,
+                        detail="No Runhouse token provided. Try running `$ runhouse login` or visiting "
+                        "https://run.house/login to retrieve a token. If calling via HTTP, please "
+                        "provide a valid token in the Authorization header.",
+                    )
+
+                cluster_uri = obj_store.get_cluster_config().get("name")
+                cluster_access = verify_cluster_access(cluster_uri, token)
+                if not cluster_access:
+                    # Must have cluster access for all the non func calls
+                    # Note: for func calls we handle the auth in the object store
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Cluster access is required for this operation.",
+                    )
+
             if is_coro:
-                return await func(*args, **kwargs)
+                res = await func(*args, **kwargs)
+            else:
+                res = func(*args, **kwargs)
+        except Exception as e:
+            if _ctx_token:
+                obj_store._unset_ctx(_ctx_token)
+            raise e
 
-            return func(*args, **kwargs)
-
-        if token is None:
-            raise HTTPException(
-                status_code=401,
-                detail="No Runhouse token provided. Try running `$ runhouse login` or visiting "
-                "https://run.house/login to retrieve a token. If calling via HTTP, please "
-                "provide a valid token in the Authorization header.",
-            )
-
-        cluster_uri = load_current_cluster()
-        if cluster_uri is None:
-            logger.error(
-                f"Failed to load cluster RNS address. Make sure cluster config YAML has been saved "
-                f"on the cluster in path: {CLUSTER_CONFIG_PATH}"
-            )
-            raise HTTPException(
-                status_code=404,
-                detail="Failed to load current cluster. Make sure cluster config YAML exists on the cluster.",
-            )
-
-        cluster_access = verify_cluster_access(cluster_uri, token)
-        if not cluster_access:
-            # Must have cluster access for all the non func calls
-            # Note: for func calls will be handling the auth in the object store
-            raise HTTPException(
-                status_code=403,
-                detail="Cluster access is required for this operation.",
-            )
-
-        if is_coro:
-            return await func(*args, **kwargs)
-
-        return func(*args, **kwargs)
+        obj_store._unset_ctx(_ctx_token)
+        return res
 
     return wrapper
 
@@ -465,7 +456,9 @@ class HTTPServer:
                     Response(
                         output_type=OutputType.EXCEPTION,
                         error=serialize_data(e, serialization=serialization),
-                        traceback=serialize_data(traceback.format_exc(), serialization=serialization),
+                        traceback=serialize_data(
+                            traceback.format_exc(), serialization=serialization
+                        ),
                     )
                 )
             )

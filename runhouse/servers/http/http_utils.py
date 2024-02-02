@@ -156,9 +156,7 @@ def handle_exception_response(
         if isinstance(cause, PermissionError):
             if "No Runhouse token provided." in detail:
                 raise HTTPException(status_code=401, detail=detail)
-            if (
-                "Unauthorized access to resource" in detail
-            ):
+            if "Unauthorized access to resource" in detail:
                 raise HTTPException(status_code=403, detail=detail)
         if isinstance(cause, ValueError):
             if "Invalid serialization type" in detail:
