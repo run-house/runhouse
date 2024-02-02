@@ -754,9 +754,25 @@ class HTTPServer:
         logger.info(f"Preparing to send telemetry to {telemetry_collector_address}")
 
         # Set the tracer provider and the exporter
+        import runhouse
+
+        service_version = runhouse.__version__
+        if telemetry_collector_address == "https://api-dev.run.house:14318":
+            service_name = "runhouse-service-dev"
+            deployment_env = "dev"
+        else:
+            service_name = "runhouse-service-prod"
+            deployment_env = "prod"
         trace.set_tracer_provider(
             TracerProvider(
-                resource=Resource.create({"service.name": "runhouse-service"})
+                resource=Resource.create(
+                    {
+                        "service.namespace": "Runhouse_OSS",
+                        "service.name": service_name,
+                        "service.version": service_version,
+                        "deployment.environment": deployment_env,
+                    }
+                )
             )
         )
         otlp_exporter = OTLPSpanExporter(
