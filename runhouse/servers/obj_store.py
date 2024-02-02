@@ -2,7 +2,10 @@ import contextvars
 import inspect
 import logging
 import os
+import subprocess
+import uuid
 from enum import Enum
+from functools import wraps
 from typing import Any, Dict, List, Optional, Set, Union
 
 import ray
@@ -65,6 +68,28 @@ def get_cluster_servlet(create_if_not_exists: bool = False):
         ray.get(cluster_servlet.get_cluster_config.remote())
 
     return cluster_servlet
+
+
+def context_wrapper(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        _ctx_token = None
+        try:
+            if not req_ctx.get():
+                _ctx_token = self._populate_ctx_locally()
+
+            res = func(self, *args, **kwargs)
+        except Exception as e:
+            if _ctx_token:
+                self._unset_ctx(_ctx_token)
+            raise e
+
+        if _ctx_token:
+            self._unset_ctx(_ctx_token)
+
+        return res
+
+    return wrapper
 
 
 class ObjStore:
@@ -264,7 +289,23 @@ class ObjStore:
         from runhouse.servers.http.http_utils import RequestContext
 
         ctx = RequestContext(**ctx_args)
-        req_ctx.set(ctx)
+        return req_ctx.set(ctx)
+
+    def _populate_ctx_locally(self):
+        from runhouse.globals import configs
+        from runhouse.servers.http.auth import hash_token
+
+        den_auth_enabled = self.get_cluster_config().get("den_auth")
+        token = configs.token
+        token_hash = None
+        if den_auth_enabled and token:
+            token_hash = hash_token(token)
+            self.add_user_to_auth_cache(token, refresh_cache=False)
+        return self._set_ctx(request_id=str(uuid.uuid4()), token_hash=token_hash)
+
+    @staticmethod
+    def _unset_ctx(_ctx_token):
+        req_ctx.reset(_ctx_token)
 
     ##############################################
     # Cluster config state storage methods
@@ -864,9 +905,7 @@ class ObjStore:
 
                 # Setting to None in the case of non-resource or no rns_address will force auth to only
                 # succeed if the user has WRITE or READ access to the cluster
-                resource_uri = (
-                    obj.rns_address if hasattr(obj, "rns_address") else None
-                )
+                resource_uri = obj.rns_address if hasattr(obj, "rns_address") else None
                 if not self.has_resource_access(ctx.token_hash, resource_uri):
                     raise PermissionError(
                         f"Unauthorized access to resource {key}.",
@@ -995,6 +1034,7 @@ class ObjStore:
         else:
             raise ValueError(f"Invalid laziness type {laziness_type}")
 
+    @context_wrapper
     def call(
         self,
         key: str,
