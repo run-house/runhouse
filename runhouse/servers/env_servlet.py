@@ -8,8 +8,6 @@ import traceback
 from functools import wraps
 from typing import Any, Optional
 
-from sky.skylet.autostop_lib import set_last_active_time_to_now
-
 from runhouse.globals import obj_store
 
 from runhouse.resources.blobs import blob, Blob
@@ -90,7 +88,12 @@ class EnvServlet:
 
     @staticmethod
     def register_activity():
-        set_last_active_time_to_now()
+        try:
+            from sky.skylet.autostop_lib import set_last_active_time_to_now
+
+            set_last_active_time_to_now()
+        except ImportError:
+            pass
 
     def call_module_method(
         self,

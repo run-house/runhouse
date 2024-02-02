@@ -6,9 +6,13 @@ from pathlib import Path
 from typing import Any, Dict
 
 import rich.errors
-import sky
 import yaml
-from sky.backends import backend_utils, CloudVmRayBackend
+
+try:
+    import sky
+    from sky.backends import backend_utils, CloudVmRayBackend
+except ImportError:
+    pass
 
 from runhouse.globals import configs, rns_client
 

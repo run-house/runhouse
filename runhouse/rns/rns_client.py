@@ -1,7 +1,7 @@
+import importlib
 import json
 import logging
 import os
-import pkgutil
 import shutil
 from pathlib import Path
 from typing import Dict, Optional, Set
@@ -40,7 +40,7 @@ class RNSClient:
 
         self.rh_directory = str(Path(self.locate_working_dir()) / "rh")
         self.rh_builtins_directory = str(
-            Path(pkgutil.get_loader("runhouse").path).parent / "builtins"
+            Path(importlib.util.find_spec("runhouse").origin).parent / "builtins"
         )
 
         # TODO allow users to register other base folders
@@ -55,7 +55,7 @@ class RNSClient:
             else []
         )
         rns_base_folders.append(
-            str(Path(pkgutil.get_loader("runhouse").path).parent / "builtins")
+            str(Path(importlib.util.find_spec("runhouse").origin).parent / "builtins")
         )
         self._index_base_folders(rns_base_folders)
         self._current_folder = None

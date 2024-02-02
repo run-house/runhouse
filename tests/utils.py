@@ -1,5 +1,5 @@
 import contextlib
-import pkgutil
+import importlib
 import uuid
 from pathlib import Path
 
@@ -36,7 +36,9 @@ def friend_account():
     When inside the context manager, use the test account credentials before reverting back to the original
     account when exiting."""
 
-    local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent.parent
+    local_rh_package_path = Path(
+        importlib.util.find_spec("runhouse").origin
+    ).parent.parent
     dotenv_path = local_rh_package_path / ".env"
     if not dotenv_path.exists():
         dotenv_path = None  # Default to standard .env file search

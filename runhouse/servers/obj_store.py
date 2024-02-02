@@ -261,7 +261,7 @@ class ObjStore:
             )
 
             # Make sure env_servlet is actually initialized
-            ray.get(new_env_actor.register_activity.remote())
+            # ray.get(new_env_actor.register_activity.remote())
 
             env_servlets[env_name] = new_env_actor
             return new_env_actor

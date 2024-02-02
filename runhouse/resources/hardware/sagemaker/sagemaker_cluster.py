@@ -1,9 +1,9 @@
 import configparser
 import contextlib
 import getpass
+import importlib
 import logging
 import os
-import pkgutil
 import pty
 import re
 import select
@@ -35,7 +35,7 @@ from sshtunnel import BaseSSHTunnelForwarderError, SSHTunnelForwarder
 from runhouse.globals import configs, rns_client, ssh_tunnel_cache
 
 from runhouse.resources.hardware.cluster import Cluster
-from runhouse.resources.hardware.utils import get_open_tunnel, SkySSHRunner
+from runhouse.resources.hardware.utils import get_open_tunnel
 from runhouse.rns.utils.api import is_jsonable, relative_ssh_path, resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 
@@ -627,6 +627,8 @@ class SageMakerCluster(Cluster):
                     return_codes.append((255, "", str(e)))
             else:
                 # Host can be replaced with name (as reflected in the ~/.ssh/config file)
+                from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner
+
                 runner = SkySSHRunner(
                     self.name,
                     port=self.ssh_port,
@@ -1237,7 +1239,8 @@ class SageMakerCluster(Cluster):
         )
         logger.info("Synced ~/.rh folder to the cluster")
 
-        local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
+        local_rh_package_path = Path(importlib.util.find_spec("runhouse").origin).parent
+        # local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
 
         # **Note** temp patch to handle PyYAML errors: https://github.com/yaml/pyyaml/issues/724
         base_rh_install_cmd = f'{self._get_env_activate_cmd(env=None)} && python3 -m pip install "cython<3.0.0"'

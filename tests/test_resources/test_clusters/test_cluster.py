@@ -4,7 +4,7 @@ import requests
 
 import runhouse as rh
 
-from runhouse.resources.hardware.utils import LOCALHOST
+from runhouse.constants import LOCALHOST
 
 import tests.test_resources.test_resource
 from tests.conftest import init_args

@@ -15,8 +15,6 @@ from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from sky.skylet.autostop_lib import set_last_active_time_to_now
-
 from runhouse.constants import (
     CLUSTER_CONFIG_PATH,
     DEFAULT_HTTP_PORT,
@@ -218,7 +216,12 @@ class HTTPServer:
 
     @staticmethod
     def register_activity():
-        set_last_active_time_to_now()
+        try:
+            from sky.skylet.autostop_lib import set_last_active_time_to_now
+
+            set_last_active_time_to_now()
+        except ImportError:
+            pass
 
     @staticmethod
     @app.get("/cert")

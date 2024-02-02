@@ -6,7 +6,6 @@ from runhouse.globals import configs, obj_store, rns_client
 
 from runhouse.logger import LOGGING_CONFIG
 
-from runhouse.resources.hardware.utils import _get_cluster_from
 from runhouse.servers.obj_store import ClusterServletSetupOption, RaySetupOption
 
 # Configure the logger once
@@ -85,6 +84,8 @@ def get_local_cluster_object():
     # within the global state.
     config = obj_store.get_cluster_config()
     if config.get("resource_subtype") is not None:
+        from runhouse.resources.hardware.utils import _get_cluster_from
+
         system = _get_cluster_from(config, dryrun=True)
         return system
 

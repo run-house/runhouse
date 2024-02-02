@@ -1,8 +1,8 @@
 import contextlib
 import copy
+import importlib
 import json
 import logging
-import pkgutil
 import re
 import subprocess
 import sys
@@ -33,13 +33,7 @@ from runhouse.constants import (
 )
 from runhouse.globals import obj_store, rns_client
 from runhouse.resources.envs.utils import _get_env_from
-from runhouse.resources.hardware.utils import (
-    _current_cluster,
-    ServerConnectionType,
-    SkySSHRunner,
-    ssh_tunnel,
-    SshMode,
-)
+from runhouse.resources.hardware.utils import _current_cluster, ServerConnectionType
 from runhouse.resources.resource import Resource
 
 from runhouse.servers.http import HTTPClient
@@ -258,7 +252,7 @@ class Cluster(Resource):
         if not self.address:
             raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
 
-        local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
+        local_rh_package_path = Path(importlib.util.find_spec("runhouse").origin).parent
 
         # Check if runhouse is installed from source and has setup.py
         if (
@@ -542,7 +536,9 @@ class Cluster(Resource):
 
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
-    ) -> Union[SSHTunnelForwarder, SkySSHRunner]:
+    ) -> Union[SSHTunnelForwarder, "SkySSHRunner"]:
+        from runhouse.resources.hardware.sky_ssh_runner import ssh_tunnel
+
         return ssh_tunnel(
             address=self.address,
             ssh_creds=self.ssh_creds,
@@ -820,6 +816,8 @@ class Cluster(Resource):
                 )
             return
 
+        from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner, SshMode
+
         # If no address provided explicitly use the head node address
         node = node or self.address
         # FYI, could be useful: https://github.com/gchamon/sysrsync
@@ -979,6 +977,8 @@ class Cluster(Resource):
         port_forward: int = None,
         require_outputs: bool = True,
     ):
+        from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner, SshMode
+
         return_codes = []
 
         ssh_credentials = copy.copy(self.ssh_creds)
