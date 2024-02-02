@@ -340,7 +340,7 @@ def set_up_local_cluster(
     init_args[id(rh_cluster)] = cluster_init_args
 
     rh.env(
-        reqs=["pytest", "httpx", "pytest_asyncio"],
+        reqs=["pytest", "httpx", "pytest_asyncio", "pandas"],
         working_dir=None,
         setup_cmds=[
             f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "

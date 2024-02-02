@@ -4,12 +4,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import fsspec
-import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 
 import ray
-import ray.data
 
 from runhouse import Folder
 from runhouse.globals import rns_client
@@ -89,7 +85,7 @@ class Table(Resource):
         return config
 
     @property
-    def data(self) -> ray.data.Dataset:
+    def data(self) -> "ray.data.Dataset":
         """Get the table data. If data is not already cached, return a Ray dataset.
 
         With the dataset object we can stream or convert to other types, for example:
@@ -190,6 +186,10 @@ class Table(Resource):
         Example:
             >>> rh.table(data, path="path/to/write").write()
         """
+        import pandas as pd
+        import pyarrow as pa
+        import ray.data
+
         if self._cached_data is not None:
             data_to_write = self.data
 
@@ -207,7 +207,7 @@ class Table(Resource):
 
         return self
 
-    def fetch(self, columns: Optional[list] = None) -> pa.Table:
+    def fetch(self, columns: Optional[list] = None) -> "pa.Table":
         """Returns the complete table contents.
 
         Example:
@@ -224,6 +224,8 @@ class Table(Resource):
         # (ex: with pyarrow table or with partitioned data that saves multiple files within the directory)
 
         try:
+            import pyarrow.parquet as pq
+
             table_data = pq.read_table(
                 self.path, columns=columns, filesystem=self._folder.fsspec_fs
             )
@@ -249,6 +251,9 @@ class Table(Resource):
                 yield sample
 
     def __len__(self):
+        import pandas as pd
+        import ray.data
+
         if isinstance(self.data, pd.DataFrame):
             len_dataset = self.data.shape[0]
 
@@ -325,7 +330,7 @@ class Table(Resource):
         )
         return dataset
 
-    def _write_ray_dataset(self, data_to_write: ray.data.Dataset):
+    def _write_ray_dataset(self, data_to_write: "ray.data.Dataset"):
         """Write a ray dataset to a fsspec filesystem"""
         if self.partition_cols:
             # TODO [JL]: https://arrow.apache.org/docs/python/generated/pyarrow.parquet.write_to_dataset.html
@@ -340,13 +345,17 @@ class Table(Resource):
         data_to_write.write_parquet(self.fsspec_url, filesystem=self._folder.fsspec_fs)
 
     @staticmethod
-    def _ray_dataset_from_arrow(data: pa.Table):
+    def _ray_dataset_from_arrow(data: "pa.Table"):
         """Convert an Arrow Table to a Ray Dataset"""
+        import ray.data
+
         return ray.data.from_arrow(data)
 
     @staticmethod
-    def _ray_dataset_from_pandas(data: pd.DataFrame):
+    def _ray_dataset_from_pandas(data: "pd.DataFrame"):
         """Convert an Pandas DataFrame to a Ray Dataset"""
+        import ray.data
+
         return ray.data.from_pandas(data)
 
     def read_table_from_file(self, columns: Optional[list] = None):
@@ -357,6 +366,8 @@ class Table(Resource):
             >>> table_data = table.read_table_from_file()
         """
         try:
+            import pyarrow.parquet as pq
+
             with fsspec.open(self.fsspec_url, mode="rb", **self.data_config) as t:
                 table_data = pq.read_table(t.full_name, columns=columns)
             return table_data
@@ -402,6 +413,8 @@ def _load_table_subclass(config: dict, dryrun: bool, data=None):
         raise e
 
     try:
+        import pandas as pd
+
         if resource_subtype == "PandasTable" or isinstance(data, pd.DataFrame):
             from .pandas_table import PandasTable
 
@@ -424,7 +437,7 @@ def _load_table_subclass(config: dict, dryrun: bool, data=None):
         raise e
 
     try:
-        import ray
+        import ray.data
 
         if resource_subtype == "RayTable" or isinstance(data, ray.data.Dataset):
             from .ray_table import RayTable
@@ -445,15 +458,22 @@ def _load_table_subclass(config: dict, dryrun: bool, data=None):
     except Exception as e:
         raise e
 
-    if resource_subtype == "Table" or isinstance(data, pa.Table):
-        new_table = Table(**config, dryrun=dryrun)
-        return new_table
-    else:
-        raise TypeError(
-            f"Unsupported data type {type(data)} for Table construction. "
-            f"For converting data to pyarrow see: "
-            f"https://arrow.apache.org/docs/7.0/python/generated/pyarrow.Table.html"
-        )
+    try:
+        import pyarrow as pa
+
+        if resource_subtype == "Table" or isinstance(data, pa.Table):
+            new_table = Table(**config, dryrun=dryrun)
+            return new_table
+    except ModuleNotFoundError:
+        pass
+    except Exception as e:
+        raise e
+
+    raise TypeError(
+        f"Unsupported data type {type(data)} for Table construction. "
+        f"For converting data to pyarrow see: "
+        f"https://arrow.apache.org/docs/7.0/python/generated/pyarrow.Table.html"
+    )
 
 
 def table(
