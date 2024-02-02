@@ -26,6 +26,10 @@ def error_handling_decorator(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         EnvServlet.register_activity()
+        ctx = kwargs.pop("ctx", None)
+        if ctx:
+            obj_store._set_ctx(**ctx)
+
         serialization = kwargs.get("serialization", None)
         if "data" in kwargs:
             serialized_data = kwargs.get("data", None)
@@ -108,6 +112,7 @@ class EnvServlet:
         run_name: Optional[str] = None,
         stream_logs: bool = False,
         remote: bool = False,
+        ctx: Optional[dict] = None,
     ):
         args, kwargs = data or ([], {})
         return obj_store.call_local(
