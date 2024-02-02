@@ -158,7 +158,6 @@ def handle_exception_response(
                 raise HTTPException(status_code=401, detail=detail)
             if (
                 "Unauthorized access to resource" in detail
-                or "does not have a Runhouse address" in detail
             ):
                 raise HTTPException(status_code=403, detail=detail)
         if isinstance(cause, ValueError):

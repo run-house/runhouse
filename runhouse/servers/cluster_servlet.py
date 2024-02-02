@@ -1,8 +1,10 @@
 import logging
 from typing import Any, Dict, List, Optional, Set, Union
 
+from runhouse.globals import configs
 from runhouse.resources.hardware import load_cluster_config_from_file
-from runhouse.servers.http.auth import AuthCache
+from runhouse.rns.utils.api import ResourceAccess
+from runhouse.servers.http.auth import AuthCache, hash_token
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +48,10 @@ class ClusterServlet:
     def resource_access_level(
         self, token_hash: str, resource_uri: str
     ) -> Union[str, None]:
+        # If the token in this request matches that of the owner of the cluster,
+        # they have access to everything
+        if configs.token and token_hash == hash_token(configs.token):
+            return ResourceAccess.WRITE
         return self._auth_cache.lookup_access_level(token_hash, resource_uri)
 
     def user_resources(self, token_hash: str) -> dict:
