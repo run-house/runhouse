@@ -45,7 +45,7 @@ def named_cluster():
 @pytest.fixture(scope="session")
 def local_daemon(request):
     if rh.here == "file" or not request.config.getoption("--detached"):
-        local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent.parent
+        local_rh_package_path = Path(importlib.util.find_spec("runhouse").origin).parent
         subprocess.run(
             "runhouse restart",
             shell=True,  # Needed because we need to be in the right conda env

@@ -10,6 +10,7 @@ import ray
 
 import runhouse
 from runhouse.constants import RAY_KILL_CMD, RAY_START_CMD
+from runhouse.rns.utils.api import ResourceVisibility
 
 logger = logging.getLogger(__name__)
 
@@ -856,26 +857,33 @@ class ObjStore:
 
         obj = self.get_local(key, default=KeyError)
 
-        if self.get_cluster_config().get("den_auth"):
-            if not hasattr(obj, "rns_address"):
-                raise PermissionError(
-                    f"Resource {key} does not have a Runhouse address and auth is enabled on this cluster. "
-                    f"Please save the object as a resource in Den to enable access control.",
-                )
-            ctx = req_ctx.get()
-            if not ctx or not ctx.token_hash:
-                raise PermissionError(
-                    "No Runhouse token provided. Try running `$ runhouse login` or visiting "
-                    "https://run.house/login to retrieve a token. If calling via HTTP, please "
-                    "provide a valid token in the Authorization header.",
-                )
-
-            if not self.has_resource_access(ctx.token_hash, obj.rns_address):
-                raise PermissionError(
-                    f"Unauthorized access to resource {key}.",
-                )
-
         from runhouse.resources.module import Module
+        from runhouse.resources.resource import Resource
+
+        if self.get_cluster_config().get("den_auth"):
+            if not isinstance(obj, Resource) or obj.visibility not in [
+                ResourceVisibility.UNLISTED,
+                ResourceVisibility.PUBLIC,
+                "unlisted",
+                "public",
+            ]:
+                ctx = req_ctx.get()
+                if not ctx or not ctx.token_hash:
+                    raise PermissionError(
+                        "No Runhouse token provided. Try running `$ runhouse login` or visiting "
+                        "https://run.house/login to retrieve a token. If calling via HTTP, please "
+                        "provide a valid token in the Authorization header.",
+                    )
+
+                # Setting to None in the case of non-resource or no rns_address will force auth to only
+                # succeed if the user has WRITE or READ access to the cluster
+                resource_uri = (
+                    obj.rns_address if hasattr(obj, "rns_address") else None
+                )
+                if not self.has_resource_access(ctx.token_hash, resource_uri):
+                    raise PermissionError(
+                        f"Unauthorized access to resource {key}.",
+                    )
 
         # Process any inputs which need to be resolved
         args = [
