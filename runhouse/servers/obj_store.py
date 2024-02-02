@@ -1,3 +1,4 @@
+import contextvars
 import inspect
 import logging
 import os
@@ -11,6 +12,8 @@ import runhouse
 from runhouse.constants import RAY_KILL_CMD, RAY_START_CMD
 
 logger = logging.getLogger(__name__)
+
+req_ctx = contextvars.ContextVar("rh_ctx", default={})
 
 
 class RaySetupOption(str, Enum):
@@ -274,6 +277,13 @@ class ObjStore:
                 )
             else:
                 return None
+
+    @staticmethod
+    def _set_ctx(**ctx_args):
+        from runhouse.servers.http.http_utils import RequestContext
+
+        ctx = RequestContext(**ctx_args)
+        req_ctx.set(ctx)
 
     ##############################################
     # Cluster config state storage methods
@@ -813,6 +823,7 @@ class ObjStore:
             run_name=run_name,
             stream_logs=stream_logs,
             remote=remote,
+            ctx=dict(req_ctx.get()),
         )
 
     def call_local(
@@ -843,8 +854,26 @@ class ObjStore:
         )
         log_ctx.__enter__()
 
-        # TODO auth
-        module = self.get_local(key, default=KeyError)
+        obj = self.get_local(key, default=KeyError)
+
+        if self.get_cluster_config().get("den_auth"):
+            if not hasattr(obj, "rns_address"):
+                raise PermissionError(
+                    f"Resource {key} does not have a Runhouse address and auth is enabled on this cluster. "
+                    f"Please save the object as a resource in Den to enable access control.",
+                )
+            ctx = req_ctx.get()
+            if not ctx or not ctx.token_hash:
+                raise PermissionError(
+                    "No Runhouse token provided. Try running `$ runhouse login` or visiting "
+                    "https://run.house/login to retrieve a token. If calling via HTTP, please "
+                    "provide a valid token in the Authorization header.",
+                )
+
+            if not self.has_resource_access(ctx.token_hash, obj.rns_address):
+                raise PermissionError(
+                    f"Unauthorized access to resource {key}.",
+                )
 
         from runhouse.resources.module import Module
 
@@ -860,18 +889,16 @@ class ObjStore:
 
         method_name = method_name or "__call__"
 
-        from runhouse.resources.module import Module
-
         try:
-            if isinstance(module, Module):
+            if isinstance(obj, Module):
                 # Force this to be fully local for Modules so we don't have any circular stuff calling into other
                 # envs or systems.
-                method = getattr(module.local, method_name)
+                method = getattr(obj.local, method_name)
             else:
-                method = getattr(module, method_name)
+                method = getattr(obj, method_name)
         except AttributeError:
-            logger.debug(module.__dict__)
-            raise ValueError(f"Method {method_name} not found on module {module}")
+            logger.debug(obj.__dict__)
+            raise ValueError(f"Method {method_name} not found on module {obj}")
 
         if hasattr(method, "__call__") or method_name == "__call__":
             # If method is callable, call it and return the result
@@ -885,10 +912,10 @@ class ObjStore:
                 logger.info(
                     f"{self.servlet_name} servlet: Setting property {method_name} on module {key}"
                 )
-                if isinstance(module, Module):
-                    setattr(module.local, method_name, args[0])
+                if isinstance(obj, Module):
+                    setattr(obj.local, method_name, args[0])
                 else:
-                    setattr(module, method_name, args[0])
+                    setattr(obj, method_name, args[0])
                 res = None
             else:
                 # Method is a property, return the value

@@ -131,12 +131,8 @@ class TestHTTPServerDocker:
             f"{module_name}/{method_name}",
             json={
                 "data": pickle_b64([args, kwargs]),
-                "env": None,
                 "stream_logs": True,
-                "save": False,
-                "key": None,
-                "remote": False,
-                "run_async": False,
+                "serialization": "pickle",
             },
             headers=rns_client.request_headers(),
         )
@@ -177,9 +173,8 @@ class TestHTTPServerDocker:
             json={"data": ([1, 2], {}), "serialization": "random"},
             headers=rns_client.request_headers(),
         )
-        assert "ValueError: Invalid serialization type" in b64_unpickle(
-            response.json()["traceback"]
-        )
+        assert response.status_code == 400
+        assert "Invalid serialization type" in response.text
 
     @pytest.mark.level("local")
     @pytest.mark.asyncio
@@ -249,14 +244,14 @@ class TestHTTPServerDockerDenAuthOnly:
             response = http_client.get("/keys", headers=rns_client.request_headers())
 
         assert response.status_code == 403
-        assert "Cluster access is required for API" in response.text
+        assert "Cluster access is required for this operation." in response.text
 
     @pytest.mark.level("local")
     def test_request_with_no_token(self, http_client):
         response = http_client.get("/keys")  # No headers are passed
-        assert response.status_code == 404
+        assert response.status_code == 401
 
-        assert "No token found in request auth headers" in response.text
+        assert "No Runhouse token provided." in response.text
 
     @pytest.mark.level("local")
     def test_get_cert_with_invalid_token(self, http_client):
@@ -281,11 +276,10 @@ class TestHTTPServerDockerDenAuthOnly:
             headers=INVALID_HEADERS,
         )
         assert response.status_code == 403
-        assert "Cluster access is required for API" in response.text
+        assert "Cluster access is required for this operation." in response.text
 
     @pytest.mark.level("local")
     def test_call_module_method_with_invalid_token(self, http_client, remote_func):
-        # Create new func on the cluster, then call it
         method_name = "call"
         module_name = remote_func.name
         args = (1, 2)
@@ -295,11 +289,12 @@ class TestHTTPServerDockerDenAuthOnly:
             f"{module_name}/{method_name}",
             json={
                 "data": [args, kwargs],
-                "serialization": None,
+                "stream_logs": False,
             },
             headers=INVALID_HEADERS,
         )
-        assert "No read or write access to requested resource" in response.text
+        assert response.status_code == 403
+        assert "Unauthorized access to resource summer" in response.text
 
     @pytest.mark.level("local")
     def test_put_object_with_invalid_token(self, http_client):
@@ -314,7 +309,7 @@ class TestHTTPServerDockerDenAuthOnly:
             headers=INVALID_HEADERS,
         )
         assert response.status_code == 403
-        assert "Cluster access is required for API" in response.text
+        assert "Cluster access is required for this operation." in response.text
 
     @pytest.mark.level("local")
     def test_rename_object_with_invalid_token(self, http_client):
@@ -326,14 +321,14 @@ class TestHTTPServerDockerDenAuthOnly:
             headers=INVALID_HEADERS,
         )
         assert response.status_code == 403
-        assert "Cluster access is required for API" in response.text
+        assert "Cluster access is required for this operation." in response.text
 
     @pytest.mark.level("local")
     def test_get_keys_with_invalid_token(self, http_client):
         response = http_client.get("/keys", headers=INVALID_HEADERS)
 
         assert response.status_code == 403
-        assert "Cluster access is required for API" in response.text
+        assert "Cluster access is required for this operation." in response.text
 
 
 @pytest.fixture(scope="function")
@@ -492,9 +487,9 @@ class TestHTTPServerNoDockerDenAuthOnly:
         response = local_client_with_den_auth.get(
             "/keys", headers={"Authorization": ""}
         )  # No headers are passed
-        assert response.status_code == 404
+        assert response.status_code == 401
 
-        assert "No token found in request auth headers" in response.text
+        assert "No Runhouse token provided." in response.text
 
     @pytest.mark.level("unit")
     def test_get_cert_with_invalid_token(self, local_client_with_den_auth):

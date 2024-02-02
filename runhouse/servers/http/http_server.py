@@ -4,6 +4,7 @@ import inspect
 import json
 import logging
 import traceback
+import uuid
 from functools import wraps
 from pathlib import Path
 from typing import Optional
@@ -43,7 +44,7 @@ from runhouse.servers.http.http_utils import (
     PutResourceParams,
     RenameObjectParams,
     Response,
-    ServerSettings,
+    ServerSettings, serialize_data,
 )
 from runhouse.servers.nginx.config import NginxConfig
 from runhouse.servers.obj_store import (
@@ -71,6 +72,10 @@ def validate_cluster_access(func):
         func_call: bool = func.__name__ in ["post_call", "get_call"]
         token = get_token_from_request(request)
 
+        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        token_hash = hash_token(token) if den_auth_enabled and token else None
+        obj_store._set_ctx(request_id=request_id, token_hash=token_hash)
+
         if func_call and token:
             obj_store.add_user_to_auth_cache(token, refresh_cache=False)
 
@@ -83,9 +88,10 @@ def validate_cluster_access(func):
 
         if token is None:
             raise HTTPException(
-                status_code=404,
-                detail="No token found in request auth headers. Expected in "
-                f"format: {json.dumps({'Authorization': 'Bearer <token>'})}",
+                status_code=401,
+                detail="No Runhouse token provided. Try running `$ runhouse login` or visiting "
+                "https://run.house/login to retrieve a token. If calling via HTTP, please "
+                "provide a valid token in the Authorization header.",
             )
 
         cluster_uri = load_current_cluster()
@@ -105,7 +111,7 @@ def validate_cluster_access(func):
             # Note: for func calls will be handling the auth in the object store
             raise HTTPException(
                 status_code=403,
-                detail="Cluster access is required for API",
+                detail="Cluster access is required for this operation.",
             )
 
         if is_coro:
@@ -332,7 +338,9 @@ class HTTPServer:
                 env_name=env_name,
             )
         except Exception as e:
-            return handle_exception_response(e, traceback.format_exc())
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
 
     # TODO refactor into a call method and separate post_call, get_call, put_call, delete_call, etc.
     @staticmethod
@@ -341,9 +349,6 @@ class HTTPServer:
     async def post_call(
         request: Request, key, method_name=None, params: CallParams = Body(default=None)
     ):
-        # token = get_token_from_request(request)
-        # den_auth_enabled = HTTPServer.get_den_auth()
-        # token_hash = hash_token(token) if den_auth_enabled and token else None
         HTTPServer.register_activity()
         try:
             params.run_name = params.run_name or _generate_default_name(
@@ -379,7 +384,8 @@ class HTTPServer:
             return handle_exception_response(
                 e,
                 traceback.format_exc(),
-                serialization=params.serialization or "pickle",
+                serialization=params.serialization,
+                from_http_server=True,
             )
 
     @staticmethod
@@ -448,14 +454,18 @@ class HTTPServer:
 
         except Exception as e:
             logger.exception(e)
+            # NOTE: We do not convert the exception to an HTTPException here, because once we're inside this
+            # generator starlette has already returned the StreamingResponse and there is no way to halt the stream
+            # to return a 403 instead. Users shouldn't notice much of a difference, because if working through the
+            # client the exception will be serialized and returned to appear as a native python exception, and if
+            # working through an HTTP call stream_logs is False by default, so a normal HTTPException will be raised
+            # above before entering this generator.
             yield json.dumps(
                 jsonable_encoder(
                     Response(
-                        error=pickle_b64(e) if not serialization == "json" else str(e),
-                        traceback=pickle_b64(traceback.format_exc())
-                        if not serialization == "json"
-                        else str(traceback.format_exc()),
                         output_type=OutputType.EXCEPTION,
+                        error=serialize_data(e, serialization=serialization),
+                        traceback=serialize_data(traceback.format_exc(), serialization=serialization),
                     )
                 )
             )
@@ -482,7 +492,8 @@ class HTTPServer:
             return handle_exception_response(
                 e,
                 traceback.format_exc(),
-                serialization=params.serialization or "pickle",
+                serialization=params.serialization,
+                from_http_server=True,
             )
 
     @staticmethod
@@ -499,7 +510,8 @@ class HTTPServer:
             return handle_exception_response(
                 e,
                 traceback.format_exc(),
-                serialization=params.serialization or "pickle",
+                serialization=params.serialization,
+                from_http_server=True,
             )
 
     @staticmethod
@@ -513,7 +525,9 @@ class HTTPServer:
             )
             return Response(output_type=OutputType.SUCCESS)
         except Exception as e:
-            return handle_exception_response(e, traceback.format_exc())
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
 
     @staticmethod
     @app.post("/delete_object")
@@ -536,7 +550,9 @@ class HTTPServer:
                 serialization=None,
             )
         except Exception as e:
-            return handle_exception_response(e, traceback.format_exc())
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
 
     @staticmethod
     @app.get("/keys")
@@ -555,7 +571,9 @@ class HTTPServer:
                 serialization=None,
             )
         except Exception as e:
-            return handle_exception_response(e, traceback.format_exc())
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
 
     @staticmethod
     @app.get("/{module}/{method}")
