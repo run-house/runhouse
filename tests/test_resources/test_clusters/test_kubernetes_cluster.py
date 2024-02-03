@@ -11,7 +11,6 @@ def num_cpus():
     return f"Num cpus: {multiprocessing.cpu_count()}"
 
 
-@pytest.mark.kubernetestest
 class TestKubernetesCluster(
     tests.test_resources.test_clusters.test_cluster.TestCluster
 ):
