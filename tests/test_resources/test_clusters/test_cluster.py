@@ -1,3 +1,5 @@
+import subprocess
+
 import pandas as pd
 import pytest
 import requests
@@ -34,7 +36,6 @@ def test_table_to_rh_here():
 
 
 class TestCluster(tests.test_resources.test_resource.TestResource):
-
     MAP_FIXTURES = {"resource": "cluster"}
 
     UNIT = {"cluster": ["named_cluster"]}
@@ -184,3 +185,53 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         save_test_table_remote()
         assert "test_table" in cluster.keys()
         assert isinstance(cluster.get("test_table"), rh.Table)
+
+    @pytest.mark.level("local")
+    def test_rh_status_local(self, cluster):
+        cluster.put(key="status_key1", obj="status_value1", env="numpy_env")
+        res = subprocess.check_output(["runhouse", "status", cluster.name]).decode(
+            "utf-8"
+        )
+        assert "😈 Runhouse Daemon is running 🏃" in res
+        assert f"server_port: {cluster.server_port}" in res
+        assert f"server_connection_type: {cluster.server_connection_type}" in res
+        assert f"den_auth: {str(cluster.den_auth)}" in res
+        assert f"resource_type: {cluster.RESOURCE_TYPE.lower()}" in res
+        assert f"ips: {str(cluster.ips)}" in res
+        assert "Serving 🍦 :" in res
+        cluster.put(key="status_key1", obj="status_value1", env="base_env")
+        assert "status_value1 (Str)" in res
+
+    @pytest.mark.level("local")
+    def test_rh_status_in_cluster(self, cluster):
+        cluster.put(key="status_key2", obj="status_value2", env="base_env")
+        res = cluster.run(["runhouse status"])[0][1]
+        assert "😈 Runhouse Daemon is running 🏃" in res
+        assert f"server_port: {cluster.server_port}" in res
+        assert f"server_connection_type: {cluster.server_connection_type}" in res
+        assert f"den_auth: {str(cluster.den_auth)}" in res
+        assert f"resource_type: {cluster.RESOURCE_TYPE.lower()}" in res
+        assert f"ips: {str(cluster.ips)}" in res
+        assert "Serving 🍦 :" in res
+        assert "base_env (Env):" in res
+        assert "status_value2 (Str)" in res
+
+    @pytest.mark.level("local")
+    def test_rh_status_errors(self, cluster):
+        try:
+            cluster_name = cluster.name
+            cluster.run(["runhouse stop"])
+            res = subprocess.check_output(["runhouse", "status", cluster_name]).decode(
+                "utf-8"
+            )
+            assert "Runhouse Daemon is not running" in res
+            res = subprocess.check_output(
+                ["runhouse", "status", f"{cluster_name}_dont_exist"]
+            ).decode("utf-8")
+            error_txt = (
+                f"Cluster {cluster_name}_dont_exist is not found in Den. Please save it, in order to get "
+                f"its status"
+            )
+            assert error_txt in res
+        finally:
+            cluster.run(["runhouse restart"])
