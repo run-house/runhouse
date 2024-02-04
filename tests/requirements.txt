@@ -1,3 +1,14 @@
 pytest
 httpx
 pytest_asyncio
+awscli==1.27.10
+boto3==1.26.1
+pycryptodome==3.12.0
+google-api-python-client
+google-cloud-storage
+gcsfs
+datasets
+dask
+pyyaml<5.4,>3.13
+fsspec==2023.12.2
+botocore==1.27.59
