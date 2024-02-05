@@ -534,6 +534,12 @@ class Cluster(Resource):
 
         return
 
+    def status(self):
+        self.check_server()
+        if self.on_this_cluster():
+            return obj_store.get_status()
+        return self.client.status()
+
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
     ) -> Union[SSHTunnelForwarder, "SkySSHRunner"]:

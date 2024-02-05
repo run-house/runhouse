@@ -714,8 +714,7 @@ class HTTPServer:
     @app.get("/status")
     @validate_cluster_access
     def get_status(request: Request):
-        config_cluster = obj_store.get_status()
-        return Response(data=config_cluster, output_type=OutputType.CONFIG)
+        return obj_store.get_status()
 
     @staticmethod
     def _collect_cluster_stats():

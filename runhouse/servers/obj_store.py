@@ -882,13 +882,20 @@ class ObjStore:
             # The objects in env can be of any type, and not only runhouse resources,
             # therefore we need to distinguish them when creating the list of the resources in each env.
             for r in resources_in_env:
+                cls = type(r)
+                py_module = cls.__module__
+                cls_name = (
+                    cls.__qualname__
+                    if py_module == "builtins"
+                    else (py_module + "." + cls.__qualname__)
+                )
                 if isinstance(r, runhouse.Resource):
                     resources_in_env_modified.append(
-                        {"name": r.name, "resource_type": r.RESOURCE_TYPE.capitalize()}
+                        {"name": r.name, "resource_type": cls_name}
                     )
                 else:
                     resources_in_env_modified.append(
-                        {"name": r, "resource_type": type(r).__name__.capitalize()}
+                        {"name": r, "resource_type": cls_name}
                     )
 
             cluster_servlets[env] = resources_in_env_modified
