@@ -5,9 +5,10 @@ datasets
 dask
 tqdm
 
-# used for local and unit tests
+# packages for local and unit tests
 skypilot[docker]
 docker
 s3fs
 pandas
 pyarrow
+fsspec<=2023.5.0
