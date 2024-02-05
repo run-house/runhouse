@@ -22,6 +22,7 @@ jobs:
 
       - name: Install python packages & dependencies
         run: |
+          pip install tests/test_requirements/additional_requirements.txt
           pip install tests/test_requirements/aws_test_requirements.txt
 
       - name: Run all aws tests

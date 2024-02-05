@@ -1,5 +1,0 @@
-skypilot[docker]
-docker
-s3fs
-pandas
-pyarrow

@@ -29,7 +29,8 @@ jobs:
 
       - name: Install python packages & dependencies
         run: |
-          tests/test_requirements/cluster_tests_requirements.txt
+          pip install -r tests/requirements.txt
+          pip install tests/test_requirements/additional_requirements.txt
 
       - name: Run all cluster unit tests tests
         env:

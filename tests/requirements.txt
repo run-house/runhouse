@@ -4,3 +4,10 @@ pytest_asyncio
 datasets
 dask
 tqdm
+
+# used for local and unit tests
+skypilot[docker]
+docker
+s3fs
+pandas
+pyarrow
