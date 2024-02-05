@@ -22,7 +22,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
     def test_from_cluster(self, cluster):
         rh.folder(path="../../../").to(cluster, path="my_new_tests_folder")
         tests_folder = rh.folder(system=cluster, path="my_new_tests_folder")
-        assert "my_new_tests_folder/requirements.txt" in tests_folder.ls()
+        assert "my_new_tests_folder/base_requirements.txt" in tests_folder.ls()
 
     @pytest.mark.level("minimal")  # This test needs S3 credentials
     def test_create_and_save_data_to_s3_folder(self):

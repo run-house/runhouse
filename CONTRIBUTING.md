@@ -47,7 +47,7 @@ git push -u origin branch-name
 
 To run tests, please install test/requirements.txt.
 ```
-pip install -r tests/requirements.txt
+pip install -r tests/test_requirements/base_requirements.txt
 ```
 
 Additional optional packages to install to run related tests:

@@ -203,8 +203,8 @@ class LambdaFunction(Function):
 
                 1. A dict which should contain the following keys:
 
-                    reqs: a list of the python libraries, to be installed by the Lambda, or just a ``requirements.txt``
-                    string.
+                    reqs: a list of the python libraries, to be installed by the Lambda, or just a
+                    ``base_requirements.txt``string.
 
                     env_vars: dictionary containing the env_vars that will be a part of the lambda configuration.
 
@@ -340,7 +340,7 @@ class LambdaFunction(Function):
         cls, paths_to_code, env, runtime, timeout, memory_size, tmp_size, retention_time
     ):
 
-        if isinstance(env, str) and "requirements.txt" in env:
+        if isinstance(env, str) and "base_requirements.txt" in env:
             paths_to_code.append(Path(env).absolute())
 
         if runtime is None or runtime not in LambdaFunction.SUPPORTED_RUNTIMES:
@@ -472,7 +472,7 @@ class LambdaFunction(Function):
         # adding code for installing python libraries
         if isinstance(self.env, str):
             f.write(
-                "\tsubprocess.call(['pip', 'install', '-r', 'requirements.txt',"
+                "\tsubprocess.call(['pip', 'install', '-r', 'base_requirements.txt',"
                 + " '--ignore-installed', '-t', '{self.HOME_DIR}/'])\n"
                 f"\tif not os.path.isdir('{self.HOME_DIR}/runhouse'):\n"
                 f"\t\tsubprocess.call(['pip', 'install', 'runhouse', '-t', '{self.HOME_DIR}/'])\n"

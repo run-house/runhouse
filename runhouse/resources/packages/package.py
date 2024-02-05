@@ -100,7 +100,7 @@ class Package(Resource):
             elif self.install_method == "conda":
                 install_cmd = f"{local_path}" + install_args
             elif self.install_method == "reqs":
-                reqs_path = f"{local_path}/requirements.txt"
+                reqs_path = f"{local_path}/base_requirements.txt"
                 logging.info(f"reqs path: {reqs_path}")
                 if Path(reqs_path).expanduser().exists():
                     install_cmd = self._requirements_txt_install_cmd(
@@ -113,7 +113,9 @@ class Package(Resource):
                     )
                     self._pip_install(install_cmd)
                 else:
-                    logging.info(f"{local_path}/requirements.txt not found, skipping")
+                    logging.info(
+                        f"{local_path}/base_requirements.txt not found, skipping"
+                    )
         else:
             install_cmd = self.install_target + install_args
 
@@ -333,7 +335,7 @@ class Package(Resource):
 
     @staticmethod
     def from_string(specifier: str, dryrun=False):
-        if specifier == "requirements.txt":
+        if specifier == "base_requirements.txt":
             specifier = "reqs:./"
 
         # Use regex to check if specifier matches '<method>:https://github.com/<path>' or 'https://github.com/<path>'

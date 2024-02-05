@@ -34,7 +34,7 @@ def function(
         system (Optional[str or Cluster]): Hardware (cluster) on which to execute the Function.
             This can be either the string name of a Cluster object, or a Cluster object.
         env (Optional[List[str] or Env or str]): List of requirements to install on the remote cluster, or path to the
-            requirements.txt file, or Env object or string name of an Env object.
+            base_requirements.txt file, or Env object or string name of an Env object.
         dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
             (Default: ``False``)
         load_secrets (bool): Whether or not to send secrets; only applicable if `dryrun` is set to ``False``.
@@ -52,7 +52,7 @@ def function(
         >>> def sum(a, b):
         >>>    return a + b
 
-        >>> summer = rh.function(fn=sum, name="my_func").to(cluster, env=['requirements.txt']).save()
+        >>> summer = rh.function(fn=sum, name="my_func").to(cluster, env=['base_requirements.txt']).save()
 
         >>> # using the function
         >>> res = summer(5, 8)  # returns 13

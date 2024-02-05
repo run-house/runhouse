@@ -25,7 +25,7 @@ def test_find_working_dir(tmp_path):
 
     Path(tmp_path, "subdir/subdir/.git").rmdir()
 
-    Path(tmp_path, "subdir/subdir/requirements.txt").write_text("....")
+    Path(tmp_path, "subdir/subdir/base_requirements.txt").write_text("....")
     d = rns_client.locate_working_dir(str(starting_dir))
     assert d in str(Path(tmp_path, "subdir/subdir"))
 

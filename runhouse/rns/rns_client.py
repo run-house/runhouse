@@ -112,7 +112,7 @@ class RNSClient:
         # Search for working_dir by looking up directory tree, in the following order:
         # 1. Upward directory with rh/ subdirectory
         # 2. Root git directory
-        # 3. Upward directory with requirements.txt
+        # 3. Upward directory with base_requirements.txt
         # 4. User's cwd
 
         for search_target in [
@@ -120,7 +120,7 @@ class RNSClient:
             "setup.py",
             "pyproject.toml",
             "rh",
-            "requirements.txt",
+            "base_requirements.txt",
         ]:
             dir_with_target = cls.find_parent_with_file(cwd, search_target)
             if dir_with_target is not None:
