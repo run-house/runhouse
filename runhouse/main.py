@@ -117,12 +117,10 @@ def _print_status(config):
     daemon_headline_txt = (
         "\N{smiling face with horns} Runhouse Daemon is running \N{Runner}"
     )
+
     console.print(daemon_headline_txt, style="bold royal_blue1")
-    cluster_url = (
-        f"https://www.run.house/resources/{config['name'][1:].replace('/', ':')}"
-    )
-    hyperlink_text = f"[link={cluster_url}]{config['name']}[/link]"
-    console.print(hyperlink_text)
+    if "name" in config.keys():
+        console.print(config["name"])
 
     first_info_to_print = ["den_auth", "server_connection_type", "server_port"]
 
