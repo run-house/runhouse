@@ -1,0 +1,6 @@
+runhouse[aws]
+pytest
+torch
+diffusers
+transformers
+datasets

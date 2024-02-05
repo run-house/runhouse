@@ -50,6 +50,20 @@ To run tests, please install test/requirements.txt.
 pip install -r tests/requirements.txt
 ```
 
+Additional optional packages to install to run related tests:
+
+aws related tests
+```
+pip install -r tests/test_requirements/aws_test_requirements.txt
+```
+
+google related tests
+```
+pip install -r tests/test_requirements/google_tests_requirements.txt
+```
+
+
+
 ## Documentation
 Docs source code is located in `docs/`. To build and review docs locally:
 

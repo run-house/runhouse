@@ -1,5 +1,5 @@
+runhouse[aws]
 pytest
-httpx
-pytest_asyncio
+tqdm
 datasets
 dask

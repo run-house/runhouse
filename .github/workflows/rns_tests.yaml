@@ -22,8 +22,7 @@ jobs:
 
       - name: Install python packages & dependencies
         run: |
-          pip install tests/requirements.txt
-          pip install runhouse[aws]
+          tests/test_requirements/rns_test_requirements.txt
 
       - name: Run all RNS tests
         env:
