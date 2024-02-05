@@ -24,4 +24,5 @@ runs:
     - name: Install python packages & dependencies for unit and local tests
       shell: bash
       run:
+        pip install -r tests/requirements.txt
         pip install -r tests/test_requirements/unit_tests_requirements.txt
