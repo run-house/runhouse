@@ -13,3 +13,6 @@ tqdm
 pandas
 pyarrow
 docker
+torch
+diffusers
+transformers
