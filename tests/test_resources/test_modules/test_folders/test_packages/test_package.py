@@ -121,7 +121,7 @@ def test_package_file_system_to_cluster(cluster, s3_package):
     ],
 )
 def test_basic_command_generator_from_reqs(reqs_lines):
-    test_reqs_file = Path(__file__).parent / "base_requirements.txt"
+    test_reqs_file = Path(__file__).parent / "requirements.txt"
     with open(test_reqs_file, "w") as f:
         f.writelines([line + "\n" for line in reqs_lines])
 
@@ -136,7 +136,7 @@ def test_basic_command_generator_from_reqs(reqs_lines):
 
 def test_command_generator_from_reqs():
     reqs_lines = ["torch", "accelerate"]
-    test_reqs_file = Path(__file__).parent / "base_requirements.txt"
+    test_reqs_file = Path(__file__).parent / "requirements.txt"
     with open(test_reqs_file, "w") as f:
         f.writelines([line + "\n" for line in reqs_lines])
 

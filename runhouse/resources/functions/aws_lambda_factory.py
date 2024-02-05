@@ -34,7 +34,7 @@ def aws_lambda_fn(
             vars that should be attached to the Lambda. Accepts three possible types:\n
             1. A dict which should contain the following keys:\n
                a. reqs: a list of the python libraries, to be installed by the Lambda, or just a
-               ``base_requirements.txt`` string.\n
+               ``requirements.txt`` string.\n
                b. env_vars: dictionary containing the env_vars that will be a part of the lambda configuration.\n
             2. A list of strings, containing all the required python packages.\n
             3. An instance of Runhouse Env class.\n

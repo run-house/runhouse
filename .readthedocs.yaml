@@ -19,4 +19,4 @@ python:
    install:
    - method: pip
      path: .
-   - requirements: docs/base_requirements.txt
+   - requirements: docs/requirements.txt
