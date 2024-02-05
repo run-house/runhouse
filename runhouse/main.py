@@ -199,13 +199,7 @@ def status(
         else:
             try:
                 current_cluster = rh.cluster(name=cluster_name)
-                if not current_cluster.is_up():
-                    console.print(f"A cluster called {cluster_name} is not up")
-                    return
-                current_cluster.connect_server_client()
-                config = current_cluster.client.request(
-                    endpoint="/status", req_type="get"
-                )
+                config = current_cluster.status()
             except ValueError:
                 console.print(
                     f"Cluster {cluster_name} is not found in Den. Please save it, in order to get its"

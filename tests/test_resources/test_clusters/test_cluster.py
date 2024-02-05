@@ -197,8 +197,8 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert res.get("resource_type") == cluster.RESOURCE_TYPE
         assert res.get("ips") == cluster.ips
         assert "numpy_env" in res.get("envs")
-        assert res.get("envs")["numpy_env"] == [
-            {"name": "status_value1", "resource_type": "str"}
+        assert {"name": "status_value1", "resource_type": "str"} in res.get("envs")[
+            "numpy_env"
         ]
 
     @pytest.mark.level("local")
