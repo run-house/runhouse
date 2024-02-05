@@ -156,8 +156,9 @@ class HTTPClient:
                 f"Error calling {endpoint} on server: {response.content.decode()}"
             )
         resp_json = response.json()
-        output_type = resp_json["output_type"]
-        return handle_response(resp_json, output_type, err_str)
+        if "output_type" in resp_json:
+            return handle_response(resp_json, resp_json["output_type"], err_str)
+        return resp_json
 
     def check_server(self):
         resp = requests.get(
@@ -179,6 +180,9 @@ class HTTPClient:
                 f"Server was started with Runhouse version ({rh_version}), "
                 f"but local Runhouse version is ({runhouse.__version__})"
             )
+
+    def status(self):
+        return self.request("status", req_type="get")
 
     def get_certificate(self):
         cert: bytes = self.request(
