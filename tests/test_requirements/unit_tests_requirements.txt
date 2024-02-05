@@ -1,9 +1,5 @@
 skypilot[docker]
-pytest
-httpx
-pytest_asyncio
 docker
 s3fs
-tqdm
 pandas
 pyarrow

@@ -1,5 +1,3 @@
 runhouse[aws]
-pytest
-tqdm
 datasets
 dask

@@ -1,6 +1,4 @@
 runhouse[aws]
-pytest
-tqdm
 datasets
 dask
 awscli==1.29.17

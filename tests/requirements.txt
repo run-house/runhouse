@@ -3,3 +3,4 @@ httpx
 pytest_asyncio
 datasets
 dask
+tqdm

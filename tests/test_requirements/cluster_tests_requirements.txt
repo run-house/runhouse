@@ -1,4 +1,2 @@
 runhouse[aws]
-pytest
-tqdm
 datasets
