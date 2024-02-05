@@ -317,25 +317,10 @@ class HTTPServer:
 
         return Response(output_type=OutputType.SUCCESS)
 
-    @staticmethod
-    @app.post("/resource")
-    @validate_cluster_access
-    def put_resource(request: Request, params: PutResourceParams):
-        try:
-            env_name = params.env_name or "base"
-            return obj_store.put_resource(
-                serialized_data=params.serialized_data,
-                serialization=params.serialization,
-                env_name=env_name,
-            )
-        except Exception as e:
-            return handle_exception_response(
-                e, traceback.format_exc(), from_http_server=True
-            )
-
     # TODO refactor into a call method and separate post_call, get_call, put_call, delete_call, etc.
+    # TODO match "/{key}/{method_name}/{path:more_path}" for asgi / proxy requests
     @staticmethod
-    @app.post("/{key}/{method_name:path}")
+    @app.post("/{key}/{method_name}")
     @validate_cluster_access
     async def post_call(
         request: Request, key, method_name=None, params: CallParams = Body(default=None)
@@ -467,6 +452,22 @@ class HTTPServer:
                 logger.warning(f"No logfiles found for call {key}")
             for f in open_logfiles:
                 f.close()
+
+    @staticmethod
+    @app.post("/resource")
+    @validate_cluster_access
+    def put_resource(request: Request, params: PutResourceParams):
+        try:
+            env_name = params.env_name or "base"
+            return obj_store.put_resource(
+                serialized_data=params.serialized_data,
+                serialization=params.serialization,
+                env_name=env_name,
+            )
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
 
     @staticmethod
     @app.post("/object")
