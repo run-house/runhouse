@@ -51,13 +51,8 @@ RUN echo "[supervisord]" > /etc/supervisor/conf.d/supervisord.conf && \
     echo "stdout_logfile=/var/log/sshd.log" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stderr_logfile=/var/log/sshd.err" >> /etc/supervisor/conf.d/supervisord.conf
 
-
-# Ray dashboard port
-EXPOSE 52365
 # Runhouse server port
 EXPOSE 32300
-# Ray Redis cache port
-EXPOSE 6379
 # HTTPS port
 EXPOSE 443
 # HTTP port
