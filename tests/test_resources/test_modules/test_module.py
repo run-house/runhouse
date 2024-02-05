@@ -133,10 +133,9 @@ class Calculator:
 class TestModule:
 
     # --------- integration tests ---------
-    @pytest.mark.parametrize("env", [None])
     @pytest.mark.level("local")
-    def test_call_module_method(self, cluster, env):
-        cluster.put("numpy_pkg", Package.from_string("numpy"), env=env)
+    def test_call_module_method(self, cluster):
+        cluster.put("numpy_pkg", Package.from_string("numpy"))
 
         # Test for method
         res = cluster.call("numpy_pkg", "_detect_cuda_version_or_cpu", stream_logs=True)
@@ -150,7 +149,7 @@ class TestModule:
         assert res == numpy_config
 
         # Test iterator
-        cluster.put("config_dict", list(numpy_config.keys()), env=env)
+        cluster.put("config_dict", list(numpy_config.keys()))
         res = cluster.call("config_dict", "__iter__", stream_logs=True)
         # Checks that all the keys in numpy_config were returned
         inspect.isgenerator(res)
@@ -343,10 +342,7 @@ class TestModule:
             cpu_count = int(
                 cluster.run_python(["import os; print(os.cpu_count())"])[0][1]
             )
-        print(await remote_df.cpu_count_async())
-        assert await remote_df.cpu_count_async() == os.cpu_count()
-        print(await remote_df.cpu_count_async(local=False))
-        assert await remote_df.cpu_count_async(local=False) == cpu_count
+        assert await remote_df.cpu_count_async() == cpu_count
 
         # Properties
         df = await remote_df.fetch_async("df")

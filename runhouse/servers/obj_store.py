@@ -2,7 +2,6 @@ import contextvars
 import inspect
 import logging
 import os
-import subprocess
 import uuid
 from enum import Enum
 from functools import wraps

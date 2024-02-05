@@ -59,7 +59,7 @@ def kill_actors(
 
     # Make sure to kill cluster_servlet last
     if cluster_servlet_actor:
-        logger.info(f"Killing actor cluster_servlet")
+        logger.info("Killing actor cluster_servlet")
         if gracefully:
             cluster_servlet_actor.__ray_terminate__.remote()
         else:

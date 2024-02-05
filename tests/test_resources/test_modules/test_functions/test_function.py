@@ -7,7 +7,6 @@ import pytest
 import requests
 
 import runhouse as rh
-from runhouse.resources.functions import Function
 
 from tests.utils import friend_account
 
@@ -414,13 +413,6 @@ class TestFunction:
         response = self.function.get(run_key="my_mocked_run")
         assert response == 5
         mock_function.assert_called_once_with(run_key="my_mocked_run")
-
-    @pytest.mark.level("unit")
-    # TODO: change the test once the implementation is ready
-    def test_http_url_unittest(self, monkeypatch):
-        monkeypatch.setattr(Function, "http_url", value=NotImplementedError)
-        res = self.function.http_url()
-        assert type(res) == type(NotImplementedError())
 
     @pytest.mark.level("unit")
     def test_keep_warm_byo_unittest(self, mocker):

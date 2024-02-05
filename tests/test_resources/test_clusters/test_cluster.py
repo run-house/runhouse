@@ -6,7 +6,7 @@ import requests
 
 import runhouse as rh
 
-from runhouse.constants import LOCALHOST
+from runhouse.constants import DEFAULT_SERVER_PORT, LOCALHOST
 
 import tests.test_resources.test_resource
 from tests.conftest import init_args
@@ -193,7 +193,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     def test_rh_status_pythonic(self, cluster):
         cluster.put(key="status_key1", obj="status_value1", env="numpy_env")
         res = cluster.status()
-        assert res.get("server_port") == cluster.server_port
+        assert res.get("server_port") == (cluster.server_port or DEFAULT_SERVER_PORT)
         assert res.get("server_connection_type") == cluster.server_connection_type
         assert res.get("den_auth") == cluster.den_auth
         assert res.get("resource_type") == cluster.RESOURCE_TYPE
