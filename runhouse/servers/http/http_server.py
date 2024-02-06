@@ -868,12 +868,6 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--restart-ray",
-        action="store_true",
-        default=False,
-        help="Whether to kill and restart our own Ray instance. Defaults to False.",
-    )
-    parser.add_argument(
         "--host",
         type=str,
         default=None,
@@ -947,18 +941,10 @@ if __name__ == "__main__":
     # We only want to forcibly start a Ray cluster if asked.
     # We connect this to the "base" env, which we'll initialize later,
     # so writes to the obj_store within the server get proxied to the "base" env.
-    if parse_args.restart_ray:
-        obj_store.initialize(
-            "base",
-            setup_ray=RaySetupOption.FORCE_CREATE,
-            setup_cluster_servlet=ClusterServletSetupOption.FORCE_CREATE,
-        )
-    else:
-        obj_store.initialize(
-            "base",
-            setup_ray=RaySetupOption.GET_OR_CREATE,
-            setup_cluster_servlet=ClusterServletSetupOption.FORCE_CREATE,
-        )
+    obj_store.initialize(
+        "base",
+        setup_cluster_servlet=ClusterServletSetupOption.FORCE_CREATE,
+    )
 
     cluster_config = obj_store.get_cluster_config()
     if not cluster_config:
