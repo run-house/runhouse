@@ -527,7 +527,7 @@ def restart(
 
 
 @app.command()
-def stop(stop_ray: bool = typer.Option(True, help="Stop the Ray runtime")):
+def stop(stop_ray: bool = typer.Option(False, help="Stop the Ray runtime")):
     subprocess.run(SERVER_STOP_CMD, shell=True)
 
     if stop_ray:
