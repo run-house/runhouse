@@ -1,3 +1,4 @@
 pytest
 httpx
 pytest_asyncio
+pytest-mock

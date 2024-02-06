@@ -4,7 +4,6 @@ import ipaddress
 import os
 import ssl
 import threading
-import unittest
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -247,7 +246,3 @@ class TestHTTPSCertValidity:
 
         assert response.status_code == 200
         assert response.text == "Hello, SSL!"
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -1,6 +1,5 @@
 import inspect
 import json
-import unittest
 from unittest.mock import ANY, MagicMock, Mock, mock_open, patch
 
 import pytest
@@ -314,7 +313,3 @@ class TestHTTPClient:
 
         actual_data = DeleteObjectParams(**mock_request.call_args[1]["json_dict"])
         assert actual_data.keys == keys
-
-
-if __name__ == "__main__":
-    unittest.main()

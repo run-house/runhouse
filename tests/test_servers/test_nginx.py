@@ -1,5 +1,4 @@
 import textwrap
-import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, mock_open, patch
 
@@ -474,7 +473,3 @@ class TestNginxServerLocally:
 
         assert response.status_code == 200
         assert key in response.json().get("data")
-
-
-if __name__ == "__main__":
-    unittest.main()

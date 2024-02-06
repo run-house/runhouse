@@ -1,4 +1,3 @@
-import unittest
 from pathlib import Path
 
 import pytest
@@ -118,7 +117,3 @@ def test_load_shared_blob(local_blob):
     reloaded_data = my_blob.fetch()
     # NOTE: we need to do the deserialization ourselves
     assert str(reloaded_data) == str(local_blob.fetch())
-
-
-if __name__ == "__main__":
-    unittest.main()
