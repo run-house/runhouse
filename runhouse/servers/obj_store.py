@@ -1,21 +1,17 @@
 import logging
 import os
-import subprocess
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Union
 
 import ray
 
 import runhouse
-from runhouse.constants import RAY_KILL_CMD, RAY_START_CMD
 
 logger = logging.getLogger(__name__)
 
 
 class RaySetupOption(str, Enum):
-    GET_OR_CREATE = "get_or_create"
     GET_OR_FAIL = "get_or_fail"
-    FORCE_CREATE = "force_create"
     TEST_PROCESS = "test_process"
 
 
@@ -100,7 +96,7 @@ class ObjStore:
         self,
         servlet_name: Optional[str] = None,
         has_local_storage: bool = False,
-        setup_ray: RaySetupOption = RaySetupOption.GET_OR_CREATE,
+        setup_ray: RaySetupOption = RaySetupOption.GET_OR_FAIL,
         ray_address: str = "auto",
         setup_cluster_servlet: ClusterServletSetupOption = ClusterServletSetupOption.GET_OR_CREATE,
     ):
@@ -111,47 +107,31 @@ class ObjStore:
 
         # ClusterServlet essentially functions as a global state/metadata store
         # for all nodes connected to this Ray cluster.
-        from runhouse.resources.hardware.ray_utils import (
-            check_for_existing_ray_instance,
-            kill_actors,
-        )
+        from runhouse.resources.hardware.ray_utils import kill_actors
 
-        if setup_ray == RaySetupOption.FORCE_CREATE and ray_address != "auto":
-            raise ValueError(
-                "Cannot specify ray_address when forcing creation of Ray cluster, address should "
-                "remain as 'auto' to connect to the newly created Ray cluster."
-            )
-
-        if not ray.is_initialized() and setup_ray == RaySetupOption.TEST_PROCESS:
-            # When we run ray.init() with no address provided
-            # and no Ray is running, it will start a new Ray cluster,
-            # but one that is only exposed to this process. This allows us to
-            # run unit tests without starting bare metal Ray clusters on each machine.
-            ray.init(
-                ignore_reinit_error=True,
-                logging_level=logging.ERROR,
-                namespace="runhouse",
-            )
-
-        if not ray.is_initialized() or setup_ray == RaySetupOption.FORCE_CREATE:
-            # Only if ray is not initialized do we attempt a setup process.
-            if (
-                setup_ray == RaySetupOption.GET_OR_CREATE
-                and not check_for_existing_ray_instance(ray_address)
-            ) or setup_ray == RaySetupOption.FORCE_CREATE:
-                subprocess.run(RAY_KILL_CMD, shell=True)
-                subprocess.run(RAY_START_CMD, shell=True)
-
-            ray.init(
-                address=ray_address,
-                ignore_reinit_error=True,
-                logging_level=logging.ERROR,
-                namespace="runhouse",
-            )
+        # Only if ray is not initialized do we attempt a setup process.
+        if not ray.is_initialized():
+            if setup_ray == RaySetupOption.TEST_PROCESS:
+                # When we run ray.init() with no address provided
+                # and no Ray is running, it will start a new Ray cluster,
+                # but one that is only exposed to this process. This allows us to
+                # run unit tests without starting bare metal Ray clusters on each machine.
+                ray.init(
+                    ignore_reinit_error=True,
+                    logging_level=logging.ERROR,
+                    namespace="runhouse",
+                )
+            else:
+                ray.init(
+                    address=ray_address,
+                    ignore_reinit_error=True,
+                    logging_level=logging.ERROR,
+                    namespace="runhouse",
+                )
 
         # Now, we expect to be connected to an initialized Ray instance.
         if setup_cluster_servlet == ClusterServletSetupOption.FORCE_CREATE:
-            kill_actors(namespace="runhouse")
+            kill_actors(namespace="runhouse", gracefully=False)
 
         create_if_not_exists = (
             setup_cluster_servlet != ClusterServletSetupOption.GET_OR_FAIL
