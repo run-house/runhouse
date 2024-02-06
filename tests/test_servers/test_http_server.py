@@ -121,7 +121,7 @@ class TestHTTPServerDocker:
     @pytest.mark.level("local")
     def test_call_module_method(self, http_client, cluster):
         # Create new func on the cluster, then call it
-        remote_func = rh.function(summer, system=cluster)
+        remote_func = rh.function(summer).to(cluster)
 
         method_name = "call"
         module_name = remote_func.name
@@ -156,7 +156,7 @@ class TestHTTPServerDocker:
     @pytest.mark.level("local")
     @pytest.mark.asyncio
     async def test_async_call(self, async_http_client, cluster):
-        remote_func = rh.function(summer, system=cluster)
+        remote_func = rh.function(summer).to(cluster)
         method = "call"
 
         response = await async_http_client.post(
