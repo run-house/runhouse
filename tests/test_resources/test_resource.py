@@ -172,18 +172,13 @@ class TestResource:
                 == config
             )
 
+        # TODO: If we are testing with an ondemand_cluster we to
+        # sync sky key so loading ondemand_cluster from config works
+        # Also need aws secret to load availability zones
+        # secrets=["sky", "aws"],
         load_shared_resource_config_cluster = rh.function(
             load_shared_resource_config
-        ).to(
-            system=friend_account_logged_in_docker_cluster_pk_ssh,
-            env=rh.env(
-                working_dir=None,
-                # TODO: If we are testing with an ondemand_cluster we need these secrets
-                # Sync sky key so loading ondemand_cluster from config works
-                # Also need aws secret to load availability zones
-                # secrets=["sky", "aws"],
-            ),
-        )
+        ).to(friend_account_logged_in_docker_cluster_pk_ssh)
         assert (
             load_shared_resource_config_cluster(
                 resource_class_name, saved_resource.rns_address
