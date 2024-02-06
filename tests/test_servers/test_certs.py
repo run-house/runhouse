@@ -7,7 +7,6 @@ import threading
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 import requests
@@ -95,9 +94,12 @@ class TestTLSCertConfig:
             ), "Private key is not an RSA key."
 
     @pytest.mark.level("unit")
-    @patch("os.path.abspath")
-    @patch("os.path.expanduser")
-    def test_resolve_absolute_path(self, mock_expanduser, mock_abspath):
+    def test_resolve_absolute_path(self, mocker):
+
+        # set up mocks
+        mock_expanduser = mocker.patch("os.path.expanduser")
+        mock_abspath = mocker.patch("os.path.abspath")
+
         # Mock the expanduser and abspath to return a mock path
         mock_expanduser.return_value = "/mocked/home/user/ssl/certs/rh_server.crt"
         mock_abspath.return_value = "/mocked/absolute/path/to/ssl/certs/rh_server.crt"
@@ -226,9 +228,9 @@ class TestHTTPSCertValidity:
         assert response.text == "Hello, SSL!"
 
     @pytest.mark.level("unit")
-    @patch("requests.get")
-    def test_https_request_with_verified_cert(self, mock_get):
+    def test_https_request_with_verified_cert(self, mocker):
         # Mock the response of the requests.get call
+        mock_get = mocker.patch("requests.get")
         mock_response = requests.Response()
         mock_response.status_code = 200
         mock_response._content = b"Hello, SSL!"

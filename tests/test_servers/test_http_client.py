@@ -1,6 +1,5 @@
 import inspect
 import json
-from unittest.mock import ANY, MagicMock, Mock, mock_open, patch
 
 import pytest
 
@@ -26,27 +25,36 @@ class TestHTTPClient:
         self.client = HTTPClient("localhost", DEFAULT_SERVER_PORT)
 
     @pytest.mark.level("unit")
-    @patch("requests.Session.get")
-    def test_check_server(self, mock_get):
-        mock_response = Mock()
+    def test_check_server(self, mocker):
+        mock_response = mocker.Mock()
         mock_response.status_code = 200
         rh_version_resp = {"rh_version": rh.__version__}
         mock_response.json.return_value = rh_version_resp
-        mock_get.return_value = mock_response
+        mocked_get = mocker.patch("requests.Session.get", return_value=mock_response)
 
         self.client.check_server()
 
-        mock_get.assert_called_once_with(
+        mocked_get.assert_called_once_with(
             f"http://localhost:{DEFAULT_SERVER_PORT}/check",
             timeout=HTTPClient.CHECK_TIMEOUT_SEC,
         )
 
     @pytest.mark.level("unit")
-    @patch("runhouse.servers.http.HTTPClient.request")
-    @patch("pathlib.Path.mkdir")  # Mock the mkdir method
-    @patch("builtins.open", new_callable=mock_open, read_data="certificate_content")
-    def test_get_certificate(self, mock_file_open, mock_mkdir, mock_request):
+    def test_get_certificate(self, mocker):
+
+        mock_request = mocker.patch("runhouse.servers.http.HTTPClient.request")
         mock_request.return_value = b"certificate_content"
+
+        # Set up the mocker for 'mkdir' method
+        mock_mkdir = mocker.patch("pathlib.Path.mkdir")
+
+        # Set up the mocker for 'open' method
+        mock_file_open = mocker.patch(
+            "builtins.open",
+            new_callable=mocker.mock_open,
+            read_data="certificate_content",
+        )
+
         self.client.cert_path = "/fake/path/cert.pem"
 
         self.client.get_certificate()
@@ -62,14 +70,20 @@ class TestHTTPClient:
         mock_file_open().write.assert_called_once_with(b"certificate_content")
 
     @pytest.mark.level("unit")
-    @patch("pathlib.Path.exists", return_value=True)
-    @patch("builtins.open", mock_open(read_data="cert_data"))
-    @patch("cryptography.x509.load_pem_x509_certificate")
-    def test_use_cert_verification(self, mock_load_cert, mock_exists):
+    def test_use_cert_verification(self, mocker):
         # Mock a certificate where the issuer is different from the subject
-        mock_cert = MagicMock()
+        mock_cert = mocker.MagicMock()
         mock_cert.issuer = "issuer"
         mock_cert.subject = "subject"
+
+        mock_exists = mocker.patch("pathlib.Path.exists", return_value=True)
+        mock_load_cert = mocker.patch(
+            "builtins.open", mocker.mock_open(read_data="cert_data")
+        )
+        mocker.patch(
+            "cryptography.x509.load_pem_x509_certificate", return_value=mock_cert
+        )
+
         mock_load_cert.return_value = mock_cert
 
         # Test with HTTPS enabled and a valid cert path
@@ -106,8 +120,8 @@ class TestHTTPClient:
         assert not client.verify
 
     @pytest.mark.level("unit")
-    @patch("requests.Session.post")
-    def test_call_module_method(self, mock_post):
+    def test_call_module_method(self, mocker):
+
         response_sequence = [
             json.dumps({"output_type": "log", "data": "Log message"}),
             json.dumps(
@@ -120,10 +134,10 @@ class TestHTTPClient:
         ]
 
         # Mock the response to iter_lines to return our simulated server response
-        mock_response = Mock()
+        mock_response = mocker.Mock()
         mock_response.status_code = 200
         mock_response.iter_lines.return_value = iter(response_sequence)
-        mock_post.return_value = mock_response
+        mock_post = mocker.patch("requests.Session.post", return_value=mock_response)
 
         # Call the method under test
         method_name = "install"
@@ -159,9 +173,8 @@ class TestHTTPClient:
         )
 
     @pytest.mark.level("unit")
-    @patch("requests.Session.post")
-    def test_call_module_method_with_args_kwargs(self, mock_post):
-        mock_response = MagicMock()
+    def test_call_module_method_with_args_kwargs(self, mocker):
+        mock_response = mocker.MagicMock()
         mock_response.status_code = 200
         # Set up iter_lines to return an iterator
         mock_response.iter_lines.return_value = iter(
@@ -169,7 +182,7 @@ class TestHTTPClient:
                 json.dumps({"output_type": "log", "data": "Log message"}),
             ]
         )
-        mock_post.return_value = mock_response
+        mock_post = mocker.patch("requests.Session.post", return_value=mock_response)
 
         args = [1, 2]
         kwargs = {"a": 3, "b": 4}
@@ -201,29 +214,27 @@ class TestHTTPClient:
         )
 
     @pytest.mark.level("unit")
-    @patch("requests.Session.post")
-    def test_call_module_method_error_handling(self, mock_post):
-        mock_response = Mock()
+    def test_call_module_method_error_handling(self, mocker):
+        mock_response = mocker.Mock()
         mock_response.status_code = 500
         mock_response.content = b"Internal Server Error"
-        mock_post.return_value = mock_response
+        mocker.patch("requests.Session.post", return_value=mock_response)
 
         with pytest.raises(ValueError):
             self.client.call_module_method("module", "method")
 
     @pytest.mark.level("unit")
-    @patch("requests.Session.post")
-    def test_call_module_method_stream_logs(self, mock_post):
+    def test_call_module_method_stream_logs(self, mocker):
         # Setup the mock response with a log in the stream
         response_sequence = [
             json.dumps(
                 {"output_type": "result_stream", "data": pickle_b64("Log message")}
             ),
         ]
-        mock_response = Mock()
+        mock_response = mocker.Mock()
         mock_response.status_code = 200
         mock_response.iter_lines.return_value = iter(response_sequence)
-        mock_post.return_value = mock_response
+        mocker.patch("requests.Session.post", return_value=mock_response)
 
         # Call the method under test
         res = self.client.call_module_method("base_env", "install")
@@ -231,25 +242,23 @@ class TestHTTPClient:
         assert next(res) == "Log message"
 
     @pytest.mark.level("unit")
-    @patch("requests.Session.post")
-    def test_call_module_method_config(self, mock_post):
+    def test_call_module_method_config(self, mocker):
         test_data = self.local_cluster.config_for_rns
-        mock_response = Mock()
+        mock_response = mocker.Mock()
         mock_response.status_code = 200
         mock_response.iter_lines.return_value = iter(
             [
                 json.dumps({"output_type": "config", "data": test_data}),
             ]
         )
-        mock_post.return_value = mock_response
+        mocker.patch("requests.Session.post", return_value=mock_response)
 
         cluster = self.client.call_module_method("base_env", "install")
         assert cluster.config_for_rns == test_data
 
     @pytest.mark.level("unit")
-    @patch("requests.Session.post")
-    def test_call_module_method_not_found_error(self, mock_post):
-        mock_response = Mock()
+    def test_call_module_method_not_found_error(self, mocker):
+        mock_response = mocker.Mock()
         mock_response.status_code = 200
         missing_key = "missing_key"
         mock_response.iter_lines.return_value = iter(
@@ -257,7 +266,7 @@ class TestHTTPClient:
                 json.dumps({"output_type": "not_found", "data": missing_key}),
             ]
         )
-        mock_post.return_value = mock_response
+        mocker.patch("requests.Session.post", return_value=mock_response)
 
         with pytest.raises(KeyError) as context:
             next(self.client.call_module_method("module", "method"))
@@ -265,8 +274,10 @@ class TestHTTPClient:
         assert f"key {missing_key} not found" in str(context)
 
     @pytest.mark.level("unit")
-    @patch("runhouse.servers.http.HTTPClient.request_json")
-    def test_put_object(self, mock_request):
+    def test_put_object(self, mocker):
+
+        mock_request = mocker.patch("runhouse.servers.http.HTTPClient.request_json")
+
         key = "my_list"
         value = list(range(5, 50, 2)) + ["a string"]
         expected_data = pickle_b64(value)
@@ -276,7 +287,7 @@ class TestHTTPClient:
         mock_request.assert_called_once_with(
             "object",
             req_type="post",
-            json_dict=ANY,
+            json_dict=mocker.ANY,
             err_str=f"Error putting object {key}",
         )
 
@@ -286,8 +297,9 @@ class TestHTTPClient:
         assert actual_data.serialization == "pickle"
 
     @pytest.mark.level("unit")
-    @patch("runhouse.servers.http.HTTPClient.request")
-    def test_get_keys(self, mock_request):
+    def test_get_keys(self, mocker):
+        mock_request = mocker.patch("runhouse.servers.http.HTTPClient.request")
+
         self.client.keys()
         mock_request.assert_called_with("keys", req_type="get")
 
@@ -298,8 +310,10 @@ class TestHTTPClient:
         mock_request.assert_called_with(f"keys/?env_name={test_env}", req_type="get")
 
     @pytest.mark.level("unit")
-    @patch("runhouse.servers.http.HTTPClient.request_json")
-    def test_delete(self, mock_request):
+    def test_delete(self, mocker):
+
+        mock_request = mocker.patch("runhouse.servers.http.HTTPClient.request_json")
+
         keys = ["key1", "key2"]
 
         self.client.delete(keys=keys)
@@ -307,7 +321,7 @@ class TestHTTPClient:
         mock_request.assert_called_once_with(
             "delete_object",
             req_type="post",
-            json_dict=ANY,
+            json_dict=mocker.ANY,
             err_str=f"Error deleting keys {keys}",
         )
 

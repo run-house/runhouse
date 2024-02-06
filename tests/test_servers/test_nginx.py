@@ -1,6 +1,5 @@
 import textwrap
 from pathlib import Path
-from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 import requests
@@ -13,9 +12,9 @@ from runhouse.servers.nginx.config import NginxConfig
 @pytest.mark.servertest
 class TestNginxConfiguration:
     @pytest.fixture(autouse=True)
-    def init_fixtures(self):
+    def init_fixtures(self, mocker):
         # mock existence of cert and key files
-        with patch.object(Path, "exists", return_value=True):
+        with mocker.patch.object(Path, "exists", return_value=True):
             self.http_config = NginxConfig(
                 address="127.0.0.1",
             )
@@ -27,16 +26,16 @@ class TestNginxConfiguration:
             )
 
     @pytest.mark.level("unit")
-    @patch("builtins.open", new_callable=mock_open)
-    @patch("pathlib.Path.exists")
-    @patch("subprocess.run")
-    def test_nginx_http_build_config(
-        self, mock_subprocess_run, mock_path_exists, mock_file_open
-    ):
+    def test_nginx_http_build_config(self, mocker):
+        # set up mocks
+        mock_subprocess_run = mocker.patch("subprocess.run")
+        mock_path_exists = mocker.patch("pathlib.Path.exists")
+        mock_file_open = mocker.patch("builtins.open", new_callable=mocker.mock_open)
+
         # Assume the paths do not exist for this test
         mock_path_exists.return_value = False
 
-        mock_subprocess_run.return_value = MagicMock(returncode=0)
+        mock_subprocess_run.return_value = mocker.MagicMock(returncode=0)
 
         self.http_config._build_template()
 
@@ -51,16 +50,17 @@ class TestNginxConfiguration:
         mock_subprocess_run.assert_called()
 
     @pytest.mark.level("unit")
-    @patch("builtins.open", new_callable=mock_open)
-    @patch("pathlib.Path.exists")
-    @patch("subprocess.run")
-    def test_nginx_https_build_config(
-        self, mock_subprocess_run, mock_path_exists, mock_file_open
-    ):
+    def test_nginx_https_build_config(self, mocker):
+
+        # set up mocks
+        mock_subprocess_run = mocker.patch("subprocess.run")
+        mock_path_exists = mocker.patch("pathlib.Path.exists")
+        mock_file_open = mocker.patch("builtins.open", new_callable=mocker.mock_open)
+
         # Assume the paths do not exist for this test
         mock_path_exists.return_value = False
 
-        mock_subprocess_run.return_value = MagicMock(returncode=0)
+        mock_subprocess_run.return_value = mocker.MagicMock(returncode=0)
 
         self.https_config._build_template()
 
@@ -74,9 +74,12 @@ class TestNginxConfiguration:
         mock_subprocess_run.assert_called()
 
     @pytest.mark.level("unit")
-    @patch("subprocess.run")
-    def test_nginx_http_reload(self, mock_subprocess_run):
-        mock_subprocess_run.return_value = MagicMock(returncode=0)
+    def test_nginx_http_reload(self, mocker):
+
+        # set up mocks
+        mock_subprocess_run = mocker.patch("subprocess.run")
+
+        mock_subprocess_run.return_value = mocker.MagicMock(returncode=0)
 
         # Assuming self.http_config.address is set to a value like "localhost"
         expected_command = (
@@ -96,9 +99,12 @@ class TestNginxConfiguration:
         )
 
     @pytest.mark.level("unit")
-    @patch("subprocess.run")
-    def test_nginx_https_reload(self, mock_subprocess_run):
-        mock_subprocess_run.return_value = MagicMock(returncode=0)
+    def test_nginx_https_reload(self, mocker):
+
+        # set up mocks
+        mock_subprocess_run = mocker.patch("subprocess.run")
+
+        mock_subprocess_run.return_value = mocker.MagicMock(returncode=0)
 
         # Assuming self.http_config.address is set to a value like "localhost"
         expected_command = (
@@ -118,10 +124,13 @@ class TestNginxConfiguration:
         )
 
     @pytest.mark.level("unit")
-    @patch("subprocess.run")
-    def test_nginx_reload_error_handling(self, mock_subprocess_run):
+    def test_nginx_reload_error_handling(self, mocker):
+
+        # set up mocks
+        mock_subprocess_run = mocker.patch("subprocess.run")
+
         # Simulate a failed reload
-        mock_subprocess_run.return_value = MagicMock(
+        mock_subprocess_run.return_value = mocker.MagicMock(
             returncode=1, stderr="Failed to reload"
         )
 
@@ -129,12 +138,12 @@ class TestNginxConfiguration:
             self.http_config.reload()
 
     @pytest.mark.level("unit")
-    @patch("pathlib.Path.exists")
-    @patch("subprocess.run")
-    def test_http_firewall_rule_application(
-        self, mock_subprocess_run, mock_path_exists
-    ):
-        mock_subprocess_run.return_value = MagicMock(returncode=0)
+    def test_http_firewall_rule_application(self, mocker):
+        # set up mocks
+        mock_subprocess_run = mocker.patch("subprocess.run")
+        mock_path_exists = mocker.patch("pathlib.Path.exists")
+
+        mock_subprocess_run.return_value = mocker.MagicMock(returncode=0)
 
         mock_path_exists.return_value = True
 
@@ -149,12 +158,12 @@ class TestNginxConfiguration:
         )
 
     @pytest.mark.level("unit")
-    @patch("pathlib.Path.exists")
-    @patch("subprocess.run")
-    def test_https_firewall_rule_application(
-        self, mock_subprocess_run, mock_path_exists
-    ):
-        mock_subprocess_run.return_value = MagicMock(returncode=0)
+    def test_https_firewall_rule_application(self, mocker):
+        # set up mocks
+        mock_subprocess_run = mocker.patch("subprocess.run")
+        mock_path_exists = mocker.patch("pathlib.Path.exists")
+
+        mock_subprocess_run.return_value = mocker.MagicMock(returncode=0)
 
         mock_path_exists.return_value = True
 
@@ -169,16 +178,19 @@ class TestNginxConfiguration:
         )
 
     @pytest.mark.level("unit")
-    @patch("pathlib.Path.exists")
-    @patch("subprocess.run")
-    def test_symlink_creation(self, mock_subprocess_run, mock_path_exists):
+    def test_symlink_creation(self, mocker):
+
+        # set up mocks
+        mock_subprocess_run = mocker.patch("subprocess.run")
+        mock_path_exists = mocker.patch("pathlib.Path.exists")
+
         # Simulate that the config file exists but the symlink does not
         mock_path_exists.side_effect = [
             True,
             False,
         ]  # First call returns True, second call returns False
 
-        mock_subprocess_run.return_value = MagicMock(returncode=0)
+        mock_subprocess_run.return_value = mocker.MagicMock(returncode=0)
 
         self.https_config._apply_config()
 
@@ -220,14 +232,15 @@ class TestNginxConfiguration:
         )
 
     @pytest.mark.level("unit")
-    @patch("builtins.open", new_callable=mock_open)
-    @patch("pathlib.Path.exists")
-    @patch("subprocess.run")
-    def test_template_generation_based_on_http_config(
-        self, mock_subprocess_run, mock_path_exists, mock_file_open
-    ):
+    def test_template_generation_based_on_http_config(self, mocker):
+
+        # set up mocks
+        mock_subprocess_run = mocker.patch("subprocess.run")
+        mock_path_exists = mocker.patch("pathlib.Path.exists")
+        mock_file_open = mocker.patch("builtins.open", new_callable=mocker.mock_open)
+
         mock_path_exists.return_value = False
-        mock_subprocess_run.return_value = MagicMock(returncode=0)
+        mock_subprocess_run.return_value = mocker.MagicMock(returncode=0)
 
         self.http_config._build_template()
 
@@ -236,14 +249,15 @@ class TestNginxConfiguration:
         file_handle.write.assert_called_once_with(expected_template)
 
     @pytest.mark.level("unit")
-    @patch("builtins.open", new_callable=mock_open)
-    @patch("pathlib.Path.exists")
-    @patch("subprocess.run")
-    def test_template_generation_based_on_https_config(
-        self, mock_subprocess_run, mock_path_exists, mock_file_open
-    ):
+    def test_template_generation_based_on_https_config(self, mocker):
+
+        # set up mocks
+        mock_subprocess_run = mocker.patch("subprocess.run")
+        mock_path_exists = mocker.patch("pathlib.Path.exists")
+        mock_file_open = mocker.patch("builtins.open", new_callable=mocker.mock_open)
+
         mock_path_exists.return_value = False
-        mock_subprocess_run.return_value = MagicMock(returncode=0)
+        mock_subprocess_run.return_value = mocker.MagicMock(returncode=0)
 
         self.https_config._build_template()
 
@@ -252,15 +266,16 @@ class TestNginxConfiguration:
         file_handle.write.assert_called_once_with(expected_template)
 
     @pytest.mark.level("unit")
-    @patch("subprocess.run")
-    @patch("builtins.open", new_callable=mock_open)
-    @patch("pathlib.Path.exists")
-    def test_handling_different_addresses(
-        self, mock_path_exists, mock_file_open, mock_subprocess_run
-    ):
+    def test_handling_different_addresses(self, mocker):
+
+        # set up mocks
+        mock_subprocess_run = mocker.patch("subprocess.run")
+        mock_path_exists = mocker.patch("pathlib.Path.exists")
+        mock_file_open = mocker.patch("builtins.open", new_callable=mocker.mock_open)
+
         mock_path_exists.return_value = False
 
-        mock_subprocess_run.return_value = MagicMock(returncode=0)
+        mock_subprocess_run.return_value = mocker.MagicMock(returncode=0)
 
         # Test with localhost
         self.http_config.address = "localhost"
@@ -275,18 +290,18 @@ class TestNginxConfiguration:
         mock_file_open().write.assert_called_with(public_ip_template)
 
     @pytest.mark.level("unit")
-    @patch("builtins.open", new_callable=mock_open)
-    @patch("pathlib.Path.exists")
-    @patch("subprocess.run")
-    def test_nginx_http_config_generation(
-        self, mock_subprocess_run, mock_path_exists, mock_file_open
-    ):
+    def test_nginx_http_config_generation(self, mocker):
+
+        mock_subprocess_run = mocker.patch("subprocess.run")
+        mock_path_exists = mocker.patch("pathlib.Path.exists")
+        mock_file_open = mocker.patch("builtins.open", new_callable=mocker.mock_open)
+
         # Set up NginxConfig for HTTP only
         config = NginxConfig(address="127.0.0.1")
 
         mock_path_exists.return_value = False
 
-        mock_subprocess_run.return_value = MagicMock(returncode=0)
+        mock_subprocess_run.return_value = mocker.MagicMock(returncode=0)
 
         config._build_template()
 
@@ -343,12 +358,13 @@ class TestNginxConfiguration:
         assert http_template == expected_http_template
 
     @pytest.mark.level("unit")
-    @patch("builtins.open", new_callable=mock_open)
-    @patch("pathlib.Path.exists")
-    @patch("subprocess.run")
-    def test_nginx_https_config_generation(
-        self, mock_subprocess_run, mock_path_exists, mock_file_open
-    ):
+    def test_nginx_https_config_generation(self, mocker):
+
+        # set up mocks
+        mock_subprocess_run = mocker.patch("subprocess.run")
+        mock_path_exists = mocker.patch("pathlib.Path.exists")
+        mock_file_open = mocker.patch("builtins.open", new_callable=mocker.mock_open)
+
         # Set up NginxConfig for HTTPS only
         config = NginxConfig(
             address="127.0.0.1",
@@ -359,7 +375,7 @@ class TestNginxConfiguration:
 
         mock_path_exists.return_value = False
 
-        mock_subprocess_run.return_value = MagicMock(returncode=0)
+        mock_subprocess_run.return_value = mocker.MagicMock(returncode=0)
 
         config._build_template()
 
