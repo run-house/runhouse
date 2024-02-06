@@ -535,11 +535,11 @@ class Module(Resource):
                 env_conf["name"] = f"{self.env.name}_replica_{i}"
                 env = Env.from_config(env_conf)
 
-            new_config = self.config_for_rns
-            new_config["name"] = name
-            new_config.pop("env", None)
-            new_config.pop("system", None)
-            new_module = Module.from_config(new_config).to(self.system, env)
+            new_module = copy.copy(self)
+            new_module.name = None
+            new_module.env = None
+            new_module.system = None
+            new_module = new_module.to(self.system, env=env, name=name)
             return new_module
 
         if parallel:

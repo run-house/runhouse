@@ -16,19 +16,18 @@ def _process_reqs(reqs):
 
         # TODO [DG] the following is wrong. RNS address doesn't have to start with '/'. However if we check if each
         #  string exists in RNS this will be incredibly slow, so leave it for now.
-        if (
-            isinstance(package, str)
-            and package[0] == "/"
-            and rns_client.exists(package)
-        ):
-            # If package is an rns address
-            package = rns_client.load_config(package)
-        elif (
-            isinstance(package, str)
-            and Path(package.split(":")[-1]).expanduser().exists()
-        ):
-            # if package refers to a local path package
-            package = Package.from_string(package)
+        if isinstance(package, str):
+            if package[0] == "/" and rns_client.exists(package):
+                # If package is an rns address
+                package = rns_client.load_config(package)
+            else:
+                # if package refers to a local path package
+                path = Path(package.split(":")[-1]).expanduser()
+                if (
+                    path.is_absolute()
+                    or (rns_client.locate_working_dir() / path).exists()
+                ):
+                    package = Package.from_string(package)
         elif isinstance(package, dict):
             package = Package.from_config(package)
         preprocessed_reqs.append(package)

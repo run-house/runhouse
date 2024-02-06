@@ -348,6 +348,8 @@ class OnDemandCluster(Cluster):
         Example:
             >>> rh.ondemand_cluster("rh-cpu").is_up()
         """
+        if self.on_this_cluster():
+            return True
         self._update_from_sky_status(dryrun=False)
         return self.address is not None
 
