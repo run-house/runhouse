@@ -14,16 +14,19 @@ class TestNginxConfiguration:
     @pytest.fixture(autouse=True)
     def init_fixtures(self, mocker):
         # mock existence of cert and key files
-        with mocker.patch.object(Path, "exists", return_value=True):
-            self.http_config = NginxConfig(
-                address="127.0.0.1",
-            )
-            self.https_config = NginxConfig(
-                address="127.0.0.1",
-                ssl_key_path="/path/to/ssl.key",
-                ssl_cert_path="/path/to/ssl.cert",
-                use_https=True,
-            )
+        mocker.patch.object(Path, "exists", return_value=True)
+
+        # Create instances of NginxConfig with mocked existence of cert and key files
+        self.http_config = NginxConfig(
+            address="127.0.0.1",
+        )
+
+        self.https_config = NginxConfig(
+            address="127.0.0.1",
+            ssl_key_path="/path/to/ssl.key",
+            ssl_cert_path="/path/to/ssl.cert",
+            use_https=True,
+        )
 
     @pytest.mark.level("unit")
     def test_nginx_http_build_config(self, mocker):
@@ -208,8 +211,8 @@ class TestNginxConfiguration:
             # Incorrect SSL key and cert paths provided
             NginxConfig(
                 address="127.0.0.1",
-                ssl_cert_path="/path/to/nonexistent/cert",
                 ssl_key_path="/path/to/nonexistent/key",
+                ssl_cert_path="/path/to/nonexistent/cert",
                 use_https=True,
             )
 
