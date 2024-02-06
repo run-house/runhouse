@@ -7,8 +7,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
-import requests
-
 from runhouse.globals import obj_store, rns_client
 from runhouse.rns.top_level_rns_fns import (
     resolve_rns_path,
@@ -309,7 +307,7 @@ class Resource:
         base_uri = f"{rns_client.api_server_url}/resource/history/{resource_uri}"
         uri = f"{base_uri}?limit={limit}" if limit else base_uri
 
-        resp = requests.get(uri, headers=rns_client.request_headers())
+        resp = rns_client.session.get(uri, headers=rns_client.request_headers())
         if resp.status_code != 200:
             logger.warning(f"No resource history found: {load_resp_content(resp)}")
             return []
@@ -462,7 +460,7 @@ class Resource:
             users = [users]
 
         request_uri = rns_client.resource_uri(self.rns_address)
-        resp = requests.put(
+        resp = rns_client.session.put(
             f"{rns_client.api_server_url}/resource/{request_uri}/users/access",
             json={"users": users, "access_level": ResourceAccess.DENIED},
             headers=headers or rns_client.request_headers(),

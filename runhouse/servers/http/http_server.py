@@ -15,8 +15,6 @@ from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from sky.skylet.autostop_lib import set_last_active_time_to_now
-
 from runhouse.constants import (
     CLUSTER_CONFIG_PATH,
     DEFAULT_HTTP_PORT,
@@ -46,7 +44,11 @@ from runhouse.servers.http.http_utils import (
     Response,
     ServerSettings,
 )
-from runhouse.servers.obj_store import ObjStore
+from runhouse.servers.obj_store import (
+    ClusterServletSetupOption,
+    ObjStore,
+    RaySetupOption,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +119,12 @@ class HTTPServer:
     memory_exporter = None
 
     def __init__(
-        self, conda_env=None, enable_local_span_collection=None, *args, **kwargs
+        self,
+        conda_env=None,
+        enable_local_span_collection=None,
+        from_test: bool = False,
+        *args,
+        **kwargs,
     ):
         runtime_env = {"conda": conda_env} if conda_env else {}
 
@@ -165,9 +172,8 @@ class HTTPServer:
         # initialized by the start script (see below)
         # But if the HTTPServer was started standalone in a test,
         # We still want to make sure the cluster servlet is initialized
-        # We connect this to the "base" env, which we'll initialize later,
-        # so writes to the obj_store within the server get proxied to the "base" env.
-        obj_store.initialize("base", setup_ray=True)
+        if from_test:
+            obj_store.initialize("base", setup_ray=RaySetupOption.TEST_PROCESS)
 
         # TODO disabling due to latency, figure out what to do with this
         # try:
@@ -210,7 +216,12 @@ class HTTPServer:
 
     @staticmethod
     def register_activity():
-        set_last_active_time_to_now()
+        try:
+            from sky.skylet.autostop_lib import set_last_active_time_to_now
+
+            set_last_active_time_to_now()
+        except ImportError:
+            pass
 
     @staticmethod
     @app.get("/cert")
@@ -700,6 +711,12 @@ class HTTPServer:
         return JSONResponse(content=resp)
 
     @staticmethod
+    @app.get("/status")
+    @validate_cluster_access
+    def get_status(request: Request):
+        return obj_store.get_status()
+
+    @staticmethod
     def _collect_cluster_stats():
         """Collect cluster metadata and send to Grafana Loki"""
         if configs.get("disable_data_collection") is True:
@@ -743,9 +760,25 @@ class HTTPServer:
         logger.info(f"Preparing to send telemetry to {telemetry_collector_address}")
 
         # Set the tracer provider and the exporter
+        import runhouse
+
+        service_version = runhouse.__version__
+        if telemetry_collector_address == "https://api-dev.run.house:14318":
+            service_name = "runhouse-service-dev"
+            deployment_env = "dev"
+        else:
+            service_name = "runhouse-service-prod"
+            deployment_env = "prod"
         trace.set_tracer_provider(
             TracerProvider(
-                resource=Resource.create({"service.name": "runhouse-service"})
+                resource=Resource.create(
+                    {
+                        "service.namespace": "Runhouse_OSS",
+                        "service.name": service_name,
+                        "service.version": service_version,
+                        "deployment.environment": deployment_env,
+                    }
+                )
             )
         )
         otlp_exporter = OTLPSpanExporter(
@@ -835,6 +868,12 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "--restart-ray",
+        action="store_true",
+        default=False,
+        help="Whether to kill and restart our own Ray instance. Defaults to False.",
+    )
+    parser.add_argument(
         "--host",
         type=str,
         default=None,
@@ -900,18 +939,6 @@ if __name__ == "__main__":
         help="Address to use for generating self-signed certs and enabling HTTPS. (e.g. public IP address)",
     )
 
-    # The object store and the cluster servlet within it need to be
-    # initiailzed in order to call `obj_store.get_cluster_config()`, which
-    # uses the object store to load the cluster config from Ray.
-    obj_store.initialize("base", setup_ray=True)
-
-    cluster_config = obj_store.get_cluster_config()
-    if not cluster_config:
-        logger.warning(
-            "Cluster config is not set. Using default values where possible."
-        )
-    logger.info("Initialized Object Store and Cluster Servlet.")
-
     parse_args = parser.parse_args()
 
     conda_name = parse_args.conda_env
@@ -919,6 +946,34 @@ if __name__ == "__main__":
     restart_proxy = parse_args.restart_proxy
     use_caddy = parse_args.use_caddy
     domain = parse_args.domain
+
+    # The object store and the cluster servlet within it need to be
+    # initiailzed in order to call `obj_store.get_cluster_config()`, which
+    # uses the object store to load the cluster config from Ray.
+    # When setting up the server, we always want to create a new ClusterServlet.
+    # We only want to forcibly start a Ray cluster if asked.
+    # We connect this to the "base" env, which we'll initialize later,
+    # so writes to the obj_store within the server get proxied to the "base" env.
+    if parse_args.restart_ray:
+        obj_store.initialize(
+            "base",
+            setup_ray=RaySetupOption.FORCE_CREATE,
+            setup_cluster_servlet=ClusterServletSetupOption.FORCE_CREATE,
+        )
+    else:
+        obj_store.initialize(
+            "base",
+            setup_ray=RaySetupOption.GET_OR_CREATE,
+            setup_cluster_servlet=ClusterServletSetupOption.FORCE_CREATE,
+        )
+
+    cluster_config = obj_store.get_cluster_config()
+    if not cluster_config:
+        logger.warning(
+            "Cluster config is not set. Using default values where possible."
+        )
+    else:
+        logger.info("Loaded cluster config from Ray.")
 
     ########################################
     # Handling args that could be specified in the

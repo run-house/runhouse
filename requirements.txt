@@ -8,11 +8,10 @@ opentelemetry-instrumentation-fastapi
 opentelemetry-instrumentation-requests
 opentelemetry-sdk
 pexpect
-pyarrow
 pyopenssl>=23.3.0
+ray[default] >= 2.2.0, <= 2.6.3, != 2.6.0
 rich
 sentry-sdk
-skypilot[docker]==0.4.1
 sshfs
 sshtunnel>=0.3.0
 typer

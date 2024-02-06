@@ -9,7 +9,8 @@ import pytest
 import requests
 
 import runhouse as rh
-from runhouse.resources.hardware.utils import LOCALHOST, ServerConnectionType
+from runhouse.constants import LOCALHOST
+from runhouse.resources.hardware.utils import ServerConnectionType
 
 from tests.utils import friend_account
 
