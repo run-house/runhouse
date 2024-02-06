@@ -1,4 +1,3 @@
-runhouse[aws]
 awscli==1.29.17
 boto3==1.28.17
 pycryptodome==3.12.0

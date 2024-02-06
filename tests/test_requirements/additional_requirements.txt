@@ -1,5 +1,0 @@
-torch
-diffusers
-transformers
-runhouse[sagemaker]
-runhouse[aws]

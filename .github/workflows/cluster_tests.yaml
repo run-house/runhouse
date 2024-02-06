@@ -29,8 +29,8 @@ jobs:
 
       - name: Install python packages & dependencies
         run: |
+          runhouse[aws]
           pip install -r tests/requirements.txt
-          pip install tests/test_requirements/additional_requirements.txt
 
       - name: Run all cluster unit tests tests
         env:
