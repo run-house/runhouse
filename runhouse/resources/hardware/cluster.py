@@ -1,8 +1,8 @@
 import contextlib
 import copy
+import importlib
 import json
 import logging
-import pkgutil
 import re
 import subprocess
 import sys
@@ -30,16 +30,11 @@ from runhouse.constants import (
     DEFAULT_RAY_PORT,
     DEFAULT_SERVER_PORT,
     LOCALHOST,
+    RESERVED_SYSTEM_NAMES,
 )
 from runhouse.globals import obj_store, rns_client
 from runhouse.resources.envs.utils import _get_env_from
-from runhouse.resources.hardware.utils import (
-    _current_cluster,
-    ServerConnectionType,
-    SkySSHRunner,
-    ssh_tunnel,
-    SshMode,
-)
+from runhouse.resources.hardware.utils import _current_cluster, ServerConnectionType
 from runhouse.resources.resource import Resource
 
 from runhouse.servers.http import HTTPClient
@@ -93,6 +88,8 @@ class Cluster(Resource):
             cert_path=ssl_certfile, key_path=ssl_keyfile, dir_name=self.name
         )
 
+        self.ssl_certfile = ssl_certfile
+        self.ssl_keyfile = ssl_keyfile
         self.server_connection_type = server_connection_type
         self.server_port = server_port or DEFAULT_SERVER_PORT
         self.client_port = client_port
@@ -258,7 +255,7 @@ class Cluster(Resource):
         if not self.address:
             raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
 
-        local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
+        local_rh_package_path = Path(importlib.util.find_spec("runhouse").origin).parent
 
         # Check if runhouse is installed from source and has setup.py
         if (
@@ -540,9 +537,17 @@ class Cluster(Resource):
 
         return
 
+    def status(self):
+        self.check_server()
+        if self.on_this_cluster():
+            return obj_store.get_status()
+        return self.client.status()
+
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
-    ) -> Union[SSHTunnelForwarder, SkySSHRunner]:
+    ) -> Union[SSHTunnelForwarder, "SkySSHRunner"]:
+        from runhouse.resources.hardware.sky_ssh_runner import ssh_tunnel
+
         return ssh_tunnel(
             address=self.address,
             ssh_creds=self.ssh_creds,
@@ -596,7 +601,7 @@ class Cluster(Resource):
         self,
         _rh_install_url: str = None,
         resync_rh: bool = True,
-        restart_ray: bool = True,
+        restart_ray: bool = False,
         env: Union[str, "Env"] = None,
         restart_proxy: bool = False,
     ):
@@ -653,7 +658,7 @@ class Cluster(Resource):
 
         cmd = (
             CLI_RESTART_CMD
-            + (" --no-restart-ray" if not restart_ray else "")
+            + (" --restart-ray" if restart_ray else "")
             + (" --use-https" if https_flag else "")
             + (" --use-caddy" if caddy_flag else "")
             + (" --restart-proxy" if restart_proxy and caddy_flag else "")
@@ -817,6 +822,8 @@ class Cluster(Resource):
                     stream_logs=stream_logs,
                 )
             return
+
+        from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner, SshMode
 
         # If no address provided explicitly use the head node address
         node = node or self.address
@@ -1010,6 +1017,8 @@ class Cluster(Resource):
         port_forward: int = None,
         require_outputs: bool = True,
     ):
+        from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner, SshMode
+
         return_codes = []
 
         ssh_credentials = copy.copy(self.ssh_creds)
@@ -1231,3 +1240,37 @@ class Cluster(Resource):
             self.den_auth = False
             self.client.set_settings({"den_auth": False})
         return self
+
+    def set_connection_defaults(self, **kwargs):
+        if self.server_host and (
+            "localhost" in self.server_host or ":" in self.server_host
+        ):
+            # If server_connection_type is not specified, we
+            # assume we can hit the server directly via HTTP
+            self.server_connection_type = (
+                self.server_connection_type or ServerConnectionType.NONE
+            )
+            if ":" in self.server_host:
+                # e.g. "localhost:23324" or <real_ip>:<custom port> (e.g. a port is already open to the server)
+                self.server_host, self.client_port = self.server_host.split(":")
+                kwargs["client_port"] = self.client_port
+
+        self.server_connection_type = self.server_connection_type or (
+            ServerConnectionType.TLS
+            if self.ssl_certfile or self.ssl_keyfile
+            else ServerConnectionType.SSH
+        )
+
+        if self.server_port is None:
+            if self.server_connection_type == ServerConnectionType.TLS:
+                self.server_port = DEFAULT_HTTPS_PORT
+            elif self.server_connection_type == ServerConnectionType.NONE:
+                self.server_port = DEFAULT_HTTP_PORT
+            else:
+                self.server_port = DEFAULT_SERVER_PORT
+
+        if self.name in RESERVED_SYSTEM_NAMES:
+            raise ValueError(
+                f"Cluster name {self.name} is a reserved name. Please use a different name which is not one of "
+                f"{RESERVED_SYSTEM_NAMES}."
+            )

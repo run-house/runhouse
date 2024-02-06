@@ -2,8 +2,6 @@ import json
 import logging
 from typing import Dict, List, Optional
 
-import requests
-
 import typer
 
 from runhouse.globals import rns_client
@@ -37,7 +35,7 @@ class Secrets:
                 if not upload_secrets:
                     secrets.pop(provider_name, None)
 
-        resp = requests.put(
+        resp = rns_client.session.put(
             f"{rns_client.api_server_url}/{cls.USER_ENDPOINT}",
             data=json.dumps(secrets),
             headers=headers or rns_client.request_headers(),
@@ -63,7 +61,7 @@ class Secrets:
             >>> rh.Secrets.download_into_env(providers=["aws", "lambda"])
         """
         logger.info("Getting secrets from Vault.")
-        resp = requests.get(
+        resp = rns_client.session.get(
             f"{rns_client.api_server_url}/{cls.USER_ENDPOINT}",
             headers=headers or rns_client.request_headers(),
         )

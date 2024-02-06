@@ -27,7 +27,7 @@ class TestHTTPClient:
         self.client = HTTPClient("localhost", DEFAULT_SERVER_PORT)
 
     @pytest.mark.level("unit")
-    @patch("requests.get")
+    @patch("requests.Session.get")
     def test_check_server(self, mock_get):
         mock_response = Mock()
         mock_response.status_code = 200
@@ -40,7 +40,6 @@ class TestHTTPClient:
         mock_get.assert_called_once_with(
             f"http://localhost:{DEFAULT_SERVER_PORT}/check",
             timeout=HTTPClient.CHECK_TIMEOUT_SEC,
-            verify=False,
         )
 
     @pytest.mark.level("unit")
@@ -108,7 +107,7 @@ class TestHTTPClient:
         assert not client.verify
 
     @pytest.mark.level("unit")
-    @patch("requests.post")
+    @patch("requests.Session.post")
     def test_call_module_method(self, mock_post):
         response_sequence = [
             json.dumps({"output_type": "log", "data": "Log message"}),
@@ -152,18 +151,16 @@ class TestHTTPClient:
             "run_async": False,
         }
         expected_headers = rns_client.request_headers()
-        expected_verify = self.client.verify
 
         mock_post.assert_called_once_with(
             expected_url,
             json=expected_json_data,
             stream=True,
             headers=expected_headers,
-            verify=expected_verify,
         )
 
     @pytest.mark.level("unit")
-    @patch("requests.post")
+    @patch("requests.Session.post")
     def test_call_module_method_with_args_kwargs(self, mock_post):
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -196,18 +193,16 @@ class TestHTTPClient:
         }
         expected_url = f"http://localhost:32300/{module_name}/{method_name}"
         expected_headers = rns_client.request_headers()
-        expected_verify = False
 
         mock_post.assert_called_with(
             expected_url,
             json=expected_json_data,
             stream=True,
             headers=expected_headers,
-            verify=expected_verify,
         )
 
     @pytest.mark.level("unit")
-    @patch("requests.post")
+    @patch("requests.Session.post")
     def test_call_module_method_error_handling(self, mock_post):
         mock_response = Mock()
         mock_response.status_code = 500
@@ -218,7 +213,7 @@ class TestHTTPClient:
             self.client.call_module_method("module", "method")
 
     @pytest.mark.level("unit")
-    @patch("requests.post")
+    @patch("requests.Session.post")
     def test_call_module_method_stream_logs(self, mock_post):
         # Setup the mock response with a log in the stream
         response_sequence = [
@@ -237,7 +232,7 @@ class TestHTTPClient:
         assert next(res) == "Log message"
 
     @pytest.mark.level("unit")
-    @patch("requests.post")
+    @patch("requests.Session.post")
     def test_call_module_method_config(self, mock_post):
         test_data = self.local_cluster.config_for_rns
         mock_response = Mock()
@@ -253,7 +248,7 @@ class TestHTTPClient:
         assert cluster.config_for_rns == test_data
 
     @pytest.mark.level("unit")
-    @patch("requests.post")
+    @patch("requests.Session.post")
     def test_call_module_method_not_found_error(self, mock_post):
         mock_response = Mock()
         mock_response.status_code = 200

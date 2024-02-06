@@ -6,7 +6,7 @@ from runhouse.globals import configs, obj_store, rns_client
 
 from runhouse.logger import LOGGING_CONFIG
 
-from runhouse.resources.hardware.utils import _get_cluster_from
+from runhouse.servers.obj_store import ClusterServletSetupOption, RaySetupOption
 
 # Configure the logger once
 logging.config.dictConfig(LOGGING_CONFIG)
@@ -71,12 +71,21 @@ def get_local_cluster_object():
     # as an initialized object store, keep the same name.
     # If it was not set, let's proxy requests to `base` since we're likely on the cluster
     # and want to easily read and write from the object store that the Server is using.
-    obj_store.initialize(servlet_name=obj_store.servlet_name or "base")
+    try:
+        obj_store.initialize(
+            servlet_name=obj_store.servlet_name or "base",
+            setup_ray=RaySetupOption.GET_OR_FAIL,
+            setup_cluster_servlet=ClusterServletSetupOption.GET_OR_FAIL,
+        )
+    except ConnectionError:
+        return "file"
 
     # When HTTPServer is initialized, the cluster_config is set
     # within the global state.
     config = obj_store.get_cluster_config()
     if config.get("resource_subtype") is not None:
+        from runhouse.resources.hardware.utils import _get_cluster_from
+
         system = _get_cluster_from(config, dryrun=True)
         return system
 

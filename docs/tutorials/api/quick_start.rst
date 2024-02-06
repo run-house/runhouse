@@ -27,6 +27,15 @@ Installing Runhouse
 
     !pip install runhouse
 
+To use runhouse to interact with remote clusters, please instead run the
+following command. This additionally installs
+`SkyPilot <https://github.com/skypilot-org/skypilot>`__, which is used
+for launching on-demand clusters and interacting with runhouse clusters.
+
+.. code:: ipython3
+
+    !pip install runhouse[sky]
+
 Runhouse Basics: Remote Cluster and Function
 --------------------------------------------
 
