@@ -6,7 +6,7 @@ from runhouse.globals import configs, obj_store, rns_client
 
 from runhouse.logger import LOGGING_CONFIG
 
-from runhouse.servers.obj_store import ClusterServletSetupOption, RaySetupOption
+from runhouse.servers.obj_store import ClusterServletSetupOption
 
 # Configure the logger once
 logging.config.dictConfig(LOGGING_CONFIG)
@@ -74,7 +74,6 @@ def get_local_cluster_object():
     try:
         obj_store.initialize(
             servlet_name=obj_store.servlet_name or "base",
-            setup_ray=RaySetupOption.GET_OR_FAIL,
             setup_cluster_servlet=ClusterServletSetupOption.GET_OR_FAIL,
         )
     except ConnectionError:
