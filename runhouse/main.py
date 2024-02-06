@@ -117,12 +117,10 @@ def _print_status(config):
     daemon_headline_txt = (
         "\N{smiling face with horns} Runhouse Daemon is running \N{Runner}"
     )
+
     console.print(daemon_headline_txt, style="bold royal_blue1")
-    cluster_url = (
-        f"https://www.run.house/resources/{config['name'][1:].replace('/', ':')}"
-    )
-    hyperlink_text = f"[link={cluster_url}]{config['name']}[/link]"
-    console.print(hyperlink_text)
+    if "name" in config.keys():
+        console.print(config["name"])
 
     first_info_to_print = ["den_auth", "server_connection_type", "server_port"]
 
@@ -201,13 +199,7 @@ def status(
         else:
             try:
                 current_cluster = rh.cluster(name=cluster_name)
-                if not current_cluster.is_up():
-                    console.print(f"A cluster called {cluster_name} is not up")
-                    return
-                current_cluster.connect_server_client()
-                config = current_cluster.client.request(
-                    endpoint="/status", req_type="get"
-                )
+                config = current_cluster.status()
             except ValueError:
                 console.print(
                     f"Cluster {cluster_name} is not found in Den. Please save it, in order to get its"

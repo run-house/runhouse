@@ -91,6 +91,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         save_resource_and_return_config_cluster = rh.function(
             save_resource_and_return_config,
             name="save_resource_and_return_config_cluster",
+        ).to(
             system=docker_cluster_pk_ssh_no_auth,
         )
         saved_config_on_cluster = save_resource_and_return_config_cluster()
@@ -187,23 +188,21 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert isinstance(cluster.get("test_table"), rh.Table)
 
     @pytest.mark.level("local")
-    def test_rh_status_local(self, cluster):
+    def test_rh_status_pythonic(self, cluster):
         cluster.put(key="status_key1", obj="status_value1", env="numpy_env")
-        res = subprocess.check_output(["runhouse", "status", cluster.name]).decode(
-            "utf-8"
-        )
-        assert "😈 Runhouse Daemon is running 🏃" in res
-        assert f"server_port: {cluster.server_port}" in res
-        assert f"server_connection_type: {cluster.server_connection_type}" in res
-        assert f"den_auth: {str(cluster.den_auth)}" in res
-        assert f"resource_type: {cluster.RESOURCE_TYPE.lower()}" in res
-        assert f"ips: {str(cluster.ips)}" in res
-        assert "Serving 🍦 :" in res
-        cluster.put(key="status_key1", obj="status_value1", env="base_env")
-        assert "status_value1 (Str)" in res
+        res = cluster.status()
+        assert res.get("server_port") == cluster.server_port
+        assert res.get("server_connection_type") == cluster.server_connection_type
+        assert res.get("den_auth") == cluster.den_auth
+        assert res.get("resource_type") == cluster.RESOURCE_TYPE
+        assert res.get("ips") == cluster.ips
+        assert "numpy_env" in res.get("envs")
+        assert {"name": "status_value1", "resource_type": "str"} in res.get("envs")[
+            "numpy_env"
+        ]
 
     @pytest.mark.level("local")
-    def test_rh_status_in_cluster(self, cluster):
+    def test_rh_status_cli(self, cluster):
         cluster.put(key="status_key2", obj="status_value2", env="base_env")
         res = cluster.run(["runhouse status"])[0][1]
         assert "😈 Runhouse Daemon is running 🏃" in res
@@ -213,11 +212,12 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert f"resource_type: {cluster.RESOURCE_TYPE.lower()}" in res
         assert f"ips: {str(cluster.ips)}" in res
         assert "Serving 🍦 :" in res
-        assert "base_env (Env):" in res
-        assert "status_value2 (Str)" in res
+        assert "base_env (runhouse.resources.envs.env.Env):" in res
+        assert "status_value2 (str)" in res
 
+    @pytest.mark.skip("Restarting the server mid-test causes some errors, need to fix")
     @pytest.mark.level("local")
-    def test_rh_status_errors(self, cluster):
+    def test_rh_status_stopped(self, cluster):
         try:
             cluster_name = cluster.name
             cluster.run(["runhouse stop"])

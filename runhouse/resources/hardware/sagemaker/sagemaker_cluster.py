@@ -32,10 +32,11 @@ except ImportError:
 
 from sshtunnel import BaseSSHTunnelForwarderError, SSHTunnelForwarder
 
-from runhouse.globals import configs, rns_client, ssh_tunnel_cache
+from runhouse.constants import LOCAL_HOSTS
 
+from runhouse.globals import configs, rns_client, ssh_tunnel_cache
 from runhouse.resources.hardware.cluster import Cluster
-from runhouse.resources.hardware.utils import get_open_tunnel
+from runhouse.resources.hardware.utils import get_open_tunnel, ServerConnectionType
 from runhouse.rns.utils.api import is_jsonable, relative_ssh_path, resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 
@@ -326,6 +327,37 @@ class SageMakerCluster(Cluster):
     def _set_sagemaker_session(self):
         """Create a SageMaker session required for using the SageMaker APIs."""
         self._sagemaker_session = sagemaker.Session(boto_session=self._boto_session)
+
+    def set_connection_defaults(self):
+        if (
+            "aws-cli/2."
+            not in subprocess.run(
+                ["aws", "--version"], capture_output=True, text=True
+            ).stdout
+        ):
+            raise RuntimeError(
+                "SageMaker SDK requires AWS CLI v2. You may also need to run `pip uninstall awscli` to ensure "
+                "the right version is being used. For more info: https://www.run.house/docs/api/python/cluster#id9"
+            )
+
+        if self.ssh_key_path:
+            self.ssh_key_path = relative_ssh_path(self.ssh_key_path)
+        else:
+            self.ssh_key_path = None
+
+        if (
+            self.server_connection_type is not None
+            and self.server_connection_type != ServerConnectionType.AWS_SSM
+        ):
+            raise ValueError(
+                "SageMaker Cluster currently requires a server connection type of `aws_ssm`."
+            )
+        self.server_connection_type = ServerConnectionType.AWS_SSM.value
+
+        if self.server_host and self.server_host not in LOCAL_HOSTS:
+            raise ValueError(
+                "SageMaker Cluster currently requires a server host of `localhost` or `127.0.0.1`"
+            )
 
     # -------------------------------------------------------
     # Cluster State & Lifecycle Methods

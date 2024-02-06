@@ -30,6 +30,7 @@ from runhouse.constants import (
     DEFAULT_RAY_PORT,
     DEFAULT_SERVER_PORT,
     LOCALHOST,
+    RESERVED_SYSTEM_NAMES,
 )
 from runhouse.globals import obj_store, rns_client
 from runhouse.resources.envs.utils import _get_env_from
@@ -87,6 +88,8 @@ class Cluster(Resource):
             cert_path=ssl_certfile, key_path=ssl_keyfile, dir_name=self.name
         )
 
+        self.ssl_certfile = ssl_certfile
+        self.ssl_keyfile = ssl_keyfile
         self.server_connection_type = server_connection_type
         self.server_port = server_port or DEFAULT_SERVER_PORT
         self.client_port = client_port
@@ -533,6 +536,12 @@ class Cluster(Resource):
                 raise ValueError(f"Could not connect to server {self.name}")
 
         return
+
+    def status(self):
+        self.check_server()
+        if self.on_this_cluster():
+            return obj_store.get_status()
+        return self.client.status()
 
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
@@ -1200,3 +1209,37 @@ class Cluster(Resource):
             self.den_auth = False
             self.client.set_settings({"den_auth": False})
         return self
+
+    def set_connection_defaults(self, **kwargs):
+        if self.server_host and (
+            "localhost" in self.server_host or ":" in self.server_host
+        ):
+            # If server_connection_type is not specified, we
+            # assume we can hit the server directly via HTTP
+            self.server_connection_type = (
+                self.server_connection_type or ServerConnectionType.NONE
+            )
+            if ":" in self.server_host:
+                # e.g. "localhost:23324" or <real_ip>:<custom port> (e.g. a port is already open to the server)
+                self.server_host, self.client_port = self.server_host.split(":")
+                kwargs["client_port"] = self.client_port
+
+        self.server_connection_type = self.server_connection_type or (
+            ServerConnectionType.TLS
+            if self.ssl_certfile or self.ssl_keyfile
+            else ServerConnectionType.SSH
+        )
+
+        if self.server_port is None:
+            if self.server_connection_type == ServerConnectionType.TLS:
+                self.server_port = DEFAULT_HTTPS_PORT
+            elif self.server_connection_type == ServerConnectionType.NONE:
+                self.server_port = DEFAULT_HTTP_PORT
+            else:
+                self.server_port = DEFAULT_SERVER_PORT
+
+        if self.name in RESERVED_SYSTEM_NAMES:
+            raise ValueError(
+                f"Cluster name {self.name} is a reserved name. Please use a different name which is not one of "
+                f"{RESERVED_SYSTEM_NAMES}."
+            )
