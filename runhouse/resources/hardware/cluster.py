@@ -125,7 +125,7 @@ class Cluster(Resource):
             [
                 f"mkdir -p ~/.rh; touch {CLUSTER_CONFIG_PATH}; echo '{json_config}' > {CLUSTER_CONFIG_PATH}"
             ],
-            node=node or self.address,
+            node=node or "all",
         )
 
     def save(
@@ -184,7 +184,7 @@ class Cluster(Resource):
                 "client_port",
             ],
         )
-        if self.is_up():
+        if self._ssh_creds or self.is_up():
             config["ssh_creds"] = self.ssh_creds
 
         if self._use_custom_certs:
@@ -254,7 +254,7 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("rh-cpu").is_up()
         """
-        return self.address is not None
+        return self.on_this_cluster() or self.address is not None
 
     def up_if_not(self):
         """Bring up the cluster if it is not up. No-op if cluster is already up.
@@ -1057,6 +1057,21 @@ class Cluster(Resource):
             >>> cpu.run(["python script.py"], run_name="my_exp")
             >>> cpu.run(["python script.py"], node="3.89.174.234")
         """
+        if node == "all":
+            res_list = []
+            for node in self.ips:
+                res = self.run(
+                    commands=commands,
+                    env=env,
+                    stream_logs=stream_logs,
+                    port_forward=port_forward,
+                    require_outputs=require_outputs,
+                    node=node,
+                    run_name=run_name,
+                )
+                res_list.append(res)
+            return res_list
+
         # TODO [DG] suspend autostop while running
         from runhouse.resources.provenance import run
 
