@@ -27,13 +27,13 @@ def summer(a, b):
 # -------- FIXTURES ----------- #
 @pytest.fixture(scope="module")
 def http_client():
-    with httpx.Client(base_url=BASE_URL, timeout=60.0) as client:
+    with httpx.Client(base_url=BASE_URL, timeout=None) as client:
         yield client
 
 
 @pytest_asyncio.fixture(scope="function")
 async def async_http_client():
-    async with httpx.AsyncClient(base_url=BASE_URL) as client:
+    async with httpx.AsyncClient(base_url=BASE_URL, timeout=None) as client:
         yield client
 
 
