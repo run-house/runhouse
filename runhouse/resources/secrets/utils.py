@@ -4,8 +4,6 @@ import os
 from pathlib import Path
 from typing import Dict, Optional
 
-import requests
-
 from runhouse.globals import rns_client
 from runhouse.rns.utils.api import load_resp_content, read_resp_data
 
@@ -38,7 +36,7 @@ def _load_vault_secret(
 ):
     """Load secrets data from Vault for a particular resource URI. By default we allow for reloading shared secrets."""
     headers = headers or rns_client.request_headers()
-    resp = requests.get(
+    resp = rns_client.session.get(
         f"{rns_client.api_server_url}/{endpoint}/{resource_uri}?shared=true",
         headers=headers,
     )
@@ -61,7 +59,7 @@ def _delete_vault_secrets(
     headers: Optional[Dict] = None,
 ):
     headers = headers or rns_client.request_headers()
-    resp = requests.delete(
+    resp = rns_client.session.delete(
         f"{rns_client.api_server_url}/{endpoint}/{resource_uri}",
         headers=headers,
     )

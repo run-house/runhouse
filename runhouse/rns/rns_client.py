@@ -61,6 +61,7 @@ class RNSClient:
         self._current_folder = None
 
         self.refresh_defaults()
+        self.session = requests.Session()
 
     # TODO [DG] move the below into Defaults() so they never need to be refreshed?
     def refresh_defaults(self):
@@ -275,7 +276,7 @@ class RNSClient:
             "notify_users": notify_users,
         }
         uri = "resource/" + resource_uri
-        resp = requests.put(
+        resp = self.session.put(
             f"{self.api_server_url}/{uri}/users/access",
             data=json.dumps(access_payload),
             headers=headers,
@@ -312,7 +313,7 @@ class RNSClient:
         if rns_address.startswith("/"):
             resource_uri = self.resource_uri(name)
             logger.info(f"Attempting to load config for {rns_address} from RNS.")
-            resp = requests.get(
+            resp = self.session.get(
                 f"{self.api_server_url}/resource/{resource_uri}",
                 headers=self.request_headers(),
             )
@@ -401,7 +402,7 @@ class RNSClient:
 
         payload = self.resource_request_payload(config)
         headers = self.request_headers()
-        resp = requests.put(
+        resp = self.session.put(
             f"{self.api_server_url}/{uri}", data=json.dumps(payload), headers=headers
         )
         if resp.status_code == 200:
@@ -411,7 +412,7 @@ class RNSClient:
         elif resp.status_code == 404:  # Resource not found
             logger.info(f"Saving new resource in Den for resource: {uri}")
             # Resource does not yet exist, in which case we need to create from scratch
-            resp = requests.post(
+            resp = self.session.post(
                 f"{self.api_server_url}/resource",
                 data=json.dumps(payload),
                 headers=headers,
@@ -450,7 +451,7 @@ class RNSClient:
         if rns_address.startswith("/"):
             resource_uri = self.resource_uri(rns_address)
             uri = "resource/" + resource_uri
-            resp = requests.delete(
+            resp = self.session.delete(
                 f"{self.api_server_url}/{uri}", headers=self.request_headers()
             )
             if resp.status_code != 200:
