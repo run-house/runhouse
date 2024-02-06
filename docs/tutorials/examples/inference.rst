@@ -33,7 +33,7 @@ Install Runhouse
 
 .. code:: ipython3
 
-    !pip install runhouse
+    !pip install runhouse[sky]
 
 .. code:: ipython3
 

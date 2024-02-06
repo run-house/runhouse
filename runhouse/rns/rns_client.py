@@ -1,7 +1,7 @@
+import importlib
 import json
 import logging
 import os
-import pkgutil
 import shutil
 from pathlib import Path
 from typing import Dict, Optional, Set
@@ -40,7 +40,7 @@ class RNSClient:
 
         self.rh_directory = str(Path(self.locate_working_dir()) / "rh")
         self.rh_builtins_directory = str(
-            Path(pkgutil.get_loader("runhouse").path).parent / "builtins"
+            Path(importlib.util.find_spec("runhouse").origin).parent / "builtins"
         )
 
         # TODO allow users to register other base folders
@@ -55,12 +55,13 @@ class RNSClient:
             else []
         )
         rns_base_folders.append(
-            str(Path(pkgutil.get_loader("runhouse").path).parent / "builtins")
+            str(Path(importlib.util.find_spec("runhouse").origin).parent / "builtins")
         )
         self._index_base_folders(rns_base_folders)
         self._current_folder = None
 
         self.refresh_defaults()
+        self.session = requests.Session()
 
     # TODO [DG] move the below into Defaults() so they never need to be refreshed?
     def refresh_defaults(self):
@@ -275,7 +276,7 @@ class RNSClient:
             "notify_users": notify_users,
         }
         uri = "resource/" + resource_uri
-        resp = requests.put(
+        resp = self.session.put(
             f"{self.api_server_url}/{uri}/users/access",
             data=json.dumps(access_payload),
             headers=headers,
@@ -312,7 +313,7 @@ class RNSClient:
         if rns_address.startswith("/"):
             resource_uri = self.resource_uri(name)
             logger.info(f"Attempting to load config for {rns_address} from RNS.")
-            resp = requests.get(
+            resp = self.session.get(
                 f"{self.api_server_url}/resource/{resource_uri}",
                 headers=self.request_headers(),
             )
@@ -401,7 +402,7 @@ class RNSClient:
 
         payload = self.resource_request_payload(config)
         headers = self.request_headers()
-        resp = requests.put(
+        resp = self.session.put(
             f"{self.api_server_url}/{uri}", data=json.dumps(payload), headers=headers
         )
         if resp.status_code == 200:
@@ -411,7 +412,7 @@ class RNSClient:
         elif resp.status_code == 404:  # Resource not found
             logger.info(f"Saving new resource in Den for resource: {uri}")
             # Resource does not yet exist, in which case we need to create from scratch
-            resp = requests.post(
+            resp = self.session.post(
                 f"{self.api_server_url}/resource",
                 data=json.dumps(payload),
                 headers=headers,
@@ -450,7 +451,7 @@ class RNSClient:
         if rns_address.startswith("/"):
             resource_uri = self.resource_uri(rns_address)
             uri = "resource/" + resource_uri
-            resp = requests.delete(
+            resp = self.session.delete(
                 f"{self.api_server_url}/{uri}", headers=self.request_headers()
             )
             if resp.status_code != 200:

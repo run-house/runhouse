@@ -72,11 +72,10 @@ install_requires = [
     "opentelemetry-instrumentation-requests",
     "opentelemetry-sdk",
     "pexpect",
-    "pyarrow",
     "pyOpenSSL>=23.3.0",
+    "ray[default] >= 2.2.0, <= 2.6.3, != 2.6.0",
     "rich",
     "sentry-sdk",
-    "skypilot[docker]==0.4.1",
     "sshfs",
     "sshtunnel>=0.3.0",
     "typer",
@@ -87,7 +86,10 @@ install_requires = [
 # NOTE: Change the templates/spot-controller.yaml.j2 file if any of the following
 # packages dependencies are changed.
 extras_require = {
+    "sky": ["skypilot==0.4.1"],
+    "data": ["pandas", "pyarrow"],
     "aws": [
+        "skypilot==0.4.1",
         # https://github.com/aio-libs/aiobotocore/issues/983
         # If you don't want to use these exact versions, you can install runhouse without the aws extras, then
         # install your desired versions of awscli and boto3
@@ -95,16 +97,22 @@ extras_require = {
         "pycryptodome==3.12.0",
         "fsspec==2023.1.0",
     ],
-    "azure": ["azure-cli==2.31.0", "azure-core"],
-    "gcp": ["google-api-python-client", "google-cloud-storage", "gcsfs"],
+    "azure": ["skypilot==0.4.1", "azure-cli==2.31.0", "azure-core"],
+    "gcp": [
+        "skypilot==0.4.1",
+        "google-api-python-client",
+        "google-cloud-storage",
+        "gcsfs",
+    ],
     "docker": ["docker"],
     "sagemaker": [
+        "skypilot==0.4.1",
         # https://github.com/aws-samples/sagemaker-ssh-helper
         "sagemaker_ssh_helper",
         "sagemaker",
         "paramiko>=3.2.0",
     ],
-    "kubernetes": ["kubernetes"],
+    "kubernetes": ["skypilot==0.4.1", "kubernetes"],
 }
 
 extras_require["all"] = sum(extras_require.values(), [])

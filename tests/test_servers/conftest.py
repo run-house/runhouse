@@ -11,7 +11,7 @@ import runhouse as rh
 from runhouse.globals import rns_client
 from runhouse.servers.http.http_server import app, HTTPServer
 
-from tests.utils import friend_account, get_ray_servlet, get_test_obj_store
+from tests.utils import friend_account, get_ray_servlet_and_obj_store
 
 # Note: API Server will run on local docker container
 BASE_URL = "http://localhost:32300"
@@ -27,13 +27,13 @@ def summer(a, b):
 # -------- FIXTURES ----------- #
 @pytest.fixture(scope="module")
 def http_client():
-    with httpx.Client(base_url=BASE_URL, timeout=60.0) as client:
+    with httpx.Client(base_url=BASE_URL, timeout=None) as client:
         yield client
 
 
 @pytest_asyncio.fixture(scope="function")
 async def async_http_client():
-    async with httpx.AsyncClient(base_url=BASE_URL) as client:
+    async with httpx.AsyncClient(base_url=BASE_URL, timeout=None) as client:
         yield client
 
 
@@ -50,7 +50,7 @@ def local_cluster():
 def local_client():
     from fastapi.testclient import TestClient
 
-    HTTPServer()
+    HTTPServer(from_test=True)
     client = TestClient(app)
 
     yield client
@@ -60,7 +60,7 @@ def local_client():
 def local_client_with_den_auth(logged_in_account):
     from fastapi.testclient import TestClient
 
-    HTTPServer()
+    HTTPServer(from_test=True)
     HTTPServer.enable_den_auth(flush=False)
     client = TestClient(app)
     with friend_account():
@@ -73,7 +73,8 @@ def local_client_with_den_auth(logged_in_account):
 
 @pytest.fixture(scope="session")
 def test_servlet():
-    yield get_ray_servlet("test_servlet")
+    servlet, _ = get_ray_servlet_and_obj_store("test_servlet")
+    yield servlet
 
 
 @pytest.fixture(scope="function")
@@ -81,7 +82,7 @@ def obj_store(request):
 
     # Use the parameter to set the name of the servlet actor to use
     env_servlet_name = request.param
-    test_obj_store = get_test_obj_store(env_servlet_name)
+    _, test_obj_store = get_ray_servlet_and_obj_store(env_servlet_name)
 
     # Clears everything, not just what's in this env servlet
     test_obj_store.clear()

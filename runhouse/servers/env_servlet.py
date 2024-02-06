@@ -8,8 +8,6 @@ import traceback
 from functools import wraps
 from typing import Any, Optional
 
-from sky.skylet.autostop_lib import set_last_active_time_to_now
-
 from runhouse.globals import obj_store
 
 from runhouse.resources.blobs import blob, Blob
@@ -30,6 +28,7 @@ from runhouse.servers.http.http_utils import (
     Response,
     serialize_data,
 )
+from runhouse.servers.obj_store import ClusterServletSetupOption, RaySetupOption
 
 logger = logging.getLogger(__name__)
 
@@ -77,14 +76,24 @@ class EnvServlet:
     def __init__(self, env_name: str, *args, **kwargs):
         self.env_name = env_name
 
-        obj_store.initialize(self.env_name, has_local_storage=True)
+        obj_store.initialize(
+            self.env_name,
+            has_local_storage=True,
+            setup_ray=RaySetupOption.GET_OR_FAIL,
+            setup_cluster_servlet=ClusterServletSetupOption.GET_OR_FAIL,
+        )
 
         self.output_types = {}
         self.thread_ids = {}
 
     @staticmethod
     def register_activity():
-        set_last_active_time_to_now()
+        try:
+            from sky.skylet.autostop_lib import set_last_active_time_to_now
+
+            set_last_active_time_to_now()
+        except ImportError:
+            pass
 
     def call_module_method(
         self,

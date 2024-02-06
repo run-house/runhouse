@@ -2,15 +2,28 @@ import contextlib
 import logging
 import subprocess
 import time
+import warnings
 from pathlib import Path
 from typing import Any, Dict
 
 import rich.errors
-import sky
 import yaml
-from sky.backends import backend_utils, CloudVmRayBackend
+
+try:
+    import sky
+    from sky.backends import backend_utils, CloudVmRayBackend
+except ImportError:
+    pass
+
+from runhouse.constants import (
+    DEFAULT_HTTP_PORT,
+    DEFAULT_HTTPS_PORT,
+    DEFAULT_SERVER_PORT,
+    LOCAL_HOSTS,
+)
 
 from runhouse.globals import configs, rns_client
+from runhouse.resources.hardware.utils import ServerConnectionType
 
 from .cluster import Cluster
 from .utils import _current_cluster
@@ -252,6 +265,81 @@ class OnDemandCluster(Cluster):
             yaml_path = "~/.sky/generated/" + Path(yaml_path).name
         return yaml_path
 
+    def set_connection_defaults(self):
+        if self.server_connection_type in [
+            ServerConnectionType.AWS_SSM,
+        ]:
+            raise ValueError(
+                f"OnDemandCluster does not support server connection type {self.server_connection_type}"
+            )
+
+        if not self.server_connection_type:
+            if self.ssl_keyfile or self.ssl_certfile:
+                self.server_connection_type = ServerConnectionType.TLS
+            else:
+                self.server_connection_type = ServerConnectionType.SSH
+
+        if self.server_port is None:
+            if self.server_connection_type == ServerConnectionType.TLS:
+                self.server_port = DEFAULT_HTTPS_PORT
+            elif self.server_connection_type == ServerConnectionType.NONE:
+                self.server_port = DEFAULT_HTTP_PORT
+            else:
+                self.server_port = DEFAULT_SERVER_PORT
+
+        if (
+            self.server_connection_type
+            in [ServerConnectionType.TLS, ServerConnectionType.NONE]
+            and self.server_host in LOCAL_HOSTS
+        ):
+            warnings.warn(
+                f"Server connection type: {self.server_connection_type}, server host: {self.server_host}. "
+                f"Note that this will require opening an SSH tunnel to forward traffic from"
+                f" {self.server_host} to the server."
+            )
+
+        self.open_ports = (
+            []
+            if self.open_ports is None
+            else [self.open_ports]
+            if isinstance(self.open_ports, (int, str))
+            else self.open_ports
+        )
+
+        if self.open_ports:
+            self.open_ports = [str(p) for p in self.open_ports]
+            if str(self.server_port) in self.open_ports:
+                if (
+                    self.server_connection_type
+                    in [ServerConnectionType.TLS, ServerConnectionType.NONE]
+                    and not self.den_auth
+                ):
+                    warnings.warn(
+                        "Server is insecure and must be inside a VPC or have `den_auth` enabled to secure it."
+                    )
+            else:
+                warnings.warn(
+                    f"Server port {self.server_port} not included in open ports. Note you are responsible for opening "
+                    f"the port or ensure you have access to it via a VPC."
+                )
+        else:
+            # If using HTTP or HTTPS must enable traffic on the relevant port
+            if self.server_connection_type in [
+                ServerConnectionType.TLS,
+                ServerConnectionType.NONE,
+            ]:
+                if self.server_port:
+                    warnings.warn(
+                        f"No open ports specified. Make sure port {self.server_port} is open "
+                        f"to {self.server_connection_type} traffic."
+                    )
+                else:
+                    warnings.warn(
+                        f"No open ports specified. Make sure the relevant port is open. "
+                        f"HTTPS default: {DEFAULT_HTTPS_PORT} and HTTP "
+                        f"default: {DEFAULT_HTTP_PORT}."
+                    )
+
     # ----------------- Launch/Lifecycle Methods -----------------
 
     def is_up(self) -> bool:
@@ -440,7 +528,7 @@ class OnDemandCluster(Cluster):
             raise ValueError(f"Cluster provider {self.provider} not supported.")
 
         self._update_from_sky_status()
-        self.restart_server(restart_ray=True)
+        self.restart_server()
 
         return self
 

@@ -140,17 +140,21 @@ class CaddyConfig:
             logger.info("Installing Caddy.")
 
             commands = [
-                "sudo apt update",
-                "sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https",
+                "sudo apt update && sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https",
                 "yes | curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg",  # noqa
                 "yes | curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list",  # noqa
-                "sudo apt update",
-                "sudo apt install caddy",
+                "sudo apt update && sudo apt install caddy -y",
             ]
 
             for cmd in commands:
                 try:
-                    subprocess.run(cmd, shell=True, check=True, text=True)
+                    subprocess.run(
+                        cmd,
+                        shell=True,
+                        check=True,
+                        text=True,
+                        stdout=subprocess.DEVNULL,
+                    )
                 except subprocess.CalledProcessError as e:
                     raise RuntimeError(f"Failed to run Caddy install command: {e}")
 
@@ -252,7 +256,13 @@ class CaddyConfig:
                 # If running in a docker container or distro without systemctl, check whether Caddy has been configured
                 run_cmd = f"caddy validate --config {str(self.caddyfile)}"
                 try:
-                    subprocess.run(run_cmd, shell=True, check=True, text=True)
+                    subprocess.run(
+                        run_cmd,
+                        shell=True,
+                        check=True,
+                        text=True,
+                        stdout=subprocess.DEVNULL,
+                    )
                 except subprocess.CalledProcessError as e:
                     logger.warning(e)
                     return False
@@ -279,6 +289,7 @@ class CaddyConfig:
                 shell=True,
                 check=True,
                 text=True,
+                stdout=subprocess.DEVNULL,
             )
         except subprocess.CalledProcessError as e:
             raise e
@@ -296,7 +307,13 @@ class CaddyConfig:
                 # as a background process
                 run_cmd = "caddy start"
                 try:
-                    subprocess.run(run_cmd, shell=True, check=True, text=True)
+                    subprocess.run(
+                        run_cmd,
+                        shell=True,
+                        check=True,
+                        text=True,
+                        stdout=subprocess.DEVNULL,
+                    )
                 except subprocess.CalledProcessError as e:
                     raise RuntimeError(
                         f"Failed to start Caddy as a background process: {e}"

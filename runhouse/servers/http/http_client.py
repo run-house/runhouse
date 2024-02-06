@@ -48,6 +48,10 @@ class HTTPClient:
         self.use_https = use_https
         self.verify = self._use_cert_verification()
         self.system = system
+        self.client = requests.Session()
+        self.client.auth = self.auth
+        self.client.verify = self.verify
+        self.client.timeout = None
 
     def _use_cert_verification(self):
         if not self.use_https:
@@ -127,13 +131,13 @@ class HTTPClient:
         # Support use case where we explicitly do not want to provide headers (e.g. requesting a cert)
         headers = rns_client.request_headers() if headers != {} else headers
         req_fn = (
-            requests.get
+            self.client.get
             if req_type == "get"
-            else requests.put
+            else self.client.put
             if req_type == "put"
-            else requests.delete
+            else self.client.delete
             if req_type == "delete"
-            else requests.post
+            else self.client.post
         )
         # Note: For localhost (e.g. docker) do not add trailing slash (will lead to connection errors)
         endpoint = endpoint.strip("/")
@@ -146,24 +150,21 @@ class HTTPClient:
         response = req_fn(
             self._formatted_url(endpoint),
             json=json_dict,
-            timeout=timeout,
-            auth=self.auth,
             headers=headers,
-            verify=self.verify,
         )
         if response.status_code != 200:
             raise ValueError(
                 f"Error calling {endpoint} on server: {response.content.decode()}"
             )
         resp_json = response.json()
-        output_type = resp_json["output_type"]
-        return handle_response(resp_json, output_type, err_str)
+        if isinstance(resp_json, dict) and "output_type" in resp_json:
+            return handle_response(resp_json, resp_json["output_type"], err_str)
+        return resp_json
 
     def check_server(self):
-        resp = requests.get(
+        resp = self.client.get(
             self._formatted_url("check"),
             timeout=self.CHECK_TIMEOUT_SEC,
-            verify=self.verify,
         )
 
         if resp.status_code != 200:
@@ -179,6 +180,9 @@ class HTTPClient:
                 f"Server was started with Runhouse version ({rh_version}), "
                 f"but local Runhouse version is ({runhouse.__version__})"
             )
+
+    def status(self):
+        return self.request("status", req_type="get")
 
     def get_certificate(self):
         cert: bytes = self.request(
@@ -240,7 +244,7 @@ class HTTPClient:
             f"{'Calling' if method_name else 'Getting'} {module_name}"
             + (f".{method_name}" if method_name else "")
         )
-        res = requests.post(
+        res = self.client.post(
             self._formatted_url(f"{module_name}/{method_name}"),
             json={
                 "data": pickle_b64([args, kwargs]),
@@ -253,7 +257,6 @@ class HTTPClient:
             },
             stream=not run_async,
             headers=rns_client.request_headers(),
-            verify=self.verify,
         )
         if res.status_code != 200:
             raise ValueError(
@@ -327,6 +330,7 @@ class HTTPClient:
         else:
             log_str = f"Time to get {module_name}: {round(end - start, 2)} seconds"
         logging.info(log_str)
+        res.close()
         return non_generator_result
 
     def put_object(self, key: str, value: Any, env=None):
@@ -389,11 +393,10 @@ class HTTPClient:
         )
 
     def set_settings(self, new_settings: Dict[str, Any]):
-        res = requests.post(
+        res = self.client.post(
             self._formatted_url("settings"),
             json=new_settings,
             headers=rns_client.request_headers(),
-            verify=self.verify,
         )
         if res.status_code != 200:
             raise ValueError(

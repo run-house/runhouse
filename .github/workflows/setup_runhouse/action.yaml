@@ -24,4 +24,4 @@ runs:
     - name: Install python packages & dependencies
       shell: bash
       run:
-        pip install pytest httpx pytest_asyncio docker s3fs tqdm
+        pip install skypilot[docker] pytest httpx pytest_asyncio docker s3fs tqdm pandas pyarrow

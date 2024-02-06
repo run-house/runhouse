@@ -1,4 +1,4 @@
-import pkgutil
+import importlib
 from pathlib import Path
 
 import pytest
@@ -9,7 +9,7 @@ class TestMultiNodeCluster:
     @pytest.mark.level("thorough")
     def test_rsync_and_ssh_onto_worker_node(self, multinode_cpu_cluster):
         worker_node = multinode_cpu_cluster.ips[-1]
-        local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent
+        local_rh_package_path = Path(importlib.util.find_spec("runhouse").origin).parent
 
         local_rh_package_path = local_rh_package_path.parent
         dest_path = f"~/{local_rh_package_path.name}"
