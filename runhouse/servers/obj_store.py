@@ -1,10 +1,28 @@
 import logging
 import os
+import subprocess
+from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Union
 
 import ray
 
+import runhouse
+from runhouse.constants import RAY_KILL_CMD, RAY_START_CMD
+
 logger = logging.getLogger(__name__)
+
+
+class RaySetupOption(str, Enum):
+    GET_OR_CREATE = "get_or_create"
+    GET_OR_FAIL = "get_or_fail"
+    FORCE_CREATE = "force_create"
+    TEST_PROCESS = "test_process"
+
+
+class ClusterServletSetupOption(str, Enum):
+    GET_OR_CREATE = "get_or_create"
+    GET_OR_FAIL = "get_or_fail"
+    FORCE_CREATE = "force_create"
 
 
 class ObjStoreError(Exception):
@@ -16,15 +34,21 @@ class NoLocalObjStoreError(ObjStoreError):
         super().__init__("No local object store exists; cannot perform operation.")
 
 
-def initialize_ray_and_cluster_servlet(create_if_not_exists: bool = False):
+def get_cluster_servlet(create_if_not_exists: bool = False):
     from runhouse.servers.cluster_servlet import ClusterServlet
 
-    if create_if_not_exists:
-        ray.init(
-            ignore_reinit_error=True,
-            logging_level=logging.ERROR,
-            namespace="runhouse",
-        )
+    if not ray.is_initialized():
+        raise ConnectionError("Ray is not initialized.")
+
+    # Previously used list_actors here to avoid a try/except, but it is finicky
+    # when there are several Ray clusters running. In tests, we typically run multiple
+    # clusters, so let's avoid this.
+    try:
+        cluster_servlet = ray.get_actor("cluster_servlet", namespace="runhouse")
+    except ValueError:
+        cluster_servlet = None
+
+    if cluster_servlet is None and create_if_not_exists:
         cluster_servlet = (
             ray.remote(ClusterServlet)
             .options(
@@ -38,14 +62,7 @@ def initialize_ray_and_cluster_servlet(create_if_not_exists: bool = False):
 
         # Make sure cluster servlet is actually initialized
         ray.get(cluster_servlet.get_cluster_config.remote())
-    else:
-        ray.init(
-            address="auto",
-            ignore_reinit_error=True,
-            logging_level=logging.ERROR,
-            namespace="runhouse",
-        )
-        cluster_servlet = ray.get_actor("cluster_servlet", namespace="runhouse")
+
     return cluster_servlet
 
 
@@ -76,15 +93,16 @@ class ObjStore:
         self.servlet_name: Optional[str] = None
         self.cluster_servlet: Optional[ray.actor.ActorHandle] = None
         self.imported_modules = {}
-        self.installed_envs = {}
-
+        self.installed_envs = {}  # TODO: consider deleting it?
         self._kv_store: Dict[Any, Any] = None
 
     def initialize(
         self,
         servlet_name: Optional[str] = None,
         has_local_storage: bool = False,
-        setup_ray: bool = False,
+        setup_ray: RaySetupOption = RaySetupOption.GET_OR_CREATE,
+        ray_address: str = "auto",
+        setup_cluster_servlet: ClusterServletSetupOption = ClusterServletSetupOption.GET_OR_CREATE,
     ):
         # The initialization of the obj_store needs to be in a separate method
         # so the HTTPServer actually initalizes the obj_store,
@@ -93,12 +111,60 @@ class ObjStore:
 
         # ClusterServlet essentially functions as a global state/metadata store
         # for all nodes connected to this Ray cluster.
-        try:
-            self.cluster_servlet = initialize_ray_and_cluster_servlet(setup_ray)
+        from runhouse.resources.hardware.ray_utils import (
+            check_for_existing_ray_instance,
+            kill_actors,
+        )
 
-        except ConnectionError:
-            # If ray.init fails, we're not on a cluster, so we don't need to do anything
-            pass
+        if setup_ray == RaySetupOption.FORCE_CREATE and ray_address != "auto":
+            raise ValueError(
+                "Cannot specify ray_address when forcing creation of Ray cluster, address should "
+                "remain as 'auto' to connect to the newly created Ray cluster."
+            )
+
+        if not ray.is_initialized() and setup_ray == RaySetupOption.TEST_PROCESS:
+            # When we run ray.init() with no address provided
+            # and no Ray is running, it will start a new Ray cluster,
+            # but one that is only exposed to this process. This allows us to
+            # run unit tests without starting bare metal Ray clusters on each machine.
+            ray.init(
+                ignore_reinit_error=True,
+                logging_level=logging.ERROR,
+                namespace="runhouse",
+            )
+
+        if not ray.is_initialized() or setup_ray == RaySetupOption.FORCE_CREATE:
+            # Only if ray is not initialized do we attempt a setup process.
+            if (
+                setup_ray == RaySetupOption.GET_OR_CREATE
+                and not check_for_existing_ray_instance(ray_address)
+            ) or setup_ray == RaySetupOption.FORCE_CREATE:
+                subprocess.run(RAY_KILL_CMD, shell=True)
+                subprocess.run(RAY_START_CMD, shell=True)
+
+            ray.init(
+                address=ray_address,
+                ignore_reinit_error=True,
+                logging_level=logging.ERROR,
+                namespace="runhouse",
+            )
+
+        # Now, we expect to be connected to an initialized Ray instance.
+        if setup_cluster_servlet == ClusterServletSetupOption.FORCE_CREATE:
+            kill_actors(namespace="runhouse")
+
+        create_if_not_exists = (
+            setup_cluster_servlet != ClusterServletSetupOption.GET_OR_FAIL
+        )
+        self.cluster_servlet = get_cluster_servlet(
+            create_if_not_exists=create_if_not_exists
+        )
+        if self.cluster_servlet is None:
+            # TODO: logger.<method> is not printing correctly here when doing `runhouse start`.
+            # Fix this and general logging.
+            logging.warning(
+                "Warning, cluster servlet is not initialized. Object Store operations will not work."
+            )
 
         # There are 3 operating modes of the KV store:
         # servlet_name is set, has_local_storage is True: This is an EnvServlet with a local KV store.
@@ -195,7 +261,7 @@ class ObjStore:
             )
 
             # Make sure env_servlet is actually initialized
-            ray.get(new_env_actor.register_activity.remote())
+            # ray.get(new_env_actor.register_activity.remote())
 
             env_servlets[env_name] = new_env_actor
             return new_env_actor
@@ -318,6 +384,14 @@ class ObjStore:
     def _pop_env_servlet_name_for_key(self, key: Any, *args) -> str:
         return self.call_actor_method(
             self.cluster_servlet, "pop_env_servlet_name_for_key", key, *args
+        )
+
+    ##############################################
+    # Remove Env Servlet
+    ##############################################
+    def remove_env_servlet_name(self, env_servlet_name: str):
+        return self.call_actor_method(
+            self.cluster_servlet, "remove_env_servlet_name", env_servlet_name
         )
 
     ##############################################
@@ -572,11 +646,37 @@ class ObjStore:
     def delete_local(self, key: Any):
         self.pop_local(key)
 
+    def _delete_env_contents(self, env_name: Any):
+        from runhouse.globals import env_servlets
+
+        # clear keys in the env servlet
+        deleted_keys = self.keys_for_env_servlet_name(env_name)
+        self.clear_for_env_servlet_name(env_name)
+
+        # delete the env servlet actor and remove its references
+        if env_name in env_servlets:
+            actor = env_servlets[env_name]
+            ray.kill(actor)
+
+            del env_servlets[env_name]
+        self.remove_env_servlet_name(env_name)
+
+        return deleted_keys
+
     def delete(self, key: Union[Any, List[Any]]):
         keys_to_delete = [key] if isinstance(key, str) else key
+        deleted_keys = []
+
         for key_to_delete in keys_to_delete:
+            if key_to_delete in self.get_all_initialized_env_servlet_names():
+                deleted_keys += self._delete_env_contents(key_to_delete)
+
+            if key_to_delete in deleted_keys:
+                continue
+
             if self.contains_local(key_to_delete):
                 self.delete_local(key_to_delete)
+                deleted_keys.append(key_to_delete)
             else:
                 env_servlet_name = self.get_env_servlet_name_for_key(key_to_delete)
                 if env_servlet_name == self.servlet_name and self.has_local_storage:
@@ -587,6 +687,7 @@ class ObjStore:
                     raise KeyError(f"Key {key} not found in any env.")
 
                 self.delete_for_env_servlet_name(env_servlet_name, key_to_delete)
+                deleted_keys.append(key_to_delete)
 
     ##############################################
     # KV Store: Clear
@@ -764,3 +865,39 @@ class ObjStore:
 
         # Return the name in case we had to set it
         return resource.name
+
+    ##############################################
+    # Cluster info methods
+    ##############################################
+
+    def get_status(self):
+        config_cluster = self.get_cluster_config()
+        envs_in_cluster = self.get_all_initialized_env_servlet_names()
+        cluster_servlets = {}
+        for env in envs_in_cluster:
+            env_keys = self.keys_for_env_servlet_name(env)
+            resources_in_env = self.get_list(env_keys)
+            resources_in_env_modified = []
+
+            # The objects in env can be of any type, and not only runhouse resources,
+            # therefore we need to distinguish them when creating the list of the resources in each env.
+            for r in resources_in_env:
+                cls = type(r)
+                py_module = cls.__module__
+                cls_name = (
+                    cls.__qualname__
+                    if py_module == "builtins"
+                    else (py_module + "." + cls.__qualname__)
+                )
+                if isinstance(r, runhouse.Resource):
+                    resources_in_env_modified.append(
+                        {"name": r.name, "resource_type": cls_name}
+                    )
+                else:
+                    resources_in_env_modified.append(
+                        {"name": r, "resource_type": cls_name}
+                    )
+
+            cluster_servlets[env] = resources_in_env_modified
+        config_cluster["envs"] = cluster_servlets
+        return config_cluster

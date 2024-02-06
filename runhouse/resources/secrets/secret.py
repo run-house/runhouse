@@ -6,8 +6,6 @@ from pathlib import Path
 
 from typing import Dict, List, Optional, Union
 
-import requests
-
 from runhouse.globals import configs, rns_client
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.resource import Resource
@@ -105,7 +103,7 @@ class Secret(Resource):
     @classmethod
     def vault_secrets(cls, headers: Optional[Dict] = None) -> List[str]:
         """Get secret names that are stored in Vault"""
-        resp = requests.get(
+        resp = rns_client.session.get(
             f"{rns_client.api_server_url}/{cls.USER_ENDPOINT}",
             headers=headers or rns_client.request_headers(),
         )
@@ -198,7 +196,7 @@ class Secret(Resource):
         if self.rns_address.startswith("/"):
             logger.info(f"Saving config for {self.name} to Den")
             payload = rns_client.resource_request_payload(config)
-            resp = requests.post(
+            resp = rns_client.session.post(
                 f"{rns_client.api_server_url}/resource",
                 data=json.dumps(payload),
                 headers=headers,
@@ -213,7 +211,7 @@ class Secret(Resource):
             if save_values:
                 logger.info(f"Saving secrets for {self.name} to Vault")
                 resource_uri = rns_client.resource_uri(self.rns_address)
-                resp = requests.put(
+                resp = rns_client.session.put(
                     f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{resource_uri}",
                     data=json.dumps(
                         {"name": self.rns_address, "data": {"values": self.values}}
@@ -265,7 +263,7 @@ class Secret(Resource):
         _delete_vault_secrets(resource_uri, self.USER_ENDPOINT, headers=headers)
 
         # Delete RNS data for resource
-        resp = requests.delete(
+        resp = rns_client.session.delete(
             f"{rns_client.api_server_url}/resource/{resource_uri}",
             headers=headers,
         )
@@ -313,7 +311,7 @@ class Secret(Resource):
         if not self.rns_address:
             return False
         resource_uri = rns_client.resource_uri(self.rns_address)
-        resp = requests.get(
+        resp = rns_client.session.get(
             f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{resource_uri}",
             headers=headers or rns_client.request_headers(),
         )

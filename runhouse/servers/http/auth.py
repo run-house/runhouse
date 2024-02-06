@@ -3,8 +3,6 @@ import json
 import logging
 from typing import Union
 
-import requests
-
 from runhouse.globals import rns_client
 from runhouse.rns.utils.api import load_resp_content, ResourceAccess
 
@@ -33,7 +31,7 @@ class AuthCache:
         if not refresh_cache and hash_token(token) in cls.CACHE:
             return
 
-        resp = requests.get(
+        resp = rns_client.session.get(
             f"{rns_client.api_server_url}/resource",
             headers={"Authorization": f"Bearer {token}"},
         )

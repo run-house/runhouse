@@ -24,7 +24,7 @@ Install dependencies
 .. code:: ipython3
 
     !pip install accelerate
-    !pip install runhouse
+    !pip install runhouse[sky]
 
 .. code:: ipython3
 

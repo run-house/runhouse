@@ -1,10 +1,12 @@
+import subprocess
+
 import pandas as pd
 import pytest
 import requests
 
 import runhouse as rh
 
-from runhouse.resources.hardware.utils import LOCALHOST
+from runhouse.constants import LOCALHOST
 
 import tests.test_resources.test_resource
 from tests.conftest import init_args
@@ -34,7 +36,6 @@ def test_table_to_rh_here():
 
 
 class TestCluster(tests.test_resources.test_resource.TestResource):
-
     MAP_FIXTURES = {"resource": "cluster"}
 
     UNIT = {"cluster": ["named_cluster"]}
@@ -90,6 +91,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         save_resource_and_return_config_cluster = rh.function(
             save_resource_and_return_config,
             name="save_resource_and_return_config_cluster",
+        ).to(
             system=docker_cluster_pk_ssh_no_auth,
         )
         saved_config_on_cluster = save_resource_and_return_config_cluster()
@@ -152,9 +154,84 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert cluster.get(k3) == "v3"
 
     @pytest.mark.level("local")
+    def test_cluster_delete_env(self, cluster):
+        env1 = rh.env(reqs=["numpy"], name="env1").to(cluster)
+        env2 = rh.env(reqs=["numpy"], name="env2").to(cluster)
+        env3 = rh.env(reqs=["numpy"], name="env3")
+
+        cluster.put("k1", "v1", env=env1.name)
+        cluster.put("k2", "v2", env=env2.name)
+        cluster.put_resource(env3, env=env1.name)
+
+        # test delete env2
+        assert cluster.get(env2.name)
+        assert cluster.get("k2")
+
+        cluster.delete(env2.name)
+        assert not cluster.get(env2.name)
+        assert not cluster.get("k2")
+
+        # test delete env3, which doesn't affect env1
+        assert cluster.get(env3.name)
+
+        cluster.delete(env3.name)
+        assert not cluster.get(env3.name)
+        assert cluster.get(env1.name)
+        assert cluster.get("k1")
+
+    @pytest.mark.level("local")
     @pytest.mark.skip(reason="TODO")
     def test_rh_here_objects(self, cluster):
         save_test_table_remote = rh.function(test_table_to_rh_here, system=cluster)
         save_test_table_remote()
         assert "test_table" in cluster.keys()
         assert isinstance(cluster.get("test_table"), rh.Table)
+
+    @pytest.mark.level("local")
+    def test_rh_status_pythonic(self, cluster):
+        cluster.put(key="status_key1", obj="status_value1", env="numpy_env")
+        res = cluster.status()
+        assert res.get("server_port") == cluster.server_port
+        assert res.get("server_connection_type") == cluster.server_connection_type
+        assert res.get("den_auth") == cluster.den_auth
+        assert res.get("resource_type") == cluster.RESOURCE_TYPE
+        assert res.get("ips") == cluster.ips
+        assert "numpy_env" in res.get("envs")
+        assert {"name": "status_value1", "resource_type": "str"} in res.get("envs")[
+            "numpy_env"
+        ]
+
+    @pytest.mark.level("local")
+    def test_rh_status_cli(self, cluster):
+        cluster.put(key="status_key2", obj="status_value2", env="base_env")
+        res = cluster.run(["runhouse status"])[0][1]
+        assert "😈 Runhouse Daemon is running 🏃" in res
+        assert f"server_port: {cluster.server_port}" in res
+        assert f"server_connection_type: {cluster.server_connection_type}" in res
+        assert f"den_auth: {str(cluster.den_auth)}" in res
+        assert f"resource_type: {cluster.RESOURCE_TYPE.lower()}" in res
+        assert f"ips: {str(cluster.ips)}" in res
+        assert "Serving 🍦 :" in res
+        assert "base_env (runhouse.resources.envs.env.Env):" in res
+        assert "status_value2 (str)" in res
+
+    @pytest.mark.skip("Restarting the server mid-test causes some errors, need to fix")
+    @pytest.mark.level("local")
+    def test_rh_status_stopped(self, cluster):
+        try:
+            cluster_name = cluster.name
+            cluster.run(["runhouse stop"])
+            res = subprocess.check_output(["runhouse", "status", cluster_name]).decode(
+                "utf-8"
+            )
+            assert "Runhouse Daemon is not running" in res
+            res = subprocess.check_output(
+                ["runhouse", "status", f"{cluster_name}_dont_exist"]
+            ).decode("utf-8")
+            error_txt = (
+                f"Cluster {cluster_name}_dont_exist is not found in Den. Please save it, in order to get "
+                f"its status"
+            )
+            assert error_txt in res
+        finally:
+            cluster.run(["runhouse restart"])
