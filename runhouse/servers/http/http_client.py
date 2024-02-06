@@ -156,7 +156,7 @@ class HTTPClient:
                 f"Error calling {endpoint} on server: {response.content.decode()}"
             )
         resp_json = response.json()
-        if "output_type" in resp_json:
+        if isinstance(resp_json, dict) and "output_type" in resp_json:
             return handle_response(resp_json, resp_json["output_type"], err_str)
         return resp_json
 
