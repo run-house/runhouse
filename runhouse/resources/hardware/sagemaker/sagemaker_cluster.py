@@ -671,7 +671,7 @@ class SageMakerCluster(Cluster):
                     ssh_control_name=f"{self.name}:{self.ssh_port}",
                 )
                 command = f"{cmd_prefix} {command}" if cmd_prefix else command
-                logger.info(f"Running command on {self.name}: {command}")
+                logger.debug(f"Running command on {self.name}: {command}")
                 return_code, stdout, stderr = runner.run(
                     command,
                     require_outputs=require_outputs,
@@ -832,7 +832,7 @@ class SageMakerCluster(Cluster):
                         f"Make sure SSH keys exist in local path: {self._abs_ssh_key_path}"
                     )
 
-                logger.info(f"Running command: {command}")
+                logger.debug(f"Running command: {command}")
 
                 # Define an event to signal completion of the SSH tunnel setup
                 tunnel_setup_complete = threading.Event()
