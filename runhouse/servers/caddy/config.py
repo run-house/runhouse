@@ -16,7 +16,10 @@ class CaddyConfig:
     # sudo apt-get install net-tools
     # sudo netstat -tulpn | grep 443
 
-    # Caddy service commands:
+    # For viewing logs:
+    # journalctl -u caddy --no-pager | less +G
+
+    # Useful Caddy service commands:
     # sudo systemctl start caddy
     # sudo systemctl stop caddy
     # sudo systemctl status caddy
