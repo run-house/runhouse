@@ -10,15 +10,11 @@ from runhouse import Cluster
 TEMP_LOCAL_FOLDER = Path(__file__).parents[1] / "rh-blobs"
 
 
-@pytest.mark.rnstest
 def test_save_local_blob_fails(local_blob, blob_data):
     with pytest.raises(ValueError):
         local_blob.save(name="my_local_blob")
 
 
-@pytest.mark.rnstest
-@pytest.mark.awstest
-@pytest.mark.gcptest
 @pytest.mark.parametrize(
     "blob",
     ["local_file", "s3_blob", "gcs_blob"],
@@ -46,9 +42,6 @@ def test_reload_blob_with_name(blob):
     assert not reloaded_blob.exists_in_system()
 
 
-@pytest.mark.rnstest
-@pytest.mark.awstest
-@pytest.mark.gcptest
 @pytest.mark.parametrize(
     "blob", ["local_file", "s3_blob", "gcs_blob", "cluster_file"], indirect=True
 )
@@ -77,9 +70,6 @@ def test_file_to_blob(file, cluster):
     assert str(fetched) == str(file.fetch())
 
 
-@pytest.mark.rnstest
-@pytest.mark.awstest
-@pytest.mark.gcptest
 @pytest.mark.parametrize(
     "blob", ["local_blob", "cluster_blob", "local_file"], indirect=True
 )
@@ -103,13 +93,11 @@ def test_blob_to_file(blob, folder):
 
 
 @pytest.mark.skip
-@pytest.mark.rnstest
 def test_sharing_blob(cluster_blob):
     pass
     # TODO
 
 
-@pytest.mark.rnstest
 def test_load_shared_blob(local_blob):
     my_blob = rh.blob(name="@/shared_blob")
     assert my_blob.exists_in_system()

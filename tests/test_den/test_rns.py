@@ -6,7 +6,6 @@ import runhouse as rh
 from runhouse.globals import rns_client
 
 
-@pytest.mark.rnstest
 def test_find_working_dir(tmp_path):
     starting_dir = Path(tmp_path, "subdir/subdir/subdir/subdir")
     d = rns_client.locate_working_dir(cwd=str(starting_dir))
@@ -29,7 +28,6 @@ def test_find_working_dir(tmp_path):
     assert d in str(Path(tmp_path, "subdir/subdir"))
 
 
-@pytest.mark.rnstest
 def test_set_folder(tmp_path):
     rh.set_folder("~/tests")
     rh.folder(name="bert_ft").save()
@@ -41,7 +39,6 @@ def test_set_folder(tmp_path):
     rh.set_folder("@")
 
 
-@pytest.mark.rnstest
 def test_rns_path(tmp_path):
     rh.set_folder("~")
     assert rh.folder("tests").rns_address == "~/tests"
@@ -81,7 +78,6 @@ def test_ls():
     rh.set_folder("@")
 
 
-@pytest.mark.rnstest
 def test_from_name(ondemand_cpu_cluster):
     f = rh.folder(name="~/tests/bert_ft")
     assert f.path

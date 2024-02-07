@@ -4,7 +4,6 @@ from pathlib import Path
 import pytest
 
 
-@pytest.mark.multinodetest
 class TestMultiNodeCluster:
     @pytest.mark.level("thorough")
     def test_rsync_and_ssh_onto_worker_node(self, multinode_cpu_cluster):

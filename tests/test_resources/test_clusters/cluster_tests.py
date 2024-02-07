@@ -1,8 +1,6 @@
 import copy
 from pathlib import Path
 
-import pytest
-
 import runhouse as rh
 from runhouse.resources.hardware import OnDemandCluster
 from runhouse.resources.hardware.utils import ServerConnectionType
@@ -34,7 +32,6 @@ def test_cluster_config(ondemand_cpu_cluster):
     assert cluster2.address == ondemand_cpu_cluster.address
 
 
-@pytest.mark.rnstest
 def test_cluster_sharing(ondemand_cpu_cluster):
     ondemand_cpu_cluster.share(
         users=["donny@run.house", "josh@run.house"],

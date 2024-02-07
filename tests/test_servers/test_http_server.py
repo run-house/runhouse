@@ -26,7 +26,6 @@ def summer(a, b):
 
 
 @pytest.mark.servertest
-@pytest.mark.den_auth
 @pytest.mark.usefixtures("cluster")
 class TestHTTPServerDocker:
     """
@@ -153,7 +152,6 @@ class TestHTTPServerDocker:
             assert b64_unpickle(resp_obj["data"]) == 3
 
     @pytest.mark.level("local")
-    @pytest.mark.asyncio
     async def test_async_call(self, async_http_client, cluster):
         remote_func = rh.function(summer).to(cluster)
         method = "call"
@@ -167,7 +165,6 @@ class TestHTTPServerDocker:
         assert response.text == "3"
 
     @pytest.mark.level("local")
-    @pytest.mark.asyncio
     async def test_async_call_with_invalid_serialization(
         self, async_http_client, cluster
     ):
@@ -182,7 +179,6 @@ class TestHTTPServerDocker:
         assert response.status_code == 500
 
     @pytest.mark.level("local")
-    @pytest.mark.asyncio
     async def test_async_call_with_pickle_serialization(
         self, async_http_client, cluster
     ):
@@ -199,7 +195,6 @@ class TestHTTPServerDocker:
         assert b64_unpickle(response.text) == 3
 
     @pytest.mark.level("local")
-    @pytest.mark.asyncio
     async def test_async_call_with_json_serialization(self, async_http_client, cluster):
         remote_func = rh.function(summer, system=cluster)
         method = "call"
@@ -214,7 +209,6 @@ class TestHTTPServerDocker:
 
 
 @pytest.mark.servertest
-@pytest.mark.den_auth
 @pytest.mark.usefixtures("cluster")
 class TestHTTPServerDockerDenAuthOnly:
     """
@@ -350,7 +344,6 @@ def client(request):
 
 
 @pytest.mark.servertest
-@pytest.mark.den_auth
 @pytest.mark.usefixtures("setup_cluster_config")
 class TestHTTPServerNoDocker:
     """
@@ -483,7 +476,6 @@ class TestHTTPServerNoDocker:
 
 
 @pytest.mark.servertest
-@pytest.mark.den_auth
 @pytest.mark.usefixtures("setup_cluster_config")
 class TestHTTPServerNoDockerDenAuthOnly:
     """

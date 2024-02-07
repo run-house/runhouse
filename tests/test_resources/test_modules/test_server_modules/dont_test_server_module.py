@@ -20,7 +20,6 @@ TODO test with Den Auth and HTTPS enabled
 """
 
 
-@pytest.mark.asyncio
 @pytest.mark.level("local")
 async def test_asgi_server(cluster):
     fast_api_module = rh.asgi(app).to(

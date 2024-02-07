@@ -1,9 +1,6 @@
-import pytest
-
 import runhouse as rh
 
 
-@pytest.mark.rnstest
 def test_download_defaults():
     rh.globals.configs.defaults_cache["default_folder"] = "nonsense"
     local_defaults = rh.configs.load_defaults_from_file()

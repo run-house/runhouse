@@ -282,7 +282,6 @@ class TestModule:
         assert resolved_obj.size == 20  # resolved_obj.remote.size causing an error
         assert resolved_obj.config_for_rns == remote_df.config_for_rns
 
-    @pytest.mark.asyncio
     @pytest.mark.parametrize("env", [None])
     @pytest.mark.level("local")
     async def test_module_from_subclass_async(self, cluster, env):
@@ -372,7 +371,6 @@ class TestModule:
         assert remote_calc.local.importer == "Calculators Inc"
 
     @pytest.mark.parametrize("env", [None])
-    @pytest.mark.asyncio
     @pytest.mark.level("local")
     async def test_fetch_class_and_properties(self, cluster, env):
         RemoteCalc = rh.module(cls=Calculator).to(cluster)
@@ -476,7 +474,6 @@ class TestModule:
         assert new_users == {}
 
     @pytest.mark.parametrize("env", [None])
-    @pytest.mark.asyncio
     @pytest.mark.level("local")
     async def test_set_async(self, cluster, env):
         RemoteCalc = rh.module(Calculator).to(cluster)
