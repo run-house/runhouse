@@ -23,9 +23,16 @@ class TLSCertConfig:
     PRIVATE_KEY_NAME = "rh_server.key"
     TOKEN_VALIDITY_DAYS = 365
 
-    # Base directory for certs on both the cluster and locally
-    DEFAULT_PRIVATE_KEY_DIR = "~/ssl/private"
-    DEFAULT_CERT_DIR = "~/ssl/certs"
+    # Base directory for certs stored locally
+    LOCAL_PRIVATE_KEY_DIR = "~/.rh/certs/private"
+    LOCAL_CERT_DIR = "~/.rh/certs"
+
+    # https://caddy.community/t/permission-denied-error-when-caddy-try-to-save-the-certificate/15026
+    # Note: When running as a systemd service, Caddy as runs as the "caddy" user and doesn’t have permission to
+    # read files in the home directory. Easiest solution to ensure there are no permission errors is to save the
+    # certs in the Caddy cluster directory when Caddy is enabled.
+    CADDY_CLUSTER_DIR = "/var/lib/caddy"
+    DEFAULT_CLUSTER_DIR = "~/certs"
 
     def __init__(
         self, cert_path: str = None, key_path: str = None, dir_name: str = None
@@ -44,13 +51,13 @@ class TLSCertConfig:
 
         if not self.dir_name:
             # Default cert path when initializing on a cluster
-            return str(Path(f"{self.DEFAULT_CERT_DIR}/{self.CERT_NAME}").expanduser())
+            return str(Path(f"{self.LOCAL_CERT_DIR}/{self.CERT_NAME}").expanduser())
         else:
             # Default cert path when initializing locally - certs to be saved locally in a folder dedicated to the
             # relevant cluster
             return str(
                 Path(
-                    f"{self.DEFAULT_CERT_DIR}/{self.dir_name}/{self.CERT_NAME}"
+                    f"{self.LOCAL_CERT_DIR}/{self.dir_name}/{self.CERT_NAME}"
                 ).expanduser()
             )
 
@@ -67,14 +74,14 @@ class TLSCertConfig:
             # Default cert path when initializing on a cluster
             return str(
                 Path(
-                    f"{self.DEFAULT_PRIVATE_KEY_DIR}/{self.PRIVATE_KEY_NAME}"
+                    f"{self.LOCAL_PRIVATE_KEY_DIR}/{self.PRIVATE_KEY_NAME}"
                 ).expanduser()
             )
         else:
             # Default cert path when initializing locally
             return str(
                 Path(
-                    f"{self.DEFAULT_PRIVATE_KEY_DIR}/{self.dir_name}/{self.PRIVATE_KEY_NAME}"
+                    f"{self.LOCAL_PRIVATE_KEY_DIR}/{self.dir_name}/{self.PRIVATE_KEY_NAME}"
                 ).expanduser()
             )
 
