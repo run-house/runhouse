@@ -901,6 +901,12 @@ if __name__ == "__main__":
         help="Whether to authenticate requests with a Runhouse token",
     )
     parser.add_argument(
+        "--domain",
+        type=str,
+        default=None,
+        help="Server domain name",
+    )
+    parser.add_argument(
         "--ssl-keyfile",
         type=str,
         default=None,
@@ -935,6 +941,7 @@ if __name__ == "__main__":
     use_https = parse_args.use_https
     restart_proxy = parse_args.restart_proxy
     use_caddy = parse_args.use_caddy
+    domain = parse_args.domain
 
     # The object store and the cluster servlet within it need to be
     # initiailzed in order to call `obj_store.get_cluster_config()`, which
@@ -1076,8 +1083,9 @@ if __name__ == "__main__":
         # Update den auth if enabled - keep as a class attribute to be referenced by the validator decorator
         HTTPServer.enable_den_auth()
 
-    if use_https:
-        # If using https (whether or not Caddy is being used), need to provide both key and cert files
+    if use_https and not domain:
+        # If using https (whether or not Caddy is being used) and no domain is specified, need to provide both
+        # key and cert files
         if (
             not parsed_ssl_keyfile
             or not Path(parsed_ssl_keyfile).exists()
@@ -1105,7 +1113,7 @@ if __name__ == "__main__":
     # proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the app's port.
     if use_caddy:
         logger.info("Using Caddy as a reverse proxy")
-        if address is None:
+        if address is None and domain is None:
             raise ValueError(
                 "Must provide the server address to configure Caddy. No address found in the server "
                 "start command (--certs-address) or in the cluster config YAML saved on the cluster."
@@ -1113,6 +1121,7 @@ if __name__ == "__main__":
 
         cc = CaddyConfig(
             address=address,
+            domain=domain,
             rh_server_port=daemon_port,
             ssl_key_path=ssl_keyfile,
             ssl_cert_path=ssl_certfile,

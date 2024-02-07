@@ -36,6 +36,7 @@ class CaddyConfig:
     def __init__(
         self,
         address: str,
+        domain: str = None,
         rh_server_port: int = None,
         ssl_cert_path: str = None,
         ssl_key_path: str = None,
@@ -45,6 +46,7 @@ class CaddyConfig:
         self.use_https = use_https
         self.rh_server_port = rh_server_port or DEFAULT_SERVER_PORT
         self.force_reinstall = force_reinstall
+        self.domain = domain
 
         # To expose the server to the internet, set address to the public IP, otherwise leave it as localhost
         self.address = address or "localhost"
@@ -52,7 +54,7 @@ class CaddyConfig:
         self.ssl_cert_path = Path(ssl_cert_path).expanduser() if ssl_cert_path else None
         self.ssl_key_path = Path(ssl_key_path).expanduser() if ssl_key_path else None
 
-        if self.use_https:
+        if self.use_https and self.domain is None:
             # If using https, need to provide certs
             if self.ssl_cert_path is None:
                 raise ValueError(
@@ -184,10 +186,15 @@ class CaddyConfig:
             logger.info("Using custom certs to enable HTTPs")
             tls_directive = f"tls {self.ssl_cert_path} {self.ssl_key_path}"
             address_or_domain = self.address
+        elif self.domain:
+            # https://caddyserver.com/docs/automatic-https#hostname-requirements
+            logger.info(f"Using Caddy to generate certs for domain: {self.domain}")
+            tls_directive = "tls on_demand"
+            address_or_domain = self.domain
         else:
             # Do not support issuing self-signed certs on the cluster
             # Unverified certs should be generated client side and passed in as custom certs
-            raise RuntimeError("No certs provided. Cannot enable HTTPS.")
+            raise RuntimeError("No certs or domain provided. Cannot enable HTTPS.")
 
         return textwrap.dedent(
             f"""

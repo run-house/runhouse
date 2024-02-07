@@ -271,6 +271,7 @@ def _start_server(
     ssl_certfile=None,
     restart_proxy=False,
     use_caddy=False,
+    domain=None,
     certs_address=None,
     use_local_telemetry=False,
 ):
@@ -314,6 +315,11 @@ def _start_server(
     if ssl_certfile_flag:
         logger.info(f"Using SSL certfile in path: {ssl_certfile}")
         flags.append(ssl_certfile_flag)
+
+    domain = f" --domain {domain}" if domain else ""
+    if domain:
+        logger.info(f"Using domain: {domain}")
+        flags.append(domain)
 
     # Use HTTPS if explicitly specified or if SSL cert or keyfile path are provided
     https_flag = " --use-https" if use_https or (ssl_keyfile or ssl_certfile) else ""
@@ -424,6 +430,10 @@ def start(
         False,
         help="Whether to configure Caddy on the cluster as a reverse proxy.",
     ),
+    domain: str = typer.Option(
+        None,
+        help="Server domain. Relevant if using Caddy to automate generating CA verified certs.",
+    ),
     certs_address: Optional[str] = typer.Option(
         None,
         help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS",
@@ -444,6 +454,7 @@ def start(
         use_https=use_https,
         den_auth=use_den_auth,
         use_caddy=use_caddy,
+        domain=domain,
         certs_address=certs_address,
         use_local_telemetry=use_local_telemetry,
     )
@@ -490,6 +501,10 @@ def restart(
         False,
         help="Whether to configure Caddy on the cluster as a reverse proxy.",
     ),
+    domain: str = typer.Option(
+        None,
+        help="Server domain. Relevant if using Caddy to automate generating CA verified certs.",
+    ),
     certs_address: Optional[str] = typer.Option(
         None,
         help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS",
@@ -519,6 +534,7 @@ def restart(
         ssl_certfile=ssl_certfile,
         restart_proxy=restart_proxy,
         use_caddy=use_caddy,
+        domain=domain,
         certs_address=certs_address,
         use_local_telemetry=use_local_telemetry,
     )

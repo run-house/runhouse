@@ -61,6 +61,7 @@ class Cluster(Resource):
         server_connection_type: str = None,
         ssl_keyfile: str = None,
         ssl_certfile: str = None,
+        domain: str = None,
         den_auth: bool = False,
         use_local_telemetry: bool = False,
         dryrun=False,
@@ -95,6 +96,7 @@ class Cluster(Resource):
         self.client_port = client_port
         self.ssh_port = ssh_port or self.DEFAULT_SSH_PORT
         self.server_host = server_host
+        self.domain = domain
         self.use_local_telemetry = use_local_telemetry
 
     @property
@@ -626,6 +628,7 @@ class Cluster(Resource):
 
         https_flag = self._use_https
         caddy_flag = self._use_caddy
+        domain = self.domain
         use_local_telemetry = self.use_local_telemetry
 
         if not self._use_https:
@@ -640,14 +643,16 @@ class Cluster(Resource):
             cluster_key_path = f"{base_cluster_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
             cluster_cert_path = f"{base_cluster_dir}/{self.cert_config.CERT_NAME}"
 
-            if not use_custom_key and not use_custom_cert:
-                # If no cert and keyfile are provided, generate them client side and copy them onto the cluster
+            if not domain or not use_custom_key and not use_custom_cert:
+                # If no cert and keyfile are provided and not specifying a domain, generate
+                # them client side and copy them onto the cluster
                 self.cert_config.generate_certs(address=self.address)
 
-            # Copy existing cert and keyfiles onto the cluster
-            self._copy_certs_to_cluster(cluster_key_path, cluster_cert_path)
+            if not domain:
+                # Only copy existing cert and keyfiles onto the cluster if no domain is specified
+                self._copy_certs_to_cluster(cluster_key_path, cluster_cert_path)
 
-            if self._use_caddy:
+            if caddy_flag:
                 # Update pointers to the cert and key files to the Caddy directories on the cluster
                 base_caddy_dir = self.cert_config.CADDY_CLUSTER_DIR
                 cluster_key_path = (
@@ -666,6 +671,7 @@ class Cluster(Resource):
             + (" --restart-proxy" if restart_proxy and caddy_flag else "")
             + (f" --ssl-certfile {cluster_cert_path}" if use_custom_cert else "")
             + (f" --ssl-keyfile {cluster_key_path}" if use_custom_key else "")
+            + (f" --domain {domain}" if domain else "")
             + (" --use-local-telemetry" if use_local_telemetry else "")
             + f" --port {self.server_port}"
         )
