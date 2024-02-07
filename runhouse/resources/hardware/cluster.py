@@ -630,7 +630,7 @@ class Cluster(Resource):
         cluster_key_path = None
         cluster_cert_path = None
 
-        if self._use_https:
+        if https_flag:
             # Make sure certs are copied to the cluster (where relevant)
             base_cluster_dir = self.cert_config.DEFAULT_CLUSTER_DIR
             cluster_key_path = f"{base_cluster_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
@@ -649,11 +649,11 @@ class Cluster(Resource):
                 ):
                     self.cert_config.generate_certs(address=self.address)
 
-                self._copy_certs_to_cluster(cluster_key_path, cluster_cert_path)
+                self._copy_certs_to_cluster()
 
             if caddy_flag:
-                # Update pointers to the cert and key files as stored on the cluster to be passed in to the
-                # runhouse restart command
+                # Update pointers to the cert and key files as stored on the cluster
+                # (to be passed in to the runhouse restart command)
                 base_caddy_dir = self.cert_config.CADDY_CLUSTER_DIR
                 cluster_key_path = (
                     f"{base_caddy_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
@@ -926,7 +926,7 @@ class Cluster(Resource):
             raise TimeoutError("SSH call timed out")
         return True
 
-    def _copy_certs_to_cluster(self, cluster_key_path: str, cluster_cert_path: str):
+    def _copy_certs_to_cluster(self):
         """Copy local certs to the cluster. Destination on the cluster depends on whether Caddy is enabled. This is
         to ensure that the Caddy service has the necessary access to load the certs when the service is started."""
         from runhouse import folder
@@ -943,21 +943,19 @@ class Cluster(Resource):
         )
 
         if self._use_caddy:
+            src = self.cert_config.DEFAULT_CLUSTER_DIR
+            dest = self.cert_config.CADDY_CLUSTER_DIR
             self.run(
                 [
-                    f"sudo mv {self.cert_config.DEFAULT_CLUSTER_DIR} {self.cert_config.CADDY_CLUSTER_DIR}"
+                    f"sudo mkdir -p {dest}",
+                    f"sudo mv {src}/* {dest}/",
+                    f"sudo rm -r {src}",
                 ]
             )
-            logger.info(
-                f"Copied local certs onto the cluster in path: {self.cert_config.CADDY_CLUSTER_DIR}"
-            )
         else:
-            logger.info(
-                f"Copied local key path: {local_key_path} onto the cluster in path: {cluster_key_path}"
-            )
-            logger.info(
-                f"Copied local cert path: {local_cert_path} onto the cluster in path: {cluster_cert_path}"
-            )
+            dest = self.cert_config.DEFAULT_CLUSTER_DIR
+
+        logger.info(f"Copied local certs onto the cluster in path: {dest}")
 
     def run(
         self,

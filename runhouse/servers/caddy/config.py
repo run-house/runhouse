@@ -19,7 +19,6 @@ class CaddyConfig:
     # For viewing logs:
     # journalctl -u caddy --no-pager | less +G
 
-    # Caddy service commands:
     # Useful Caddy service commands:
     # sudo systemctl start caddy
     # sudo systemctl stop caddy
@@ -49,8 +48,8 @@ class CaddyConfig:
     ):
         self.use_https = use_https
         self.rh_server_port = rh_server_port or DEFAULT_SERVER_PORT
-        self.force_reinstall = force_reinstall
         self.domain = domain
+        self.force_reinstall = force_reinstall
 
         # To expose the server to the internet, set address to the public IP, otherwise leave it as localhost
         self.address = address or "localhost"
@@ -64,6 +63,7 @@ class CaddyConfig:
                 raise ValueError(
                     "No SSL cert path provided. Cannot enable HTTPS without a domain or custom certs."
                 )
+
             if not self.ssl_cert_path.exists():
                 raise FileNotFoundError(
                     f"Failed to find SSL cert file in path: {self.ssl_cert_path}"
@@ -135,7 +135,7 @@ class CaddyConfig:
             capture_output=True,
             text=True,
         )
-        if result.returncode == 0 and "v2." in result.stdout:
+        if result.returncode == 0:
             logger.info("Caddy is already installed, skipping install.")
         else:
             # Install caddy as a service (or background process if we can't use systemctl)
@@ -143,32 +143,23 @@ class CaddyConfig:
             logger.info("Installing Caddy.")
 
             commands = [
-                "sudo apt update",
-                "sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https",
+                "sudo apt update && sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https",
                 "yes | curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg",  # noqa
                 "yes | curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list",  # noqa
-                "sudo apt update",
-                "sudo apt install caddy",
+                "sudo apt update && sudo apt install caddy -y",
             ]
 
             for cmd in commands:
                 try:
-                    subprocess.run(cmd, shell=True, check=True, text=True)
+                    subprocess.run(
+                        cmd,
+                        shell=True,
+                        check=True,
+                        text=True,
+                        stdout=subprocess.DEVNULL,
+                    )
                 except subprocess.CalledProcessError as e:
                     raise RuntimeError(f"Failed to run Caddy install command: {e}")
-
-        # "certutil" is required for generating certs
-        if not self.ssl_key_path and not self.ssl_cert_path:
-            cert_lib_cmd = ["sudo", "apt", "install", "libnss3-tools"]
-            result = subprocess.run(
-                cert_lib_cmd,
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                logger.warning(
-                    f"Could not installed certutil, skipping: {result.stderr}"
-                )
 
         logger.info("Successfully installed Caddy.")
 
@@ -187,17 +178,21 @@ class CaddyConfig:
 
     def _https_template(self):
         if self.ssl_key_path and self.ssl_cert_path:
+            # If custom certs provided use them instead of having Caddy generate them
             logger.info("Using custom certs to enable HTTPs")
             tls_directive = f"tls {self.ssl_cert_path} {self.ssl_key_path}"
-            address_or_domain = self.address
+            # If domain also provided use it
+            address_or_domain = self.domain or self.address
         elif self.domain:
             # https://caddyserver.com/docs/automatic-https#hostname-requirements
-            logger.info(f"Using Caddy to generate certs for domain: {self.domain}")
+            logger.info(
+                f"Generating certs with Caddy to enable HTTPs using domain: {self.domain}"
+            )
             tls_directive = "tls on_demand"
             address_or_domain = self.domain
         else:
             # Do not support issuing self-signed certs on the cluster
-            # Unverified certs should be generated client side and passed in as custom certs
+            # Unverified certs should be generated client side and passed to Caddy as custom certs
             raise RuntimeError("No certs or domain provided. Cannot enable HTTPS.")
 
         return textwrap.dedent(
@@ -264,7 +259,13 @@ class CaddyConfig:
                 # If running in a docker container or distro without systemctl, check whether Caddy has been configured
                 run_cmd = f"caddy validate --config {str(self.caddyfile)}"
                 try:
-                    subprocess.run(run_cmd, shell=True, check=True, text=True)
+                    subprocess.run(
+                        run_cmd,
+                        shell=True,
+                        check=True,
+                        text=True,
+                        stdout=subprocess.DEVNULL,
+                    )
                 except subprocess.CalledProcessError as e:
                     logger.warning(e)
                     return False
@@ -291,6 +292,7 @@ class CaddyConfig:
                 shell=True,
                 check=True,
                 text=True,
+                stdout=subprocess.DEVNULL,
             )
         except subprocess.CalledProcessError as e:
             raise e
@@ -308,7 +310,13 @@ class CaddyConfig:
                 # as a background process
                 run_cmd = "caddy start"
                 try:
-                    subprocess.run(run_cmd, shell=True, check=True, text=True)
+                    subprocess.run(
+                        run_cmd,
+                        shell=True,
+                        check=True,
+                        text=True,
+                        stdout=subprocess.DEVNULL,
+                    )
                 except subprocess.CalledProcessError as e:
                     raise RuntimeError(
                         f"Failed to start Caddy as a background process: {e}"
