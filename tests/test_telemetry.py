@@ -1,5 +1,3 @@
-import unittest
-
 import pytest
 import requests
 
@@ -21,7 +19,3 @@ def test_public_key_cluster_has_telemetry(docker_cluster_pk_ssh_telemetry):
 
     # Assert that the key "spans" exists in the parsed response
     assert "spans" in parsed_response, "'spans' not in response"
-
-
-if __name__ == "__main__":
-    unittest.main()

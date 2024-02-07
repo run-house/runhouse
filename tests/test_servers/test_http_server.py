@@ -1,6 +1,5 @@
 import json
 import tempfile
-import unittest
 from pathlib import Path
 
 import pytest
@@ -568,7 +567,3 @@ class TestHTTPServerNoDockerDenAuthOnly:
         assert resp.status_code == 403
 
     # TODO (JL): Test call_module_method.
-
-
-if __name__ == "__main__":
-    unittest.main()

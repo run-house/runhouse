@@ -1,4 +1,5 @@
 import logging
+import subprocess
 from typing import Optional
 
 import ray
@@ -7,22 +8,11 @@ from ray.experimental.state.api import list_actors
 logger = logging.getLogger(__name__)
 
 
-def check_for_existing_ray_instance(address: str, remain_connected: bool = False):
-    try:
-        ray.init(
-            address=address,
-            ignore_reinit_error=True,
-            logging_level=logging.ERROR,
-        )
-
-        # Note that this is _technically_ just to check if there is an existing
-        # cluster. We want to shutdown() which doesn't actually kill the cluster,
-        # but cleans up the state of Ray within this Python process.
-        if not remain_connected:
-            ray.shutdown()
-        return True
-    except ConnectionError:
-        return False
+def check_for_existing_ray_instance():
+    ray_status_check = subprocess.run(
+        ["ray", "status"],  # stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    return ray_status_check.returncode == 0
 
 
 def list_actor_states(

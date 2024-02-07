@@ -1,6 +1,5 @@
 import logging
 import os
-import unittest
 from pathlib import Path
 
 import boto3
@@ -377,4 +376,4 @@ def test_delete_lambda():
 
 
 if __name__ == "__main__":
-    unittest.main()
+    pytest.main()

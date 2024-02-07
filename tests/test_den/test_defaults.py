@@ -1,5 +1,3 @@
-import unittest
-
 import pytest
 
 import runhouse as rh
@@ -14,7 +12,3 @@ def test_download_defaults():
     loaded_defaults = rh.configs.download_defaults()
     assert local_defaults == loaded_defaults
     assert rh.globals.rns_client.default_folder == "nonsense"
-
-
-if __name__ == "__main__":
-    unittest.main()

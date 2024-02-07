@@ -1,6 +1,5 @@
 import logging
 import time
-import unittest
 
 import pytest
 import requests
@@ -56,7 +55,3 @@ def test_roundtrip_performance(summer_func):
 @pytest.mark.rnstest
 def test_https_roundtrip_performance(summer_func_with_auth):
     run_performance_tests(summer_func_with_auth)
-
-
-if __name__ == "__main__":
-    unittest.main()

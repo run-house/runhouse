@@ -28,7 +28,7 @@ from runhouse.servers.http.http_utils import (
     Response,
     serialize_data,
 )
-from runhouse.servers.obj_store import ClusterServletSetupOption, RaySetupOption
+from runhouse.servers.obj_store import ClusterServletSetupOption
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +79,6 @@ class EnvServlet:
         obj_store.initialize(
             self.env_name,
             has_local_storage=True,
-            setup_ray=RaySetupOption.GET_OR_FAIL,
             setup_cluster_servlet=ClusterServletSetupOption.GET_OR_FAIL,
         )
 

@@ -6,10 +6,11 @@ from runhouse.globals import configs, obj_store, rns_client
 
 from runhouse.logger import LOGGING_CONFIG
 
-from runhouse.servers.obj_store import ClusterServletSetupOption, RaySetupOption
+from runhouse.servers.obj_store import ClusterServletSetupOption
 
 # Configure the logger once
 logging.config.dictConfig(LOGGING_CONFIG)
+logging.getLogger("numexpr").setLevel(logging.WARNING)
 
 
 disable_data_collection = configs.get("disable_data_collection", False)
@@ -74,7 +75,6 @@ def get_local_cluster_object():
     try:
         obj_store.initialize(
             servlet_name=obj_store.servlet_name or "base",
-            setup_ray=RaySetupOption.GET_OR_FAIL,
             setup_cluster_servlet=ClusterServletSetupOption.GET_OR_FAIL,
         )
     except ConnectionError:
@@ -110,13 +110,15 @@ def save(
 
     # TODO handle self.access == 'read' instead of this weird overwrite argument
     if name:
-        if "/" in name[1:] or resource._rns_folder is None:
+        if "/" in name[1:]:
             (
                 resource._name,
                 resource._rns_folder,
             ) = split_rns_name_and_path(resolve_rns_path(name))
         else:
             resource._name = name
+    if not resource.rns_address:
+        resource._rns_folder = rns_client.current_folder
     rns_client.save_config(resource=resource, overwrite=overwrite)
 
 
