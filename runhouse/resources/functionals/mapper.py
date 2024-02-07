@@ -12,11 +12,11 @@ logger = logging.getLogger(__name__)
 class Mapper(Module):
     def __init__(
         self,
-        module: Module,
-        method: str,
+        module: Module = None,
+        method: str = None,
         num_replicas: Optional[int] = -1,
         replicas: Optional[List[Module]] = None,
-        **kwargs
+        **kwargs,
     ):
         """
         Runhouse Mapper object. It is used for mapping a function or module method over a list of inputs,
@@ -65,7 +65,7 @@ class Mapper(Module):
     def _call_method_on_replica(replica, method, args, kwargs):
         return getattr(replica, method)(*args, **kwargs)
 
-    def map(self, *args, **kwargs):
+    def map(self, *args, retries=3, **kwargs):
         """Map the function or method over a list of arguments.
 
         Example:
@@ -80,18 +80,31 @@ class Mapper(Module):
         """
         kwargs["stream_logs"] = kwargs.get("stream_logs", False)
 
+        retry_list = []
+
         def call_method_on_replica(job):
             replica, method, argies, kwargies = job
-            return getattr(replica, method)(*argies, **kwargies)
+            try:
+                return getattr(replica, method)(*argies, **kwargies)
+            except Exception as e:
+                logger.error(f"Error running {method} on {replica.name}: {e}")
+                retry_list.append(job)
 
         jobs = [
             (self.replicas[self.increment_counter()], self.method, args, kwargs)
             for args in zip(*args)
         ]
 
-        with pool.ThreadPool(self.num_replicas) as p:
+        results = []
+        with pool.ThreadPool() as p:
             # Run the function in parallel on the arguments, keeping the order.
-            return list(p.imap(call_method_on_replica, jobs))
+            results = list(p.map(call_method_on_replica, jobs))
+            for i in range(retries):
+                logger.info(f"Retry {i}: {len(retry_list)} failed jobs")
+                jobs, retry_list = retry_list, []
+                results.extend(list(p.map(call_method_on_replica, jobs)))
+
+        return results
 
         # TODO should we add an async version of this?
         # async def call_method_on_args(argies):
@@ -160,7 +173,7 @@ def mapper(
     method: Optional[str] = None,
     num_replicas: int = -1,
     replicas: Optional[List[Module]] = None,
-    **kwargs
+    **kwargs,
 ) -> Mapper:
     """
     A factory method for creating Mapper modules. A mapper is a module that can map a function or module method over
