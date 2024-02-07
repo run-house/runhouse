@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 from ray import cloudpickle as pickle
 
+from runhouse.logger import ColoredFormatter
+
 logger = logging.getLogger(__name__)
 
 
@@ -130,7 +132,18 @@ def load_current_cluster_rns_address():
     return current_cluster.rns_address if current_cluster else None
 
 
-def handle_response(response_data, output_type, err_str):
+def handle_response(response_data, output_type, err_str, system):
+    from runhouse import Resource
+
+    system_color = ColoredFormatter.get_color("cyan")
+    reset_color = ColoredFormatter.get_color(
+        "reset"
+    )  # Ensure subsequent logs don't automatically get colored
+
+    if isinstance(system, Resource):
+        # Add the cluster name to the beginning of each log
+        system_color += f"({system.name})"
+
     if output_type == OutputType.RESULT_SERIALIZED:
         return deserialize_data(response_data["data"], response_data["serialization"])
     if output_type in [OutputType.RESULT, OutputType.RESULT_STREAM]:
@@ -150,8 +163,8 @@ def handle_response(response_data, output_type, err_str):
     elif output_type == OutputType.EXCEPTION:
         fn_exception = b64_unpickle(response_data["error"])
         fn_traceback = b64_unpickle(response_data["traceback"])
-        logger.error(f"{err_str}: {fn_exception}")
-        logger.error(f"Traceback: {fn_traceback}")
+        logger.error(f"{system_color} {err_str}: {fn_exception}{reset_color}")
+        logger.error(f"{system_color} Traceback: {fn_traceback}{reset_color}")
         raise fn_exception
     elif output_type == OutputType.STDOUT:
         res = response_data["data"]
@@ -161,9 +174,11 @@ def handle_response(response_data, output_type, err_str):
             if tqdm_regex.match(line):
                 # tqdm lines are always preceded by a \n, so we can use \x1b[1A to move the cursor up one line
                 # For some reason, doesn't work in PyCharm's console, but works in the terminal
-                print("\x1b[1A\r" + line, end="", flush=True)
+                print(
+                    f"{system_color}\x1b[1A\r" + line + reset_color, end="", flush=True
+                )
             else:
-                print(line, end="", flush=True)
+                print(f"{system_color} " + line + reset_color, end="", flush=True)
     elif output_type == OutputType.STDERR:
         res = response_data["data"]
-        print(res, file=sys.stderr)
+        print(f"{system_color} " + res + reset_color, file=sys.stderr)

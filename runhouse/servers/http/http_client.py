@@ -158,7 +158,9 @@ class HTTPClient:
             )
         resp_json = response.json()
         if isinstance(resp_json, dict) and "output_type" in resp_json:
-            return handle_response(resp_json, resp_json["output_type"], err_str)
+            return handle_response(
+                resp_json, resp_json["output_type"], err_str, system=self.system
+            )
         return resp_json
 
     def check_server(self):
@@ -280,7 +282,7 @@ class HTTPClient:
 
             resp = json.loads(responses_json)
             output_type = resp["output_type"]
-            result = handle_response(resp, output_type, error_str)
+            result = handle_response(resp, output_type, error_str, system=self.system)
             if output_type in [OutputType.RESULT_STREAM, OutputType.SUCCESS_STREAM]:
                 # First time we encounter a stream result, we know the rest of the results will be a stream, so return
                 # a generator
@@ -292,7 +294,10 @@ class HTTPClient:
                         resp_inner = json.loads(responses_json_inner)
                         output_type_inner = resp_inner["output_type"]
                         result_inner = handle_response(
-                            resp_inner, output_type_inner, error_str
+                            resp_inner,
+                            output_type_inner,
+                            error_str,
+                            system=self.system,
                         )
                         # if output_type == OutputType.SUCCESS_STREAM:
                         #     break
