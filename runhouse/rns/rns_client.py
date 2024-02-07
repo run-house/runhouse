@@ -315,13 +315,13 @@ class RNSClient:
 
         if rns_address.startswith("/"):
             resource_uri = self.resource_uri(name)
-            logger.info(f"Attempting to load config for {rns_address} from RNS.")
+            logger.debug(f"Attempting to load config for {rns_address} from RNS.")
             resp = self.session.get(
                 f"{self.api_server_url}/resource/{resource_uri}",
                 headers=self.request_headers(),
             )
             if resp.status_code != 200:
-                logger.info(f"No config found in RNS: {load_resp_content(resp)}")
+                logger.debug(f"No config found in RNS: {load_resp_content(resp)}")
                 # No config found, so return empty config
                 return {}
 
@@ -343,7 +343,7 @@ class RNSClient:
         if not config_path.exists():
             return None
 
-        logger.info(f"Loading config from local file {config_path}")
+        logger.debug(f"Loading config from local file {config_path}")
         with open(config_path, "r") as f:
             try:
                 config = json.load(f)
@@ -409,11 +409,11 @@ class RNSClient:
             f"{self.api_server_url}/{uri}", data=json.dumps(payload), headers=headers
         )
         if resp.status_code == 200:
-            logger.info(f"Config updated in Den for resource: {uri}")
+            logger.debug(f"Config updated in Den for resource: {uri}")
         elif resp.status_code == 422:  # No changes made to existing Resource
-            logger.info(f"Config for {uri} has not changed, nothing to update")
+            logger.debug(f"Config for {uri} has not changed, nothing to update")
         elif resp.status_code == 404:  # Resource not found
-            logger.info(f"Saving new resource in Den for resource: {uri}")
+            logger.debug(f"Saving new resource in Den for resource: {uri}")
             # Resource does not yet exist, in which case we need to create from scratch
             resp = self.session.post(
                 f"{self.api_server_url}/resource",

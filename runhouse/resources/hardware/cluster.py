@@ -505,7 +505,7 @@ class Cluster(Resource):
         if not self.client:
             try:
                 self.connect_server_client()
-                logger.info(f"Checking server {self.name}")
+                logger.debug(f"Checking server {self.name}")
                 self.client.check_server()
                 logger.info(f"Server {self.name} is up.")
             except (
@@ -524,7 +524,7 @@ class Cluster(Resource):
                     )
                     self.restart_server()
                     for i in range(5):
-                        logger.info(f"Checking server {self.name} again [{i + 1}/5].")
+                        logger.debug(f"Checking server {self.name} again [{i + 1}/5].")
                         try:
                             self.client.check_server()
                             logger.info(f"Server {self.name} is up.")
@@ -620,7 +620,7 @@ class Cluster(Resource):
 
         if resync_rh:
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
-            logger.info("Finished syncing Runhouse to cluster.")
+            logger.debug("Finished syncing Runhouse to cluster.")
 
         https_flag = self._use_https
         caddy_flag = self._use_caddy

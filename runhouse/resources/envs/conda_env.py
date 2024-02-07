@@ -116,7 +116,7 @@ class CondaEnv(Env):
         install_hash = hash(str(env_config))
         # Check the existing hash
         if local_env_exists and install_hash in obj_store.installed_envs and not force:
-            logger.info("Env already installed, skipping")
+            logger.debug("Env already installed, skipping")
             return
         obj_store.installed_envs[install_hash] = self.name
 
@@ -131,7 +131,7 @@ class CondaEnv(Env):
                 else:
                     raise ValueError(f"package {package} not recognized")
 
-                logger.info(f"Installing package: {str(pkg)}")
+                logger.debug(f"Installing package: {str(pkg)}")
                 pkg._install(self)
 
         return (
