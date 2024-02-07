@@ -10,6 +10,7 @@ from runhouse.servers.obj_store import ClusterServletSetupOption
 
 # Configure the logger once
 logging.config.dictConfig(LOGGING_CONFIG)
+logging.getLogger("numexpr").setLevel(logging.WARNING)
 
 
 disable_data_collection = configs.get("disable_data_collection", False)
