@@ -1,5 +1,3 @@
-import unittest
-
 import pytest
 
 import runhouse as rh
@@ -34,7 +32,3 @@ def test_sd_generate(a10g_gpu_cluster):
         prompt="A hot dog made of matcha powder.", num_images=4, steps=50
     )
     assert images
-
-
-if __name__ == "__main__":
-    unittest.main()

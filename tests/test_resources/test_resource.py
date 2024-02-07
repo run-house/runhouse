@@ -1,5 +1,4 @@
 import json
-import unittest
 
 import pytest
 import runhouse as rh
@@ -194,7 +193,3 @@ class TestResource:
     @pytest.mark.skip
     def test_loading_in_new_fs(self, resource):
         pass
-
-
-if __name__ == "__main__":
-    unittest.main()

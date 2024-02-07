@@ -1,6 +1,5 @@
 import logging
 import time
-import unittest
 
 import numpy as np
 
@@ -223,7 +222,3 @@ def test_tqdm_streaming(cluster):
     print_fn = rh.function(fn=do_tqdm_printing_and_logging).to(cluster, env=["tqdm"])
     res = print_fn(steps=40, stream_logs=True)
     assert res == list(range(50))
-
-
-if __name__ == "__main__":
-    unittest.main()

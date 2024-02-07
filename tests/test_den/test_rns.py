@@ -1,4 +1,3 @@
-import unittest
 from pathlib import Path
 
 import pytest
@@ -54,7 +53,7 @@ def test_rns_path(tmp_path):
     )
 
 
-@unittest.skip(
+@pytest.mark.skip(
     "TODO: [DG] This whole business is hanging on by a thread, we need to overhaul it."
 )
 def test_ls():
@@ -87,7 +86,3 @@ def test_from_name(ondemand_cpu_cluster):
     f = rh.folder(name="~/tests/bert_ft")
     assert f.path
     assert ondemand_cpu_cluster.instance_type == "CPU:2+"
-
-
-if __name__ == "__main__":
-    unittest.main()
