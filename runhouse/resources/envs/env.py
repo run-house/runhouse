@@ -198,7 +198,6 @@ class Env(Resource):
         """
         system = _get_cluster_from(system)
         new_env = copy.deepcopy(self)
-        # new_env.name = new_env.name or "base"
         new_env.reqs, new_env.working_dir = self._reqs_to(system, path, mount)
         new_env.secrets = self._secrets_to(system)
 

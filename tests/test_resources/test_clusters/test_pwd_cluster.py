@@ -1,5 +1,4 @@
 import logging
-import unittest
 
 from tests.conftest import docker_cluster_pwd_ssh_no_auth, password_cluster
 from tests.test_obj_store import (
@@ -19,7 +18,3 @@ logger = logging.getLogger(__name__)
 UNIT = {"cluster": [docker_cluster_pwd_ssh_no_auth]}
 LOCAL = {"cluster": [docker_cluster_pwd_ssh_no_auth]}
 MINIMAL = {"cluster": [password_cluster, docker_cluster_pwd_ssh_no_auth]}
-
-
-if __name__ == "__main__":
-    unittest.main()

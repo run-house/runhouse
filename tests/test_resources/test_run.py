@@ -1,4 +1,3 @@
-import unittest
 from pathlib import Path
 from pprint import pprint
 
@@ -90,7 +89,7 @@ def test_invalid_fn_sync_run(summer_func, ondemand_cpu_cluster):
         )
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 def test_invalid_fn_async_run(summer_func):
     """Test error handling for invalid function Run. The function expects to receive integers but
     does not receive any. The Run object returned should have a status of `ERROR`, and the
@@ -101,7 +100,7 @@ def test_invalid_fn_async_run(summer_func):
     assert "summer() missing 2 required positional arguments" in run_obj.result()
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 def test_get_fn_status_updates(ondemand_cpu_cluster, slow_func):
     """Run a function that takes a long time to run, confirming that its status changes as we refresh the Run"""
     async_run = slow_func.run(run_name="my_slow_async_run", a=1, b=2)
@@ -117,7 +116,7 @@ def test_get_fn_status_updates(ondemand_cpu_cluster, slow_func):
     assert async_run.refresh().status == rh.RunStatus.COMPLETED
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 @pytest.mark.runstest
 def test_get_or_call_latest(summer_func):
     """Cached version of synchronous run - if already completed return the result, otherwise run and wait for
@@ -128,7 +127,7 @@ def test_get_or_call_latest(summer_func):
     assert run_output == 3
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 def test_send_run_to_system_on_completion(summer_func, submitted_async_run):
     # Only once the run actually finishes do we send to S3
     async_run = summer_func.run(run_name=submitted_async_run, a=1, b=2).to(
@@ -138,7 +137,7 @@ def test_send_run_to_system_on_completion(summer_func, submitted_async_run):
     assert isinstance(async_run, rh.Run)
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 def test_run_refresh(slow_func):
     async_run = slow_func.get_or_run(run_name="async_get_or_run", a=1, b=2)
 
@@ -152,7 +151,7 @@ def test_run_refresh(slow_func):
     assert async_run.refresh().status == rh.RunStatus.COMPLETED
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 def test_get_async_run_result(summer_func, submitted_async_run):
     """Read the results from an async run."""
     async_run = summer_func.get_or_run(run_name=submitted_async_run)
@@ -160,7 +159,7 @@ def test_get_async_run_result(summer_func, submitted_async_run):
     assert async_run.result() == 3
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 def test_get_or_run_no_cache(summer_func):
     """Execute function async on the cluster. If a run already exists, do not re-run. Returns a Run object."""
     # Note: In this test since no Run exists with this name, will trigger the function async on the cluster and in the
@@ -172,7 +171,7 @@ def test_get_or_run_no_cache(summer_func):
     assert run_result == 3
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 @pytest.mark.runstest
 def test_get_or_run_latest(summer_func):
     """Execute function async on the cluster. If a run already exists, do not re-run. Returns a Run object."""
@@ -181,7 +180,7 @@ def test_get_or_run_latest(summer_func):
     assert isinstance(async_run, rh.Run)
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 def test_delete_async_run_from_system(ondemand_cpu_cluster, submitted_async_run):
     # Load the run from the cluster and delete its dedicated folder
     async_run = ondemand_cpu_cluster.get_run(submitted_async_run)
@@ -189,7 +188,7 @@ def test_delete_async_run_from_system(ondemand_cpu_cluster, submitted_async_run)
     assert not async_run.folder.exists_in_system()
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 def test_save_fn_run_to_rns(ondemand_cpu_cluster, submitted_run):
     """Saves run config to RNS"""
     # Load run that lives on the cluster
@@ -212,14 +211,14 @@ def test_create_anon_run_on_cluster(summer_func):
     assert res == 3
 
 
-@unittest.skip("Not yet implemented.")
+@pytest.mark.skip("Not yet implemented.")
 @pytest.mark.runstest
 def test_latest_fn_run(summer_func):
     run_output = summer_func.get_or_call(run_str="latest")
     assert run_output == 3
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 def test_copy_fn_run_from_cluster_to_local(ondemand_cpu_cluster, submitted_run):
     my_run = ondemand_cpu_cluster.get_run(submitted_run)
     my_local_run = my_run.to("here")
@@ -233,7 +232,7 @@ def test_copy_fn_run_from_cluster_to_local(ondemand_cpu_cluster, submitted_run):
         assert file_extension in file_name or file_name in RUN_FILES
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 def test_copy_fn_run_from_system_to_s3(
     ondemand_cpu_cluster, runs_s3_bucket, submitted_run
 ):
@@ -254,7 +253,7 @@ def test_copy_fn_run_from_system_to_s3(
     assert not my_run_on_s3.folder.exists_in_system()
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 def test_delete_fn_run_from_rns(submitted_run):
     # Load directly from RNS
     loaded_run = rh.run(name=submitted_run)
@@ -296,7 +295,7 @@ def test_create_cli_command_run(ondemand_cpu_cluster):
     assert return_codes[0][1].strip() == "Python 3.10.6"
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 def test_send_cli_run_to_cluster(ondemand_cpu_cluster):
     """Send the CLI based Run which was initially saved on the local file system to the cpu cluster."""
     # Load the run from the local file system
@@ -315,7 +314,7 @@ def test_send_cli_run_to_cluster(ondemand_cpu_cluster):
     assert isinstance(cluster_run.folder.system, rh.Cluster)
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 def test_load_cli_command_run_from_cluster(ondemand_cpu_cluster):
     # At this point the Run exists locally and on the cluster (hasn't yet been saved to RNS).
     # Load from the cluster
@@ -323,7 +322,7 @@ def test_load_cli_command_run_from_cluster(ondemand_cpu_cluster):
     assert isinstance(cli_run, rh.Run)
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 def test_save_cli_run_to_rns(ondemand_cpu_cluster):
     # Load the run from the cluster
     cli_run = ondemand_cpu_cluster.get_run(CLI_RUN_NAME)
@@ -336,7 +335,7 @@ def test_save_cli_run_to_rns(ondemand_cpu_cluster):
     assert loaded_run
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 def test_read_cli_command_stdout_from_cluster(ondemand_cpu_cluster):
     # Read the stdout from the cluster
     cli_run = ondemand_cpu_cluster.get_run(CLI_RUN_NAME)
@@ -354,7 +353,7 @@ def test_delete_cli_run_from_local_filesystem():
     assert not cli_run.folder.exists_in_system()
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 def test_delete_cli_run_from_cluster(ondemand_cpu_cluster):
     """Delete the config where it was copied to (in the ``~/.rh/logs/<run_name>`` folder of the cluster)"""
     cli_run = ondemand_cpu_cluster.get_run(CLI_RUN_NAME)
@@ -372,7 +371,7 @@ def test_delete_cli_run_from_cluster(ondemand_cpu_cluster):
     assert cli_run is None, f"Failed to delete {cli_run} on cluster"
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 def test_delete_cli_run_from_rns():
     # Load from RNS
     loaded_run = rh.run(CLI_RUN_NAME)
@@ -383,7 +382,7 @@ def test_delete_cli_run_from_rns():
 # ------------------------- CTX MANAGER RUN ----------------------------------
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 def test_create_local_ctx_manager_run(summer_func, ondemand_cpu_cluster):
     from runhouse.globals import rns_client
 
@@ -427,7 +426,7 @@ def test_load_named_ctx_manager_run():
     assert ctx_run.folder.exists_in_system()
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 def test_read_stdout_from_ctx_manager_run():
     # Load from local file system
     ctx_run = rh.run(path=PATH_TO_CTX_MGR_RUN)
@@ -445,7 +444,7 @@ def test_save_ctx_run_to_rns():
     assert rh.exists(name=ctx_run.name, resource_type=rh.Run.RESOURCE_TYPE)
 
 
-@unittest.skip("Not implemented yet.")
+@pytest.mark.skip("Not implemented yet.")
 def test_delete_ctx_run_from_rns():
     # Load from RNS
     loaded_run = rh.run(name=CTX_MGR_RUN)
@@ -460,7 +459,3 @@ def test_delete_ctx_run_from_local_filesystem():
     ctx_run = rh.run(path=PATH_TO_CTX_MGR_RUN)
     ctx_run.folder.rm()
     assert not ctx_run.folder.exists_in_system()
-
-
-if __name__ == "__main__":
-    unittest.main()

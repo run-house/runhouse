@@ -1,5 +1,4 @@
 import json
-import unittest
 
 import pytest
 import runhouse as rh
@@ -42,7 +41,8 @@ class TestResource:
                 assert resource.rns_address == args["name"]
             else:
                 assert resource.name == args["name"]
-                assert resource.rns_address.split("/")[-1] == args["name"]
+                if resource.rns_address:
+                    assert resource.rns_address.split("/")[-1] == args["name"]
 
         if "dryrun" in args:
             assert args["dryrun"] == resource.dryrun
@@ -54,7 +54,10 @@ class TestResource:
         args = init_args.get(id(resource))
         config = resource.config_for_rns
         assert isinstance(config, dict)
-        assert config["name"] == resource.rns_address
+        if resource.rns_address:
+            assert config["name"] == resource.rns_address
+        else:
+            assert config["name"] == resource.name
         assert config["resource_type"] == resource.RESOURCE_TYPE
         assert config["resource_subtype"] == resource.__class__.__name__
         if "dryrun" in args:
@@ -190,7 +193,3 @@ class TestResource:
     @pytest.mark.skip
     def test_loading_in_new_fs(self, resource):
         pass
-
-
-if __name__ == "__main__":
-    unittest.main()

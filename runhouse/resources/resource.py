@@ -85,7 +85,7 @@ class Resource:
     @property
     def config_for_rns(self):
         config = {
-            "name": self.rns_address,
+            "name": self.rns_address or self.name,
             "resource_type": self.RESOURCE_TYPE,
             "resource_subtype": self.__class__.__name__,
             "provenance": self.provenance.config_for_rns if self.provenance else None,
@@ -98,16 +98,27 @@ class Resource:
         )
         return config
 
-    def _resource_string_for_subconfig(self, resource):
+    def _resource_string_for_subconfig(self, resource: Union[None, str, "Resource"]):
         """Returns a string representation of a sub-resource for use in a config."""
         if resource is None or isinstance(resource, str):
             return resource
-        if resource.name:
-            if resource.rns_address.startswith("^"):
-                # Calls save internally and puts the resource in the current folder
-                resource.name = rns_client.resolve_rns_path(resource.rns_address[1:])
-            return resource.rns_address
-        return resource.config_for_rns
+        if isinstance(resource, Resource):
+            if resource.rns_address:
+                # We operate on the assumption that rns_address is only populated once a resource has been saved.
+                # That way, if rns_address is not None, we have reasonable likelihood that the resource was saved and
+                # we can just pass the address. The only exception here is if the resource is a built-in.
+                if resource.rns_address.startswith("^"):
+                    # Fork the resource if it's a built-in and consider it a new resource
+                    resource._rns_folder = None
+                    return resource.config_for_rns
+                return resource.rns_address
+            else:
+                # If the resource doesn't have an rns_address, we consider it unsaved and put the whole config into
+                # the parent config.
+                return resource.config_for_rns
+        raise ValueError(
+            f"Resource {resource} is not a valid sub-resource for {self.__class__.__name__}"
+        )
 
     @property
     def rns_address(self):

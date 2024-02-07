@@ -1,5 +1,4 @@
 import os
-import unittest
 
 import pytest
 
@@ -97,4 +96,4 @@ def test_stable_diffusion_on_sm_gpu(sm_gpu_cluster):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    pytest.main()
