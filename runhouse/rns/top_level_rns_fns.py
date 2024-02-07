@@ -109,13 +109,15 @@ def save(
 
     # TODO handle self.access == 'read' instead of this weird overwrite argument
     if name:
-        if "/" in name[1:] or resource._rns_folder is None:
+        if "/" in name[1:]:
             (
                 resource._name,
                 resource._rns_folder,
             ) = split_rns_name_and_path(resolve_rns_path(name))
         else:
             resource._name = name
+    if not resource.rns_address:
+        resource._rns_folder = rns_client.current_folder
     rns_client.save_config(resource=resource, overwrite=overwrite)
 
 

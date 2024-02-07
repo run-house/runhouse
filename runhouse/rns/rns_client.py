@@ -300,6 +300,9 @@ class RNSClient:
 
         from runhouse.resources.hardware.utils import _current_cluster
 
+        if "/" not in name:
+            name = f"{self.current_folder}/{name}"
+
         rns_address = self.resolve_rns_path(name)
 
         if rns_address == _current_cluster("name"):
@@ -494,12 +497,12 @@ class RNSClient:
         #     return self.RH_BUILTINS_FOLDER
         # if path.startswith('^'):
         #     return self.RH_BUILTINS_FOLDER + '/' + path[1:]
-        if path[0] not in ["/", "~", "^"]:
-            return self.current_folder + "/" + path
         return path
 
     @staticmethod
     def split_rns_name_and_path(path: str):
+        if "/" not in path:
+            return path, None
         return Path(path).name, str(Path(path).parent)
 
     def exists(
