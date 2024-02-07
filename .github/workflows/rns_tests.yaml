@@ -22,7 +22,8 @@ jobs:
 
       - name: Install python packages & dependencies
         run: |
-          pip install runhouse[aws] pytest tqdm datasets dask
+          pip install runhouse[aws]
+          pip install -r tests/requirements.txt
 
       - name: Run all RNS tests
         env:
