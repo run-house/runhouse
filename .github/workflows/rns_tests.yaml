@@ -22,7 +22,7 @@ jobs:
 
       - name: Install python packages & dependencies
         run: |
-          runhouse[aws]
+          pip install runhouse[aws]
           pip install -r tests/requirements.txt
 
       - name: Run all RNS tests

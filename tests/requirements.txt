@@ -1,4 +1,5 @@
 pytest
+pytest-mock
 httpx
 pytest_asyncio
 datasets
@@ -11,4 +12,3 @@ docker
 s3fs
 pandas
 pyarrow
-fsspec<=2023.5.0
