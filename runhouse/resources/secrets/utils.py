@@ -13,6 +13,8 @@ USER_ENDPOINT = "user/secret"
 
 
 def load_config(name: str, endpoint: str = USER_ENDPOINT):
+    if "/" not in name:
+        name = f"{rns_client.current_folder}/{name}"
     rns_address = rns_client.resolve_rns_path(name)
     if rns_address.startswith("/"):
         # Load via Resource API

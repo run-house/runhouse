@@ -297,14 +297,21 @@ class ObjStore:
 
     def has_resource_access(self, token_hash: str, resource_uri=None) -> bool:
         """Checks whether user has read or write access to a given module saved on the cluster."""
+        from runhouse.globals import configs
         from runhouse.rns.utils.api import ResourceAccess
-        from runhouse.servers.http.http_utils import load_current_cluster
+        from runhouse.servers.http.auth import hash_token
+        from runhouse.servers.http.http_utils import load_current_cluster_rns_address
 
         if token_hash is None:
             # If no token is provided assume no access
             return False
 
-        cluster_uri = load_current_cluster()
+        # The logged-in user always has full access to the cluster and its resources. This is especially
+        # important if they flip on Den Auth without saving the cluster.
+        if configs.token and hash_token(configs.token) == token_hash:
+            return True
+
+        cluster_uri = load_current_cluster_rns_address()
         cluster_access = self.resource_access_level(token_hash, cluster_uri)
         if cluster_access == ResourceAccess.WRITE:
             # if user has write access to cluster will have access to all resources

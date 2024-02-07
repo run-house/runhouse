@@ -919,7 +919,7 @@ class Module(Resource):
 
     def rename(self, name: str):
         """Rename the module."""
-        if self.name == name:
+        if self.name == name or self.rns_address == name:
             return
         old_name = self.name
         self.name = name  # Goes through Resource setter to parse name properly (e.g. if rns path)
@@ -928,9 +928,13 @@ class Module(Resource):
             and isinstance(self.system, Cluster)
             and self.system.on_this_cluster()
         ):
-            obj_store.rename(old_key=old_name, new_key=self.rns_address)
+            # We rename the object with the full rns_address here because if it's a resource, we want the
+            # object stored in the obj store to have the updated rns_address, not just the updated key.
+            obj_store.rename(old_key=old_name, new_key=self.rns_address or self.name)
         elif self._client():
-            self._client().rename(old_key=old_name, new_key=self.rns_address)
+            self._client().rename(
+                old_key=old_name, new_key=self.rns_address or self.name
+            )
 
     def save(
         self,
