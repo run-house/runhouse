@@ -29,7 +29,10 @@ jobs:
 
       - name: Install python packages & dependencies
         run: |
-          pip install runhouse[aws] pytest torch diffusers transformers datasets
+          pip install runhouse[aws]
+          pip install -r tests/requirements.txt
+          pip install -r tests/test_requirements/tutorial_requirements.txt
+
 
       - name: Run all tutorial tests
         run: |

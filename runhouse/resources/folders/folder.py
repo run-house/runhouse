@@ -471,7 +471,9 @@ class Folder(Resource):
             )
 
         elif isinstance(self.system, Resource):
-            if self.system.rns_address == dest_cluster.rns_address:
+            if self.system.endpoint(external=False) == dest_cluster.endpoint(
+                external=False
+            ):
                 # We're on the same cluster, so we can just move the files
                 if not path:
                     # If user didn't specify a path, we can just return self

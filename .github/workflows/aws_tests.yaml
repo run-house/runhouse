@@ -22,7 +22,9 @@ jobs:
 
       - name: Install python packages & dependencies
         run: |
-          pip install runhouse[aws] pytest tqdm datasets dask
+          pip install runhouse[aws]
+          pip install -r tests/requirements.txt
+          pip install -r tests/test_requirements/aws_test_requirements.txt
 
       - name: Run all aws tests
         env:

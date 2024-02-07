@@ -1,5 +1,4 @@
 import logging
-import unittest
 
 import pytest
 import requests
@@ -142,7 +141,3 @@ def test_custom_start_cmd(cluster):
         requests.get("http://localhost:8001/fast_api_module/summer/1", params={"b": 2})
 
     server_module.stop()
-
-
-if __name__ == "__main__":
-    unittest.main()

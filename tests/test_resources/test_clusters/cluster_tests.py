@@ -1,5 +1,4 @@
 import copy
-import unittest
 from pathlib import Path
 
 import pytest
@@ -196,7 +195,3 @@ def test_start_server_with_custom_certs(
 
     Path(resolve_absolute_path(ssl_certfile)).unlink()
     Path(resolve_absolute_path(ssl_keyfile)).unlink()
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -1,7 +1,6 @@
 import logging
 import multiprocessing
 import os
-import unittest
 
 import pytest
 
@@ -148,7 +147,3 @@ class TestMapper:
         alist, blist = range(5), range(4, 9)
         res = re_fn.map(alist, blist)
         assert res == [4, 6, 8, 10, 12]
-
-
-if __name__ == "__main__":
-    unittest.main()

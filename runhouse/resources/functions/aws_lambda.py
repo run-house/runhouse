@@ -203,8 +203,8 @@ class LambdaFunction(Function):
 
                 1. A dict which should contain the following keys:
 
-                    reqs: a list of the python libraries, to be installed by the Lambda, or just a ``requirements.txt``
-                    string.
+                    reqs: a list of the python libraries, to be installed by the Lambda, or just a
+                    ``requirements.txt``string.
 
                     env_vars: dictionary containing the env_vars that will be a part of the lambda configuration.
 

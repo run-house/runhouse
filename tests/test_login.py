@@ -1,5 +1,4 @@
 import os
-import unittest
 
 import runhouse as rh
 import sky
@@ -57,7 +56,3 @@ def test_login_flow_in_new_env():
 
     secrets_in_vault = rh.Secret.vault_secrets(headers=headers)
     assert not secrets_in_vault
-
-
-if __name__ == "__main__":
-    unittest.main()

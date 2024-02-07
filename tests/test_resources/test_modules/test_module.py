@@ -2,7 +2,6 @@ import inspect
 import logging
 import os
 import time
-import unittest
 
 import numpy as np
 import pandas as pd
@@ -727,7 +726,3 @@ def test_load_and_use_readonly_module(mod_name, cpu_count, size=3):
     remote_df.size = 20
     assert remote_df.remote.size == 20
     remote_df.size = size  # reset to original value for second test
-
-
-if __name__ == "__main__":
-    unittest.main()
