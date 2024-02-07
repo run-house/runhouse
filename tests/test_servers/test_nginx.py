@@ -206,7 +206,8 @@ class TestNginxConfiguration:
         )
 
     @pytest.mark.level("unit")
-    def test_invalid_ssl_paths_for_https(self):
+    def test_invalid_ssl_paths_for_https(self, mocker):
+        mocker.patch.object(Path, "exists", return_value=False)
         with pytest.raises(FileNotFoundError):
             # Incorrect SSL key and cert paths provided
             NginxConfig(
