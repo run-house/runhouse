@@ -1,5 +1,4 @@
 import shutil
-import unittest
 
 import pandas as pd
 import pyarrow as pa
@@ -957,7 +956,3 @@ def test_read_shared_table():
     my_table = rh.table(name="@/shared_pandas_table")
     df: pd.DataFrame = my_table.fetch()
     assert not df.empty
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -123,7 +123,7 @@ def get_token_from_request(request):
     return auth_headers.split("Bearer ")[-1] if auth_headers else None
 
 
-def load_current_cluster():
+def load_current_cluster_rns_address():
     from runhouse.resources.hardware import _current_cluster, _get_cluster_from
 
     current_cluster = _get_cluster_from(_current_cluster("config"))

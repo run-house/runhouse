@@ -1,6 +1,5 @@
 import json
 import subprocess
-import unittest
 
 import requests
 
@@ -214,7 +213,3 @@ def test_running_func_with_no_cluster_access(shared_cluster, shared_function):
     assert res.stdout == "3"
 
     assert shared_function(1, 2) == 3
-
-
-if __name__ == "__main__":
-    unittest.main()

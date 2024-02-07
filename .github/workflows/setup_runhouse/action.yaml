@@ -21,7 +21,7 @@ runs:
       run: |
         pip install -e $GITHUB_WORKSPACE
 
-    - name: Install python packages & dependencies
+    - name: Install python packages & dependencies for unit and local tests
       shell: bash
       run:
-        pip install skypilot[docker] pytest httpx pytest_asyncio docker s3fs tqdm pandas pyarrow
+        pip install -r tests/requirements.txt

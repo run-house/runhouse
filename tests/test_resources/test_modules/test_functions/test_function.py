@@ -2,14 +2,13 @@ import logging
 import multiprocessing
 import os
 import time
-import unittest
-from unittest.mock import patch
 
 import pytest
 import requests
 
 import runhouse as rh
 from runhouse.constants import LOCALHOST
+from runhouse.resources.functions import Function
 from runhouse.resources.hardware.utils import ServerConnectionType
 
 from tests.utils import friend_account
@@ -454,145 +453,176 @@ class TestFunction:
         self.function = rh.function(summer)
 
     @pytest.mark.level("unit")
-    @patch("runhouse.Function.get")
-    def test_get_unittest(self, mock_get):
-        mock_get.return_value = 5
+    def test_get_unittest(self, mocker):
+        mock_function = mocker.patch("runhouse.Function.get")
+        mock_function.return_value = 5
         response = self.function.get(run_key="my_mocked_run")
-        mock_get.assert_called_once_with(run_key="my_mocked_run")
         assert response == 5
+        mock_function.assert_called_once_with(run_key="my_mocked_run")
 
     @pytest.mark.level("unit")
-    @patch("runhouse.Function.http_url")
     # TODO: change the test once the implementation is ready
-    def test_http_url_unittest(self, mock_get):
-        mock_get.content("http_url not yet implemented for Function")
-        mock_get.side_effect = NotImplementedError
-        with pytest.raises(NotImplementedError):
-            self.function.http_url()
+    def test_http_url_unittest(self, monkeypatch):
+        monkeypatch.setattr(Function, "http_url", value=NotImplementedError)
+        res = self.function.http_url()
+        assert type(res) == type(NotImplementedError())
 
     @pytest.mark.level("unit")
-    @patch("runhouse.Function.keep_warm")
-    @patch("runhouse.cluster")
-    def test_keep_warm_byo_unittest(self, mock_cluster, mock_get):
-        mock_get.return_value = self.function
+    def test_keep_warm_byo_unittest(self, mocker):
+        # Create a Mock instance for Function
+        mock_function = mocker.patch("runhouse.Function.keep_warm")
+        mock_function.return_value = self.function
+
+        # Create a Mock instance for cluster
+        mock_cluster = mocker.patch("runhouse.cluster")
 
         # BYO cluster
         regular_cluster = mock_cluster(name="regular_cluster")
-        regular_cluster.autostop_mins = 1
-        self.function.system = regular_cluster
-        response_regular = self.function.keep_warm(autostop_mins=1)
-        mock_get.assert_called_once_with(autostop_mins=1)
-        assert (
-            response_regular.system.autostop_mins == self.function.system.autostop_mins
-        )
-        assert response_regular.system.autostop_mins == 1
+        regular_cluster.autostop_mins.return_value = 1
 
+        # Set the system attribute
+        self.function.system = regular_cluster
+
+        # Call the method under test
+        response_regular = self.function.keep_warm(autostop_mins=1)
+
+        # Assertions
+        mock_function.assert_called_once_with(autostop_mins=1)
+        assert (
+            response_regular.system.autostop_mins.return_value
+            == self.function.system.autostop_mins.return_value
+        )
+        assert self.function.system.autostop_mins.return_value == 1
+        assert response_regular.system.autostop_mins.return_value == 1
+
+        # Reset the system attribute
         self.function.system = None
 
     @pytest.mark.level("unit")
-    @patch("runhouse.Function.keep_warm")
-    @patch("runhouse.cluster")
-    def test_keep_warm_on_demand_unittest(self, mock_cluster, mock_get):
-        mock_get.return_value = self.function
+    def test_keep_warm_on_demand_unittest(self, mocker):
+        mock_function = mocker.patch("runhouse.Function.keep_warm")
+        mock_function.return_value = self.function
+
+        # Create a Mock instance for cluster
+        mock_cluster = mocker.patch("runhouse.OnDemandCluster")
 
         # on demand cluster
         on_demand_cluster = mock_cluster(name="on_demand_cluster", instance_type="aws")
-        on_demand_cluster.autostop_mins = 2
+        on_demand_cluster.autostop_mins.return_value = 2
+
+        # Set the system attribute
         self.function.system = on_demand_cluster
+
+        # Call the method under test
         response_on_demand = self.function.keep_warm(autostop_mins=2)
-        mock_get.assert_called_with(autostop_mins=2)
-        assert (
-            response_on_demand.system.autostop_mins
-            == self.function.system.autostop_mins
-        )
-        assert response_on_demand.system.autostop_mins == 2
 
+        # Assertions
+        mock_function.assert_called_once_with(autostop_mins=2)
+        assert (
+            response_on_demand.system.autostop_mins.return_value
+            == self.function.system.autostop_mins.return_value
+        )
+        assert self.function.system.autostop_mins.return_value == 2
+        assert response_on_demand.system.autostop_mins.return_value == 2
+
+        # Reset the system attribute
         self.function.system = None
 
     @pytest.mark.level("unit")
-    @patch("runhouse.Function.keep_warm")
-    @patch("runhouse.sagemaker_cluster")
-    def test_keep_warm_unittest(self, mock_cluster, mock_get):
-        mock_get.return_value = self.function
+    def test_keep_warm_unittest_sagemaker(self, mocker):
+        mock_function = mocker.patch("runhouse.Function.keep_warm")
+        mock_function.return_value = self.function
 
-        # Sagemaker cluster
+        # Create a Mock instance for cluster
+        mock_cluster = mocker.patch("runhouse.SageMakerCluster")
         sagemaker_cluster = mock_cluster(name="Sagemaker_cluster")
-        sagemaker_cluster.autostop_mins = 3
-        self.function.system = sagemaker_cluster
-        response_sagemaker = self.function.keep_warm(autostop_mins=3)
-        mock_get.assert_called_with(autostop_mins=3)
-        assert (
-            response_sagemaker.system.autostop_mins
-            == self.function.system.autostop_mins
-        )
-        assert response_sagemaker.system.autostop_mins == 3
+        sagemaker_cluster.autostop_mins.return_value = 3
 
+        # Set the system attribute
+        self.function.system = sagemaker_cluster
+
+        # Call the method under test
+        response_sagemaker = self.function.keep_warm(autostop_mins=3)
+
+        # Assertions
+        mock_function.assert_called_once_with(autostop_mins=3)
+        assert (
+            response_sagemaker.system.autostop_mins.return_value
+            == self.function.system.autostop_mins.return_value
+        )
+        assert self.function.system.autostop_mins.return_value == 3
+        assert response_sagemaker.system.autostop_mins.return_value == 3
+
+        # Reset the system attribute
         self.function.system = None
 
     @pytest.mark.level("unit")
-    @patch("runhouse.Function.notebook")
-    def test_notebook_unittest(self, mock_get):
-        mock_get.return_value = None
+    def test_notebook_unittest(self, mocker):
+        mock_function = mocker.patch("runhouse.Function.notebook")
+        mock_function.return_value = None
         response = self.function.notebook()
-        mock_get.assert_called_once_with()
+        mock_function.assert_called_once_with()
         assert response is None
 
     @pytest.mark.level("unit")
-    @patch("runhouse.Function.remote")
-    def test_remote_unittest(self, mock_get):
-        mock_get.return_value = 5
+    def test_remote_unittest(self, mocker):
+        mock_function = mocker.patch("runhouse.Function.remote")
+        mock_function.return_value = 5
         response = self.function.remote(3, 2)
-        mock_get.assert_called_once_with(3, 2)
         assert response == 5
+        mock_function.assert_called_once_with(3, 2)
 
     @pytest.mark.level("unit")
-    @patch("runhouse.Function.to")
-    @patch("runhouse.cluster")
-    def test_to_unittest(self, mock_cluster, mock_get):
-        local_cluster = mock_cluster(name="my_local_cluster")
-        func = rh.function(summer).to(local_cluster)
-        mock_get.return_value = func
-        response = self.function.to(local_cluster)
-        mock_get.assert_called_with(local_cluster)
-        assert response is func
+    def test_to_unittest(self, mocker):
+        mock_function = mocker.patch("runhouse.Function.to")
+        # Create a Mock instance for cluster
+        mock_cluster = mocker.patch("runhouse.cluster")
+        local_cluster = mock_cluster(name="local_cluster")
+        self.function.system = local_cluster
+        mock_function.return_value = self.function
+
+        # Call the method under test
+        response_to = self.function.to(local_cluster)
+
+        # Assertions
+
+        assert response_to.system == local_cluster
+        mock_function.assert_called_once_with(local_cluster)
+        # Reset the system attribute
+        self.function.system = None
 
     @pytest.mark.level("unit")
-    @patch("runhouse.Function.map")
-    def test_map_unittest(self, mock_get):
+    def test_map_unittest(self, mocker):
         # TODO: change the test once the implementation change is ready, if necessary
-        mock_get.return_value = [3, 7, 11]
+        mock_function = mocker.patch("runhouse.Function.map")
+        mock_function.return_value = [3, 7, 11]
         response = self.function.map([[1, 3, 5], [2, 4, 6]])
-        mock_get.assert_called_once_with([[1, 3, 5], [2, 4, 6]])
+        mock_function.assert_called_once_with([[1, 3, 5], [2, 4, 6]])
         assert response == [3, 7, 11]
 
     @pytest.mark.level("unit")
-    @patch("runhouse.Function.starmap")
-    def test_starmap_unittest(self, mock_get):
+    def test_starmap_unittest(self, mocker):
         # TODO: change the test once the implementation change is ready, if necessary
-        mock_get.return_value = [3, 7, 11]
+        mock_function = mocker.patch("runhouse.Function.starmap")
+        mock_function.return_value = [3, 7, 11]
         response = self.function.starmap([(1, 2), (3, 4), (5, 6)])
-        mock_get.assert_called_once_with([(1, 2), (3, 4), (5, 6)])
+        mock_function.assert_called_once_with([(1, 2), (3, 4), (5, 6)])
         assert response == [3, 7, 11]
 
     @pytest.mark.level("unit")
-    @patch("runhouse.Function.get_or_call")
-    def test_get_or_call_unittest(self, mock_get):
-        mock_get.return_value = 17
+    def test_get_or_call_unittest(self, mocker):
+        mock_function = mocker.patch("runhouse.Function.get_or_call")
+        mock_function.return_value = 17
         response_first = self.function.get_or_call(
             "my_run_first_time", False, True, 12, 5
         )
-        mock_get.assert_called_with("my_run_first_time", False, True, 12, 5)
+        mock_function.assert_called_with("my_run_first_time", False, True, 12, 5)
         assert response_first == 17
         second_response = self.function.get_or_call("my_run_first_time")
         assert second_response == 17
 
     @pytest.mark.level("unit")
     @pytest.mark.skip("Maybe send secrets is not relevant")
-    @patch("runhouse.Function.send_secrets")
     def test_send_secrets_unittest(self, mock_get):
         # TODO: need to think if send_secrets is a relevant Function method
         pass
-
-
-if __name__ == "__main__":
-    unittest.main()

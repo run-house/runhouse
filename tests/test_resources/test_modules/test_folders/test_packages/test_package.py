@@ -1,5 +1,4 @@
 import subprocess
-import unittest
 from pathlib import Path
 
 import pytest
@@ -325,7 +324,3 @@ def test_install_cmd_for_torch_on_cluster(request, ondemand_cluster):
         assert (
             sent_to_cuda
         ), f"Failed to send torch tensor to CUDA on {ondemand_cluster.name}"
-
-
-if __name__ == "__main__":
-    unittest.main()

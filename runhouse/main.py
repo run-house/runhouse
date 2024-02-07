@@ -18,12 +18,14 @@ import runhouse.rns.login
 from runhouse import __version__, cluster, configs
 from runhouse.constants import (
     RAY_KILL_CMD,
+    RAY_START_CMD,
     SERVER_LOGFILE,
     SERVER_START_CMD,
     SERVER_STOP_CMD,
     START_NOHUP_CMD,
     START_SCREEN_CMD,
 )
+from runhouse.resources.hardware.ray_utils import check_for_existing_ray_instance
 
 
 # create an explicit Typer application
@@ -280,12 +282,14 @@ def _start_server(
     if restart:
         cmds.append(SERVER_STOP_CMD)
 
+    # We have to `ray start` not within screen/nohup
+    existing_ray_instance = check_for_existing_ray_instance()
+    if not existing_ray_instance or restart_ray:
+        cmds.append(RAY_KILL_CMD)
+        cmds.append(RAY_START_CMD)
+
     # Collect flags
     flags = []
-    restart_ray_flag = " --restart-ray" if restart_ray else ""
-    if restart_ray_flag:
-        logger.info("Restarting a Ray instance on the remote machine.")
-        flags.append(restart_ray_flag)
 
     den_auth_flag = " --use-den-auth" if den_auth else ""
     if den_auth_flag:
@@ -537,14 +541,11 @@ def restart(
 
 
 @app.command()
-def stop(stop_ray: bool = typer.Option(True, help="Stop the Ray runtime")):
-    try:
-        subprocess.run(SERVER_STOP_CMD, shell=True, check=True)
-    except subprocess.CalledProcessError:
-        pass
+def stop(stop_ray: bool = typer.Option(False, help="Stop the Ray runtime")):
+    subprocess.run(SERVER_STOP_CMD, shell=True)
 
     if stop_ray:
-        subprocess.run(RAY_KILL_CMD, shell=True, check=True)
+        subprocess.run(RAY_KILL_CMD, shell=True)
 
 
 @app.callback()

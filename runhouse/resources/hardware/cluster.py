@@ -426,7 +426,9 @@ class Cluster(Resource):
     def on_this_cluster(self):
         """Whether this function is being called on the same cluster."""
         config = _current_cluster("config")
-        return config is not None and config.get("name") == self.rns_address
+        return config is not None and config.get("name") == (
+            self.rns_address or self.name
+        )
 
     # ----------------- RPC Methods ----------------- #
 
@@ -682,7 +684,7 @@ class Cluster(Resource):
             raise ValueError(f"Failed to restart server {self.name}.")
 
         if https_flag:
-            rns_address = self.rns_address
+            rns_address = self.rns_address or self.name
             if not rns_address:
                 raise ValueError("Cluster must have a name in order to enable HTTPS.")
 

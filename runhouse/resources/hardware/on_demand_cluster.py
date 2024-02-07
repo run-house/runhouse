@@ -516,8 +516,6 @@ class OnDemandCluster(Cluster):
                         "~/.rh": "~/.rh",
                     }
                 )
-            # If we choose to reduce collisions of cluster names:
-            # cluster_name = self.rns_address.strip('~/').replace("/", "-")
             sky.launch(
                 task,
                 cluster_name=self.name,

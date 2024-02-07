@@ -1,3 +1,15 @@
 pytest
+pytest-mock
 httpx
 pytest_asyncio
+pytest-mock
+datasets
+dask
+tqdm
+
+# packages for local and unit tests
+skypilot[docker]
+docker
+s3fs
+pandas
+pyarrow
