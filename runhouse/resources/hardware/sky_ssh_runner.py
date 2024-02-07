@@ -7,11 +7,13 @@ import subprocess
 import time
 from typing import Dict, List, Optional, Tuple, Union
 
-from sky.skylet import log_lib
-from sky.utils import subprocess_utils
+from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
-from sky.utils.command_runner import (
-    common_utils,
+from runhouse.constants import LOCALHOST
+
+from runhouse.resources.hardware.sky import common_utils, log_lib, subprocess_utils
+
+from runhouse.resources.hardware.sky.command_runner import (
     GIT_EXCLUDE,
     RSYNC_DISPLAY_OPTION,
     RSYNC_EXCLUDE_OPTION,
@@ -20,10 +22,6 @@ from sky.utils.command_runner import (
     SSHCommandRunner,
     SshMode,
 )
-
-from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
-
-from runhouse.constants import LOCALHOST
 from .utils import cache_open_tunnel, get_open_tunnel
 
 
