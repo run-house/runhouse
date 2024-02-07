@@ -339,19 +339,29 @@ def set_up_local_cluster(
     rh_cluster = rh.cluster(**cluster_init_args)
     init_args[id(rh_cluster)] = cluster_init_args
 
+    # Save before bringing up so the correct rns_address is written to the cluster config.
+    # This is necessary because we're turning on Den auth without saving the config.yaml (containing
+    # the "owner's" token) to the container in many cases, so we're relying on authenticating the caller
+    # to the server through Den. If the cluster isn't saved before coming up, the config in the cluster servlet
+    # doesn't have the rns address, and the auth verification to Den fails.
+    rh_cluster.save()
+
+    # Can't use the defaults_cache alone because we may need the token or username from the env variables
+    config = rh.configs.defaults_cache
+    config["token"] = rh.configs.token
+    config["username"] = rh.configs.username
+
     rh.env(
         reqs=["pytest", "httpx", "pytest_asyncio", "pandas"],
         working_dir=None,
         setup_cmds=[
             f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
-            f"echo '{yaml.safe_dump(rh.configs.defaults_cache)}' > ~/.rh/config.yaml"
+            f"echo '{yaml.safe_dump(config)}' > ~/.rh/config.yaml"
         ]
         if logged_in
         else False,
         name="base_env",
     ).to(rh_cluster)
-
-    rh_cluster.save()
 
     def cleanup():
         docker_client.containers.get(container_name).stop()

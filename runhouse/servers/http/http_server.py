@@ -33,7 +33,7 @@ from runhouse.servers.http.http_utils import (
     DeleteObjectParams,
     get_token_from_request,
     handle_exception_response,
-    load_current_cluster,
+    load_current_cluster_rns_address,
     Message,
     OutputType,
     pickle_b64,
@@ -72,8 +72,10 @@ def validate_cluster_access(func):
         if func_call and token:
             obj_store.add_user_to_auth_cache(token, refresh_cache=False)
 
-        if not den_auth_enabled or func_call:
-            # If this is a func call, we'll handle the auth in the object store
+        # The logged-in user always has full access to the cluster. This is especially important if they flip on
+        # Den Auth without saving the cluster.
+        # If this is a func call, we'll handle the auth in the object store.
+        if not den_auth_enabled or func_call or (token and configs.token == token):
             if is_coro:
                 return await func(*args, **kwargs)
 
@@ -86,14 +88,14 @@ def validate_cluster_access(func):
                 f"format: {json.dumps({'Authorization': 'Bearer <token>'})}",
             )
 
-        cluster_uri = load_current_cluster()
+        cluster_uri = load_current_cluster_rns_address()
         if cluster_uri is None:
             logger.error(
                 f"Failed to load cluster RNS address. Make sure cluster config YAML has been saved "
                 f"on the cluster in path: {CLUSTER_CONFIG_PATH}"
             )
             raise HTTPException(
-                status_code=404,
+                status_code=403,
                 detail="Failed to load current cluster. Make sure cluster config YAML exists on the cluster.",
             )
 

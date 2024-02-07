@@ -23,7 +23,8 @@ jobs:
 
       - name: Install python packages & dependencies
         run: |
-          pip install runhouse[sagemaker] pytest
+          pip install runhouse[sagemaker]
+          pip install tests/requirements.txt
 
       - name: Run all sagemaker tests
         env:

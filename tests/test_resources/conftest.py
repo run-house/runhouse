@@ -2,6 +2,7 @@ from datetime import datetime
 
 import pytest
 
+from runhouse.globals import rns_client
 from runhouse.resources.resource import Resource
 
 from tests.conftest import init_args
@@ -48,11 +49,11 @@ def saved_resource(resource, saved_resource_pool, test_rns_folder):
         resource_copy = resource.from_config(
             config=resource.config_for_rns, dryrun=True
         )
-        if resource.rns_address[:2] != "~/":
+        if not resource.rns_address or resource.rns_address[:2] != "~/":
             # No need to vary the name for local resources
             # Put resource copies in a folder together so it's easier to clean up
             resource_copy.name = (
-                f"{resource._rns_folder}/{test_rns_folder}/{resource.name}"
+                f"{rns_client.current_folder}/{test_rns_folder}/{resource.name}"
             )
         saved_resource_pool[resource.name] = resource_copy.save()
     return saved_resource_pool[resource.name]

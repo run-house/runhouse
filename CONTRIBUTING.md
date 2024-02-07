@@ -45,26 +45,24 @@ git push -u origin branch-name
 
 ## Testing
 
-To run tests, please install `pytest`.
+To run tests, please install test/requirements.txt.
 ```
-pip install pytest
+pip install -r tests/requirements.txt
 ```
 
 Additional optional packages to install to run related tests:
 
 aws related tests
-* `awscli==1.25.60`
-* `boto3==1.24.59`
-* `pycryptodome==3.12.0`
+```
+pip install -r tests/test_requirements/aws_test_requirements.txt
+```
 
 google related tests
-* `google-api-python-client`
-* `google-cloud-storage`
-* `gcsfs`
+```
+pip install -r tests/test_requirements/google_tests_requirements.txt
+```
 
-table tests
-* `datasets`
-* `dask`
+
 
 ## Documentation
 Docs source code is located in `docs/`. To build and review docs locally:

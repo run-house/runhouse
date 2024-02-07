@@ -184,6 +184,8 @@ class Secret(Resource):
         elif not self.name:
             raise ValueError("A resource must have a name to be saved.")
 
+        self._rns_folder = self._rns_folder or rns_client.current_folder
+
         config = self.config_for_rns
         config["name"] = self.rns_address
         if "values" in config:
@@ -244,7 +246,7 @@ class Secret(Resource):
             )
 
         else:
-            if self.rns_address.startswith("/"):
+            if self.rns_address and self.rns_address.startswith("/"):
                 self._delete_secret_configs(headers)
             else:
                 self._delete_local_config()
