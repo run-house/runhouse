@@ -85,9 +85,7 @@ class Cluster(Resource):
 
         self.client = None
         self.den_auth = den_auth
-        self.cert_config = TLSCertConfig(
-            cert_path=ssl_certfile, key_path=ssl_keyfile, dir_name=self.name
-        )
+        self.cert_config = TLSCertConfig(cert_path=ssl_certfile, key_path=ssl_keyfile)
 
         self.ssl_certfile = ssl_certfile
         self.ssl_keyfile = ssl_keyfile
@@ -932,17 +930,12 @@ class Cluster(Resource):
         from runhouse import folder
 
         # Copy to the home directory by default
-        local_key_path = self.cert_config.key_path
-        folder(path=Path(local_key_path).parent).to(
-            self, path=self.cert_config.DEFAULT_CLUSTER_DIR
-        )
-
-        local_cert_path = self.cert_config.cert_path
-        folder(path=Path(local_cert_path).parent).to(
-            self, path=self.cert_config.DEFAULT_CLUSTER_DIR
-        )
+        local_certs_path = self.cert_config.key_path
+        dest = self.cert_config.DEFAULT_CLUSTER_DIR
+        folder(path=Path(local_certs_path).parent).to(self, path=dest)
 
         if self._use_caddy:
+            # Move to the Caddy directory to ensure the daemon has access to the certs
             src = self.cert_config.DEFAULT_CLUSTER_DIR
             dest = self.cert_config.CADDY_CLUSTER_DIR
             self.run(
@@ -952,8 +945,6 @@ class Cluster(Resource):
                     f"sudo rm -r {src}",
                 ]
             )
-        else:
-            dest = self.cert_config.DEFAULT_CLUSTER_DIR
 
         logger.info(f"Copied local certs onto the cluster in path: {dest}")
 

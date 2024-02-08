@@ -349,7 +349,12 @@ class TestCaddyServerLocally:
 
     @pytest.mark.level("local")
     def test_using_caddy_on_local_cluster(self, cluster):
-        protocol = "https" if cluster._use_https else "http"
+        if cluster._use_https:
+            protocol = "https"
+            # Ensure cluster has certs copied over
+            cluster.restart_server()
+        else:
+            protocol = "http"
 
         cluster.check_server()
 

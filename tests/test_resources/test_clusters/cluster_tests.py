@@ -177,7 +177,6 @@ def test_start_server_with_custom_certs(
     TLSCertConfig(
         key_path=ssl_keyfile,
         cert_path=ssl_certfile,
-        dir_name=ondemand_https_cluster_with_auth.name,
     ).generate_certs(address=ondemand_https_cluster_with_auth.address)
 
     # # Restart the server using the custom certs
