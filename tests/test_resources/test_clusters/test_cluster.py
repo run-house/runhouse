@@ -126,9 +126,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert endpoint == f"{url_base}://{cluster.address}:{cluster.server_port}"
 
         # Try to curl docs
+        verify = cluster.client.verify
         r = requests.get(
             f"{endpoint}/docs",
-            verify=False,
+            verify=verify,
             headers=rh.globals.rns_client.request_headers(),
         )
         assert r.status_code == 200
