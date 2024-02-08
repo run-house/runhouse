@@ -29,7 +29,7 @@ jobs:
       - name: Run all sagemaker tests
         env:
           AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-        run: pytest -v -k "sagemakertest"
+        run: pytest tests/test_resources/test_clusters/test_sagemaker_cluster/test_sagemaker.py --ignore-filters
 
       - name: Teardown all SageMaker clusters
         run: |

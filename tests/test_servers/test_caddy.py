@@ -1,6 +1,5 @@
 import tempfile
 import textwrap
-import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -376,7 +375,3 @@ class TestCaddyServerLocally:
 
         assert response.status_code == 200
         assert key in response.json().get("data")
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -174,7 +174,6 @@ def serialization_helper_2():
 
 
 @pytest.mark.skip
-@pytest.mark.gputest
 def test_pinning_to_gpu(k80_gpu_cluster):
     # Based on the following quirk having to do with Numpy objects becoming immutable if they're serialized:
     # https://docs.ray.io/en/latest/ray-core/objects/serialization.html#fixing-assignment-destination-is-read-only

@@ -88,7 +88,6 @@ class TestFunction:
 
     # ---------- Minimal / Local Level Tests (aka not unittests) ----------
 
-    @pytest.mark.rnstest
     @pytest.mark.level("local")
     def test_create_function_from_name_local(self, cluster):
         local_name = "~/local_function"
@@ -102,7 +101,6 @@ class TestFunction:
         remote_sum.delete_configs()
         assert rh.exists(local_name) is False
 
-    @pytest.mark.rnstest
     @pytest.mark.level("local")
     def test_create_function_from_rns(self, cluster):
         remote_sum = rh.function(summer).to(cluster).save(REMOTE_FUNC_NAME)
@@ -116,14 +114,12 @@ class TestFunction:
         remote_sum.delete_configs()
         assert not rh.exists(REMOTE_FUNC_NAME)
 
-    @pytest.mark.asyncio
     @pytest.mark.level("local")
     async def test_async_function(self, cluster):
         remote_sum = rh.function(async_summer).to(cluster)
         res = await remote_sum(1, 5)
         assert res == 6
 
-    @pytest.mark.rnstest
     @pytest.mark.level("local")
     def test_get_function_history(self, cluster):
         # reload the function from RNS
@@ -153,7 +149,6 @@ class TestFunction:
             results += [val]
         assert len(results) == 5
 
-    @pytest.mark.asyncio
     @pytest.mark.level("local")
     async def test_async_generator(self, cluster):
         remote_slow_generator = rh.function(async_slow_generator).to(cluster)
@@ -272,7 +267,6 @@ class TestFunction:
         my_function.ssh()
         assert True
 
-    @pytest.mark.rnstest
     @pytest.mark.level("local")
     def test_share_and_revoke_function(self, cluster):
         # TODO: refactor in order to test the function.share() method.
@@ -295,7 +289,6 @@ class TestFunction:
                 my_function = rh.function(name=my_function.rns_address)
                 my_function(1, 2)
 
-    @pytest.mark.rnstest
     @pytest.mark.level("thorough")
     def test_load_function_in_new_cluster(
         self, ondemand_cpu_cluster, static_cpu_cluster
