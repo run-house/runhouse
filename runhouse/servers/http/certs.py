@@ -15,16 +15,14 @@ logger = logging.getLogger(__name__)
 
 
 class TLSCertConfig:
-    """Handler for creating and managing the TLS certs needed to enable HTTPS on the Runhouse API server.
-    Note that this class can be initialized both locally and on the cluster, which affects the default file
-    paths for storing the generated certs."""
+    """Handler for creating and managing the TLS certs needed to enable HTTPS on the Runhouse API server."""
 
     CERT_NAME = "rh_server.crt"
     PRIVATE_KEY_NAME = "rh_server.key"
     TOKEN_VALIDITY_DAYS = 365
 
     # Base directory for certs stored locally
-    LOCAL_PRIVATE_KEY_DIR = "~/.rh/certs/private"
+    # Note: Each user will have their own set of certs, to be reused on for each cluster
     LOCAL_CERT_DIR = "~/.rh/certs"
 
     # https://caddy.community/t/permission-denied-error-when-caddy-try-to-save-the-certificate/15026
@@ -34,32 +32,16 @@ class TLSCertConfig:
     CADDY_CLUSTER_DIR = "/var/lib/caddy"
     DEFAULT_CLUSTER_DIR = "~/certs"
 
-    def __init__(
-        self, cert_path: str = None, key_path: str = None, dir_name: str = None
-    ):
+    def __init__(self, cert_path: str = None, key_path: str = None):
         self._cert_path = cert_path
         self._key_path = key_path
-
-        # Useful for initializing locally, where the user may have multiple certs stored for different clusters
-        # Each cluster will have its own directory for storing the cert / private key files
-        self.dir_name = dir_name
 
     @property
     def cert_path(self):
         if self._cert_path is not None:
             return resolve_absolute_path(self._cert_path)
 
-        if not self.dir_name:
-            # Default cert path when initializing on a cluster
-            return str(Path(f"{self.LOCAL_CERT_DIR}/{self.CERT_NAME}").expanduser())
-        else:
-            # Default cert path when initializing locally - certs to be saved locally in a folder dedicated to the
-            # relevant cluster
-            return str(
-                Path(
-                    f"{self.LOCAL_CERT_DIR}/{self.dir_name}/{self.CERT_NAME}"
-                ).expanduser()
-            )
+        return str(Path(f"{self.LOCAL_CERT_DIR}/{self.CERT_NAME}").expanduser())
 
     @cert_path.setter
     def cert_path(self, cert_path):
@@ -70,20 +52,7 @@ class TLSCertConfig:
         if self._key_path is not None:
             return resolve_absolute_path(self._key_path)
 
-        if not self.dir_name:
-            # Default cert path when initializing on a cluster
-            return str(
-                Path(
-                    f"{self.LOCAL_PRIVATE_KEY_DIR}/{self.PRIVATE_KEY_NAME}"
-                ).expanduser()
-            )
-        else:
-            # Default cert path when initializing locally
-            return str(
-                Path(
-                    f"{self.LOCAL_PRIVATE_KEY_DIR}/{self.dir_name}/{self.PRIVATE_KEY_NAME}"
-                ).expanduser()
-            )
+        return str(Path(f"{self.LOCAL_CERT_DIR}/{self.PRIVATE_KEY_NAME}").expanduser())
 
     @key_path.setter
     def key_path(self, key_path):

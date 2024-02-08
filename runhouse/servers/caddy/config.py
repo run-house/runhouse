@@ -7,6 +7,8 @@ logger = logging.getLogger(__name__)
 
 from runhouse.constants import DEFAULT_SERVER_PORT
 
+SYSTEMCTL_ERROR = "systemctl: command not found"
+
 
 class CaddyConfig:
     BASE_CONFIG_PATH = "/etc/caddy/Caddyfile"
@@ -114,7 +116,7 @@ class CaddyConfig:
         )
 
         if result.returncode != 0:
-            if "systemctl: command not found" in result.stderr:
+            if SYSTEMCTL_ERROR in result.stderr:
                 # If running in a docker container or distro without systemctl, reload caddy as a background process
                 reload_cmd = f"caddy reload --config {str(self.caddyfile)}"
                 try:
@@ -157,6 +159,7 @@ class CaddyConfig:
                         check=True,
                         text=True,
                         stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
                     )
                 except subprocess.CalledProcessError as e:
                     raise RuntimeError(f"Failed to run Caddy install command: {e}")
@@ -255,7 +258,7 @@ class CaddyConfig:
             text=True,
         )
         if result.returncode != 0:
-            if "systemctl: command not found" in result.stderr:
+            if SYSTEMCTL_ERROR in result.stderr:
                 # If running in a docker container or distro without systemctl, check whether Caddy has been configured
                 run_cmd = f"caddy validate --config {str(self.caddyfile)}"
                 try:
@@ -265,6 +268,7 @@ class CaddyConfig:
                         check=True,
                         text=True,
                         stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
                     )
                 except subprocess.CalledProcessError as e:
                     logger.warning(e)
@@ -305,7 +309,7 @@ class CaddyConfig:
             text=True,
         )
         if result.returncode != 0:
-            if "systemctl: command not found" in result.stderr:
+            if SYSTEMCTL_ERROR in result.stderr:
                 # If running in a docker container or distro without systemctl, we need to start Caddy manually
                 # as a background process
                 run_cmd = "caddy start"
@@ -316,6 +320,7 @@ class CaddyConfig:
                         check=True,
                         text=True,
                         stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
                     )
                 except subprocess.CalledProcessError as e:
                     raise RuntimeError(
