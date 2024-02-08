@@ -721,7 +721,7 @@ class HTTPServer:
     @staticmethod
     def _collect_cluster_stats():
         """Collect cluster metadata and send to Grafana Loki"""
-        if configs.get("disable_data_collection") is True:
+        if not configs.data_collection_enabled():
             return
 
         cluster_data = HTTPServer._cluster_status_report()
