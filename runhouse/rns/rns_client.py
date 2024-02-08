@@ -314,11 +314,18 @@ class RNSClient:
                 return config
 
         if rns_address.startswith("/"):
+            request_headers = self.request_headers()
+            if not request_headers:
+                raise PermissionError(
+                    "No Runhouse token found. Please log in using `rh.login()` or `runhouse login`. "
+                    "If you do not have an account, you can create one at https://run.house/login."
+                )
+
             resource_uri = self.resource_uri(name)
             logger.info(f"Attempting to load config for {rns_address} from RNS.")
             resp = self.session.get(
                 f"{self.api_server_url}/resource/{resource_uri}",
-                headers=self.request_headers(),
+                headers=request_headers,
             )
             if resp.status_code != 200:
                 logger.info(f"No config found in RNS: {load_resp_content(resp)}")
