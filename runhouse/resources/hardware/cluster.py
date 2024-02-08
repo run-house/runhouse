@@ -127,6 +127,30 @@ class Cluster(Resource):
             node=node or self.address,
         )
 
+    def save(
+        self,
+        name: str = None,
+        overwrite: bool = True,
+    ):
+        # return super().save(name=name, overwrite=overwrite)
+        """Overrides the default resource save() method in order to also update
+        the cluster config on the cluster itself.
+        """
+        on_this_cluster = self.on_this_cluster()
+        super().save(name=name, overwrite=overwrite)
+
+        # Running save will have updated the cluster's
+        # RNS address. We need to update the name
+        # used in the config on the cluster so that
+        # self.on_this_cluster() will still work as expected.
+        if on_this_cluster:
+            obj_store.set_cluster_config_value("name", self.rns_address)
+        else:
+            if self.client:
+                self.client.set_cluster_name(self.rns_address)
+
+        return self
+
     @staticmethod
     def from_config(config: dict, dryrun=False):
         resource_subtype = config.get("resource_subtype")

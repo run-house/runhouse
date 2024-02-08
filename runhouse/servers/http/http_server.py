@@ -310,6 +310,9 @@ class HTTPServer:
     @app.post("/settings")
     @validate_cluster_access
     def update_settings(request: Request, message: ServerSettings) -> Response:
+        if message.cluster_name:
+            obj_store.set_cluster_config_value("name", message.cluster_name)
+
         if message.den_auth:
             HTTPServer.enable_den_auth(flush=message.flush_auth_cache)
         elif message.den_auth is not None and not message.den_auth:
