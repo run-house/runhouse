@@ -33,6 +33,7 @@ class RequestContext(BaseModel):
 
 
 class ServerSettings(BaseModel):
+    cluster_name: Optional[str] = None
     den_auth: Optional[bool] = None
     flush_auth_cache: Optional[bool] = None
 
