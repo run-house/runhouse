@@ -55,28 +55,3 @@ def friend_account():
 
     finally:
         rns_client.load_account_from_file()
-
-
-@contextlib.contextmanager
-def logged_out():
-    """Used for the purposes of testing methods as if we're logged out.
-    When inside the context manager, token, username, and configs will all be None, as if logged out."""
-
-    rns_client._current_folder = None
-    rns_client._configs._simulate_logged_out = True
-
-    yield account
-
-    rns_client._configs._simulate_logged_out = False
-
-
-@contextlib.contextmanager
-def invalid_friend_account():
-    """Used for the purposes of testing methods as if we have invalid token.
-    When inside the context manager, the friend account role will be assumed, but the token will be set to junk."""
-
-    with friend_account() as friend_account_dict:
-        friend_account_dict["token"] = "junk"
-        rns_client._configs.token = "junk"
-
-        yield friend_account_dict
