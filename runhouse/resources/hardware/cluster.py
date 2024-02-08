@@ -643,18 +643,15 @@ class Cluster(Resource):
                     f"cluster using domain: {domain}."
                 )
             else:
-                # If no cert and keyfile already exist, generate them client side and copy them onto the cluster
-                if (
-                    not Path(self.cert_config.cert_path).exists()
-                    or not Path(self.cert_config.key_path).exists()
-                ):
-                    self.cert_config.generate_certs(address=self.address)
-
+                # Rebuild on restart to ensure the correct subject name is included in the cert SAN
+                # Cert subject name needs to match the target (IP address or domain)
+                self.cert_config.generate_certs(
+                    address=self.address, domain=self.domain
+                )
                 self._copy_certs_to_cluster()
 
             if caddy_flag:
-                # Update pointers to the cert and key files as stored on the cluster
-                # (to be passed in to the runhouse restart command)
+                # Update pointers to the cert and key files as stored on the cluster for Caddy to use
                 base_caddy_dir = self.cert_config.CADDY_CLUSTER_DIR
                 cluster_key_path = (
                     f"{base_caddy_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
@@ -690,12 +687,11 @@ class Cluster(Resource):
                 raise ValueError("Cluster must have a name in order to enable HTTPS.")
 
             if not self.client:
-                logger.info("Reconnecting server client. Server restarted with HTTPS.")
+                logger.debug("Reconnecting server client. Server restarted with HTTPS.")
                 self.connect_server_client()
 
             # Refresh the client params to use HTTPS
             self.client.use_https = https_flag
-            self.client.cert_path = self.cert_config.cert_path
 
         if restart_ray and len(self.ips) > 1:
             self._start_ray_workers(DEFAULT_RAY_PORT)

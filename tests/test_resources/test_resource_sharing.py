@@ -5,12 +5,20 @@ import requests
 
 import runhouse as rh
 from runhouse.globals import rns_client
+from runhouse.servers.http.certs import TLSCertConfig
 
 from tests.utils import friend_account
 
 
 def call_func_with_curl(ip_address, func_name, token, *args):
-    cmd = f"""curl -k -X POST "https://{ip_address}/call/{func_name}/call?serialization=None" -d '{{"args": {list(args)}}}' -H "Content-Type: application/json" -H "Authorization: Bearer {token}" """  # noqa
+    cert_config = TLSCertConfig()
+    path_to_cert = cert_config.cert_path
+
+    # Example for using the cert for verification:
+    # curl --cacert '/Users/josh.l/.rh/certs/rh_server.crt' https://localhost:8444/check
+    # >> {"rh_version":"0.0.18"}
+
+    cmd = f"""curl --cacert {path_to_cert} -X POST "https://{ip_address}/call/{func_name}/call?serialization=None" -d '{{"args": {list(args)}}}' -H "Content-Type: application/json" -H "Authorization: Bearer {token}" """  # noqa
     res = subprocess.run(
         cmd,
         shell=True,

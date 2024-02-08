@@ -376,6 +376,10 @@ def set_up_local_cluster(
     config["token"] = rh.configs.token
     config["username"] = rh.configs.username
 
+    if rh_cluster._use_https:
+        # If re-using fixtures make sure the crt file gets copied on to the cluster
+        rh_cluster.restart_server()
+
     rh.env(
         reqs=["pytest", "httpx", "pytest_asyncio", "pandas"],
         working_dir=None,
