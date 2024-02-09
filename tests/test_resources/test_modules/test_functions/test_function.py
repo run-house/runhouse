@@ -100,6 +100,9 @@ class TestFunction:
 
     @pytest.mark.level("local")
     def test_create_function_from_rns(self, cluster):
+        if cluster.on_this_cluster():
+            pytest.mark.skip("Function on local cluster cannot be loaded from RNS.")
+
         remote_sum = rh.function(summer).to(cluster).save(REMOTE_FUNC_NAME)
         del remote_sum
 

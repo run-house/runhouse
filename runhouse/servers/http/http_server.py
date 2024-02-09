@@ -73,7 +73,7 @@ def validate_cluster_access(func):
 
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
         token_hash = hash_token(token) if den_auth_enabled and token else None
-        _ctx_token = obj_store._set_ctx(request_id=request_id, token_hash=token_hash)
+        ctx_token = obj_store.set_ctx(request_id=request_id, token_hash=token_hash)
 
         try:
             if func_call and token:
@@ -103,11 +103,11 @@ def validate_cluster_access(func):
             else:
                 res = func(*args, **kwargs)
         except Exception as e:
-            if _ctx_token:
-                obj_store._unset_ctx(_ctx_token)
+            if ctx_token:
+                obj_store.unset_ctx(ctx_token)
             raise e
 
-        obj_store._unset_ctx(_ctx_token)
+        obj_store.unset_ctx(ctx_token)
         return res
 
     return wrapper
@@ -948,7 +948,9 @@ if __name__ == "__main__":
             f"cluster_config.json: {cluster_config.get('server_port')}. Prioritizing CLI provided port."
         )
 
-    port_arg = parse_args.port or cluster_config.get("server_port")
+    port_arg = (
+        parse_args.port or cluster_config.get("server_port") or DEFAULT_SERVER_PORT
+    )
 
     if port_arg is not None:
         cluster_config["server_port"] = port_arg

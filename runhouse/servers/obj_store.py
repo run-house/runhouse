@@ -72,19 +72,19 @@ def get_cluster_servlet(create_if_not_exists: bool = False):
 def context_wrapper(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        _ctx_token = None
+        ctx_token = None
         try:
             if not req_ctx.get():
-                _ctx_token = self._populate_ctx_locally()
+                ctx_token = self._populate_ctx_locally()
 
             res = func(self, *args, **kwargs)
         except Exception as e:
-            if _ctx_token:
-                self._unset_ctx(_ctx_token)
+            if ctx_token:
+                self.unset_ctx(ctx_token)
             raise e
 
-        if _ctx_token:
-            self._unset_ctx(_ctx_token)
+        if ctx_token:
+            self.unset_ctx(ctx_token)
 
         return res
 
@@ -284,7 +284,7 @@ class ObjStore:
                 return None
 
     @staticmethod
-    def _set_ctx(**ctx_args):
+    def set_ctx(**ctx_args):
         from runhouse.servers.http.http_utils import RequestContext
 
         ctx = RequestContext(**ctx_args)
@@ -300,11 +300,11 @@ class ObjStore:
         if den_auth_enabled and token:
             token_hash = hash_token(token)
             self.add_user_to_auth_cache(token, refresh_cache=False)
-        return self._set_ctx(request_id=str(uuid.uuid4()), token_hash=token_hash)
+        return self.set_ctx(request_id=str(uuid.uuid4()), token_hash=token_hash)
 
     @staticmethod
-    def _unset_ctx(_ctx_token):
-        req_ctx.reset(_ctx_token)
+    def unset_ctx(ctx_token):
+        req_ctx.reset(ctx_token)
 
     ##############################################
     # Cluster config state storage methods
