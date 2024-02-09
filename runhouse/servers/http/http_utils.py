@@ -5,8 +5,10 @@ import re
 import sys
 from typing import Any, Dict, List, Optional
 
+from fastapi import HTTPException
 from pydantic import BaseModel
 from ray import cloudpickle as pickle
+from ray.exceptions import RayTaskError
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +24,27 @@ class Message(BaseModel):
     run_async: Optional[bool] = False
 
 
+class RequestContext(BaseModel):
+    request_id: str
+    username: Optional[
+        str
+    ]  # TODO refactor the auth cache to use usernames instead of token hashes
+    token_hash: Optional[str]
+
+
 class ServerSettings(BaseModel):
     den_auth: Optional[bool] = None
     flush_auth_cache: Optional[bool] = None
+
+
+class CallParams(BaseModel):
+    data: Any = None
+    serialization: Optional[str] = None
+    run_name: Optional[str] = None
+    stream_logs: Optional[bool] = False
+    save: Optional[bool] = False
+    remote: Optional[bool] = False
+    run_async: Optional[bool] = False
 
 
 class PutResourceParams(BaseModel):
@@ -38,6 +58,12 @@ class PutObjectParams(BaseModel):
     serialized_data: Any
     serialization: Optional[str] = None
     env_name: Optional[str] = None
+
+
+class GetObjectParams(BaseModel):
+    key: str
+    serialization: Optional[str] = None
+    remote: Optional[bool] = False
 
 
 class RenameObjectParams(BaseModel):
@@ -93,8 +119,10 @@ def deserialize_data(data: Any, serialization: Optional[str]):
         return json.loads(data)
     elif serialization == "pickle":
         return b64_unpickle(data)
-    else:
+    elif serialization is None:
         return data
+    else:
+        raise ValueError(f"Invalid serialization type {serialization}")
 
 
 def serialize_data(data: Any, serialization: Optional[str]):
@@ -105,16 +133,49 @@ def serialize_data(data: Any, serialization: Optional[str]):
         return json.dumps(data)
     elif serialization == "pickle":
         return pickle_b64(data)
-    else:
+    elif serialization is None:
         return data
+    else:
+        raise ValueError(f"Invalid serialization type {serialization}")
 
 
-def handle_exception_response(exception, traceback):
-    logger.exception(exception)
+def handle_exception_response(
+    exception: Exception, traceback, serialization="pickle", from_http_server=False
+):
+    if not (
+        isinstance(exception, StopIteration) or isinstance(exception, GeneratorExit)
+    ):
+        logger.exception(exception)
+
+    # We need to be selective about when we convert errors to HTTPExceptions because HTTPExceptions are not
+    # picklable and can't be passed over the actor boundary. We should only be converting in the HTTPServer right
+    # before we send the response back to the client from the http_server.
+    if isinstance(exception, RayTaskError) and from_http_server:
+        cause = exception.args[0]
+        detail = cause.args[0] if cause.args else ""
+        if isinstance(cause, PermissionError):
+            if "No Runhouse token provided." in detail:
+                raise HTTPException(status_code=401, detail=detail)
+            if "Unauthorized access to resource" in detail:
+                raise HTTPException(status_code=403, detail=detail)
+        if isinstance(cause, ValueError):
+            if "Invalid serialization type" in detail:
+                raise HTTPException(status_code=400, detail=detail)
+
+    if isinstance(exception, PermissionError):
+        # If we're raising from inside the obj store, we should still raise this error so the HTTPServer can
+        # catch it and convert it to an HTTPException.
+        raise exception
+
+    if serialization not in ["json", "pickle"] or isinstance(exception, HTTPException):
+        # If the exception is an HTTPException, we should let it flow back through the server so it gets
+        # handled by FastAPI's exception handling and returned to the user with the correct status code
+        raise exception
+
     return Response(
         output_type=OutputType.EXCEPTION,
-        error=pickle_b64(exception),
-        traceback=pickle_b64(traceback),
+        error=serialize_data(exception, serialization=serialization),
+        traceback=serialize_data(traceback, serialization=serialization),
     )
 
 
@@ -150,8 +211,12 @@ def handle_response(response_data, output_type, err_str):
     elif output_type == OutputType.EXCEPTION:
         fn_exception = b64_unpickle(response_data["error"])
         fn_traceback = b64_unpickle(response_data["traceback"])
-        logger.error(f"{err_str}: {fn_exception}")
-        logger.error(f"Traceback: {fn_traceback}")
+        if not (
+            isinstance(fn_exception, StopIteration)
+            or isinstance(fn_exception, GeneratorExit)
+        ):
+            logger.error(f"{err_str}: {fn_exception}")
+            logger.error(f"Traceback: {fn_traceback}")
         raise fn_exception
     elif output_type == OutputType.STDOUT:
         res = response_data["data"]

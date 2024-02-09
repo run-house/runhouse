@@ -49,67 +49,41 @@ class TestServlet:
 
     @pytest.mark.level("unit")
     def test_get_obj(self, test_servlet):
-        remote = False
-        stream = True
-        resp = HTTPServer.call_servlet_method(
+        resp = ObjStore.call_actor_method(
             test_servlet,
-            "get",
-            ["key1", remote, stream],
+            "get_local",
+            key="key1",
+            default=KeyError,
+            serialization="pickle",
+            remote=False,
         )
-        assert resp.output_type == "result"
+        assert resp.output_type == "result_serialized"
         blob = b64_unpickle(resp.data)
         assert isinstance(blob, rh.Blob)
 
     @pytest.mark.level("unit")
-    def test_get_obj_config(self, test_servlet):
-        remote = True
-        stream = True
-        resp = HTTPServer.call_servlet_method(
+    def test_get_obj_remote(self, test_servlet):
+        resp = ObjStore.call_actor_method(
             test_servlet,
-            "get",
-            ["key1", remote, stream],
+            "get_local",
+            key="key1",
+            default=KeyError,
+            serialization="pickle",
+            remote=True,
         )
-        assert resp.output_type == "config"
-        blob_config = resp.data
+        assert resp.output_type == "result_serialized"
+        blob_config = b64_unpickle(resp.data)
         assert isinstance(blob_config, dict)
 
     @pytest.mark.level("unit")
-    def test_get_obj_as_ref(self, test_servlet):
-        import ray
-
-        remote = False
-        stream = True
-        resp = HTTPServer.call_servlet_method(
-            test_servlet, "get", ["key1", remote, stream], block=False
-        )
-        assert isinstance(resp, ray.ObjectRef)
-
-        resp_object = ray.get(resp)
-        assert isinstance(b64_unpickle(resp_object.data), rh.Blob)
-
-    @pytest.mark.level("unit")
-    def test_get_obj_ref_as_config(self, test_servlet):
-        import ray
-
-        remote = True
-        stream = True
-        resp = HTTPServer.call_servlet_method(
-            test_servlet, "get", ["key1", remote, stream], block=False
-        )
-        assert isinstance(resp, ray.ObjectRef)
-
-        resp_object = ray.get(resp)
-        assert resp_object.output_type == "config"
-        assert isinstance(resp_object.data, dict)
-
-    @pytest.mark.level("unit")
     def test_get_obj_does_not_exist(self, test_servlet):
-        remote = False
-        stream = True
-        resp = HTTPServer.call_servlet_method(
+        resp = ObjStore.call_actor_method(
             test_servlet,
-            "get",
-            ["abcdefg", remote, stream],
+            "get_local",
+            key="abcdefg",
+            default=KeyError,
+            serialization="pickle",
+            remote=False,
         )
         assert resp.output_type == "exception"
         assert isinstance(b64_unpickle(resp.error), KeyError)

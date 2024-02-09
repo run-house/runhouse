@@ -1,13 +1,20 @@
+import contextvars
+import inspect
 import logging
 import os
+import uuid
 from enum import Enum
+from functools import wraps
 from typing import Any, Dict, List, Optional, Set, Union
 
 import ray
 
 import runhouse
+from runhouse.rns.utils.api import ResourceVisibility
 
 logger = logging.getLogger(__name__)
+
+req_ctx = contextvars.ContextVar("rh_ctx", default={})
 
 
 class RaySetupOption(str, Enum):
@@ -60,6 +67,28 @@ def get_cluster_servlet(create_if_not_exists: bool = False):
         ray.get(cluster_servlet.get_cluster_config.remote())
 
     return cluster_servlet
+
+
+def context_wrapper(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        _ctx_token = None
+        try:
+            if not req_ctx.get():
+                _ctx_token = self._populate_ctx_locally()
+
+            res = func(self, *args, **kwargs)
+        except Exception as e:
+            if _ctx_token:
+                self._unset_ctx(_ctx_token)
+            raise e
+
+        if _ctx_token:
+            self._unset_ctx(_ctx_token)
+
+        return res
+
+    return wrapper
 
 
 class ObjStore:
@@ -253,6 +282,29 @@ class ObjStore:
                 )
             else:
                 return None
+
+    @staticmethod
+    def _set_ctx(**ctx_args):
+        from runhouse.servers.http.http_utils import RequestContext
+
+        ctx = RequestContext(**ctx_args)
+        return req_ctx.set(ctx)
+
+    def _populate_ctx_locally(self):
+        from runhouse.globals import configs
+        from runhouse.servers.http.auth import hash_token
+
+        den_auth_enabled = self.get_cluster_config().get("den_auth")
+        token = configs.token
+        token_hash = None
+        if den_auth_enabled and token:
+            token_hash = hash_token(token)
+            self.add_user_to_auth_cache(token, refresh_cache=False)
+        return self._set_ctx(request_id=str(uuid.uuid4()), token_hash=token_hash)
+
+    @staticmethod
+    def _unset_ctx(_ctx_token):
+        req_ctx.reset(_ctx_token)
 
     ##############################################
     # Cluster config state storage methods
@@ -466,17 +518,34 @@ class ObjStore:
     ##############################################
     @staticmethod
     def get_from_env_servlet_name(
-        env_servlet_name: str, key: Any, default: Optional[Any] = None
+        env_servlet_name: str,
+        key: Any,
+        default: Optional[Any] = None,
+        serialization: Optional[str] = None,
+        remote: bool = False,
     ):
         logger.info(f"Getting {key} from servlet {env_servlet_name}")
         return ObjStore.call_actor_method(
-            ObjStore.get_env_servlet(env_servlet_name), "get_local", key, default
+            ObjStore.get_env_servlet(env_servlet_name),
+            "get_local",
+            key,
+            default=default,
+            serialization=serialization,  # Crucial that this is a kwarg, or the wrapper doesn't pick it up!!
+            remote=remote,
         )
 
-    def get_local(self, key: Any, default: Optional[Any] = None):
+    def get_local(self, key: Any, default: Optional[Any] = None, remote: bool = False):
         if self.has_local_storage:
             try:
-                return self._kv_store[key]
+                res = self._kv_store[key]
+                if remote:
+                    if hasattr(res, "config_for_rns"):
+                        return res.config_for_rns
+                    else:
+                        raise ValueError(
+                            f"Cannot return remote for non-Resource object of type {type(res)}."
+                        )
+                return res
             except KeyError as e:
                 if default == KeyError:
                     raise e
@@ -489,40 +558,59 @@ class ObjStore:
     def get(
         self,
         key: Any,
+        serialization: Optional[str] = None,
+        remote: bool = False,
         default: Optional[Any] = None,
-        check_other_envs: bool = True,
     ):
-        # First check if it's in the Python kv store
-        try:
-            return self.get_local(key, default=KeyError)
-        except KeyError as e:
-            key_err = e
+        env_servlet_name_containing_key = self.get_env_servlet_name_for_key(key)
 
-        if not check_other_envs:
+        if not env_servlet_name_containing_key:
             if default == KeyError:
-                raise key_err
+                raise KeyError(f"No local store exists; key {key} not found.")
             return default
 
-        # If not, check if it's in another env's servlet
-        env_servlet_name = self.get_env_servlet_name_for_key(key)
-        if env_servlet_name == self.servlet_name and self.has_local_storage:
-            raise ValueError(
-                "Key not found in kv store despite env servlet specifying that it is here."
+        if (
+            env_servlet_name_containing_key == self.servlet_name
+            and self.has_local_storage
+        ):
+            # Short-circuit route if we're already in the right env
+            res = self.get_local(
+                key,
+                remote=remote,
+                default=default,
+            )
+        else:
+            # Note, if serialization is not None here and remote is True we won't enter the block below,
+            # because the EnvServlet already packaged the config into a Response object. This is desired, as we
+            # only want the remote object to be reconstructed when it's being returned to the user, which would
+            # not be here if serialization is not None (probably the HTTPClient).
+            res = self.get_from_env_servlet_name(
+                env_servlet_name_containing_key,
+                key,
+                default=default,
+                serialization=serialization,
+                remote=remote,
             )
 
-        if env_servlet_name is None:
-            if default == KeyError:
-                raise key_err
-            return default
+        # When the user called the obj_store.get with remote directly, we need to
+        # package the config back into the remote object here before returning it.
+        if (
+            remote
+            and serialization is None
+            and isinstance(res, dict)
+            and "resource_type" in res
+        ):
+            config = res
+            if config.get("system") == self.get_cluster_config():
+                from runhouse import here
 
-        try:
-            return self.get_from_env_servlet_name(
-                env_servlet_name, key, default=KeyError
-            )
-        except KeyError:
-            raise ObjStoreError(
-                f"Key was supposed to be in {env_servlet_name}, but it was not found there."
-            )
+                config["system"] = here
+            from runhouse.resources.resource import Resource
+
+            res_copy = Resource.from_config(config=config, dryrun=True)
+            return res_copy
+
+        return res
 
     ##############################################
     # KV Store: Contains
@@ -740,7 +828,274 @@ class ObjStore:
             )
 
     ##############################################
-    # Get several keys for function initialization utiliies
+    # KV Store: Call
+    ##############################################
+    @staticmethod
+    def call_for_env_servlet_name(
+        env_servlet_name: str,
+        key: Any,
+        method_name: str,
+        data: Any = None,
+        serialization: Optional[str] = None,
+        run_name: Optional[str] = None,
+        stream_logs: bool = False,
+        remote: bool = False,
+    ):
+        return ObjStore.call_actor_method(
+            ObjStore.get_env_servlet(env_servlet_name),
+            "call_local",
+            key,
+            method_name=method_name,
+            data=data,
+            serialization=serialization,
+            run_name=run_name,
+            stream_logs=stream_logs,
+            remote=remote,
+            ctx=dict(req_ctx.get()),
+        )
+
+    def call_local(
+        self,
+        key: str,
+        method_name: Optional[str] = None,
+        *args,
+        run_name: Optional[str] = None,
+        stream_logs: bool = False,
+        remote: bool = False,
+        run_async: bool = False,  # TODO implement
+        **kwargs,
+    ):
+        """Base call functionality: Load the module, and call a method on it with args and kwargs. Nothing else.
+
+        Handles calls on properties, methods, coroutines, and generators.
+
+        """
+        if self.servlet_name is None or not self.has_local_storage:
+            raise NoLocalObjStoreError()
+
+        from runhouse.resources.provenance import run
+
+        log_ctx = run(
+            name=run_name,
+            log_dest="file" if run_name else None,
+            load=False,
+        )
+        log_ctx.__enter__()
+
+        obj = self.get_local(key, default=KeyError)
+
+        from runhouse.resources.module import Module
+        from runhouse.resources.resource import Resource
+
+        if self.get_cluster_config().get("den_auth"):
+            if not isinstance(obj, Resource) or obj.visibility not in [
+                ResourceVisibility.UNLISTED,
+                ResourceVisibility.PUBLIC,
+                "unlisted",
+                "public",
+            ]:
+                ctx = req_ctx.get()
+                if not ctx or not ctx.token_hash:
+                    raise PermissionError(
+                        "No Runhouse token provided. Try running `$ runhouse login` or visiting "
+                        "https://run.house/login to retrieve a token. If calling via HTTP, please "
+                        "provide a valid token in the Authorization header.",
+                    )
+
+                # Setting to None in the case of non-resource or no rns_address will force auth to only
+                # succeed if the user has WRITE or READ access to the cluster
+                resource_uri = obj.rns_address if hasattr(obj, "rns_address") else None
+                if not self.has_resource_access(ctx.token_hash, resource_uri):
+                    raise PermissionError(
+                        f"Unauthorized access to resource {key}.",
+                    )
+
+        # Process any inputs which need to be resolved
+        args = [
+            arg.fetch() if (isinstance(arg, Module) and arg._resolve) else arg
+            for arg in args
+        ]
+        kwargs = {
+            k: v.fetch() if (isinstance(v, Module) and v._resolve) else v
+            for k, v in kwargs.items()
+        }
+
+        method_name = method_name or "__call__"
+
+        try:
+            if isinstance(obj, Module):
+                # Force this to be fully local for Modules so we don't have any circular stuff calling into other
+                # envs or systems.
+                method = getattr(obj.local, method_name)
+            else:
+                method = getattr(obj, method_name)
+        except AttributeError:
+            logger.debug(obj.__dict__)
+            raise ValueError(f"Method {method_name} not found on module {obj}")
+
+        if hasattr(method, "__call__") or method_name == "__call__":
+            # If method is callable, call it and return the result
+            logger.info(
+                f"{self.servlet_name} env: Calling method {method_name} on module {key}"
+            )
+            res = method(*args, **kwargs)
+        else:
+            if args and len(args) == 1:
+                # if there's an arg, this is a "set" call on the property
+                logger.info(
+                    f"{self.servlet_name} servlet: Setting property {method_name} on module {key}"
+                )
+                if isinstance(obj, Module):
+                    setattr(obj.local, method_name, args[0])
+                else:
+                    setattr(obj, method_name, args[0])
+                res = None
+            else:
+                # Method is a property, return the value
+                logger.info(
+                    f"{self.servlet_name} servlet: Getting property {method_name} on module {key}"
+                )
+                res = method
+
+        laziness_type = (
+            "coroutine"
+            if inspect.iscoroutine(res)
+            else "generator"
+            if inspect.isgenerator(res)
+            else "async generator"
+            if inspect.isasyncgen(res)
+            else None
+        )
+
+        from runhouse.rns.utils.names import _generate_default_name
+
+        # Make sure there's a run_name (if called through the HTTPServer there will be, but directly
+        # through the ObjStore there may not be)
+        run_name = run_name or _generate_default_name(
+            prefix=key if method_name == "__call__" else f"{key}_{method_name}",
+            precision="ms",  # Higher precision because we see collisions within the same second
+            sep="@",
+        )
+
+        if laziness_type:
+            # If the result is a coroutine or generator, we can't return it over the process boundary
+            # and need to store it to be retrieved later. In this case we return a "retrievable".
+            logger.debug(
+                f"{self.servlet_name} servlet: Method {method_name} on module {key} is a {laziness_type}. "
+                f"Storing result to be retrieved later at result key {res}."
+            )
+            fut = self.construct_call_retrievable(res, run_name, laziness_type)
+            self.put_local(run_name, fut)
+            log_ctx.__exit__(None, None, None)
+            return fut
+
+        from runhouse.resources.resource import Resource
+
+        if isinstance(res, Resource):
+            if run_name and "@" not in run_name:
+                # This is a user-specified name, so we want to override the existing name with it
+                # and save the resource
+                res.name = run_name or res.name
+                self.put_local(res.name, res)
+
+            if remote:
+                # If we've reached this block then we know "@" is in run_name and it's an auto-generated name,
+                # so we don't want override the existing name with it (as we do above with user-specified name)
+                res.name = res.name or run_name
+
+                # Need to save the resource in case we haven't yet (e.g. if run_name was auto-generated)
+                self.put_local(res.name, res)
+                # If remote is True and the result is a resource, we return just the config
+                res = res.config_for_rns
+
+        log_ctx.__exit__(None, None, None)
+
+        return res
+
+    @staticmethod
+    def construct_call_retrievable(res, res_key, laziness_type):
+        if laziness_type == "coroutine":
+            from runhouse.resources.future_module import FutureModule
+
+            # TODO make this one-time-use
+            return FutureModule(future=res, name=res_key)
+
+        elif laziness_type == "generator":
+            from runhouse.resources.future_module import GeneratorModule
+
+            return GeneratorModule(future=res, name=res_key)
+
+        elif laziness_type == "async generator":
+            from runhouse.resources.future_module import AsyncGeneratorModule
+
+            return AsyncGeneratorModule(future=res, name=res_key)
+
+        else:
+            raise ValueError(f"Invalid laziness type {laziness_type}")
+
+    @context_wrapper
+    def call(
+        self,
+        key: str,
+        method_name: str,
+        data: Any = None,
+        serialization: Optional[str] = None,
+        run_name: Optional[str] = None,
+        stream_logs: bool = False,
+        remote: bool = False,
+    ):
+        env_servlet_name_containing_key = self.get_env_servlet_name_for_key(key)
+        if not env_servlet_name_containing_key:
+            raise ObjStoreError(
+                f"Key {key} not found in any env, cannot call method {method_name} on it."
+            )
+
+        if (
+            env_servlet_name_containing_key == self.servlet_name
+            and self.has_local_storage
+        ):
+            from runhouse.servers.http.http_utils import deserialize_data
+
+            args, kwargs = deserialize_data(data, serialization) if data else ([], {})
+
+            res = self.call_local(
+                key,
+                method_name,
+                run_name=run_name,
+                stream_logs=stream_logs,
+                remote=remote,
+                *args,
+                **kwargs,
+            )
+        else:
+            res = self.call_for_env_servlet_name(
+                env_servlet_name_containing_key,
+                key,
+                method_name,
+                data=data,
+                serialization=serialization,
+                run_name=run_name,
+                stream_logs=stream_logs,
+                remote=remote,
+            )
+
+        if remote and isinstance(res, dict) and "resource_type" in res:
+            config = res
+            if config.get("system").get("name") == self.get_cluster_config().get(
+                "name"
+            ):
+                from runhouse import here
+
+                config["system"] = here
+            from runhouse.resources.resource import Resource
+
+            res_copy = Resource.from_config(config=config, dryrun=True)
+            return res_copy
+
+        return res
+
+    ##############################################
+    # Get several keys for function initialization utilities
     ##############################################
     def get_list(self, keys: List[str], default: Optional[Any] = None):
         return [self.get(key, default=default or key) for key in keys]

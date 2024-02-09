@@ -20,42 +20,21 @@ from runhouse.servers.http import HTTPClient
 
 logger = logging.getLogger(__name__)
 
-# These are methods that the Module's __getattribute__ logic should not intercept to run remotely
-# Should we just be using inspect.getclasstree to get signatures without the Module methods instead?
-LOCAL_METHODS = dir(Resource) + [
+# These are attributes that the Module's __getattribute__ logic should not intercept to run remotely
+# and values that shouldn't be passed as state in put_resource
+MODULE_ATTRS = [
     "_pointers",
     "_endpoint",
-    "endpoint",
-    "set_endpoint",
     "_client",
-    "access_level",
-    "visibility",
     "_visibility",
-    "env",
     "_env",
-    "_extract_pointers",
     "_name",
     "_rns_folder",
-    "system",
     "_system",
     "dryrun",
-    "remote",
-    "local",
-    "resolve",
     "_resolve",
-    "replicate",
-    "resolved_state",
-    "fetch",
-    "fetch_async",
-    "set_async",
-    "rename",
-    "to",
     "provenance",
-    "get_or_to",
-    "signature",
     "_signature",
-    "method_signature",
-    "keep_warm",
 ]
 
 
@@ -88,7 +67,7 @@ class Module(Resource):
             # of rh.Module, and we need to do the factory constructor logic here.
 
             # When creating a module as a subclass of rh.Module, we need to collect pointers here
-            self._env = env or Env(name=Env.DEFAULT_NAME)
+            self._env = self._env or Env(name=Env.DEFAULT_NAME)
             # If we're creating pointers, we're also local to the class definition and package, so it should be
             # set as the workdir (we can do this in a fancier way later)
             self._env.working_dir = self._env.working_dir or "./"
@@ -125,7 +104,7 @@ class Module(Resource):
         # Note that we even do this for built-in modules, because 1) we want their methods preserved in Den for when
         # they're called via HTTP and 2) we want to preserve the exact set of methods in case the methods on built-in
         # modules change across Runhouse versions.
-        config["signature"] = self.signature
+        config["signature"] = self.signature(rich=True)
 
         # Only save the endpoint if it's present in _endpoint or externally accessible
         config["endpoint"] = self.endpoint(external=True)
@@ -148,7 +127,7 @@ class Module(Resource):
                     # and this may a "type" module rather than an "instance". The user might instantiate it later, or
                     # it may be populated with attributes by the servlet's put_resource.
                     module_cls = _module_subclass_factory(
-                        module_cls, config.get("pointers"), remote_init=True
+                        module_cls, config.get("pointers")
                     )
             except ModuleNotFoundError:
                 # If we fail to construct the module class from the pointers, we check if the code is not local,
@@ -218,51 +197,36 @@ class Module(Resource):
     def env(self, new_env: Optional[Union[str, Env]]):
         self._env = _get_env_from(new_env)
 
-    @property
-    def signature(self):
+    def signature(self, rich=False):
         if self._signature:
             return self._signature
 
-        var_attrs = {
-            name: self.method_signature(getattr(self, name))
-            for name in self._extract_state()
-        }
         member_attrs = {
-            name: self.method_signature(method)
+            name: self.method_signature(method) if rich else None
             for (name, method) in inspect.getmembers(self.__class__)
-            if not name[0] == "_" and name not in LOCAL_METHODS
+            if not name[0] == "_"
+            and name not in MODULE_ATTRS
+            and name not in dir(Module)
+            and callable(method)
+            # Checks if there's an arg called "local" in the method signature, and if so, if it's default is True.
+            and not getattr(
+                inspect.signature(method).parameters.get("local"), "default", False
+            )
         }
-        return {**var_attrs, **member_attrs}
+        return member_attrs
 
-    def method_signature(self, method, rich=False):
+    def method_signature(self, method):
         """Extracts the properties of a method that we want to preserve when sending the method over the wire."""
-        if not callable(method):
-            return {
-                "signature": None,
-                "property": True,
-                "async": False,
-                "gen": False,
-                "local": False,
-            }
-
         signature = inspect.signature(method)
         signature_metadata = {
             "signature": str(signature),
-            "property": not callable(method),
             "async": inspect.iscoroutinefunction(method)
             or inspect.isasyncgenfunction(method),
             "gen": inspect.isgeneratorfunction(method)
             or inspect.isasyncgenfunction(method),
-            "local": "local" in signature.parameters
-            and signature.parameters["local"].default is True,
+            "doc": inspect.getdoc(method) if method.__doc__ else None,
+            "annotations": str(inspect.getfullargspec(method).annotations),
         }
-        if rich:
-            signature_metadata["doc"] = (
-                inspect.getdoc(method) if method.__doc__ else None
-            )
-            signature_metadata["annotations"] = (
-                method.__annotations__ if method.__annotations__ else None
-            )
 
         return signature_metadata
 
@@ -331,10 +295,10 @@ class Module(Resource):
         # so methods like .to default to the module_cls and not Module's when on the cluster.
         # This is a small price to pay for matching PyTorch's .to API. If it creates too much craziness we can
         # revisit.
-        class NewSubclass(module_cls, Module):
-            pass
-
-        self.__class__ = NewSubclass
+        # class NewSubclass(module_cls, Module):
+        #     pass
+        #
+        # self.__class__ = NewSubclass
 
         module_cls.__init__(self, *args, **kwargs)
 
@@ -367,15 +331,21 @@ class Module(Resource):
             state = {
                 attr: val
                 for attr, val in self.__dict__.items()
-                if attr not in LOCAL_METHODS
+                if attr not in MODULE_ATTRS and attr not in dir(Module)
             }
         return state
+
+    def default_name(self):
+        return (
+            self._pointers[2] if self._pointers else None
+        ) or _generate_default_name(prefix=self.__class__.__qualname__.lower())
 
     def to(
         self,
         system: Union[str, Cluster],
         env: Optional[Union[str, List[str], Env]] = None,
         name: Optional[str] = None,
+        force_install: bool = False,
     ):
         """Put a copy of the module on the destination system and env, and return the new module.
 
@@ -405,7 +375,7 @@ class Module(Resource):
         if system:
             system.check_server()
             if env:
-                env = env.to(system)
+                env = env.to(system, force_install=force_install)
 
         # We need to backup the system here so the __getstate__ method of the cluster
         # doesn't wipe the client of this function's cluster when deepcopy copies it.
@@ -419,42 +389,30 @@ class Module(Resource):
         new_module.dryrun = True
 
         if isinstance(system, Cluster):
-            new_module.name = (
-                name
-                or self.name
-                or (
-                    self._pointers[2]
-                    if self._pointers
-                    else None
-                    or _generate_default_name(
-                        prefix=self.__class__.__qualname__.lower()
-                    )
-                )
+            new_module.name = name or self.name or self.default_name()
+            # TODO dedup with _extract_state
+            # Exclude anything already being sent in the config and private module attributes
+            excluded_state_keys = list(new_module.config_for_rns.keys()) + [
+                "_system",
+                "_name",
+                "_rns_folder",
+                "dryrun",
+                "_env",
+                "_pointers",
+                "_resolve",
+            ]
+            state = {}
+            # We only send over state for instances, not classes
+            if not isinstance(self, type):
+                state = {
+                    attr: val
+                    for attr, val in self.__dict__.items()
+                    if attr not in excluded_state_keys
+                }
+            logger.info(
+                f"Sending module {new_module.name} to {system.name or 'local Runhouse daemon'}"
             )
-            if system.on_this_cluster():
-                new_module.pin()
-            else:
-                # TODO dedup with _extract_state
-                # Exclude anything already being sent in the config and private module attributes
-                excluded_state_keys = list(new_module.config_for_rns.keys()) + [
-                    "_system",
-                    "_name",
-                    "_rns_folder",
-                    "dryrun",
-                    "_env",
-                    "_pointers",
-                    "_resolve",
-                ]
-                state = {}
-                # We only send over state for instances, not classes
-                if not isinstance(self, type):
-                    state = {
-                        attr: val
-                        for attr, val in self.__dict__.items()
-                        if attr not in excluded_state_keys
-                    }
-                logger.info(f"Sending module {new_module.name} to {system.name}")
-                system.put_resource(new_module, state, dryrun=True)
+            system.put_resource(new_module, state, dryrun=True)
 
         return new_module
 
@@ -488,46 +446,19 @@ class Module(Resource):
     def __getattribute__(self, item):
         """Override to allow for remote execution if system is a remote cluster. If not, the subclass's own
         __getattr__ will be called."""
-        if item in LOCAL_METHODS or not hasattr(self, "_client"):
+        if item in dir(Module) or item in MODULE_ATTRS or not hasattr(self, "_client"):
             return super().__getattribute__(item)
-        client = super().__getattribute__("_client")()
-
-        try:
-            attr = super().__getattribute__(item)
-
-            if not client:
-                return attr
-
-            # Don't try to run private methods or attributes remotely
-            if item[0] == "_":
-                return attr
-
-            _, is_prop, is_async, is_gen, local_default = list(
-                self.method_signature(attr).values()
-            )[0:5]
-
-            # Handle properties
-            if is_prop:
-                return attr
-        except (ModuleNotFoundError, AttributeError) as e:
-            # If there's no client, we can't call this method remotely, so ur last shot is if it's in
-            # the _signature_extensions
-            if not client:
-                if self._signature_extensions(item):
-                    return self._signature_extensions(item)
-                else:
-                    raise e
-
-            # If there is a client, we can try calling this method remotely, and load the required properties
-            # down from the signature
-            if item in self.signature:
-                _, is_prop, is_async, is_gen, local_default = list(
-                    self.signature.get(item).values()
-                )[0:5]
-            else:
-                raise e
 
         name = super().__getattribute__("_name")
+
+        if item not in self.signature(rich=False) or not name:
+            return super().__getattribute__(item)
+
+        # Do this after the signature and name check because it's potentially expensive
+        client = super().__getattribute__("_client")()
+
+        if not client:
+            return super().__getattribute__(item)
 
         class RemoteMethodWrapper:
             """Helper class to allow methods to be called with __call__, remote, or run."""
@@ -537,42 +468,13 @@ class Module(Resource):
                 # the local code path here will throw an error if they are included and not supported in the
                 # method signature.
 
-                # Check if the method has a "local=True" arg, and check that the user didn't pass local=False instead
-                if local_default and kwargs.pop("local", True):
-                    return attr(*args, **kwargs)
-
-                # If the method is a coroutine, we need to wrap it in a function so we can await it
-                if is_async:
-
-                    def call_wrapper():
-                        return client.call(
-                            name,
-                            item,
-                            *args,
-                            **kwargs,
-                        )
-
-                    if is_gen:
-
-                        async def async_gen():
-                            for res in call_wrapper():
-                                yield res
-
-                        return async_gen()
-
-                    _executor = ThreadPoolExecutor(1)
-
-                    async def async_call():
-                        return await loop.run_in_executor(_executor, call_wrapper)
-
-                    loop = asyncio.get_event_loop()
-                    return asyncio.create_task(async_call())
-
                 return client.call(
                     name,
                     item,
-                    *args,
-                    **kwargs,
+                    run_name=kwargs.pop("run_name", None),
+                    stream_logs=kwargs.pop("stream_logs", True),
+                    remote=kwargs.pop("remote", False),
+                    data=[args, kwargs],
                 )
 
             def remote(self, *args, stream_logs=True, run_name=None, **kwargs):
@@ -593,30 +495,7 @@ class Module(Resource):
                     **kwargs,
                 )
 
-            def local(self, *args, **kwargs):
-                """Allows us to call a function with fn.local(*args) instead of fn(*args, local=True)"""
-                return self.__call__(
-                    *args,
-                    local=True,
-                    **kwargs,
-                )
-
         return RemoteMethodWrapper()
-
-    def __setattr__(self, key, value):
-        """Override to allow for remote execution if system is a remote cluster. If not, the subclass's own
-        __setattr__ will be called."""
-        if key in LOCAL_METHODS or not hasattr(self, "_client"):
-            return super().__setattr__(key, value)
-        if not self._client() or not self._name:
-            return super().__setattr__(key, value)
-
-        return self._client().call(
-            module_name=self._name,
-            method_name=key,
-            new_value=value,
-            stream_logs=False,
-        )
 
     def refresh(self):
         """Update the resource in the object store."""
@@ -693,15 +572,9 @@ class Module(Resource):
         class RemotePropertyWrapper:
             @classmethod
             def __getattribute__(cls, item):
+                # TODO[DG] revise
                 if not client or not name:
                     return outer_super_gettattr(item)
-
-                if isinstance(system, Cluster) and name and system.on_this_cluster():
-                    obj_store_obj = obj_store.get(name, check_other_envs=True)
-                    if obj_store_obj:
-                        return obj_store_obj.__getattribute__(item)
-                    else:
-                        return self.__getattribute__(item)
 
                 return client.call(name, item, stream_logs=False)
 
@@ -711,10 +584,9 @@ class Module(Resource):
                     return outer_super_setattr(key, value)
 
                 return client.call(
-                    module_name=name,
+                    key=name,
                     method_name=key,
-                    new_value=value,
-                    stream_logs=False,
+                    data=([value], {}),
                 )
 
             @classmethod
@@ -747,7 +619,7 @@ class Module(Resource):
 
         return LocalPropertyWrapper()
 
-    def fetch(self, item: str = None, stream_logs: bool = False, **kwargs):
+    def fetch(self, item: str = None, **kwargs):
         """Helper method to allow for access to remote state, both public and private. Fetching functions
         is not advised. `system.get(module.name).resolved_state()` is roughly equivalent to `module.fetch()`.
 
@@ -765,31 +637,20 @@ class Module(Resource):
             >>>
             >>> MyModule(*args).to(system).fetch() # Returns the full remote module, including private and public state
         """
-        system = super().__getattribute__("_system")
         name = super().__getattribute__("_name")
 
+        client = super().__getattribute__("_client")()
+
         if item is not None:
-            if not isinstance(system, Cluster) or not name:
+            if not client or not name:
                 return super().__getattribute__(item)
-
-            if isinstance(system, Cluster) and name and system.on_this_cluster():
-                try:
-                    obj_store_obj = obj_store.get(
-                        name, check_other_envs=True, default=KeyError
-                    )
-                    return obj_store_obj.__getattribute__(item)
-                except KeyError:
-                    return self.__getattribute__(item)
-
-            return system.call(name, item, stream_logs=stream_logs)
+            return client.call(name, item)
         else:
-            if not isinstance(system, Cluster) or not name:
+            if not client or not name:
                 return self.resolved_state(**kwargs)
-            return system.get(name, stream_logs=stream_logs).resolved_state(**kwargs)
+            return client.call(name, "resolved_state", data=((), kwargs))
 
-    async def fetch_async(
-        self, key: str, remote: bool = False, stream_logs: bool = False
-    ):
+    async def fetch_async(self, key: str, remote: bool = False):
         """Async version of fetch. Can't be a property like `fetch` because __getattr__ can't be awaited.
 
         Example:
@@ -805,19 +666,19 @@ class Module(Resource):
                 return client.get(name, remote=remote, stream_logs=stream_logs)
 
             if isinstance(system, Cluster) and name and system.on_this_cluster():
-                obj_store_obj = obj_store.get(name, check_other_envs=True)
+                obj_store_obj = obj_store.get(name, default=None)
                 if obj_store_obj:
                     return obj_store_obj.__getattribute__(key)
                 else:
                     return self.__getattribute__(key)
-            return client.call(name, key, remote=remote, stream_logs=stream_logs)
+            return client.call(name, key, remote=remote)
 
         try:
             is_gen = (key and hasattr(self, key)) and inspect.isasyncgenfunction(
                 super().__getattribute__(key)
             )
         except AttributeError:
-            is_gen = self.signature.get(key, {}).get("gen", False)
+            is_gen = self.signature(rich=False).get(key, {}).get("gen", False)
 
         if is_gen:
 
@@ -848,9 +709,9 @@ class Module(Resource):
 
         def call_wrapper():
             return self._client().call(
-                module_name=self._name,
+                key=self._name,
                 method_name=key,
-                new_value=value,
+                data=([value], {}),
                 stream_logs=False,
             )
 
@@ -912,7 +773,7 @@ class Module(Resource):
         return new_module
 
     def _save_sub_resources(self):
-        if isinstance(self.system, Resource):
+        if isinstance(self.system, Resource) and self.system.name:
             self.system.save()
         if isinstance(self.env, Resource) and self.env.name != Env.DEFAULT_NAME:
             self.env.save()
@@ -1072,7 +933,7 @@ class Module(Resource):
     #     full_name = func_name
 
 
-def _module_subclass_factory(cls, cls_pointers, remote_init=False):
+def _module_subclass_factory(cls, cls_pointers):
     def __init__(
         self,
         *args,
@@ -1099,8 +960,14 @@ def _module_subclass_factory(cls, cls_pointers, remote_init=False):
         )
         # This allows a class which is already on the cluster to construct an instance of itself with a factory
         # method, e.g. my_module = MyModuleCls.factory_constructor(*args, **kwargs)
-        if self.system and self.system.on_this_cluster() and remote_init:
+        if self.system and self.system.on_this_cluster():
             self._remote_init(*args, **kwargs)
+
+    @classmethod
+    def _module_init_only(cls, *args, **kwargs):
+        new_module = cls.__new__(cls)
+        Module.__init__(new_module, *args, **kwargs)
+        return new_module
 
     def __call__(
         self,
@@ -1113,15 +980,22 @@ def _module_subclass_factory(cls, cls_pointers, remote_init=False):
         # Create a copy of the item on the cluster under the new name
         new_module.name = name or self.name
         new_module.dryrun = dryrun
+        env = _get_env_from(kwargs.get("env") or self.env)
         if not new_module.dryrun and new_module.system:
-            new_module.system.put_resource(new_module)
+            # We use system.put_resource here because the signatures for HTTPClient.put_resource and
+            # obj_store.put_resource are different, but we should fix that.
+            new_module.system.put_resource(new_module, env=env)
             new_module.system.call(new_module.name, "_remote_init", *args, **kwargs)
         else:
             new_module._remote_init(*args, **kwargs)
 
         return new_module
 
-    methods = {"__init__": __init__, "__call__": __call__}
+    methods = {
+        "__init__": __init__,
+        "__call__": __call__,
+        "_module_init_only": _module_init_only,
+    }
     new_type = type(cls_pointers[2], (Module, cls), methods)
     return new_type
 
@@ -1239,7 +1113,7 @@ def module(
     )
 
     module_subclass = _module_subclass_factory(cls, cls_pointers)
-    return module_subclass(
+    return module_subclass._module_init_only(
         system=system,
         env=env,
         dryrun=dryrun,

@@ -178,6 +178,7 @@ from tests.fixtures.docker_cluster_fixtures import (
     docker_cluster_pk_tls_exposed,  # noqa: F401
     docker_cluster_pwd_ssh_no_auth,  # noqa: F401
     friend_account_logged_in_docker_cluster_pk_ssh,  # noqa: F401
+    local_daemon,  # noqa: F401
     named_cluster,  # noqa: F401
     password_cluster,  # noqa: F401
     shared_cluster,  # noqa: F401
@@ -305,10 +306,11 @@ default_fixtures[TestLevels.LOCAL] = {
     ]
 }
 default_fixtures[TestLevels.MINIMAL] = {
-    "cluster": ["ondemand_cpu_cluster", "kubernetes_cpu_cluster"]
+    "cluster": ["local_daemon", "ondemand_cpu_cluster", "kubernetes_cpu_cluster"]
 }
 default_fixtures[TestLevels.THOROUGH] = {
     "cluster": [
+        "local_daemon",
         "docker_cluster_pk_ssh_no_auth",
         "docker_cluster_pk_ssh_den_auth",
         "docker_cluster_pwd_ssh_no_auth",
@@ -321,6 +323,7 @@ default_fixtures[TestLevels.THOROUGH] = {
 }
 default_fixtures[TestLevels.MAXIMAL] = {
     "cluster": [
+        "local_daemon",
         "docker_cluster_pk_ssh_no_auth",
         "docker_cluster_pk_ssh_den_auth",
         "docker_cluster_pwd_ssh_no_auth",

@@ -68,7 +68,7 @@ def load_cluster_config_from_file() -> Dict:
 
 
 def _current_cluster(key="config"):
-    """Retrive key value from the current cluster config.
+    """Retrieve key value from the current cluster config.
     If key is "config", returns entire config."""
     from runhouse.globals import obj_store
 
@@ -100,7 +100,7 @@ def _get_cluster_from(system, dryrun=False):
 
     if isinstance(system, str):
         config = _current_cluster(key="config")
-        if config and system == config["name"]:
+        if config and system == config.get("name"):
             return Cluster.from_config(config, dryrun)
         try:
             system = Cluster.from_name(name=system, dryrun=dryrun)

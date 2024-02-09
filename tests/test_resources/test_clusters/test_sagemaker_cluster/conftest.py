@@ -5,6 +5,7 @@ import pytest
 import runhouse as rh
 
 from ....conftest import init_args
+from ....utils import test_env
 
 
 ######## Constants ########
@@ -29,7 +30,7 @@ def sm_cluster():
         .save()
     )
 
-    c.install_packages(["pytest"])
+    test_env().to(c)
 
     return c
 
@@ -40,7 +41,7 @@ def sm_cluster_with_auth():
     c = rh.sagemaker_cluster(**args).up_if_not().save()
     init_args[id(c)] = args
 
-    c.install_packages(["pytest"])
+    test_env().to(c)
 
     return c
 
@@ -52,7 +53,7 @@ def other_sm_cluster():
         .up_if_not()
         .save()
     )
-    c.install_packages(["pytest"])
+    test_env().to(c)
     return c
 
 
@@ -65,7 +66,7 @@ def sm_gpu_cluster():
         .up_if_not()
         .save()
     )
-    c.install_packages(["pytest"])
+    test_env().to(c)
 
     return c
 

@@ -308,6 +308,15 @@ class Package(Resource):
             return self
 
         if isinstance(system, Resource):
+            if isinstance(self.install_target.system, Resource):
+                # if these are both clusters, check if they're pointing to the same address.
+                # We use endpoint instead of address here because if address is localhost, we need to port too
+                if self.install_target.system.endpoint(
+                    external=False
+                ) == system.endpoint(external=False):
+                    # If we're on the target system, just make sure the package is in the Python path
+                    sys.path.append(self.install_target.local_path)
+                    return self
             logger.info(
                 f"Copying package from {self.install_target.fsspec_url} to: {getattr(system, 'name', system)}"
             )

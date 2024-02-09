@@ -7,6 +7,7 @@ import runhouse as rh
 from runhouse.constants import DEFAULT_HTTPS_PORT
 
 from tests.conftest import init_args
+from tests.utils import test_env
 
 
 @pytest.fixture(scope="session")
@@ -39,8 +40,7 @@ def ondemand_cpu_cluster():
     # Save to RNS - to be loaded in other tests (ex: Runs)
     c.save()
 
-    # Call save before installing in the event we want to use TLS / den auth
-    c.install_packages(["pytest"])
+    test_env().to(c)
     return c
 
 
@@ -78,7 +78,7 @@ def ondemand_https_cluster_with_auth():
     c.up_if_not()
     init_args[id(c)] = args
 
-    c.install_packages(["pytest"])
+    test_env().to(c)
     return c
 
 
@@ -96,7 +96,7 @@ def multinode_cpu_cluster():
 
     c.save()
 
-    c.install_packages(["pytest"])
+    test_env().to(c)
     return c
 
 
@@ -122,5 +122,5 @@ def kubernetes_cpu_cluster():
     c.save()
 
     # Call save before installing in the event we want to use TLS / den auth
-    c.install_packages(["pytest"])
+    test_env().to(c)
     return c

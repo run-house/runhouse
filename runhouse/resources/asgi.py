@@ -3,7 +3,7 @@ import logging
 from typing import Any, Optional, Tuple, Union
 
 from runhouse.resources.envs import _get_env_from, Env
-from runhouse.resources.module import LOCAL_METHODS, Module
+from runhouse.resources.module import Module, MODULE_ATTRS
 
 logger = logging.getLogger(__name__)
 
@@ -34,14 +34,19 @@ class Asgi(Module):
 
         return {route.name: route.endpoint for route in self.local._app.routes[4:]}
 
-    @property
-    def signature(self):
-        sig = super().signature
+    def signature(self, rich=False):
+        sig = super().signature(rich=rich)
 
         route_attrs = {
-            name: self.method_signature(endpoint)
+            name: self.method_signature(endpoint) if rich else None
             for name, endpoint in self._route_names_and_endpoints().items()
-            if not name[0] == "_" and name not in LOCAL_METHODS
+            if not name[0] == "_"
+            and name not in MODULE_ATTRS
+            and name not in dir(Module)
+            and callable(endpoint)
+            and not (
+                "local" in endpoint.parameters and endpoint.parameters["local"].default
+            )
         }
         sig.update(route_attrs)
         return sig
