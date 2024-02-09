@@ -28,7 +28,7 @@ def error_handling_decorator(func):
         EnvServlet.register_activity()
         ctx = kwargs.pop("ctx", None)
         if ctx:
-            obj_store._set_ctx(**ctx)
+            obj_store.set_ctx(**ctx)
 
         serialization = kwargs.get("serialization", None)
         if "data" in kwargs:
