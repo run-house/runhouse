@@ -50,7 +50,7 @@ class HTTPClient:
         self.system = system
         self.client = requests.Session()
         self.client.auth = self.auth
-        self.client.verify = self.verify
+        self.client.verify = self.cert_path if self.verify else False
         self.client.timeout = None
 
     def _use_cert_verification(self):
@@ -70,9 +70,8 @@ class HTTPClient:
 
         if cert.issuer == cert.subject:
             warnings.warn(
-                f"Cert in use ({cert_path}) is self-signed, cannot verify in requests to server."
+                f"Cert in use ({cert_path}) is self-signed, cannot independently verify it."
             )
-            return False
 
         return True
 
