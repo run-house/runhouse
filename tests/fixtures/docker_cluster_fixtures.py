@@ -45,7 +45,7 @@ def named_cluster():
 @pytest.fixture(scope="session")
 def local_daemon(request):
     if not request.config.getoption("--detached") or rh.here == "file":
-        print("Starting local_daemon")
+        logging.info("Starting local_daemon.")
         local_rh_package_path = Path(importlib.util.find_spec("runhouse").origin).parent
         subprocess.run(
             "runhouse restart",

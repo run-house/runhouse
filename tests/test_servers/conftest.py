@@ -51,7 +51,7 @@ def local_cluster():
 
 
 @pytest.fixture(scope="session")
-def local_client(local_daemon):
+def local_client():
     from fastapi.testclient import TestClient
 
     HTTPServer(from_test=True)
@@ -61,7 +61,7 @@ def local_client(local_daemon):
 
 
 @pytest.fixture(scope="function")
-def local_client_with_den_auth(logged_in_account, local_daemon):
+def local_client_with_den_auth(logged_in_account):
     from fastapi.testclient import TestClient
 
     HTTPServer(from_test=True)
@@ -76,13 +76,13 @@ def local_client_with_den_auth(logged_in_account, local_daemon):
 
 
 @pytest.fixture(scope="session")
-def test_servlet(local_daemon):
+def test_servlet():
     servlet, _ = get_ray_servlet_and_obj_store("test_servlet")
     yield servlet
 
 
 @pytest.fixture(scope="function")
-def obj_store(request, local_daemon):
+def obj_store(request):
 
     # Use the parameter to set the name of the servlet actor to use
     env_servlet_name = request.param
