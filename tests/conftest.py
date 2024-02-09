@@ -1,8 +1,10 @@
 import enum
+import subprocess
 
 import pytest
 
 import runhouse as rh
+from runhouse.constants import RAY_KILL_CMD, RAY_START_CMD
 
 """
 HOW TO USE FIXTURES IN RUNHOUSE TESTS
@@ -138,6 +140,11 @@ def pytest_collection_modifyitems(config, items):
 
 def pytest_configure():
     pytest.init_args = {}
+    subprocess.run(RAY_START_CMD, shell=True)
+
+
+def pytest_sessionfinish(session, exitstatus):
+    subprocess.run(RAY_KILL_CMD, shell=True)
 
 
 init_args = {}
