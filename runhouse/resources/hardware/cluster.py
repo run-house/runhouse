@@ -90,7 +90,7 @@ class Cluster(Resource):
         self.ssl_certfile = ssl_certfile
         self.ssl_keyfile = ssl_keyfile
         self.server_connection_type = server_connection_type
-        self.server_port = server_port or DEFAULT_SERVER_PORT
+        self.server_port = server_port
         self.client_port = client_port
         self.ssh_port = ssh_port or self.DEFAULT_SSH_PORT
         self.server_host = server_host

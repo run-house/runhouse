@@ -888,16 +888,19 @@ if __name__ == "__main__":
     parser.add_argument(
         "--use-local-telemetry",
         action="store_true",  # if providing --use-local-telemetry will be set to True
+        default=argparse.SUPPRESS,  # If user didn't specify, attribute will not be present (not False)
         help="Enable local telemetry",
     )
     parser.add_argument(
         "--use-https",
         action="store_true",  # if providing --use-https will be set to True
+        default=argparse.SUPPRESS,  # If user didn't specify, attribute will not be present (not False)
         help="Start an HTTPS server with new TLS certs",
     )
     parser.add_argument(
         "--use-den-auth",
         action="store_true",  # if providing --use-den-auth will be set to True
+        default=argparse.SUPPRESS,  # If user didn't specify, attribute will not be present (not False)
         help="Whether to authenticate requests with a Runhouse token",
     )
     parser.add_argument(
@@ -926,6 +929,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--use-caddy",
         action="store_true",  # if providing --use-caddy will be set to True
+        default=argparse.SUPPRESS,  # If user didn't specify, attribute will not be present (not False)
         help="Configure Caddy as a reverse proxy",
     )
     parser.add_argument(
@@ -938,12 +942,10 @@ if __name__ == "__main__":
     parse_args = parser.parse_args()
 
     conda_name = parse_args.conda_env
-    use_https = parse_args.use_https
     restart_proxy = parse_args.restart_proxy
-    use_caddy = parse_args.use_caddy
 
     # The object store and the cluster servlet within it need to be
-    # initiailzed in order to call `obj_store.get_cluster_config()`, which
+    # initialized in order to call `obj_store.get_cluster_config()`, which
     # uses the object store to load the cluster config from Ray.
     # When setting up the server, we always want to create a new ClusterServlet.
     # We only want to forcibly start a Ray cluster if asked.
@@ -968,7 +970,9 @@ if __name__ == "__main__":
     ########################################
 
     # Server port
-    if parse_args.port != cluster_config.get("server_port"):
+    if parse_args.port is not None and parse_args.port != cluster_config.get(
+        "server_port"
+    ):
         logger.warning(
             f"CLI provided server port: {parse_args.port} is different from the server port specified in "
             f"cluster_config.json: {cluster_config.get('server_port')}. Prioritizing CLI provided port."
@@ -980,17 +984,23 @@ if __name__ == "__main__":
         cluster_config["server_port"] = port_arg
 
     # Den auth enabled
-    if parse_args.use_den_auth != cluster_config.get("den_auth", False):
+    if hasattr(
+        parse_args, "use_den_auth"
+    ) and parse_args.use_den_auth != cluster_config.get("den_auth", False):
         logger.warning(
             f"CLI provided den_auth: {parse_args.use_den_auth} is different from the den_auth specified in "
             f"cluster_config.json: {cluster_config.get('den_auth')}. Prioritizing CLI provided den_auth."
         )
 
-    den_auth = parse_args.use_den_auth or cluster_config.get("den_auth", False)
+    den_auth = getattr(parse_args, "use_den_auth", False) or cluster_config.get(
+        "den_auth", False
+    )
     cluster_config["den_auth"] = den_auth
 
     # Telemetry enabled
-    if parse_args.use_local_telemetry != cluster_config.get(
+    if hasattr(
+        parse_args, "use_local_telemetry"
+    ) and parse_args.use_local_telemetry != cluster_config.get(
         "use_local_telemetry", False
     ):
         logger.warning(
@@ -999,16 +1009,19 @@ if __name__ == "__main__":
             f"{cluster_config.get('use_local_telemetry')}. Prioritizing CLI provided use_local_telemetry."
         )
 
-    use_local_telemetry = parse_args.use_local_telemetry or cluster_config.get(
-        "use_local_telemetry", False
-    )
+    use_local_telemetry = getattr(
+        parse_args, "use_local_telemetry", False
+    ) or cluster_config.get("use_local_telemetry", False)
     cluster_config["use_local_telemetry"] = use_local_telemetry
 
     domain = parse_args.domain or cluster_config.get("domain", None)
     cluster_config["domain"] = domain
 
     # Keyfile
-    if parse_args.ssl_keyfile != cluster_config.get("ssl_keyfile"):
+    if (
+        parse_args.ssl_keyfile is not None
+        and parse_args.ssl_keyfile != cluster_config.get("ssl_keyfile")
+    ):
         logger.warning(
             f"CLI provided ssl_keyfile: {parse_args.ssl_keyfile} is different from the ssl_keyfile specified in "
             f"cluster_config.json: {cluster_config.get('ssl_keyfile')}. Prioritizing CLI provided ssl_keyfile."
@@ -1022,7 +1035,10 @@ if __name__ == "__main__":
     )
 
     # Certfile
-    if parse_args.ssl_certfile != cluster_config.get("ssl_certfile"):
+    if (
+        parse_args.ssl_certfile is not None
+        and parse_args.ssl_certfile != cluster_config.get("ssl_certfile")
+    ):
         logger.warning(
             f"CLI provided ssl_certfile: {parse_args.ssl_certfile} is different from the ssl_certfile specified in "
             f"cluster_config.json: {cluster_config.get('ssl_certfile')}. Prioritizing CLI provided ssl_certfile."
@@ -1038,7 +1054,9 @@ if __name__ == "__main__":
     )
 
     # Host
-    if parse_args.host != cluster_config.get("server_host"):
+    if parse_args.host is not None and parse_args.host != cluster_config.get(
+        "server_host"
+    ):
         logger.warning(
             f"CLI provided server_host: {parse_args.host} is different from the server_host specified in "
             f"cluster_config.json: {cluster_config.get('server_host')}. Prioritizing CLI provided server_host."
@@ -1048,17 +1066,48 @@ if __name__ == "__main__":
     cluster_config["server_host"] = host
 
     # Address in the case we're a TLS server
-    if parse_args.certs_address != cluster_config.get("ips", [None])[0]:
+    if (
+        parse_args.certs_address is not None
+        and parse_args.certs_address != cluster_config.get("ips", [None])[0]
+    ):
         logger.warning(
             f"CLI provided certs_address: {parse_args.certs_address} is different from the certs_address specified in "
             f"cluster_config.json: {cluster_config.get('ips', [None])[0]}. Prioritizing CLI provided certs_address."
         )
 
-    address = parse_args.certs_address or cluster_config.get("ips", [None])[0]
-    if address is not None:
-        cluster_config["ips"] = [address]
+    certs_address = parse_args.certs_address or cluster_config.get("ips", [None])[0]
+    if certs_address is not None:
+        cluster_config["ips"] = [certs_address]
     else:
         cluster_config["ips"] = ["0.0.0.0"]
+
+    config_conn = cluster_config.get("server_connection_type")
+
+    # Use caddy as reverse proxy
+    if hasattr(parse_args, "use_caddy") and parse_args.use_caddy != (
+        config_conn in ["tls", "none"]
+    ):
+        logger.warning(
+            f"CLI provided use_caddy: {parse_args.use_caddy} is different from the server_connection_type specified in "
+            f"cluster_config.json: {config_conn}. Prioritizing CLI provided use_caddy."
+        )
+
+    # Use HTTPS
+    if hasattr(parse_args, "use_https") and parse_args.use_https != (
+        config_conn == "tls"
+    ):
+        logger.warning(
+            f"CLI provided use_https: {parse_args.use_https} is different from the server_connection_type specified in "
+            f"cluster_config.json: {config_conn}. Prioritizing CLI provided use_https."
+        )
+
+    use_caddy = getattr(parse_args, "use_caddy", False) or (
+        config_conn in ["tls", "none"]
+    )
+    use_https = getattr(parse_args, "use_https", False) or (config_conn == "tls")
+    cluster_config["server_connection_type"] = (
+        "tls" if use_https else "none" if use_caddy else config_conn
+    )
 
     # If there was no `cluster_config.json`, then server was created
     # simply with `runhouse start`.
@@ -1115,14 +1164,14 @@ if __name__ == "__main__":
     # proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the app's port.
     if use_caddy:
         logger.info("Using Caddy as a reverse proxy")
-        if address is None and domain is None:
+        if certs_address is None and domain is None:
             raise ValueError(
                 "Must provide the server address or domain to configure Caddy. No address or domain found in the "
                 "server start command (--certs-address or --domain) or in the cluster config YAML saved on the cluster."
             )
 
         cc = CaddyConfig(
-            address=address,
+            address=certs_address,
             domain=domain,
             rh_server_port=daemon_port,
             ssl_key_path=parsed_ssl_keyfile,

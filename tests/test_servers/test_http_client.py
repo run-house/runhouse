@@ -107,7 +107,7 @@ class TestHTTPClient:
             use_https=True,
             cert_path="/self-signed/path",
         )
-        assert not client.verify
+        assert client.verify
 
         # Test with HTTPS enabled and an invalid cert path
         mock_exists.return_value = False
