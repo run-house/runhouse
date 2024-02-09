@@ -344,7 +344,6 @@ class HTTPClient:
         else:
             log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
         logging.info(log_str)
-        res.close()
         return non_generator_result
 
     def put_object(self, key: str, value: Any, env=None):
