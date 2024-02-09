@@ -498,7 +498,7 @@ class TestModule:
     @pytest.mark.level("local")
     def test_save(self, cluster, env):
         # TODO: ask Josh for advice how to share it with a new user each time.
-        if cluster == rh.here:
+        if cluster.on_this_cluster():
             pytest.skip("Skipping sharing test on local cluster")
 
         users = ["josh@run.house"]
