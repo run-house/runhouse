@@ -53,7 +53,7 @@ class Cluster(Resource):
         # Name will almost always be provided unless a "local" cluster is created
         name: Optional[str] = None,
         ips: List[str] = None,
-        ssh_creds: Dict = None,
+        creds: "SSHSecret" = None,
         server_host: str = None,
         server_port: int = None,
         ssh_port: int = None,
@@ -68,7 +68,7 @@ class Cluster(Resource):
     ):
         """
         The Runhouse cluster, or system. This is where you can run Functions or access/transfer data
-        between. You can BYO (bring-your-own) cluster by providing cluster IP and ssh_creds, or
+        between. You can BYO (bring-your-own) cluster by providing cluster IP and ssh_creds (as a SSHSecret), or
         this can be an on-demand cluster that is spun up/down through
         `SkyPilot <https://github.com/skypilot-org/skypilot>`_, using your cloud credentials.
 
@@ -78,7 +78,7 @@ class Cluster(Resource):
 
         super().__init__(name=name, dryrun=dryrun)
 
-        self._ssh_creds = ssh_creds
+        self._creds = creds
         self.ips = ips
         self._rpc_tunnel = None
 
@@ -160,7 +160,7 @@ class Cluster(Resource):
             ],
         )
         if self.is_up():
-            config["ssh_creds"] = self.ssh_creds
+            config["creds"] = self.creds
 
         if self._use_custom_cert:
             config["ssl_certfile"] = self.cert_config.cert_path
@@ -450,8 +450,12 @@ class Cluster(Resource):
             )
             self.client_port = self._rpc_tunnel.local_bind_port
 
-            ssh_user = self.ssh_creds.get("ssh_user")
-            password = self.ssh_creds.get("password")
+            ssh_user = self.creds.get(
+                "ssh_user"
+            )  # TODO: get the values of the secret -> get
+            password = self.creds.get(
+                "password"
+            )  # TODO: get the values of the secret -> get
             auth = (ssh_user, password) if ssh_user and password else None
 
             # Connecting to localhost because it's tunneled into the server at the specified port.
@@ -552,7 +556,7 @@ class Cluster(Resource):
 
         return ssh_tunnel(
             address=self.address,
-            ssh_creds=self.ssh_creds,
+            ssh_creds=self.creds,
             local_port=local_port,
             ssh_port=self.ssh_port,
             remote_port=remote_port,
@@ -789,9 +793,9 @@ class Cluster(Resource):
     # ----------------- SSH Methods ----------------- #
 
     @property
-    def ssh_creds(self):
+    def creds(self):
         """Retrieve SSH credentials."""
-        return self._ssh_creds or {}
+        return self._creds.values or {}
 
     def _rsync(
         self,
@@ -836,7 +840,7 @@ class Cluster(Resource):
             source = source + "/" if not source.endswith("/") else source
             dest = dest + "/" if not dest.endswith("/") else dest
 
-        ssh_credentials = copy.copy(self.ssh_creds) or {}
+        ssh_credentials = copy.copy(self.creds) or {}
         ssh_credentials.pop("ssh_host", node)
         pwd = ssh_credentials.pop("password", None)
 
@@ -902,7 +906,7 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("rh-cpu").ssh()
         """
-        creds = self.ssh_creds
+        creds = self.creds
 
         if creds.get("ssh_private_key"):
             cmd = (
@@ -992,7 +996,7 @@ class Cluster(Resource):
 
         return_codes = []
 
-        ssh_credentials = copy.copy(self.ssh_creds)
+        ssh_credentials = copy.copy(self.creds)
         host = ssh_credentials.pop("ssh_host", node or self.address)
         pwd = ssh_credentials.pop("password", None)
 
@@ -1074,9 +1078,7 @@ class Cluster(Resource):
             cmd_prefix = f"{env._run_cmd} {cmd_prefix}"
         command_str = "; ".join(commands)
         command_str_repr = (
-            repr(repr(command_str))[2:-2]
-            if self.ssh_creds.get("password")
-            else command_str
+            repr(repr(command_str))[2:-2] if self.creds.get("password") else command_str
         )
         formatted_command = f'{cmd_prefix} "{command_str_repr}"'
 

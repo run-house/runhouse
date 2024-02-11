@@ -5,6 +5,8 @@ import warnings
 
 from typing import Dict, List, Optional, Union
 
+import runhouse as rh
+
 from runhouse.constants import LOCAL_HOSTS, RESERVED_SYSTEM_NAMES
 from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import relative_ssh_path
@@ -37,8 +39,8 @@ def cluster(
         name (str): Name for the cluster, to re-use later on.
         host (str or List[str], optional): Hostname (e.g. domain or name in .ssh/config), IP address, or list of IP
             addresses for the cluster (the first of which is the head node).
-        ssh_creds (dict, optional): Dictionary mapping SSH credentials.
-            Example: ``ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'}``
+        ssh_creds (dict, optional): SSH credentials, passed as SSHSecret. Example:
+            ``ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'}``
         server_port (bool, optional): Port to use for the server. If not provided will use 80 for a
             ``server_connection_type`` of ``none``, 443 for ``tls`` and ``32300`` for all other SSH connection types.
         server_host (bool, optional): Host from which the server listens for traffic (i.e. the --host argument
@@ -78,11 +80,13 @@ def cluster(
         raise ValueError(
             "Cluster factory method can only accept one of `host` or `ips` as an argument."
         )
-
+    ssh_creds_secret = rh.secret(
+        name=f"{name}_ssh_secret", provider="ssh", values=ssh_creds
+    )
     if name:
         alt_options = dict(
             host=host,
-            ssh_creds=ssh_creds,
+            creds=ssh_creds_secret,
             server_port=server_port,
             server_host=server_host,
             server_connection_type=server_connection_type,
@@ -104,7 +108,7 @@ def cluster(
     if "instance_type" in kwargs.keys():
         return ondemand_cluster(
             name=name,
-            ssh_creds=ssh_creds,
+            creds=ssh_creds_secret,
             server_port=server_port,
             server_host=server_host,
             server_connection_type=server_connection_type,
@@ -152,7 +156,7 @@ def cluster(
 
     c = Cluster(
         ips=kwargs.pop("ips", None) or host,
-        ssh_creds=ssh_creds,
+        creds=ssh_creds_secret,
         name=name,
         server_host=server_host,
         server_port=server_port,
