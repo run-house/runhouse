@@ -187,7 +187,7 @@ class Folder(Resource):
                     raise ValueError(
                         "Cluster must be started before copying data from it."
                     )
-            creds = self.system.ssh_creds
+            creds = self.system.creds
 
             client_keys = (
                 [str(Path(creds["ssh_private_key"]).expanduser())]

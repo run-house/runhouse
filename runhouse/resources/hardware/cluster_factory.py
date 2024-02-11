@@ -82,9 +82,7 @@ def cluster(
         raise ValueError(
             "Cluster factory method can only accept one of `host` or `ips` as an argument."
         )
-    ssh_creds_secret = rh.secret(
-        name=f"{name}_ssh_secret", provider="ssh", values=ssh_creds
-    )
+    ssh_creds_secret = rh.secret(provider="ssh", values=ssh_creds)
     if name:
         alt_options = dict(
             host=host,

@@ -20,15 +20,3 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             "multinode_cpu_cluster",
         ]
     }
-
-    def test_sasha(self):
-        import runhouse as rh
-
-        my_c = rh.ondemand_cluster(name="sasha-ondemand-cluster")
-        my_c.up_if_not()
-        a = my_c.status()
-        ips = a["handle"].stable_internal_external_ips
-        assert len(ips) > 0
-        b = my_c.name
-        assert b == "sasha-ondemand-cluster"
-        my_c.save()

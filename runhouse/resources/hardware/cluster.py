@@ -115,9 +115,6 @@ class Cluster(Resource):
 
     def save_config_to_cluster(self, node: str = None):
         config = self.config_for_rns
-        if "live_state" in config.keys():
-            # a bunch of setup commands that mess up dumping
-            del config["live_state"]
         json_config = f"{json.dumps(config)}"
 
         self.run(
@@ -129,7 +126,13 @@ class Cluster(Resource):
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
+        import runhouse as rh
+
         resource_subtype = config.get("resource_subtype")
+        ssh_cred_values = config.get("creds")
+        if ssh_cred_values:
+            config["creds"] = rh.Secret.from_config(ssh_cred_values)
+
         if resource_subtype == "Cluster":
             return Cluster(**config, dryrun=dryrun)
         elif resource_subtype == "OnDemandCluster":
@@ -161,7 +164,7 @@ class Cluster(Resource):
             ],
         )
         if self.is_up():
-            config["creds"] = self.creds
+            config["creds"] = self._creds.config_for_rns
 
         if self._use_custom_certs:
             config["ssl_certfile"] = self.cert_config.cert_path
@@ -872,7 +875,7 @@ class Cluster(Resource):
             subprocess.run(cmd, check=True, capture_output=stream_logs, text=True)
             return
 
-        ssh_credentials = copy.copy(self.ssh_creds) or {}
+        ssh_credentials = copy.copy(self.creds) or {}
         ssh_credentials.pop("ssh_host", node)
         pwd = ssh_credentials.pop("password", None)
 
